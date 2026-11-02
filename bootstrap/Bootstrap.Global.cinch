@@ -4,27 +4,29 @@
 module Bootstrap.Global where
   import Bootstrap.Type
   import Bootstrap.BodyContract
+  import Bootstrap.Guarded
   import Bootstrap.Core
   import Bootstrap.Instance (scheme-equivalent)
   import Text.Lex (Span)
   import Algebra.Semigroup
 
   export CoreGlobal, GlobalValue, GlobalMethod, GlobalBody, global-name, global-scheme
-  export globals-bodies
+  export globals-bodies, globals-guarded-bodies, GlobalGuardedBody
   export CoreGlobals, add-global, globals-closed, close-globals, global-definition-closed
 
   data CoreGlobal where
     GlobalValue :: String -> String -> Scheme -> CoreGlobal
     GlobalMethod :: String -> String -> Nat -> Scheme -> CoreGlobal
     GlobalBody :: CoreGlobal -> BodyBinding -> CoreGlobal
+    GlobalGuardedBody :: CoreGlobal -> GuardedBinding -> CoreGlobal
   data CoreGlobals where
     ClosedGlobals :: List CoreGlobal -> CoreGlobals
   global-name :: CoreGlobal -> String
-  global-name declaration = case declaration of GlobalValue name role sc -> name; GlobalMethod name owner slot sc -> name; GlobalBody declaration binding -> global-name declaration
+  global-name declaration = case declaration of GlobalValue name role sc -> name; GlobalMethod name owner slot sc -> name; GlobalBody declaration binding -> global-name declaration; GlobalGuardedBody declaration binding -> global-name declaration
   global-scheme :: CoreGlobal -> Scheme
-  global-scheme declaration = case declaration of GlobalValue name role sc -> sc; GlobalMethod name owner slot sc -> sc; GlobalBody declaration binding -> global-scheme declaration
+  global-scheme declaration = case declaration of GlobalValue name role sc -> sc; GlobalMethod name owner slot sc -> sc; GlobalBody declaration binding -> global-scheme declaration; GlobalGuardedBody declaration binding -> global-scheme declaration
   base-global :: CoreGlobal -> CoreGlobal
-  base-global declaration = case declaration of GlobalBody base binding -> base-global base; other -> declaration
+  base-global declaration = case declaration of GlobalBody base binding -> base-global base; GlobalGuardedBody base binding -> base-global base; other -> declaration
   declaration-bodies :: List CoreGlobal -> List BodyBinding
   declaration-bodies declarations = case declarations of Nil -> Nil; Cons (GlobalBody base binding) rest -> Cons binding (declaration-bodies rest); Cons other rest -> declaration-bodies rest
   globals-bodies :: CoreGlobals -> List BodyBinding
@@ -33,9 +35,14 @@ module Bootstrap.Global where
   body-declaration-valid declaration = case declaration of
     GlobalBody (GlobalValue name role sc) binding -> binding-matches name role sc binding
     GlobalBody other binding -> False
+    GlobalGuardedBody (GlobalValue name role sc) binding -> guarded-matches name role sc binding
+    GlobalGuardedBody other binding -> False
     other -> True
   same-body :: CoreGlobal -> CoreGlobal -> Bool
   same-body first second = case (first, second) of
+    (GlobalGuardedBody a binding, GlobalGuardedBody b other) -> guarded-equal binding other
+    (GlobalGuardedBody a binding, other) -> False
+    (other, GlobalGuardedBody b binding) -> False
     (GlobalBody a binding, GlobalBody b other) -> binding-equal binding other
     (GlobalBody a binding, other) -> False
     (other, GlobalBody b binding) -> False
@@ -79,7 +86,7 @@ module Bootstrap.Global where
       && (case base-global declaration of GlobalValue symbol role sc -> role-valid role; GlobalMethod symbol owner slot sc -> string-length owner > 0 && method-self owner sc; other -> False)
       && globals-seen rest (Cons name names)
   globals-closed :: List CoreGlobal -> Bool
-  globals-closed declarations = globals-seen declarations Nil && body-bindings-closed (declaration-bodies declarations) && declarations-body-authorized (declaration-bodies declarations) declarations
+  globals-closed declarations = globals-seen declarations Nil && guarded-bindings-closed (declaration-guarded-bodies declarations) && body-bindings-closed (declaration-bodies declarations) && declarations-body-authorized (declaration-bodies declarations) declarations
   declarations-body-authorized :: List BodyBinding -> List CoreGlobal -> Bool
   declarations-body-authorized bindings declarations = case declarations of
     Nil -> True
@@ -234,3 +241,9 @@ module Bootstrap.Global where
       && core-definition-result-types definition
       && clause-references globals (core-givens definition) (core-clauses definition)
     other -> False)
+
+
+  declaration-guarded-bodies :: List CoreGlobal -> List GuardedBinding
+  declaration-guarded-bodies declarations = case declarations of Nil -> Nil; Cons (GlobalGuardedBody base binding) rest -> Cons binding (declaration-guarded-bodies rest); Cons other rest -> declaration-guarded-bodies rest
+  globals-guarded-bodies :: CoreGlobals -> List GuardedBinding
+  globals-guarded-bodies globals = case globals of ClosedGlobals declarations -> declaration-guarded-bodies declarations

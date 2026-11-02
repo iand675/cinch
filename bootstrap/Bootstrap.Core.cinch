@@ -10,6 +10,7 @@ module Bootstrap.Core where
   import Bootstrap.Proof
   import Bootstrap.Total
   import Bootstrap.BodyContract
+  import Bootstrap.Guarded
   import Data.Nat (nat-to-int)
   import Text.Lex (Span)
   import Algebra.Semigroup
@@ -22,6 +23,7 @@ module Bootstrap.Core where
   export CDecision, decision-type, decision-constructor-scheme, scoped-decision-valid, stable-index-source
   export CRefineProof, scoped-refinement-proof
   export CRefine, CForget, prove-refinement, CRequire, CDischarge, core-predicates, prove-predicates, required-body, CProved, core-condition, core-let-fact, prove-subtraction, numeric-method-operation
+  export scope-guarded-bodies, with-guarded-bindings, scoped-guarded-call-index, core-definition-contracts-closed, seal-definition-with-contracts
   export ProofScope, make-proof-scope, scoped-prove-refinement, scoped-prove-predicates, scoped-core-predicates, scoped-core-condition, scoped-core-let-fact, scoped-prove-subtraction
   export scoped-total-call-index, scope-bodies, with-body-bindings, core-definition-bodies-closed, seal-definition-with-bodies
   export CoreClause, MkCoreClause, CoreDefinition, MkCoreDefinition
@@ -568,19 +570,21 @@ module Bootstrap.Core where
   unique entries seen = case entries of Nil -> Nil; Cons (id, k) rest -> if has-id id seen then unique rest seen else Cons (id, k) (unique rest (Cons (id, k) seen))
   seal-patterns :: Store -> List CorePattern -> List CorePattern
   seal-patterns st ps = case ps of Nil -> Nil; Cons p rest -> Cons (map-pattern-types (freeze-type st) p) (seal-patterns st rest)
-  seal-clauses :: List BodyBinding -> Store -> List CoreClause -> List CoreClause
-  seal-clauses bodies st clauses = case clauses of
+  seal-clauses :: List BodyBinding -> List GuardedBinding -> Store -> List CoreClause -> List CoreClause
+  seal-clauses bodies guards st clauses = case clauses of
     Nil -> Nil
     Cons (MkCoreClause s ps body) rest -> let patterns = seal-patterns st ps in
       let frozen = map-term-types (freeze-type st) body in
-      Cons (MkCoreClause s patterns (refresh-certificates (proof-patterns patterns (with-body-bindings bodies empty-proof-scope)) Nil frozen)) (seal-clauses bodies st rest)
+      Cons (MkCoreClause s patterns (refresh-certificates (proof-patterns patterns (with-guarded-bindings guards (with-body-bindings bodies empty-proof-scope))) Nil frozen)) (seal-clauses bodies guards st rest)
   normalize-valid-type :: Store -> UType -> UType
   normalize-valid-type st ty = if valid-type ty then normalize st ty else UError
   seal-definition :: Store -> CoreDefinition -> CoreDefinition
   seal-definition st definition = seal-definition-with-bodies Nil st definition
   seal-definition-with-bodies :: List BodyBinding -> Store -> CoreDefinition -> CoreDefinition
-  seal-definition-with-bodies bodies st definition = case definition of
-    MkCoreDefinition s name sc openings givens private clauses -> MkCoreDefinition s name (map-scheme (normalize-valid-type st) sc) openings (map-givens (freeze-type st) givens) (unique (private <> given-metas st givens <> clauses-metas st clauses) Nil) (seal-clauses bodies st clauses)
+  seal-definition-with-bodies bodies st definition = seal-definition-with-contracts bodies Nil st definition
+  seal-definition-with-contracts :: List BodyBinding -> List GuardedBinding -> Store -> CoreDefinition -> CoreDefinition
+  seal-definition-with-contracts bodies guards st definition = case definition of
+    MkCoreDefinition s name sc openings givens private clauses -> MkCoreDefinition s name (map-scheme (normalize-valid-type st) sc) openings (map-givens (freeze-type st) givens) (unique (private <> given-metas st givens <> clauses-metas st clauses) Nil) (seal-clauses bodies guards st clauses)
 
   closed-type :: UType -> Bool
   closed-type ty = case ty of
@@ -839,9 +843,11 @@ module Bootstrap.Core where
   core-definition-closed :: CoreDefinition -> Bool
   core-definition-closed definition = core-definition-bodies-closed Nil definition
   core-definition-bodies-closed :: List BodyBinding -> CoreDefinition -> Bool
-  core-definition-bodies-closed bodies definition = body-bindings-closed bodies && (case definition of
+  core-definition-bodies-closed bodies definition = core-definition-contracts-closed bodies Nil definition
+  core-definition-contracts-closed :: List BodyBinding -> List GuardedBinding -> CoreDefinition -> Bool
+  core-definition-contracts-closed bodies guards definition = body-bindings-closed bodies && guarded-bindings-closed guards && (case definition of
     MkCoreDefinition s name sc openings givens private clauses -> let values = opening-value-ids (scheme-params sc) openings in
-      scheme-closed sc && scheme-index-scope Nil sc && givens-closed givens && givens-index-scope values givens && valid-clauses clauses && scoped-clauses values clauses && body-scheme-authorized bodies sc && proof-contract-clauses bodies (substitute-bound openings (scheme-body sc)) clauses)
+      scheme-closed sc && scheme-index-scope Nil sc && givens-closed givens && givens-index-scope values givens && valid-clauses clauses && scoped-clauses values clauses && body-scheme-authorized bodies sc && proof-contract-clauses bodies guards (substitute-bound openings (scheme-body sc)) clauses)
 
   -- Operation certificates are rechecked against facts derived from the
   -- retained Core control flow. Display names never identify proof values.
@@ -859,25 +865,25 @@ module Bootstrap.Core where
   -- Elaboration may supply checked witness hints; closed Core reconstructs
   -- every definition from the actual strict let RHS before checking its body.
   data ProofScope where
-    MkProofScope :: List (Nat, UType) -> List (Nat, UType) -> List (Nat, UType) -> List BodyBinding -> ProofScope
+    MkProofScope :: List (Nat, UType) -> List (Nat, UType) -> List (Nat, UType) -> List BodyBinding -> List GuardedBinding -> ProofScope
   empty-proof-scope :: ProofScope
-  empty-proof-scope = MkProofScope Nil Nil Nil Nil
+  empty-proof-scope = MkProofScope Nil Nil Nil Nil Nil
   scope-bodies :: ProofScope -> List BodyBinding
-  scope-bodies scope = case scope of MkProofScope types values proofs bodies -> bodies
+  scope-bodies scope = case scope of MkProofScope types values proofs bodies guards -> bodies
   with-body-bindings :: List BodyBinding -> ProofScope -> ProofScope
-  with-body-bindings bindings scope = if body-bindings-closed bindings then (case scope of MkProofScope types values proofs old -> MkProofScope types values proofs bindings) else scope
+  with-body-bindings bindings scope = if body-bindings-closed bindings then (case scope of MkProofScope types values proofs old guards -> MkProofScope types values proofs bindings guards) else scope
   scope-types :: ProofScope -> List (Nat, UType)
-  scope-types scope = case scope of MkProofScope types values proofs bodies -> types
+  scope-types scope = case scope of MkProofScope types values proofs bodies guards -> types
   scope-entry :: Nat -> List (Nat, UType) -> Option UType
   scope-entry id entries = case entries of Nil -> None; Cons (key, value) rest -> if id == key then Some value else scope-entry id rest
   scope-value :: Nat -> ProofScope -> Option UType
-  scope-value id scope = case scope of MkProofScope types values proofs bodies -> scope-entry id values
+  scope-value id scope = case scope of MkProofScope types values proofs bodies guards -> scope-entry id values
   scope-remove :: Nat -> List (Nat, UType) -> List (Nat, UType)
   scope-remove id entries = case entries of Nil -> Nil; Cons (key, value) rest -> if id == key then scope-remove id rest else Cons (key, value) (scope-remove id rest)
   scope-without-value :: Nat -> ProofScope -> ProofScope
-  scope-without-value id scope = case scope of MkProofScope types values proofs bodies -> MkProofScope types (scope-remove id values) proofs bodies
+  scope-without-value id scope = case scope of MkProofScope types values proofs bodies guards -> MkProofScope types (scope-remove id values) proofs bodies guards
   scope-local :: Nat -> UType -> ProofScope -> ProofScope
-  scope-local id ty scope = case scope of MkProofScope types values proofs bodies -> MkProofScope (Cons (id, ty) types) (scope-remove id values) (scope-remove id proofs) bodies
+  scope-local id ty scope = case scope of MkProofScope types values proofs bodies guards -> MkProofScope (Cons (id, ty) types) (scope-remove id values) (scope-remove id proofs) bodies guards
   scope-index-valid :: UType -> UType -> Bool
   scope-index-valid carrier value = valid-type value && typed-index-admissible value && kind-equal (type-kind value) (value-kind carrier)
   scope-definitions :: List (Nat, UType) -> List (Nat, UType) -> List (Nat, UType)
@@ -887,7 +893,7 @@ module Bootstrap.Core where
       Some carrier -> if scope-index-valid carrier value then Cons (id, value) (scope-definitions types rest) else scope-definitions types rest
       None -> scope-definitions types rest
   make-proof-scope :: List (Nat, UType) -> List (Nat, UType) -> ProofScope
-  make-proof-scope types values = MkProofScope types (scope-definitions types values) Nil Nil
+  make-proof-scope types values = MkProofScope types (scope-definitions types values) Nil Nil Nil
   scope-index :: ProofScope -> Nat -> String -> UType -> Option UType
   scope-index scope id name ty = case proof-local id scope of
     Some declared -> if not (contract-equal ty declared) then None else case scope-value id scope of
@@ -905,6 +911,7 @@ module Bootstrap.Core where
     CRefineProof sp ty witness body -> stable-index-source body
     CForget sp ty body -> stable-index-source body
     CProved sp ty certificate body -> stable-index-source body
+    CDischarge sp ty certificates body -> True
     CPrimitive sp ty operation (CArgument a first (CArgument b second (CArgumentsEnd end))) ->
       (string-compare operation "+" == 0 || string-compare operation "-" == 0 || string-compare operation "*" == 0) && stable-index-source first && stable-index-source second
     CPrimitive sp ty operation (CArgument a input (CArgumentsEnd end)) -> string-compare operation "negate" == 0 && stable-index-source input
@@ -915,16 +922,16 @@ module Bootstrap.Core where
     case (scheme-params scheme, scheme-requirements scheme) of
       (Nil, Nil) -> if not (stable-index-source rhs && contract-equal (scheme-body scheme) (core-type rhs)) then bound else case actual-index scope facts rhs of
         Some value -> if scope-index-valid (scheme-body scheme) value then
-          (case bound of MkProofScope types values proofs bodies -> MkProofScope types (Cons (id, value) values) proofs bodies) else bound
+          (case bound of MkProofScope types values proofs bodies guards -> MkProofScope types (Cons (id, value) values) proofs bodies guards) else bound
         None -> bound
       other -> bound
 
   scope-erased :: Nat -> UType -> ProofScope -> ProofScope
   scope-erased id predicate gamma = case gamma of
-    MkProofScope types values proofs bodies -> MkProofScope (scope-remove id types) (scope-remove id values) (Cons (id, predicate) (scope-remove id proofs)) bodies
+    MkProofScope types values proofs bodies guards -> MkProofScope (scope-remove id types) (scope-remove id values) (Cons (id, predicate) (scope-remove id proofs)) bodies guards
   scoped-proof-reference :: ProofScope -> UType -> CoreTerm -> Bool
   scoped-proof-reference gamma expected term = valid-type expected && kind-equal (type-kind expected) KProp && (case (gamma, term) of
-    (MkProofScope types values proofs bodies, CProofRef s predicate id name) -> valid-proof-reference term && contract-equal expected predicate
+    (MkProofScope types values proofs bodies guards, CProofRef s predicate id name) -> valid-proof-reference term && contract-equal expected predicate
       && (case scope-entry id proofs of Some declared -> valid-type declared && kind-equal (type-kind declared) KProp && contract-equal predicate declared; None -> False)
     other -> False)
   -- These identities and schemes belong to the kernel. In particular a
@@ -1009,7 +1016,7 @@ module Bootstrap.Core where
   proof-assumptions :: ProofScope -> List Proposition -> List Proposition
   proof-assumptions gamma facts = natural-facts (natural-ids (refinement-gamma (scope-types gamma))) <> machine-facts (machine-ids (scope-types gamma)) (scope-types gamma) <> byte-length-facts (byte-buffer-ids (scope-types gamma)) <> refinement-facts gamma (scope-types gamma) <> erased-facts gamma <> facts
   erased-facts :: ProofScope -> List Proposition
-  erased-facts gamma = case gamma of MkProofScope types values proofs bodies -> erased-predicates gamma proofs
+  erased-facts gamma = case gamma of MkProofScope types values proofs bodies guards -> erased-predicates gamma proofs
   erased-predicates :: ProofScope -> List (Nat, UType) -> List Proposition
   erased-predicates gamma proofs = case proofs of
     Nil -> Nil
@@ -1066,6 +1073,7 @@ module Bootstrap.Core where
   core-arithmetic gamma facts term = case checked-total-index gamma facts term of Some value -> typed-index-arithmetic gamma value; None -> ordinary-arithmetic gamma facts term
   ordinary-arithmetic :: ProofScope -> List Proposition -> CoreTerm -> Option Arithmetic
   ordinary-arithmetic gamma facts term = case term of
+    CDischarge sp ty certificates body -> scoped-guarded-call-reading gamma facts term
     CApply s ty (CUse at function symbol role Nil) input ->
       if byte-length-function ty function symbol role then
         (case actual-index gamma facts input of Some value -> (case byte-observation-id gamma value of Some id -> Some (byte-length-variable id); None -> None); None -> None)
@@ -1436,6 +1444,7 @@ module Bootstrap.Core where
   actual-index gamma facts term = case checked-total-index gamma facts term of Some value -> Some value; None -> ordinary-index gamma facts term
   ordinary-index :: ProofScope -> List Proposition -> CoreTerm -> Option UType
   ordinary-index gamma facts term = case term of
+    CDischarge sp ty certificates body -> scoped-guarded-call-index gamma facts term
     CApply s ty (CUse at function symbol role Nil) input ->
       if byte-length-function ty function symbol role then
         (case actual-index gamma facts input of Some value -> (case byte-observation-id gamma value of Some id -> Some (UIndexByteLength value); None -> None); None -> None)
@@ -1558,12 +1567,12 @@ module Bootstrap.Core where
       CRequire s ty body -> contract-equal expected ty && (case scoped-core-predicates gamma predicates of Some introduced -> proof-expected gamma (introduced <> facts) result body; None -> False)
       other -> False
     other -> proof-term gamma facts term
-  proof-contract-clauses :: List BodyBinding -> UType -> List CoreClause -> Bool
-  proof-contract-clauses bodies expected clauses = case clauses of
+  proof-contract-clauses :: List BodyBinding -> List GuardedBinding -> UType -> List CoreClause -> Bool
+  proof-contract-clauses bodies guards expected clauses = case clauses of
     Nil -> True
     Cons (MkCoreClause s patterns body) rest -> (case patterns-result expected patterns of
-      Some result -> proof-expected (proof-patterns patterns (with-body-bindings bodies empty-proof-scope)) Nil result body
-      None -> False) && proof-contract-clauses bodies expected rest
+      Some result -> proof-expected (proof-patterns patterns (with-guarded-bindings guards (with-body-bindings bodies empty-proof-scope))) Nil result body
+      None -> False) && proof-contract-clauses bodies guards expected rest
 
   numeric-method-comparison :: CoreTerm -> CoreTerm -> CoreTerm -> Option Comparison
   numeric-method-comparison method first second = case method of
@@ -1685,4 +1694,43 @@ module Bootstrap.Core where
   scoped-total-call-index :: ProofScope -> List Proposition -> CoreTerm -> Option UType
   scoped-total-call-index gamma facts term = if not (proof-term gamma facts term) then None else case actual-index gamma facts term of
     Some (UIndexCall function arguments) -> Some (UIndexCall function arguments)
+    other -> None
+
+
+  scope-guarded-bodies :: ProofScope -> List GuardedBinding
+  scope-guarded-bodies scope = case scope of MkProofScope types values proofs bodies guards -> guards
+  with-guarded-bindings :: List GuardedBinding -> ProofScope -> ProofScope
+  with-guarded-bindings bindings scope = if guarded-bindings-closed bindings then (case scope of MkProofScope types values proofs bodies old -> MkProofScope types values proofs bodies bindings) else scope
+  guarded-call-spine :: ProofScope -> CoreTerm -> List CoreTerm -> Option (GuardedBinding, List CoreTerm)
+  guarded-call-spine gamma term arguments = case term of
+    CApply sp ty function argument -> guarded-call-spine gamma function (Cons argument arguments)
+    CApplyEff sp ty (URow UEnd) function argument -> guarded-call-spine gamma function (Cons argument arguments)
+    CUse sp ty name role Nil -> if string-compare role "external" /= 0 then None else (case guarded-binding name (scope-guarded-bodies gamma) of
+      Some binding -> if guarded-matches name role (mono ty) binding && list-length arguments == guarded-arity binding then Some (binding, arguments) else None
+      None -> None)
+    other -> None
+  guarded-actuals :: ProofScope -> List Proposition -> List CoreTerm -> Option (List UType)
+  guarded-actuals gamma facts arguments = case arguments of
+    Nil -> Some Nil
+    Cons first rest -> if not (nat-type (core-type first) && proof-term gamma facts first) then None else (case (actual-index gamma facts first, guarded-actuals gamma facts rest) of
+      (Some value, Some more) -> Some (Cons value more)
+      other -> None)
+  scoped-guarded-call-index :: ProofScope -> List Proposition -> CoreTerm -> Option UType
+  scoped-guarded-call-index gamma facts term = case term of
+    CDischarge sp ty evidence body -> if not (nat-type ty && discharged gamma facts ty evidence body) then None else (case guarded-call-spine gamma body Nil of
+      Some (binding, arguments) -> (case guarded-actuals gamma facts arguments of Some values -> guarded-index binding values; None -> None)
+      None -> None)
+    other -> None
+
+  guarded-actual-readings :: ProofScope -> List Proposition -> List CoreTerm -> Option (List Arithmetic)
+  guarded-actual-readings gamma facts arguments = case arguments of
+    Nil -> Some Nil
+    Cons first rest -> if not (nat-type (core-type first) && proof-term gamma facts first) then None else (case (core-arithmetic gamma facts first, guarded-actual-readings gamma facts rest) of
+      (Some value, Some more) -> Some (Cons value more)
+      other -> None)
+  scoped-guarded-call-reading :: ProofScope -> List Proposition -> CoreTerm -> Option Arithmetic
+  scoped-guarded-call-reading gamma facts term = case term of
+    CDischarge sp ty evidence body -> if not (nat-type ty && discharged gamma facts ty evidence body) then None else (case guarded-call-spine gamma body Nil of
+      Some (binding, arguments) -> (case guarded-actual-readings gamma facts arguments of Some values -> guarded-reading binding values; None -> None)
+      None -> None)
     other -> None

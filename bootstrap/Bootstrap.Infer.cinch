@@ -8,6 +8,7 @@ module Bootstrap.Infer where
   import Bootstrap.Index
   import Bootstrap.Total
   import Bootstrap.BodyContract
+  import Bootstrap.Guarded
   import Bootstrap.Proof (Proposition, PNegate)
   import Data.Nat (nat-from-int, nat-to-int)
   import Text.Show (int-to-string)
@@ -27,7 +28,7 @@ module Bootstrap.Infer where
 
   export needs-inference, infer-program, elaborate-program
   export Elaboration, elaboration-errors, elaboration-bindings, elaboration-contexts, elaboration-core
-  export CheckedBinding, checked-name, checked-scheme, checked-role, checked-body-binding
+  export CheckedBinding, checked-name, checked-scheme, checked-role, checked-body-binding, checked-guarded-binding
   export elaboration-data, elaboration-effects, elaboration-classes, elaboration-class-context, elaboration-instances
 
   -- Surface templates live only in this elaboration context. Checked
@@ -53,7 +54,7 @@ module Bootstrap.Infer where
     MkCheckedBinding :: String -> Scheme -> String -> CheckedBinding
     MkBodyBinding :: BodyBinding -> CheckedBinding
     MkMethodBinding :: String -> Scheme -> String -> Nat -> CheckedBinding
-    MkConditionalBinding :: String -> String -> Nat -> String -> UType -> Scheme -> CheckedBinding
+    MkConditionalBinding :: String -> String -> Nat -> String -> UType -> Scheme -> Option GuardedBinding -> CheckedBinding
     MkGivenBinding :: String -> UType -> String -> CheckedBinding
     MkLocalBinding :: String -> Scheme -> Nat -> Nat -> CheckedBinding
     -- A strict, monomorphic let whose checked RHS has a total index form.
@@ -64,11 +65,11 @@ module Bootstrap.Infer where
     MkErasedBinding :: String -> UType -> Nat -> CheckedBinding
     MkSyntaxBinding :: String -> CheckedBinding
   checked-name :: CheckedBinding -> String
-  checked-name b = case b of MkBodyBinding binding -> binding-name binding; MkCheckedBinding name sc role -> name; MkMethodBinding name sc owner slot -> name; MkConditionalBinding name owner slot dictionary head sc -> name; MkGivenBinding name ty symbol -> name; MkLocalBinding name sc id level -> name; MkValueBinding name sc id level value -> name; MkIntrinsicBinding name sc symbol -> name; MkProofBinding fact -> ""; MkErasedBinding name predicate id -> name; MkSyntaxBinding name -> name
+  checked-name b = case b of MkBodyBinding binding -> binding-name binding; MkCheckedBinding name sc role -> name; MkMethodBinding name sc owner slot -> name; MkConditionalBinding name owner slot dictionary head sc guarded -> name; MkGivenBinding name ty symbol -> name; MkLocalBinding name sc id level -> name; MkValueBinding name sc id level value -> name; MkIntrinsicBinding name sc symbol -> name; MkProofBinding fact -> ""; MkErasedBinding name predicate id -> name; MkSyntaxBinding name -> name
   checked-scheme :: CheckedBinding -> Scheme
-  checked-scheme b = case b of MkBodyBinding binding -> binding-scheme binding; MkCheckedBinding name sc role -> sc; MkMethodBinding name sc owner slot -> sc; MkConditionalBinding name owner slot dictionary head sc -> sc; MkGivenBinding name ty symbol -> mono ty; MkLocalBinding name sc id level -> sc; MkValueBinding name sc id level value -> sc; MkIntrinsicBinding name sc symbol -> sc; MkProofBinding fact -> mono UError; MkErasedBinding name predicate id -> mono predicate; MkSyntaxBinding name -> mono UError
+  checked-scheme b = case b of MkBodyBinding binding -> binding-scheme binding; MkCheckedBinding name sc role -> sc; MkMethodBinding name sc owner slot -> sc; MkConditionalBinding name owner slot dictionary head sc guarded -> sc; MkGivenBinding name ty symbol -> mono ty; MkLocalBinding name sc id level -> sc; MkValueBinding name sc id level value -> sc; MkIntrinsicBinding name sc symbol -> sc; MkProofBinding fact -> mono UError; MkErasedBinding name predicate id -> mono predicate; MkSyntaxBinding name -> mono UError
   checked-role :: CheckedBinding -> String
-  checked-role b = case b of MkBodyBinding binding -> binding-role binding; MkCheckedBinding name sc role -> role; MkMethodBinding name sc owner slot -> "method"; MkConditionalBinding name owner slot dictionary head sc -> "external"; MkGivenBinding name ty symbol -> "dictionary"; MkLocalBinding name sc id level -> "local"; MkValueBinding name sc id level value -> "local"; MkIntrinsicBinding name sc symbol -> "intrinsic"; MkProofBinding fact -> "proof"; MkErasedBinding name predicate id -> "erased-proof"; MkSyntaxBinding name -> "builtin-syntax"
+  checked-role b = case b of MkBodyBinding binding -> binding-role binding; MkCheckedBinding name sc role -> role; MkMethodBinding name sc owner slot -> "method"; MkConditionalBinding name owner slot dictionary head sc guarded -> "external"; MkGivenBinding name ty symbol -> "dictionary"; MkLocalBinding name sc id level -> "local"; MkValueBinding name sc id level value -> "local"; MkIntrinsicBinding name sc symbol -> "intrinsic"; MkProofBinding fact -> "proof"; MkErasedBinding name predicate id -> "erased-proof"; MkSyntaxBinding name -> "builtin-syntax"
   checked-body-binding :: CheckedBinding -> Option BodyBinding
   checked-body-binding binding = case binding of MkBodyBinding body -> Some body; other -> None
   data Elaboration where
@@ -596,6 +597,9 @@ module Bootstrap.Infer where
           other -> case reify-argument sp env body st of
             (value, checked) -> checked-typed-source-index sp (UIndexForget value) (unify sp carrier domain checked)
       other -> bad sp "refinement projection needs an actual refined operand" st
+    CDischarge source ty evidence body -> (case scoped-guarded-call-index (proof-context env st) (proof-facts env) (map-term-types (normalize st) term) of
+      Some index -> checked-typed-source-index sp index st
+      None -> bad sp "conditional argument needs checked defining body authority" st)
     CProved source ty evidence (CPrimitive at output operation (CArgument a first (CArgument b second (CArgumentsEnd end)))) ->
       if same operation "-" && same-type (normalize st ty) (primitive-type "Nat") && same-type ty output then
         (case scoped-prove-subtraction (proof-context env st) (proof-facts env) (map-term-types (normalize st) first) (map-term-types (normalize st) second) of
@@ -1472,7 +1476,7 @@ module Bootstrap.Infer where
     (Nil, Nil) -> Cons (id, normalize st (scheme-body sc)) rest
     other -> rest
   proof-context :: List CheckedBinding -> Store -> ProofScope
-  proof-context env st = proof-erased env st (with-body-bindings (env-body-bindings env) (make-proof-scope (proof-gamma env st) (proof-values env st)))
+  proof-context env st = proof-erased env st (with-guarded-bindings (env-guarded-bindings env) (with-body-bindings (env-body-bindings env) (make-proof-scope (proof-gamma env st) (proof-values env st))))
   env-body-bindings :: List CheckedBinding -> List BodyBinding
   env-body-bindings env = case env of Nil -> Nil; Cons (MkBodyBinding binding) rest -> Cons binding (env-body-bindings rest); Cons other rest -> env-body-bindings rest
   proof-erased :: List CheckedBinding -> Store -> ProofScope -> ProofScope
@@ -1821,6 +1825,10 @@ module Bootstrap.Infer where
   -- an outer annotation, and every RHS remains evaluated exactly once.
   refine-inferred :: List CheckedBinding -> Span -> UType -> UType -> CoreTerm -> Store -> (CoreTerm, Store)
   refine-inferred env sp expected carrier term st = case term of
+    -- A conditional Nat result may have a checked mathematical equation
+    -- while remaining unavailable as an unconditional type-level index.
+    -- Bind it once; the independent CLet rule reconstructs that equation.
+    CDischarge at ty evidence body -> materialize-refinement env sp expected carrier term st
     CLet at ty id name sc rhs body ->
       let binding = MkLocalBinding name sc id (store-level st) in
       let bound = proof-let-env env binding id sc rhs st in
@@ -2272,7 +2280,7 @@ module Bootstrap.Infer where
         (definition, ss) -> case definition of
           None -> (Cons name seen, None, ss)
           Some core -> case resolve-dictionary-definition-with classes (env-instances env) core ss of
-            (resolved, checked) -> (Cons name seen, Some (seal-definition-with-bodies (env-body-bindings env) checked resolved), checked)
+            (resolved, checked) -> (Cons name seen, Some (seal-definition-with-contracts (env-body-bindings env) (env-guarded-bindings env) checked resolved), checked)
     DSig s name ty -> (seen, None, if has-definition name all then st else add-error s (string-concat "signature has no definition: " name) st)
     other -> (seen, None, st)
   check-bodies :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List String -> List Decl -> List Decl -> Store -> (List CoreDefinition, Store)
@@ -2298,7 +2306,7 @@ module Bootstrap.Infer where
     MkBodyBinding binding -> b
     MkCheckedBinding n sc role -> MkCheckedBinding n (map-scheme-types (normalize st) sc) role
     MkMethodBinding n sc owner slot -> MkMethodBinding n (map-scheme-types (normalize st) sc) owner slot
-    MkConditionalBinding n owner slot dictionary head sc -> MkConditionalBinding n owner slot dictionary (normalize st head) (map-scheme-types (normalize st) sc)
+    MkConditionalBinding n owner slot dictionary head sc guarded -> MkConditionalBinding n owner slot dictionary (normalize st head) (map-scheme-types (normalize st) sc) guarded
     MkGivenBinding n ty symbol -> MkGivenBinding n (normalize st ty) symbol
     MkLocalBinding n sc id level -> MkLocalBinding n (map-scheme-types (normalize st) sc) id level
     MkValueBinding n sc id level value -> MkValueBinding n (map-scheme-types (normalize st) sc) id level (normalize st value)
@@ -2315,7 +2323,7 @@ module Bootstrap.Infer where
       MkBodyBinding binding -> add-global (GlobalBody (GlobalValue (binding-name binding) (binding-role binding) (binding-scheme binding)) binding) globals
       MkCheckedBinding name sc role -> add-global (GlobalValue name role sc) globals
       MkMethodBinding name sc owner slot -> add-global (GlobalMethod name owner slot sc) globals
-      MkConditionalBinding name owner slot dictionary head sc -> add-global (GlobalValue name "external" sc) globals
+      MkConditionalBinding name owner slot dictionary head sc guarded -> add-global (case guarded of Some binding -> GlobalGuardedBody (GlobalValue name "external" sc) binding; None -> GlobalValue name "external" sc) globals
       MkIntrinsicBinding name sc symbol -> add-global (GlobalValue symbol "intrinsic" sc) globals
       other -> globals)
   field-globals :: List CoreDictionaryField -> List CoreGlobal -> List CoreGlobal
@@ -2328,7 +2336,7 @@ module Bootstrap.Infer where
   check-core-closed :: TypingContext -> List CoreDefinition -> Store -> Store
   check-core-closed globals definitions st = case definitions of
     Nil -> st
-    Cons d rest -> check-core-closed globals rest (if not (core-definition-bodies-closed (context-bodies globals) d) then add-error zero "typed core contains an unresolved scheme or error term" st
+    Cons d rest -> check-core-closed globals rest (if not (core-definition-contracts-closed (context-bodies globals) (context-guarded-bodies globals) d) then add-error zero "typed core contains an unresolved scheme or error term" st
       else if typing-definition-closed globals d then st else add-error zero (string-concat "independent Core typing disagrees with the declaration or term: " (core-name d)) st)
   check-field-globals :: TypingContext -> List CoreDictionaryField -> Store -> Store
   check-field-globals globals fields st = case fields of Nil -> st; Cons field rest -> check-field-globals globals rest (check-core-closed globals [dictionary-field-definition field] st)
@@ -2426,7 +2434,7 @@ module Bootstrap.Infer where
             (None, failed) -> (Nil, failed)
             (Some definition, checked) -> case resolve-dictionary-definition-with classes (env-instances env) definition checked of
               (resolved, final) -> case source-instance-fields classes kinds families env description symbol factory declarations rest final of
-                (more, done) -> (Cons (MkCoreDictionaryField zero (class-method-slot member) (seal-definition-with-bodies (env-body-bindings env) done resolved)) more, done)
+                (more, done) -> (Cons (MkCoreDictionaryField zero (class-method-slot member) (seal-definition-with-contracts (env-body-bindings env) (env-guarded-bindings env) done resolved)) more, done)
   checked-source-instances :: List Json -> List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List Decl -> List CoreClass -> Store -> (List CoreClass, List CoreInstance, Store)
   checked-source-instances rows classes kinds families env ds descriptions st = case ds of
     Nil -> (descriptions, Nil, st)
@@ -2720,7 +2728,7 @@ module Bootstrap.Infer where
   conditional-heads :: List CheckedBinding -> List String -> List (String, Scheme)
   conditional-heads env seen = case env of
     Nil -> Nil
-    Cons (MkConditionalBinding name owner slot dictionary head sc) rest -> let key = dictionary in
+    Cons (MkConditionalBinding name owner slot dictionary head sc guarded) rest -> let key = dictionary in
       if has key seen then conditional-heads rest seen else Cons (name, mono head) (conditional-heads rest (Cons key seen))
     Cons other rest -> conditional-heads rest seen
   conditional-member :: Nat -> List CoreClassMethod -> Option CoreClassMethod
@@ -2762,7 +2770,11 @@ module Bootstrap.Infer where
                   && conditional-precondition (scheme-body actual)
                   && scheme-equivalent expected (mono (conditional-erasure (scheme-body actual))) then
                     (case lookup-binding name env of
-                      None -> register-conditional-methods descriptions classes kinds sp dictionary rest (Cons (MkConditionalBinding name owner slot dictionary (scheme-body head) actual) env) sd
+                      None -> (case field "body" (field "implementation" checked) of
+                        JNull -> register-conditional-methods descriptions classes kinds sp dictionary rest (Cons (MkConditionalBinding name owner slot dictionary (scheme-body head) actual None) env) sd
+                        doc -> (case check-guarded-binding name native actual doc of
+                          Some binding -> register-conditional-methods descriptions classes kinds sp dictionary rest (Cons (MkConditionalBinding name owner slot dictionary (scheme-body head) actual (Some binding)) env) sd
+                          None -> (env, add-error sp "actual guarded body is not total under its callable preconditions" sd)))
                       Some prior -> (env, add-error sp "duplicate conditional implementation identity" sd))
                   else (env, add-error sp "conditional implementation disagrees with its actual class member" sd)
                 None -> (env, add-error sp "conditional implementation has no checked class specialization" sd))
@@ -2793,7 +2805,7 @@ module Bootstrap.Infer where
   conditional-function :: Span -> String -> Nat -> UType -> UType -> List CheckedBinding -> Store -> (Option CoreTerm, Store)
   conditional-function sp owner slot wanted member env st = case env of
     Nil -> (None, st)
-    Cons (MkConditionalBinding name actual-owner actual-slot dictionary head sc) rest ->
+    Cons (MkConditionalBinding name actual-owner actual-slot dictionary head sc guarded) rest ->
       if same owner actual-owner && slot == actual-slot then
         let trial = unify sp wanted head st in
         if list-length (store-errors trial) == list-length (store-errors st)
@@ -2851,3 +2863,13 @@ module Bootstrap.Infer where
     JArr row rest -> case collect-conditional-measures sp (field "method_contracts" row) classes kinds st of
       (more, done) -> collect-conditional-instance-measures sp rest classes more done
     other -> (kinds, st)
+
+
+  env-guarded-bindings :: List CheckedBinding -> List GuardedBinding
+  env-guarded-bindings env = case env of
+    Nil -> Nil
+    Cons (MkConditionalBinding name owner slot dictionary head sc (Some binding)) rest -> Cons binding (env-guarded-bindings rest)
+    Cons other rest -> env-guarded-bindings rest
+
+  checked-guarded-binding :: CheckedBinding -> Option GuardedBinding
+  checked-guarded-binding binding = case binding of MkConditionalBinding name owner slot dictionary head sc guarded -> guarded; other -> None

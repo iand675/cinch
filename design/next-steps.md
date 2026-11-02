@@ -1,5 +1,22 @@
 # Next steps (as of 2026-11-02)
 
+Cinch now uses checked conditional Nat bodies to retain actual result
+equations. Body admission rechecks totality under the complete callable
+preconditions. Core independently associates each equation with the actual
+external declaration and rechecks the call evidence. A symbolic Nat result is
+bound once with a mathematical equation; unknown subtraction is still not an
+unconditional type-level index. No class/name/slot equation rule was added.
+
+The compiled Cinch checkers pass25 runtime-fed source cases,40 call-evidence
+checks,50 body/declaration/stale-alias checks and50 body-admission checks. The
+new whole parser-corpus and global-declaration targets pass. All142 Native
+units and12 whole Native regressions pass on the same implementation bytes.
+The187-integration plus five-general-gate suite is running on the742 seed.
+All six fresh stage0/1 smokes pass; the actual stage2 attempt is running.
+Genuine self-hosting remains incomplete. See
+[the guarded-body consumer report](../bootstrap/guarded-body-consumer-results.json).
+
+
 Rust now retains strict Nat let equations from actual checked bodies and
 keeps their original values across aliases and numeric result-contract
 shadowing. Unknown dictionaries grant no equation; a result fact cannot

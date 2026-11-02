@@ -7,17 +7,20 @@ module Bootstrap.Typing where
   import Bootstrap.Core
   import Bootstrap.Global
   import Bootstrap.BodyContract
+  import Bootstrap.Guarded
   import Bootstrap.Kinds
   import Bootstrap.Proof (Proposition, PNegate)
   import Bootstrap.Nominal (interface-global)
   import Text.Lex (Span)
   import Algebra.Semigroup
 
-  export TypingContext, close-typing-context, typing-definition-closed, context-bodies
+  export TypingContext, close-typing-context, typing-definition-closed, context-bodies, context-guarded-bodies
   data TypingContext where
     CheckedTypingContext :: List (String, Kind) -> CoreGlobals -> TypingContext
   context-bodies :: TypingContext -> List BodyBinding
   context-bodies context = case context of CheckedTypingContext kinds globals -> globals-bodies globals
+  context-guarded-bodies :: TypingContext -> List GuardedBinding
+  context-guarded-bodies context = case context of CheckedTypingContext kinds globals -> globals-guarded-bodies globals
   context-kinds :: TypingContext -> List (String, Kind)
   context-kinds context = case context of CheckedTypingContext kinds globals -> kinds
   same :: String -> String -> Bool
@@ -228,10 +231,10 @@ module Bootstrap.Typing where
   clauses-typed :: TypingContext -> TypeScope -> UType -> List CoreClause -> Bool
   clauses-typed context scope expected clauses = case clauses of
     Nil -> True
-    Cons (MkCoreClause sp patterns body) rest -> clause-typed context scope (with-body-bindings (context-bodies context) (make-proof-scope Nil Nil)) expected empty-row patterns body && clauses-typed context scope expected rest
+    Cons (MkCoreClause sp patterns body) rest -> clause-typed context scope (with-guarded-bindings (context-guarded-bodies context) (with-body-bindings (context-bodies context) (make-proof-scope Nil Nil))) expected empty-row patterns body && clauses-typed context scope expected rest
   typing-definition-closed :: TypingContext -> CoreDefinition -> Bool
   typing-definition-closed context definition = (case context of CheckedTypingContext kinds globals -> global-definition-closed globals definition)
-    && core-definition-bodies-closed (context-bodies context) definition
+    && core-definition-contracts-closed (context-bodies context) (context-guarded-bodies context) definition
     && (case openings-scope context empty-type-scope (core-openings definition) of
       Some opened -> (case private-scope opened (core-private-types definition) of
         Some scope -> private-kinds context scope (core-private-types definition) && givens-typed context scope (core-givens definition)
