@@ -17,6 +17,11 @@ fn decision_constructors_check_erasure_metadata_and_source_evidence() {
     let exe = common::build(&dir, "Main.cinch", "source-constructors").expect("build source constructor checker");
     let yes = "wrap :: forall (p :: Prop). (h :: p) -> Dec p\n  wrap h = Yes h";
     let cases = [
+        ("nullary constructor does not capture following field", "data Leaf where\n    End :: Leaf\n    Item :: Int -> Leaf\n  data Box where\n    Box :: Leaf -> Int -> Box\n  read :: Box -> Int\n  read (Box End n) = n\n  read (Box (Item value) n) = value + n", true),
+        ("two adjacent nullary constructor fields", "data Leaf where\n    End :: Leaf\n  data Pair where\n    Pair :: Leaf -> Leaf -> Pair\n  read :: Pair -> Int\n  read (Pair End End) = 0", true),
+        ("nested fields require parentheses", "data Leaf where\n    Item :: Int -> Leaf\n  data Box where\n    Box :: Leaf -> Int -> Box\n  bad :: Box -> Int\n  bad (Box Item value n) = n", false),
+        ("equation constructor parameter does not capture next argument", "data Leaf where\n    End :: Leaf\n    Item :: Int -> Leaf\n  read :: Leaf -> Int -> Int\n  read End n = n\n  read (Item value) n = value + n", true),
+        ("lambda constructor parameter does not capture next argument", "data Leaf where\n    End :: Leaf\n  read :: Leaf -> Int -> Int\n  read leaf n = (\\End value -> value) leaf n", true),
         ("positive proof constructor", yes, true),
         ("negative proof constructor", "reject :: forall (p :: Prop). (h :: Not p) -> Dec p\n  reject h = No h", true),
         ("both decision alternatives", "extract :: forall (p :: Prop). Dec p -> Int\n  extract value = case value of Yes h -> 1; No h -> 0", true),

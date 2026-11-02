@@ -1,0 +1,153 @@
+{
+  "recorded_at": "2026-11-02T05:30:51.307994+00:00",
+  "status": "compiled Cinch source/Core constructor target passes; broader regressions and fresh actual stages running",
+  "source_sha256": "a4c5bdb0c4ebf0b6f266590b395966f6980ba28f17351839af67565c49fad82b",
+  "owned_changes": [
+    "bootstrap/Bootstrap.Parse.cinch",
+    "compiler/tests/bootstrap_source_constructors.rs"
+  ],
+  "source_cases": 17,
+  "metadata_mutation_cases": 9,
+  "total_runtime_cases": 26,
+  "whole_target": {
+    "command": [
+      "cargo",
+      "test",
+      "--no-fail-fast",
+      "--target-dir",
+      "/tmp/cinch-constructor-fields-validation-2/cargo",
+      "--test",
+      "bootstrap_source_constructors",
+      "--",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit_code": 0,
+    "finished": "2026-11-02T05:28:47.908718+00:00",
+    "lane": "sole named outside fifth worker; all matrix, stage and measure gates use four shared slots",
+    "pid": 45480,
+    "source_sha256": "a4c5bdb0c4ebf0b6f266590b395966f6980ba28f17351839af67565c49fad82b",
+    "started": "2026-11-02T05:24:11.239839+00:00",
+    "status": "passed"
+  },
+  "focused_regressions": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-constructor-fields-validation-2/cargo",
+        "--test",
+        "bootstrap_infer",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "name": "bootstrap_infer",
+      "source_sha256": "a4c5bdb0c4ebf0b6f266590b395966f6980ba28f17351839af67565c49fad82b",
+      "status": "waiting-shared-slot"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-constructor-fields-validation-2/cargo",
+        "--test",
+        "bootstrap_parse",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "name": "bootstrap_parse",
+      "source_sha256": "a4c5bdb0c4ebf0b6f266590b395966f6980ba28f17351839af67565c49fad82b",
+      "status": "waiting-shared-slot"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-constructor-fields-validation-2/cargo",
+        "--test",
+        "bootstrap_pi",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "name": "bootstrap_pi",
+      "source_sha256": "a4c5bdb0c4ebf0b6f266590b395966f6980ba28f17351839af67565c49fad82b",
+      "status": "waiting-shared-slot"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-constructor-fields-validation-2/cargo",
+        "--test",
+        "bootstrap_resolve",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "name": "bootstrap_resolve",
+      "source_sha256": "a4c5bdb0c4ebf0b6f266590b395966f6980ba28f17351839af67565c49fad82b",
+      "status": "waiting-shared-slot"
+    }
+  ],
+  "actual_stages": {
+    "directory": "/tmp/cinch-constructor-fields-stages-2",
+    "results": [
+      {
+        "command": [
+          "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "tooling/bootstrap.py",
+          "smoke",
+          "--stage",
+          "0"
+        ],
+        "exit_code": 0,
+        "finished": "2026-11-02T05:28:54.383601+00:00",
+        "log": "/tmp/cinch-constructor-fields-stages-2/stage0-smoke.log",
+        "name": "stage0-smoke",
+        "pid": 48490,
+        "started": "2026-11-02T05:28:49.484586+00:00",
+        "status": "passed"
+      },
+      {
+        "command": [
+          "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "tooling/bootstrap.py",
+          "smoke",
+          "--stage",
+          "1"
+        ],
+        "log": "/tmp/cinch-constructor-fields-stages-2/stage1-smoke.log",
+        "name": "stage1-smoke",
+        "pid": 48575,
+        "started": "2026-11-02T05:28:54.384017+00:00",
+        "status": "running"
+      }
+    ],
+    "scope": "fresh source compiler, identical verified pinned seed reused; no stage2 success claimed"
+  },
+  "fixed": [
+    "Nested constructor fields are atomic: Box End n retains End and n as separate fields.",
+    "Equation and lambda parameters are atomic; a nullary constructor cannot capture the next parameter.",
+    "Full constructor application remains available at case roots and inside parentheses; pattern annotations are preserved."
+  ],
+  "preceding_stage2_boundary": {
+    "evidence": "/tmp/cinch-total-measures-stages-1",
+    "diagnostics": 758,
+    "old_imported_measure_header_refusals": 0,
+    "no_ir_or_compiler": true
+  },
+  "limits": [
+    "The new parser snapshot has not completed its full suite or actual stage2 rebuild.",
+    "The currently running177+5 full matrix belongs to the immediately preceding schema8 parser snapshot; it is not a full-suite result for this parser change.",
+    "List literals, effect/dependent elaboration, actual selected method authority, full proof/usage/totality, typed runtime lowering and full self-built frontend tests remain unfinished."
+  ],
+  "seed_unchanged_from_schema8_checkpoint": true,
+  "self_hosting_achieved": false
+}

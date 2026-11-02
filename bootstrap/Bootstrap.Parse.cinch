@@ -1265,11 +1265,18 @@ module Bootstrap.Parse where
   pats-loop toks src acc = case toks of
     Cons t rest ->
       if starts-pattern (lt-token t) then
-        case parse-pat toks src of
+        case parse-parameter-pat toks src of
           POk p rest2 -> pats-loop rest2 src (Cons p acc)
           PBad -> POk (reverse acc) toks
       else POk (reverse acc) toks
     Nil -> POk (reverse acc) toks
+
+  -- Equation and lambda parameters are atomic. Full constructor application
+  -- belongs inside parentheses or at a case-pattern root.
+  parse-parameter-pat :: List LToken -> Bytes -> Ps Pat
+  parse-parameter-pat toks src = case parse-as-atomic toks src of
+    POk p rest -> pat-tail p rest src
+    PBad -> PBad
 
   parse-pat :: List LToken -> Bytes -> Ps Pat
   parse-pat toks src = case parse-pat-atomic toks src of
@@ -1329,7 +1336,7 @@ module Bootstrap.Parse where
   parse-ctr-pats toks src acc = case toks of
     Cons t rest ->
       if starts-pattern (lt-token t) then
-        case parse-pat-atomic toks src of
+        case parse-as-atomic toks src of
           POk p rest2 -> parse-ctr-pats rest2 src (Cons p acc)
           PBad -> POk (reverse acc) toks
       else POk (reverse acc) toks

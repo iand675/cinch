@@ -1,5 +1,13 @@
 # Next steps (as of 2026-11-02)
 
+Constructor patterns now keep adjacent fields and function/lambda parameters
+separate, matching the Native grammar. `Box End n` no longer becomes `Box (End n)`.
+The compiled Cinch source/Core target passes all17 source cases and nine metadata
+mutations. Four broader regressions and a fresh actual stage chain are running;
+no reduced stage2 diagnostic count is claimed yet. See
+[the constructor-pattern report](../bootstrap/constructor-pattern-checkpoint-results.json).
+The running177+5 matrix below belongs to the preceding schema8 parser snapshot.
+
 The actual stage2 attempt now gets past the imported measure-contract header and
 reaches compiler body checking. Schema8 carries checked executable bodies with
 their complete defining schemes and private measure dependencies. Cinch binds
