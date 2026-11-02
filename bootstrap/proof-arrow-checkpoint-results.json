@@ -1,6 +1,6 @@
 {
   "recorded_at": "2026-11-02T00:35:42.782861+00:00",
-  "status": "all nine whole focused Rust targets and Native preflight passed; full165+5 not run; fresh stages running",
+  "status": "all nine whole focused Rust targets and Native preflight passed; stage0/1 six smokes passed; stage2 refused four headers before bodies; full165+5 not run",
   "source_sha256": "f6b78e1327eeec91d4904dd1bff1cabaa0b5627927cb383a39d1928a67d629ea",
   "source_inputs": 588,
   "compiler_named_source_sha256": "7e6cb14c67df9c601c44d3aa413967c0ddb6d6bd881075ddc41ebb7ebd7762df",
@@ -232,14 +232,86 @@
     "self_built_frontend": false
   },
   "prior_typing_suite": {
+    "status": "passed",
     "source_sha256": "d6fbf3526a03fb95a0d4bcaec732d221481379c7e8cd298ddd428ea103f5b0cc",
-    "status": "running; applies to preceding implementation only",
     "integration_targets": 164,
-    "general_gates": 5
+    "general_gates": 5,
+    "compiler_units": 140,
+    "runtime_tests": 166,
+    "self_built_frontend": false,
+    "bootstrap_achieved": false,
+    "scope": "preceding kind/term/global implementation; does not establish this later implementation complete"
   },
   "fresh_stages": {
-    "status": "running for proof-arrow implementation before source proof terms",
-    "path": "/tmp/cinch-proof-arrows-stages-3"
+    "status": "stage0/1 smokes passed; stage2 refused before bodies",
+    "attempt_complete": true,
+    "self_hosting_complete": false,
+    "smoke_checks_passed": 6,
+    "source_sha256": "f6b78e1327eeec91d4904dd1bff1cabaa0b5627927cb383a39d1928a67d629ea",
+    "stages": {
+      "0": {
+        "exit_code": 0,
+        "inputs": {
+          "host": {
+            "machine": "arm64",
+            "system": "Darwin"
+          },
+          "protocol": 2,
+          "seed": {
+            "description": "Pinned Rust seed with schema-7 definition-site nominal, class, Region and closed kernel effect contracts, dictionary slots, dependency-ordered source family overrides, dependency-sensitive pattern field names and conditional instance method proof contracts, integer conversion fixes, definition-owned fixities, guarded heap defaults and serial build/test settings and enforced optimizer residual growth bounds, portable checked numeric preconditions and dependent argument identities, checked structural NonZero precondition exports with actual argument identities, schema-7 defining refinement payloads and literal index contracts, checked anonymous refinements with actual argument/result identities and refined-argument numeric projections, semantic byte-length primitive identity, executable primitive index witnesses and actual signature-telescope observation carrier validation, closed byte-observation signature predicates and private named buffer-refinement contracts, portable checked machine-integer value comparisons with exact defining carrier scopes and opaque machine arithmetic; changed only by an intentional seed update.",
+            "patch": "bootstrap/seed/stage0.patch",
+            "patch_sha256": "655dfb04a042df9cd0aff5abebbbcd23510fb35efc92567e2d9ae8cfb9dedd5d",
+            "revision": "275de4f05b230c010aeb4b10265a04b97fb4eb1c",
+            "runtime_abi": 5,
+            "schema": 1,
+            "source_sha256": "81bb6e364f45201360e11d5b32e2b3f22cd4719a9dcb018551da034416e725e9"
+          }
+        },
+        "log": "/private/tmp/cinch-proof-arrows-stages-3/source/build/bootstrap/stage0/build.log",
+        "status": "built"
+      },
+      "1": {
+        "exit_code": 0,
+        "inputs": {
+          "builder_sha256": "3a104ceef3b2b16e76d6c08f8552841771e5b78d94643876c0b326435ee33a8c",
+          "built_by_stage": 0,
+          "host": {
+            "machine": "arm64",
+            "system": "Darwin"
+          },
+          "protocol": 2,
+          "source_sha256": "7e6cb14c67df9c601c44d3aa413967c0ddb6d6bd881075ddc41ebb7ebd7762df"
+        },
+        "log": "/private/tmp/cinch-proof-arrows-stages-3/source/build/bootstrap/stage1/build.log",
+        "status": "built"
+      },
+      "2": {
+        "diagnostic_categories": {
+          "builtin constructor needs proposition instantiation and erasure checking: b.No": 1,
+          "builtin constructor needs proposition instantiation and erasure checking: b.Yes": 1,
+          "builtin syntax needs dependent predicate elaboration: b.decide": 1,
+          "imported using context needs a defining signature contract": 1
+        },
+        "diagnostics": 4,
+        "exit_code": 4,
+        "inputs": {
+          "builder_sha256": "530b3c1e170c0c9e74a5bcde5dba137553322850ac24f3eed2646aab72118fdf",
+          "built_by_stage": 1,
+          "host": {
+            "machine": "arm64",
+            "system": "Darwin"
+          },
+          "interface_set_sha256": "d1690458fd80c7db98e7ade014be0f53595e9661308924c92cc44d0701363974",
+          "protocol": 2,
+          "source_sha256": "7e6cb14c67df9c601c44d3aa413967c0ddb6d6bd881075ddc41ebb7ebd7762df"
+        },
+        "log": "/private/tmp/cinch-proof-arrows-stages-3/source/build/bootstrap/stage2/build.log",
+        "status": "failed"
+      }
+    },
+    "compiler_bundle_exact_bytes_verified": true,
+    "stage2_ir_exists": false,
+    "stage2_executable_exists": false
   },
   "runtime_abi": 5,
   "interface_schema": 7,

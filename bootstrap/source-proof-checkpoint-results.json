@@ -226,8 +226,15 @@
     "self_built_frontend": false
   },
   "prior_complete_suite": {
+    "status": "passed",
     "source_sha256": "d6fbf3526a03fb95a0d4bcaec732d221481379c7e8cd298ddd428ea103f5b0cc",
-    "status": "full164+5 still running, applies to preceding kind/term implementation only"
+    "integration_targets": 164,
+    "general_gates": 5,
+    "compiler_units": 140,
+    "runtime_tests": 166,
+    "self_built_frontend": false,
+    "bootstrap_achieved": false,
+    "scope": "preceding kind/term/global implementation; does not establish this later implementation complete"
   },
   "fresh_stages": {
     "status": "not run for source proof terms; ongoing proof-arrow stages belong to preceding implementation"

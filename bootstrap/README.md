@@ -128,8 +128,9 @@ includes application and branch results, patterns and constructor fields,
 primitive operands, strict lets and latent rows. They run after source
 elaboration and global-reference checking. Their focused tests and the
 full pipeline pass. Fresh stage0/1 pass six smokes; actual stage2 refuses
-four headers before body checking and produces no compiler. The complete
-current164-target Native-assisted suite is still running. Full declaration/coverage,
+four headers before body checking and produces no compiler. That preceding
+kind/term implementation now passes all164+5 Native-assisted gates and is
+installed in the main checkout. Later proof work has separate validation. Full declaration/coverage,
 semantic proof authority, totality and usage remain required; see
 [the Core typing report](core-typing-checkpoint-results.json).
 

@@ -58,9 +58,13 @@ function-valued indices and retained rejection cases pass. The implementation
 and each reused target's own fixtures are byte-identical; only the separately
 rerun pipeline Rust fixture differs from the preceding focused snapshot.
 
-The complete current Native-assisted suite of 164 integration targets and five
-general gates is running, using 162 fresh gates and seven passed whole focused
-targets. Fresh stage0/1 builds pass all six smoke checks. Actual stage2 exits4
+This kind/term snapshot now passes the complete Native-assisted suite of164
+integration targets and five general gates: 140 compiler unit tests, 166 runtime
+tests, binary/doc tests and tooling. Compiler/runtime gates contain no ignored
+tests. Coverage is162 fresh gates and seven exact-source whole focused targets.
+Its implementation is installed in the main working checkout. This result does
+not establish the later proof-arrow/source-proof implementations or the suite
+through a self-built frontend. Fresh stage0/1 builds pass all six smoke checks. Actual stage2 exits4
 with four header diagnostics before bodies: decide/Yes/No evidence and the
 imported measure contract. No stage2 IR or compiler executable is produced.
 The exact compiler bundle matches this checkpoint. The prior installed
