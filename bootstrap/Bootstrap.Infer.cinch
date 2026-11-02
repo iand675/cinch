@@ -2134,7 +2134,7 @@ module Bootstrap.Infer where
   check-core-closed :: TypingContext -> List CoreDefinition -> Store -> Store
   check-core-closed globals definitions st = case definitions of
     Nil -> st
-    Cons d rest -> check-core-closed globals rest (if not (core-definition-closed d) then add-error zero "typed core contains an unresolved scheme or error term" st
+    Cons d rest -> check-core-closed globals rest (if not (core-definition-bodies-closed (context-bodies globals) d) then add-error zero "typed core contains an unresolved scheme or error term" st
       else if typing-definition-closed globals d then st else add-error zero (string-concat "independent Core typing disagrees with the declaration or term: " (core-name d)) st)
   check-field-globals :: TypingContext -> List CoreDictionaryField -> Store -> Store
   check-field-globals globals fields st = case fields of Nil -> st; Cons field rest -> check-field-globals globals rest (check-core-closed globals [dictionary-field-definition field] st)

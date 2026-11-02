@@ -1,5 +1,28 @@
 # Next steps (as of 2026-11-02)
 
+Checked total bodies can now be associated with actual external global declarations
+and retained through final Core checking and certificate refresh. The association
+checks the Native identity, full monomorphic ordinary scheme, actual body and
+result refinement. Calls must retain the actual global type and argument identities.
+Changed bodies invalidate incompatible refinements and stale certificates.
+
+The compiled Cinch target passes 16 checks at five identities above 2^128,
+including missing-authority, conflicting-global and changed-callee cases.
+Focused regression results and the exact snapshot are recorded in
+[the body-binding report](../bootstrap/body-binding-checkpoint-results.json).
+The full 175+5 suite for this newer snapshot has not run. The preceding body-only
+foundation passed all 172 integration targets and five general gates, including
+140 compiler units, 166 runtime tests and 19 tooling tests. That older complete
+result does not establish a complete pass for newer Type/Core changes.
+
+Source elaboration still needs interface registration of these associations.
+Selected dictionary method association and replacement of the old Core class/slot
+recognition remain unfinished. The schema8 interface prototype is not part of this
+checkpoint; the pinned seed remains unchanged at ABI5/schema7. The previous real
+stage2 still refuses one imported measure header before bodies. Genuine self-hosting,
+typed runtime lowering and the full self-built frontend suite remain unfinished.
+
+## Previous typed-call checkpoint (4df5731)
 Typed total calls now retain the checked executable body and their actual typed
 argument spine. Kind/carrier checks, scope traversal, substitution, unification,
 escape checks and type encoding preserve that evidence. Bare function-name
@@ -45,8 +68,8 @@ The compiled Cinch target, seven Native body regressions, 140 compiler units,
 whole incremental target and two interface targets pass. Fresh stage0/1 pass
 all six smokes; actual stage2 still exits4 at the one imported measure-contract
 header before bodies, producing no IR or compiler. The complete new
-172+5 Native-assisted matrix is running. The frozen
-validation snapshot is `bc9fed0a468ac0137b9e4881dfe42fc09c50f2267fd2bf0874f44a834751bc1d`. Exact evidence and limits are in
+172+5 Native-assisted matrix passed. The corrected frozen
+validation snapshot is `e44ad613bdb4b2f65740ddf30aa7c50805f632378d21f68ab32baaa4a60d0ede`. Exact evidence and limits are in
 [the total-body report](../bootstrap/total-body-checkpoint-results.json).
 
 This standalone version-1 body format is not yet admitted by `.cinchif` schema7.

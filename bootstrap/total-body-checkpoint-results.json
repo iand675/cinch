@@ -1,6 +1,6 @@
 {
-  "recorded_at": "2026-11-02T03:31:54.989218+00:00",
-  "status": "standalone total-body production and independent Cinch validation pass; fresh stage0/1 smokes pass; actual stage2 still refuses the one imported measure header before bodies; full Native-assisted suite is running",
+  "recorded_at": "2026-11-02T04:43:45.384676+00:00",
+  "status": "standalone total-body foundation complete Native-assisted suite passes; actual stage2 still refuses one imported measure header before bodies",
   "source_sha256": "bc9fed0a468ac0137b9e4881dfe42fc09c50f2267fd2bf0874f44a834751bc1d",
   "source_inputs": 605,
   "owned_changes": [
@@ -709,16 +709,19 @@
     "Complete proof, usage and totality checking, typed shared-runtime lowering, stage2/3 fixed point and the full self-built frontend suite remain unfinished."
   ],
   "complete_current_suite": {
-    "status": "running",
-    "source_sha256": "bc9fed0a468ac0137b9e4881dfe42fc09c50f2267fd2bf0874f44a834751bc1d",
+    "status": "passed",
+    "source_sha256": "e44ad613bdb4b2f65740ddf30aa7c50805f632378d21f68ab32baaa4a60d0ede",
     "integration_targets": 172,
     "general_gates": 5,
-    "fresh_gates": 171,
-    "reused_whole_gates": 6,
-    "fresh_passed_at_recording": 4,
-    "all_tests_passed": false,
+    "fresh_gates": 134,
+    "reused_whole_gates": 43,
+    "all_tests_passed": true,
     "self_built_frontend": false,
-    "evidence": "/tmp/cinch-total-bodies-validation-8/complete-matrix"
+    "compiler_unit_tests": 140,
+    "runtime_tests": 166,
+    "tooling_tests": 19,
+    "evidence": "/tmp/cinch-total-bodies-validation-9/complete-matrix",
+    "scope": "Preceding body-only foundation; this result does not establish the full suite for newer typed-call or body-binding changes."
   },
   "fresh_stages": {
     "source_sha256": "fa068fdd7bc97d8d47ead0efdc86341c033d62352f181b777f9bb72cb4cea484",
@@ -856,7 +859,7 @@
     "previous_matrix": "terminal failure only at obsolete parser corpus table; all other started targets passed",
     "next_matrix": "/tmp/cinch-total-bodies-validation-9/complete-matrix",
     "self_built_frontend": false,
-    "next_matrix_status": "running; corrected parser target passes",
+    "next_matrix_status": "passed; 134 fresh gates and43 whole gates with unchanged relevant inputs",
     "fresh_gates": 134,
     "reused_whole_gates": 43
   }

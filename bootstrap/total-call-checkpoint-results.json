@@ -828,14 +828,19 @@
     "Typed shared-runtime lowering, complete proof/usage/totality, stage2/3 fixed point, changed-source compiler behavior and the complete self-built frontend suite remain unfinished."
   ],
   "preceding_body_foundation_matrix": {
+    "status": "passed",
     "source_sha256": "e44ad613bdb4b2f65740ddf30aa7c50805f632378d21f68ab32baaa4a60d0ede",
-    "status": "running; corrected parser target passes",
     "integration_targets": 172,
     "general_gates": 5,
-    "evidence": "/tmp/cinch-total-bodies-validation-9/complete-matrix",
-    "only_change_from_body8": "compiler/tests/bootstrap_parse.rs adds the measured zero row for Bootstrap.Total; completed whole passes are reused only for byte-identical code and fixtures",
     "fresh_gates": 134,
-    "reused_whole_gates": 43
+    "reused_whole_gates": 43,
+    "all_tests_passed": true,
+    "self_built_frontend": false,
+    "compiler_unit_tests": 140,
+    "runtime_tests": 166,
+    "tooling_tests": 19,
+    "evidence": "/tmp/cinch-total-bodies-validation-9/complete-matrix",
+    "scope": "Preceding body-only foundation; this result does not establish the full suite for newer typed-call or body-binding changes."
   },
   "current_full_suite": {
     "status": "not started",
