@@ -6,6 +6,7 @@ module Bootstrap.Typing where
   import Bootstrap.Index
   import Bootstrap.Core
   import Bootstrap.Global
+  import Bootstrap.Instance (scheme-equivalent)
   import Bootstrap.BodyContract
   import Bootstrap.Guarded
   import Bootstrap.Kinds
@@ -14,15 +15,18 @@ module Bootstrap.Typing where
   import Text.Lex (Span)
   import Algebra.Semigroup
 
+  export close-typing-context-with-effects, context-effects
   export TypingContext, close-typing-context, typing-definition-closed, context-bodies, context-guarded-bodies
   data TypingContext where
-    CheckedTypingContext :: List (String, Kind) -> CoreGlobals -> TypingContext
+    CheckedTypingContext :: List (String, Kind) -> CoreGlobals -> List CoreEffect -> TypingContext
+  context-effects :: TypingContext -> List CoreEffect
+  context-effects context = case context of CheckedTypingContext kinds globals effects -> effects
   context-bodies :: TypingContext -> List BodyBinding
-  context-bodies context = case context of CheckedTypingContext kinds globals -> globals-bodies globals
+  context-bodies context = case context of CheckedTypingContext kinds globals effects -> globals-bodies globals
   context-guarded-bodies :: TypingContext -> List GuardedBinding
-  context-guarded-bodies context = case context of CheckedTypingContext kinds globals -> globals-guarded-bodies globals
+  context-guarded-bodies context = case context of CheckedTypingContext kinds globals effects -> globals-guarded-bodies globals
   context-kinds :: TypingContext -> List (String, Kind)
-  context-kinds context = case context of CheckedTypingContext kinds globals -> kinds
+  context-kinds context = case context of CheckedTypingContext kinds globals effects -> kinds
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
   equal-type :: UType -> UType -> Bool
@@ -51,11 +55,30 @@ module Bootstrap.Typing where
       && (case declaration of GlobalValue name role sc -> not (same role "constructor") || constructor-pure (scheme-body sc); other -> True)
       && global-types kinds rest
   kernel-effect-kinds :: List (String, Kind)
-  kernel-effect-kinds = [("Diverge", KEffect), ("Blocking", KEffect), ("IO", KFun KRegion KEffect), ("Async", KFun KRegion KEffect), ("Cancel", KFun KRegion KEffect), ("Eval", KFun KRegion KEffect)]
+  kernel-effect-kinds = [("#kernel.Handler", handler-kind), ("Diverge", KEffect), ("Blocking", KEffect), ("IO", KFun KRegion KEffect), ("Async", KFun KRegion KEffect), ("Cancel", KFun KRegion KEffect), ("Eval", KFun KRegion KEffect)]
   close-typing-context :: List (String, Kind) -> List CoreGlobal -> Option TypingContext
-  close-typing-context kinds declarations = let all = kernel-effect-kinds <> kinds in
-    if nominal-kinds-closed all && global-types all declarations then
-    (case close-globals declarations of Some globals -> Some (CheckedTypingContext all globals); None -> None)
+  close-typing-context kinds declarations = close-typing-context-with-effects kinds declarations Nil
+  effect-kind-declared :: String -> Kind -> List (String, Kind) -> Bool
+  effect-kind-declared name kind kinds = case kinds of Nil -> False; Cons (key, actual) rest -> if same key name then kind-equal kind actual else effect-kind-declared name kind rest
+  operation-registered :: CoreOperation -> List CoreGlobal -> Bool
+  operation-registered operation declarations = case declarations of
+    Nil -> False
+    Cons (GlobalValue name role sc) rest -> if same name (core-operation-name operation) then same role "operation" && scheme-equivalent sc (core-operation-scheme operation) else operation-registered operation rest
+    Cons other rest -> operation-registered operation rest
+  operations-registered :: List CoreOperation -> List CoreGlobal -> Bool
+  operations-registered operations declarations = case operations of Nil -> True; Cons first rest -> operation-registered first declarations && operations-registered rest declarations
+  effects-registered :: List (String, Kind) -> List CoreGlobal -> List String -> List CoreEffect -> Bool
+  effects-registered kinds globals seen declarations = case declarations of
+    Nil -> True
+    Cons declaration rest -> let name = core-effect-name declaration in
+      not (has name seen) && core-effect-closed declaration
+        && effect-kind-declared name (core-effect-kind declaration) kinds
+        && operations-registered (core-effect-operations declaration) globals
+        && effects-registered kinds globals (Cons name seen) rest
+  close-typing-context-with-effects :: List (String, Kind) -> List CoreGlobal -> List CoreEffect -> Option TypingContext
+  close-typing-context-with-effects kinds declarations effects = let all = kernel-effect-kinds <> kinds in
+    if nominal-kinds-closed all && global-types all declarations && effects-registered all declarations Nil effects then
+      (case close-globals declarations of Some globals -> Some (CheckedTypingContext all globals effects); None -> None)
     else None
   wf :: TypingContext -> TypeScope -> UType -> Bool
   wf context scope ty = body-type-authorized (context-bodies context) ty && type-well-formed (context-kinds context) scope ty
@@ -176,6 +199,8 @@ module Bootstrap.Typing where
     CUnit sp ty -> type-is "Unit" ty
     CApply sp ty f x -> checked-application context scope gamma facts ty empty-row f x
     CApplyEff sp ty row f x -> wf context scope row && checked-application context scope gamma facts ty row f x
+    CHandler sp ty returned operations -> checked-handler context scope gamma facts ty returned operations
+    CHandle sp ty label residual body handled-by -> checked-handle context scope gamma facts ty label residual body handled-by
     CDecision sp ty predicate condition -> wf context scope predicate && checked-term context scope gamma facts condition && scoped-decision-valid gamma facts ty predicate condition
     CErasedApply sp ty row f witness -> wf context scope row && checked-term context scope gamma facts f
       && (case core-type f of UProofFun predicate effects result -> equal-type result ty && equal-type effects row && wf context scope predicate && scoped-proof-reference gamma predicate witness; other -> False)
@@ -200,6 +225,63 @@ module Bootstrap.Typing where
     CDischarge sp ty certificates body -> equal-type ty (required-body (core-type body)) && checked-term context scope gamma facts body
     CGuard sp ty condition body -> type-is "Bool" (core-type condition) && equal-type ty (core-type body) && checked-term context scope gamma facts condition && checked-term context scope gamma (branch-facts gamma facts condition True) body
     other -> False)
+  effect-for-label :: UType -> List CoreEffect -> Option CoreEffect
+  effect-for-label label declarations = case declarations of
+    Nil -> None
+    Cons declaration rest -> case handler-label-name label of
+      Some name -> if same name (core-effect-name declaration) then Some declaration else effect-for-label label rest
+      None -> None
+  handler-label-name :: UType -> Option String
+  handler-label-name label = case label of UCon name kind -> Some name; UApp f x -> handler-label-name f; other -> None
+  handler-openings-match :: List Quant -> List (Nat, UType) -> List (Nat, UType) -> Bool
+  handler-openings-match qs entries prior = case (qs, entries) of
+    (Nil, Nil) -> True
+    (Cons q rest, Cons (key, URigid id name level kind) more) -> key == quant-id q
+      && kind-equal kind (map-kind-types (substitute-bound prior) (quant-kind q))
+      && handler-openings-match rest more (Cons (key, URigid id name level kind) prior)
+    other -> False
+  handler-return-row :: UType -> Option UType
+  handler-return-row ty = case ty of UFun a b -> Some empty-row; UFunEff a row b -> Some row; other -> None
+  handler-operation-rows :: CoreTerm -> UType
+  handler-operation-rows operations = case operations of
+    CHandlerEnd sp -> empty-row
+    CHandlerOperation sp slot openings row closure rest -> union-effects row (handler-operation-rows rest)
+    other -> UError
+  handler-operations-typed :: TypingContext -> TypeScope -> ProofScope -> List Proposition -> CoreEffect -> UType -> UType -> List CoreOperation -> CoreTerm -> Bool
+  handler-operations-typed context scope gamma facts declaration label output expected operations = case (expected, operations) of
+    (Nil, CHandlerEnd sp) -> True
+    (Cons operation more, CHandlerOperation sp slot openings row closure rest) -> slot == core-operation-slot operation
+      && (case handler-operation-scheme declaration label operation of
+        Some sc -> handler-openings-match (scheme-params sc) openings Nil
+          && (case openings-scope context scope openings of
+            Some opened -> let actual = substitute-bound openings (scheme-body sc) in
+              wf context opened row && equal-type (handler-clause-type actual output row) (core-type closure)
+                && checked-term context opened gamma facts closure && handler-resumption-safe actual closure
+            None -> False)
+        None -> False)
+      && handler-operations-typed context scope gamma facts declaration label output more rest
+    other -> False
+  checked-handler :: TypingContext -> TypeScope -> ProofScope -> List Proposition -> UType -> CoreTerm -> CoreTerm -> Bool
+  checked-handler context scope gamma facts ty returned operations = case (handler-parts ty, handler-return-row (core-type returned)) of
+    (Some (label, input, output, row), Some returned-row) ->
+      wf context scope label && wf context scope input && wf context scope output && wf context scope row
+      && equal-type (UFunEff input returned-row output) (core-type returned)
+      && checked-term context scope gamma facts returned
+      && equal-type row (union-effects returned-row (handler-operation-rows operations))
+      && (case effect-for-label label (context-effects context) of
+        Some declaration -> handler-operations-typed context scope gamma facts declaration label output (core-effect-operations declaration) operations
+        None -> False)
+    other -> False
+  handler-operation-names :: List CoreOperation -> List String
+  handler-operation-names operations = case operations of Nil -> Nil; Cons first rest -> Cons (core-operation-name first) (handler-operation-names rest)
+  checked-handle :: TypingContext -> TypeScope -> ProofScope -> List Proposition -> UType -> UType -> UType -> CoreTerm -> CoreTerm -> Bool
+  checked-handle context scope gamma facts ty label residual body handled-by = wf context scope label && wf context scope residual
+    && checked-term context scope gamma facts body && checked-term context scope gamma facts handled-by
+    && (case effect-for-label label (context-effects context) of Some declaration -> handler-body-direct label (handler-operation-names (core-effect-operations declaration)) body; None -> False)
+    && (case handler-parts (core-type handled-by) of
+      Some (declared, input, output, row) -> equal-type label declared && equal-type input (core-type body) && equal-type output ty
+        && (case handler-residual label (core-effects body) of Some actual -> equal-type actual residual; None -> False)
+      None -> False)
   checked-let :: TypingContext -> TypeScope -> ProofScope -> List Proposition -> UType -> Nat -> Scheme -> CoreTerm -> CoreTerm -> Bool
   checked-let context scope gamma facts ty id sc rhs body = body-scheme-authorized (context-bodies context) sc && scheme-well-formed (context-kinds context) scope sc
     && (case scheme-requirements sc of Nil -> True; other -> False)
@@ -233,7 +315,7 @@ module Bootstrap.Typing where
     Nil -> True
     Cons (MkCoreClause sp patterns body) rest -> clause-typed context scope (with-guarded-bindings (context-guarded-bodies context) (with-body-bindings (context-bodies context) (make-proof-scope Nil Nil))) expected empty-row patterns body && clauses-typed context scope expected rest
   typing-definition-closed :: TypingContext -> CoreDefinition -> Bool
-  typing-definition-closed context definition = (case context of CheckedTypingContext kinds globals -> global-definition-closed globals definition)
+  typing-definition-closed context definition = (case context of CheckedTypingContext kinds globals effects -> global-definition-closed globals definition)
     && core-definition-contracts-closed (context-bodies context) (context-guarded-bodies context) definition
     && (case openings-scope context empty-type-scope (core-openings definition) of
       Some opened -> (case private-scope opened (core-private-types definition) of

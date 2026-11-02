@@ -1,0 +1,115 @@
+module Main where
+  import Algebra.Semigroup
+  import Bootstrap.Type
+  import Bootstrap.Core
+  import Bootstrap.Global
+  import Bootstrap.Typing
+  import Text.Lex (Span)
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read)
+  sp :: Span
+  sp = Span 0 0 1 1
+  int :: UType
+  int = UCon "Int" KType
+  unit :: UType
+  unit = UCon "Unit" KType
+  empty :: UType
+  empty = URow UEnd
+  label :: UType
+  label = UCon "Signal" KEffect
+  row :: UType
+  row = URow (UArg label UEnd)
+  other-label :: UType
+  other-label = UCon "Other" KEffect
+  other-row :: UType
+  other-row = URow (UArg other-label UEnd)
+  one :: CoreTerm
+  one = CInt sp int "1"
+  answer :: CoreTerm -> CoreDefinition
+  answer body = MkCoreDefinition sp "answer" (mono int) Nil Nil Nil [MkCoreClause sp Nil body]
+  checks :: Nat -> List Bool
+  checks nonce =
+    let operation = MkCoreOperation sp "signal" 1 (mono (UFunEff unit row int)) in
+    let declaration = MkCoreEffect sp "Signal" KEffect Nil [operation] in
+    let kinds = [("Int", KType), ("Unit", KType), ("Bool", KType), ("Signal", KEffect), ("Other", KEffect)] in
+    let globals = [GlobalValue "answer" "value" (mono int), GlobalValue "run" "value" (mono (UFunEff unit other-row int)), GlobalValue "signal" "operation" (core-operation-scheme operation), GlobalValue "hidden" "external" (mono (UFunEff unit row int)), GlobalValue "outside" "external" (mono (UFunEff unit other-row int))] in
+    case (close-typing-context-with-effects kinds globals [declaration], close-typing-context kinds globals) of
+      (Some context, Some unregistered) ->
+        let check value = typing-definition-closed context (answer value) in
+        let ret = CLambda sp (UFun int int) (CPVar sp int nonce "x") (CLocal sp int nonce "x" Nil) in
+        let kt = UFun int int in
+        let k = CLocal sp kt (nonce + 1) "k" Nil in
+        let call = CApply sp int k one in
+        let closure body = CLambda sp (UFun unit (UFun kt int)) (CPWild sp unit) (CLambda sp (UFun kt int) (CPVar sp kt (nonce + 1) "k") body) in
+        let slots body = CHandlerOperation sp 1 Nil empty (closure body) (CHandlerEnd sp) in
+        let make-handler returned ops latent = CHandler sp (handler-type label int int latent) returned ops in
+        let good = make-handler ret (slots call) empty in
+        let performed = CApplyEff sp int row (CUse sp (UFunEff unit row int) "signal" "operation" Nil) (CUnit sp unit) in
+        let handled h residual = CHandle sp int label residual performed h in
+        let outside = CApplyEff sp int other-row (CUse sp (UFunEff unit other-row int) "outside" "external" Nil) (CUnit sp unit) in
+        let ret-outside = CLambda sp (UFunEff int other-row int) (CPWild sp int) outside in
+        let with-other = handled (make-handler ret-outside (slots call) other-row) empty in
+        let creator = CLet sp (core-type ret) (nonce + 20) "created" (mono int) outside ret in
+        let creation = handled (make-handler creator (slots call) empty) empty in
+        let creation-run = MkCoreDefinition sp "run" (mono (UFunEff unit other-row int)) Nil Nil Nil [MkCoreClause sp [CPWild sp unit] creation] in
+        let run = MkCoreDefinition sp "run" (mono (UFunEff unit other-row int)) Nil Nil Nil [MkCoreClause sp [CPWild sp unit] with-other] in
+        let condition = CPrimitive sp (UCon "Bool" KType) "<" (CArgument sp call (CArgument sp one (CArgumentsEnd sp))) in
+        let guarded test first = CCase sp int (CUnit sp unit) (CAlternative sp (CPWild sp unit) (CGuard sp int test first) (CAlternative sp (CPWild sp unit) call (CAlternativesEnd sp))) in
+        [ not (check creation)
+        , typing-definition-closed context creation-run
+        , not (check (handled (make-handler ret (slots (guarded condition one)) empty) empty))
+        , check (handled (make-handler ret (slots (guarded (CPrimitive sp (UCon "Bool" KType) "decision-true" (CArgumentsEnd sp)) call)) empty) empty)
+        , not (check (CHandle sp int label empty (CApplyEff sp int row (CUse sp (UFunEff unit row int) "hidden" "external" Nil) (CUnit sp unit)) good))
+        , check (handled good empty)
+        , check (handled (make-handler ret (slots one) empty) empty)
+        , not (typing-definition-closed unregistered (answer (handled good empty)))
+        , not (check (handled good row))
+        , not (check (CHandle sp int other-label empty performed good))
+        , not (check (handled (make-handler ret (CHandlerEnd sp) empty) empty))
+        , not (check (handled (make-handler ret (CHandlerOperation sp 2 Nil empty (closure call) (CHandlerEnd sp)) empty) empty))
+        , not (check (handled (make-handler ret (CHandlerOperation sp 1 Nil empty (closure call) (slots call)) empty) empty))
+        , not (check (handled (make-handler ret (CHandlerOperation sp 1 Nil empty one (CHandlerEnd sp)) empty) empty))
+        , not (check (handled (make-handler (CLambda sp (UFun unit int) (CPWild sp unit) one) (slots call) empty) empty))
+        , not (check (CHandle sp int label empty (CUnit sp unit) good))
+        , not (check (CHandle sp unit label empty performed good))
+        , not (check (handled (make-handler ret (slots (CLet sp int (nonce + 2) "first" (mono int) call call)) empty) empty))
+        , check (handled (make-handler ret (slots (CIf sp int (CPrimitive sp (UCon "Bool" KType) "decision-true" (CArgumentsEnd sp)) call call)) empty) empty)
+        , not (check (handled (make-handler ret (slots (CLet sp int (nonce + 2) "escaped" (mono kt) k one)) empty) empty))
+        , not (check (handled (make-handler ret (slots (CUse sp int "missing" "value" Nil)) empty) empty))
+        , not (check with-other)
+        , typing-definition-closed context run
+        , not (check (handled (make-handler ret-outside (slots call) empty) empty))
+        , not (check (handled (make-handler ret (CHandlerOperation sp 1 Nil other-row (closure outside) (CHandlerEnd sp)) empty) empty))
+        , (case handler-residual label (union-effects row other-row) of Some residual -> (case handler-residual other-label residual of Some (URow UEnd) -> True; other -> False); None -> False)
+        , (case handler-residual label (UError) of None -> True; other -> False)
+        , (case handler-residual label (URigid (nonce + 3) "effects" 0 KRow) of Some (URigid key name level KRow) -> key == nonce + 3; other -> False)
+        ]
+      other -> [False]
+  universal :: Nat -> List Bool
+  universal nonce =
+    let parse-label = UCon "Parse" KEffect in
+    let effects = URow (UArg parse-label UEnd) in
+    let q = MkQuant nonce "a" KType False in
+    let sc = MkScheme [q] (UFunEff unit effects (UBound nonce "a" KType)) in
+    let declaration = MkCoreEffect sp "Parse" KEffect Nil [MkCoreOperation sp "fail" 1 sc] in
+    let globals = [GlobalValue "answer" "value" (mono int), GlobalValue "fail" "operation" sc] in
+    case close-typing-context-with-effects [("Int", KType), ("Unit", KType), ("Parse", KEffect)] globals [declaration] of
+      Some context ->
+        let fresh = URigid (nonce + 1) "hidden" 1 KType in
+        let returned = CLambda sp (UFun int int) (CPWild sp int) one in
+        let closure ty = CLambda sp (UFun unit (UFun (UFun ty int) int)) (CPWild sp unit) (CLambda sp (UFun (UFun ty int) int) (CPWild sp (UFun ty int)) one) in
+        let handled entries value = CHandle sp int parse-label empty (CApplyEff sp int effects (CUse sp (UFunEff unit effects int) "fail" "operation" [int]) (CUnit sp unit)) (CHandler sp (handler-type parse-label int int empty) returned (CHandlerOperation sp 1 entries empty value (CHandlerEnd sp))) in
+        [ typing-definition-closed context (answer (handled [(nonce, fresh)] (closure fresh)))
+        , not (typing-definition-closed context (answer (handled [(nonce, int)] (closure int))))
+        , not (typing-definition-closed context (answer (handled Nil (closure int))))
+        , not (typing-definition-closed context (answer (handled [(nonce + 2, fresh)] (closure fresh))))
+        , not (typing-definition-closed context (answer (handled [(nonce, fresh), (nonce, fresh)] (closure fresh))))
+        , not (typing-definition-closed context (answer (handled [(nonce, fresh)] (closure int))))
+        ]
+      None -> [False]
+  verdict :: Int -> List Bool -> Int
+  verdict next values = case values of Nil -> 0; Cons True rest -> verdict (next + 1) rest; Cons False rest -> next
+  main :: Unit ->{IO r} Int
+  main u = with (io = newIO ()) in case fs-read (path-from-string "nonce.txt") of
+    Err error -> 90
+    Ok bytes -> let nonce = 340282366920938463463374607431768211456 + bytes-len bytes in verdict 1 (checks nonce <> universal (nonce + 100))

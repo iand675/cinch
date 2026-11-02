@@ -37,19 +37,23 @@ module Bootstrap.Infer where
     ByteObservation :: String -> Option String -> ByteObservation
     TotalObservation :: String -> BodyBinding -> ByteObservation
   data TypeContext where
-    MkTypeContext :: List (String, Kind) -> List Decl -> List String -> List ByteObservation -> TypeContext
+    MkTypeContext :: List (String, Kind) -> List Decl -> List String -> List ByteObservation -> List CoreEffect -> TypeContext
   context-kind :: String -> TypeContext -> Option Kind
-  context-kind name context = case context of MkTypeContext kinds aliases active observers -> lookup-kind name kinds
+  context-kind name context = case context of MkTypeContext kinds aliases active observers effects -> lookup-kind name kinds
   context-add-kind :: String -> Kind -> TypeContext -> TypeContext
-  context-add-kind name kind context = case context of MkTypeContext kinds aliases active observers -> MkTypeContext (Cons (name, kind) kinds) aliases active observers
+  context-add-kind name kind context = case context of MkTypeContext kinds aliases active observers effects -> MkTypeContext (Cons (name, kind) kinds) aliases active observers effects
   context-aliases :: TypeContext -> List Decl
-  context-aliases context = case context of MkTypeContext kinds aliases active observers -> aliases
+  context-aliases context = case context of MkTypeContext kinds aliases active observers effects -> aliases
   context-add-alias :: Decl -> TypeContext -> TypeContext
-  context-add-alias alias context = case context of MkTypeContext kinds aliases active observers -> MkTypeContext kinds (Cons alias aliases) active observers
+  context-add-alias alias context = case context of MkTypeContext kinds aliases active observers effects -> MkTypeContext kinds (Cons alias aliases) active observers effects
   context-enter-alias :: String -> TypeContext -> Option TypeContext
   context-enter-alias name context = case context of
-    MkTypeContext kinds aliases active observers -> if has name active then None else Some (MkTypeContext kinds aliases (Cons name active) observers)
+    MkTypeContext kinds aliases active observers effects -> if has name active then None else Some (MkTypeContext kinds aliases (Cons name active) observers effects)
 
+  context-effects :: TypeContext -> List CoreEffect
+  context-effects context = case context of MkTypeContext kinds aliases active observers effects -> effects
+  context-with-effects :: List CoreEffect -> TypeContext -> TypeContext
+  context-with-effects declarations context = case context of MkTypeContext kinds aliases active observers effects -> MkTypeContext kinds aliases active observers (declarations <> effects)
   data CheckedBinding where
     MkCheckedBinding :: String -> Scheme -> String -> CheckedBinding
     MkBodyBinding :: BodyBinding -> CheckedBinding
@@ -159,6 +163,8 @@ module Bootstrap.Infer where
     ECon s name args -> expression-needs args
     ELet s bs body -> expression-needs bs || expression-needs body
     EWith s bs body -> True
+    EHandle s body handled-by -> True
+    EHandler s label clauses -> True
     EIf s c a b -> expression-needs c || expression-needs a || expression-needs b
     ECase s value alts -> expression-needs value || expression-needs alts
     EAnn s body ty -> needs-type ty || expression-needs body
@@ -207,7 +213,7 @@ module Bootstrap.Infer where
       other -> primitive-type name)
     else primitive-type name
   primitive-kinds :: TypeContext
-  primitive-kinds = MkTypeContext (Cons ("b.Io", KFun KRegion KType) (Cons ("b.Dec", KFun KProp KType) (map-primitive ["Int", "Nat", "Bool", "Unit", "()", "String", "Char", "Bytes", "Sym", "Isize", "Usize", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "F32", "F64"])) ) Nil Nil [ByteObservation "#kernel.bytes-length" None]
+  primitive-kinds = MkTypeContext (Cons ("b.Io", KFun KRegion KType) (Cons ("b.Dec", KFun KProp KType) (map-primitive ["Int", "Nat", "Bool", "Unit", "()", "String", "Char", "Bytes", "Sym", "Isize", "Usize", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "F32", "F64"])) ) Nil Nil [ByteObservation "#kernel.bytes-length" None] Nil
   map-primitive :: List String -> List (String, Kind)
   map-primitive names = case names of Nil -> Nil; Cons name rest -> Cons (name, KType) (map-primitive rest)
   lookup-kind :: String -> List (String, Kind) -> Option Kind
@@ -487,14 +493,14 @@ module Bootstrap.Infer where
     else bad sp "ill-sorted, partial or unchecked typed source index" st
   context-add-byte-observation :: String -> Option String -> TypeContext -> TypeContext
   context-add-byte-observation name scheme context = case context of
-    MkTypeContext kinds aliases active observers -> MkTypeContext kinds aliases active (Cons (ByteObservation name scheme) observers)
+    MkTypeContext kinds aliases active observers effects -> MkTypeContext kinds aliases active (Cons (ByteObservation name scheme) observers) effects
   byte-observation :: String -> List ByteObservation -> Option ByteObservation
   byte-observation name observers = case observers of
     Nil -> None
     Cons (ByteObservation binding scheme) rest -> if same name binding then Some (ByteObservation binding scheme) else byte-observation name rest
     Cons other rest -> byte-observation name rest
   context-byte-observation :: String -> TypeContext -> Option ByteObservation
-  context-byte-observation name context = case context of MkTypeContext kinds aliases active observers -> byte-observation name observers
+  context-byte-observation name context = case context of MkTypeContext kinds aliases active observers effects -> byte-observation name observers
   byte-length-binding :: String -> TypeContext -> Bool
   byte-length-binding name context = case context-byte-observation name context of Some observer -> True; None -> False
   imported-observation-scheme :: String -> Json -> TypeContext -> Bool
@@ -1128,7 +1134,7 @@ module Bootstrap.Infer where
     (if same category "constructor" then check-imported-constructor sp name sc metadata st else check-imported-value sp sc metadata st)
     else st
   context-total-observation :: String -> TypeContext -> Option BodyBinding
-  context-total-observation name context = case context of MkTypeContext kinds aliases active observers -> total-observation name observers
+  context-total-observation name context = case context of MkTypeContext kinds aliases active observers effects -> total-observation name observers
   total-observation :: String -> List ByteObservation -> Option BodyBinding
   total-observation name observers = case observers of
     Nil -> None
@@ -1137,7 +1143,7 @@ module Bootstrap.Infer where
   context-add-total :: Span -> BodyBinding -> TypeContext -> Store -> (TypeContext, Store)
   context-add-total sp binding context st = case context-total-observation (binding-name binding) context of
     Some prior -> (context, if binding-equal prior binding then st else add-error sp "conflicting defining total body declarations" st)
-    None -> (case context of MkTypeContext kinds aliases active observers -> (MkTypeContext kinds aliases active (Cons (TotalObservation (binding-name binding) binding) observers), st))
+    None -> (case context of MkTypeContext kinds aliases active observers effects -> (MkTypeContext kinds aliases active (Cons (TotalObservation (binding-name binding) binding) observers) effects, st))
   collect-total-metadata :: Span -> String -> String -> Json -> List (String, Kind) -> TypeContext -> Store -> (TypeContext, Store)
   collect-total-metadata sp name native metadata classes kinds st = case field "total_body" metadata of
     JNull -> (kinds, st)
@@ -1179,7 +1185,7 @@ module Bootstrap.Infer where
     Cons (TotalObservation name binding) rest -> Cons (MkBodyBinding binding) (observation-bindings rest)
     Cons other rest -> observation-bindings rest
   context-body-bindings :: TypeContext -> List CheckedBinding
-  context-body-bindings context = case context of MkTypeContext kinds aliases active observers -> observation-bindings observers
+  context-body-bindings context = case context of MkTypeContext kinds aliases active observers effects -> observation-bindings observers
   register-total-value :: Span -> String -> Scheme -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   register-total-value sp name sc kinds env st = case context-total-observation name kinds of
     Some binding -> if not (binding-matches name "external" sc binding) then (env, add-error sp "actual imported value disagrees with defining total body scheme" st)
@@ -1683,6 +1689,10 @@ module Bootstrap.Infer where
       (term, ss) -> (term, ensure-coverage s families env (take-types (list-length ps) (domains (normalize ss (core-type term)))) [ps] ss)
     ELet s bindings body -> infer-let classes kinds families env locals s bindings body st
     EWith s bindings body -> infer-with classes kinds families env locals bindings body None st
+    EHandle sp body handled-by -> infer-handle classes kinds families env locals sp body handled-by st
+    EHandler sp label clauses -> case fresh-meta KType st of
+      (input, next) -> case fresh-meta KType next of
+        (output, done) -> infer-source-handler classes kinds families env locals sp label clauses input output done
     EIf s condition yes no -> case fresh-meta KType st of
       (ty, ss) -> case check classes kinds families env locals condition (primitive-type "Bool") ss of
         (c, sc) -> case check classes kinds families (proof-branch env c True sc) locals yes ty sc of
@@ -1964,6 +1974,114 @@ module Bootstrap.Infer where
     other -> term-error sp "erased argument needs a scoped total proof term" st
   applied-core :: Span -> UType -> UType -> CoreTerm -> CoreTerm -> CoreTerm
   applied-core sp result row fun arg = case row of URow UEnd -> CApply sp result fun arg; other -> CApplyEff sp result row fun arg
+  source-effect :: UType -> List CoreEffect -> Option CoreEffect
+  source-effect label declarations = case declarations of
+    Nil -> None
+    Cons declaration rest -> case source-effect-head label of
+      Some name -> if same name (core-effect-name declaration) then Some declaration else source-effect label rest
+      None -> None
+  source-effect-head :: UType -> Option String
+  source-effect-head label = case label of UCon name kind -> Some name; UApp f x -> source-effect-head f; other -> None
+  source-operation-names :: List CoreOperation -> List String
+  source-operation-names operations = case operations of Nil -> Nil; Cons first rest -> Cons (core-operation-name first) (source-operation-names rest)
+  source-handler-shape :: Span -> List String -> List String -> Expr -> Store -> Store
+  source-handler-shape sp wanted seen clauses st = case clauses of
+    EHandlerEnd at -> if list-length seen == list-length wanted then st else add-error sp "handler is missing a declared operation or return clause" st
+    EHandlerClause at name pats continuation body rest ->
+      let checked = if has name wanted && not (has name seen) then st else add-error at "handler clause is duplicate or belongs to a different effect" st in
+      source-handler-shape sp wanted (Cons name seen) rest (if same name "return" then
+        (case (pats, continuation) of (Cons p Nil, None) -> checked; other -> add-error at "handler return needs exactly one pattern and no resumption" checked)
+        else checked)
+    other -> add-error sp "malformed handler clause spine" st
+  source-handler-clause :: String -> Expr -> Option Expr
+  source-handler-clause name clauses = case clauses of
+    EHandlerClause sp key pats continuation body rest -> if same name key then Some clauses else source-handler-clause name rest
+    other -> None
+  handler-patterns-simple :: List Pat -> Bool
+  handler-patterns-simple pats = case pats of
+    Nil -> True
+    Cons (PVar sp name) rest -> handler-patterns-simple rest
+    Cons (PWild sp) rest -> handler-patterns-simple rest
+    other -> False
+  -- Preserve the original Pi telescope while inserting the actual final
+  -- clause row. This keeps index binders scoped at their defining arrows.
+  source-handler-lambda-type :: UType -> List Pat -> UType -> UType
+  source-handler-lambda-type expected pats row = case pats of
+    Nil -> expected
+    Cons p rest -> case expected of
+      UFun a b -> source-handler-arrow a (URow UEnd) b rest row
+      UFunEff a effects b -> source-handler-arrow a effects b rest row
+      UPi id name a effects b -> UPi id name a (case rest of Nil -> row; other -> URow UEnd) (source-handler-lambda-type b rest row)
+      UProofFun predicate effects b -> UProofFun predicate (case rest of Nil -> row; other -> URow UEnd) (source-handler-lambda-type b rest row)
+      other -> UError
+  source-handler-arrow :: UType -> UType -> UType -> List Pat -> UType -> UType
+  source-handler-arrow a effects b rest row = function-type a (case rest of Nil -> row; other -> URow UEnd) (source-handler-lambda-type b rest row)
+  source-handler-lambda :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> List Pat -> Expr -> UType -> Store -> (CoreTerm, UType, Store)
+  source-handler-lambda classes kinds families env locals pats body expected st = case pats of
+    Nil -> case check-required classes kinds families env locals body expected st of
+      (value, done) -> (value, normalize done (core-effects value), done)
+    Cons pat rest -> case bind-arrow-pattern classes kinds families env locals pat expected st of
+      (bound, pattern, ignored, result, next) -> case source-handler-lambda classes kinds families bound locals rest body result next of
+        (value, row, done) -> (CLambda (pat-span pat) (source-handler-lambda-type (normalize done expected) pats row) pattern value, row, done)
+  source-handler-operations :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> CoreEffect -> UType -> UType -> Expr -> List CoreOperation -> Store -> (CoreTerm, UType, Store)
+  source-handler-operations classes kinds families env locals declaration label output clauses operations st = case operations of
+    Nil -> (CHandlerEnd (expr-span clauses), URow UEnd, st)
+    Cons operation rest -> case source-handler-clause (core-operation-name operation) clauses of
+      Some (EHandlerClause sp name pats continuation body more) -> case handler-operation-scheme declaration label operation of
+        Some sc -> case open-scheme True sc st of
+          (opened, openings, next) ->
+            let ps = pats <> [case continuation of Some name -> PVar sp name; None -> PWild sp] in
+            let shape = if list-length pats == scheme-runtime-arity sc && handler-patterns-simple ps then duplicate-names sp (patterns-names ps) Nil next else add-error sp "handler operation needs its exact variable or wildcard arguments" next in
+            let expected = handler-clause-type opened output (URow UEnd) in
+            case source-handler-lambda classes kinds families env locals ps body expected shape of
+              (closure, row, checked) ->
+                let safe = if handler-resumption-safe (normalize checked opened) (map-term-types (normalize checked) closure) then checked else add-error sp "handler resumption is repeated or escapes its one-shot scope" checked in
+                case source-handler-operations classes kinds families env locals declaration label output clauses rest safe of
+                  (tail, latent, done) -> (CHandlerOperation sp (core-operation-slot operation) openings row closure tail, union-effects row latent, done)
+        None -> (CError sp, UError, add-error sp "handler operation has unsupported or ill-scoped declaration constraints" st)
+      other -> (CError (expr-span clauses), UError, add-error (expr-span clauses) "handler is missing a declared operation" st)
+  infer-source-handler :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> TypeExpr -> Expr -> UType -> UType -> Store -> (CoreTerm, Store)
+  infer-source-handler classes kinds families env locals sp syntax clauses input output st = case convert-effect kinds (value-locals env locals) syntax st of
+    (label, converted) -> case source-effect label (context-effects kinds) of
+      Some declaration -> let shaped = source-handler-shape sp (Cons "return" (source-operation-names (core-effect-operations declaration))) Nil clauses converted in
+        case source-handler-clause "return" clauses of
+          Some (EHandlerClause at name pats continuation body rest) ->
+            let simple = if handler-patterns-simple pats then shaped else add-error at "handler return needs a variable or wildcard pattern" shaped in
+            case source-handler-lambda classes kinds families env locals pats body (UFun input output) simple of
+              (returned, return-row, checked) -> case source-handler-operations classes kinds families env locals declaration label output clauses (core-effect-operations declaration) checked of
+                (operations, operation-row, done) -> (CHandler sp (handler-type label input output (union-effects return-row operation-row)) returned operations, done)
+          other -> term-error sp "handler is missing its return clause" shaped
+      None -> term-error sp "handler needs its actual checked effect declaration" converted
+  align-handler-row :: Span -> UType -> UType -> Store -> Store
+  align-handler-row sp label row st = case normalize st row of
+    URow labels -> align-handler-labels sp label labels st
+    URowJoin a b -> align-handler-row sp label b (align-handler-row sp label a st)
+    other -> st
+  align-handler-labels :: Span -> UType -> UType -> Store -> Store
+  align-handler-labels sp label labels st = case labels of
+    UArg first rest ->
+      let next = case (source-effect-head label, source-effect-head first) of
+            (Some wanted, Some actual) -> if same wanted actual then
+              (let trial = unify sp label first st in if list-length (store-errors trial) == list-length (store-errors st) then trial else st)
+              else st
+            other -> st in
+      align-handler-labels sp label rest next
+    other -> st
+  infer-handle :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Expr -> Store -> (CoreTerm, Store)
+  infer-handle classes kinds families env locals sp body handled-by st = case infer classes kinds families env locals body st of
+    (value, checked) -> case fresh-meta KType checked of
+      (output, fresh) -> case (case handled-by of
+        EHandler at label clauses -> infer-source-handler classes kinds families env locals at label clauses (core-type value) output fresh
+        other -> infer classes kinds families env locals handled-by fresh) of
+        (h, next) -> case handler-parts (normalize next (core-type h)) of
+          Some (label, input, result, row) -> let matched = align-handler-row sp label (core-effects value) (unify sp input (core-type value) next) in
+            case handler-residual (normalize matched label) (normalize matched (core-effects value)) of
+              Some residual -> case source-effect (normalize matched label) (context-effects kinds) of
+                Some declaration -> if handler-body-direct (normalize matched label) (source-operation-names (core-effect-operations declaration)) (map-term-types (normalize matched) value) then (CHandle sp result label residual value h, matched)
+                  else term-error sp "handled effect is performed through a called computation" matched
+                None -> term-error sp "handler needs its actual checked effect declaration" matched
+              None -> term-error sp "handler body needs a resolved effect row" matched
+          None -> term-error sp "handle expects a checked handler value" next
   infer-with :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> Expr -> Option UType -> Store -> (CoreTerm, Store)
   infer-with classes kinds families env locals bindings body expected st = case bindings of
     EBindingsEnd s -> case expected of None -> infer classes kinds families env locals body st; Some ty -> check classes kinds families env locals body ty st
@@ -2356,9 +2474,9 @@ module Bootstrap.Infer where
   check-instance-globals :: TypingContext -> List CoreInstance -> Store -> Store
   check-instance-globals globals instances st = case instances of Nil -> st; Cons dictionary rest -> check-instance-globals globals rest (check-field-globals globals (instance-fields dictionary) st)
   declared-kind-rows :: TypeContext -> List (String, Kind)
-  declared-kind-rows context = case context of MkTypeContext kinds aliases active observers -> kinds
+  declared-kind-rows context = case context of MkTypeContext kinds aliases active observers effects -> kinds
   check-global-core :: TypeContext -> List CheckedBinding -> List CoreInstance -> List CoreDefinition -> Store -> Store
-  check-global-core kinds bindings instances definitions st = case close-typing-context (declared-kind-rows kinds) (instance-globals instances (global-bindings (finish-bindings st bindings) Nil)) of
+  check-global-core kinds bindings instances definitions st = case close-typing-context-with-effects (declared-kind-rows kinds) (instance-globals instances (global-bindings (finish-bindings st bindings) Nil)) (context-effects kinds) of
     Some globals -> check-instance-globals globals instances (check-core-closed globals definitions st)
     None -> add-error zero "global declaration environment is not closed or contains conflicting identities" st
   -- Reuse the schemes registered and checked above. Re-reading a surface
@@ -2485,10 +2603,11 @@ module Bootstrap.Infer where
     let se = check-instance-coherence (env-instances env <> conditional-heads env Nil) conditional-store in
     let families = Cons ("Bool", ["True", "False"]) (Cons ("b.Dec", ["b.Yes", "b.No"]) (families-of ds <> imported-families ds)) in
     let (effects, sx) = case store-errors se of Nil -> checked-effects kinds env ds se; other -> (Nil, se) in
-    let (descriptions, instances, sm) = case store-errors sx of Nil -> checked-source-instances rows classes kinds families env ds Nil sx; other -> (Nil, Nil, sx) in
-    let (core, done) = case store-errors sm of Nil -> check-bodies classes kinds families env Nil ds ds sm; other -> (Nil, sm) in
-    let (datas, sd) = case store-errors done of Nil -> checked-data kinds env ds Nil done; other -> (Nil, done) in
-    let finished = case store-errors sd of Nil -> check-data-closed datas (check-global-core kinds env instances core sd); other -> sd in
+    let linked-kinds = context-with-effects effects kinds in
+    let (descriptions, instances, sm) = case store-errors sx of Nil -> checked-source-instances rows classes linked-kinds families env ds Nil sx; other -> (Nil, Nil, sx) in
+    let (core, done) = case store-errors sm of Nil -> check-bodies classes linked-kinds families env Nil ds ds sm; other -> (Nil, sm) in
+    let (datas, sd) = case store-errors done of Nil -> checked-data linked-kinds env ds Nil done; other -> (Nil, done) in
+    let finished = case store-errors sd of Nil -> check-data-closed datas (check-global-core linked-kinds env instances core sd); other -> sd in
     MkElaboration (store-errors finished) (finish-bindings finished env) (contexts ds) core datas effects (MkCoreClassContext classes descriptions) instances
   elaborate-modules :: String -> List Module -> Elaboration
   elaborate-modules label ms = case ms of

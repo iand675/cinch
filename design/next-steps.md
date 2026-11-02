@@ -1,6 +1,19 @@
 # Next steps (as of 2026-11-02)
 
 
+Cinch now elaborates source handlers to retained, independently checked Core.
+All four focused targets pass:34 Core checks at five large identities,26
+source handler cases,20 source effect cases and the existing typing suite.
+The immediately preceding staged snapshot passes six smokes and clears the
+Text.Parse recovery handler; stage2 then exits4 at Bootstrap.Parse.slice-src,
+where an inline span projection needs a stable dependent argument. The final
+Core correction also retains effects while constructing handler fields.
+No current stage2 compiler or full self-built suite pass is claimed. Typed
+runtime lowering, full usage/totality checks and the stage2/3 fixed point remain
+required. See [the exact scope](../bootstrap/handler-core-results.json) and
+[the handler implementation boundary](bootstrap-handlers.md).
+
+
 The development Rust checker now rejects duplicate handler operation clauses
 and checks operation type parameters universally, with clause-local scope
 escape checks. The complete16-test effects target passes, including runtime

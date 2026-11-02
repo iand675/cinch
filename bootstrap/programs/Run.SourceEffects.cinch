@@ -5,6 +5,8 @@ module Main where
   import Bootstrap.Resolve (resolve-program)
   import Bootstrap.Infer
   import Bootstrap.Core
+  import Bootstrap.Global
+  import Bootstrap.Typing (TypingContext, close-typing-context-with-effects, context-effects)
   import Bootstrap.Type
   import Bootstrap.Index (IBound)
   import Bootstrap.Report (render-diagnostics)
@@ -22,6 +24,21 @@ module Main where
   effects-closed declarations = case declarations of Nil -> True; Cons declaration rest -> core-effect-closed declaration && effects-closed rest
   every :: List Bool -> Bool
   every values = case values of Nil -> True; Cons value rest -> value && every rest
+  no-context :: Option TypingContext -> Bool
+  no-context context = case context of None -> True; other -> False
+  registry :: Kind -> Scheme -> CoreEffect -> Bool
+  registry kind sc declaration =
+    let kinds = [("Unit", KType), ("State", kind)] in
+    let globals = [GlobalValue "read" "operation" sc] in
+    (case close-typing-context-with-effects kinds globals [declaration] of
+      Some context -> case context-effects context of Cons found Nil -> string-compare (core-effect-name found) "State" == 0; other -> False
+      None -> False)
+      && no-context (close-typing-context-with-effects kinds Nil [declaration])
+      && no-context (close-typing-context-with-effects kinds [GlobalValue "read" "value" sc] [declaration])
+      && no-context (close-typing-context-with-effects kinds [GlobalValue "other" "operation" sc] [declaration])
+      && no-context (close-typing-context-with-effects kinds [GlobalValue "read" "operation" (mono (UFun (UCon "Unit" KType) (UCon "Unit" KType)))] [declaration])
+      && no-context (close-typing-context-with-effects kinds globals [declaration, declaration])
+      && no-context (close-typing-context-with-effects [("Unit", KType), ("State", KEffect)] globals [declaration])
   kernel :: Nat -> Bool
   kernel id =
     let region = UBound id "r" KRegion in
@@ -34,7 +51,8 @@ module Main where
     let op = MkCoreOperation sp "read" 1 sc in
     let good = MkCoreEffect sp "State" kind [q] [op] in
     every
-      [ core-effect-closed good
+      [ registry kind sc good
+      , core-effect-closed good
       , core-effect-closed (MkCoreEffect sp "State" kind [q] [op, MkCoreOperation sp "write" 2 sc])
       , not (core-effect-closed (MkCoreEffect sp "State" KType [q] [op]))
       , not (core-effect-closed (MkCoreEffect sp "Other" kind [q] [op]))

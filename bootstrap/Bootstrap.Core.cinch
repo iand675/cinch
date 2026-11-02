@@ -19,6 +19,8 @@ module Bootstrap.Core where
   export CoreTerm, CUse, CLocal, CInt, CString, CChar, CUnit, CApply, CLambda, CLet, CIf, CCase, CTuple, CPrimitive, CGuard
   export CArgument, CArgumentsEnd, CAlternative, CAlternativesEnd, CError
   export CApplyEff, CWith, core-effects
+  export CHandler, CHandle, CHandlerOperation, CHandlerEnd
+  export handler-kind, handler-type, handler-parts, handler-residual, handler-operation-scheme, handler-clause-type, handler-resumption-safe, handler-body-direct
   export CProofRef, CErasedApply, scope-erased, scoped-proof-reference
   export CDecision, decision-type, decision-constructor-scheme, scoped-decision-valid, stable-index-source
   export CRefineProof, scoped-refinement-proof
@@ -266,6 +268,10 @@ module Bootstrap.Core where
     -- exact test in the actual value scope before it can justify a branch.
     CDecision :: Span -> UType -> UType -> CoreTerm -> CoreTerm
     CWith :: Span -> UType -> CoreGiven -> CoreTerm -> CoreTerm -> CoreTerm
+    CHandler :: Span -> UType -> CoreTerm -> CoreTerm -> CoreTerm
+    CHandle :: Span -> UType -> UType -> UType -> CoreTerm -> CoreTerm -> CoreTerm
+    CHandlerOperation :: Span -> Nat -> List (Nat, UType) -> UType -> CoreTerm -> CoreTerm -> CoreTerm
+    CHandlerEnd :: Span -> CoreTerm
     CLambda :: Span -> UType -> CorePattern -> CoreTerm -> CoreTerm
     CLet :: Span -> UType -> Nat -> String -> Scheme -> CoreTerm -> CoreTerm -> CoreTerm
     CIf :: Span -> UType -> CoreTerm -> CoreTerm -> CoreTerm -> CoreTerm
@@ -287,6 +293,174 @@ module Bootstrap.Core where
     CAlternative :: Span -> CorePattern -> CoreTerm -> CoreTerm -> CoreTerm
     CAlternativesEnd :: Span -> CoreTerm
     CError :: Span -> CoreTerm
+
+
+  -- The handler constructor is private to checked Core. The label is the
+  -- nominal effect declaration, followed by input, output and clause effects.
+  handler-kind :: Kind
+  handler-kind = KFun KEffect (KFun KType (KFun KType (KFun KRow KType)))
+  handler-type :: UType -> UType -> UType -> UType -> UType
+  handler-type label input output row = UApp (UApp (UApp (UApp (UCon "#kernel.Handler" handler-kind) label) input) output) row
+  handler-parts :: UType -> Option (UType, UType, UType, UType)
+  handler-parts ty = case ty of
+    UApp (UApp (UApp (UApp (UCon name kind) label) input) output) row -> if string-compare name "#kernel.Handler" == 0 && kind-equal kind handler-kind then Some (label, input, output, row) else None
+    other -> None
+  map-handler-openings :: (UType -> UType) -> List (Nat, UType) -> List (Nat, UType)
+  map-handler-openings f entries = case entries of Nil -> Nil; Cons (key, ty) rest -> Cons (key, f ty) (map-handler-openings f rest)
+  handler-opening-metas :: Store -> List (Nat, UType) -> List (Nat, Kind)
+  handler-opening-metas st entries = case entries of Nil -> Nil; Cons (key, ty) rest -> type-metas st ty <> handler-opening-metas st rest
+  handler-openings-closed :: List (Nat, UType) -> Bool
+  handler-openings-closed entries = case entries of Nil -> True; Cons (key, ty) rest -> closed-type ty && handler-openings-closed rest
+  handler-opening-values :: List (Nat, UType) -> List Nat
+  handler-opening-values entries = case entries of
+    Nil -> Nil
+    Cons (key, URigid id name level kind) rest -> if kind-equal kind KRegion || kind-equal kind KType || kind-equal kind KRow || kind-equal kind KEffect then handler-opening-values rest else Cons id (handler-opening-values rest)
+    Cons other rest -> handler-opening-values rest
+  -- Remove only an explicitly known occurrence. An opaque row variable is
+  -- retained: handling one label cannot erase any unknown remaining effects.
+  handler-residual :: UType -> UType -> Option UType
+  handler-residual label row = if not (valid-type label && kind-equal (type-kind label) KEffect && valid-type row && kind-equal (type-kind row) KRow) then None else case row of
+    URow labels -> case handler-residual-labels label labels of Some rest -> Some (URow rest); None -> None
+    URowJoin a b -> case (handler-residual label a, handler-residual label b) of (Some x, Some y) -> Some (union-effects x y); other -> None
+    UBound id name KRow -> Some row
+    URigid id name level KRow -> Some row
+    other -> None
+  handler-residual-labels :: UType -> UType -> Option UType
+  handler-residual-labels label labels = case labels of
+    UEnd -> Some UEnd
+    UArg first rest -> case handler-residual-labels label rest of Some more -> Some (if contract-equal label first then more else UArg first more); None -> None
+    other -> None
+  handler-label-arguments :: CoreEffect -> UType -> List UType -> Option (List UType)
+  handler-label-arguments declaration label args = case label of
+    UApp f x -> handler-label-arguments declaration f (Cons x args)
+    UCon name kind -> if string-compare name (core-effect-name declaration) == 0 && kind-equal kind (core-effect-kind declaration) then Some args else None
+    other -> None
+  handler-parameter-pairs :: List Quant -> List UType -> List (Nat, UType) -> Option (List (Nat, UType))
+  handler-parameter-pairs qs args pairs = case (qs, args) of
+    (Nil, Nil) -> Some pairs
+    (Cons q rest, Cons arg more) -> if valid-type arg && kind-equal (type-kind arg) (map-kind-types (substitute-bound pairs) (quant-kind q)) then handler-parameter-pairs rest more (Cons (quant-id q, arg) pairs) else None
+    other -> None
+  handler-remaining-params :: List Quant -> List Quant -> List Quant
+  handler-remaining-params owner all = case owner of Nil -> all; Cons q rest -> case all of Cons first more -> handler-remaining-params rest more; Nil -> Nil
+  handler-operation-scheme :: CoreEffect -> UType -> CoreOperation -> Option Scheme
+  handler-operation-scheme declaration label operation = case handler-label-arguments declaration label Nil of
+    Some args -> case handler-parameter-pairs (core-effect-params declaration) args Nil of
+      Some pairs -> let sc = core-operation-scheme operation in
+        case scheme-requirements sc of
+          Nil -> Some (map-scheme-types (substitute-bound pairs) (MkScheme (handler-remaining-params (core-effect-params declaration) (scheme-params sc)) (scheme-body sc)))
+          other -> None
+      None -> None
+    None -> None
+  -- Operation arguments retain dependent binders and obligations. The
+  -- continuation accepts the actual operation result and returns the handler
+  -- output; invoking it is pure, as in the shared runtime's deep handlers.
+  handler-clause-type :: UType -> UType -> UType -> UType
+  handler-clause-type operation output row = case operation of
+    UFun a b -> UFun a (handler-clause-type b output row)
+    UFunEff a effects b -> if operation-function b then UFun a (handler-clause-type b output row) else UFun a (UFunEff (UFun b output) row output)
+    UPi id name a effects b -> if operation-function b then UPi id name a (URow UEnd) (handler-clause-type b output row) else UPi id name a (URow UEnd) (UFunEff (UFun b output) row output)
+    UProofFun predicate effects b -> if operation-function b then UProofFun predicate (URow UEnd) (handler-clause-type b output row) else UProofFun predicate (URow UEnd) (UFunEff (UFun b output) row output)
+    other -> UError
+  handler-row-absent :: UType -> UType -> Bool
+  handler-row-absent label row = case row of
+    URow labels -> handler-label-absent label labels
+    URowJoin a b -> handler-row-absent label a && handler-row-absent label b
+    other -> False
+  handler-label-absent :: UType -> UType -> Bool
+  handler-label-absent label labels = case labels of UEnd -> True; UArg first rest -> not (contract-equal label first) && handler-label-absent label rest; other -> False
+  handler-direct-operation :: List String -> CoreTerm -> Bool
+  handler-direct-operation names term = case term of
+    CUse sp ty name role actuals -> string-compare role "operation" == 0 && effect-operation-seen name names
+    CApply sp ty f x -> handler-direct-operation names f
+    CApplyEff sp ty row f x -> handler-direct-operation names f
+    CDischarge sp ty evidence f -> handler-direct-operation names f
+    other -> False
+  -- D23: dispatch is lexical to this computation. An ordinary call cannot
+  -- smuggle the discharged label in from a different function's body.
+  handler-body-direct :: UType -> List String -> CoreTerm -> Bool
+  handler-body-direct label names term = case term of
+    CApplyEff sp ty row f x -> (handler-row-absent label row || handler-direct-operation names f) && handler-body-direct label names f && handler-body-direct label names x
+    CApply sp ty f x -> handler-body-direct label names f && handler-body-direct label names x
+    CErasedApply sp ty row f x -> handler-row-absent label row && handler-body-direct label names f && handler-body-direct label names x
+    CLet sp ty id name sc rhs body -> handler-body-direct label names rhs && handler-body-direct label names body
+    CIf sp ty condition yes no -> handler-body-direct label names condition && handler-body-direct label names yes && handler-body-direct label names no
+    CCase sp ty value alts -> handler-body-direct label names value && handler-body-direct label names alts
+    CAlternative sp pattern body rest -> handler-body-direct label names body && handler-body-direct label names rest
+    CArgument sp first rest -> handler-body-direct label names first && handler-body-direct label names rest
+    CTuple sp ty fields -> handler-body-direct label names fields
+    CPrimitive sp ty name args -> handler-body-direct label names args
+    CDecision sp ty predicate body -> handler-body-direct label names body
+    CProved sp ty evidence body -> handler-body-direct label names body
+    CRefine sp ty evidence body -> handler-body-direct label names body
+    CRefineProof sp ty witness body -> handler-body-direct label names witness && handler-body-direct label names body
+    CForget sp ty body -> handler-body-direct label names body
+    CRequire sp ty body -> handler-body-direct label names body
+    CDischarge sp ty evidence body -> handler-body-direct label names body
+    CGuard sp ty condition body -> handler-body-direct label names condition && handler-body-direct label names body
+    CWith sp ty given value body -> handler-body-direct label names value && handler-body-direct label names body
+    CHandle sp ty inner residual body handled-by -> handler-row-absent label (core-effects term)
+    -- Constructing a closure or handler does not execute its body.
+    other -> True
+  resume-max :: Nat -> Nat -> Nat
+  resume-max a b = if a > b then a else b
+  -- A resumption can be called once along a path. Passing it as a value,
+  -- capturing it in another closure, or storing it requires richer usage
+  -- evidence and is refused here rather than treated as unrestricted.
+  resume-uses :: Nat -> CoreTerm -> Nat
+  resume-uses id term = case term of
+    CLocal sp ty key name actuals -> if id == key then 2 else 0
+    CApply sp ty (CLocal at ft key name actuals) arg -> if id == key then 1 + resume-uses id arg else resume-uses id arg
+    CApply sp ty f x -> resume-uses id f + resume-uses id x
+    CApplyEff sp ty row f x -> resume-uses id f + resume-uses id x
+    CErasedApply sp ty row f x -> resume-uses id f + resume-uses id x
+    CLambda sp ty pattern body -> if resume-uses id body > 0 then 2 else 0
+    CLet sp ty key name sc rhs body -> resume-uses id rhs + resume-uses id body
+    CIf sp ty condition yes no -> resume-uses id condition + resume-max (resume-uses id yes) (resume-uses id no)
+    CCase sp ty value alts -> resume-uses id value + resume-uses id alts
+    CAlternative sp pattern body rest -> resume-alternative-uses id body rest
+    CArgument sp first rest -> resume-uses id first + resume-uses id rest
+    CTuple sp ty fields -> resume-uses id fields
+    CPrimitive sp ty name args -> resume-uses id args
+    CDecision sp ty predicate body -> resume-uses id body
+    CProved sp ty evidence body -> resume-uses id body
+    CRefine sp ty evidence body -> resume-uses id body
+    CRefineProof sp ty witness body -> resume-uses id witness + resume-uses id body
+    CForget sp ty body -> resume-uses id body
+    CRequire sp ty body -> resume-uses id body
+    CDischarge sp ty evidence body -> resume-uses id body
+    CGuard sp ty condition body -> resume-uses id condition + resume-uses id body
+    CWith sp ty given value body -> resume-uses id value + resume-uses id body
+    CHandle sp ty label residual body handled-by -> resume-uses id body + resume-uses id handled-by
+    CHandler sp ty returned operations -> if resume-uses id returned + resume-uses id operations > 0 then 2 else 0
+    CHandlerOperation sp slot openings row closure rest -> resume-uses id closure + resume-uses id rest
+    other -> 0
+  -- A failed guard continues to later alternatives. Calls performed by
+  -- the guard therefore add to calls in the later branch, rather than
+  -- being counted as mutually exclusive with that branch.
+  resume-alternative-uses :: Nat -> CoreTerm -> CoreTerm -> Nat
+  resume-alternative-uses id body rest = case body of
+    CGuard sp ty condition value -> resume-uses id condition + resume-max (resume-uses id value) (resume-uses id rest)
+    CLet sp ty key name sc rhs value -> resume-uses id rhs + resume-alternative-uses id value rest
+    CRequire sp ty value -> resume-alternative-uses id value rest
+    CDischarge sp ty evidence value -> resume-alternative-uses id value rest
+    CProved sp ty evidence value -> resume-alternative-uses id value rest
+    CRefine sp ty evidence value -> resume-alternative-uses id value rest
+    CForget sp ty value -> resume-alternative-uses id value rest
+    other -> resume-max (resume-uses id body) (resume-uses id rest)
+  handler-resumption-safe :: UType -> CoreTerm -> Bool
+  handler-resumption-safe operation closure = case closure of
+    CLambda sp ty pattern body -> case operation of
+      UFun a b -> handler-resumption-safe b body
+      UFunEff a row b -> if operation-function b then handler-resumption-safe b body else resume-body-safe body
+      UPi id name a row b -> if operation-function b then handler-resumption-safe b body else resume-body-safe body
+      UProofFun predicate row b -> if operation-function b then handler-resumption-safe b body else resume-body-safe body
+      other -> False
+    other -> False
+  resume-body-safe :: CoreTerm -> Bool
+  resume-body-safe term = case term of
+    CLambda sp ty (CPVar at domain id name) body -> resume-uses id body <= 1
+    CLambda sp ty (CPWild at domain) body -> True
+    other -> False
 
   data CoreClause where
     MkCoreClause :: Span -> List CorePattern -> CoreTerm -> CoreClause
@@ -325,6 +499,8 @@ module Bootstrap.Core where
     CErasedApply s ty row f x -> ty
     CDecision s ty predicate condition -> ty
     CWith s ty given value body -> ty
+    CHandler s ty returned operations -> ty
+    CHandle s ty label residual body handled-by -> ty
     CLambda s ty p body -> ty
     CLet s ty id name sc rhs body -> ty
     CIf s ty condition yes no -> ty
@@ -344,11 +520,16 @@ module Bootstrap.Core where
   -- Supplying a capability preserves the body's effects, never handles them.
   core-effects :: CoreTerm -> UType
   core-effects term = case term of
+    CHandler s ty returned operations -> union-effects (core-effects returned) (core-effects operations)
+    CHandlerOperation s slot openings row closure rest -> union-effects (core-effects closure) (core-effects rest)
     CApply s ty f x -> union-effects (core-effects f) (core-effects x)
     CApplyEff s ty row f x -> union-effects row (union-effects (core-effects f) (core-effects x))
     CErasedApply s ty row f witness -> union-effects row (union-effects (core-effects f) (core-effects witness))
     CDecision s ty predicate condition -> core-effects condition
     CWith s ty given value body -> union-effects (core-effects value) (core-effects body)
+    CHandle s ty label residual body handled-by -> case handler-parts (core-type handled-by) of
+      Some (declared-label, input, output, row) -> union-effects residual (union-effects row (core-effects handled-by))
+      None -> UError
     CLet s ty id name scheme rhs body -> union-effects (core-effects rhs) (core-effects body)
     CIf s ty condition yes no -> union-effects (core-effects condition) (union-effects (core-effects yes) (core-effects no))
     CCase s ty value alternatives -> union-effects (core-effects value) (core-effects alternatives)
@@ -400,6 +581,10 @@ module Bootstrap.Core where
       URow UEnd -> CApply s (f ty) (map-term-types f fun) (map-term-types f arg)
       effects -> CApplyEff s (f ty) effects (map-term-types f fun) (map-term-types f arg)
     CWith s ty given value body -> CWith s (f ty) (CGiven s (given-symbol given) (f (given-type given))) (map-term-types f value) (map-term-types f body)
+    CHandler s ty returned operations -> CHandler s (f ty) (map-term-types f returned) (map-term-types f operations)
+    CHandle s ty label residual body handled-by -> CHandle s (f ty) (f label) (f residual) (map-term-types f body) (map-term-types f handled-by)
+    CHandlerOperation s slot openings row closure rest -> CHandlerOperation s slot (map-handler-openings f openings) (f row) (map-term-types f closure) (map-term-types f rest)
+    CHandlerEnd s -> term
     CLambda s ty p body -> CLambda s (f ty) (map-pattern-types f p) (map-term-types f body)
     CLet s ty id name sc rhs body -> CLet s (f ty) id name (map-scheme f sc) (map-term-types f rhs) (map-term-types f body)
     CIf s ty condition yes no -> CIf s (f ty) (map-term-types f condition) (map-term-types f yes) (map-term-types f no)
@@ -544,6 +729,9 @@ module Bootstrap.Core where
     CErasedApply s ty row f witness -> type-metas st ty <> type-metas st row <> term-metas st f <> term-metas st witness
     CDecision s ty predicate condition -> type-metas st ty <> type-metas st predicate <> term-metas st condition
     CWith s ty given value body -> type-metas st ty <> type-metas st (given-type given) <> term-metas st value <> term-metas st body
+    CHandler s ty returned operations -> type-metas st ty <> term-metas st returned <> term-metas st operations
+    CHandle s ty label residual body handled-by -> type-metas st ty <> type-metas st label <> type-metas st residual <> term-metas st body <> term-metas st handled-by
+    CHandlerOperation s slot openings row closure rest -> handler-opening-metas st openings <> type-metas st row <> term-metas st closure <> term-metas st rest
     CLambda s ty p body -> type-metas st ty <> pattern-metas st p <> term-metas st body
     CLet s ty id name sc rhs body -> type-metas st ty <> type-metas st (scheme-body sc) <> requirements-metas st (scheme-requirements sc) <> term-metas st rhs <> term-metas st body
     CIf s ty condition yes no -> type-metas st ty <> term-metas st condition <> term-metas st yes <> term-metas st no
@@ -682,6 +870,10 @@ module Bootstrap.Core where
     CApplyEff s ty row f x -> closed-runtime-type ty && closed-type row && kind-equal (type-kind row) KRow && valid-term f && valid-term x
     CErasedApply s ty row f witness -> closed-runtime-type ty && closed-type row && kind-equal (type-kind row) KRow && valid-term f && valid-proof-reference witness
     CWith s ty given value body -> closed-runtime-type ty && closed-type (given-type given) && valid-term value && valid-term body
+    CHandler s ty returned operations -> closed-runtime-type ty && valid-term returned && valid-term operations
+    CHandle s ty label residual body handled-by -> closed-runtime-type ty && closed-type label && closed-type residual && valid-term body && valid-term handled-by
+    CHandlerOperation s slot openings row closure rest -> closed-type row && handler-openings-closed openings && valid-term closure && valid-term rest
+    CHandlerEnd s -> True
     CLambda s ty p body -> closed-runtime-type ty && valid-pattern p && valid-term body
     CLet s ty id name sc rhs body -> closed-runtime-type ty && scheme-closed sc && valid-term rhs && valid-term body
     CIf s ty condition yes no -> closed-runtime-type ty && valid-term condition && valid-term yes && valid-term no
@@ -806,7 +998,7 @@ module Bootstrap.Core where
   scoped-term :: List Nat -> List Nat -> CoreTerm -> Bool
   scoped-term values scope term =
     let rigid = values <> scope in
-    let typed = case term of CArgument s value rest -> True; CArgumentsEnd s -> True; CAlternative s p body rest -> True; CAlternativesEnd s -> True; other -> type-index-scope Nil rigid (core-type term) in
+    let typed = case term of CHandlerOperation s slot openings row closure rest -> True; CHandlerEnd s -> True; CArgument s value rest -> True; CArgumentsEnd s -> True; CAlternative s p body rest -> True; CAlternativesEnd s -> True; other -> type-index-scope Nil rigid (core-type term) in
     typed && (case term of
       CLocal s ty id name actuals -> local-id id scope && types-index-scope Nil rigid actuals
       CProofRef s ty id name -> local-id id scope
@@ -820,6 +1012,10 @@ module Bootstrap.Core where
       CApplyEff s ty row f x -> type-index-scope Nil rigid row && scoped-term values scope f && scoped-term values scope x
       CErasedApply s ty row f witness -> type-index-scope Nil rigid row && scoped-term values scope f && scoped-term values scope witness
       CWith s ty given value body -> type-index-scope Nil rigid (given-type given) && scoped-term values scope value && scoped-term values scope body
+      CHandler s ty returned operations -> scoped-term values scope returned && scoped-term values scope operations
+      CHandle s ty label residual body handled-by -> type-index-scope Nil rigid label && type-index-scope Nil rigid residual && scoped-term values scope body && scoped-term values scope handled-by
+      CHandlerOperation s slot openings row closure rest -> let opened = handler-opening-values openings <> values in
+        type-index-scope Nil (opened <> scope) row && scoped-term opened scope closure && scoped-term values scope rest
       CIf s ty condition yes no -> scoped-term values scope condition && scoped-term values scope yes && scoped-term values scope no
       CCase s ty value alternatives -> scoped-term values scope value && scoped-term values scope alternatives
       CTuple s ty fields -> scoped-term values scope fields
@@ -1199,6 +1395,9 @@ module Bootstrap.Core where
     CApply s ty f x -> proof-term gamma facts f && proof-term gamma facts x && (if contains-required (core-type f) then application-type gamma facts ty (URow UEnd) f x else True)
     CApplyEff s ty row f x -> proof-term gamma facts f && proof-term gamma facts x && (if contains-required (core-type f) then application-type gamma facts ty row f x else True)
     CWith s ty given value body -> proof-term gamma facts value && proof-term gamma facts body
+    CHandler s ty returned operations -> proof-term gamma facts returned && proof-term gamma facts operations
+    CHandle s ty label residual body handled-by -> proof-term gamma facts body && proof-term gamma facts handled-by
+    CHandlerOperation s slot openings row closure rest -> proof-term gamma facts closure && proof-term gamma facts rest
     CLambda s ty pattern body -> if contains-required ty then (case pattern-result ty pattern of Some result -> proof-expected (proof-pattern pattern gamma) facts result body; None -> False) else proof-term (proof-pattern pattern gamma) facts body
     CLet s ty id name sc rhs body -> proof-term gamma facts rhs &&
       proof-term (scope-let gamma facts id sc rhs) (case scoped-core-let-fact gamma facts id sc rhs of Some p -> Cons p facts; None -> facts) body
@@ -1307,6 +1506,9 @@ module Bootstrap.Core where
   -- proof-term pass still checks the resulting certificate without repair.
   refresh-certificates :: ProofScope -> List Proposition -> CoreTerm -> CoreTerm
   refresh-certificates gamma facts term = case term of
+    CHandler s ty returned operations -> CHandler s ty (refresh-certificates gamma facts returned) (refresh-certificates gamma facts operations)
+    CHandle s ty label residual body handled-by -> CHandle s ty label residual (refresh-certificates gamma facts body) (refresh-certificates gamma facts handled-by)
+    CHandlerOperation s slot openings row closure rest -> CHandlerOperation s slot openings row (refresh-certificates gamma facts closure) (refresh-certificates gamma facts rest)
     CInt sp (URefine id name carrier predicate) text -> let refined = URefine id name carrier predicate in
       let value = refresh-certificates gamma facts (CInt sp carrier text) in
       (case scoped-prove-refinement gamma facts refined value of Some evidence -> CRefine sp refined evidence value; None -> CError sp)

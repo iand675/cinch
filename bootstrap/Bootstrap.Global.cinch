@@ -182,6 +182,10 @@ module Bootstrap.Global where
     CDecision sp ty predicate condition -> term-references globals locals givens condition
     CApply sp ty f x -> term-references globals locals givens f && term-references globals locals givens x
     CApplyEff sp ty row f x -> term-references globals locals givens f && term-references globals locals givens x
+    CHandler sp ty returned operations -> term-references globals locals givens returned && term-references globals locals givens operations
+    CHandle sp ty label residual body handled-by -> term-references globals locals givens body && term-references globals locals givens handled-by
+    CHandlerOperation sp slot openings row closure rest -> term-references globals locals givens closure && term-references globals locals givens rest
+    CHandlerEnd sp -> True
     CErasedApply sp ty row f witness -> term-references globals locals givens f && term-references globals locals givens witness
     CWith sp ty given value body -> (case lookup-given (given-symbol given) givens of Some prior -> False; None -> True)
       && equal-type (given-type given) (core-type value) && term-references globals locals givens value
