@@ -3961,6 +3961,9 @@ impl Checker {
                 } else {
                     self.resolve_var(p, p.span())?
                 };
+                if matches!(v.kind, ValueKind::ProofSearch) {
+                    return self.search_proof(env, args, prop, *span);
+                }
                 // `congr F e`: the lifting function is an explicit index
                 // term (e.g. `\ys -> Cons (f (g x)) ys`) and the evidence
                 // argument follows it. The one-argument form `congr e`
@@ -4108,6 +4111,65 @@ impl Checker {
                 "a proof term is `refl`, `congr [f] e`, a `case` on the induction variable, or the name of evidence",
             )),
         }
+    }
+
+    /// Experimental plan executor. It sees the checker's actual goal and
+    /// shadow-safe evidence snapshot, never text guessed by a syntax macro.
+    /// Failed alternatives do not unify metas or record evidence uses.
+    fn search_proof(
+        &mut self,
+        env: &Env,
+        args: &[ast::Term],
+        prop: &PTerm,
+        span: ast::Span,
+    ) -> Result<ECore> {
+        let [ast::Term::Str(plan, _)] = args else {
+            return Err(Error::at(span, "Proof.search expects one literal tactic plan"));
+        };
+        if plan.len() > 128 {
+            return Err(Error::at(span, "tactic plan exceeds 128 bytes"));
+        }
+        let steps: Vec<_> = plan.split_whitespace().collect();
+        if steps.is_empty() || steps.len() > 8
+            || steps.iter().any(|s| !matches!(*s, "assumption" | "linear"))
+        {
+            return Err(Error::at(span, "tactic plan needs 1–8 steps: assumption or linear"));
+        }
+        // The bootstrap branch tracks proof values across strict aliases
+        // and shadowing. Put the goal in the same current value scope as
+        // `evidence_in`, rather than comparing old source spellings.
+        let caller = env.locals.iter().map(|(name, id, _)| (name.clone(), *id)).collect();
+        // Keep opaque measures intact for arithmetic search, just as
+        // `evidence_in` does. Reduction belongs to exact proof matching.
+        let goal = self.proof_values_in_scope(prop, &caller, env);
+        let reduced_goal = self.reduce_prop(&goal);
+        let evidence = self.evidence_in(env);
+        for step in steps {
+            let used = match step {
+                "assumption" => evidence.items.iter().rposition(|(_, q, _, _)| {
+                    // These are free local indices, not refinement
+                    // binders: never match up to renaming (i < n is not
+                    // evidence for n < i, or for j < n).
+                    self.reduce_prop(q).eq(&reduced_goal)
+                }).map(|i| vec![i]),
+                // `linear_discharge` searches for certificates; the trusted
+                // `check_linear_proof` rechecks them before it returns. Only
+                // facts actually cited by those certificates count as uses.
+                "linear" => self.linear_discharge(&evidence, &goal),
+                _ => unreachable!("plan validated above"),
+            };
+            if let Some(used) = used {
+                let items: Vec<_> = used.iter().map(|i| &evidence.items[*i]).collect();
+                self.note_ev_used(&items, span);
+                return Ok(ECore::Unit);
+            }
+        }
+        let facts = evidence.items.iter().map(|(name, q, _, _)| format!("{name}: {q}"))
+            .chain(evidence.refined.iter().map(ToString::to_string))
+            .collect::<Vec<_>>().join("; ");
+        Err(Error::at(span, format!(
+            "tactic plan `{plan}` could not prove `{prop}`; scoped facts: [{facts}]"
+        )))
     }
 
     /// Proof-goal matching with named-helper reduction: the proof layer
@@ -5623,6 +5685,9 @@ impl Checker {
                     ),
                 ));
             }
+            ValueKind::ProofSearch => {
+                return Err(Error::at(span, "Proof.search needs an expected proposition; it cannot be inferred or used at runtime"));
+            }
             ValueKind::ProofCtor => {
                 // Evidence constructors are erased: they are checked as
                 // proof terms and vanish at runtime (core specification
@@ -5765,7 +5830,7 @@ impl Checker {
                     ),
                 ))
             }
-            ValueKind::BoolLit(_) | ValueKind::EffectOp { .. } | ValueKind::ProofCtor => {
+            ValueKind::BoolLit(_) | ValueKind::EffectOp { .. } | ValueKind::ProofCtor | ValueKind::ProofSearch => {
                 unreachable!()
             }
         };
@@ -5992,7 +6057,15 @@ impl Checker {
                     let scheme = self.generalize_local(env, l, &ty, is_value.then_some(&core));
                     let equation = self.checked_nat_let_fact(env, &name.text, l, &core, &ty);
                     self.note_value_alias(l, &core);
-                    self.bind_local(env, &name.text, l, scheme, None, name.span)?;
+                    // A strict alias transfers the source binder's usage
+                    // discipline. Otherwise `let y = x` launders a %1/%aff
+                    // parameter into an unrestricted local (also observable
+                    // through syntax templates that introduce temporaries).
+                    let mult = match &core {
+                        ECore::Var(source) => self.effective_mult(*source),
+                        _ => None,
+                    };
+                    self.bind_local(env, &name.text, l, scheme, mult, name.span)?;
                     if let Some(fact) = equation { self.bind_facts(env, &[fact], self.ev_writes.len(), *span)?; }
                     // A let-generalized local's uses are copies of its
                     // definition, so the binding itself is never read.
@@ -6010,7 +6083,11 @@ impl Checker {
                             let scheme = self.generalize_local(env, l, &bt, def);
                             let equation = self.checked_nat_let_fact(env, &n.text, l, &bc, &bt);
                             self.note_value_alias(l, &bc);
-                            self.bind_local(env, &n.text, l, scheme, None, n.span)?;
+                            let mult = match &bc {
+                                ECore::Var(source) => self.effective_mult(*source),
+                                _ => None,
+                            };
+                            self.bind_local(env, &n.text, l, scheme, mult, n.span)?;
                             if let Some(fact) = equation { self.bind_facts(env, &[fact], self.ev_writes.len(), *span)?; }
                             if self.gen_defs.contains_key(&l) {
                                 continue;
@@ -10029,7 +10106,8 @@ impl Checker {
             | ValueKind::BoolLit(_)
             | ValueKind::EffectOp { .. }
             | ValueKind::Law
-            | ValueKind::ProofCtor => {
+            | ValueKind::ProofCtor
+            | ValueKind::ProofSearch => {
                 return Err(Error::at(span, "this value takes no capability supplies"))
             }
         };

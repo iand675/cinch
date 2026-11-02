@@ -1,0 +1,12 @@
+module Dual where
+  record Dual where
+    value :: Int
+    gradient :: Int
+  constant :: Int -> Dual
+  constant x = Dual { value = x, gradient = 0 }
+  variable :: Int -> Dual
+  variable x = Dual { value = x, gradient = 1 }
+  add :: Dual -> Dual -> Dual
+  add a b = Dual { value = a.value + b.value, gradient = a.gradient + b.gradient }
+  multiply :: Dual -> Dual -> Dual
+  multiply a b = Dual { value = a.value * b.value, gradient = a.gradient * b.value + a.value * b.gradient }

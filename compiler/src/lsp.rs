@@ -690,6 +690,7 @@ fn diagnostics_notification(uri: &str, diags: &[Diag]) -> String {
         .collect();
     Json::obj(vec![
         ("jsonrpc", Json::Str("2.0".to_string())),
+        ("method", Json::Str("textDocument/publishDiagnostics".to_string())),
         (
             "params",
             Json::obj(vec![

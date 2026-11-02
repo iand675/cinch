@@ -1,0 +1,8 @@
+module Query where
+  import Data.List
+  select :: forall a b. (a -> b) -> List a -> List b
+  select projection rows = map projection rows
+  filter-rows :: forall a. (a -> Bool) -> List a -> List a
+  filter-rows predicate rows = case rows of
+    Nil -> Nil
+    Cons row rest -> if predicate row then Cons row (filter-rows predicate rest) else filter-rows predicate rest

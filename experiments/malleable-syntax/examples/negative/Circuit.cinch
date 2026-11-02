@@ -1,0 +1,9 @@
+module Main where
+  import Circuit
+  import syntax "../../syntax/circuit.syntax.json" as circuit
+  result :: Signal 2
+  result = circuit!{ add (input {[2, 3]}, register (input {[5, 6]})) }
+  main :: Int
+  main = case Circuit.observe result of
+    [0, 0, 10, 18, 28] -> 0
+    _ -> 1

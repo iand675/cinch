@@ -67,6 +67,23 @@ fn iface_value_names(dir: &Path, module: &str) -> Vec<String> {
 // ---------------------------------------- D105/D110: collection literals
 
 #[test]
+fn collection_of_records_with_closed_callbacks_keeps_runtime_construction() {
+    let dir = write_project(&[("Main.cinch", r#"
+module Main where
+  record Props where
+    callback :: Unit -> Nat
+  nodes :: List Props
+  nodes = [Props { callback = \() -> 42 }]
+  main :: Int
+  main = case nodes of
+    Cons props Nil -> if props.callback () == 42 then 0 else 1
+    _ -> 2
+"#)]);
+    assert_eq!(run_entry(&dir, "Main.cinch").expect("closed callback remains executable"), 0);
+    assert_eq!(literal_folds(&dir), vec![("list".to_string(), false)]);
+}
+
+#[test]
 fn list_literal_folds_to_a_constant_and_a_runtime_call_stays() {
     // All-constant elements fold (the boundary records it); an element
     // that is a runtime value keeps its `from-list` call.

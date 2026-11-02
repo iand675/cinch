@@ -1,5 +1,18 @@
 # Next steps (as of 2026-11-02)
 
+## Malleable syntax experiment
+
+The branch also carries the isolated [syntax and tactic prototypes](../experiments/malleable-syntax/INTEGRATION.md):
+declarative grammar islands, HTML with interleaved Cinch, generated editor
+grammars/source maps, choreography projection, tensor pullbacks and finite
+goal-aware tactic plans. Strict aliases preserve both multiplicity and checked
+value/equation provenance. Tactic goals use the native checker's current value
+scope. These are development Rust compiler/front-end experiments; general
+reflected tactics and equivalent self-hosted support remain planned. The pinned
+stage0 seed and bootstrap source are unchanged by this integration.
+
+## Bootstrap progress
+
 Cinch now checks later curried arguments inside the strict scopes created
 for earlier dependent arguments. Their checked equations remain available to
 the final call guard. Hidden environment names preserve the caller scope of

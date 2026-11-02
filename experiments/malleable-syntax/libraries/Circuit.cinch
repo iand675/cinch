@@ -1,0 +1,33 @@
+module Circuit where
+  import Data.List
+  export Signal, input, register, add, multiply, observe
+  data Signal (cycle :: Nat) where
+    Samples :: List Int -> Signal cycle
+  input :: List Int -> Signal 0
+  input values = Samples values
+  register :: forall (n :: Nat). Signal n -> Signal (n + 1)
+  register signal = case signal of
+    Samples values -> Samples (Cons 0 values)
+  plus :: List Int -> List Int -> List Int
+  plus left right = case left of
+    Nil -> Nil
+    Cons x xs -> case right of
+      Nil -> Nil
+      Cons y ys -> Cons (x + y) (plus xs ys)
+  times :: List Int -> List Int -> List Int
+  times left right = case left of
+    Nil -> Nil
+    Cons x xs -> case right of
+      Nil -> Nil
+      Cons y ys -> Cons (x * y) (times xs ys)
+  add :: forall (n :: Nat). Signal n -> Signal n -> Signal n
+  add left right = case left of
+    Samples xs -> case right of
+      Samples ys -> Samples (plus xs ys)
+  multiply :: forall (n :: Nat). Signal n -> Signal n -> Signal n
+  multiply left right = case left of
+    Samples xs -> case right of
+      Samples ys -> Samples (times xs ys)
+  observe :: forall (n :: Nat). Signal n -> List Int
+  observe signal = case signal of
+    Samples values -> values

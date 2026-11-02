@@ -1,0 +1,6 @@
+module Main where
+  import syntax "../../syntax/once.syntax.json" as once
+  duplicate :: forall a. a %1 -> (a, a)
+  duplicate value = once!{ {value} as x in {(x, x)} }
+  main :: Int
+  main = 0

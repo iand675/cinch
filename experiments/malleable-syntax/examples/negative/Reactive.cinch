@@ -1,0 +1,22 @@
+module Main where
+  import Ui
+  import Data.String
+  import Text.Show
+  import syntax "../../syntax/machine.syntax.json" as machine
+  import syntax "../../syntax/html.syntax.json" as html
+  machine!{
+    state Editing carries String;
+    state Reviewing carries Nat;
+    state Complete carries Nat;
+    event review : Editing -> Reviewing using {string-length};
+    event submit : Reviewing -> Complete using {\amount -> amount + 1};
+  }
+  render-review :: Reviewing -> Html
+  render-review state = case state of
+    Reviewing amount -> html!{<section><h1>Review</h1>{show amount}<Button onClick={\() -> case submit state of { Complete receipt -> 42 }}>Submit</Button></section>}
+  main :: Int
+  main =
+    let state = review (Editing "hello") in
+    let output = render (render-review state) in
+    case submit (Editing "bad") of
+      Complete receipt -> if receipt == 6 && output == "<section><h1>Review</h1>5<button>Submit</button></section>" then 0 else 1

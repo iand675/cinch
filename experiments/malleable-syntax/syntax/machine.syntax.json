@@ -1,0 +1,88 @@
+{
+  "version": 1,
+  "name": "machine",
+  "entry": "root",
+  "rules": {
+    "root": {
+      "pattern": [
+        {
+          "capture": "states",
+          "of": {
+            "many": {
+              "ref": "state"
+            },
+            "min": 1,
+            "join": "; "
+          }
+        },
+        {
+          "capture": "events",
+          "of": {
+            "many": {
+              "ref": "event"
+            },
+            "min": 1,
+            "join": "; "
+          }
+        },
+        "}"
+      ],
+      "emit": "${states}; ${events}"
+    },
+    "state": {
+      "pattern": [
+        "state",
+        {
+          "capture": "name",
+          "of": {
+            "regex": "[A-Z][A-Za-z0-9]*"
+          }
+        },
+        "carries",
+        {
+          "capture": "type",
+          "of": {
+            "regex": "[A-Z][A-Za-z0-9]*"
+          }
+        },
+        ";"
+      ],
+      "emit": "data ${name} where { ${name} :: ${type} -> ${name} }"
+    },
+    "event": {
+      "pattern": [
+        "event",
+        {
+          "capture": "name",
+          "of": {
+            "regex": "[a-z][a-zA-Z0-9-]*"
+          }
+        },
+        ":",
+        {
+          "capture": "from",
+          "of": {
+            "regex": "[A-Z][A-Za-z0-9]*"
+          }
+        },
+        "->",
+        {
+          "capture": "to",
+          "of": {
+            "regex": "[A-Z][A-Za-z0-9]*"
+          }
+        },
+        "using",
+        {
+          "capture": "handler",
+          "of": {
+            "host": true
+          }
+        },
+        ";"
+      ],
+      "emit": "${name} :: ${from} -> ${to}; ${name} ${!state} = case ${!state} of { ${from} ${!value} -> ${to} ((${handler}) ${!value}) }"
+    }
+  },
+  "helpers": {}
+}

@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "name": "format",
+  "entry": "root",
+  "rules": {
+    "root": {
+      "pattern": [
+        {
+          "capture": "name",
+          "of": {
+            "regex": "[A-Z][A-Za-z0-9]*"
+          }
+        },
+        "magic",
+        {
+          "capture": "magic",
+          "of": {
+            "regex": "[0-9]+"
+          }
+        },
+        "version",
+        {
+          "capture": "version",
+          "of": {
+            "regex": "[0-9]+"
+          }
+        },
+        "payload",
+        "prefixed-u8",
+        "checksum",
+        "sum8",
+        "}"
+      ],
+      "emit": "record ${name} where { payload :: Bytes }; parse-${name} :: Bytes -> Option ${name}; parse-${name} input = case ${@decode} ${magic} ${version} input of { None -> None; Some payload -> Some (${name} { payload = payload }) }; write-${name} :: ${name} -> Option Bytes; write-${name} packet = ${@encode} ${magic} ${version} packet.payload"
+    }
+  },
+  "helpers": {
+    "decode": "Binary.decode",
+    "encode": "Binary.encode"
+  }
+}
