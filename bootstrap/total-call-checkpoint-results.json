@@ -1,7 +1,7 @@
 {
-  "recorded_at": "2026-11-02T03:42:29.167518+00:00",
-  "status": "typed total-call structural checks and actual-body arithmetic recognition pass; six whole regressions and fresh stages are unfinished; imported-call admission remains incomplete",
-  "source_sha256": "664bbf3c36a4bc00571db6c7bc8061d4399e288b2dbc44667975a6162dc38058",
+  "recorded_at": "2026-11-02T03:56:24.366502+00:00",
+  "status": "typed total-call checks, actual-body recognition and all six whole regressions pass; fresh stage0/1 smokes pass; actual stage2 still refuses one imported measure header before bodies",
+  "source_sha256": "47ade0f579de4a420a7d2cd9f9382882299082d6f6736c4e47ec90bf289aade3",
   "source_inputs": 610,
   "compiler_named_source_sha256": "8f6bbf37fd2b87e800a17a09a89926d32b44b6172319b50994d74b87638a7a1e",
   "compiler_bundle_bytes_sha256": "f59bb973ff9024040f2d3e3c8ce573a1fd6613c5c2b844c0ac9180ed1ae9a3db",
@@ -480,7 +480,8 @@
     "bootstrap/programs/Run.TotalSemantics.cinch",
     "compiler/tests/bootstrap_total_indices.rs",
     "compiler/tests/bootstrap_total_semantics.rs",
-    "compiler/tests/common/mod.rs"
+    "compiler/tests/common/mod.rs",
+    "compiler/tests/bootstrap_parse.rs"
   ],
   "typed_call_checks": {
     "status": "passed",
@@ -599,10 +600,12 @@
         "--nocapture",
         "--test-threads=1"
       ],
+      "exit_code": 0,
+      "finished": "2026-11-02T03:44:58.568130+00:00",
       "name": "bootstrap_effects",
       "pid": 67439,
       "started": "2026-11-02T03:41:49.127401+00:00",
-      "status": "running"
+      "status": "passed"
     },
     {
       "command": [
@@ -617,8 +620,12 @@
         "--nocapture",
         "--test-threads=1"
       ],
+      "exit_code": 0,
+      "finished": "2026-11-02T03:46:10.799884+00:00",
       "name": "bootstrap_pi",
-      "status": "pending"
+      "pid": 69412,
+      "started": "2026-11-02T03:44:58.568548+00:00",
+      "status": "passed"
     },
     {
       "command": [
@@ -633,46 +640,175 @@
         "--nocapture",
         "--test-threads=1"
       ],
+      "exit_code": 0,
+      "finished": "2026-11-02T03:46:18.012271+00:00",
       "name": "bootstrap_indices",
-      "status": "pending"
+      "pid": 70378,
+      "started": "2026-11-02T03:46:10.800261+00:00",
+      "status": "passed"
     },
     {
-      "command": [
+      "name": "bootstrap_parse",
+      "status": "passed",
+      "exit_code": 0,
+      "source_sha256": "47ade0f579de4a420a7d2cd9f9382882299082d6f6736c4e47ec90bf289aade3",
+      "aggregate_command": [
         "cargo",
         "test",
+        "--no-fail-fast",
         "--target-dir",
-        "/tmp/cinch-total-calls-validation-3/cargo",
+        "/tmp/cinch-total-calls-validation-4/cargo",
         "--test",
         "bootstrap_parse",
-        "--",
-        "--include-ignored",
-        "--nocapture",
-        "--test-threads=1"
-      ],
-      "name": "bootstrap_parse",
-      "status": "pending"
-    },
-    {
-      "command": [
-        "cargo",
-        "test",
-        "--target-dir",
-        "/tmp/cinch-total-calls-validation-3/cargo",
         "--test",
         "bootstrap_pipeline",
         "--",
-        "--include-ignored",
         "--nocapture",
         "--test-threads=1"
       ],
+      "log": "/tmp/cinch-total-calls-validation-4/total_bodies.log",
+      "summary": "1 passed;0 failed;0 ignored; complete corpus and Native declaration agreement"
+    },
+    {
       "name": "bootstrap_pipeline",
-      "status": "pending"
+      "status": "passed",
+      "aggregate_pid": 71775,
+      "aggregate_command": [
+        "cargo",
+        "test",
+        "--no-fail-fast",
+        "--target-dir",
+        "/tmp/cinch-total-calls-validation-4/cargo",
+        "--test",
+        "bootstrap_parse",
+        "--test",
+        "bootstrap_pipeline",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "source_sha256": "47ade0f579de4a420a7d2cd9f9382882299082d6f6736c4e47ec90bf289aade3",
+      "log": "/tmp/cinch-total-calls-validation-4/total_bodies.log",
+      "exit_code": 0,
+      "finished": "2026-11-02T03:56:15.271936+00:00"
     }
   ],
   "fresh_stages": {
-    "status": "running or waiting for shared slot3",
-    "evidence": "/tmp/cinch-total-calls-stages-3",
-    "source_sha256": "664bbf3c36a4bc00571db6c7bc8061d4399e288b2dbc44667975a6162dc38058"
+    "status": "stage0/1 smokes passed; actual stage2 exits4 at one imported measure header before bodies",
+    "results": [
+      {
+        "command": [
+          "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "tooling/bootstrap.py",
+          "smoke",
+          "--stage",
+          "0"
+        ],
+        "exit_code": 0,
+        "finished": "2026-11-02T03:42:34.578063+00:00",
+        "log": "/tmp/cinch-total-calls-stages-3/stage0-smoke.log",
+        "name": "stage0-smoke",
+        "pid": 67285,
+        "started": "2026-11-02T03:41:32.547135+00:00",
+        "status": "passed"
+      },
+      {
+        "command": [
+          "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "tooling/bootstrap.py",
+          "smoke",
+          "--stage",
+          "1"
+        ],
+        "exit_code": 0,
+        "finished": "2026-11-02T03:45:52.558034+00:00",
+        "log": "/tmp/cinch-total-calls-stages-3/stage1-smoke.log",
+        "name": "stage1-smoke",
+        "pid": 68025,
+        "started": "2026-11-02T03:42:34.578651+00:00",
+        "status": "passed"
+      },
+      {
+        "command": [
+          "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "tooling/bootstrap.py",
+          "check"
+        ],
+        "exit_code": 1,
+        "finished": "2026-11-02T03:47:11.477241+00:00",
+        "log": "/tmp/cinch-total-calls-stages-3/self-hosting.log",
+        "name": "self-hosting",
+        "pid": 70057,
+        "started": "2026-11-02T03:45:52.558510+00:00",
+        "status": "failed"
+      }
+    ],
+    "summary": {
+      "0": {
+        "exit_code": 0,
+        "inputs": {
+          "host": {
+            "machine": "arm64",
+            "system": "Darwin"
+          },
+          "protocol": 2,
+          "seed": {
+            "description": "Pinned Rust seed with schema-7 definition-site nominal, class, Region and closed kernel effect contracts, dictionary slots, dependency-ordered source family overrides, dependency-sensitive pattern field names and conditional instance method proof contracts, integer conversion fixes, definition-owned fixities, guarded heap defaults and serial build/test settings and enforced optimizer residual growth bounds, portable checked numeric preconditions and dependent argument identities, checked structural NonZero precondition exports with actual argument identities, schema-7 defining refinement payloads and literal index contracts, checked anonymous refinements with actual argument/result identities and refined-argument numeric projections, semantic byte-length primitive identity, executable primitive index witnesses and actual signature-telescope observation carrier validation, closed byte-observation signature predicates and private named buffer-refinement contracts, portable checked machine-integer value comparisons with exact defining carrier scopes and opaque machine arithmetic; changed only by an intentional seed update.",
+            "patch": "bootstrap/seed/stage0.patch",
+            "patch_sha256": "655dfb04a042df9cd0aff5abebbbcd23510fb35efc92567e2d9ae8cfb9dedd5d",
+            "revision": "275de4f05b230c010aeb4b10265a04b97fb4eb1c",
+            "runtime_abi": 5,
+            "schema": 1,
+            "source_sha256": "81bb6e364f45201360e11d5b32e2b3f22cd4719a9dcb018551da034416e725e9"
+          }
+        },
+        "log": "/private/tmp/cinch-total-calls-stages-3/source/build/bootstrap/stage0/build.log",
+        "status": "built"
+      },
+      "1": {
+        "exit_code": 0,
+        "inputs": {
+          "builder_sha256": "3ffe30fd90b919bfca707dde4e4d6be69637ae9595f987ddc30ae08ca08ae3d5",
+          "built_by_stage": 0,
+          "host": {
+            "machine": "arm64",
+            "system": "Darwin"
+          },
+          "protocol": 2,
+          "source_sha256": "8f6bbf37fd2b87e800a17a09a89926d32b44b6172319b50994d74b87638a7a1e"
+        },
+        "log": "/private/tmp/cinch-total-calls-stages-3/source/build/bootstrap/stage1/build.log",
+        "status": "built"
+      },
+      "2": {
+        "diagnostic_categories": {
+          "imported using context needs a defining signature contract": 1
+        },
+        "diagnostics": 1,
+        "exit_code": 4,
+        "inputs": {
+          "builder_sha256": "98166fc3ade758fae6af6768f8976e5fe200ed1cc691653b2cbdcb682cf16ce1",
+          "built_by_stage": 1,
+          "host": {
+            "machine": "arm64",
+            "system": "Darwin"
+          },
+          "interface_set_sha256": "9dd64081a563781015ecf303755232dd45a04a2344f307f204ab81c703f4ce78",
+          "protocol": 2,
+          "source_sha256": "8f6bbf37fd2b87e800a17a09a89926d32b44b6172319b50994d74b87638a7a1e"
+        },
+        "log": "/private/tmp/cinch-total-calls-stages-3/source/build/bootstrap/stage2/build.log",
+        "status": "failed"
+      }
+    },
+    "source_audit": {
+      "files": 610,
+      "sha256": "664bbf3c36a4bc00571db6c7bc8061d4399e288b2dbc44667975a6162dc38058",
+      "status": "unchanged"
+    },
+    "source4_applicability": "Only the parser test corpus table changed after the stage snapshot; compiler bundle and base-library inputs are byte-identical.",
+    "no_stage2_ir_or_compiler": true,
+    "development_producer_not_in_pinned_seed": true
   },
   "implemented": [
     "UIndexCall carries an opaque checked TotalFunction plus typed argument spine; a bare IApply/IGlobal remains inadmissible.",
@@ -692,11 +828,14 @@
     "Typed shared-runtime lowering, complete proof/usage/totality, stage2/3 fixed point, changed-source compiler behavior and the complete self-built frontend suite remain unfinished."
   ],
   "preceding_body_foundation_matrix": {
-    "source_sha256": "bc9fed0a468ac0137b9e4881dfe42fc09c50f2267fd2bf0874f44a834751bc1d",
-    "status": "running",
+    "source_sha256": "e44ad613bdb4b2f65740ddf30aa7c50805f632378d21f68ab32baaa4a60d0ede",
+    "status": "running; corrected parser target passes",
     "integration_targets": 172,
     "general_gates": 5,
-    "evidence": "/tmp/cinch-total-bodies-validation-8/complete-matrix"
+    "evidence": "/tmp/cinch-total-bodies-validation-9/complete-matrix",
+    "only_change_from_body8": "compiler/tests/bootstrap_parse.rs adds the measured zero row for Bootstrap.Total; completed whole passes are reused only for byte-identical code and fixtures",
+    "fresh_gates": 134,
+    "reused_whole_gates": 43
   },
   "current_full_suite": {
     "status": "not started",
@@ -714,5 +853,15 @@
     "configured_maximum_heavy_jobs": 5,
     "matrix_and_stages": "share four global flock slots",
     "focused_regressions": "one named outside fifth lane"
+  },
+  "corpus_table_fix": {
+    "only_changed_input": "compiler/tests/bootstrap_parse.rs",
+    "added_expected_rows": {
+      "Bootstrap.Total": 0,
+      "Bootstrap.TotalSemantics": 0
+    },
+    "all_preceding_counts_unchanged": true,
+    "production_implementation_unchanged": true,
+    "four_source3_whole_passes_applicable": true
   }
 }

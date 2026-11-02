@@ -846,5 +846,18 @@
   "interface_schema": 7,
   "runtime_abi": 5,
   "seed_unchanged": true,
-  "self_hosting_achieved": false
+  "self_hosting_achieved": false,
+  "followup_corpus_table_validation": {
+    "source_sha256": "e44ad613bdb4b2f65740ddf30aa7c50805f632378d21f68ab32baaa4a60d0ede",
+    "changed_input": "compiler/tests/bootstrap_parse.rs",
+    "only_new_measured_row": {
+      "Bootstrap.Total": 0
+    },
+    "previous_matrix": "terminal failure only at obsolete parser corpus table; all other started targets passed",
+    "next_matrix": "/tmp/cinch-total-bodies-validation-9/complete-matrix",
+    "self_built_frontend": false,
+    "next_matrix_status": "running; corrected parser target passes",
+    "fresh_gates": 134,
+    "reused_whole_gates": 43
+  }
 }

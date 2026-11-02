@@ -11,9 +11,13 @@ retains its class/slot but removes numeric comparison recognition.
 The typed-call target passes 24 checks at five identities above2^128. The
 actual-body target passes nine classifications for each of two real defining
 method bodies; the existing three whole byte-observation regressions pass too.
-Six further whole regressions and fresh stages are running. The complete
-174+5 suite for this Type/Core change has not run; the 172+5 matrix in flight
-belongs to the preceding body foundation. Snapshot `664bbf3c36a4bc00571db6c7bc8061d4399e288b2dbc44667975a6162dc38058`
+All six whole regression targets pass: typing, effects, dependent functions,
+indices, parser corpus and the complete pipeline. The parser corpus table now includes
+both new modules with zero unsupported nodes; every previous count is unchanged.
+Fresh stage0/1 pass all six smokes. Actual stage2 still exits4 at the one imported
+measure header before bodies and produces no IR or compiler. The complete
+174+5 suite for this Type/Core change has not run; the corrected 172+5 matrix
+belongs to the preceding body foundation. Snapshot `47ade0f579de4a420a7d2cd9f9382882299082d6f6736c4e47ec90bf289aade3`
 and exact validation scope are recorded in
 [the total-call report](../bootstrap/total-call-checkpoint-results.json).
 
