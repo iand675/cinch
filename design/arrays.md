@@ -42,8 +42,9 @@ Counts and indices are mathematical `Nat`; out-of-range bignum indices
 return `None` without narrowing overflow.
 
 `Data.Array.Packed` supplies `array-from-u8s`, `array-from-i16s`, and the
-corresponding constructor for every supported machine scalar, including
-floats, `Char`, `Usize` and `Isize`. Those buffers use exactly the scalar's
+corresponding constructors for `I8`–`I64`, `U8`–`U64`, `F32`, `F64`,
+`Char`, `Usize` and `Isize`. `Bool` and `Unit` arrays currently use generic
+word storage. Packed buffers use exactly the scalar's
 byte stride. The format stays with the buffer, so generic reads and updates
 also work on packed arrays. Signed subword elements are sign extended on
 read; float bits are preserved. Appending differently formatted arrays of
