@@ -3,8 +3,9 @@
 Constructor patterns now keep adjacent fields and function/lambda parameters
 separate, matching the Native grammar. `Box End n` no longer becomes `Box (End n)`.
 The compiled Cinch source/Core target passes all17 source cases and nine metadata
-mutations. Four broader regressions and a fresh actual stage chain are running;
-no reduced stage2 diagnostic count is claimed yet. See
+mutations. Fresh stage0/1 pass all six combined smokes. Actual stage2 now reports
+597 body diagnostics, down from758, with constructor-arity errors eliminated.
+The broader parser regressions are still queued/running. See
 [the constructor-pattern report](../bootstrap/constructor-pattern-checkpoint-results.json).
 The running177+5 matrix below belongs to the preceding schema8 parser snapshot.
 
