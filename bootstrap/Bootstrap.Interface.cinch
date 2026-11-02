@@ -128,10 +128,11 @@ module Bootstrap.Interface where
   bytes-splice :: Bytes -> Nat -> Nat -> Bytes -> Bytes
   bytes-splice hay lo hi repl =
     if lo <= hi && hi <= bytes-len hay then
-      let out = bytes-new ((bytes-len hay - hi) + lo + bytes-len repl) in
+      let suffix = bytes-len hay - hi in
+      let out = bytes-new (suffix + lo + bytes-len repl) in
       let u = copy-bytes-into out hay 0 0 lo in
       let v = copy-bytes-into out repl lo 0 (bytes-len repl) in
-      let w = copy-bytes-into out hay (lo + bytes-len repl) hi (bytes-len hay - hi) in
+      let w = copy-bytes-into out hay (lo + bytes-len repl) hi suffix in
       out
     else hay
 

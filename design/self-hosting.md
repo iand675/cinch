@@ -1,5 +1,21 @@
 # Self-hosting
 
+The interface reader now binds the actual checked suffix length inside its
+original splice guard, then uses that value for allocation and copying. The
+whole module passes source checking; the complete interface hash/corruption
+and loader dependency regressions pass. Fresh stage0/1 pass all six smokes.
+The next actual stage2 attempt is running; no stage2 IR or compiler is claimed.
+All four intended argument-witness regressions also pass. See
+[the interface splice checkpoint](../bootstrap/interface-splice-results.json).
+
+The preceding JSON candidate cleared Text.Json and stopped at this splice
+calculation, with1196 stage2 diagnostics; later errors may be cascades. Source
+acceptance remains distinct from typed runtime lowering. Full correctness
+checks, shared-runtime code generation, current-source and self-built tests,
+and the stage2/3 fixed point remain required.
+
+## Earlier implementation checkpoints
+
 The development Rust compiler now retains checked byte-length equations for
 strict aliases whose actual carrier is refined Nat, including Size. It preserves
 lexical value identities and actual primitive/body authority. All four whole
