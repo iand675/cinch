@@ -319,3 +319,77 @@ impl Checker {
         Some(crate::interface::GuardedNatBody { parameters: arity as u64, root: resolve(self, pending, 0)? })
     }
 }
+
+impl Checker {
+    // A strict Nat result is evaluated once. Its equation comes from the
+    // checked primitive/body selected by its actual dictionary, never from
+    // the source operator spelling. The ordinary deferred call discharge
+    // still checks the call's original, pre-binding evidence snapshot.
+    fn checked_nat_let_fact(&self, env: &Env, name: &str, local: LocalId, core: &ECore, ty: &Ty) -> Option<Fact> {
+        if self.uni.zonk(ty) != Ty::Nat || !matches!(core, ECore::App(..) | ECore::Var(_)) { return None }
+        let value = self.checked_nat_reading(env, core, 0)?;
+        let mut names = self.term_names(env, &value)?;
+        names.push((name.to_owned(), local));
+        Some(Fact { prop: PTerm::Cmp(IdxCmp::Eq, Box::new(ITerm::Var(name.to_owned())), Box::new(value)), at: self.ev_writes.len(), names })
+    }
+    fn checked_nat_reading(&self, env: &Env, core: &ECore, depth: usize) -> Option<ITerm> {
+        if depth > 64 { return None }
+        match core {
+            ECore::Var(local) => {
+                let (name, _, scheme) = env.locals.iter().rev().find(|(_, id, _)| id == local)?;
+                if self.uni.zonk(&scheme.ty) != Ty::Nat || !scheme.params.is_empty() || env.lookup(name)?.0 != *local { return None }
+                Some(ITerm::Var(name.clone()))
+            }
+            ECore::ConstBig { nat: true, digits } => Some(ITerm::Num(digits.clone())),
+            ECore::Lit(id) => {
+                let literal = self.literal_pends.get(*id)?;
+                if self.uni.zonk(&literal.ty) != Ty::Nat { return None }
+                Some(ITerm::Num(literal.value.clone()))
+            }
+            ECore::App(function, arguments) => {
+                let mut groups = vec![arguments.as_slice()]; let mut head = &**function;
+                while let ECore::App(function, arguments) = head { groups.push(arguments.as_slice()); head = function; }
+                let mut values = Vec::new();
+                for group in groups.into_iter().rev() { for argument in group { values.push(self.checked_nat_reading(env, argument, depth + 1)?); } }
+                let primitive = match head {
+                    ECore::Prim(op) => Some(*op),
+                    ECore::Global(id, actuals) if actuals.is_empty() => self.fns.iter().find(|f| f.id == *id).and_then(|f| f.prim),
+                    _ => None,
+                };
+                if primitive == Some(PrimOp::Nat(NatOp::Sub)) && values.len() == 2 {
+                    return Some(ITerm::Bin(IdxOp::Sub, Box::new(values[0].clone()), Box::new(values[1].clone())))
+                }
+                let ECore::DictProj(dictionary, slot, _, _) = head else { return None };
+                let ECore::Hole(want) = &**dictionary else { return None };
+                let want = self.wants.iter().find(|w| w.id == *want)?;
+                let wanted = self.uni.zonk_class(&want.class);
+                if wanted.args.iter().any(|ty| !self.uni.free_metas(ty).is_empty()) || want.scope.iter().any(|(_, given)| given.class == wanted.class) { return None }
+                let mut selected = None;
+                for instance in self.instance_list.iter().filter(|i| i.implicit && !i.base && i.target.class == wanted.class) {
+                    // General instance factories need explicit captured-body
+                    // reconstruction. Be conservative until it is available.
+                    if !instance.params.is_empty() { return None }
+                    let mut trial = self.uni.clone();
+                    if !self.lattice_match(&instance.target.args, &wanted.args, &mut trial) { continue }
+                    if !instance.ctx.is_empty() || selected.is_some() { return None }
+                    selected = Some(instance);
+                }
+                let instance = selected?;
+                let definition = self.instance_defs.iter().find(|d| d.id == instance.base_id && d.tparams == 0 && d.subdict_count == 0)?;
+                let implementation = definition.methods.get(*slot)?;
+                let scheme = &instance.method_contracts.iter().find(|(index, _, _)| index == slot)?.2;
+                let body = self.guarded_nat_body(implementation, scheme)?;
+                if body.parameters as usize != values.len() { return None }
+                fn instantiate(expression: &crate::interface::GuardedNatExpr, values: &[ITerm]) -> Option<ITerm> {
+                    use crate::interface::GuardedNatExpr as E;
+                    Some(match expression {
+                        E::Argument(slot) => values.get(*slot as usize)?.clone(),
+                        E::Subtract(a, b) => ITerm::Bin(IdxOp::Sub, Box::new(instantiate(a, values)?), Box::new(instantiate(b, values)?)),
+                    })
+                }
+                instantiate(&body.root, &values)
+            }
+            _ => None,
+        }
+    }
+}

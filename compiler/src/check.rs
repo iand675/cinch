@@ -3547,6 +3547,17 @@ impl Checker {
     /// name's innermost binding only.
     fn evidence_in(&self, env: &Env) -> Evidence {
         let mut out = Evidence::default();
+        // Logical local identities remain scoped even if their source name
+        // is shadowed. They are never ordinary source lookup bindings.
+        for (_, local, scheme) in &env.locals {
+            if scheme.params.is_empty() {
+                if let Some((sort, _)) = self.int_view(&self.uni.zonk(&scheme.ty)) {
+                    let original = self.value_aliases.get(local).copied().unwrap_or(*local);
+                    let name = format!("$proof-value:{}", original.0);
+                    if !out.sorts.iter().any(|(old, _)| *old == name) { out.sorts.push((name, sort)); }
+                }
+            }
+        }
         // Innermost first, so `later` holds every name bound after the
         // current local; the items are reversed back to scope order.
         let mut later: HashSet<&str> = HashSet::new();
@@ -3583,11 +3594,13 @@ impl Checker {
                 continue;
             };
             let q = self.uni.resolve_prop(q);
+            let origin = self.proof_value_scopes.get(local);
+            let q = origin.map(|source| self.proof_values_in_scope(&q, source, env)).unwrap_or(q);
             let mut fv = Vec::new();
             q.free_vars(&mut fv);
             // `later` already holds this binder's own name, which its
             // statement never mentions.
-            if fv.iter().any(|v| v != name && later.contains(v.as_str())) {
+            if origin.is_none() && fv.iter().any(|v| v != name && later.contains(v.as_str())) {
                 continue;
             }
             let (muts, _) = self.ev_footprint(&q, env);

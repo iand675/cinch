@@ -1,5 +1,23 @@
 # Next steps (as of 2026-11-02)
 
+Rust now retains strict Nat let equations from actual checked bodies and
+keeps their original values across aliases and numeric result-contract
+shadowing. Unknown dictionaries grant no equation; a result fact cannot
+supply its own earlier call guard. Ordinary evidence preserves opaque measure
+expressions and mutable invalidation. The linear solver now retains negated
+multi-term equality goals before pruning facts, and still checks its generated
+certificates independently. All142 Native units and12 whole regression targets
+pass, including four new guarded-let tests. The74239b7 seed intentionally
+reproduces those exact sources through archive plus patch. ABI5/schema8 remain
+unchanged. See [the Rust guarded-let report](../bootstrap/native-guarded-let-results.json).
+
+The latest Cinch body-admission and body-association targets each pass50
+independent checks. The source-level guarded-call target is still running;
+these private changes are not part of this Rust checkpoint. The complete
+182+5 result below remains scoped to the older c126 conditional baseline.
+Genuine self-hosting is still incomplete.
+
+
 The complete conditional compiler baseline now passes all182 integration
 targets and five general gates. Each continuation audits the frozen inputs and
 reuses only unaffected whole gates. The module-instantiation fixture now keeps

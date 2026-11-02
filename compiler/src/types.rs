@@ -1937,20 +1937,21 @@ fn lin_domain(t: &ITerm, sorts: &Sorts) -> Vec<LinLe> {
 fn lin_prove(hyps: &[PTerm], disjuncts: &[PTerm], sorts: &Sorts) -> Option<LinCert> {
     let mut steps: Vec<LinStep> = Vec::new();
     let mut diseqs: Vec<(DiffWhy, LinLe, LinLe)> = Vec::new();
-    let mut add = |r: LinReading, why: DiffWhy, steps: &mut Vec<LinStep>| match r {
+    let add = |r: LinReading, why: DiffWhy, steps: &mut Vec<LinStep>, diseqs: &mut Vec<(DiffWhy, LinLe, LinLe)>| match r {
         LinReading::Les(ls) => steps.extend(ls.into_iter().map(|le| LinStep { le, why: why.clone() })),
         LinReading::Ne(a, b) => diseqs.push((why, a, b)),
     };
     for (k, g) in disjuncts.iter().enumerate() {
-        add(lin_negated(g, sorts), DiffWhy::Goal(k), &mut steps);
+        add(lin_negated(g, sorts), DiffWhy::Goal(k), &mut steps, &mut diseqs);
     }
     let goal_rows = steps.len();
+    let goal_diseqs = diseqs.len();
     for (i, h) in hyps.iter().enumerate().rev() {
         if hyps[i + 1..].iter().any(|later| later == h) {
             continue;
         }
         for (j, a) in pred_conjuncts(h).iter().enumerate() {
-            add(lin_atom(a, sorts), DiffWhy::Hyp { hyp: i, conj: j }, &mut steps);
+            add(lin_atom(a, sorts), DiffWhy::Hyp { hyp: i, conj: j }, &mut steps, &mut diseqs);
         }
     }
     // Only the constraints that share keys with the goal, transitively,
@@ -1962,6 +1963,12 @@ fn lin_prove(hyps: &[PTerm], disjuncts: &[PTerm], sorts: &Sorts) -> Option<LinCe
                 keys.push(t.clone());
             }
         }
+    }
+    // Negating equality produces a disequality, not an ordinary row.
+    // Its keys must seed the dependency closure too; otherwise all the
+    // facts needed for a three-variable equality are silently discarded.
+    for (_, a, _) in &diseqs[..goal_diseqs] {
+        for (t, _) in &a.terms { if !keys.contains(t) { keys.push(t.clone()); } }
     }
     let touches = |le: &LinLe, keys: &[ITerm]| le.terms.iter().any(|(t, _)| keys.contains(t));
     let mut used = vec![false; steps.len()];
@@ -1980,7 +1987,7 @@ fn lin_prove(hyps: &[PTerm], disjuncts: &[PTerm], sorts: &Sorts) -> Option<LinCe
             }
         }
         for (i, (_, a, _)) in diseqs.iter().enumerate() {
-            if !used_ne[i] && touches(a, &keys) {
+            if !used_ne[i] && (i < goal_diseqs || touches(a, &keys)) {
                 used_ne[i] = true;
                 grew = true;
                 for (t, _) in &a.terms {
@@ -4735,5 +4742,24 @@ mod tests {
         let l1 = Ty::Lazy { eff: e.clone(), region: "r".into(), inner: Box::new(Ty::Int) };
         let l2 = Ty::Lazy { eff: e, region: "s".into(), inner: Box::new(Ty::Int) };
         assert!(u.unify(&l1, &l2).is_err());
+    }
+}
+
+#[cfg(test)]
+mod guarded_equality_tests {
+    use super::*;
+    #[test]
+    fn multi_term_equality_keeps_its_negated_goal_and_supporting_facts() {
+        let v = |name: &str| ITerm::Var(name.into());
+        let cmp = |a, b| PTerm::Cmp(IdxCmp::Eq, Box::new(a), Box::new(b));
+        let facts = [cmp(v("result"), ITerm::Bin(IdxOp::Sub, Box::new(v("total")), Box::new(v("extra"))))];
+        let sum = ITerm::Bin(IdxOp::Add, Box::new(v("result")), Box::new(v("extra")));
+        let goal = cmp(sum.clone(), v("total"));
+        let sorts = Sorts { vars: vec![("total".into(), IntSort::Nat), ("extra".into(), IntSort::Nat), ("result".into(), IntSort::Nat)], fns: vec![] };
+        let proofs = linear_entails(&facts, &goal, &sorts).expect("the actual equation entails the rearranged equality");
+        assert!(proofs.iter().all(|proof| check_linear_proof(&facts, proof, &sorts)));
+        assert!(linear_entails(&[], &goal, &sorts).is_none());
+        let wrong = cmp(sum, ITerm::Bin(IdxOp::Add, Box::new(v("total")), Box::new(ITerm::num(1))));
+        assert!(linear_entails(&facts, &wrong, &sorts).is_none());
     }
 }

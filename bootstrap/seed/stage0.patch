@@ -503,7 +503,40 @@
                  match self.uni.zonk(&s.ty) {
                      Ty::Mut(r, _) => {
                          if !muts.contains(&r) {
-@@ -3575,6 +3618,7 @@
+@@ -3504,6 +3547,17 @@
+     /// name's innermost binding only.
+     fn evidence_in(&self, env: &Env) -> Evidence {
+         let mut out = Evidence::default();
++        // Logical local identities remain scoped even if their source name
++        // is shadowed. They are never ordinary source lookup bindings.
++        for (_, local, scheme) in &env.locals {
++            if scheme.params.is_empty() {
++                if let Some((sort, _)) = self.int_view(&self.uni.zonk(&scheme.ty)) {
++                    let original = self.value_aliases.get(local).copied().unwrap_or(*local);
++                    let name = format!("$proof-value:{}", original.0);
++                    if !out.sorts.iter().any(|(old, _)| *old == name) { out.sorts.push((name, sort)); }
++                }
++            }
++        }
+         // Innermost first, so `later` holds every name bound after the
+         // current local; the items are reversed back to scope order.
+         let mut later: HashSet<&str> = HashSet::new();
+@@ -3540,11 +3594,13 @@
+                 continue;
+             };
+             let q = self.uni.resolve_prop(q);
++            let origin = self.proof_value_scopes.get(local);
++            let q = origin.map(|source| self.proof_values_in_scope(&q, source, env)).unwrap_or(q);
+             let mut fv = Vec::new();
+             q.free_vars(&mut fv);
+             // `later` already holds this binder's own name, which its
+             // statement never mentions.
+-            if fv.iter().any(|v| v != name && later.contains(v.as_str())) {
++            if origin.is_none() && fv.iter().any(|v| v != name && later.contains(v.as_str())) {
+                 continue;
+             }
+             let (muts, _) = self.ev_footprint(&q, env);
+@@ -3575,6 +3631,7 @@
      /// The integer sort of a named function's result applied to `arity`
      /// arguments (the head of an index-level application).
      fn fn_int_sort(&self, head: &str, arity: usize) -> Option<IntSort> {
@@ -511,7 +544,7 @@
          let (module, name) = head.rsplit_once('.')?;
          let v = self.qualified.get(&(module.to_string(), name.to_string()))?;
          let mut ty = v.scheme.ty.clone();
-@@ -3648,6 +3692,9 @@
+@@ -3648,6 +3705,9 @@
              }),
              ITerm::App(f, args) => {
                  let ITerm::Fn(h) = &**f else { return false };
@@ -521,7 +554,7 @@
                  let Some((module, name)) = h.rsplit_once('.') else { return false };
                  match self.qualified.get(&(module.to_string(), name.to_string())).map(|v| &v.kind) {
                      Some(ValueKind::Prim(op)) => {
-@@ -3704,6 +3751,14 @@
+@@ -3704,6 +3764,14 @@
          let mut apps = Vec::new();
          preds(p, &mut apps);
          for (head, args, term) in apps {
@@ -536,7 +569,7 @@
              let Some((module, name)) = head.rsplit_once('.') else { continue };
              let Some(v) = self.qualified.get(&(module.to_string(), name.to_string())) else { continue };
              let mut ty = v.scheme.ty.clone();
-@@ -4906,6 +4961,7 @@
+@@ -4906,6 +4974,7 @@
                      ))
                  }
              },
@@ -544,7 +577,7 @@
              ITerm::Fn(g) => {
                  self.check_executable(&g, span)?;
                  ECore::Global(GlobalId(g), Vec::new())
-@@ -5843,7 +5899,7 @@
+@@ -5843,7 +5912,7 @@
                  }
              });
              match found {
@@ -553,7 +586,7 @@
                  Err(_) => {
                      return Err(Error::at(
                          span,
-@@ -6058,7 +6114,7 @@
+@@ -6058,7 +6127,7 @@
                              // A measure atom over any container: the
                              // binder may appear only under the baked
                              // measures (`length xs > 100`).
@@ -562,7 +595,7 @@
                                  Ok(())
                              } else {
                                  Err(Error::at(
-@@ -6266,6 +6322,20 @@
+@@ -6266,6 +6335,20 @@
                  "the `refined` former takes a predicate and at most one container (`refined P T`)",
              ));
          }
@@ -583,7 +616,7 @@
          let mut out = vec![Ty::Prp(Box::new(pred))];
          if let Some(t) = args.get(1) {
              out.push(self.conv_type(t, vars)?);
-@@ -7460,6 +7530,7 @@
+@@ -7460,6 +7543,7 @@
                          .collect();
                      let constraints = self.kind_constraints.borrow().clone();
                      let mut type_params: Vec<String> = Vec::new();
@@ -591,7 +624,7 @@
                      let mut val_params: Vec<(String, Ty)> = Vec::new();
                      let mut prop_params: Vec<String> = Vec::new();
                      for (name, hint, span) in binders {
-@@ -7469,12 +7540,17 @@
+@@ -7469,12 +7553,17 @@
                          let kind =
                              self.resolve_binder_kind(&name, hint.as_ref(), &constraints, span)?;
                          match kind {
@@ -611,7 +644,7 @@
                          params: type_params,
                          idx_params: Vec::new(),
                          val_params,
-@@ -7484,9 +7560,199 @@
+@@ -7484,9 +7573,199 @@
                          ctx,
                          obligs,
                          ty: Self::positional_results(&t, 0),
@@ -814,7 +847,7 @@
          }
      }
  
-@@ -9151,3 +9417,18 @@
+@@ -9151,3 +9430,18 @@
  // `check_decls.rs`. Both are included at module scope.
  include!("check_terms.rs");
  include!("check_decls.rs");
@@ -2672,7 +2705,27 @@
 +}
 --- a/compiler/src/check_terms.rs
 +++ b/compiler/src/check_terms.rs
-@@ -2934,8 +2934,8 @@
+@@ -1506,7 +1506,8 @@
+             ast::Term::Let(decls, body, span) => self.in_let(*span, |s| {
+                 let mut env2 = env.clone();
+                 let (binds, group) = s.elab_locals(&mut env2, decls, LocalForm::Plain)?;
+-                let bcore = s.check(&mut env2, body, expected)?;
++                let scoped = s.numeric_contract_in_value_scope(expected, env, &env2);
++                let bcore = s.check(&mut env2, body, &scoped)?;
+                 if let Some(g) = &group {
+                     s.discharge_group(g, expected, *span)?;
+                 }
+@@ -1515,7 +1516,8 @@
+             ast::Term::Letrec(decls, body, span) => self.in_let(*span, |s| {
+                 let mut env2 = env.clone();
+                 let (binds, group) = s.elab_letrec(&mut env2, decls)?;
+-                let bcore = s.check(&mut env2, body, expected)?;
++                let scoped = s.numeric_contract_in_value_scope(expected, env, &env2);
++                let bcore = s.check(&mut env2, body, &scoped)?;
+                 if let Some(g) = &group {
+                     s.discharge_group(g, expected, *span)?;
+                 }
+@@ -2934,8 +2936,8 @@
                  if !args.iter().all(|a| self.fact_term_ok(env, a)) {
                      return false;
                  }
@@ -2683,7 +2736,7 @@
                  }
                  // A pure arithmetic intrinsic applied to all of its
                  // arguments (`u32-to-i64 c`, `bit-and-i64 x 255`,
-@@ -3595,6 +3595,8 @@
+@@ -3595,6 +3597,8 @@
                      }
                  }
                  c
@@ -2692,7 +2745,7 @@
              } else {
                  self.check(env, a, dom)?
              };
-@@ -3648,7 +3650,7 @@
+@@ -3648,7 +3652,7 @@
                  ),
              ));
          }
@@ -2701,7 +2754,7 @@
      }
  
      /// A term in index position (a value a dependent type mentions):
-@@ -3778,6 +3780,66 @@
+@@ -3778,6 +3782,72 @@
      /// Proof terms check and vanish: they never become runtime code (core
      /// specification section 3), and a failed check never produces
      /// evidence.
@@ -2719,6 +2772,12 @@
 +    fn proof_in_value_scope(
 +        &self, prop: &PTerm, source: &HashMap<String, LocalId>, current: &Env,
 +    ) -> PTerm {
++        self.proof_values_in_scope(&self.reduce_prop(prop), source, current)
++    }
++
++    fn proof_values_in_scope(
++        &self, prop: &PTerm, source: &HashMap<String, LocalId>, current: &Env,
++    ) -> PTerm {
 +        let mut visible = HashMap::new();
 +        for (name, local, _) in &current.locals {
 +            if current.lookup(name).is_some_and(|(active, _)| active == *local) {
@@ -2726,7 +2785,7 @@
 +                visible.insert(original, name.clone());
 +            }
 +        }
-+        let mut out = self.reduce_prop(prop);
++        let mut out = prop.clone();
 +        let mut names = Vec::new(); out.free_vars(&mut names);
 +        // Simultaneous substitution avoids an alias's spelling being
 +        // mistaken for another source name which occurs in the predicate.
@@ -2768,23 +2827,29 @@
      fn check_proof(&mut self, env: &mut Env, term: &ast::Term, prop: &PTerm) -> Result<ECore> {
          match self.static_obligation(prop)? {
              ObligStatus::Disproved => {
-@@ -5920,6 +5982,7 @@
+@@ -5920,7 +5990,10 @@
                          }
                      };
                      let scheme = self.generalize_local(env, l, &ty, is_value.then_some(&core));
++                    let equation = self.checked_nat_let_fact(env, &name.text, l, &core, &ty);
 +                    self.note_value_alias(l, &core);
                      self.bind_local(env, &name.text, l, scheme, None, name.span)?;
++                    if let Some(fact) = equation { self.bind_facts(env, &[fact], self.ev_writes.len(), *span)?; }
                      // A let-generalized local's uses are copies of its
                      // definition, so the binding itself is never read.
-@@ -5935,6 +5998,7 @@
+                     if !self.gen_defs.contains_key(&l) {
+@@ -5935,7 +6008,10 @@
                          ast::Pat::Var(n, _) => {
                              let def = is_syntactic_value(body).then_some(&bc);
                              let scheme = self.generalize_local(env, l, &bt, def);
++                            let equation = self.checked_nat_let_fact(env, &n.text, l, &bc, &bt);
 +                            self.note_value_alias(l, &bc);
                              self.bind_local(env, &n.text, l, scheme, None, n.span)?;
++                            if let Some(fact) = equation { self.bind_facts(env, &[fact], self.ev_writes.len(), *span)?; }
                              if self.gen_defs.contains_key(&l) {
                                  continue;
-@@ -6542,6 +6606,7 @@
+                             }
+@@ -6542,6 +6618,7 @@
          }
          self.gen_locals.insert(l, metas);
          Scheme {
@@ -2792,7 +2857,7 @@
              obligs: Vec::new(),
              params: tps,
              idx_params: Vec::new(),
-@@ -7207,6 +7272,12 @@
+@@ -7207,6 +7284,12 @@
                              let map = binder_maps.entry(tag).or_default();
                              for (i, sp) in args.iter().enumerate() {
                                  let b = &parts.fields[i].0;
@@ -2805,7 +2870,7 @@
                                  if let ast::Pat::Var(n, _) = sp {
                                      match map.get(b) {
                                          Some(prev) if *prev != n.text => {
-@@ -7222,12 +7293,7 @@
+@@ -7222,12 +7305,7 @@
                                              map.insert(b.clone(), n.text.clone());
                                          }
                                      }
@@ -2819,9 +2884,33 @@
                                      return Err(Error::at(
                                          sp.span(),
                                          format!(
+@@ -10694,3 +10772,23 @@
+     }
+     out
+ }
++
++impl Checker {
++    // Numeric result contracts are scoped before a let introduces names.
++    // Rebase their free value names to surviving aliases or internal local
++    // identities; a replacement source spelling is never the old value.
++    fn numeric_contract_in_value_scope(&self, ty: &Ty, source: &Env, current: &Env) -> Ty {
++        if !self.int_view(&self.uni.zonk(ty)).is_some_and(|(_, refinement)| refinement.is_some()) { return ty.clone() }
++        let mut out = ty.clone(); let mut names = std::collections::BTreeSet::new(); let mut replacements = Vec::new();
++        for (name, id, _) in source.locals.iter().rev() {
++            if !names.insert(name.clone()) || current.lookup(name).map(|(active, _)| active) == Some(*id) { continue }
++            let original = self.value_aliases.get(id).copied().unwrap_or(*id);
++            let fresh = format!("$proof-value:{}", original.0);
++            let visible = current.locals.iter().rev().find(|(name, local, _)| current.lookup(name).is_some_and(|(active, _)| active == *local) && self.value_aliases.get(local).copied().unwrap_or(*local) == original).map(|(name, _, _)| name.clone());
++            out = out.subst_idx(name, &ITerm::Var(fresh.clone()));
++            replacements.push((fresh, visible));
++        }
++        for (fresh, visible) in replacements { if let Some(name) = visible { out = out.subst_idx(&fresh, &ITerm::Var(name)); } }
++        out
++    }
++}
 --- /dev/null
 +++ b/compiler/src/check_total.rs
-@@ -0,0 +1,321 @@
+@@ -0,0 +1,395 @@
 +// Native producer for portable total bodies. Ordinary callable schemes and
 +// class/slot spellings grant no semantics; resolve the actual closed method
 +// field, then inspect its checked body and fixed primitive operations.
@@ -3141,6 +3230,80 @@
 +            })
 +        }
 +        Some(crate::interface::GuardedNatBody { parameters: arity as u64, root: resolve(self, pending, 0)? })
++    }
++}
++
++impl Checker {
++    // A strict Nat result is evaluated once. Its equation comes from the
++    // checked primitive/body selected by its actual dictionary, never from
++    // the source operator spelling. The ordinary deferred call discharge
++    // still checks the call's original, pre-binding evidence snapshot.
++    fn checked_nat_let_fact(&self, env: &Env, name: &str, local: LocalId, core: &ECore, ty: &Ty) -> Option<Fact> {
++        if self.uni.zonk(ty) != Ty::Nat || !matches!(core, ECore::App(..) | ECore::Var(_)) { return None }
++        let value = self.checked_nat_reading(env, core, 0)?;
++        let mut names = self.term_names(env, &value)?;
++        names.push((name.to_owned(), local));
++        Some(Fact { prop: PTerm::Cmp(IdxCmp::Eq, Box::new(ITerm::Var(name.to_owned())), Box::new(value)), at: self.ev_writes.len(), names })
++    }
++    fn checked_nat_reading(&self, env: &Env, core: &ECore, depth: usize) -> Option<ITerm> {
++        if depth > 64 { return None }
++        match core {
++            ECore::Var(local) => {
++                let (name, _, scheme) = env.locals.iter().rev().find(|(_, id, _)| id == local)?;
++                if self.uni.zonk(&scheme.ty) != Ty::Nat || !scheme.params.is_empty() || env.lookup(name)?.0 != *local { return None }
++                Some(ITerm::Var(name.clone()))
++            }
++            ECore::ConstBig { nat: true, digits } => Some(ITerm::Num(digits.clone())),
++            ECore::Lit(id) => {
++                let literal = self.literal_pends.get(*id)?;
++                if self.uni.zonk(&literal.ty) != Ty::Nat { return None }
++                Some(ITerm::Num(literal.value.clone()))
++            }
++            ECore::App(function, arguments) => {
++                let mut groups = vec![arguments.as_slice()]; let mut head = &**function;
++                while let ECore::App(function, arguments) = head { groups.push(arguments.as_slice()); head = function; }
++                let mut values = Vec::new();
++                for group in groups.into_iter().rev() { for argument in group { values.push(self.checked_nat_reading(env, argument, depth + 1)?); } }
++                let primitive = match head {
++                    ECore::Prim(op) => Some(*op),
++                    ECore::Global(id, actuals) if actuals.is_empty() => self.fns.iter().find(|f| f.id == *id).and_then(|f| f.prim),
++                    _ => None,
++                };
++                if primitive == Some(PrimOp::Nat(NatOp::Sub)) && values.len() == 2 {
++                    return Some(ITerm::Bin(IdxOp::Sub, Box::new(values[0].clone()), Box::new(values[1].clone())))
++                }
++                let ECore::DictProj(dictionary, slot, _, _) = head else { return None };
++                let ECore::Hole(want) = &**dictionary else { return None };
++                let want = self.wants.iter().find(|w| w.id == *want)?;
++                let wanted = self.uni.zonk_class(&want.class);
++                if wanted.args.iter().any(|ty| !self.uni.free_metas(ty).is_empty()) || want.scope.iter().any(|(_, given)| given.class == wanted.class) { return None }
++                let mut selected = None;
++                for instance in self.instance_list.iter().filter(|i| i.implicit && !i.base && i.target.class == wanted.class) {
++                    // General instance factories need explicit captured-body
++                    // reconstruction. Be conservative until it is available.
++                    if !instance.params.is_empty() { return None }
++                    let mut trial = self.uni.clone();
++                    if !self.lattice_match(&instance.target.args, &wanted.args, &mut trial) { continue }
++                    if !instance.ctx.is_empty() || selected.is_some() { return None }
++                    selected = Some(instance);
++                }
++                let instance = selected?;
++                let definition = self.instance_defs.iter().find(|d| d.id == instance.base_id && d.tparams == 0 && d.subdict_count == 0)?;
++                let implementation = definition.methods.get(*slot)?;
++                let scheme = &instance.method_contracts.iter().find(|(index, _, _)| index == slot)?.2;
++                let body = self.guarded_nat_body(implementation, scheme)?;
++                if body.parameters as usize != values.len() { return None }
++                fn instantiate(expression: &crate::interface::GuardedNatExpr, values: &[ITerm]) -> Option<ITerm> {
++                    use crate::interface::GuardedNatExpr as E;
++                    Some(match expression {
++                        E::Argument(slot) => values.get(*slot as usize)?.clone(),
++                        E::Subtract(a, b) => ITerm::Bin(IdxOp::Sub, Box::new(instantiate(a, values)?), Box::new(instantiate(b, values)?)),
++                    })
++                }
++                instantiate(&body.root, &values)
++            }
++            _ => None,
++        }
 +    }
 +}
 --- a/compiler/src/codegen.rs
@@ -5147,7 +5310,54 @@
                  write!(f, "{n}")
              }
              ITerm::MVar(m) => write!(f, "?i{m}"),
-@@ -2963,7 +2969,11 @@
+@@ -1931,20 +1937,21 @@
+ fn lin_prove(hyps: &[PTerm], disjuncts: &[PTerm], sorts: &Sorts) -> Option<LinCert> {
+     let mut steps: Vec<LinStep> = Vec::new();
+     let mut diseqs: Vec<(DiffWhy, LinLe, LinLe)> = Vec::new();
+-    let mut add = |r: LinReading, why: DiffWhy, steps: &mut Vec<LinStep>| match r {
++    let add = |r: LinReading, why: DiffWhy, steps: &mut Vec<LinStep>, diseqs: &mut Vec<(DiffWhy, LinLe, LinLe)>| match r {
+         LinReading::Les(ls) => steps.extend(ls.into_iter().map(|le| LinStep { le, why: why.clone() })),
+         LinReading::Ne(a, b) => diseqs.push((why, a, b)),
+     };
+     for (k, g) in disjuncts.iter().enumerate() {
+-        add(lin_negated(g, sorts), DiffWhy::Goal(k), &mut steps);
++        add(lin_negated(g, sorts), DiffWhy::Goal(k), &mut steps, &mut diseqs);
+     }
+     let goal_rows = steps.len();
++    let goal_diseqs = diseqs.len();
+     for (i, h) in hyps.iter().enumerate().rev() {
+         if hyps[i + 1..].iter().any(|later| later == h) {
+             continue;
+         }
+         for (j, a) in pred_conjuncts(h).iter().enumerate() {
+-            add(lin_atom(a, sorts), DiffWhy::Hyp { hyp: i, conj: j }, &mut steps);
++            add(lin_atom(a, sorts), DiffWhy::Hyp { hyp: i, conj: j }, &mut steps, &mut diseqs);
+         }
+     }
+     // Only the constraints that share keys with the goal, transitively,
+@@ -1956,6 +1963,12 @@
+                 keys.push(t.clone());
+             }
+         }
++    }
++    // Negating equality produces a disequality, not an ordinary row.
++    // Its keys must seed the dependency closure too; otherwise all the
++    // facts needed for a three-variable equality are silently discarded.
++    for (_, a, _) in &diseqs[..goal_diseqs] {
++        for (t, _) in &a.terms { if !keys.contains(t) { keys.push(t.clone()); } }
+     }
+     let touches = |le: &LinLe, keys: &[ITerm]| le.terms.iter().any(|(t, _)| keys.contains(t));
+     let mut used = vec![false; steps.len()];
+@@ -1974,7 +1987,7 @@
+             }
+         }
+         for (i, (_, a, _)) in diseqs.iter().enumerate() {
+-            if !used_ne[i] && touches(a, &keys) {
++            if !used_ne[i] && (i < goal_diseqs || touches(a, &keys)) {
+                 used_ne[i] = true;
+                 grew = true;
+                 for (t, _) in &a.terms {
+@@ -2963,7 +2976,11 @@
                  // back to a plain name, so an interface's rendering reads
                  // back.
                  if let (true, [Ty::Prp(p), base]) = (t == "refined", args.as_slice()) {
@@ -5160,7 +5370,7 @@
                      return if needs_parens_as_argument(base) {
                          write!(f, "refined ({p}) ({base})")
                      } else {
-@@ -3162,6 +3172,9 @@
+@@ -3162,6 +3179,9 @@
  #[derive(Clone, Debug)]
  pub struct Scheme {
      pub params: Vec<String>,
@@ -5170,7 +5380,7 @@
      /// Schema-level index parameters (no runtime argument).
      pub idx_params: Vec<IxParam>,
      /// Implicit runtime value arguments, name and type.
-@@ -3180,6 +3193,7 @@
+@@ -3180,6 +3200,7 @@
  impl Scheme {
      pub fn mono(ty: Ty) -> Scheme {
          Scheme {
@@ -5178,3 +5388,26 @@
              params: Vec::new(),
              idx_params: Vec::new(),
              val_params: Vec::new(),
+@@ -4723,3 +4744,22 @@
+         assert!(u.unify(&l1, &l2).is_err());
+     }
+ }
++
++#[cfg(test)]
++mod guarded_equality_tests {
++    use super::*;
++    #[test]
++    fn multi_term_equality_keeps_its_negated_goal_and_supporting_facts() {
++        let v = |name: &str| ITerm::Var(name.into());
++        let cmp = |a, b| PTerm::Cmp(IdxCmp::Eq, Box::new(a), Box::new(b));
++        let facts = [cmp(v("result"), ITerm::Bin(IdxOp::Sub, Box::new(v("total")), Box::new(v("extra"))))];
++        let sum = ITerm::Bin(IdxOp::Add, Box::new(v("result")), Box::new(v("extra")));
++        let goal = cmp(sum.clone(), v("total"));
++        let sorts = Sorts { vars: vec![("total".into(), IntSort::Nat), ("extra".into(), IntSort::Nat), ("result".into(), IntSort::Nat)], fns: vec![] };
++        let proofs = linear_entails(&facts, &goal, &sorts).expect("the actual equation entails the rearranged equality");
++        assert!(proofs.iter().all(|proof| check_linear_proof(&facts, proof, &sorts)));
++        assert!(linear_entails(&[], &goal, &sorts).is_none());
++        let wrong = cmp(sum, ITerm::Bin(IdxOp::Add, Box::new(v("total")), Box::new(ITerm::num(1))));
++        assert!(linear_entails(&facts, &wrong, &sorts).is_none());
++    }
++}

@@ -1506,7 +1506,8 @@ impl Checker {
             ast::Term::Let(decls, body, span) => self.in_let(*span, |s| {
                 let mut env2 = env.clone();
                 let (binds, group) = s.elab_locals(&mut env2, decls, LocalForm::Plain)?;
-                let bcore = s.check(&mut env2, body, expected)?;
+                let scoped = s.numeric_contract_in_value_scope(expected, env, &env2);
+                let bcore = s.check(&mut env2, body, &scoped)?;
                 if let Some(g) = &group {
                     s.discharge_group(g, expected, *span)?;
                 }
@@ -1515,7 +1516,8 @@ impl Checker {
             ast::Term::Letrec(decls, body, span) => self.in_let(*span, |s| {
                 let mut env2 = env.clone();
                 let (binds, group) = s.elab_letrec(&mut env2, decls)?;
-                let bcore = s.check(&mut env2, body, expected)?;
+                let scoped = s.numeric_contract_in_value_scope(expected, env, &env2);
+                let bcore = s.check(&mut env2, body, &scoped)?;
                 if let Some(g) = &group {
                     s.discharge_group(g, expected, *span)?;
                 }
@@ -3794,6 +3796,12 @@ impl Checker {
     fn proof_in_value_scope(
         &self, prop: &PTerm, source: &HashMap<String, LocalId>, current: &Env,
     ) -> PTerm {
+        self.proof_values_in_scope(&self.reduce_prop(prop), source, current)
+    }
+
+    fn proof_values_in_scope(
+        &self, prop: &PTerm, source: &HashMap<String, LocalId>, current: &Env,
+    ) -> PTerm {
         let mut visible = HashMap::new();
         for (name, local, _) in &current.locals {
             if current.lookup(name).is_some_and(|(active, _)| active == *local) {
@@ -3801,7 +3809,7 @@ impl Checker {
                 visible.insert(original, name.clone());
             }
         }
-        let mut out = self.reduce_prop(prop);
+        let mut out = prop.clone();
         let mut names = Vec::new(); out.free_vars(&mut names);
         // Simultaneous substitution avoids an alias's spelling being
         // mistaken for another source name which occurs in the predicate.
@@ -5982,8 +5990,10 @@ impl Checker {
                         }
                     };
                     let scheme = self.generalize_local(env, l, &ty, is_value.then_some(&core));
+                    let equation = self.checked_nat_let_fact(env, &name.text, l, &core, &ty);
                     self.note_value_alias(l, &core);
                     self.bind_local(env, &name.text, l, scheme, None, name.span)?;
+                    if let Some(fact) = equation { self.bind_facts(env, &[fact], self.ev_writes.len(), *span)?; }
                     // A let-generalized local's uses are copies of its
                     // definition, so the binding itself is never read.
                     if !self.gen_defs.contains_key(&l) {
@@ -5998,8 +6008,10 @@ impl Checker {
                         ast::Pat::Var(n, _) => {
                             let def = is_syntactic_value(body).then_some(&bc);
                             let scheme = self.generalize_local(env, l, &bt, def);
+                            let equation = self.checked_nat_let_fact(env, &n.text, l, &bc, &bt);
                             self.note_value_alias(l, &bc);
                             self.bind_local(env, &n.text, l, scheme, None, n.span)?;
+                            if let Some(fact) = equation { self.bind_facts(env, &[fact], self.ev_writes.len(), *span)?; }
                             if self.gen_defs.contains_key(&l) {
                                 continue;
                             }
@@ -10759,4 +10771,24 @@ fn wrap_lets(binds: Vec<(LocalId, ECore)>, body: ECore) -> ECore {
         out = ECore::Let(l, Box::new(v), Box::new(out));
     }
     out
+}
+
+impl Checker {
+    // Numeric result contracts are scoped before a let introduces names.
+    // Rebase their free value names to surviving aliases or internal local
+    // identities; a replacement source spelling is never the old value.
+    fn numeric_contract_in_value_scope(&self, ty: &Ty, source: &Env, current: &Env) -> Ty {
+        if !self.int_view(&self.uni.zonk(ty)).is_some_and(|(_, refinement)| refinement.is_some()) { return ty.clone() }
+        let mut out = ty.clone(); let mut names = std::collections::BTreeSet::new(); let mut replacements = Vec::new();
+        for (name, id, _) in source.locals.iter().rev() {
+            if !names.insert(name.clone()) || current.lookup(name).map(|(active, _)| active) == Some(*id) { continue }
+            let original = self.value_aliases.get(id).copied().unwrap_or(*id);
+            let fresh = format!("$proof-value:{}", original.0);
+            let visible = current.locals.iter().rev().find(|(name, local, _)| current.lookup(name).is_some_and(|(active, _)| active == *local) && self.value_aliases.get(local).copied().unwrap_or(*local) == original).map(|(name, _, _)| name.clone());
+            out = out.subst_idx(name, &ITerm::Var(fresh.clone()));
+            replacements.push((fresh, visible));
+        }
+        for (fresh, visible) in replacements { if let Some(name) = visible { out = out.subst_idx(&fresh, &ITerm::Var(name)); } }
+        out
+    }
 }
