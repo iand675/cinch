@@ -1,5 +1,5 @@
 {
-  "recorded_at": "2026-11-02T05:21:32.027277+00:00",
+  "recorded_at": "2026-11-02T06:19:02.014492+00:00",
   "status": "schema8 actual measure contracts consumed by compiled Cinch; fresh stage0/1 pass six combined smokes; actual stage2 reaches compiler bodies and refuses there",
   "source_sha256": "49515fd8ee150af629afdf2a881eb50abd24a15aea87b8ffc085f7829b20008b",
   "source_inputs": 631,
@@ -907,7 +907,7 @@
     "no_stage2_ir_or_compiler": true
   },
   "full_native_assisted_suite": {
-    "status": "running",
+    "status": "failed",
     "source_sha256": "49515fd8ee150af629afdf2a881eb50abd24a15aea87b8ffc085f7829b20008b",
     "integration_targets": 177,
     "general_gates": 5,
@@ -915,14 +915,39 @@
     "reused_whole_gates": 4,
     "external_live_whole_gates": 0,
     "observed_counts": {
-      "passed": 5,
-      "running": 4,
-      "pending": 167
+      "passed": 57,
+      "failed": 1,
+      "pending": 118
     },
     "evidence": "/tmp/cinch-total-measures-full-1/complete-matrix",
     "self_built_frontend": false,
     "all_tests_passed": false,
-    "external_completed_whole_gates": 2
+    "external_completed_whole_gates": 2,
+    "failed_targets": [
+      {
+        "command": [
+          "cargo",
+          "test",
+          "--target-dir",
+          "/tmp/cinch-total-measures-full-1/cargo/compiler",
+          "--test",
+          "bootstrap_source_refinements",
+          "--",
+          "--include-ignored",
+          "--nocapture",
+          "--test-threads=1"
+        ],
+        "cwd": "/tmp/cinch-total-measures-full-1/source/compiler",
+        "exit_code": 101,
+        "finished": "2026-11-02T06:08:45.474435+00:00",
+        "name": "bootstrap_source_refinements",
+        "pid": 73732,
+        "started": "2026-11-02T06:04:44.662241+00:00",
+        "status": "failed"
+      }
+    ],
+    "refusal_behavior_correct": true,
+    "followup": "Only the expected unknown-measure diagnostic wording was obsolete. The test still requires rejection code4 and now requires the precise missing-defining-body message. The resumed current-source suite must account for the new private collection/base dependency changes; no full-suite pass is claimed."
   },
   "implemented": [
     "Version8 value records carry null or exact closed executable bodies; resolved measure references retain Native identity, complete defining scheme and private dependency closure.",

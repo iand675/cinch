@@ -1,5 +1,5 @@
 {
-  "recorded_at": "2026-11-02T05:47:07.980131+00:00",
+  "recorded_at": "2026-11-02T06:19:02.013522+00:00",
   "status": "source/Core constructor target passes; actual stage0/1 pass six combined smokes; actual stage2 has597 body diagnostics and no constructor-arity errors",
   "source_sha256": "a4c5bdb0c4ebf0b6f266590b395966f6980ba28f17351839af67565c49fad82b",
   "owned_changes": [
@@ -43,9 +43,13 @@
         "--nocapture",
         "--test-threads=1"
       ],
+      "exit_code": 0,
+      "finished": "2026-11-02T05:58:56.399136+00:00",
       "name": "bootstrap_infer",
+      "pid": 65735,
       "source_sha256": "a4c5bdb0c4ebf0b6f266590b395966f6980ba28f17351839af67565c49fad82b",
-      "status": "waiting-shared-slot"
+      "started": "2026-11-02T05:54:55.704770+00:00",
+      "status": "passed"
     },
     {
       "command": [
@@ -59,9 +63,13 @@
         "--nocapture",
         "--test-threads=1"
       ],
+      "exit_code": 0,
+      "finished": "2026-11-02T05:59:43.213598+00:00",
       "name": "bootstrap_parse",
+      "pid": 68998,
       "source_sha256": "a4c5bdb0c4ebf0b6f266590b395966f6980ba28f17351839af67565c49fad82b",
-      "status": "waiting-shared-slot"
+      "started": "2026-11-02T05:58:56.400669+00:00",
+      "status": "passed"
     },
     {
       "command": [
@@ -75,9 +83,13 @@
         "--nocapture",
         "--test-threads=1"
       ],
+      "exit_code": 0,
+      "finished": "2026-11-02T05:54:55.628522+00:00",
       "name": "bootstrap_pi",
+      "pid": 64713,
       "source_sha256": "a4c5bdb0c4ebf0b6f266590b395966f6980ba28f17351839af67565c49fad82b",
-      "status": "waiting-shared-slot"
+      "started": "2026-11-02T05:53:35.288815+00:00",
+      "status": "passed"
     },
     {
       "command": [
@@ -91,9 +103,13 @@
         "--nocapture",
         "--test-threads=1"
       ],
+      "exit_code": 0,
+      "finished": "2026-11-02T06:04:05.439211+00:00",
       "name": "bootstrap_resolve",
+      "pid": 69678,
       "source_sha256": "a4c5bdb0c4ebf0b6f266590b395966f6980ba28f17351839af67565c49fad82b",
-      "status": "waiting-shared-slot"
+      "started": "2026-11-02T05:59:43.276981+00:00",
+      "status": "passed"
     }
   ],
   "actual_stages": {

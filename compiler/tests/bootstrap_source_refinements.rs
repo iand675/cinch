@@ -76,7 +76,7 @@ fn source_refinements_check_actual_values_and_preserve_effects() {
         ("weak cannot strengthen", "bad :: refined (r >= 0) Nat -> refined (out > 0) Nat\n  bad n = n", 4, "refinement predicate is not established"),
         ("float is opaque", "bad :: F64 -> refined (r > 0) F64\n  bad n = n", 4, "proof predicate needs checked mathematical carriers"),
         ("ambiguous result names", "bad :: refined (r > 0 && other > 1) Nat\n  bad = 2", 4, "more than one unbound value name"),
-        ("unknown call stays opaque", "bad :: refined (measure r > 0) Nat\n  bad = 1", 4, "index expression needs checked scope, purity and totality"),
+        ("unknown call stays opaque", "bad :: refined (measure r > 0) Nat\n  bad = 1", 4, "index application has no actual defining total body declaration"),
         ("effect cannot erase", "next :: Unit ->{Diverge} refined (r > 0) Nat\n  next unit = 1\n  bad :: Unit -> Nat\n  bad unit = next unit", 4, "effect"),
     ];
     for (name, body, wanted, diagnostic) in cases {

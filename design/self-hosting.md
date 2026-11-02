@@ -5,9 +5,13 @@ separate, matching the Native grammar. `Box End n` no longer becomes `Box (End n
 The compiled Cinch source/Core target passes all17 source cases and nine metadata
 mutations. Fresh stage0/1 pass all six combined smokes. Actual stage2 now reports
 597 body diagnostics, down from758, with constructor-arity errors eliminated.
-The broader parser regressions are still queued/running. See
+All four broader parser regressions pass: corpus, inference, dependent arguments
+and resolution. See
 [the constructor-pattern report](../bootstrap/constructor-pattern-checkpoint-results.json).
-The running177+5 matrix below belongs to the preceding schema8 parser snapshot.
+The preceding schema8 matrix stopped after57 fresh passes at one obsolete
+negative-test diagnostic expectation. The unknown measure was correctly refused;
+the test now expects its precise missing-defining-body message. Remaining gates
+are unproven, and the collection/base dependency changes need a fresh full run.
 
 The actual stage2 attempt now gets past the imported measure-contract header and
 reaches compiler body checking. Schema8 carries checked executable bodies with
@@ -29,7 +33,7 @@ UTF8 header and changed defining bodies. Stronger body authority passes18 checks
 at each of five identities above2^128. The strengthened consumer passes all15 cases,
 including full-scheme and conflicting-private-body rejection. All four focused
 reader/loader/parser/precondition targets pass. The complete177+5 Native-assisted
-suite is running; individual evidence and exact snapshots
+suite stopped at the diagnostic expectation described above; individual evidence and exact snapshots
 are recorded in [the measure-contract report](../bootstrap/measure-contract-checkpoint-results.json).
 
 The previous complete172+5 body-only foundation remains the last full-suite pass.
