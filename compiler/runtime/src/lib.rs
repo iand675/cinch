@@ -94,7 +94,7 @@
 //! | bits | field | meaning |
 //! |------|-------|---------|
 //! | 0..40 | `rc`, signed | 0 immortal (static blocks, interned `Sym` cells, `KIND_BYTES_STATIC` buffers); 1 when allocated; > 0 a single-threaded count up to `RC_MAX` (2^39 - 1); `-n` an atomic count of `n`, for a block marked when a task body reached it (changed only by atomic read-modify-writes, never unmarked). A count cannot overflow: the heap is capped below 8 * 2^40 bytes, so no increment needs a check, and there is no sticky state |
-//! | 40..48 | `kind: u8` | [`block`]`::KIND_*`: ctor 1, closure 2, dictionary 3, memo 4, knot 5, nat 6, int 7, bytes 8, bytes-static 9, sym 10, code 11, boxed scalar 12, raw 13, freed 255 (0 is never a live block) |
+//! | 40..48 | `kind: u8` | [`block`]`::KIND_*`: ctor 1, closure 2, dictionary 3, memo 4, knot 5, nat 6, int 7, bytes 8, bytes-static 9, sym 10, code 11, boxed scalar 12, raw 13, array 14, multidimensional array 15, columnar 16, freed 255 (0 is never a live block) |
 //! | 48..64 | `layout: u16` | a constructor block's layout id; a closure's or dictionary's shape index; for every other kind, the payload size in 64-bit words. `0xFFFF` (`LAYOUT_BIG`) is the escape: the word at offset -16 holds an escaped descriptor (the three shaped kinds), or another kind's payload byte size (a payload of at least 0xFFFF words) |
 //!
 //! Block memory is only obtained and returned by `block::allocate`,
@@ -135,8 +135,10 @@
 //! keeps the table index of its extension in those 32 bits instead:
 //! `ceil(words / 32)` table words of 32 codes each. Every other kind's
 //! map is fixed by the kind (`block::fixed_scan_code`): a memo cell's
-//! thunk (word 1) and a quote block's holes (words 4..) are counted, and
-//! nothing else is. [`cinch_free`] sizes shaped blocks from the table and
+//! thunk (word 1), a quote block's holes (words 4..), an NDArray's two
+//! buffers, and a Columnar node's children (words 3..5) are counted.
+//! Array is the exception: its payload format selects Raw, Obj or TObj
+//! scanning of word elements, or Raw scanning of packed scalar bytes. [`cinch_free`] sizes shaped blocks from the table and
 //! the drop machinery of [`rc`] scans by it.
 //!
 //! Static blocks are emitted as `{ header; block }` with the symbol
@@ -499,6 +501,7 @@
 pub mod abi;
 pub mod block;
 pub mod bytes;
+pub mod arrays;
 pub mod coop;
 pub mod error;
 pub mod heap;

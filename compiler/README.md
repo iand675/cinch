@@ -58,6 +58,13 @@ The closure and dictionary ABI is documented in `src/core.rs`.
 
 ## What is implemented
 
+- **Array primitives (Native, ABI6 candidate)**: opaque `Array a`,
+  row-major `NDArray a`, and composable heterogeneous `Columnar row`;
+  checked reads, persistent updates, shape validation, packed scalar
+  buffers, and counted object/bignum elements. The explicit source modules
+  are `Data.Array`, `Data.Array.Packed`, `Data.NDArray` and `Data.Columnar`.
+  See [array semantics and the self-hosting integration boundary](../design/arrays.md).
+  The pinned ABI5 Cinch compiler does not yet implement these operations.
 - **Layout syntax** per the draft 0.2 rules (`where`, `of`, `let`, `in`,
   explicit-brace shielding, tab rejection, nested `{- -}` comments).
 - **Declarations**: `module`, `import` (prelude only), `data`, `record`

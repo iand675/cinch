@@ -1,0 +1,36 @@
+-- Immutable contiguous arrays. Failed reads/updates/ranges return None.
+module Data.Array where
+  import Data.Option
+  import Data.FromList
+  import Data.List
+  import Data.Nat
+  import Relation.Ord
+  import Algebra.Arithmetic
+
+  export array-from-list, array-replicate, array-length, array-get
+  export array-set, array-slice, array-append, array-tabulate, array-to-list
+
+  foreign import ccall "cinch.runtime.arrayFromList" array-from-list :: forall a. List a -> Array a
+  foreign import ccall "cinch.runtime.arrayReplicate" array-replicate :: forall a. Nat -> a -> Array a
+  foreign import ccall "cinch.runtime.arrayLen" array-length :: forall a. Array a -> Nat
+  foreign import ccall "cinch.runtime.arrayGet" array-get :: forall a. Array a -> Nat -> Option a
+  foreign import ccall "cinch.runtime.arraySet" array-set :: forall a. Array a -> Nat -> a -> Option (Array a)
+  foreign import ccall "cinch.runtime.arraySlice" array-slice :: forall a. Array a -> Nat -> Nat -> Option (Array a)
+  foreign import ccall "cinch.runtime.arrayAppend" array-append :: forall a. Array a -> Array a -> Array a
+
+  array-tabulate :: forall a. Nat -> (Nat -> a) -> Array a
+  array-tabulate n f = array-from-list (tabulate-from 0 n f)
+
+  tabulate-from :: forall a. Nat -> Nat -> (Nat -> a) -> List a
+  tabulate-from i n f = if i < n then Cons (f i) (tabulate-from (i + 1) n f) else Nil
+
+  array-to-list :: forall a. Array a -> List a
+  array-to-list a = list-from a 0
+
+  list-from :: forall a. Array a -> Nat -> List a
+  list-from a i = case array-get a i of
+    None -> Nil
+    Some x -> Cons x (list-from a (i + 1))
+
+  implicit instance FromList_Array a :: FromList (Array a) a where
+    from-list xs = array-from-list xs

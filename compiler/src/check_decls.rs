@@ -5,7 +5,9 @@
 /// declarations of `cinch.prim.*` and `cinch.runtime.*` intrinsics.
 fn prim_scheme(op: PrimOp) -> Scheme {
     let (args, res) = op.sig();
-    Scheme::mono(Ty::funs(&args, res))
+    let mut scheme = Scheme::mono(Ty::funs(&args, res));
+    if let PrimOp::Array { op, packed, .. } = op { scheme.params = op.params(packed); }
+    scheme
 }
 
 /// What a compiler intrinsic guarantees of its result, over `$it` (the
@@ -188,7 +190,7 @@ fn builtin_type_name(name: &str) -> bool {
     }
     matches!(
         name,
-        "Nat" | "Int" | "Bool" | "Unit" | "Bytes" | "Sym" | "Type" | "Prop"
+        "Nat" | "Int" | "Bool" | "Unit" | "Bytes" | "Sym" | "Array" | "NDArray" | "Columnar" | "Type" | "Prop"
             | "Code" | "Syntax" | "Declarations" | "Name" | "Secret"
             | "IoCap" | "FileReadCap" | "FileWriteCap" | "ProcCap"
             | "Scope" | "Task"
@@ -499,6 +501,15 @@ impl Checker {
                 param_kinds: Vec::new(),
                 ctors: Vec::new(),
                 fields: None,
+                field_erased: Vec::new(), opaque: false, refine: None,
+            });
+        }
+        // Opaque runtime type constructors: no source constructor can forge
+        // a shape or a column layout.
+        for name in ["Array", "NDArray", "Columnar"] {
+            self.types.entry(name.into()).or_default().push(TypeKind {
+                module: "<builtin>".into(), name: name.into(), arity: 1,
+                param_kinds: vec![ParamKind::Type], ctors: Vec::new(), fields: None,
                 field_erased: Vec::new(), opaque: false, refine: None,
             });
         }
@@ -2609,10 +2620,13 @@ impl Checker {
                         }
                         let s = self.conv_scheme(&f.ty)?;
                         self.remember_interface_scheme(&module, &f.name.text, &f.ty, &s, &[]);
-                        if !s.params.is_empty() || !s.ctx.is_empty() {
-                            return Err(Error::at(f.span, "primitives cannot be polymorphic or constrained"));
-                        }
                         let expected = prim_scheme(op);
+                        if s.params.len() != expected.params.len() || !s.ctx.is_empty()
+                            || !s.con_params.is_empty() || !s.idx_params.is_empty()
+                            || !s.val_params.is_empty() || !s.prop_params.is_empty()
+                            || !s.row_params.is_empty() || !s.region_params.is_empty() {
+                            return Err(Error::at(f.span, "intrinsic quantifiers do not match its checked signature"));
+                        }
                         // A declaration may refine an intrinsic's
                         // parameters (`nat-div :: Nat -> NonZero Nat ->
                         // Nat`): a refined value IS its container at
@@ -2623,7 +2637,9 @@ impl Checker {
                         // (`prim_result_promise`): a range or relation
                         // the runtime keeps, never one it does not.
                         let (plain, promised) = self.split_result_refinement(&self.erase_param_refinements(&s.ty));
-                        if plain != expected.ty {
+                        let rename: HashMap<String, Ty> = s.params.iter().cloned()
+                            .zip(expected.params.iter().cloned().map(Ty::Param)).collect();
+                        if Self::subst_ty(&plain, &rename) != expected.ty {
                             return Err(Error::at(
                                 f.span,
                                 format!(
@@ -2637,12 +2653,24 @@ impl Checker {
                                 .map_err(|m| Error::at(f.span, format!("intrinsic {} is declared {}, but {m}", f.symbol, s.ty)))?;
                         }
                         let rendered = render_scheme(&s);
+                        let kind = if matches!(op, PrimOp::Array { .. }) {
+                            let (args, _) = op.sig();
+                            let repr_params = args.iter().map(|t| crate::repr::repr_of(t, &expected.params, self, &mut |_| {})).collect();
+                            self.fns.push(FnDef {
+                                id: fn_id(&module, &f.name.text),
+                                params: (0..args.len()).map(|i| format!("p{i}")).collect(),
+                                body: crate::core::Core::Unit, prim: Some(op), ctor: None,
+                                hints: Default::default(), meta: Default::default(),
+                                repr: crate::core::UnitRepr { tparams: expected.params.len(), params: repr_params, ..Default::default() },
+                            });
+                            ValueKind::TopFn
+                        } else { ValueKind::Prim(op) };
                         self.add_value(
                             ValueInfo {
                                 module: module.clone(),
                                 name: f.name.text.clone(),
                                 scheme: s,
-                                kind: ValueKind::Prim(op),
+                                kind,
                             },
                             f.span,
                         )?;
@@ -2873,6 +2901,7 @@ impl Checker {
                                 | "Unit"
                                 | "Bytes"
                                 | "Sym"
+                                | "Array" | "NDArray" | "Columnar"
                                 | "Code"
                                 | "Syntax"
                                 | "Declarations"
@@ -3195,6 +3224,7 @@ impl Checker {
                                 | "Unit"
                                 | "Bytes"
                                 | "Sym"
+                                | "Array" | "NDArray" | "Columnar"
                                 | "Code"
                                 | "Syntax"
                                 | "Declarations"
@@ -3417,6 +3447,9 @@ impl Checker {
                 }
                 ast::Decl::Record(rec) => {
                     let set = self.validate_attr_site(decl_attrs, AttrSite::TypeDecl)?;
+                    if matches!(rec.name.text.as_str(), "Array" | "NDArray" | "Columnar") {
+                        return Err(Error::at(rec.name.span, format!("{} is a builtin primitive type and cannot be redefined", rec.name.text)));
+                    }
                     if self
                         .types
                         .get(&rec.name.text)
@@ -3635,6 +3668,7 @@ impl Checker {
                         || matches!(
                             rec.name.text.as_str(),
                             "Nat" | "Int" | "Bool" | "Unit" | "Bytes" | "Sym"
+                                | "Array" | "NDArray" | "Columnar"
                                 | "Thunk" | "Lazy" | "Later" | "Ref" | "Mut" | "Io"
                                 | "Type" | "Prop"
                         )

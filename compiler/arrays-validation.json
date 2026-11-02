@@ -1,0 +1,86 @@
+{
+  "schema": 1,
+  "status": "Native and runtime candidate verified; self-hosted arrays pending",
+  "base_commit": "fdd9d61cc6f310b4bff9580b0c647b942032919d",
+  "prerequisite_commit": "444697570c772a7b480636f0ff90bff858839219",
+  "runtime_abi": 6,
+  "interface_schema": 8,
+  "source_sha256": "57fff2b7c9e9408517266f5ed9865840d998a54e6bd8f663361948a91ac2c46d",
+  "source_file_count": 520,
+  "source_hash_definition": "SHA256 over sorted repository-relative files under compiler/src, compiler/runtime/src, compiler/prelude, compiler/tests, and bootstrap/*.cinch recursively; each path UTF-8 + NUL + file bytes + NUL",
+  "checks": [
+    {
+      "target": "runtime",
+      "exit": 0,
+      "seconds": 1.68,
+      "passed": 118,
+      "filtered_out": 1
+    },
+    {
+      "target": "arrays",
+      "exit": 0,
+      "seconds": 26.56,
+      "passed": 13,
+      "filtered_out": 0
+    },
+    {
+      "target": "surface",
+      "exit": 0,
+      "seconds": 37.27,
+      "passed": 17,
+      "filtered_out": 0
+    },
+    {
+      "target": "package-store",
+      "exit": 0,
+      "seconds": 9.21,
+      "passed": 10,
+      "filtered_out": 0
+    },
+    {
+      "target": "ownership",
+      "exit": 0,
+      "seconds": 42.39,
+      "passed": 21,
+      "filtered_out": 0
+    },
+    {
+      "target": "interface-kinds",
+      "exit": 0,
+      "seconds": 3.17,
+      "passed": 1,
+      "filtered_out": 0
+    },
+    {
+      "target": "runtime loopback socket, exact unsandboxed rerun",
+      "exit": 0,
+      "passed": 1,
+      "filtered_out": 118
+    },
+    {
+      "target": "folded_literal_ownership",
+      "exit": 0,
+      "passed": 1,
+      "filtered_out": 0
+    }
+  ],
+  "total_passed": 182,
+  "environment": {
+    "cargo_jobs": 1,
+    "codegen_units": 1,
+    "test_threads": 1,
+    "test_opt_level": 1,
+    "test_debug": 0,
+    "debug_assertions": true,
+    "cinch_heap_limit": "2G",
+    "worker_policy": "one shared flock slot, serial targets"
+  },
+  "runtime_socket_note": "The first full runtime run passed 118 and failed only the local-listener test with sandbox PermissionDenied. All 118 passed again with that case filtered, and the exact socket case passed under require_escalated. No runtime test remains unverified.",
+  "native_array_programs": "Run with CINCH_RC_DEBUG=1 and CINCH_LEAK_CHECK=1; zero leaks required.",
+  "limits": [
+    "Array operations are not implemented by the ABI5 Cinch checker/emitter; no producer pin was changed.",
+    "Native compile-time array evaluation deliberately reports an unsupported-primitive error.",
+    "Dimensions are checked runtime values; type-level shapes and automatic record-column decomposition are not implemented.",
+    "Packed scalar constructors are explicit; generic arrays use ABI words."
+  ]
+}

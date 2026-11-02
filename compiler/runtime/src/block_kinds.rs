@@ -95,6 +95,14 @@ pub const KIND_BOXED_SCALAR: u8 = 12;
 /// Unscanned bytes generated code owns that are not a Cinch value: the
 /// canonical ABI's lowered buffers on the Wasm target.
 pub const KIND_RAW: u8 = 13;
+/// Immutable contiguous array: `{ format; len; elements... }`.
+pub const KIND_ARRAY: u8 = 14;
+/// Immutable row-major shaped array: `{ data; shape }`.
+pub const KIND_NDARRAY: u8 = 15;
+/// Column tree: `{ rows; columns; tuple_desc; left; right }`.
+pub const KIND_COLUMNAR: u8 = 16;
+/// Last live kind; keep range validation in step with new runtime kinds.
+pub const KIND_LAST: u8 = KIND_COLUMNAR;
 /// A freed block (debug poisoning).
 pub const KIND_FREED: u8 = 255;
 
@@ -290,7 +298,11 @@ pub const CODE_PREFIX_WORDS: u64 = 4;
 /// value have no class at the kind: they are `SCAN_RAW`, which can only
 /// leak. A quote block's holes are quote blocks.
 pub const fn fixed_scan_code(kind: u8, slot: u64) -> u64 {
-    if kind == KIND_MEMO {
+    if kind == KIND_NDARRAY {
+        SCAN_OBJ
+    } else if kind == KIND_COLUMNAR {
+        if slot >= 3 { SCAN_OBJ } else { SCAN_RAW }
+    } else if kind == KIND_MEMO {
         if slot == MEMO_THUNK_WORD {
             SCAN_OBJ
         } else {

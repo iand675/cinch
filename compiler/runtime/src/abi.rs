@@ -423,7 +423,7 @@ fn alloc_request(size: i64, kind: i64, negative: &[u8], bad_kind: &[u8]) -> (usi
     if size < 0 {
         panic_exit(negative);
     }
-    if !(1..=i64::from(crate::block::KIND_RAW)).contains(&kind) || crate::block::kind_has_shape(kind as u8) {
+    if !(1..=i64::from(crate::block::KIND_LAST)).contains(&kind) || crate::block::kind_has_shape(kind as u8) {
         panic_exit(bad_kind);
     }
     (size as usize, kind as u8)
