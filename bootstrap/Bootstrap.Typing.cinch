@@ -191,6 +191,7 @@ module Bootstrap.Typing where
     CPrimitive sp ty name args -> primitive-types ty name args && argument-terms context scope gamma facts args
     CProved sp ty certificate body -> equal-type ty (core-type body) && checked-term context scope gamma facts body
     CRefine sp ty certificate body -> (case ty of URefine id name carrier predicate -> equal-type carrier (core-type body) && checked-term context scope gamma facts body; other -> False)
+    CRefineProof sp ty witness body -> wf context scope (core-type witness) && checked-term context scope gamma facts body && scoped-refinement-proof gamma facts ty witness body
     CForget sp ty body -> (case core-type body of URefine id name carrier predicate -> equal-type carrier ty && checked-term context scope gamma facts body; other -> False)
     CRequire sp ty body -> (case ty of URequire predicates result -> equal-type result (core-type body) && (case scoped-core-predicates gamma predicates of Some introduced -> checked-term context scope gamma (introduced <> facts) body; None -> False); other -> False)
     CDischarge sp ty certificates body -> equal-type ty (required-body (core-type body)) && checked-term context scope gamma facts body

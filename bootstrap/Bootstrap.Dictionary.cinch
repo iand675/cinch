@@ -137,6 +137,7 @@ module Bootstrap.Dictionary where
     CPrimitive sp ty name args -> case resolve-term context scope args st of (out, checked) -> (CPrimitive sp ty name out, checked)
     CProved sp ty evidence body -> case resolve-term context scope body st of (out, checked) -> (CProved sp ty evidence out, checked)
     CRefine sp ty evidence body -> case resolve-term context scope body st of (out, checked) -> (CRefine sp ty evidence out, checked)
+    CRefineProof sp ty witness body -> case resolve-term context scope body st of (out, checked) -> (CRefineProof sp ty witness out, checked)
     CForget sp ty body -> case resolve-term context scope body st of (out, checked) -> (CForget sp ty out, checked)
     CRequire sp ty body -> case resolve-term context scope body st of (out, checked) -> (CRequire sp ty out, checked)
     CDischarge sp ty evidence body -> case resolve-term context scope body st of (out, checked) -> (CDischarge sp ty evidence out, checked)

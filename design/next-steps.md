@@ -1,5 +1,23 @@
 # Next steps (as of 2026-11-02)
 
+The independent Cinch checker now accepts explicit named refinement
+constructors using their actual defining predicate, checked payload and erased
+witness. All 20 runtime-fed source cases and 50 independent Core checks pass,
+including wrong payloads/evidence, shadowing, aliases, changed custom predicates,
+Nat literals and retained effects. Explicit evidence survives independent scope,
+closure and typing checks; certificate refresh cannot repair a wrong witness.
+
+The complete current 180-integration plus five-general-gate Native-assisted
+suite is running. Fresh stage0 smoke checks pass; stage1 and actual self-hosting
+are still running. Neither a current complete-suite pass nor a stage2 compiler
+is claimed. The Rust seed remains the tested 3667043 source at ABI5/schema8.
+Conditional method authority, handlers, complete independent proof/usage/totality,
+typed runtime lowering, the full self-built frontend suite and stage2/3 fixed
+point remain required. Definition-owned fixities are preserved. See
+[the constructor checkpoint report](../bootstrap/refinement-constructor-checkpoint-results.json).
+
+## Previous Rust witness checkpoint
+
 The Rust producer now preserves a constructor witness's original value
 bindings across shadowing and accepts direct strict-let aliases of the actual
 payload. Hidden logical handles grant no ordinary source names. All 141 Native

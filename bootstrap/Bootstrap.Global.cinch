@@ -187,6 +187,7 @@ module Bootstrap.Global where
     CPrimitive sp ty name args -> term-references globals locals givens args
     CProved sp ty certificate body -> term-references globals locals givens body
     CRefine sp ty certificate body -> term-references globals locals givens body
+    CRefineProof sp ty witness body -> term-references globals locals givens witness && term-references globals locals givens body
     CForget sp ty body -> term-references globals locals givens body
     CRequire sp ty body -> term-references globals locals givens body
     CDischarge sp ty proofs body -> term-references globals locals givens body

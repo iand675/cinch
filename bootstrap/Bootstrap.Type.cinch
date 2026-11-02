@@ -14,6 +14,7 @@ module Bootstrap.Type where
   export valid-kind, map-kind-types, value-kind, value-carrier
   export UType, UPropLit, UCompare, UPropAnd, UPropOr, UPropNot, UPropNonZero, UPropNonZeroPending, URequire, URefine, UCon, UBound, URigid, UMeta, UIndex, UIndexForget, UIndexPromote, UIndexByteLength, UIndexCall, UIndexMath, UPi, UApp, UFun, UFunEff, UProofFun, URow, URowJoin, UTuple, UArg, UEnd, UError
   export without-index-levels, index-of-type, index-runtime-admissible, typed-index-admissible, open-pi, open-refinement
+  export type-free-bound
   export include-effects, union-effects
   export Quant, MkQuant, quant-id, quant-name, quant-kind, quant-implicit
   export Requirement, MkRequirement, requirement-name, requirement-type, map-requirements

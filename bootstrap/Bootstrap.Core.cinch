@@ -20,6 +20,7 @@ module Bootstrap.Core where
   export CApplyEff, CWith, core-effects
   export CProofRef, CErasedApply, scope-erased, scoped-proof-reference
   export CDecision, decision-type, decision-constructor-scheme, scoped-decision-valid, stable-index-source
+  export CRefineProof, scoped-refinement-proof
   export CRefine, CForget, prove-refinement, CRequire, CDischarge, core-predicates, prove-predicates, required-body, CProved, core-condition, core-let-fact, prove-subtraction, numeric-method-operation
   export ProofScope, make-proof-scope, scoped-prove-refinement, scoped-prove-predicates, scoped-core-predicates, scoped-core-condition, scoped-core-let-fact, scoped-prove-subtraction
   export scoped-total-call-index, scope-bodies, with-body-bindings, core-definition-bodies-closed, seal-definition-with-bodies
@@ -273,6 +274,8 @@ module Bootstrap.Core where
     -- not an asserted goal or a cached hypothesis list.
     CProved :: Span -> UType -> Proof -> CoreTerm -> CoreTerm
     CRefine :: Span -> UType -> Proof -> CoreTerm -> CoreTerm
+    -- Explicit erased evidence is retained and checked in its lexical scope.
+    CRefineProof :: Span -> UType -> CoreTerm -> CoreTerm -> CoreTerm
     CForget :: Span -> UType -> CoreTerm -> CoreTerm
     CRequire :: Span -> UType -> CoreTerm -> CoreTerm
     CDischarge :: Span -> UType -> List Proof -> CoreTerm -> CoreTerm
@@ -328,6 +331,7 @@ module Bootstrap.Core where
     CPrimitive s ty name args -> ty
     CProved s ty evidence body -> ty
     CRefine s ty evidence body -> ty
+    CRefineProof s ty witness body -> ty
     CForget s ty body -> ty
     CRequire s ty body -> ty
     CDischarge s ty evidence body -> ty
@@ -350,6 +354,7 @@ module Bootstrap.Core where
     CPrimitive s ty name args -> core-effects args
     CProved s ty evidence body -> core-effects body
     CRefine s ty evidence body -> core-effects body
+    CRefineProof s ty witness body -> core-effects body
     CForget s ty body -> core-effects body
     CRequire s ty body -> core-effects body
     CDischarge s ty evidence body -> core-effects body
@@ -401,6 +406,7 @@ module Bootstrap.Core where
     CPrimitive s ty name args -> CPrimitive s (f ty) name (map-term-types f args)
     CProved s ty evidence body -> CProved s (f ty) evidence (map-term-types f body)
     CRefine s ty evidence body -> CRefine s (f ty) evidence (map-term-types f body)
+    CRefineProof s ty witness body -> CRefineProof s (f ty) (map-term-types f witness) (map-term-types f body)
     CForget s ty body -> CForget s (f ty) (map-term-types f body)
     CRequire s ty body -> CRequire s (f ty) (map-term-types f body)
     CDischarge s ty evidence body -> CDischarge s (f ty) evidence (map-term-types f body)
@@ -544,6 +550,7 @@ module Bootstrap.Core where
     CPrimitive s ty name args -> type-metas st ty <> term-metas st args
     CProved s ty evidence body -> type-metas st ty <> term-metas st body
     CRefine s ty evidence body -> type-metas st ty <> term-metas st body
+    CRefineProof s ty witness body -> type-metas st ty <> term-metas st witness <> term-metas st body
     CForget s ty body -> type-metas st ty <> term-metas st body
     CRequire s ty body -> type-metas st ty <> term-metas st body
     CDischarge s ty evidence body -> type-metas st ty <> term-metas st body
@@ -679,6 +686,7 @@ module Bootstrap.Core where
     CPrimitive s ty name args -> closed-runtime-type ty && valid-term args
     CProved s ty evidence body -> closed-runtime-type ty && valid-term body
     CRefine s ty evidence body -> closed-runtime-type ty && valid-term body
+    CRefineProof s ty witness body -> closed-runtime-type ty && valid-proof-reference witness && valid-term body
     CForget s ty body -> closed-runtime-type ty && valid-term body
     CRequire s ty body -> closed-type ty && valid-term body
     CDischarge s ty evidence body -> closed-runtime-type ty && valid-required-call body
@@ -814,6 +822,7 @@ module Bootstrap.Core where
       CPrimitive s ty name args -> scoped-term values scope args
       CProved s ty evidence body -> scoped-term values scope body
       CRefine s ty evidence body -> scoped-term values scope body
+      CRefineProof s ty witness body -> scoped-term values scope witness && scoped-term values scope body
       CForget s ty body -> scoped-term values scope body
       CRequire s ty body -> scoped-term values scope body
       CDischarge s ty evidence body -> scoped-term values scope body
@@ -893,6 +902,7 @@ module Bootstrap.Core where
     CLocal sp ty id name Nil -> True
     CInt sp ty text -> True
     CRefine sp ty certificate body -> stable-index-source body
+    CRefineProof sp ty witness body -> stable-index-source body
     CForget sp ty body -> stable-index-source body
     CProved sp ty certificate body -> stable-index-source body
     CPrimitive sp ty operation (CArgument a first (CArgument b second (CArgumentsEnd end))) ->
@@ -941,6 +951,7 @@ module Bootstrap.Core where
     CLocal sp ty id name Nil -> integer-carrier ty && (case proof-local id gamma of Some declared -> contract-equal ty declared; None -> False)
     CForget sp ty body -> integer-carrier ty && forgotten gamma facts ty body && (case body of CLocal at actual id name Nil -> True; other -> decision-operand gamma facts body)
     CRefine sp ty certificate body -> certified-refinement gamma facts ty certificate body && decision-operand gamma facts body
+    CRefineProof sp ty witness body -> scoped-refinement-proof gamma facts ty witness body && decision-operand gamma facts body
     CProved sp ty certificate body -> certified-operation gamma facts ty certificate body && (case body of
       CPrimitive at result operation (CArgument a first (CArgument b second (CArgumentsEnd end))) -> decision-operand gamma facts first && decision-operand gamma facts second
       other -> False)
@@ -1060,6 +1071,7 @@ module Bootstrap.Core where
         (case actual-index gamma facts input of Some value -> (case byte-observation-id gamma value of Some id -> Some (byte-length-variable id); None -> None); None -> None)
       else None
     CRefine s ty evidence body -> if certified-refinement gamma facts ty evidence body then core-arithmetic gamma facts body else None
+    CRefineProof s ty witness body -> if scoped-refinement-proof gamma facts ty witness body then core-arithmetic gamma facts body else None
     CForget s ty body -> if forgotten gamma facts ty body then (case body of
       CLocal at refined id name Nil -> Some (proof-variable id)
       other -> core-arithmetic gamma facts body) else None
@@ -1167,6 +1179,7 @@ module Bootstrap.Core where
     CDecision sp ty predicate condition -> scoped-decision-valid gamma facts ty predicate condition
     CProofRef s ty id name -> False
     CRefine s ty evidence body -> certified-refinement gamma facts ty evidence body
+    CRefineProof s ty witness body -> scoped-refinement-proof gamma facts ty witness body
     CForget s ty body -> forgotten gamma facts ty body
     CLocal s ty id name Nil -> case proof-local id gamma of Some declared -> contract-equal ty declared; None -> False
     CErasedApply s ty row f witness -> erased-application gamma facts ty row f witness
@@ -1225,6 +1238,16 @@ module Bootstrap.Core where
       Some evidence -> if check-proof hypotheses goal evidence then Some evidence else None
       None -> None
     None -> None
+  -- Proof references carry their actual declared predicate. Opening the
+  -- refinement at the checked payload supplies the expected proposition;
+  -- neither a source spelling nor an annotated witness can establish it.
+  scoped-refinement-proof :: ProofScope -> List Proposition -> UType -> CoreTerm -> CoreTerm -> Bool
+  scoped-refinement-proof gamma facts ty witness body = case ty of
+    URefine id name carrier predicate -> valid-type ty && contract-equal carrier (core-type body) && proof-term gamma facts body
+      && (case actual-index gamma facts body of
+        Some value -> scoped-proof-reference gamma (substitute-bound [(id, value)] predicate) witness
+        None -> False)
+    other -> False
   certified-refinement :: ProofScope -> List Proposition -> UType -> Proof -> CoreTerm -> Bool
   certified-refinement gamma facts ty evidence body = case refinement-goal gamma facts ty body of
     Some goal -> check-proof (goal-assumptions gamma facts [goal]) goal evidence
@@ -1244,6 +1267,7 @@ module Bootstrap.Core where
     CQualifiedUse s ty name role actuals evidence -> not (string-compare role "local" == 0) && closed-types actuals && evidences-closed evidence
     CMethod s ty name owner slot actuals evidence -> closed-types actuals && evidences-closed evidence && (case evidence of Cons first rest -> True; Nil -> False)
     CRefine s ty evidence body -> certified-refinement gamma facts ty evidence body
+    CRefineProof s ty witness body -> scoped-refinement-proof gamma facts ty witness body
     CForget s ty body -> forgotten gamma facts ty body
     CLocal s ty id name Nil -> case proof-local id gamma of Some declared -> contract-equal ty declared; None -> False
     CErasedApply s ty row f witness -> erased-application gamma facts ty row f witness
@@ -1278,6 +1302,7 @@ module Bootstrap.Core where
     CInt sp (URefine id name carrier predicate) text -> let refined = URefine id name carrier predicate in
       let value = refresh-certificates gamma facts (CInt sp carrier text) in
       (case scoped-prove-refinement gamma facts refined value of Some evidence -> CRefine sp refined evidence value; None -> CError sp)
+    CRefineProof s ty witness body -> CRefineProof s ty witness (refresh-certificates gamma facts body)
     CRefine s ty evidence body -> let out = refresh-certificates gamma facts body in
       if certified-refinement gamma facts ty evidence out then CRefine s ty evidence out
       else case scoped-prove-refinement gamma facts ty out of Some fresh -> CRefine s ty fresh out; None -> CError s
@@ -1417,6 +1442,7 @@ module Bootstrap.Core where
       else None
     CForget s ty body -> if forgotten gamma facts ty body then (case body of
       CRefine at refined evidence actual -> actual-index gamma facts actual
+      CRefineProof at refined witness actual -> actual-index gamma facts actual
       CApply at result (CUse source function symbol role Nil) input -> if byte-length-function result function symbol role then actual-index gamma facts body
         else projected-index gamma facts ty body
       other -> projected-index gamma facts ty body) else None

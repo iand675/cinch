@@ -635,6 +635,7 @@ module Bootstrap.Infer where
   reify-projected-argument :: Span -> List CheckedBinding -> CoreTerm -> Store -> (UType, Store)
   reify-projected-argument sp env term st = case term of
     CRefine source ty evidence body -> reify-argument sp env body st
+    CRefineProof source ty witness body -> reify-argument sp env body st
     other -> reify-argument sp env term st
 
   reify-local-index :: Span -> Scheme -> Nat -> List UType -> UType -> IndexTerm -> Store -> (UType, Store)
@@ -1622,10 +1623,45 @@ module Bootstrap.Infer where
                 (items, checked) -> (CApply sp result method items, checked))
             other -> term-error sp "collection literal has no checked FromList declaration" shaped)))
 
+  refinement-constructor-arguments :: TypeContext -> List TypeParam -> List (String, UType) -> UType -> Store -> (UType, Store)
+  refinement-constructor-arguments kinds parameters earlier head st = case parameters of
+    Nil -> (head, st)
+    Cons parameter rest -> let (kind, checked) = case param-kind parameter of None -> (KType, st); Some annotation -> kind-of False kinds earlier annotation st in
+      (case fresh-meta kind checked of
+        (actual, opened) -> refinement-constructor-arguments kinds rest (Cons (param-name parameter, actual) earlier) (UApp head actual) opened)
+  refinement-constructor :: Span -> TypeContext -> String -> Store -> (CoreTerm, Store)
+  refinement-constructor sp kinds name st = case (find-refinement name (context-aliases kinds), context-kind name kinds) of
+    (Some (DRefine at owner parameters binder predicate), Some kind) -> (case refinement-constructor-arguments kinds parameters Nil (UCon name kind) st of
+      (applied, opened) -> (case unfold-refinement sp kinds applied opened of
+        (refined, checked) -> (case normalize checked refined of
+          URefine id display carrier condition -> (case fresh-for-types [refined] checked of
+            (argument, fresh) -> (case fresh-id fresh of
+              (local, next) -> (case fresh-id next of
+                (proof-id, ready) ->
+                  let row = URow UEnd in
+                  let formal = UIndex carrier (IBound argument "#refinement-value") in
+                  let actual = UIndex carrier (IRigid local "#refinement-value" (store-level ready)) in
+                  let required = substitute-bound [(id, formal)] condition in
+                  let opened-required = substitute-bound [(id, actual)] condition in
+                  let ty = UPi argument "#refinement-value" carrier row (UProofFun required row refined) in
+                  let payload = CLocal sp carrier local "#refinement-value" Nil in
+                  let witness = CProofRef sp opened-required proof-id "#refinement-proof" in
+                  let body = CRefineProof sp refined witness payload in
+                  (CLambda sp ty (CPVar sp carrier local "#refinement-value")
+                    (CLambda sp (UProofFun opened-required row refined) (CPProof sp opened-required proof-id "#refinement-proof") body), ready))))
+          other -> term-error sp "named refinement has no checked constructor template" checked)))
+    other -> term-error sp "transparent constructor needs its actual defining refinement" st
+  lookup-expression-value :: Span -> TypeContext -> String -> List CheckedBinding -> Store -> (CoreTerm, Store)
+  lookup-expression-value sp kinds name env st = case lookup-binding name env of
+    Some binding -> lookup-value sp name env st
+    None -> case find-refinement name (context-aliases kinds) of
+      Some declaration -> refinement-constructor sp kinds name st
+      None -> lookup-value sp name env st
+
   infer :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> Store -> (CoreTerm, Store)
   infer classes kinds families env locals expr st = case expr of
-    EVar s name -> case lookup-value s name env st of (term, checked) -> discharge-call classes s env term checked
-    ECon s name args -> case lookup-value s name env st of (term, sn) -> infer-arguments classes kinds families env locals term args sn
+    EVar s name -> case lookup-expression-value s kinds name env st of (term, checked) -> discharge-call classes s env term checked
+    ECon s name args -> case lookup-expression-value s kinds name env st of (term, sn) -> infer-arguments classes kinds families env locals term args sn
     EList s args -> infer-collection classes kinds families env locals s args None st
     ELitInt s text -> checked-literal s (primitive-type "Int") text st
     ELitStr s text -> (CString s (literal-type kinds "String") text, st)
@@ -1661,6 +1697,7 @@ module Bootstrap.Infer where
     other -> check-unrefined classes kinds families env locals expr expected st
   check-unrefined :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> UType -> Store -> (CoreTerm, Store)
   check-unrefined classes kinds families env locals expr expected st = case expr of
+    ELet sp bindings body -> infer-let-with-expected classes kinds families env locals sp bindings body (Some expected) st
     ETuple sp fields -> (case normalize st expected of
       UTuple types -> (case check-tuple-elements classes kinds families env locals sp fields types st of (values, checked) -> (CTuple sp expected values, checked))
       UMeta id KType -> (case fresh-tuple-elements sp fields st of
@@ -1710,20 +1747,25 @@ module Bootstrap.Infer where
     EApp sp function argument -> application-spine function (Cons argument args)
     other -> (expr, args)
   hint-application-result :: Span -> UType -> List Expr -> UType -> Store -> Store
-  hint-application-result sp ty args expected st = case args of
-    Nil -> case normalize st expected of
-      -- An unconstrained expectation supplies no information. Unifying
-      -- it with an application's refined result here would prevent the
-      -- ordinary carrier projection in subsumption (for example Ord Nat).
+  hint-application-result sp ty args expected st = hint-independent-result Nil sp ty args expected st
+  result-mentions-binder :: List Nat -> UType -> Bool
+  result-mentions-binder binders ty = case binders of Nil -> False; Cons id rest -> contains-meta id (type-free-bound ty) || result-mentions-binder rest ty
+  hint-independent-result :: List Nat -> Span -> UType -> List Expr -> UType -> Store -> Store
+  hint-independent-result binders sp ty args expected st = case args of
+    Nil -> if result-mentions-binder binders (normalize st ty) then st else (case normalize st expected of
       UMeta id kind -> st
       other -> let hinted = unify sp ty expected st in
-        if list-length (store-errors hinted) == list-length (store-errors st) then hinted else st
+        if list-length (store-errors hinted) == list-length (store-errors st) then hinted
+        else (case normalize st ty of
+          URefine id name carrier predicate -> let base = unify sp carrier expected st in
+            if list-length (store-errors base) == list-length (store-errors st) then base else st
+          other -> st))
     Cons argument rest -> case normalize st ty of
-      UPi id name domain row result -> if pi-dependent (normalize st ty) then st
-        else hint-application-result sp result rest expected st
+      UPi id name domain row result -> hint-independent-result (Cons id binders) sp result rest expected st
+      UProofFun predicate row result -> hint-independent-result binders sp result rest expected st
       URequire predicates result -> st
       other -> case arrow-parts sp ty st of
-        (domain, row, result, shaped) -> hint-application-result sp result rest expected shaped
+        (domain, row, result, shaped) -> hint-independent-result binders sp result rest expected shaped
   apply-spine :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> CoreTerm -> List Expr -> Store -> (CoreTerm, Store)
   apply-spine classes kinds families env locals fun args st = case args of
     Nil -> (fun, st)
@@ -1733,7 +1775,7 @@ module Bootstrap.Infer where
   expression-spine-valid fields = case fields of EArgsEnd sp -> True; EArg sp first rest -> expression-spine-valid rest; other -> False
   infer-expected :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> UType -> Store -> (CoreTerm, Store)
   infer-expected classes kinds families env locals expr expected st = case expr of
-    ECon sp name fields -> if not (expression-spine-valid fields) then term-error sp "malformed constructor argument spine" st else (case lookup-value sp name env st of
+    ECon sp name fields -> if not (expression-spine-valid fields) then term-error sp "malformed constructor argument spine" st else (case lookup-expression-value sp kinds name env st of
       (constructor, opened) -> let args = exprs-of fields in apply-spine classes kinds families env locals constructor args (hint-application-result sp (core-type constructor) args expected opened))
     EApp sp function argument -> if decision-syntax-head env function then infer-decision-expected classes kinds families env locals sp argument expected st else
       (case application-spine expr Nil of
@@ -1919,27 +1961,29 @@ module Bootstrap.Infer where
     UMeta id kind -> if contains-meta id (free-metas st result) then add-error sp "fresh capability region escapes its scope" st else st
     other -> st
   infer-let :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Expr -> Store -> (CoreTerm, Store)
-  infer-let classes kinds families env locals sp bs body st = case bs of
-    EBindingsEnd s -> infer classes kinds families env locals body st
+  infer-let classes kinds families env locals sp bs body st = infer-let-with-expected classes kinds families env locals sp bs body None st
+  infer-let-with-expected :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Expr -> Option UType -> Store -> (CoreTerm, Store)
+  infer-let-with-expected classes kinds families env locals sp bs body wanted st = case bs of
+    EBindingsEnd s -> case wanted of None -> infer classes kinds families env locals body st; Some expected -> check classes kinds families env locals body expected st
     EBinding s name rhs rest ->
       let level = store-level st in
       case infer classes kinds families env locals rhs (enter-level st) of
         (value, sr) -> case resolve-dictionary-term-with classes (env-instances env) (env-givens env) value sr of
-          (resolved, sd) -> infer-let-binding classes kinds families env locals sp s name rest body level resolved sd
+          (resolved, sd) -> infer-let-binding classes kinds families env locals sp s name rest body level wanted resolved sd
     other -> term-error (expr-span bs) "malformed let binding spine" st
-  infer-let-binding :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Span -> String -> Expr -> Expr -> Nat -> CoreTerm -> Store -> (CoreTerm, Store)
-  infer-let-binding classes kinds families env locals sp at name rest body level value st =
+  infer-let-binding :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Span -> String -> Expr -> Expr -> Nat -> Option UType -> CoreTerm -> Store -> (CoreTerm, Store)
+  infer-let-binding classes kinds families env locals sp at name rest body level wanted value st =
     if let-result-escapes value then (case value of
       CLet s ty id display sc rhs inner ->
         let binding = MkLocalBinding display sc id level in
         let bound = proof-let-env env binding id sc rhs st in
-        case infer-let-binding classes kinds families bound locals sp at name rest body level inner st of
+        case infer-let-binding classes kinds families bound locals sp at name rest body level wanted inner st of
           (result, done) -> (CLet s (core-type result) id display sc rhs result, done)
       other -> term-error at "dependent let result has no retained witness scope" st)
     else let (scheme, pairs) = generalize-with level (env-metas env st) (core-type value) st in
       case fresh-id (restore-level level st) of
         (id, fresh) -> case let-binding at env name scheme id level value fresh of
-          (binding, prepared) -> case infer-let classes kinds families (proof-let-env env binding id scheme value prepared) locals sp rest body prepared of
+          (binding, prepared) -> case infer-let-with-expected classes kinds families (proof-let-env env binding id scheme value prepared) locals sp rest body wanted prepared of
             (result, done) -> (CLet at (core-type result) id name scheme (abstract-term st pairs value) result, done)
   infer-operator :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> String -> Expr -> Expr -> Store -> (CoreTerm, Store)
   infer-operator classes kinds families env locals sp op a b st =
@@ -2474,7 +2518,8 @@ module Bootstrap.Infer where
   predicate-index-value :: Span -> UType -> UType -> Store -> (UType, Store)
   predicate-index-value sp carrier value st = case value-carrier (type-kind (normalize st value)) of
     Some (URefine id name base predicate) -> predicate-index-value sp carrier (UIndexForget value) st
-    Some actual -> if same-type actual carrier then checked-typed-source-index sp value st
+    Some actual -> let checked = unify sp actual (normalize st carrier) st in
+      if list-length (store-errors checked) == list-length (store-errors st) then checked-typed-source-index sp value checked
       else if same-type carrier (primitive-type "Int") && predicate-math-carrier actual then checked-typed-source-index sp (UIndexPromote value) st
       else bad sp "proof predicate has incompatible numeric carriers" st
     None -> bad sp "a type cannot be used as a predicate value" st
