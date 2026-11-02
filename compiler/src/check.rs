@@ -6320,6 +6320,20 @@ impl Checker {
                 "the `refined` former takes a predicate and at most one container (`refined P T`)",
             ));
         }
+        // The implicit refined value is the predicate's unbound name,
+        // not the first name visited: an earlier telescope binder can
+        // precede it (n <= bytes-len bytes). Retain that distinction in
+        // the existing canonical binder understood by all refinement
+        // consumers, before the surrounding telescope is transformed.
+        let mut free = Vec::new();
+        pred.free_vars(&mut free);
+        let implicit: Vec<_> = free.iter()
+            .filter(|name| !vars.contains(name) && !crate::types::is_positional_arg(name))
+            .collect();
+        let pred = match implicit.as_slice() {
+            [binder] => pred.subst(binder, &ITerm::Var("$it".to_string())),
+            _ => pred,
+        };
         let mut out = vec![Ty::Prp(Box::new(pred))];
         if let Some(t) = args.get(1) {
             out.push(self.conv_type(t, vars)?);

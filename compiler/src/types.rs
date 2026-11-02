@@ -2969,7 +2969,11 @@ impl fmt::Display for Ty {
                 // back to a plain name, so an interface's rendering reads
                 // back.
                 if let (true, [Ty::Prp(p), base]) = (t == "refined", args.as_slice()) {
-                    let p = p.subst("$it", &ITerm::Var("r".to_string()));
+                    let mut free = Vec::new();
+                    p.free_vars(&mut free);
+                    let mut binder = "r".to_string();
+                    while free.contains(&binder) { binder.push_str("-r"); }
+                    let p = p.subst("$it", &ITerm::Var(binder));
                     return if needs_parens_as_argument(base) {
                         write!(f, "refined ({p}) ({base})")
                     } else {

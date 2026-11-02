@@ -1,0 +1,96 @@
+{
+  "actual_cinch_stages": {
+    "directory": "/tmp/cinch-refinement-stages-1",
+    "native_seed": "preceding366; not the new1056 seed",
+    "six_stage0_1_smokes": "passed",
+    "stage2_body_diagnostics": 214,
+    "stage2_compiler": false,
+    "stage2_exit_code": 4
+  },
+  "implementation": [
+    "An anonymous refinement with one unbound value name canonicalizes that actual binder before outer telescope transformation. Outer parameters retain their identity.",
+    "Rendering the canonical binder chooses a name absent from the actual free variables, preserving capture-free roundtrips."
+  ],
+  "interface_schema": 8,
+  "limits": [
+    "The current 180+5 suite is still running on the preceding366 seed/source snapshot; no complete current or self-built frontend pass is claimed.",
+    "Actual stage2 remains blocked by conditional Sub Nat selection and other independent elaboration gaps.",
+    "The new1056 seed archive/patch reproduces the passing Rust sources; staged builds with this seed have not yet run.",
+    "A private further Cinch dependent-constructor materialization fix is under validation and is not included here."
+  ],
+  "native_units": 141,
+  "native_validation": {
+    "command": [
+      "cargo",
+      "test",
+      "--no-fail-fast",
+      "--target-dir",
+      "/tmp/cinch-native-anonymous-validation-2/cargo",
+      "--lib",
+      "--test",
+      "proof_value_identity",
+      "--test",
+      "refinements",
+      "--test",
+      "evidence_invalidation",
+      "--test",
+      "case_evidence",
+      "--test",
+      "incremental",
+      "--",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit_code": 0,
+    "finished": "2026-11-02T09:55:09.361666+00:00",
+    "lane": "shared slot3; all jobs share four slots plus sole fifth stage lane",
+    "pid": 15646,
+    "source_sha256": "8a2cb91181d9a73c52452e81c85086ede4c9725d7849f16c97a4cdc5726bafba",
+    "started": "2026-11-02T09:51:16.519589+00:00",
+    "status": "passed"
+  },
+  "new_tests": {
+    "anonymous_byte_refinement_keeps_outer_telescope_values": "accept real Bytes binder after outer Nat; reject stronger result and outer Nat used as Bytes",
+    "anonymous_refinement_display_does_not_capture_an_outer_r": "render a fresh binder; accept checked roundtrip and refuse forged stronger value"
+  },
+  "owned_code": [
+    "compiler/src/check.rs",
+    "compiler/src/types.rs",
+    "compiler/tests/refinements.rs",
+    "bootstrap/stage0.lock.json",
+    "bootstrap/seed/stage0.patch"
+  ],
+  "recorded_at": "2026-11-02T09:58:56.606417+00:00",
+  "runtime_abi": 5,
+  "seed_update": {
+    "native_focus": "refinements/evidence-invalidation/case-evidence/incremental passed",
+    "native_units": 141,
+    "native_witness_regression_cases": 8,
+    "patch_bytes": 238179,
+    "patch_sha256": "b191c80b2d38aa6fdf297452a7b2d39471e585dbc9f99508da40d9a89ae62b72",
+    "previous_seed_source_sha256": "366704380d06ceab798c0b5db18ed7699b8579ee518eef92a7649f2de8f9fb2e",
+    "seed_source_sha256": "1056e489a96d34abcec7c244166fc6eb1f80e14f2dd0df0bcf0d2d1d70cbfc8b",
+    "status": "archive plus patch reproduces exact tested Native sources; candidate only, not installed",
+    "validation_source": "/tmp/cinch-native-anonymous-validation-2/source",
+    "validation_source_sha256": "8a2cb91181d9a73c52452e81c85086ede4c9725d7849f16c97a4cdc5726bafba"
+  },
+  "self_hosting_achieved": false,
+  "source_sha256": "8a2cb91181d9a73c52452e81c85086ede4c9725d7849f16c97a4cdc5726bafba",
+  "status": "Rust anonymous byte-refinement binder and capture-free rendering fixes pass focused whole regression targets",
+  "whole_interfaces": {
+    "directory": "/tmp/cinch-native-anonymous-interfaces-1",
+    "status": "running",
+    "targets": [
+      "interface_anonymous_contracts",
+      "interface_preconditions",
+      "interface_byte_observations"
+    ]
+  },
+  "whole_targets": [
+    "proof_value_identity",
+    "refinements",
+    "evidence_invalidation",
+    "case_evidence",
+    "incremental"
+  ]
+}

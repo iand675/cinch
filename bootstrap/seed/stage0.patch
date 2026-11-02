@@ -560,7 +560,28 @@
                                  Ok(())
                              } else {
                                  Err(Error::at(
-@@ -7460,6 +7514,7 @@
+@@ -6266,6 +6320,20 @@
+                 "the `refined` former takes a predicate and at most one container (`refined P T`)",
+             ));
+         }
++        // The implicit refined value is the predicate's unbound name,
++        // not the first name visited: an earlier telescope binder can
++        // precede it (n <= bytes-len bytes). Retain that distinction in
++        // the existing canonical binder understood by all refinement
++        // consumers, before the surrounding telescope is transformed.
++        let mut free = Vec::new();
++        pred.free_vars(&mut free);
++        let implicit: Vec<_> = free.iter()
++            .filter(|name| !vars.contains(name) && !crate::types::is_positional_arg(name))
++            .collect();
++        let pred = match implicit.as_slice() {
++            [binder] => pred.subst(binder, &ITerm::Var("$it".to_string())),
++            _ => pred,
++        };
+         let mut out = vec![Ty::Prp(Box::new(pred))];
+         if let Some(t) = args.get(1) {
+             out.push(self.conv_type(t, vars)?);
+@@ -7460,6 +7528,7 @@
                          .collect();
                      let constraints = self.kind_constraints.borrow().clone();
                      let mut type_params: Vec<String> = Vec::new();
@@ -568,7 +589,7 @@
                      let mut val_params: Vec<(String, Ty)> = Vec::new();
                      let mut prop_params: Vec<String> = Vec::new();
                      for (name, hint, span) in binders {
-@@ -7469,12 +7524,17 @@
+@@ -7469,12 +7538,17 @@
                          let kind =
                              self.resolve_binder_kind(&name, hint.as_ref(), &constraints, span)?;
                          match kind {
@@ -588,7 +609,7 @@
                          params: type_params,
                          idx_params: Vec::new(),
                          val_params,
-@@ -7484,9 +7544,199 @@
+@@ -7484,9 +7558,199 @@
                          ctx,
                          obligs,
                          ty: Self::positional_results(&t, 0),
@@ -791,7 +812,7 @@
          }
      }
  
-@@ -9151,3 +9401,18 @@
+@@ -9151,3 +9415,18 @@
  // `check_decls.rs`. Both are included at module scope.
  include!("check_terms.rs");
  include!("check_decls.rs");
@@ -4908,7 +4929,20 @@
                  write!(f, "{n}")
              }
              ITerm::MVar(m) => write!(f, "?i{m}"),
-@@ -3162,6 +3168,9 @@
+@@ -2963,7 +2969,11 @@
+                 // back to a plain name, so an interface's rendering reads
+                 // back.
+                 if let (true, [Ty::Prp(p), base]) = (t == "refined", args.as_slice()) {
+-                    let p = p.subst("$it", &ITerm::Var("r".to_string()));
++                    let mut free = Vec::new();
++                    p.free_vars(&mut free);
++                    let mut binder = "r".to_string();
++                    while free.contains(&binder) { binder.push_str("-r"); }
++                    let p = p.subst("$it", &ITerm::Var(binder));
+                     return if needs_parens_as_argument(base) {
+                         write!(f, "refined ({p}) ({base})")
+                     } else {
+@@ -3162,6 +3172,9 @@
  #[derive(Clone, Debug)]
  pub struct Scheme {
      pub params: Vec<String>,
@@ -4918,7 +4952,7 @@
      /// Schema-level index parameters (no runtime argument).
      pub idx_params: Vec<IxParam>,
      /// Implicit runtime value arguments, name and type.
-@@ -3180,6 +3189,7 @@
+@@ -3180,6 +3193,7 @@
  impl Scheme {
      pub fn mono(ty: Ty) -> Scheme {
          Scheme {

@@ -1,5 +1,24 @@
 # Next steps (as of 2026-11-02)
 
+Rust now distinguishes an anonymous refinement's unbound value from
+outer telescope arguments. The formerly rejected `n <= bytes-len bytes`
+contract checks, while stronger result claims and wrong observation carriers
+remain refused. Refinement rendering also avoids capturing an outer `r`.
+All 141 Native unit tests and the whole witness-identity, refinement,
+evidence-invalidation, case-evidence and incremental targets pass. The seed is
+intentionally updated to these exact sources (1056e48); archive plus patch
+reproduces them. ABI5/schema8 remain unchanged.
+
+The whole interface regressions are running. The 180+5 full matrix still runs
+on the preceding366 snapshot and establishes no complete current pass. That
+snapshot passes all six fresh stage0/1 smokes; actual stage2 exits4 with214 body
+diagnostics and produces no compiler. Conditional `Sub Nat` remains the first
+blocker. A further dependent constructor-result materialization fix is private
+and under validation. Genuine self-hosting remains incomplete. See
+[the Rust anonymous-refinement report](../bootstrap/native-anonymous-refinement-results.json).
+
+## Previous Cinch constructor checkpoint
+
 The independent Cinch checker now accepts explicit named refinement
 constructors using their actual defining predicate, checked payload and erased
 witness. All 20 runtime-fed source cases and 50 independent Core checks pass,
