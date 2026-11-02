@@ -14,6 +14,7 @@ class NativeLspTests(unittest.TestCase):
         cls.bridge = Bridge()
         cls.bridge.handle({'jsonrpc': '2.0', 'id': 1, 'method': 'initialize', 'params': {}})
         cls.uri = (HERE / 'examples/LspProbe.cinch').as_uri()
+        cls.version = 0
         cls.source = '''module Main where
   import Ui
   import syntax "../syntax/html.syntax.json" as html
@@ -31,8 +32,12 @@ class NativeLspTests(unittest.TestCase):
 
     @classmethod
     def open(cls, source):
+        cls.version += 1
+        if cls.uri in cls.bridge.documents:
+            return cls.bridge.handle({'jsonrpc': '2.0', 'method': 'textDocument/didChange', 'params': {
+                'textDocument': {'uri': cls.uri, 'version': cls.version}, 'contentChanges': [{'text': source}]}})
         return cls.bridge.handle({'jsonrpc': '2.0', 'method': 'textDocument/didOpen', 'params': {'textDocument': {
-            'uri': cls.uri, 'languageId': 'cinch', 'version': 1, 'text': source}}})
+            'uri': cls.uri, 'languageId': 'cinch', 'version': cls.version, 'text': source}}})
 
     def request(self, method, source, needle):
         line, char = utf16_position(source, source.index(needle))
@@ -80,6 +85,74 @@ class NativeLspTests(unittest.TestCase):
         self.assertTrue(any(d.get('source') == 'cinch-syntax' for d in errors), notifications)
         self.open(self.source)
         self.assertIsNotNone(self.request('textDocument/hover', self.source, 'greeting}{name}'))
+
+    def test_07_generated_library_api_navigates_to_its_original_definition(self):
+        source = '''module Main where
+  import Checkout
+  main :: Int
+  main = case send-Checkout-Buyer-Order (start-Checkout-Buyer ()) 21 of
+    (endpoint, packet) -> 0
+'''
+        try:
+            notifications = self.open(source)
+            errors = [d for m in notifications if m.get('method') == 'textDocument/publishDiagnostics'
+                      for d in m['params']['diagnostics'] if d.get('severity') == 1]
+            self.assertFalse(errors, notifications)
+            hover = self.request('textDocument/hover', source, 'start-Checkout-Buyer')
+            self.assertIn('CheckoutBuyerP0', str(hover))
+            definition = self.request('textDocument/definition', source, 'start-Checkout-Buyer')
+            self.assertEqual(definition['uri'], (HERE / 'libraries/Checkout.cinch').as_uri())
+            self.assertEqual(definition['range']['start']['line'], 3)
+            # Opening that source as a user document must reuse the already
+            # loaded library, not create a duplicate module in the shadow tree.
+            library = HERE / 'libraries/Checkout.cinch'
+            reopened = self.bridge.handle({'jsonrpc': '2.0', 'method': 'textDocument/didOpen',
+                'params': {'textDocument': {'uri': library.as_uri(), 'languageId': 'cinch',
+                           'version': 1, 'text': library.read_text()}}})
+            self.assertFalse([d for m in reopened if m.get('method') == 'textDocument/publishDiagnostics'
+                              for d in m['params']['diagnostics'] if d.get('severity') == 1], reopened)
+        finally: self.open(self.source)
+
+    def test_08_library_first_open_and_close_preserve_one_module_identity(self):
+        bridge = Bridge()
+        try:
+            bridge.handle({'jsonrpc': '2.0', 'id': 1, 'method': 'initialize', 'params': {}})
+            library = HERE / 'libraries/Checkout.cinch'
+            messages, versions = [], {}
+            native = bridge.native
+            def recording(message, barrier=False):
+                messages.append(message)
+                return native(message, barrier=barrier)
+            bridge.native = recording
+            def opened(uri, text):
+                versions[uri] = versions.get(uri, 0) + 1
+                if uri in bridge.documents:
+                    return bridge.handle({'jsonrpc': '2.0', 'method': 'textDocument/didChange',
+                        'params': {'textDocument': {'uri': uri, 'version': versions[uri]},
+                                   'contentChanges': [{'text': text}]}})
+                return bridge.handle({'jsonrpc': '2.0', 'method': 'textDocument/didOpen',
+                    'params': {'textDocument': {'uri': uri, 'languageId': 'cinch', 'version': versions[uri], 'text': text}}})
+            def assert_clean(messages):
+                self.assertFalse([d for m in messages if m.get('method') == 'textDocument/publishDiagnostics'
+                                  for d in m['params']['diagnostics'] if d.get('severity') == 1], messages)
+            assert_clean(opened(library.as_uri(), library.read_text()))
+            source = '''module Main where
+  import Checkout
+  main :: Int
+  main = case send-Checkout-Buyer-Order (start-Checkout-Buyer ()) 21 of
+    (endpoint, packet) -> 0
+'''
+            original_target = bridge.generated[library.as_uri()]
+            assert_clean(opened(self.uri, source))
+            self.assertEqual(bridge.generated[library.as_uri()], original_target)
+            bridge.handle({'jsonrpc': '2.0', 'method': 'textDocument/didClose',
+                           'params': {'textDocument': {'uri': library.as_uri()}}})
+            assert_clean(opened(self.uri, source))
+            self.assertEqual(bridge.generated[library.as_uri()], original_target)
+            main_target = bridge.generated[self.uri]
+            main_messages = [m for m in messages if m.get('params', {}).get('textDocument', {}).get('uri') == main_target]
+            self.assertEqual([m['method'] for m in main_messages], ['textDocument/didOpen', 'textDocument/didChange'])
+        finally: bridge.close()
 
 
 if __name__ == '__main__': unittest.main()

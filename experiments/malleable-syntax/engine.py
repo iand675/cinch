@@ -157,6 +157,7 @@ class Parser:
         self.farthest = SyntaxFailure(0, "expected syntax")
         self.active = set()
         self.fresh = {}
+        self.template_steps = 0
 
     def error(self, pos, message):
         error = SyntaxFailure(pos, message)
@@ -179,8 +180,17 @@ class Parser:
                 a, b = self.lookup(result, left), self.lookup(result, right)
                 if a.text != b.text:
                     self.error(result.end, f"{left} `{a.text}` does not match {right} `{b.text}`")
+            for path in rule.get("distinct", []):
+                values = [node.output().text for node in self.nodes(result, path)]
+                if len(set(values)) != len(values):
+                    self.error(result.end, f"duplicate entry in `{path}`")
+            for selected, allowed in rule.get("members", []):
+                allowed_values = {node.output().text for node in self.nodes(result, allowed)}
+                for node in self.nodes(result, selected):
+                    if node.output().text not in allowed_values:
+                        self.error(node.start, f"`{node.output().text}` is not declared in `{allowed}`")
             emission = rule.get("emit")
-            if isinstance(emission, str): result.outputs["code"] = self.template(emission, result)
+            if isinstance(emission, (str, list)): result.outputs["code"] = self.template(emission, result)
             elif isinstance(emission, dict):
                 result.outputs.update({k: self.template(v, result) for k, v in emission.items()})
             self.engine.trace.append({"rule": name, "start": self.base + result.start,
@@ -190,17 +200,78 @@ class Parser:
         finally:
             self.active.remove(key); self.depth -= 1
 
+    def nodes(self, match, path):
+        nodes = [match]
+        for part in path.split("."):
+            if part == "self": continue
+            if part == "*": nodes = [item for node in nodes for item in node.items]
+            else:
+                try: nodes = [node.captures[part] for node in nodes]
+                except KeyError: raise ValueError(f"unknown capture `{path}` in {self.grammar.path}")
+        return nodes
+
     def lookup(self, match, path):
-        bits = path.split(".")
-        if bits[0] == "self": node = match
-        else:
-            try: node = match.captures[bits[0]]
-            except KeyError: raise ValueError(f"unknown capture `{path}` in {self.grammar.path}")
-        if len(bits) == 1: return node.output()
-        if bits[1] == "raw": return Fragment.source(self.text[node.start:node.end], self.base + node.start)
-        return node.output(bits[1])
+        parts = path.split(".")
+        if parts[-1] in ("raw", "count"):
+            node = self.nodes(match, ".".join(parts[:-1]))[0]
+            if parts[-1] == "count":
+                return Fragment.generated(str(len(node.items)), self.invocation)
+            return Fragment.source(self.text[node.start:node.end], self.base + node.start)
+        try: return self.nodes(match, path)[0].output()
+        except ValueError:
+            if len(parts) < 2: raise
+            return self.nodes(match, ".".join(parts[:-1]))[0].output(parts[-1])
+
+    def context(self, match, captures):
+        return Match(match.start, match.end, match.value, {**match.captures, **captures}, match.items)
+
+    def condition(self, expression, match):
+        if "eq" in expression:
+            left, right = expression["eq"]
+            return self.lookup(match, left).text == self.lookup(match, right).text
+        if "not" in expression: return not self.condition(expression["not"], match)
+        if "or" in expression: return any(self.condition(x, match) for x in expression["or"])
+        if "and" in expression: return all(self.condition(x, match) for x in expression["and"])
+        raise ValueError(f"unknown template condition {expression}")
+
+    def selection(self, expression, match):
+        sequence = self.nodes(match, expression["select"])[0]
+        items = []
+        for item in sequence.items:
+            local = self.context(match, {expression.get("as", "item"): item})
+            if "where" not in expression or self.condition(expression["where"], local): items.append(item)
+        return Match(sequence.start, sequence.end, sequence.value, items=items)
 
     def template(self, template, match):
+        self.template_steps += 1
+        if self.template_steps > 100_000: self.error(match.start, "syntax template budget exhausted")
+        if isinstance(template, list): return concat([self.template(t, match) for t in template])
+        if isinstance(template, dict):
+            if "trim" in template:
+                value = self.template(template["trim"], match)
+                end = len(value.text.rstrip(template.get("characters", " ")))
+                return Fragment(value.text[:end], value.origins[:end], value.copied[:end])
+            if "each" in template:
+                sequence = self.nodes(match, template["each"])[0]
+                parts = []
+                for index, item in enumerate(sequence.items):
+                    values = {template.get("as", "item"): item}
+                    for name, value in [("index", index), ("next", index + 1)]:
+                        values[name] = Match(item.start, item.end, Fragment.generated(str(value), self.invocation))
+                    local = self.context(match, values)
+                    if "where" in template and not self.condition(template["where"], local): continue
+                    if parts: parts.append(Fragment.generated(template.get("join", ""), self.invocation))
+                    parts.append(self.template(template["emit"], local))
+                return concat(parts)
+            if "let" in template:
+                local = match
+                for name, expression in template["let"].items():
+                    local = self.context(local, {name: self.selection(expression, local)})
+                return self.template(template["emit"], local)
+            if "if" in template:
+                branch = "then" if self.condition(template["if"], match) else "else"
+                return self.template(template.get(branch, ""), match)
+            raise ValueError(f"unknown template operation {template}")
         parts, end = [], 0
         for token in re.finditer(r"\$\{([^}]+)\}", template):
             parts.append(Fragment.generated(template[end:token.start()], self.invocation))
@@ -291,11 +362,14 @@ class Engine:
         if len(source) > 1_000_000: raise SyntaxFailure(0, "syntax input budget exhausted")
         self.source, self.path = source, Path(path).resolve()
         self.grammars, self.imports, self.trace = {}, [], []
+        self.runtime_imports = []
         self.counter, self.expansions = 0, 0
         self.identifiers = set(re.findall(r"[A-Za-z_][\w-]*", source))
         self.masked = source
         # Imports are recognized only outside host strings and comments.
         candidates = {m.start(): m for m in IMPORT.finditer(source)}
+        runtime_candidates = {m.start(): m for m in re.finditer(
+            r"(?m)^\s*import (?:stage )?([A-Z][\w.]*)", source)}
         pos, edits, modules = 0, [], 0
         while pos < len(source):
             candidate = candidates.get(pos)
@@ -309,6 +383,10 @@ class Engine:
                                      "hash": hashlib.sha256(grammar_path.read_bytes()).hexdigest()})
                 edits.append((candidate.start(), candidate.end()))
                 pos = candidate.end(); continue
+            runtime = runtime_candidates.get(pos)
+            if runtime:
+                self.runtime_imports.append(runtime.group(1))
+                pos = runtime.end(); continue
             if (pos == 0 or source[pos - 1] == "\n") and re.match(r"module\s+[A-Z]", source[pos:]):
                 modules += 1
             invocation = re.match(r"([a-z][\w-]*)!\{", source[pos:])

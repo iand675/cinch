@@ -6,6 +6,10 @@ compiler checking, and editor composition before choosing a production API.
 The original compiler checkout is untouched. `source-snapshot.json` identifies
 the current-source snapshot used as the worktree's baseline (`fb198a8`).
 
+The [second pass](SECOND_PASS.md) adds projected, branching participant APIs and
+shape-checked reverse-mode tensor differentiation, along with syntax expansion
+inside imported source libraries.
+
 ## Run it
 
 From the worktree root:
@@ -71,7 +75,9 @@ rejected by the Cinch checker for its intended reason.
 | `Proof.cinch` | Kernel-checked reflexivity/exact notation | False arithmetic equality | A goal/context API for programmable tactics |
 | `Format.cinch` | Generated packet type, parser, writer, length checks and checksum | Invalid byte-width constant; native malformed-input cases | Composable field formats, borrowed views, round-trip evidence |
 | `Protocol.cinch` | Generated linear endpoint states and transitions | Sending in the wrong state | Multiparty choreography, projection, branches and transport |
+| `Choreography.cinch` | Projected participant APIs, approved/declined conversations, private constructors and affine local transport | Wrong states, branches, wire types, replay and endpoint forgery | Nested choices, richer payloads and runtime session identity |
 | `Differentiate.cinch` | Exact forward differentiation of scalar integer polynomials | A nonnumeric differentiation input | Tensors, shapes and reverse-mode elaboration |
+| `TensorAD.cinch` | Shape-indexed matrix operations and reverse-mode pullbacks, checked against finite differences | Incompatible shapes and private representation access | Nonlinear/float contracts, broader elaboration and general proofs |
 | `Reactive.cinch` | Generated state transitions combined with typed HTML rendering | Submitting an editing state | Live state storage, async event identity and browser UI |
 | `Audio.cinch` | Executable signal pipeline with channel-changing stages | Connecting incompatible channel counts | Blocks, feedback, scheduling and checked callback budgets |
 | `Circuit.cinch` | Clocked trace simulation and cycle-indexed operations | Combining signals from different cycles | Clock domains, synthesis and richer verification |
@@ -86,12 +92,17 @@ regular lexical patterns, captures, alternatives, repetitions, equality checks,
 templates, fresh names and host-expression holes. Templates refer to
 definition-site-qualified helpers via `${@helper}`. `${!name}` supplies a
 collision-free temporary. Explicit captured names can bind user code.
+Finite template iteration/filtering, sequence bindings, cardinalities and
+conditional output support declaration projection without host-language plug-ins.
 
 The source keeps regular runtime imports separate from syntax imports. Syntax
 imports are blanked while preserving positions; their hashes and expansion
 traces are included in the origin manifest. Generated code then passes through
 the ordinary Cinch checker and backend. The experimental reader respects host
 strings, characters, tick names, nested comments and delimiters inside a hole.
+Imported source libraries take this same expansion path, in dependency order;
+unused libraries are excluded from the project. Their origin maps are used by
+both CLI diagnostics and editor navigation.
 
 `editor_generate.py` reads the same grammar descriptors to produce Tree-sitter
 grammars, highlighting queries and injections. It composes the existing Cinch

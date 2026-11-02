@@ -8,14 +8,13 @@ from pathlib import Path
 import copy
 import hashlib
 import json
-import re
 import subprocess
 import sys
 import tempfile
 from urllib.parse import unquote, urlparse
 
 from engine import Engine, SyntaxFailure, utf16_position, utf16_offset
-from poc import HERE, compiler
+from poc import HERE, compiler, library_project
 
 
 def read_frame(stream):
@@ -59,6 +58,7 @@ class Bridge:
                                        stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         self.originals, self.generated, self.expansions, self.documents = {}, {}, {}, {}
         self.serial = 0
+        self.backend_versions = {}
 
     def close(self):
         if self.server.poll() is None:
@@ -86,6 +86,23 @@ class Bridge:
                 if not barrier: messages.append(response)
                 return messages
             messages.append(response)
+
+    def replace_document(self, uri, text):
+        version = self.backend_versions.get(uri, 0) + 1
+        self.backend_versions[uri] = version
+        if version == 1:
+            message = {"jsonrpc": "2.0", "method": "textDocument/didOpen", "params": {"textDocument": {
+                "uri": uri, "languageId": "cinch", "version": version, "text": text}}}
+        else:
+            message = {"jsonrpc": "2.0", "method": "textDocument/didChange", "params": {
+                "textDocument": {"uri": uri, "version": version}, "contentChanges": [{"text": text}]}}
+        return self.native(message, barrier=True)
+
+    def close_document(self, uri):
+        if uri not in self.backend_versions: return []
+        del self.backend_versions[uri]
+        return self.native({"jsonrpc": "2.0", "method": "textDocument/didClose",
+                            "params": {"textDocument": {"uri": uri}}}, barrier=True)
 
     def map_position(self, generated_uri, position):
         original = self.originals.get(generated_uri)
@@ -160,35 +177,19 @@ class Bridge:
             source = document["text"] if method.endswith("didOpen") else params["contentChanges"][-1]["text"]
             self.documents[uri] = source
             path = Path(unquote(urlparse(uri).path))
-            generated_path = self.root / (hashlib.sha256(uri.encode()).hexdigest()[:12] + "-" + path.name)
+            generated_path = (Path(unquote(urlparse(self.generated[uri]).path)) if uri in self.generated
+                              else self.root / (hashlib.sha256(uri.encode()).hexdigest()[:12] + "-" + path.name))
             generated_uri = generated_path.as_uri()
             self.generated[uri] = generated_uri; self.originals[generated_uri] = uri
-            # Open actual library source so the native server resolves its
-            # symbols through its normal shared analysis engine.
             notifications = []
-            library_index = {p.stem: p for p in (HERE / "libraries").glob("*.cinch")}
-            pending = re.findall(r"(?m)^\s*import ([A-Z][\w.]*)", source)
-            needed = {}
-            while pending:
-                module = pending.pop()
-                if module in needed or module not in library_index: continue
-                library = library_index[module]
-                needed[module] = library
-                pending.extend(re.findall(r"(?m)^\s*import ([A-Z][\w.]*)", library.read_text()))
-            for library in sorted(needed.values()):
-                target = self.root / library.name
-                if target.as_uri() in self.originals: continue
-                text = library.read_text(); target.write_text(text)
-                self.originals[target.as_uri()] = library.as_uri()
-                notifications += self.native({"jsonrpc": "2.0", "method": "textDocument/didOpen",
-                    "params": {"textDocument": {"uri": target.as_uri(), "languageId": "cinch", "version": 1, "text": text}}}, barrier=True)
             try:
-                expansion = Engine(source, path).expand()
+                engine = Engine(source, path)
+                expansion = engine.expand()
+                libraries = library_project(engine)
                 self.expansions[uri] = expansion
             except (SyntaxFailure, ValueError, OSError) as error:
                 self.expansions.pop(uri, None)
-                notifications += self.native({"jsonrpc": "2.0", "method": "textDocument/didClose",
-                    "params": {"textDocument": {"uri": generated_uri}}}, barrier=True)
+                notifications += self.close_document(generated_uri)
                 pos = getattr(error, "position", 0)
                 line, char = utf16_position(source, pos)
                 notifications = self.mapped(notifications)
@@ -197,12 +198,20 @@ class Bridge:
                         "end": {"line": line, "character": char + 1}}, "severity": 1,
                         "source": "cinch-syntax", "message": str(error)}]}})
                 return notifications
+            # Library syntax uses the same expansion/origin path as a user
+            # document, and dependencies open before their consumers.
+            for library, library_expansion in libraries:
+                original = library.as_uri()
+                if original in self.expansions or original in self.documents: continue
+                target = (Path(unquote(urlparse(self.generated[original]).path)) if original in self.generated
+                          else self.root / library.name)
+                target.write_text(library_expansion.fragment.text)
+                self.originals[target.as_uri()] = library.as_uri()
+                self.generated[library.as_uri()] = target.as_uri()
+                self.expansions[library.as_uri()] = library_expansion
+                notifications += self.replace_document(target.as_uri(), library_expansion.fragment.text)
             generated_path.write_text(expansion.fragment.text)
-            # didOpen replaces a document in the native analysis, including
-            # reopening after an unfinished island closed it.
-            native_open = {"jsonrpc": "2.0", "method": "textDocument/didOpen", "params": {"textDocument": {
-                "uri": generated_uri, "languageId": "cinch", "version": document.get("version", 1), "text": expansion.fragment.text}}}
-            notifications += self.native(native_open, barrier=True)
+            notifications += self.replace_document(generated_uri, expansion.fragment.text)
             return self.mapped(notifications)
         if uri:
             document["uri"] = self.generated.get(uri, uri)
@@ -214,8 +223,9 @@ class Bridge:
                 offset = utf16_offset(expansion.fragment.text, *generated)
                 params["position"] = native_position(expansion.fragment.text, offset)
             if method == "textDocument/didClose":
-                result = self.native(request, barrier=True)
+                result = self.close_document(document["uri"])
                 self.expansions.pop(uri, None)
+                self.documents.pop(uri, None)
             else: result = self.native(request)
             return self.mapped(result, uri, method == "textDocument/semanticTokens/full")
         return self.native(request)

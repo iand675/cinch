@@ -18,6 +18,7 @@ class TreeSitterIntegration(unittest.TestCase):
         cls.scratch = tempfile.TemporaryDirectory(prefix='cinch-syntax-editor-')
         cls.env = {**os.environ, 'XDG_CACHE_HOME': str(Path(cls.scratch.name) / 'cache')}
         cls.grammars = {}
+        cls.sources = sorted((HERE / 'examples').glob('*.cinch')) + sorted((HERE / 'libraries').glob('*.cinch'))
         for path in sorted((HERE / 'syntax').glob('*.syntax.json')):
             generated = generate(path)
             result = subprocess.run(['tree-sitter', 'generate'], cwd=generated, text=True, capture_output=True)
@@ -26,7 +27,7 @@ class TreeSitterIntegration(unittest.TestCase):
         cls.expression = generate_expression()
         result = subprocess.run(['tree-sitter', 'generate'], cwd=cls.expression, text=True, capture_output=True)
         if result.returncode: raise AssertionError(result.stderr)
-        cls.project = generate_project(sorted((HERE / 'examples').glob('*.cinch')))
+        cls.project = generate_project(cls.sources)
         result = subprocess.run(['tree-sitter', 'generate'], cwd=cls.project, text=True, capture_output=True)
         if result.returncode: raise AssertionError(result.stderr)
 
@@ -41,7 +42,7 @@ class TreeSitterIntegration(unittest.TestCase):
 
     def test_all_source_islands_parse_with_their_library_grammars(self):
         count = 0
-        for path in sorted((HERE / 'examples').glob('*.cinch')):
+        for path in self.sources:
             source = path.read_text()
             expansion = Engine(source, path).expand()
             for trace in expansion.trace:
@@ -55,7 +56,7 @@ class TreeSitterIntegration(unittest.TestCase):
         self.assertGreaterEqual(count, 15)
 
     def test_outer_cinch_grammar_accepts_all_original_sources(self):
-        for path in sorted((HERE / 'examples').glob('*.cinch')):
+        for path in self.sources:
             with self.subTest(example=path.stem):
                 result = self.parse(self.project, path.read_text())
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)

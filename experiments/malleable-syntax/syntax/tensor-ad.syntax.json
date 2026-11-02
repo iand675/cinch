@@ -1,0 +1,192 @@
+{
+  "version": 1,
+  "name": "tensor-ad",
+  "entry": "root",
+  "rules": {
+    "root": {
+      "pattern": [
+        "at",
+        {
+          "capture": "point",
+          "of": {
+            "host": true
+          }
+        },
+        "of",
+        {
+          "capture": "body",
+          "of": {
+            "ref": "sum-expr"
+          }
+        },
+        "}"
+      ],
+      "emit": "(let ${!point} = (${point}) in ${body})"
+    },
+    "sum-expr": {
+      "pattern": {
+        "choice": [
+          {
+            "ref": "add"
+          },
+          {
+            "ref": "product"
+          }
+        ]
+      }
+    },
+    "add": {
+      "pattern": [
+        {
+          "capture": "left",
+          "of": {
+            "ref": "product"
+          }
+        },
+        "+",
+        {
+          "capture": "right",
+          "of": {
+            "ref": "sum-expr"
+          }
+        }
+      ],
+      "emit": "(${@add} ${left} ${right})"
+    },
+    "product": {
+      "pattern": {
+        "choice": [
+          {
+            "ref": "multiply"
+          },
+          {
+            "ref": "matmul"
+          },
+          {
+            "ref": "atom"
+          }
+        ]
+      }
+    },
+    "multiply": {
+      "pattern": [
+        {
+          "capture": "left",
+          "of": {
+            "ref": "atom"
+          }
+        },
+        "*",
+        {
+          "capture": "right",
+          "of": {
+            "ref": "product"
+          }
+        }
+      ],
+      "emit": "(${@multiply} ${left} ${right})"
+    },
+    "matmul": {
+      "pattern": [
+        {
+          "capture": "left",
+          "of": {
+            "ref": "atom"
+          }
+        },
+        "@",
+        {
+          "capture": "right",
+          "of": {
+            "ref": "product"
+          }
+        }
+      ],
+      "emit": "(${@matmul} ${left} ${right})"
+    },
+    "atom": {
+      "pattern": {
+        "choice": [
+          {
+            "ref": "variable"
+          },
+          {
+            "ref": "constant"
+          },
+          {
+            "ref": "sum"
+          },
+          {
+            "ref": "transpose"
+          },
+          {
+            "ref": "group"
+          }
+        ]
+      }
+    },
+    "variable": {
+      "pattern": "x",
+      "emit": "(${@variable} ${!point})"
+    },
+    "constant": {
+      "pattern": {
+        "capture": "value",
+        "of": {
+          "host": true
+        }
+      },
+      "emit": "(${@constant} ${!point} (${value}))"
+    },
+    "sum": {
+      "pattern": [
+        "sum",
+        "(",
+        {
+          "capture": "value",
+          "of": {
+            "ref": "sum-expr"
+          }
+        },
+        ")"
+      ],
+      "emit": "(${@sum} ${value})"
+    },
+    "transpose": {
+      "pattern": [
+        "transpose",
+        "(",
+        {
+          "capture": "value",
+          "of": {
+            "ref": "sum-expr"
+          }
+        },
+        ")"
+      ],
+      "emit": "(${@transpose} ${value})"
+    },
+    "group": {
+      "pattern": [
+        "(",
+        {
+          "capture": "value",
+          "of": {
+            "ref": "sum-expr"
+          }
+        },
+        ")"
+      ],
+      "emit": "${value}"
+    }
+  },
+  "helpers": {
+    "add": "TensorAD.add",
+    "multiply": "TensorAD.multiply",
+    "matmul": "TensorAD.matmul",
+    "variable": "TensorAD.variable",
+    "constant": "TensorAD.constant",
+    "sum": "TensorAD.sum",
+    "transpose": "TensorAD.transpose"
+  }
+}

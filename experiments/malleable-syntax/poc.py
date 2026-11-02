@@ -4,7 +4,7 @@ from pathlib import Path
 import argparse
 import json
 import os
-import shutil
+import re
 import subprocess
 import sys
 
@@ -18,25 +18,56 @@ def compiler():
     return os.environ.get("CINCH_EXPERIMENT_COMPILER", str(ROOT / "compiler/target/debug/cinch"))
 
 
+def library_project(engine):
+    """Expand only explicitly imported source libraries, in dependency order."""
+    index = {p.stem: p for p in (HERE / "libraries").glob("*.cinch")}
+    active, done, ordered = [], set(), []
+    def visit(name):
+        if name in done or name not in index: return
+        if name in active: raise ValueError("library import cycle: " + " -> ".join(active + [name]))
+        active.append(name)
+        path = index[name]
+        library = Engine(path.read_text(), path)
+        for dependency in library.runtime_imports: visit(dependency)
+        ordered.append((path, library.expand()))
+        active.pop(); done.add(name)
+    for dependency in engine.runtime_imports: visit(dependency)
+    return ordered
+
+
 def prepare(path):
     path = Path(path).resolve()
-    expansion = Engine(path.read_text(), path).expand()
+    engine = Engine(path.read_text(), path)
+    expansion = engine.expand()
     directory = HERE / ".generated" / path.stem
     directory.mkdir(parents=True, exist_ok=True)
-    for library in (HERE / "libraries").glob("*.cinch"):
-        shutil.copyfile(library, directory / library.name)
+    origins = {}
+    # A stale source in this private build directory must not introduce an
+    # ambient module or a competing declaration into the next project.
+    for stale in directory.glob("*.cinch"): stale.unlink()
+    for library, generated_library in library_project(engine):
+        target = directory / library.name
+        target.write_text(generated_library.fragment.text)
+        target.with_suffix(".origins.json").write_text(json.dumps(generated_library.manifest(), indent=2) + "\n")
+        origins[target] = (library, generated_library)
     output = directory / "Main.cinch"
     output.write_text(expansion.fragment.text)
     output.with_suffix(".origins.json").write_text(json.dumps(expansion.manifest(), indent=2) + "\n")
-    return output, expansion
+    origins[output] = (path, expansion)
+    return output, origins
 
 
 def drive(mode, path):
-    generated, expansion = prepare(path)
+    generated, origins = prepare(path)
     result = subprocess.run([compiler(), mode, str(generated)], text=True, capture_output=True)
     diagnostic = result.stderr
+    for generated_path, (original_path, expansion) in origins.items():
+        diagnostic = map_diagnostic(diagnostic, generated_path, original_path, expansion)
+    return result.returncode, result.stdout, diagnostic
+
+
+def map_diagnostic(diagnostic, generated, path, expansion):
     # CLI positions are scalar columns, unlike the LSP's UTF-16 columns.
-    import re
     def original_position(line, col):
         line, col = int(line) - 1, int(col) - 1
         lines = expansion.fragment.text.splitlines(keepends=True)
@@ -56,7 +87,7 @@ def drive(mode, path):
         diagnostic = re.sub(r"^cinch: (\d+):(\d+):", checked, diagnostic)
         diagnostic = diagnostic.replace(f"(in {generated})", f"(in {Path(path).resolve()})")
     diagnostic = pattern.sub(original, diagnostic)
-    return result.returncode, result.stdout, diagnostic
+    return diagnostic
 
 
 def main():

@@ -7,6 +7,7 @@ import unittest
 HERE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(HERE))
 from engine import Engine, Grammar, SyntaxFailure, utf16_offset, utf16_position
+from poc import library_project
 
 
 class SyntaxEngineTests(unittest.TestCase):
@@ -93,6 +94,39 @@ class SyntaxEngineTests(unittest.TestCase):
     def test_input_budget_is_checked_before_parsing(self):
         with self.assertRaisesRegex(SyntaxFailure, 'input budget'):
             Engine('x' * 1_000_001, HERE / 'examples/T.cinch')
+
+    def test_declarative_projection_generates_participant_specific_apis(self):
+        path = HERE / 'libraries/Checkout.cinch'
+        engine = Engine(path.read_text(), path)
+        expansion = engine.expand()
+        self.assertIn('send-Checkout-Buyer-Order ::', expansion.fragment.text)
+        self.assertIn('receive-Checkout-Shop-Order ::', expansion.fragment.text)
+        self.assertNotIn('send-Checkout-Bank-Order ::', expansion.fragment.text)
+        self.assertIn('choose-Checkout-Approved ::', expansion.fragment.text)
+        self.assertIn('offer-Checkout-Shop ::', expansion.fragment.text)
+        self.assertEqual(Engine(path.read_text(), path).expand().fragment.text, expansion.fragment.text)
+
+    def test_projection_checks_roles_and_names_before_emitting_code(self):
+        path = HERE / 'libraries/Checkout.cinch'
+        for old, new, reason in [('Bank -> Shop : Receipt', 'Intruder -> Shop : Receipt', 'not declared'),
+                                 ('Buyer; Shop; Bank;', 'Buyer; Buyer; Bank;', 'duplicate')]:
+            with self.subTest(reason=reason), self.assertRaisesRegex(SyntaxFailure, reason):
+                Engine(path.read_text().replace(old, new), path).expand()
+
+    def test_only_declared_library_dependencies_are_expanded(self):
+        path = HERE / 'examples/Html.cinch'
+        libraries = library_project(Engine(path.read_text(), path))
+        self.assertEqual([p.stem for p, _ in libraries], ['Ui'])
+        path = HERE / 'examples/Choreography.cinch'
+        libraries = library_project(Engine(path.read_text(), path))
+        self.assertEqual([p.stem for p, _ in libraries], ['LocalWire', 'Checkout'])
+        self.assertIn('send-Checkout-Buyer-Order', libraries[-1][1].fragment.text)
+
+    def test_runtime_imports_in_host_strings_and_markup_are_inert(self):
+        source = 'import Ui\n"start\nimport Checkout\nend"\n'
+        self.assertEqual(Engine(source, HERE / 'examples/T.cinch').runtime_imports, ['Ui'])
+        source = 'import syntax "../syntax/html.syntax.json" as html\nhtml!{<p>\nimport Checkout\n</p>}'
+        self.assertEqual(Engine(source, HERE / 'examples/T.cinch').runtime_imports, [])
 
 
 if __name__ == '__main__': unittest.main()

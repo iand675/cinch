@@ -6,7 +6,6 @@ remain compiler/front-end diagnostics. Host-code nodes are language injections.
 from pathlib import Path
 import json
 import re
-import shutil
 
 from engine import Grammar
 
@@ -303,4 +302,4 @@ bool tree_sitter_LANGUAGE_external_scanner_scan(void *p, TSLexer *l, const bool 
 if __name__ == '__main__':
     for path in sorted((HERE / 'syntax').glob('*.syntax.json')): print(generate(path))
     print(generate_expression())
-    print(generate_project(sorted((HERE / 'examples').glob('*.cinch'))))
+    print(generate_project(sorted((HERE / 'examples').glob('*.cinch')) + sorted((HERE / 'libraries').glob('*.cinch'))))

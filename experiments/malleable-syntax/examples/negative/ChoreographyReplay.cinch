@@ -1,0 +1,27 @@
+module Main where
+  import LocalWire
+  import syntax "../../syntax/choreography.syntax.json" as choreography
+  choreography!{
+    Checkout roles { Buyer; Shop; Bank; }
+    prefix {
+      Buyer -> Shop : Order;
+      Shop -> Bank : Payment;
+    }
+    choice Bank {
+      Approved {
+        Bank -> Shop : Receipt;
+        Shop -> Buyer : Confirmation;
+      }
+      Declined {
+        Bank -> Shop : Reason;
+        Shop -> Buyer : Rejection;
+      }
+    }
+  }
+  bad :: Thunk {} CheckoutBuyerP0 %1 -> Nat
+  bad buyer = case send-Checkout-Buyer-Order buyer 21 of
+    (buyer-next, packet) -> case receive-Checkout-Shop-Order (start-Checkout-Shop ()) packet of
+      (shop-next, first) -> case receive-Checkout-Shop-Order (start-Checkout-Shop ()) packet of
+        (another-shop, second) -> first + second
+  main :: Int
+  main = 0
