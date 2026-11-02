@@ -2,6 +2,13 @@
 
 ## Current verification boundary
 
+The complete188 integration targets and five general gates now pass on the
+8ea856a snapshot. Five focused whole targets were reused only from the same
+exact frozen inputs;188 gates ran fresh. This is the latest complete baseline,
+preceding the later lexer bindings, Native ownership repair/b16 producer and
+the refined-argument materialization candidate. It does not establish a complete
+current-source or self-built frontend pass. See [the full baseline report](../bootstrap/hypothesis-full-suite-results.json).
+
 Rust now retains the checked collection type when reifying constant lists and
 their constructors. Counted object and tagged bignum heads keep their actual
 class vectors; unresolved generalized result types retain typed runtime
