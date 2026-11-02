@@ -86,6 +86,17 @@ fn tactics_preserve_bootstrap_value_identity_across_aliases_and_shadowing() {
 }
 
 #[test]
+fn arithmetic_tactics_keep_opaque_measure_goals_in_the_facts_scope() {
+    for (fact, plan) in [("i < string-length name", "assumption"),
+                         ("i + 1 <= string-length name", "linear")] {
+        checks(&format!(r#"
+  safe :: (name :: String) -> (i :: Nat) -> Option (Fin (string-length name))
+  safe name i = if {fact} then Some (Fin i (Proof.search "{plan}")) else None
+"#));
+    }
+}
+
+#[test]
 fn both_strategies_record_mutable_evidence_dependencies() {
     for (fact, plan) in [("copyOut m < 5", "assumption"), ("copyOut m + 1 <= 5", "linear")] {
         let body = format!(r#"

@@ -4139,7 +4139,10 @@ impl Checker {
         // and shadowing. Put the goal in the same current value scope as
         // `evidence_in`, rather than comparing old source spellings.
         let caller = env.locals.iter().map(|(name, id, _)| (name.clone(), *id)).collect();
-        let goal = self.proof_in_value_scope(prop, &caller, env);
+        // Keep opaque measures intact for arithmetic search, just as
+        // `evidence_in` does. Reduction belongs to exact proof matching.
+        let goal = self.proof_values_in_scope(prop, &caller, env);
+        let reduced_goal = self.reduce_prop(&goal);
         let evidence = self.evidence_in(env);
         for step in steps {
             let used = match step {
@@ -4147,7 +4150,7 @@ impl Checker {
                     // These are free local indices, not refinement
                     // binders: never match up to renaming (i < n is not
                     // evidence for n < i, or for j < n).
-                    self.reduce_prop(q).eq(&goal)
+                    self.reduce_prop(q).eq(&reduced_goal)
                 }).map(|i| vec![i]),
                 // `linear_discharge` searches for certificates; the trusted
                 // `check_linear_proof` rechecks them before it returns. Only

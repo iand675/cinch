@@ -21,10 +21,13 @@ and value-alias provenance, and the syntax probe's transfer of `%1`/`%aff`
 multiplicity through direct aliases. Neither side's behavior replaces the other.
 
 `Proof.search` now places its goal in the same current value scope as native
-evidence lookup. This uses bootstrap's `proof_in_value_scope` rather than relying
+evidence lookup. This uses bootstrap's `proof_values_in_scope` rather than relying
 on the old snapshot's source-name comparisons. A new regression checks both
 assumption and arithmetic tactics on a saved value after its original name has
 been rebound. Existing rejection cases still cover using the rebound value.
+Arithmetic goals retain opaque measures during scope rebasing; exact assumption
+matching performs reduction separately. Another regression covers a string-length
+bound under both strategies.
 
 The experimental syntax frontend and tactic hook remain development Rust
 compiler features. `bootstrap/stage0.lock.json` and `bootstrap/seed/stage0.patch`
