@@ -1,5 +1,5 @@
 {
-  "recorded_at": "2026-11-02T05:15:43.664789+00:00",
+  "recorded_at": "2026-11-02T05:21:32.027277+00:00",
   "status": "schema8 actual measure contracts consumed by compiled Cinch; fresh stage0/1 pass six combined smokes; actual stage2 reaches compiler bodies and refuses there",
   "source_sha256": "49515fd8ee150af629afdf2a881eb50abd24a15aea87b8ffc085f7829b20008b",
   "source_inputs": 631,
@@ -585,11 +585,13 @@
       "--nocapture",
       "--test-threads=1"
     ],
+    "exit_code": 0,
+    "finished": "2026-11-02T05:19:12.849482+00:00",
     "lane": "one global shared worker; previous prototype consumer is the sole outside fifth lane",
     "pid": 36167,
     "source_sha256": "49515fd8ee150af629afdf2a881eb50abd24a15aea87b8ffc085f7829b20008b",
     "started": "2026-11-02T05:09:18.148490+00:00",
-    "status": "running"
+    "status": "passed"
   },
   "focused_regressions": [
     {
@@ -911,16 +913,16 @@
     "general_gates": 5,
     "fresh_gates": 176,
     "reused_whole_gates": 4,
-    "external_live_whole_gates": 2,
+    "external_live_whole_gates": 0,
     "observed_counts": {
-      "passed": 3,
-      "waiting-shared-slot": 1,
-      "running": 3,
-      "pending": 169
+      "passed": 5,
+      "running": 4,
+      "pending": 167
     },
     "evidence": "/tmp/cinch-total-measures-full-1/complete-matrix",
     "self_built_frontend": false,
-    "all_tests_passed": false
+    "all_tests_passed": false,
+    "external_completed_whole_gates": 2
   },
   "implemented": [
     "Version8 value records carry null or exact closed executable bodies; resolved measure references retain Native identity, complete defining scheme and private dependency closure.",
@@ -930,14 +932,15 @@
   ],
   "limits": [
     "The full177+5 Native-assisted suite is running; it is not a self-built frontend suite.",
-    "The strengthened measure target is rerunning after correcting an adversarial fixture whose changed graph retained an unrelated comparison node. The prior broader run passed its13 runtime cases and wrong-full-scheme rejection before this fixture construction failure; its separate new binding runner delimiter error is corrected and the18-check binding target passes.",
     "Stage2 now reaches bodies and reports758 diagnostics, including333 unsupported expression elaborations,159 unresolved effect inclusions and constructor pattern arity errors. No stage2 compiler/IR or stage3 fixed point exists.",
-    "Canonical class/slot numeric method reflection still needs replacement using the actual selected method body. Source-definition body reconstruction, full proof/usage/totality, typed runtime lowering and the complete self-built frontend suite remain incomplete."
+    "Canonical class/slot numeric method reflection still needs replacement using the actual selected method body. Source-definition body reconstruction, full proof/usage/totality, typed runtime lowering and the complete self-built frontend suite remain incomplete.",
+    "Two earlier new fixture errors were corrected: two binding-runner delimiters and projection of the adversarial changed graph to its exact root closure. The final18-check binding target and15-case consumer target both pass."
   ],
   "self_hosting_achieved": false,
   "worker_control": {
     "heavy_maximum": 5,
     "shared_slots": 4,
     "current_matrix_and_stage_coordination": "all current workers use the four global shared slots"
-  }
+  },
+  "stronger_measure_consumer_cases": 15
 }

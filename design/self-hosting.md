@@ -17,8 +17,10 @@ not a self-hosting success.
 The Native producer passes140 unit tests and actual-header roundtrip checks.
 The first compiled Cinch consumer passes13 runtime cases, including the real
 UTF8 header and changed defining bodies. Stronger body authority passes18 checks
-at each of five identities above2^128. The strengthened consumer rerun and complete
-177+5 Native-assisted suite are running; individual evidence and exact snapshots
+at each of five identities above2^128. The strengthened consumer passes all15 cases,
+including full-scheme and conflicting-private-body rejection. All four focused
+reader/loader/parser/precondition targets pass. The complete177+5 Native-assisted
+suite is running; individual evidence and exact snapshots
 are recorded in [the measure-contract report](../bootstrap/measure-contract-checkpoint-results.json).
 
 The previous complete172+5 body-only foundation remains the last full-suite pass.
