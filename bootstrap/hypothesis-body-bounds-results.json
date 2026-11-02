@@ -1,5 +1,5 @@
 {
-  "actual_stages": "six stage0/1 smokes passed; actualstage2 running",
+  "actual_stages": "six stage0/1 smokes passed; actualstage2exit4 with1649 diagnostics, first atText.Lex.attr-name-valid; noIR/compiler",
   "after_fix_regression": "all19 body/declaration checks pass at each of5 large ID choices",
   "before_fix_regression": "new hypothesis-only bound check fails at nonce0 with exit2; whole Rust target exits101",
   "body_binding_checks_per_nonce": 19,

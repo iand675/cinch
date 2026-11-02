@@ -1,0 +1,44 @@
+{
+  "actual_stage_chain": "new attempt pending on these exact implementation inputs",
+  "bootstrap_achieved": false,
+  "cinch_boundary": "all diagnostics are named bootstrap.ir runtime-representation/layout refusals; no source-checker diagnostic remains",
+  "cinch_whole_lexer_exit": 5,
+  "current_full_suite": "188+5 running on preceding8ea856a snapshot; this small lexer source change is not covered by that full matrix",
+  "emitter_diagnostics": 579,
+  "first_emitter_diagnostics": [
+    "bootstrap.ir:1:1: imported method needs the shared uniform-word ABI and layout registry before lowering: i.65_108_103_101_98_114_97_46_65_114_105_116_104_109_101_116_105_99_46_65_100_100_46_43_",
+    "bootstrap.ir:1:1: imported method needs the shared uniform-word ABI and layout registry before lowering: i.65_108_103_101_98_114_97_46_65_114_105_116_104_109_101_116_105_99_46_77_117_108_46_42_",
+    "bootstrap.ir:1:1: imported method needs the shared uniform-word ABI and layout registry before lowering: i.65_108_103_101_98_114_97_46_65_114_105_116_104_109_101_116_105_99_46_83_117_98_46_45_",
+    "bootstrap.ir:1:1: imported type needs the shared uniform-word ABI and layout registry before lowering: i.68_97_116_97_46_67_111_114_101_46_76_105_115_116_",
+    "bootstrap.ir:1:1: imported constructor needs the shared uniform-word ABI and layout registry before lowering: i.68_97_116_97_46_67_111_114_101_46_78_105_108_"
+  ],
+  "fix": "bind string length and immutable Scan source/offset fields once before existing dependent guards",
+  "native_oracle_isolation": "Native oracle has a separate project; its compiler-source interfaces are never passed to Cinch",
+  "native_whole_lexer_exit": 0,
+  "pinned_seed_source_sha256": "f88d6a49cd8fed562f3639165310c2caef228797de2127a9edd0bc8e5502b2a0",
+  "runtime_cases": [
+    {
+      "cinch_code": 4,
+      "name": "inline-repeated-length",
+      "native_code": 0,
+      "passed": true
+    },
+    {
+      "cinch_code": 5,
+      "name": "bound-length",
+      "native_code": 0,
+      "passed": true
+    },
+    {
+      "cinch_code": 4,
+      "name": "missing-nonempty-guard",
+      "native_code": 1,
+      "passed": true
+    }
+  ],
+  "seed_changed": false,
+  "self_built_frontend_suite": false,
+  "source_sha256": "25d171e319a8f3fc42f9e3928b3aecd47de568d8c82f71a57b3556854aa75949",
+  "status": "whole lexer body accepted",
+  "whole_module_assembly": "Text.Lex and Main supplied together in the explicit source bundle"
+}

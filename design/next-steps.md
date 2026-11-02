@@ -2,6 +2,16 @@
 
 ## Current verification boundary
 
+The complete Text.Lex source now passes the independently compiled Cinch
+checker. It reaches only the emitter's explicit runtime-layout refusals.
+Attribute-name validation binds its string length once; attribute trimming
+binds its immutable Scan source and offset once before checking the existing
+buffer bound. These are actual checked values, requiring no invented symbolic
+contract for string-length or record projections. Runtime probes retain the
+missing-nonempty-guard refusal. A new stage chain will use these implementation
+inputs; the188+5 sweep below remains scoped to the preceding8ea856a snapshot.
+See [the whole-lexer report](../bootstrap/lexer-bound-values-results.json).
+
 Cinch now derives a checked total call's numeric bounds when that call appears
 only in an existing hypothesis. For example, `pos + width cp <= bytes-len out`
 can imply `pos <= bytes-len out` using the actual checked Nat-returning body of
@@ -12,8 +22,11 @@ that checked Nat value for both buffer sizing and encoding.
 The regression fails before the proof fix and passes afterward, including
 stronger-result, missing-body and changed-body refusals at five identities
 above2^128. All37 source cases,40 guarded-call Core checks and five whole
-regression targets pass. Fresh stage0/1 pass all six smokes; actualstage2 and
-the full188+5 current-source matrix are running. The pinned f88 producer is
+regression targets pass. Fresh stage0/1 pass all six smokes. Actualstage2 clears
+the character-buffer bound and reaches `Text.Lex.attr-name-valid`, whose repeated
+`string-length name` call has no checked symbolic index contract. It exits4 with
+1649 diagnostics and produces no compiler. See [the actual stage report](../bootstrap/hypothesis-body-bounds-stages-results.json).
+The full188+5 current-source matrix is running. The pinned f88 producer is
 unchanged: Text.Lex is compiled toolkit source, outside its embedded prelude.
 See [the hypothesis-bound report](../bootstrap/hypothesis-body-bounds-results.json).
 

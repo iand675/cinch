@@ -981,10 +981,11 @@ module Text.Lex where
   -- `-` (the compiler's `lex_attr` name rule).
   attr-name-valid :: String -> Bool
   attr-name-valid name =
-    if string-length name == 0 then False
+    let count = string-length name in
+    if count == 0 then False
     else case string-char-at name 0 of
       None -> False
-      Some first -> case string-char-at name (string-length name - 1) of
+      Some first -> case string-char-at name (count - 1) of
         None -> False
         Some last ->
           not (eq-char first '.') && not (eq-char first '-')
@@ -1083,9 +1084,11 @@ module Text.Lex where
           let s2 = scan-attr-to-bracket s1 in
           if is-close-bracket s2
           then
-            if scan-off s2 <= bytes-len (scan-src s2) then
-              let stop = trim-attr-end (scan-src s2) (scan-off s2) in
-              case bytes-to-string-at (scan-src s2) start stop of
+            let src = scan-src s2 in
+            let off = scan-off s2 in
+            if off <= bytes-len src then
+              let stop = trim-attr-end src off in
+              case bytes-to-string-at src start stop of
                 None -> ErrAt (scan-span s0) RefusedAttr
                 Some t -> Tok1 (skip-char s2) (TAttr t)
             else ErrAt (scan-span s0) RefusedAttr
