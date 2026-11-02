@@ -64,3 +64,14 @@ The user asked for a pass using the copy-editing skill's seven sweeps (clarity, 
 ## Runnables (2026-11-02)
 
 The browser build of the compiler is coming. Until it lands, the `average-report.cinch` window is a placeholder runnable: its Run key plays back output recorded from the real compiler by `scripts/record-examples.py`, line by line. When the browser build registers `window.cinch = { run(file, source) }`, the same key calls it with no page change. The next step is to make the code editable once the engine exists, and to give other code windows on the page the same treatment.
+
+## Positioning against Lean (2026-11-02)
+
+The user's goal is for Cinch to be a nicer language than Lean. Lean's site leads with mathematics (geometric series, Mathlib, Fermat, Terence Tao) and reaches its programmer pitch ("Write software. Prove it correct.") two thirds of the way down. Cinch's page leads with programs instead:
+
+- The hero describes "a functional language with dependent types, for the programs you ship" and says most guarantees need no written proof.
+- The examples are business code (average order value), not theorems.
+- The compiler's messages are the counterpart to Lean's goal view. The `average.cinch` window feeds the real rejection message for `average-unchecked.cinch` onto continuous form paper (`CompilerPrintout.astro`), with numbered callouts on the three remedies the message names. Each remedy in the legend is backed by a checked example: `average-report.cinch` (decide it with `non-empty`), `average-match.cinch` (match on the list), and `average-report.cinch`'s `average` (ask for `NonEmpty Int`).
+- Do not name Lean or other languages on the page, and do not claim comparative facts about them.
+
+Today a branch on `length xs > 0` does not discharge `NotNull xs` or `NonZero (length xs)`; pattern matching on `Cons` does. Keep examples on the forms that check.

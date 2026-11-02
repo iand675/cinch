@@ -20,6 +20,7 @@ CINCH = os.environ.get('CINCH', str(ROOT.parent / 'compiler' / 'target' / 'relea
 PLAN = {
     'average-report.cinch': 'run',
     'average-unchecked.cinch': 'check',
+    'average-match.cinch': 'check',
 }
 
 def record(name, mode):

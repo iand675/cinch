@@ -10,5 +10,11 @@
     "stdout": "",
     "stderr": "cinch: 12:27: the obligation `NotNull orders` needs `Dec` evidence or a branch fact at this use (discharge it in the `Dec`/`decide` world: `case decide (NotNull orders) of Yes w -> ...`, under a branch condition that implies it (`if ... then`, a guard, or the left operand of `&&`), or pass an argument whose refinement implies it): no evidence for `NotNull orders` is in scope here (in average-unchecked.cinch)",
     "exit": 1
+  },
+  "average-match.cinch": {
+    "command": "cinch check average-match.cinch",
+    "stdout": "",
+    "stderr": "",
+    "exit": 0
   }
 }

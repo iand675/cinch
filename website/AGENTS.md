@@ -38,6 +38,7 @@ These instructions apply to `website/`. This site has an established, user-selec
 | Manual-style technical figure | `src/components/TechnicalFigure.astro` (tutorial), `src/components/AverageFigure.astro` (landing), `src/styles/technical-figure.css` |
 | Checked landing examples and recorded runs | `src/data/examples/*.cinch`, `src/data/examples/recordings.json`, `scripts/record-examples.py` |
 | Runnable code window | `src/components/RunnableSource.astro`, `.run-output` rules in `landing.css` |
+| Compiler printout (rejected example on form paper) | `src/components/CompilerPrintout.astro`, `.printout` rules in `landing.css` |
 | Landing gadgets (bits, staging, fusion, SIMD, upgrade) | `src/components/LanguageTour.astro`, `src/components/LiveEvolution.astro`, rules in `src/styles/language-tour.css` |
 | Docs content and route adaptation | `src/loaders/safelang-docs.ts`, `src/components/MarkdownContent.astro`, `astro.config.mjs` |
 | Package fixtures and generated API references | `src/lib/catalogue.ts`, `src/pages/packages/`, `src/components/catalogue/` |
