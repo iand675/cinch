@@ -142,9 +142,85 @@ fn the_ladder_compiles_the_fib_example_with_itself() {
     assert!(report.contains("clang-exit: 0") && report.contains("artifact-exit: 0"), "{report}");
     assert_eq!(std::process::Command::new(dir.join("modules.bin")).status().unwrap().code(), Some(0));
 
+    frontend_modes(&dir, &exe);
     refused_source(&dir, &exe);
     checked_interfaces(&dir, &exe);
     common::cleanup(&dir);
+}
+
+fn frontend_modes(dir: &Path, exe: &Path) {
+    let source = dir.join("mode-source.cinch");
+    let valid = "module Main where\n  identity :: forall a. a -> a\n  identity x = x\n  main :: Int\n  main = 0\n";
+    std::fs::write(&source, valid).unwrap();
+    let args = vec!["--check".into(), source.display().to_string(), dir.join("checked").display().to_string()];
+    assert_eq!(run_built(exe, dir, &args).0, Some(0), "check accepts typed code before lowering");
+    assert_eq!(common::read_output(dir, "checked.diagnostics"), "");
+    assert!(!dir.join("checked").exists(), "check emitted an IR module");
+    std::fs::write(&source, "module Main where\n  main :: Int\n  main = missing\n").unwrap();
+    assert_eq!(run_built(exe, dir, &args).0, Some(4));
+    assert!(common::read_output(dir, "checked.diagnostics").contains("missing"));
+    std::fs::write(&source, valid).unwrap();
+    assert_eq!(run_built(exe, dir, &args).0, Some(0));
+    assert_eq!(common::read_output(dir, "checked.diagnostics"), "", "successful check retained stale diagnostics");
+    let build_args = ["--compile-only".to_string(), source.display().to_string(), dir.join("only.ll").display().to_string(), dir.join("only.bin").display().to_string(), dir.join("only.report").display().to_string()];
+    assert_eq!(run_built(exe, dir, &build_args).0, Some(5), "compile retains the typed emitter boundary");
+    assert!(!dir.join("only.bin").exists());
+    for bad in [vec!["--check", "--compile-only", "source", "output"], vec!["--check", "source", "output", "extra"], vec!["--interfaces", "a", "--interfaces", "b", "source", "ir", "exe", "report"]] {
+        assert_eq!(run_built(exe, dir, &bad.into_iter().map(String::from).collect::<Vec<_>>()).0, Some(1), "invalid mode arguments");
+    }
+    std::fs::write(&source, "module Main where\n  main :: Int\n  main = 37\n").unwrap();
+    assert_eq!(run_built(exe, dir, &build_args).0, Some(0));
+    assert_eq!(common::read_output(dir, "only.report"), "clang-exit: 0\n");
+    assert_eq!(std::process::Command::new(dir.join("only.bin")).status().unwrap().code(), Some(37), "compile-only produced a wrong artifact");
+    #[cfg(unix)]
+    compile_only_does_not_execute(dir, exe, &build_args);
+}
+
+#[cfg(unix)]
+fn compile_only_does_not_execute(dir: &Path, exe: &Path, args: &[String]) {
+    use std::os::unix::fs::PermissionsExt;
+    let tools = dir.join("fake-tools");
+    std::fs::create_dir(&tools).unwrap();
+    let clang = tools.join("clang");
+    std::fs::write(&clang, r#"#!/bin/sh
+cat >/dev/null
+printf called > clang-was-called
+if [ -n "$CINCH_TEST_CLANG_EXIT" ]; then exit "$CINCH_TEST_CLANG_EXIT"; fi
+while [ "$#" -gt 0 ]; do
+  if [ "$1" = "-o" ]; then shift; output="$1"; fi
+  shift
+done
+cat > "$output" <<'PROGRAM'
+#!/bin/sh
+printf executed > artifact-was-run
+exit 37
+PROGRAM
+chmod +x "$output"
+"#).unwrap();
+    std::fs::set_permissions(&clang, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let mut search = vec![tools];
+    search.extend(std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default()));
+    let path = std::env::join_paths(search).unwrap();
+    let run = |words: &[String], failure: Option<&str>| {
+        let mut cmd = std::process::Command::new(exe);
+        cmd.current_dir(dir).args(words).env("PATH", &path).env_remove("CINCH_TEST_CLANG_EXIT");
+        if let Some(code) = failure { cmd.env("CINCH_TEST_CLANG_EXIT", code); }
+        cmd.output().unwrap()
+    };
+    std::fs::remove_file(dir.join("only.bin")).unwrap();
+    assert_eq!(run(args, None).status.code(), Some(0));
+    assert!(dir.join("clang-was-called").exists());
+    assert!(!dir.join("artifact-was-run").exists(), "compile-only executed its output");
+    assert_eq!(common::read_output(dir, "only.report"), "clang-exit: 0\n");
+    assert_eq!(run(&args[1..], None).status.code(), Some(0), "legacy link-and-run failed");
+    assert!(dir.join("artifact-was-run").exists(), "execution spy was not reached by legacy mode");
+    assert_eq!(common::read_output(dir, "only.report"), "clang-exit: 0\nartifact-exit: 37\n");
+    std::fs::remove_file(dir.join("artifact-was-run")).unwrap();
+    std::fs::remove_file(dir.join("only.bin")).unwrap();
+    assert_eq!(run(args, Some("19")).status.code(), Some(4), "link failure was hidden");
+    assert_eq!(common::read_output(dir, "only.report"), "clang-exit: 19\n");
+    assert!(!dir.join("only.bin").exists());
+    assert!(!dir.join("artifact-was-run").exists());
 }
 
 fn checked_interfaces(dir: &Path, exe: &Path) {
@@ -194,6 +270,12 @@ fn checked_interfaces(dir: &Path, exe: &Path) {
             assert!(!dir.join(format!("{name}.ll")).exists());
             assert!(!dir.join(format!("{name}.bin")).exists());
         }
+    }
+    for before in [true, false] {
+        let mut args = if before { vec!["--check".into(), "--interfaces".into(), manifest.display().to_string()] } else { vec!["--interfaces".into(), manifest.display().to_string(), "--check".into()] };
+        args.extend([dir.join("imported-call.cinch").display().to_string(), dir.join("imported-check").display().to_string()]);
+        assert_eq!(run_built(exe, dir, &args).0, Some(0), "checked imported call must stop before its emitter refusal");
+        assert_eq!(common::read_output(dir, "imported-check.diagnostics"), "");
     }
     std::fs::write(&manifest, "{\"schema\":99,\"interfaces\":[]}").unwrap();
     let args = ["--interfaces", "interfaces.json", "unused-contracts.cinch", "invalid.ll", "invalid.bin", "invalid.report"]

@@ -215,8 +215,17 @@ module Bootstrap.Driver where
   write-report report clang-code artifact-code =
     fs-write report (string-to-bytes (render-report clang-code artifact-code))
 
-  -- Read the input module, link it with clang, run the artifact, and write
-  -- the report. The exit code names the step that refused, or 0.
+  -- Link without running. The report contains only the actual linker exit.
+  link-only-and-report :: forall r. using (io :: Io r) => Path -> Path -> Path ->{IO r} Int
+  link-only-and-report input output report = case fs-read input of
+    Err e -> exit-read-failed
+    Ok ir -> case spawn-clang ir output of
+      Err e -> exit-spawn-failed
+      Ok code -> case fs-write report (string-to-bytes (string-concat "clang-exit: " (string-concat (nat-to-string code) "\n"))) of
+        Err e -> exit-report-failed
+        Ok written -> if code == 0 then exit-ok else exit-clang-failed
+
+  -- Read, link, run and report both exit codes for the original ladder.
   link-and-report :: forall r. using (io :: Io r) => Path -> Path -> Path ->{IO r, Diverge} Int
   link-and-report input output report = case fs-read input of
     Err e -> exit-read-failed

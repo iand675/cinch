@@ -1,5 +1,19 @@
 # Next steps (as of 2026-11-02)
 
+The Cinch driver now has explicit check-only and compile-only modes. Checking
+stops before emission and clears stale diagnostics; compilation links without
+running its output. The original compile/link/run interface is preserved. The
+whole pipeline target passes, including real binaries, imported checks, invalid
+options and an execution spy, and fresh stage0/1 pass all six smokes. These modes
+prepare external frontend testing; they do not establish a complete self-built
+suite or complete correctness checking. See [the mode checkpoint](../bootstrap/frontend-modes-results.json).
+
+The last genuine stage2 result below is unchanged: the Boolean guard repair is
+separately under validation. Typed runtime lowering and the fixed point remain
+unfinished.
+
+## Previous resolver checkpoint
+
 Resolver source metadata now binds its actual span and offsets before numeric
 conversion. Its complete15-module source closure passes checking, and both whole
 resolver and pipeline regressions pass. Fresh stage0/1 pass all six smokes.

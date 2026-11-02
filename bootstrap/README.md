@@ -49,6 +49,20 @@ the changed-source probe; the current stage-2 refusal therefore prevents a
 complete pass. The verifier's tooling unit tests pass. Earlier completed
 Native-assisted suites do not establish the final self-hosting gate.
 
+The driver also has separate frontend and build modes:
+
+    cinch --check [--interfaces MANIFEST] SOURCE DIAGNOSTICS_BASE
+    cinch --compile-only [--interfaces MANIFEST] SOURCE IR EXECUTABLE REPORT
+
+Check-only runs parsing, resolution and the current source/Core checks, then
+writes `DIAGNOSTICS_BASE.diagnostics` (empty on success). It does not run the
+emitter or linker. Compile-only emits and links without executing the output;
+its report contains the linker exit alone. Omitting a mode preserves the
+original compile/link/run behavior. Mode and interface options may appear in
+either order; duplicate or conflicting mode options are refused. These modes
+prepare the external Cinch test harness; they do not establish complete
+independent correctness checking or a self-built frontend suite.
+
 The pipeline also accepts `--interfaces MANIFEST` before its four paths.
 The manifest is JSON: `{"schema":1,"interfaces":[["Module","hash","path"]]}`.
 Paths are absolute or relative to the process's working directory. The
