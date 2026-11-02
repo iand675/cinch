@@ -1,5 +1,15 @@
 # Next steps (as of 2026-11-02)
 
+The genuine Stage2 attempt now accepts the complete compiler source through
+the Cinch frontend. All6925 diagnostics are named bootstrap.ir refusals;
+there are zero frontend diagnostics. Stage2 exits5 and emits neither LLVM
+nor an executable. The compiled source bundle matches the published compiler
+sources exactly. All six fresh stage0/1 smokes pass. Shared-runtime typed
+lowering, complete correctness checks, self-built tests and the Stage2/3 fixed
+point remain required. See [the exact stage result](../bootstrap/arity-stage2-results.json).
+
+## Previous arity checkpoint
+
 Both imported arity checks now bind the actual computed Nat before conversion:
 the inference checker binds scheme arity plus dictionary requirements, and the
 legacy checker binds its type arity. The complete23-module inference and24-module
