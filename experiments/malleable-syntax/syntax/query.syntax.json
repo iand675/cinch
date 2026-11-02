@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "name": "query",
+  "entry": "root",
+  "rules": {
+    "root": {
+      "pattern": [
+        "from",
+        {
+          "capture": "rows",
+          "of": {
+            "host": true
+          }
+        },
+        "where",
+        {
+          "capture": "predicate",
+          "of": {
+            "host": true
+          }
+        },
+        "select",
+        {
+          "capture": "projection",
+          "of": {
+            "host": true
+          }
+        },
+        "}"
+      ],
+      "emit": "(${@select} (${projection}) (${@where} (${predicate}) (${rows})))"
+    }
+  },
+  "helpers": {
+    "select": "Query.select",
+    "where": "Query.filter-rows"
+  }
+}

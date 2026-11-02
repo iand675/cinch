@@ -1,0 +1,13 @@
+module Main where
+  import Query
+  import Data.String
+  import syntax "../../syntax/schema.syntax.json" as schema
+  import syntax "../../syntax/query.syntax.json" as query
+  schema!{ User { name : String; age : Nat; } }
+  main :: Int
+  main =
+    let rows = [User { name = "Ada", age = 36 }, User { name = "Grace", age = 17 }] in
+    let names = query!{ from {rows} where {\user -> user.salary >= 18} select {\user -> user.name} } in
+    case names of
+      Cons name Nil -> if name == "Ada" then 0 else 1
+      _ -> 2

@@ -1,0 +1,3 @@
+module Tasks where
+  fork :: forall r s x a e. Scope r s -> (Unit ->{|e} Result x a) ->{Async r | e} Task s x a
+  fork scope body = spawn scope body

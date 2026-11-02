@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "name": "by",
+  "entry": "root",
+  "rules": {
+    "root": {
+      "pattern": [
+        {
+          "capture": "proof",
+          "of": {
+            "choice": [
+              {
+                "ref": "reflexivity"
+              },
+              {
+                "ref": "exact"
+              }
+            ]
+          }
+        },
+        "}"
+      ],
+      "emit": "(${proof})"
+    },
+    "reflexivity": {
+      "pattern": "reflexivity",
+      "emit": "refl"
+    },
+    "exact": {
+      "pattern": [
+        "exact",
+        {
+          "capture": "term",
+          "of": {
+            "host": true
+          }
+        }
+      ],
+      "emit": "${term}"
+    }
+  },
+  "helpers": {}
+}

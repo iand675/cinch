@@ -1,0 +1,342 @@
+{
+  "version": 1,
+  "name": "html",
+  "entry": "root",
+  "helpers": {
+    "fragment": "Ui.fragment",
+    "element": "Ui.element",
+    "attribute": "Ui.attribute",
+    "child": "Ui.child",
+    "text": "Ui.text"
+  },
+  "rules": {
+    "root": {
+      "pattern": [
+        {
+          "capture": "nodes",
+          "of": {
+            "many": {
+              "ref": "node"
+            },
+            "join": ", "
+          }
+        },
+        "}"
+      ],
+      "emit": "(${@fragment} [${nodes}])"
+    },
+    "node": {
+      "pattern": {
+        "choice": [
+          {
+            "ref": "fragment"
+          },
+          {
+            "ref": "component"
+          },
+          {
+            "ref": "component-self-closing"
+          },
+          {
+            "ref": "element"
+          },
+          {
+            "ref": "self-closing"
+          },
+          {
+            "ref": "expression"
+          },
+          {
+            "ref": "text"
+          }
+        ]
+      }
+    },
+    "element": {
+      "pattern": [
+        "<",
+        {
+          "capture": "tag",
+          "of": {
+            "quote": {
+              "regex": "[a-z][a-zA-Z0-9-]*",
+              "label": "tag or property name"
+            }
+          }
+        },
+        {
+          "capture": "attrs",
+          "of": {
+            "many": {
+              "choice": [
+                {
+                  "ref": "attribute"
+                },
+                {
+                  "ref": "boolean-attribute"
+                }
+              ]
+            },
+            "join": ", "
+          }
+        },
+        ">",
+        {
+          "capture": "children",
+          "of": {
+            "many": {
+              "ref": "node"
+            },
+            "join": ", "
+          }
+        },
+        "</",
+        {
+          "capture": "end",
+          "of": {
+            "quote": {
+              "regex": "[a-z][a-zA-Z0-9-]*",
+              "label": "tag or property name"
+            }
+          }
+        },
+        ">"
+      ],
+      "equal": [
+        [
+          "tag",
+          "end"
+        ]
+      ],
+      "emit": "(${@element} ${tag} [${attrs}] [${children}])"
+    },
+    "self-closing": {
+      "pattern": [
+        "<",
+        {
+          "capture": "tag",
+          "of": {
+            "quote": {
+              "regex": "[a-z][a-zA-Z0-9-]*",
+              "label": "tag or property name"
+            }
+          }
+        },
+        {
+          "capture": "attrs",
+          "of": {
+            "many": {
+              "choice": [
+                {
+                  "ref": "attribute"
+                },
+                {
+                  "ref": "boolean-attribute"
+                }
+              ]
+            },
+            "join": ", "
+          }
+        },
+        "/>"
+      ],
+      "emit": "(${@element} ${tag} [${attrs}] [])"
+    },
+    "component": {
+      "pattern": [
+        "<",
+        {
+          "capture": "tag",
+          "of": {
+            "regex": "[A-Z][a-zA-Z0-9]*",
+            "label": "component name"
+          }
+        },
+        {
+          "capture": "attrs",
+          "of": {
+            "many": {
+              "ref": "property"
+            },
+            "join": ", "
+          }
+        },
+        ">",
+        {
+          "capture": "children",
+          "of": {
+            "many": {
+              "ref": "node"
+            },
+            "join": ", "
+          }
+        },
+        "</",
+        {
+          "capture": "end",
+          "of": {
+            "regex": "[A-Z][a-zA-Z0-9]*",
+            "label": "component name"
+          }
+        },
+        ">"
+      ],
+      "equal": [
+        [
+          "tag",
+          "end"
+        ]
+      ],
+      "emit": "(Ui.component-${tag} (Ui.${tag}Props { ${attrs} }) [${children}])"
+    },
+    "attribute": {
+      "pattern": [
+        {
+          "capture": "name",
+          "of": {
+            "quote": {
+              "regex": "[a-z][a-zA-Z0-9-]*",
+              "label": "tag or property name"
+            }
+          }
+        },
+        "=",
+        {
+          "capture": "value",
+          "of": {
+            "choice": [
+              {
+                "host": true
+              },
+              {
+                "quote": {
+                  "regex": "\"[^\"\\n]*\""
+                },
+                "strip": true,
+                "decode": "html"
+              }
+            ]
+          }
+        }
+      ],
+      "emit": "(${@attribute} ${name} (${value}))"
+    },
+    "property": {
+      "pattern": [
+        {
+          "capture": "name",
+          "of": {
+            "regex": "[a-z][a-zA-Z0-9-]*",
+            "label": "tag or property name"
+          }
+        },
+        "=",
+        {
+          "capture": "value",
+          "of": {
+            "choice": [
+              {
+                "host": true
+              },
+              {
+                "quote": {
+                  "regex": "\"[^\"\\n]*\""
+                },
+                "strip": true,
+                "decode": "html"
+              }
+            ]
+          }
+        }
+      ],
+      "emit": "${name} = (${value})"
+    },
+    "expression": {
+      "pattern": {
+        "capture": "body",
+        "of": {
+          "host": true
+        }
+      },
+      "emit": "(${@child} (${body}))"
+    },
+    "text": {
+      "pattern": {
+        "capture": "body",
+        "of": {
+          "quote": {
+            "regex": "[^<{}]+",
+            "skip": false,
+            "label": "HTML text"
+          },
+          "decode": "html"
+        }
+      },
+      "emit": "(${@text} ${body})"
+    },
+    "component-self-closing": {
+      "pattern": [
+        "<",
+        {
+          "capture": "tag",
+          "of": {
+            "regex": "[A-Z][a-zA-Z0-9]*",
+            "label": "component name"
+          }
+        },
+        {
+          "capture": "attrs",
+          "of": {
+            "many": {
+              "ref": "property"
+            },
+            "join": ", "
+          }
+        },
+        "/>"
+      ],
+      "emit": "(Ui.component-${tag} (Ui.${tag}Props { ${attrs} }) [])"
+    },
+    "fragment": {
+      "pattern": [
+        "<>",
+        {
+          "capture": "children",
+          "of": {
+            "many": {
+              "ref": "node"
+            },
+            "join": ", "
+          }
+        },
+        "</>"
+      ],
+      "emit": "(${@fragment} [${children}])"
+    },
+    "boolean-attribute": {
+      "pattern": {
+        "capture": "name",
+        "of": {
+          "quote": {
+            "regex": "[a-z][a-zA-Z0-9-]*",
+            "label": "tag or property name"
+          }
+        }
+      },
+      "emit": "(${@attribute} ${name} True)"
+    }
+  },
+  "editor": {
+    "highlights": {
+      "tag": "tag",
+      "end": "tag",
+      "name": "property",
+      "text": "string"
+    },
+    "injections": {
+      "host": "cinch"
+    },
+    "reader": "text-tag-code"
+  },
+  "notes": "Entry consumes the final island brace. Text is raw HTML; host expressions use balanced Cinch lexical rules."
+}
