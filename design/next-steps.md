@@ -1,5 +1,21 @@
 # Next steps (as of 2026-11-02)
 
+The complete conditional compiler baseline now passes all182 integration
+targets and five general gates. Each continuation audits the frozen inputs and
+reuses only unaffected whole gates. The module-instantiation fixture now keeps
+its exported body constant. The total-body cache fixture checks both unchanged
+reuse and retyping when an imported proof-relevant body changes; it still
+checks current transitive dependencies and loss of cyclic authority. Both
+corrected whole fixtures also pass against the newer published641613b seed.
+See [the complete conditional baseline report](../bootstrap/conditional-full-suite-results.json).
+
+This full result belongs to the conditional baseline with the c126 seed,
+not the newer private guarded-body/Rust scope and arithmetic fixes. Their
+fresh validation is running. No self-built frontend or genuine bootstrap pass
+is claimed; handlers, complete independent proof/usage/totality, typed runtime
+lowering and the stage2/stage3 fixed point remain required.
+
+
 Rust now exports a bounded, optional Nat body tree for closed conditional
 methods from the actual checked implementation and primitive identity. Changing
 the body with the same class, slot and scheme changes its interface hash.

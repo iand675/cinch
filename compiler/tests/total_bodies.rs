@@ -153,7 +153,7 @@ fn total_artifact_round_trip_rejects_unrecognized_semantics() {
 }
 
 #[test]
-fn a_cached_caller_tracks_current_callee_bodies_and_loses_cyclic_authority() {
+fn a_caller_retypes_changed_body_contracts_and_loses_cyclic_authority() {
     let dir = std::env::temp_dir().join(format!("cinch_total_incremental_{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let a = "module A where\n  width :: Nat -> Nat\n  width n = 1\n";
@@ -161,11 +161,17 @@ fn a_cached_caller_tracks_current_callee_bodies_and_loses_cyclic_authority() {
     std::fs::write(dir.join("Main.cinch"), "module Main where\n  import A\n  forward :: Nat -> Nat\n  forward n = width n\n  main :: Int\n  main = 0\n").unwrap();
     let (mut session, _) = cinch::driver::incremental::Session::open(&dir.join("Main.cinch")).unwrap();
     let before = session.total_bodies().unwrap().content("Main.forward").expect("cold caller body");
+    let stable = session.rebuild().unwrap();
+    assert!(stable.kept.iter().any(|id| id == "v:Main.forward"), "an unchanged caller stays cached: {:?}", stable.kept);
     std::fs::write(dir.join("A.cinch"), a.replace("= 1", "= 2")).unwrap();
     let report = session.rebuild().unwrap();
-    assert!(report.kept.iter().any(|id| id == "v:Main.forward"), "the ordinary caller stays cached: {:?}", report.kept);
+    // Exported checked bodies are proof-relevant interface contracts. The
+    // unchanged caller is retyped against the changed imported contract,
+    // while its own declaration is not a changed/rechecked item.
+    assert!(report.retyped.iter().any(|id| id == "v:Main.forward"), "the caller must reread the changed body contract: {:?}", report);
+    assert!(!report.rechecked.iter().any(|id| id == "v:Main.forward"), "the caller declaration itself is unchanged");
     let changed = session.total_bodies().unwrap().content("Main.forward").expect("warm caller body");
-    assert_ne!(before, changed, "a cached ordinary caller must not retain an old semantic dependency");
+    assert_ne!(before, changed, "the ordinary caller must not retain an old semantic dependency");
     std::fs::write(dir.join("A.cinch"), a.replace("= 1", "= width n")).unwrap();
     session.rebuild().unwrap();
     let current = session.total_bodies().unwrap();
