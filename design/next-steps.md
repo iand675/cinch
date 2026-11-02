@@ -1,5 +1,20 @@
 # Next steps (as of 2026-11-03)
 
+The stage runner now selects the actual typed backend: each later stage invokes
+its preceding Cinch compiler with `--emit-ir`, then the platform linker links
+the runtime built from the unchanged pinned seed. Protocol3 records that runtime
+archive hash in cache identity and checks the resulting compiler's startup.
+All27 tooling checks, six fresh stage0/1 smokes and a real numeric linkage probe
+pass. The genuine full compiler attempt reaches only typed runtime refusals:
+exit5, zero frontend diagnostics and2830 emitter diagnostics. There is no Stage2
+executable, usable IR or Stage3 fixed point; the IR file is cleared to zero bytes.
+This staged snapshot precedes the tuple checkpoint below. Source ADTs,
+polymorphism, closures, dictionaries, effects, foreign/executable base ABI and
+complete correctness/current-suite gates remain required. See
+[the typed stage result](../bootstrap/typed-stage-driver-results.json).
+
+## Previous tuple checkpoint
+
 Typed runtime lowering now includes tuples, nested tuple fields and irrefutable
 parameter/case patterns. One ABI5 registry records actual Raw/Obj/TObj field maps;
 borrowed fields remain protected by owning roots, and scope exits reclaim them.

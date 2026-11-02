@@ -141,6 +141,119 @@ class BootstrapContract(unittest.TestCase):
             with self.assertRaises(bootstrap.BootstrapError):
                 bootstrap.record_build(directory, {"built_by_stage": 1}, 0, log)
 
+    def stage_fixture(self, directory):
+        builder = directory / "selected-cinch"
+        builder.write_bytes(b"Cinch frontend identity")
+        runtime = directory / "libcinchruntime.a"
+        runtime.write_bytes(b"pinned runtime identity")
+        return builder, runtime, {"Main.cinch": b"source supplied only to Cinch"}
+
+    def test_typed_self_build_uses_only_cinch_then_links_and_checks_the_compiler_entry(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            builder, runtime, files = self.stage_fixture(root)
+            directory = root / "stage2"
+            calls = []
+
+            def command(args, cwd, log, *, append=False):
+                calls.append([str(arg) for arg in args])
+                log.write_text("observed selected command")
+                if args[0] == builder:
+                    self.assertEqual(args[1:3], ["--emit-ir", "--interfaces"])
+                    self.assertEqual(len(args), 6)
+                    Path(args[-1]).write_text("typed IR")
+                    return 0
+                if str(args[0]) == "selected-clang":
+                    self.assertTrue(append)
+                    self.assertEqual(args[1:3], [directory / "compiler.ll", runtime])
+                    exe = directory / "cinch"
+                    exe.write_bytes(b"linked compiler")
+                    exe.chmod(0o755)
+                    return 0
+                self.assertEqual(args, [directory / "cinch"])
+                self.assertTrue(append)
+                return 1
+
+            with patch.object(bootstrap, "runtime_archive", return_value=runtime), \
+                    patch.object(bootstrap, "base_interface_manifest", return_value={"schema": 1, "interfaces": []}), \
+                    patch.dict(os.environ, {"CINCH_CLANG": "selected-clang"}), \
+                    patch.object(bootstrap, "run", side_effect=command):
+                bootstrap.build_self(builder, files, directory, 1)
+                self.assertEqual(len(calls), 3)
+                self.assertEqual((directory / "link-report.txt").read_text(), "clang-exit: 0\nartifact-exit: 1\n")
+                inputs = bootstrap.read_json(directory / "stage.json")["inputs"]
+                self.assertEqual(inputs["frontend_mode"], "typed-ir")
+                self.assertEqual(inputs["runtime_archive_sha256"], bootstrap.file_hash(runtime))
+                bootstrap.build_self(builder, files, directory, 1)
+                self.assertEqual(len(calls), 3, "identical frozen inputs should reuse the verified compiler")
+                runtime.write_bytes(b"different runtime object")
+                bootstrap.build_self(builder, files, directory, 1)
+                self.assertEqual(len(calls), 6, "a changed runtime object must invalidate the cached compiler")
+
+    def test_typed_refusal_never_calls_a_linker_or_falls_back_to_native(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            builder, runtime, files = self.stage_fixture(root)
+            directory = root / "stage2"
+
+            def refused(args, cwd, log, **kwargs):
+                self.assertEqual(args[0], builder)
+                self.assertEqual(args[1], "--emit-ir")
+                log.write_text("")
+                (directory / "compiler.ll.diagnostics").write_text("bootstrap.runtime-ir:1:1: unavailable layout")
+                return 5
+
+            with patch.object(bootstrap, "runtime_archive", return_value=runtime), \
+                    patch.object(bootstrap, "base_interface_manifest", return_value={"schema": 1, "interfaces": []}), \
+                    patch.object(bootstrap, "run", side_effect=refused) as run:
+                with self.assertRaisesRegex(bootstrap.BootstrapError, "unavailable layout"):
+                    bootstrap.build_self(builder, files, directory, 1)
+                self.assertEqual(run.call_count, 1)
+                self.assertFalse((directory / "cinch").exists())
+                self.assertFalse((directory / "link-report.txt").exists())
+
+    def test_link_failure_is_visible_even_when_frontend_diagnostics_are_empty(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            builder, runtime, files = self.stage_fixture(root)
+            directory = root / "stage2"
+
+            def command(args, cwd, log, *, append=False):
+                if args[0] == builder:
+                    (directory / "compiler.ll").write_text("typed IR")
+                    (directory / "compiler.ll.diagnostics").write_text("")
+                    log.write_text("")
+                    return 0
+                log.write_text("linker rejected the runtime archive")
+                return 19
+
+            with patch.object(bootstrap, "runtime_archive", return_value=runtime), \
+                    patch.object(bootstrap, "base_interface_manifest", return_value={"schema": 1, "interfaces": []}), \
+                    patch.object(bootstrap, "run", side_effect=command) as run:
+                with self.assertRaisesRegex(bootstrap.BootstrapError, "linker rejected"):
+                    bootstrap.build_self(builder, files, directory, 1)
+                self.assertEqual(run.call_count, 2)
+                self.assertEqual((directory / "link-report.txt").read_text(), "clang-exit: 19\n")
+
+    def test_linker_success_without_a_runnable_compiler_is_a_failed_stage(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            builder, runtime, files = self.stage_fixture(root)
+            directory = root / "stage2"
+
+            def command(args, cwd, log, **kwargs):
+                log.write_text("")
+                if args[0] == builder:
+                    (directory / "compiler.ll").write_text("typed IR")
+                return 0
+
+            with patch.object(bootstrap, "runtime_archive", return_value=runtime), \
+                    patch.object(bootstrap, "base_interface_manifest", return_value={"schema": 1, "interfaces": []}), \
+                    patch.object(bootstrap, "run", side_effect=command) as run:
+                with self.assertRaisesRegex(bootstrap.BootstrapError, "without a runnable compiler"):
+                    bootstrap.build_self(builder, files, directory, 1)
+                self.assertEqual(run.call_count, 2)
+
     def test_seed_archive_cannot_escape_snapshot_or_add_links(self):
         for name, kind in (("../escape", tarfile.REGTYPE), ("compiler/link", tarfile.SYMTYPE)):
             archive = io.BytesIO()

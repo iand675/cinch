@@ -19,7 +19,11 @@ Artifacts and logs live in `build/bootstrap/stageN/`. Stage 0 is pinned by
 `bootstrap/stage0.lock.json`: a Git revision, a reviewed patch and hashes
 of the patch and compiler sources. Editing the development Rust compiler
 does not silently replace the seed. Stages 2 and 3 read the same frozen
-compiler source bundle and invoke only their preceding Cinch compiler.
+compiler source bundle and use only their preceding Cinch compiler as frontend.
+That compiler emits typed shared-runtime LLVM with `--emit-ir`; the platform
+linker links the matching pinned runtime archive. The runtime archive hash
+participates in later-stage cache identity. The produced compiler must also
+run and return its bad-arguments status before the build is accepted.
 Cache hits verify source/builder identities and output hashes.
 The final check also rebuilds a changed checker diagnostic and requires
 that change in the resulting compiler's observable behavior.
@@ -403,3 +407,12 @@ full16-field inline map. A17-field layout gets a named refusal until extended
 descriptors are implemented. The whole backend source closure passes through
 Cinch. Source ADTs and polymorphic/closure/dictionary/effect lowering remain
 unfinished. See [the tuple report](runtime-tuple-results.json).
+
+
+The protocol3 stage driver passes all27 tooling checks, six fresh stage0/1
+smokes and a real numeric source-to-Cinch-IR-to-pinned-runtime executable probe.
+The actual complete compiler still exits5 on the typed emitter's named
+polymorphic/dictionary/aggregate refusals; no Stage2 compiler or usable IR is
+produced. The empty IR file confirms stale output was cleared. That stage
+snapshot precedes the tuple checkpoint. The numeric probe proves the linkage
+path, not a self-built compiler. See [the exact driver results](typed-stage-driver-results.json).

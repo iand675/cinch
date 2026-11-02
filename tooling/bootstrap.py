@@ -19,7 +19,7 @@ import tarfile
 ROOT = Path(__file__).resolve().parents[1]
 BUILD = ROOT / "build" / "bootstrap"
 TOOLKIT = ("Lex", "Scan", "Parse", "Json", "Builder")
-PROTOCOL = 2
+PROTOCOL = 3
 HOST = {"system": platform.system(), "machine": platform.machine()}
 FROZEN_SOURCES = None
 
@@ -100,9 +100,9 @@ def write_json(path: Path, value: dict) -> None:
     temp.replace(path)
 
 
-def run(command: list[str | Path], cwd: Path, log: Path) -> int:
+def run(command: list[str | Path], cwd: Path, log: Path, *, append: bool = False) -> int:
     log.parent.mkdir(parents=True, exist_ok=True)
-    with log.open("wb") as stream:
+    with log.open("ab" if append else "wb") as stream:
         return subprocess.run([str(x) for x in command], cwd=cwd, env=environment(),
                               stdout=stream, stderr=subprocess.STDOUT).returncode
 
@@ -146,9 +146,10 @@ def record_build(directory: Path, inputs: dict, code: int, log: Path) -> Path:
     write_json(directory / "stage.json", record)
     if not good:
         diagnostics = directory / "compiler.ll.diagnostics"
-        detail = diagnostics if diagnostics.exists() else log
+        has_diagnostics = diagnostics.is_file() and bool(diagnostics.read_text(errors="replace").strip())
+        detail = diagnostics if has_diagnostics else log
         lines = detail.read_text(errors="replace").splitlines()
-        preview = "\n".join(lines[:6] if diagnostics.exists() else lines[-6:])
+        preview = "\n".join(lines[:6] if has_diagnostics else lines[-6:])
         raise BootstrapError(f"{directory.name} did not build (exit {code}).\n{preview}\nEvidence: {detail}")
     print(f"{directory.name}: built {exe}", flush=True)
     return exe
@@ -261,9 +262,11 @@ def build_self(builder: Path, files: dict[str, bytes], directory: Path,
                built_by_stage: int, source: Path | None = None) -> Path:
     base = base_interface_manifest()
     base_bytes = json.dumps(base, sort_keys=True, separators=(",", ":")).encode()
+    runtime = runtime_archive()
     inputs = {"protocol": PROTOCOL, "host": HOST, "source_sha256": source_hash(files),
               "builder_sha256": file_hash(builder), "built_by_stage": built_by_stage,
-              "interface_set_sha256": digest(base_bytes)}
+              "interface_set_sha256": digest(base_bytes), "frontend_mode": "typed-ir",
+              "runtime_archive_sha256": file_hash(runtime)}
     if cached(directory, inputs):
         print(f"{directory.name}: verified cached compiler", flush=True)
         return directory / "cinch"
@@ -274,10 +277,40 @@ def build_self(builder: Path, files: dict[str, bytes], directory: Path,
         source = directory / "compiler.cinch"
         source.write_bytes(bundle(files))
     log = directory / "build.log"
-    # The preceding Cinch compiler is the only frontend in this path.
-    code = run([builder, "--interfaces", manifest, source, directory / "compiler.ll", directory / "cinch",
-                directory / "link-report.txt"], directory, log)
+    # Only the preceding Cinch compiler reads the source. Its retained-Core
+    # backend emits ABI5 LLVM; the platform linker consumes that IR and the
+    # exact runtime built from the pinned seed. No Native frontend fallback.
+    ir, exe = directory / "compiler.ll", directory / "cinch"
+    code = run([builder, "--emit-ir", "--interfaces", manifest, source, ir], directory, log)
+    if code == 0:
+        command = [os.environ.get("CINCH_CLANG", "clang"), ir, runtime, "-o", exe]
+        if HOST["system"] == "Linux":
+            command.extend(["-ldl", "-lpthread", "-lm"])
+        code = run(command, directory, log, append=True)
+        report = f"clang-exit: {code}\n"
+        if code == 0:
+            if exe.is_file() and os.access(exe, os.X_OK):
+                startup = run([exe], directory, log, append=True)
+                report += f"artifact-exit: {startup}\n"
+                code = 0 if startup == 1 else startup or 1
+            else:
+                with log.open("ab") as stream:
+                    stream.write(b"linker succeeded without a runnable compiler\n")
+                code = 1
+        (directory / "link-report.txt").write_text(report)
     return record_build(directory, inputs, code, log)
+
+
+def runtime_archive() -> Path:
+    lock, _ = seed_inputs()
+    snapshot = BUILD / "seed-sources" / digest(json.dumps(lock, sort_keys=True).encode())
+    if source_hash(seed_sources(snapshot)) != lock["source_sha256"]:
+        raise BootstrapError("the pinned runtime source snapshot changed before linking")
+    for profile in ("release", "debug"):
+        archive = snapshot / "compiler/runtime/target" / profile / "libcinchruntime.a"
+        if archive.is_file():
+            return archive
+    raise BootstrapError("the verified stage-1 build has no matching pinned runtime archive")
 
 
 def base_interface_manifest() -> dict:
