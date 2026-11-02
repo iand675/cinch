@@ -26,6 +26,11 @@ fn typed_runtime_numbers_preserve_exact_values_and_reclaim_owned_words() {
         ("negative", "  main :: Int\n  main = let x = -9223372036854775809 in if -x == 9223372036854775809 then 53 else 1\n", 53),
         ("natural", "  previous :: Nat -> Nat\n  previous n = if n == 0 then 0 else n - 1\n  main :: Int\n  main = if previous 340282366920938463463374607431768211456 == 340282366920938463463374607431768211455 then 59 else 1\n", 59),
         ("wildcard", "  pick :: Int -> Int -> Int\n  pick _ x = x\n  main :: Int\n  main = if pick 18446744073709551616 9223372036854775808 == 9223372036854775808 then 61 else 1\n", 61),
+        ("tuple-field", "  first :: (Int, Int) -> Int\n  first (x, y) = x\n  main :: Int\n  main = if first (18446744073709551616, 9223372036854775808) == 18446744073709551616 then 67 else 1\n", 67),
+        ("tuple-case", "  main :: Int\n  main = let pair = (9223372036854775808, 9223372036854775808) in case pair of\n    (x, y) -> if x == y then 71 else 1\n", 71),
+        ("nested-tuple", "  pick :: (Bool, (Int, Nat)) -> Int\n  pick (flag, (x, y)) = if flag then x else 0\n  main :: Int\n  main = if pick (True, (18446744073709551616, 340282366920938463463374607431768211456)) == 18446744073709551616 then 73 else 1\n", 73),
+        ("dropped-tuple", "  ignore :: (Int, (Nat, Int)) -> Int\n  ignore _ = 79\n  main :: Int\n  main = ignore (18446744073709551616, (340282366920938463463374607431768211456, -9223372036854775809))\n", 79),
+        ("full-inline-map", "  ignore :: (Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int) -> Int\n  ignore _ = 83\n  main :: Int\n  main = ignore (9223372036854775808, 9223372036854775808, 9223372036854775808, 9223372036854775808, 9223372036854775808, 9223372036854775808, 9223372036854775808, 9223372036854775808, 9223372036854775808, 9223372036854775808, 9223372036854775808, 9223372036854775808, 9223372036854775808, 9223372036854775808, 9223372036854775808, 9223372036854775808)\n", 83),
     ];
     for (name, body, expected) in cases {
         std::fs::write(dir.join("input.source"), format!("module Main where\n{body}")).unwrap();
@@ -48,6 +53,11 @@ fn typed_runtime_numbers_preserve_exact_values_and_reclaim_owned_words() {
     let output = Command::new(&compiler).current_dir(&dir).output().unwrap();
     assert_eq!(output.status.code(), Some(5), "{}", String::from_utf8_lossy(&output.stderr));
     assert!(common::read_output(&dir, "output.diagnostics").contains("polymorphic"));
+    assert!(common::read_output(&dir, "output.ll").is_empty());
+    std::fs::write(dir.join("input.source"), "module Main where\n  main :: Int\n  main = case (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17) of\n    _ -> 0\n").unwrap();
+    let output = Command::new(&compiler).current_dir(&dir).output().unwrap();
+    assert_eq!(output.status.code(), Some(5), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(common::read_output(&dir, "output.diagnostics").contains("extended"));
     assert!(common::read_output(&dir, "output.ll").is_empty());
     common::cleanup(&dir);
 }

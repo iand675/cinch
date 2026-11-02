@@ -1,5 +1,18 @@
 # Next steps (as of 2026-11-03)
 
+Typed runtime lowering now includes tuples, nested tuple fields and irrefutable
+parameter/case patterns. One ABI5 registry records actual Raw/Obj/TObj field maps;
+borrowed fields remain protected by owning roots, and scope exits reclaim them.
+All13 executable cases pass with zero leaks, including a full16-field inline
+map. A17-field layout is refused explicitly. Cinch accepts the backend's entire
+25-module source closure with zero diagnostics. Source ADTs, refutable matches,
+polymorphism, closures, dictionaries, effects, foreign/base ABI lowering and the
+complete correctness/test/fixed-point gates remain unfinished. The new typed
+stage runner is separately under validation. See
+[the tuple checkpoint](../bootstrap/runtime-tuple-results.json).
+
+## Previous typed compiler CLI checkpoint
+
 The real compiler CLI now exposes `--emit-ir [--interfaces MANIFEST] SOURCE IR`
 through the retained-Core runtime backend. It writes LLVM without linking or
 running. A real emitted bignum binary returns67 and reports zero leaks; both

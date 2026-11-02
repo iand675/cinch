@@ -16,23 +16,24 @@ module Bootstrap.RuntimeIr where
   export emit-runtime-program
 
   data Writer where
-    Writer :: Nat -> Builder -> Builder -> List Diagnostic -> Writer
+    Writer :: Nat -> Builder -> Builder -> List Diagnostic -> List (Nat, Nat) -> Writer
   data Local where
     Local :: Nat -> UType -> String -> Local
     Discard :: UType -> String -> Local
+    Borrowed :: Nat -> UType -> String -> Local
 
   cat :: List String -> String
   cat xs = string-concat-all xs
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
   line :: Writer -> String -> Writer
-  line w text = case w of Writer next globals code errors -> Writer next globals (builder-add-line text code) errors
+  line w text = case w of Writer next globals code errors layouts -> Writer next globals (builder-add-line text code) errors layouts
   global :: Writer -> String -> Writer
-  global w text = case w of Writer next globals code errors -> Writer next (builder-add-line text globals) code errors
+  global w text = case w of Writer next globals code errors layouts -> Writer next (builder-add-line text globals) code errors layouts
   fresh :: Writer -> String -> (Writer, String)
-  fresh w prefix = case w of Writer next globals code errors -> (Writer (next + 1) globals code errors, cat [prefix, nat-to-string next])
+  fresh w prefix = case w of Writer next globals code errors layouts -> (Writer (next + 1) globals code errors layouts, cat [prefix, nat-to-string next])
   refuse :: Writer -> Span -> String -> Writer
-  refuse w sp text = case w of Writer next globals code errors -> Writer next globals code (Cons (MkDiagnostic "bootstrap.runtime-ir" sp text) errors)
+  refuse w sp text = case w of Writer next globals code errors layouts -> Writer next globals code (Cons (MkDiagnostic "bootstrap.runtime-ir" sp text) errors) layouts
   unsupported :: Writer -> Span -> String -> (Writer, String)
   unsupported w sp text = (refuse w sp text, "0")
   symbol :: String -> String
@@ -45,20 +46,73 @@ module Bootstrap.RuntimeIr where
   number ty = named ty "Int" || named ty "Nat"
   scalar :: UType -> Bool
   scalar ty = number ty || named ty "Bool" || named ty "Unit"
+  word-type :: UType -> Bool
+  word-type ty = scalar ty || (case base ty of UTuple fields -> field-types fields 0; other -> False)
+  field-types :: UType -> Nat -> Bool
+  field-types fields count = case fields of
+    UEnd -> True
+    UArg first rest -> count < 16 && word-type first && field-types rest (count + 1)
+    other -> False
+  counted :: UType -> Bool
+  counted ty = number ty || (case base ty of UTuple fields -> True; other -> False)
+  scan-code :: UType -> Nat
+  scan-code ty = if number ty then 2 else case base ty of UTuple fields -> 1; other -> 0
   runtime-number :: UType -> String
   runtime-number ty = if named ty "Nat" then "nat" else "int"
   count-op :: Bool -> UType -> String -> Writer -> Writer
-  count-op duplicate ty value w = if number ty then line w (cat ["  call void @cinch_", if duplicate then "dup" else "drop", "(i64 ", value, ")"]) else w
+  count-op duplicate ty value w = if counted ty then line w (cat ["  call void @cinch_", if duplicate then "dup" else "drop", "(i64 ", value, ")"]) else w
   drop-locals :: List Local -> Writer -> Writer
   drop-locals locals w = case locals of
     Nil -> w
     Cons (Local id ty value) rest -> count-op False ty value (drop-locals rest w)
     Cons (Discard ty value) rest -> count-op False ty value (drop-locals rest w)
+    Cons (Borrowed id ty value) rest -> drop-locals rest w
   local :: Nat -> List Local -> Option (UType, String)
   local id locals = case locals of
     Nil -> None
     Cons (Local key ty value) rest -> if key == id then Some (ty, value) else local id rest
     Cons (Discard ty value) rest -> local id rest
+    Cons (Borrowed key ty value) rest -> if key == id then Some (ty, value) else local id rest
+
+  -- Anonymous tuple groups are shared by their exact ABI scan map, just
+  -- as the Native backend's anonymous layouts are. The first group starts
+  -- at64; tag0 denotes the tuple. Wider maps and escaped groups are refused
+  -- until their table extensions have a lowering path.
+  layout-map :: List CoreTerm -> Nat -> Nat
+  layout-map fields factor = case fields of
+    Nil -> 0
+    Cons first rest -> scan-code (core-type first) * factor + layout-map rest (factor * 4)
+  known-layout :: Nat -> List (Nat, Nat) -> Option Nat
+  known-layout packed layouts = case layouts of
+    Nil -> None
+    Cons (id, entry-word) rest -> if packed == entry-word then Some id else known-layout packed rest
+  request-layout :: Span -> List CoreTerm -> Writer -> (Writer, Nat)
+  request-layout sp fields w = case w of
+    Writer next globals code errors layouts ->
+      let packed = list-length fields + layout-map fields 4294967296 in
+      case known-layout packed layouts of
+        Some id -> (w, id)
+        None -> if list-length fields > 16 || list-length layouts >= 1022 then
+          (refuse w sp "tuple layout needs an extended runtime descriptor", 0)
+          else let id = 64 * (1 + list-length layouts) in
+            (Writer next globals code errors (Cons (id, packed) layouts), id)
+  layout-count :: List (Nat, Nat) -> Nat
+  layout-count layouts = case layouts of Nil -> 0; Cons first rest -> 64 * (1 + list-length layouts)
+  layout-word :: Nat -> List (Nat, Nat) -> Nat
+  layout-word index layouts = case layouts of
+    Nil -> 0
+    Cons (id, packed) rest -> if id == index then packed else layout-word index rest
+  layout-words :: Nat -> Nat -> List (Nat, Nat) -> Builder -> Builder
+  layout-words index end layouts code = if index == end then code else
+    layout-words (index + 1) end layouts (builder-add-string (cat [if index == 0 then "" else ", ", "i64 ", nat-to-string (layout-word index layouts)]) code)
+  layout-table :: List (Nat, Nat) -> String
+  layout-table layouts = case layouts of
+    Nil -> ""
+    Cons first rest -> let count = layout-count layouts in
+      let words = builder-run (layout-words 0 count layouts builder-new) in
+      cat ["@cinch.typed.layouts = internal constant [", nat-to-string count, " x i64] [", words, "]\n",
+        "define internal void @cinch.typed.layouts.init() {\nentry:\n  call void @cinch_layouts_register(ptr @cinch.typed.layouts, i64 ", nat-to-string count, ")\n  ret void\n}\n",
+        "@llvm.global_ctors = appending global [1 x { i32, ptr, ptr }] [{ i32, ptr, ptr } { i32 65535, ptr @cinch.typed.layouts.init, ptr null }]\n"]
   definition :: String -> List CoreDefinition -> Option CoreDefinition
   definition name definitions = case definitions of Nil -> None; Cons d rest -> if same name (core-name d) then Some d else definition name rest
   join :: List String -> String
@@ -80,7 +134,7 @@ module Bootstrap.RuntimeIr where
   arguments :: CoreTerm -> List CoreTerm -> List CoreTerm
   arguments term more = case term of CApply sp ty f x -> arguments f (Cons x more); other -> more
   function-type :: UType -> Bool
-  function-type ty = case ty of UFun domain result -> scalar domain && function-type result; other -> scalar ty
+  function-type ty = case ty of UFun domain result -> word-type domain && function-type result; other -> word-type ty
   arity :: UType -> Nat
   arity ty = case ty of UFun domain result -> 1 + arity result; other -> 0
   -- This initial lowering handles closed scalar workers. Type parameters,
@@ -103,12 +157,20 @@ module Bootstrap.RuntimeIr where
     CApply sp ty f x -> case head term of
       CUse at function name role Nil -> direct-call definitions locals w sp name (arguments term Nil)
       other -> unsupported w sp "indirect or polymorphic application needs closure lowering"
-    CLet sp ty id name sc rhs body -> if scheme-supported sc && scalar (scheme-body sc) then
+    CLet sp ty id name sc rhs body -> if scheme-supported sc && word-type (scheme-body sc) then
       (case expression definitions locals w rhs of
         (bound, value) -> case expression definitions (Cons (Local id (scheme-body sc) value) locals) bound body of
           (done, result) -> (count-op False (scheme-body sc) value done, result))
       else unsupported w sp "polymorphic or aggregate let needs runtime lowering"
     CIf sp ty test yes no -> branch definitions locals w sp test yes no
+    CTuple sp ty fields -> tuple definitions locals w sp fields
+    CCase sp ty value alternatives -> case alternatives of
+      CAlternative at pattern body (CAlternativesEnd end) ->
+        (case expression definitions locals w value of
+          (ready, word) -> case bind-pattern pattern word ready of
+            (bound, bindings) -> case expression definitions (bindings <> locals) bound body of
+              (done, result) -> (count-op False (core-type value) word done, result))
+      other -> unsupported w sp "multiple alternatives need typed match lowering"
     CPrimitive sp ty op args -> primitive definitions locals w sp ty op args
     CProved sp ty evidence body -> expression definitions locals w body
     CRefine sp ty evidence body -> expression definitions locals w body
@@ -128,6 +190,62 @@ module Bootstrap.RuntimeIr where
       (case expressions definitions locals w args of (ready, values) -> call ready (symbol name) values)
       else unsupported w sp "partial, overapplied or polymorphic call needs runtime lowering"
     None -> unsupported w sp (cat ["external runtime implementation is unavailable: ", name])
+  term-fields :: CoreTerm -> Option (List CoreTerm)
+  term-fields fields = case fields of
+    CArgumentsEnd sp -> Some Nil
+    CArgument sp first rest -> case term-fields rest of Some more -> Some (Cons first more); None -> None
+    other -> None
+  field-words :: List CoreTerm -> Bool
+  field-words fields = case fields of Nil -> True; Cons first rest -> word-type (core-type first) && field-words rest
+  tuple :: List CoreDefinition -> List Local -> Writer -> Span -> CoreTerm -> (Writer, String)
+  tuple definitions locals w sp fields = case term-fields fields of
+    Some actual -> if list-length actual > 16 || not (field-words actual) then unsupported w sp "tuple fields need an extended or polymorphic runtime layout" else
+      (case expressions definitions locals w actual of
+        (evaluated, values) ->
+          let (planned, descriptor) = request-layout sp actual evaluated in
+          let (allocated, pointer) = fresh planned "%ptr" in
+          let ready = line allocated (cat ["  ", pointer, " = call ptr @cinch_alloc_ctor(i64 ", nat-to-string (8 * list-length actual), ", i64 ", nat-to-string descriptor, ")"]) in
+          let filled = store-fields ready pointer 0 values in
+          let (done, result) = fresh filled "%v" in
+          (line done (cat ["  ", result, " = ptrtoint ptr ", pointer, " to i64"]), result))
+    None -> unsupported w sp "malformed tuple argument spine"
+  store-fields :: Writer -> String -> Nat -> List String -> Writer
+  store-fields w pointer index values = case values of
+    Nil -> w
+    Cons value rest -> let (ready, slot) = fresh w "%ptr" in
+      let pointed = line ready (cat ["  ", slot, " = getelementptr i64, ptr ", pointer, ", i64 ", nat-to-string index]) in
+      store-fields (line pointed (cat ["  store i64 ", value, ", ptr ", slot])) pointer (index + 1) rest
+  pattern-type :: CorePattern -> UType
+  pattern-type pattern = case pattern of
+    CPVar sp ty id name -> ty
+    CPWild sp ty -> ty
+    CPAs sp ty id name inner -> ty
+    CPTuple sp ty fields -> ty
+    other -> UError
+  bind-pattern :: CorePattern -> String -> Writer -> (Writer, List Local)
+  bind-pattern pattern value w = if not (word-type (pattern-type pattern)) then
+    (refuse w (Span 0 0 1 1) "pattern needs typed runtime match lowering", Nil)
+    else case pattern of
+      CPVar sp ty id name -> (w, [Borrowed id ty value])
+      CPWild sp ty -> (w, Nil)
+      CPAs sp ty id name inner -> case bind-pattern inner value w of
+        (done, bindings) -> (done, Cons (Borrowed id ty value) bindings)
+      CPTuple sp ty fields -> case fields of
+        CPDone end -> (w, Nil)
+        other -> let (ready, pointer) = fresh w "%ptr" in
+          bind-fields fields pointer 0 (line ready (cat ["  ", pointer, " = inttoptr i64 ", value, " to ptr"]))
+      other -> (refuse w (Span 0 0 1 1) "refutable pattern needs typed runtime match lowering", Nil)
+  bind-fields :: CorePattern -> String -> Nat -> Writer -> (Writer, List Local)
+  bind-fields fields pointer index w = case fields of
+    CPDone end -> (w, Nil)
+    CPField sp first rest ->
+      let (one, slot) = fresh w "%ptr" in
+      let (two, value) = fresh one "%v" in
+      let loaded = line (line two (cat ["  ", slot, " = getelementptr i64, ptr ", pointer, ", i64 ", nat-to-string index])) (cat ["  ", value, " = load i64, ptr ", slot]) in
+      case bind-pattern first value loaded of
+        (bound, bindings) -> case bind-fields rest pointer (index + 1) bound of
+          (done, more) -> (done, bindings <> more)
+    other -> (refuse w (Span 0 0 1 1) "malformed tuple pattern spine", Nil)
   branch :: List CoreDefinition -> List Local -> Writer -> Span -> CoreTerm -> CoreTerm -> CoreTerm -> (Writer, String)
   branch definitions locals w sp test yes no =
     let (tested, condition) = expression definitions locals w test in
@@ -181,25 +299,28 @@ module Bootstrap.RuntimeIr where
     Nil -> (w, Nil, Nil)
     Cons pattern rest -> let word = cat ["%arg", nat-to-string index] in
       let (done, locals, words) = parameters rest (index + 1) w in
-      case pattern of
-        CPVar sp ty id name -> if scalar ty then (done, Cons (Local id ty word) locals, Cons (cat ["i64 ", word]) words) else (refuse done sp "parameter needs runtime representation", locals, words)
-        CPWild sp ty -> if scalar ty then (done, Cons (Discard ty word) locals, Cons (cat ["i64 ", word]) words) else (refuse done sp "wildcard parameter needs runtime representation", locals, words)
-        other -> (refuse done (Span 0 0 1 1) "parameter pattern needs typed case lowering", locals, words)
+      case bind-pattern pattern word done of
+        (bound, bindings) -> (bound, Cons (Discard (pattern-type pattern) word) (bindings <> locals), Cons (cat ["i64 ", word]) words)
+  parameter-words :: List CorePattern -> Nat -> List String
+  parameter-words patterns index = case patterns of
+    Nil -> Nil
+    Cons first rest -> Cons (cat ["i64 %arg", nat-to-string index]) (parameter-words rest (index + 1))
   worker :: List CoreDefinition -> Writer -> CoreDefinition -> Writer
   worker definitions w d = case d of
     MkCoreDefinition sp name sc openings givens private clauses ->
       if not (scheme-supported sc) then refuse w sp (cat ["definition needs polymorphic, dictionary or aggregate lowering: ", name])
       else case clauses of
         [MkCoreClause at patterns body] ->
-          let (ready, locals, words) = parameters patterns 0 w in
-          let started = line (line ready (cat ["define i64 ", symbol name, "(", join words, ") {"])) "entry:" in
-          let (evaluated, result) = expression definitions locals started body in
+          let started = line (line w (cat ["define i64 ", symbol name, "(", join (parameter-words patterns 0), ") {"])) "entry:" in
+          let (ready, locals, words) = parameters patterns 0 started in
+          let (evaluated, result) = expression definitions locals ready body in
           line (line (drop-locals locals evaluated) (cat ["  ret i64 ", result])) "}"
         other -> refuse w sp "multiple equations need typed case lowering"
   workers :: List CoreDefinition -> List CoreDefinition -> Writer -> Writer
   workers definitions remaining w = case remaining of Nil -> w; Cons d rest -> workers definitions rest (worker definitions w d)
   declarations :: String
   declarations = cat [
+    "declare ptr @cinch_alloc_ctor(i64, i64)\ndeclare void @cinch_layouts_register(ptr, i64)\n",
     "declare void @cinch_dup(i64)\ndeclare void @cinch_drop(i64)\ndeclare void @cinch_reclaim_enable()\ndeclare i64 @cinch_exit_check(i64)\n",
     "declare i64 @cinch_argv_init(i64, ptr)\ndeclare i64 @cinch_run_main(ptr)\n",
     "declare i64 @cinch_int_from_decimal(ptr, i64)\ndeclare i64 @cinch_nat_from_decimal(ptr, i64)\ndeclare i64 @cinch_int_to_i64(i64)\n",
@@ -214,7 +335,7 @@ module Bootstrap.RuntimeIr where
   emit-runtime-program checked =
     let typed = checked-elaboration checked in
     let definitions = elaboration-core typed in
-    let initial = Writer 0 builder-new builder-new Nil in
+    let initial = Writer 0 builder-new builder-new Nil Nil in
     let supported = ((case elaboration-data typed of Nil -> True; other -> False)
       && (case elaboration-effects typed of Nil -> True; other -> False)
       && (case elaboration-classes typed of Nil -> True; other -> False)
@@ -224,5 +345,5 @@ module Bootstrap.RuntimeIr where
           Some d -> if named (scheme-body (core-scheme d)) "Int" && arity (scheme-body (core-scheme d)) == 0 then ready else refuse ready (Span 0 0 1 1) "runtime entry must be main :: Int"
           None -> refuse ready (Span 0 0 1 1) "runtime entry has no main definition") in
     case workers definitions definitions started of
-      Writer next globals code Nil -> Ok (cat [declarations, builder-run globals, builder-run code, entry])
-      Writer next globals code errors -> Err errors
+      Writer next globals code Nil layouts -> Ok (cat [declarations, builder-run globals, layout-table layouts, builder-run code, entry])
+      Writer next globals code errors layouts -> Err errors

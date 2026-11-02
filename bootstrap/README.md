@@ -392,3 +392,14 @@ The generated module must be linked with the matching ABI5 `libcinchruntime.a`.
 The real CLI test links and runs an exact bignum calculation, with zero leaks;
 the existing whole pipeline still passes. The complete updated compiler source
 also passes through Cinch in check-only mode. See [the emit-mode report](runtime-emit-results.json).
+
+
+Typed runtime lowering also supports closed tuples and irrefutable tuple
+patterns in parameters and single-alternative cases. One module-wide ABI5
+registry stores the actual Raw/Obj/TObj field maps. Nested fields are borrowed
+while their owning root stays live; returning a field retains it before the
+root is dropped. Thirteen executable cases pass with zero leaks, including a
+full16-field inline map. A17-field layout gets a named refusal until extended
+descriptors are implemented. The whole backend source closure passes through
+Cinch. Source ADTs and polymorphic/closure/dictionary/effect lowering remain
+unfinished. See [the tuple report](runtime-tuple-results.json).
