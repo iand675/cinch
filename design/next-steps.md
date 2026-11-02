@@ -1,5 +1,23 @@
 # Next steps (as of 2026-11-02)
 
+Explicit refinement/proof-application results can now be retained once
+as checked runtime values for dependent calls. The actual `nat-rem n
+(NonZero d w)` call and its strict-let form pass; evidence for a different
+payload is refused. All 23 runtime-fed source cases and 50 independent Core
+checks pass. The Rust anonymous/precondition/byte interface targets also pass,
+including the compiled byte consumer. The seed remains the tested1056e48
+source at ABI5/schema8.
+
+The wider180+5 matrix still runs on the preceding366/constructor snapshot7;
+it is not a complete result for this later code. The preceding actual stage
+chain passes six smokes but exits4 at stage2 with214 body diagnostics and no
+compiler. Conditional-method selection remains a private prototype. Full
+self-hosting, independent semantic/usage/totality checks and typed runtime
+lowering remain incomplete. See
+[the dependent constructor report](../bootstrap/dependent-refinement-constructor-results.json).
+
+## Previous Rust anonymous-refinement checkpoint
+
 Rust now distinguishes an anonymous refinement's unbound value from
 outer telescope arguments. The formerly rejected `n <= bytes-len bytes`
 contract checks, while stronger result claims and wrong observation carriers

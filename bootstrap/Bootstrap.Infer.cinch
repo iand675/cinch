@@ -2640,6 +2640,8 @@ module Bootstrap.Infer where
         -- do not smuggle symbolic Nat subtraction into type conversion.
         CProved source ty evidence body -> materialize-dependent classes sp env fun value st
         CRefine source ty evidence body -> materialize-dependent classes sp env fun value st
+        CRefineProof source ty witness body -> materialize-dependent classes sp env fun value st
+        CErasedApply source ty row callee witness -> materialize-dependent classes sp env fun value st
         other -> (CError sp, checked)
   materialize-dependent :: List (String, Kind) -> Span -> List CheckedBinding -> CoreTerm -> CoreTerm -> Store -> (CoreTerm, Store)
   materialize-dependent classes sp env fun value st = case fresh-id st of

@@ -78,13 +78,30 @@
   "source_sha256": "8a2cb91181d9a73c52452e81c85086ede4c9725d7849f16c97a4cdc5726bafba",
   "status": "Rust anonymous byte-refinement binder and capture-free rendering fixes pass focused whole regression targets",
   "whole_interfaces": {
-    "directory": "/tmp/cinch-native-anonymous-interfaces-1",
-    "status": "running",
-    "targets": [
+    "command": [
+      "cargo",
+      "test",
+      "--no-fail-fast",
+      "--target-dir",
+      "/tmp/cinch-native-anonymous-validation-2/cargo",
+      "--test",
       "interface_anonymous_contracts",
+      "--test",
       "interface_preconditions",
-      "interface_byte_observations"
-    ]
+      "--test",
+      "interface_byte_observations",
+      "--",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit_code": 0,
+    "finished": "2026-11-02T10:04:24.923443+00:00",
+    "lane": "sole named fifth lane; matrix/probes share four slots",
+    "pid": 24041,
+    "source_manifest": "/tmp/cinch-native-anonymous-validation-2/source-snapshot.json",
+    "source_sha256": "8a2cb91181d9a73c52452e81c85086ede4c9725d7849f16c97a4cdc5726bafba",
+    "started": "2026-11-02T09:56:29.931691+00:00",
+    "status": "passed"
   },
   "whole_targets": [
     "proof_value_identity",
