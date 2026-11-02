@@ -15331,6 +15331,8 @@ impl Checker {
                     ));
                 }
                 method_obligs.push((midx, mname.text.clone(), preds));
+                self.remember_interface_scheme(&module, &format!("@conditional-method:{}:{midx}", inst.name.text),
+                    mty, &s, &[]);
                 method_contracts.push((midx, mname.text.clone(), s));
             }
             let base_id = fn_id(&module, &inst.name.text);
@@ -15728,6 +15730,7 @@ impl Checker {
                 resolved,
                 method_contracts: i.method_contracts.iter().map(|(slot, name, scheme)| InstanceMethodContract {
                     slot: *slot as u64, name: name.clone(), scheme: render_scheme(scheme),
+                    checked: self.checked_conditional_method(i, *slot),
                 }).collect(),
                 ctx: i
                     .ctx
@@ -15740,7 +15743,8 @@ impl Checker {
                         }
                     })
                     .collect(),
-                methods: Vec::new(),
+                methods: self.instance_defs.iter().find(|definition| definition.id == i.base_id)
+                    .map(|definition| definition.methods.iter().map(|method| method.0.clone()).collect()).unwrap_or_default(),
                 implicit: i.implicit,
             });
         }
@@ -15754,7 +15758,8 @@ impl Checker {
         for scheme in iface.exports.values.iter().filter_map(|v| v.resolved.as_ref())
             .chain(iface.exports.types.iter().flat_map(|t| &t.ctors).filter_map(|c| c.resolved.as_ref()))
             .chain(iface.exports.signatures.iter().flat_map(|s| &s.methods).filter_map(|m| m.resolved.as_ref()))
-            .chain(iface.exports.instances.iter().filter_map(|i| i.resolved.as_ref())) {
+            .chain(iface.exports.instances.iter().filter_map(|i| i.resolved.as_ref()))
+            .chain(iface.exports.instances.iter().flat_map(|i| &i.method_contracts).filter_map(|m| m.checked.as_ref()).flat_map(|m| [&m.head, &m.resolved])) {
             pending.extend(class_refs(scheme));
         }
         let mut known: std::collections::BTreeSet<_> = iface.exports.signatures.iter().map(|s| s.identity.clone()).collect();
@@ -15911,6 +15916,8 @@ fn interface_nominal_dependencies(
                 .iter()
                 .filter_map(|i| i.resolved.as_ref()),
         );
+    let contracts = contracts.chain(iface.exports.instances.iter().flat_map(|i| &i.method_contracts)
+        .filter_map(|m| m.checked.as_ref()).flat_map(|m| [&m.head, &m.resolved]));
     let mut dependencies = std::collections::BTreeSet::new();
     for identity in iface
         .exports

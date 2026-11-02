@@ -316,6 +316,17 @@ pub struct InstanceMethodContract {
     /// Retains positional binders and proof preconditions. This remains a
     /// display contract until dependent occurrence identities are ported.
     pub scheme: String,
+    /// Optional checked closed implementation declaration. It supplies a
+    /// callable preconditioned function, never an unrestricted dictionary
+    /// or a mathematical equation for the implementation body.
+    pub checked: Option<CheckedInstanceMethod>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct CheckedInstanceMethod {
+    pub head: ResolvedScheme,
+    pub implementation: String,
+    pub resolved: ResolvedScheme,
 }
 
 /// One instantiation unit of the module (`import M (args) as N`, module
@@ -696,9 +707,24 @@ impl Iface {
                         ("class", (&inst.class).into()),
                         ("target", (&inst.target).into()),
                         ("resolved", resolved_scheme_json(inst.resolved.as_ref())),
-                        ("method_contracts", JsonValue::arr(&method_contracts, |method| JsonValue::obj([
-                            ("slot", method.slot.into()), ("name", (&method.name).into()), ("scheme", (&method.scheme).into()),
-                        ]))),
+                        ("method_contracts", JsonValue::arr(&method_contracts, |method| {
+                            let mut fields = vec![
+                                ("slot", method.slot.into()), ("name", (&method.name).into()), ("scheme", (&method.scheme).into()),
+                            ];
+                            // Omitted optional authority preserves the exact
+                            // encoding/hash of older opaque display records.
+                            if let Some(checked) = &method.checked {
+                                fields.push(("checked", JsonValue::obj([
+                                    ("schema", 1u64.into()),
+                                    ("head", JsonValue::obj([("resolved", resolved_scheme_json(Some(&checked.head)))])),
+                                    ("implementation", JsonValue::obj([
+                                        ("identity", (&checked.implementation).into()),
+                                        ("resolved", resolved_scheme_json(Some(&checked.resolved))),
+                                    ])),
+                                ])));
+                            }
+                            JsonValue::Obj(fields.into_iter().map(|(key, value)| (key.to_string(), value)).collect())
+                        })),
                         ("ctx", (&inst.ctx).into()),
                         ("methods", (&inst.methods).into()),
                         ("implicit", inst.implicit.into()),
@@ -1032,7 +1058,23 @@ impl Iface {
             let mut method_contracts: Vec<InstanceMethodContract> = Vec::new();
             for row in o.get("method_contracts").ok_or_else(|| ParseError("instance method contracts".into()))?.as_array()? {
                 let row = row.as_object()?;
-                let contract = InstanceMethodContract { slot: field_num(row, "slot")?, name: field_str(row, "name")?, scheme: field_str(row, "scheme")? };
+                let checked = match row.get("checked") {
+                    None | Some(JsonValue::Null) => None,
+                    Some(value) => {
+                        let value = value.as_object()?;
+                        if field_num(value, "schema")? != 1 { return Err(ParseError("conditional method schema".into())) }
+                        let head = value.get("head").ok_or_else(|| ParseError("conditional method head".into()))?.as_object()?;
+                        let implementation = value.get("implementation").ok_or_else(|| ParseError("conditional method implementation".into()))?.as_object()?;
+                        let identity = field_str(implementation, "identity")?;
+                        if identity.is_empty() { return Err(ParseError("empty conditional implementation".into())) }
+                        Some(CheckedInstanceMethod {
+                            head: field_resolved_scheme(head)?.ok_or_else(|| ParseError("unresolved conditional head".into()))?,
+                            implementation: identity,
+                            resolved: field_resolved_scheme(implementation)?.ok_or_else(|| ParseError("unresolved conditional implementation".into()))?,
+                        })
+                    }
+                };
+                let contract = InstanceMethodContract { slot: field_num(row, "slot")?, name: field_str(row, "name")?, scheme: field_str(row, "scheme")?, checked };
                 if contract.name.is_empty() || contract.scheme.is_empty()
                     || method_contracts.iter().any(|m| m.slot == contract.slot || m.name == contract.name) {
                     return Err(ParseError("invalid instance method contract".into()));
@@ -1054,6 +1096,13 @@ impl Iface {
                 || instances[..instances.len() - 1].iter().any(|i| i.id == instance.id)
                 || (!instance.method_contracts.is_empty() && instance.resolved.is_some()) {
                 return Err(ParseError("invalid instance contract or unresolved method preconditions".into()));
+            }
+            for method in &instance.method_contracts {
+                if let Some(checked) = &method.checked {
+                    if instance.methods.get(method.slot as usize) != Some(&checked.implementation) {
+                        return Err(ParseError("conditional implementation does not match actual dictionary slot".into()));
+                    }
+                }
             }
         }
         let mut fixities = Vec::new();

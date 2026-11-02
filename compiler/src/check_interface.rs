@@ -164,6 +164,11 @@ impl Checker {
     fn remember_interface_instance(&mut self, source: &ast::InstDecl, info: &InstanceInfo, notes: &[(String, ParamKind)]) {
         // Conditional method preconditions and module arguments must not
         // disappear when an instance is imported as a dictionary factory.
+        if !info.base && info.params.is_empty() && info.ctx.is_empty() && !info.method_contracts.is_empty() {
+            let head = Scheme::mono(Ty::Adt(info.target.class.clone(), info.target.args.clone()));
+            self.remember_source_scheme(&info.module, &format!("@conditional-head:{}", info.name),
+                &source.target, &head, &[], None, true);
+        }
         if info.base || !info.method_obligs.is_empty()
             || info.ctx.iter().any(|c| matches!(c, InstCtx::Oblig(_))) { return }
         let mut scheme = Scheme::mono(Ty::Adt(info.target.class.clone(), info.target.args.clone()));
@@ -182,6 +187,19 @@ impl Checker {
         let ty = ast::Type::Using(source.ctx.clone(), Box::new(source.target.clone()), source.span);
         self.remember_source_scheme(&info.module, &format!("@instance:{}", info.name),
             &ty, &scheme, &binders, None, true);
+    }
+
+    fn checked_conditional_method(&self, info: &InstanceInfo, slot: usize) -> Option<crate::interface::CheckedInstanceMethod> {
+        if info.base || !info.params.is_empty() || !info.ctx.is_empty() { return None }
+        let definition = self.instance_defs.iter().find(|definition| definition.id == info.base_id)?;
+        if definition.tparams != 0 || definition.subdict_count != 0 { return None }
+        let implementation = definition.methods.get(slot)?;
+        if !self.fns.iter().any(|function| function.id == *implementation) { return None }
+        Some(crate::interface::CheckedInstanceMethod {
+            head: self.resolved_interface_scheme(&info.module, &format!("@conditional-head:{}", info.name))?,
+            implementation: implementation.0.clone(),
+            resolved: self.resolved_interface_scheme(&info.module, &format!("@conditional-method:{}:{slot}", info.name))?,
+        })
     }
 
     fn remember_source_scheme(

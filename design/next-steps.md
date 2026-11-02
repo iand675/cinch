@@ -1,5 +1,23 @@
 # Next steps (as of 2026-11-02)
 
+Native interfaces can now retain an optional checked conditional method
+record: its actual class head, complete dependent preconditioned callable
+scheme and the implementation identity from the real checked dictionary slot.
+A same-carrier implementation cannot replace that slot. Conditional factories
+remain unresolved; these records grant no unrestricted dictionary or body
+equation. Older display-only records preserve their encoding and hash.
+All141 Native units and both whole class/conditional interface targets pass.
+The pinned c12617b seed reproduces those tested sources; ABI5/schema8 are unchanged.
+
+The Cinch selection consumer is private: Native preflight passes, and its
+14source/40Core target is running. The preceding1056/constructor8 stage chain
+passes all six smokes but exits4 with214 stage2 body diagnostics and no compiler.
+The new seed's stages and a complete current suite remain unproven. The older
+180+5 matrix is still running. Self-hosting is incomplete. See
+[the conditional export report](../bootstrap/conditional-method-export-results.json).
+
+## Previous dependent constructor checkpoint
+
 Explicit refinement/proof-application results can now be retained once
 as checked runtime values for dependent calls. The actual `nat-rem n
 (NonZero d w)` call and its strict-let form pass; evidence for a different

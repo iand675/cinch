@@ -1447,10 +1447,12 @@
              for (mname, mty) in &inst.method_sigs {
                  let midx = self.sigs.get(&class).and_then(|ss| {
                      ss.iter().find_map(|s| s.methods.iter().position(|(m, _)| *m == mname.text))
-@@ -15112,10 +15331,11 @@
+@@ -15112,10 +15331,13 @@
                      ));
                  }
                  method_obligs.push((midx, mname.text.clone(), preds));
++                self.remember_interface_scheme(&module, &format!("@conditional-method:{}:{midx}", inst.name.text),
++                    mty, &s, &[]);
 +                method_contracts.push((midx, mname.text.clone(), s));
              }
              let base_id = fn_id(&module, &inst.name.text);
@@ -1460,7 +1462,7 @@
                  module: module.clone(),
                  name: inst.name.text.clone(),
                  params,
-@@ -15128,7 +15348,10 @@
+@@ -15128,7 +15350,10 @@
                  // published per instantiation.
                  base: self.param_modules.contains(&module),
                  method_obligs,
@@ -1472,7 +1474,7 @@
              self.instances.entry(class).or_default().push(idx);
          }
          Ok(())
-@@ -15212,12 +15435,64 @@
+@@ -15212,12 +15437,64 @@
          Ok(())
      }
  
@@ -1537,7 +1539,7 @@
      ) -> crate::interface::Iface {
          use crate::interface::*;
          let mut iface = Iface::new(module, source_hash);
-@@ -15230,9 +15505,9 @@
+@@ -15230,9 +15507,9 @@
          // The export surface (surface grammar local amendments section
          // 11): with `export` declarations exactly the names their items
          // resolve to, re-exports included; the declared names as before
@@ -1550,7 +1552,7 @@
          let mut surface: Vec<(String, SurfaceName)> = match self.module_surface.get(module) {
              Some(sm) => sm
                  .iter()
-@@ -15256,10 +15531,12 @@
+@@ -15256,10 +15533,12 @@
          for (local, d) in &surface {
              if let Some(v) = self.qualified.get(&(d.module.clone(), d.name.clone())) {
                  match &v.kind {
@@ -1564,7 +1566,7 @@
                              symbol: format!("{}.{}", d.module, d.name),
                              arity: (v.scheme.ty.arity()
                                  + v.scheme.ctx.len()
-@@ -15357,6 +15634,9 @@
+@@ -15357,6 +15636,9 @@
                              }) {
                                  ctors.push(CtorExport {
                                      name: ctor_local.clone(),
@@ -1574,7 +1576,7 @@
                                      tag: *tag as u64,
                                      fields: fields.clone(),
                                      erased: field_erased.clone(),
-@@ -15373,12 +15653,31 @@
+@@ -15373,12 +15655,31 @@
                          params = r.params.clone();
                      }
                  }
@@ -1607,7 +1609,7 @@
                  });
                  // Computed layout facts (attribute annotations
                  // specification section 4.3): part of the contract
-@@ -15399,67 +15698,37 @@
+@@ -15399,67 +15700,38 @@
                  layout.name = local.clone();
                  iface.layouts.push(layout);
              }
@@ -1692,11 +1694,18 @@
 +                resolved,
 +                method_contracts: i.method_contracts.iter().map(|(slot, name, scheme)| InstanceMethodContract {
 +                    slot: *slot as u64, name: name.clone(), scheme: render_scheme(scheme),
++                    checked: self.checked_conditional_method(i, *slot),
 +                }).collect(),
                  ctx: i
                      .ctx
                      .iter()
-@@ -15475,9 +15744,68 @@
+@@ -15471,13 +15743,74 @@
+                         }
+                     })
+                     .collect(),
+-                methods: Vec::new(),
++                methods: self.instance_defs.iter().find(|definition| definition.id == i.base_id)
++                    .map(|definition| definition.methods.iter().map(|method| method.0.clone()).collect()).unwrap_or_default(),
                  implicit: i.implicit,
              });
          }
@@ -1713,7 +1722,8 @@
 +        for scheme in iface.exports.values.iter().filter_map(|v| v.resolved.as_ref())
 +            .chain(iface.exports.types.iter().flat_map(|t| &t.ctors).filter_map(|c| c.resolved.as_ref()))
 +            .chain(iface.exports.signatures.iter().flat_map(|s| &s.methods).filter_map(|m| m.resolved.as_ref()))
-+            .chain(iface.exports.instances.iter().filter_map(|i| i.resolved.as_ref())) {
++            .chain(iface.exports.instances.iter().filter_map(|i| i.resolved.as_ref()))
++            .chain(iface.exports.instances.iter().flat_map(|i| &i.method_contracts).filter_map(|m| m.checked.as_ref()).flat_map(|m| [&m.head, &m.resolved])) {
 +            pending.extend(class_refs(scheme));
 +        }
 +        let mut known: std::collections::BTreeSet<_> = iface.exports.signatures.iter().map(|s| s.identity.clone()).collect();
@@ -1768,7 +1778,7 @@
              }
          }
          let mut prims = Vec::new();
-@@ -15549,10 +15877,155 @@
+@@ -15549,10 +15882,157 @@
      }
  }
  
@@ -1806,6 +1816,8 @@
 +                .iter()
 +                .filter_map(|i| i.resolved.as_ref()),
 +        );
++    let contracts = contracts.chain(iface.exports.instances.iter().flat_map(|i| &i.method_contracts)
++        .filter_map(|m| m.checked.as_ref()).flat_map(|m| [&m.head, &m.resolved]));
 +    let mut dependencies = std::collections::BTreeSet::new();
 +    for identity in iface
 +        .exports
@@ -1925,7 +1937,7 @@
  /// declarations) for the artifact manifest.
  pub fn check_program_multi(
      prelude: &[ast::Module],
-@@ -15921,10 +16394,12 @@
+@@ -15921,10 +16401,12 @@
      // verify against the checked program's D104 groups before any
      // interface is emitted (decisions D112-D114).
      let safety_records = std::mem::take(&mut c.safety_records);
@@ -1939,7 +1951,7 @@
          let mut refs: Vec<(String, String)> = Vec::new();
          for i in imports {
              if refs.iter().any(|(m, _)| m == i) {
-@@ -15938,24 +16413,25 @@
+@@ -15938,24 +16420,25 @@
              .get(module)
              .cloned()
              .unwrap_or_default();
@@ -1979,7 +1991,7 @@
      }
      let diags = std::mem::take(&mut c.diags);
      // P21's probe (the REPL is backed by the analysis layer): evaluate
-@@ -18747,7 +19223,13 @@
+@@ -18747,7 +19230,13 @@
          use crate::core::{ArithMode, ArithOp, BitOp, CmpOp, IntOp, NatOp, PrimOp, ShiftOp};
          match op {
              PrimOp::Nat(nat) => {
@@ -1994,7 +2006,7 @@
                  let b = if args.len() > 1 { big_of(&args[1], "`Nat`")? } else { Big::zero() };
                  Ok(match nat {
                      NatOp::Add => big_value(a.add(&b), true),
-@@ -18786,7 +19268,11 @@
+@@ -18786,7 +19275,11 @@
                  })
              }
              PrimOp::Int(int) => {
@@ -2007,7 +2019,7 @@
                  let b = if args.len() > 1 { big_of(&args[1], "`Int`")? } else { Big::zero() };
                  Ok(match int {
                      IntOp::Add => big_value(a.add(&b), false),
-@@ -18814,6 +19300,16 @@
+@@ -18814,6 +19307,16 @@
                          big_value(a, true)
                      }
                  })
@@ -2024,7 +2036,7 @@
              }
              PrimOp::EqBool => Ok(Value::Bool(
                  (word_of(&args[0], "`Bool`")? != 0) == (word_of(&args[1], "`Bool`")? != 0),
-@@ -20654,6 +21150,7 @@
+@@ -20654,6 +21157,7 @@
                  ctx.push((format!("c{i}"), ClassApp { class: class.class, args }));
              }
              crate::types::Scheme {
@@ -2034,7 +2046,7 @@
                  idx_params: Vec::new(),
 --- /dev/null
 +++ b/compiler/src/check_interface.rs
-@@ -0,0 +1,602 @@
+@@ -0,0 +1,620 @@
 +// Definition-site contracts for rank-one values and class dictionaries.
 +// Kernel regions and closed builtin effects retain their checked syntax.
 +// Unsupported dependent and open-row schemes keep `resolved: null`.
@@ -2201,6 +2213,11 @@
 +    fn remember_interface_instance(&mut self, source: &ast::InstDecl, info: &InstanceInfo, notes: &[(String, ParamKind)]) {
 +        // Conditional method preconditions and module arguments must not
 +        // disappear when an instance is imported as a dictionary factory.
++        if !info.base && info.params.is_empty() && info.ctx.is_empty() && !info.method_contracts.is_empty() {
++            let head = Scheme::mono(Ty::Adt(info.target.class.clone(), info.target.args.clone()));
++            self.remember_source_scheme(&info.module, &format!("@conditional-head:{}", info.name),
++                &source.target, &head, &[], None, true);
++        }
 +        if info.base || !info.method_obligs.is_empty()
 +            || info.ctx.iter().any(|c| matches!(c, InstCtx::Oblig(_))) { return }
 +        let mut scheme = Scheme::mono(Ty::Adt(info.target.class.clone(), info.target.args.clone()));
@@ -2219,6 +2236,19 @@
 +        let ty = ast::Type::Using(source.ctx.clone(), Box::new(source.target.clone()), source.span);
 +        self.remember_source_scheme(&info.module, &format!("@instance:{}", info.name),
 +            &ty, &scheme, &binders, None, true);
++    }
++
++    fn checked_conditional_method(&self, info: &InstanceInfo, slot: usize) -> Option<crate::interface::CheckedInstanceMethod> {
++        if info.base || !info.params.is_empty() || !info.ctx.is_empty() { return None }
++        let definition = self.instance_defs.iter().find(|definition| definition.id == info.base_id)?;
++        if definition.tparams != 0 || definition.subdict_count != 0 { return None }
++        let implementation = definition.methods.get(slot)?;
++        if !self.fns.iter().any(|function| function.id == *implementation) { return None }
++        Some(crate::interface::CheckedInstanceMethod {
++            head: self.resolved_interface_scheme(&info.module, &format!("@conditional-head:{}", info.name))?,
++            implementation: implementation.0.clone(),
++            resolved: self.resolved_interface_scheme(&info.module, &format!("@conditional-method:{}:{slot}", info.name))?,
++        })
 +    }
 +
 +    fn remember_source_scheme(
@@ -3591,7 +3621,7 @@
      pub ctx: Vec<String>,
      pub methods: Vec<String>,
      /// Whether automatic resolution may select this instance (default
-@@ -204,6 +307,15 @@
+@@ -204,6 +307,26 @@
      /// dictionary is selected by name and may coexist with other
      /// implementations of the same class).
      pub implicit: bool,
@@ -3604,10 +3634,21 @@
 +    /// Retains positional binders and proof preconditions. This remains a
 +    /// display contract until dependent occurrence identities are ported.
 +    pub scheme: String,
++    /// Optional checked closed implementation declaration. It supplies a
++    /// callable preconditioned function, never an unrestricted dictionary
++    /// or a mathematical equation for the implementation body.
++    pub checked: Option<CheckedInstanceMethod>,
++}
++
++#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
++pub struct CheckedInstanceMethod {
++    pub head: ResolvedScheme,
++    pub implementation: String,
++    pub resolved: ResolvedScheme,
  }
  
  /// One instantiation unit of the module (`import M (args) as N`, module
-@@ -505,8 +617,10 @@
+@@ -505,8 +628,10 @@
                      JsonValue::obj([
                          ("name", (&v.name).into()),
                          ("scheme", (&v.scheme).into()),
@@ -3618,7 +3659,7 @@
                      ])
                  }),
              ),
-@@ -515,13 +629,25 @@
+@@ -515,13 +640,25 @@
                  JsonValue::arr(&types, |t| {
                      JsonValue::obj([
                          ("name", (&t.name).into()),
@@ -3644,7 +3685,7 @@
                                      ("tag", c.tag.into()),
                                      ("fields", (&c.fields).into()),
                                      ("erased", (&c.erased).into()),
-@@ -537,13 +663,19 @@
+@@ -537,13 +674,19 @@
                  JsonValue::arr(&sigs, |s| {
                      JsonValue::obj([
                          ("name", (&s.name).into()),
@@ -3664,7 +3705,7 @@
                                  ]);
                                  if let (JsonValue::Obj(map), Some(d)) = (&mut o, &m.default) {
                                      map.insert("default".to_string(), d.into());
-@@ -557,10 +689,16 @@
+@@ -557,10 +700,31 @@
              (
                  "instances",
                  JsonValue::arr(&insts, |inst| {
@@ -3675,13 +3716,28 @@
                          ("class", (&inst.class).into()),
                          ("target", (&inst.target).into()),
 +                        ("resolved", resolved_scheme_json(inst.resolved.as_ref())),
-+                        ("method_contracts", JsonValue::arr(&method_contracts, |method| JsonValue::obj([
-+                            ("slot", method.slot.into()), ("name", (&method.name).into()), ("scheme", (&method.scheme).into()),
-+                        ]))),
++                        ("method_contracts", JsonValue::arr(&method_contracts, |method| {
++                            let mut fields = vec![
++                                ("slot", method.slot.into()), ("name", (&method.name).into()), ("scheme", (&method.scheme).into()),
++                            ];
++                            // Omitted optional authority preserves the exact
++                            // encoding/hash of older opaque display records.
++                            if let Some(checked) = &method.checked {
++                                fields.push(("checked", JsonValue::obj([
++                                    ("schema", 1u64.into()),
++                                    ("head", JsonValue::obj([("resolved", resolved_scheme_json(Some(&checked.head)))])),
++                                    ("implementation", JsonValue::obj([
++                                        ("identity", (&checked.implementation).into()),
++                                        ("resolved", resolved_scheme_json(Some(&checked.resolved))),
++                                    ])),
++                                ])));
++                            }
++                            JsonValue::Obj(fields.into_iter().map(|(key, value)| (key.to_string(), value)).collect())
++                        })),
                          ("ctx", (&inst.ctx).into()),
                          ("methods", (&inst.methods).into()),
                          ("implicit", inst.implicit.into()),
-@@ -787,8 +925,10 @@
+@@ -787,8 +951,10 @@
              values.push(ValueExport {
                  name: field_str(o, "name")?,
                  scheme: field_str(o, "scheme")?,
@@ -3692,7 +3748,7 @@
              });
          }
          let mut types = Vec::new();
-@@ -799,6 +939,9 @@
+@@ -799,6 +965,9 @@
                  let co = c.as_object().map_err(|_| ParseError("ctor entry".into()))?;
                  ctors.push(CtorExport {
                      name: field_str(co, "name")?,
@@ -3702,7 +3758,7 @@
                      tag: field_num(co, "tag")?,
                      fields: field_list(co, "fields")?,
                      erased: co
-@@ -810,13 +953,37 @@
+@@ -810,13 +979,37 @@
                          .collect::<Result<Vec<_>, _>>()?,
                  });
              }
@@ -3742,7 +3798,7 @@
          }
          let mut signatures = Vec::new();
          for item in ex_get("signatures")?.as_array()? {
-@@ -826,35 +993,68 @@
+@@ -826,35 +1019,91 @@
                  let mo = m.as_object().map_err(|_| ParseError("method entry".into()))?;
                  methods.push(MethodExport {
                      name: field_str(mo, "name")?,
@@ -3785,7 +3841,23 @@
 +            let mut method_contracts: Vec<InstanceMethodContract> = Vec::new();
 +            for row in o.get("method_contracts").ok_or_else(|| ParseError("instance method contracts".into()))?.as_array()? {
 +                let row = row.as_object()?;
-+                let contract = InstanceMethodContract { slot: field_num(row, "slot")?, name: field_str(row, "name")?, scheme: field_str(row, "scheme")? };
++                let checked = match row.get("checked") {
++                    None | Some(JsonValue::Null) => None,
++                    Some(value) => {
++                        let value = value.as_object()?;
++                        if field_num(value, "schema")? != 1 { return Err(ParseError("conditional method schema".into())) }
++                        let head = value.get("head").ok_or_else(|| ParseError("conditional method head".into()))?.as_object()?;
++                        let implementation = value.get("implementation").ok_or_else(|| ParseError("conditional method implementation".into()))?.as_object()?;
++                        let identity = field_str(implementation, "identity")?;
++                        if identity.is_empty() { return Err(ParseError("empty conditional implementation".into())) }
++                        Some(CheckedInstanceMethod {
++                            head: field_resolved_scheme(head)?.ok_or_else(|| ParseError("unresolved conditional head".into()))?,
++                            implementation: identity,
++                            resolved: field_resolved_scheme(implementation)?.ok_or_else(|| ParseError("unresolved conditional implementation".into()))?,
++                        })
++                    }
++                };
++                let contract = InstanceMethodContract { slot: field_num(row, "slot")?, name: field_str(row, "name")?, scheme: field_str(row, "scheme")?, checked };
 +                if contract.name.is_empty() || contract.scheme.is_empty()
 +                    || method_contracts.iter().any(|m| m.slot == contract.slot || m.name == contract.name) {
 +                    return Err(ParseError("invalid instance method contract".into()));
@@ -3814,10 +3886,17 @@
 +                || (!instance.method_contracts.is_empty() && instance.resolved.is_some()) {
 +                return Err(ParseError("invalid instance contract or unresolved method preconditions".into()));
 +            }
++            for method in &instance.method_contracts {
++                if let Some(checked) = &method.checked {
++                    if instance.methods.get(method.slot as usize) != Some(&checked.implementation) {
++                        return Err(ParseError("conditional implementation does not match actual dictionary slot".into()));
++                    }
++                }
++            }
          }
          let mut fixities = Vec::new();
          for item in ex_get("fixities")?.as_array()? {
-@@ -1353,6 +1553,153 @@
+@@ -1353,6 +1602,153 @@
  }
  
  /// One foreign parameter or result's binding contract.
@@ -3971,7 +4050,7 @@
  fn foreign_param_json(p: &ForeignParam) -> JsonValue {
      JsonValue::obj([
          ("type", (&p.ty).into()),
-@@ -1642,41 +1989,56 @@
+@@ -1642,41 +2038,56 @@
              iface_hash: "deadbeef".into(),
          });
          f.exports.values.push(ValueExport {
@@ -4028,7 +4107,7 @@
              ctx: vec![],
              methods: vec!["Main.Add_Int.+".into()],
              implicit: true,
-@@ -1732,6 +2094,26 @@
+@@ -1732,6 +2143,26 @@
      }
  
      #[test]
@@ -4055,7 +4134,7 @@
      fn canonical_and_stable() {
          let f = sample();
          assert_eq!(f.to_json(), f.to_json());
-@@ -1775,7 +2157,7 @@
+@@ -1775,7 +2206,7 @@
      #[test]
      fn rejects_wrong_schema() {
          let text = sample().to_json();
@@ -4064,7 +4143,7 @@
          assert_ne!(wrong, text, "the schema field was rewritten");
          assert!(Iface::from_json(&wrong).is_err());
      }
-@@ -1829,6 +2211,8 @@
+@@ -1829,6 +2260,8 @@
              id: "Other.Add_Int".into(),
              class: "Add".into(),
              target: "Add Int".into(),
@@ -4073,7 +4152,7 @@
              ctx: vec![],
              methods: vec![],
              implicit: true,
-@@ -1879,7 +2263,7 @@
+@@ -1879,7 +2312,7 @@
      fn parser_is_strict() {
          let text = sample().to_json();
          assert!(Iface::from_json(&format!("{text}trailing")).is_err());
