@@ -1,5 +1,21 @@
 # Next steps (as of 2026-11-02)
 
+Checked dependent arguments now keep their actual strict witness bindings in
+scope through application, with the original function evaluated first. Hoisting
+a witnessed value out of let generalization adjusts only that value's inference
+depth; unrelated value scopes and type skolems retain their escape checks.
+All seven focused source cases, independent Core checks, and the whole indices
+and guarded-call regressions pass. The separate refinement-constructor and
+correctly named dependent-function regressions remain under validation.
+
+Text.Json now binds its actual cursor offset and buffer before the existing
+byte-access guards. The complete module passes source checking; all nine JSON
+runtime tests and the whole parser corpus pass. Fresh stage0/1 pass all six
+smokes. The new actual stage2 attempt is running; no stage2 compiler or IR is
+claimed. Typed runtime lowering, full usage/totality checks and the stage2/3
+fixed point remain required. See [the scoped checkpoint](../bootstrap/argument-witness-results.json).
+
+## Previous parser, handler and producer checkpoint
 
 The parser span helper now binds its endpoint before the existing bounds
 check and its start inside that guarded branch. The whole parser passes

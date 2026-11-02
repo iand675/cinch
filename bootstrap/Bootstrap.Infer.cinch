@@ -1874,6 +1874,50 @@ module Bootstrap.Infer where
     Nil -> case scoped-prove-refinement (proof-context env st) (proof-facts env) (normalize st expected) (map-term-types (normalize st) term) of
       Some evidence -> (CRefine sp expected evidence term, st)
       None -> term-error sp "refinement predicate is not established for this value" st
+  -- Hoisting an actual strict value binding out of a let-generalization
+  -- level changes that binding's inference depth, not its identity. Retarget
+  -- only references to that witnessed local; unrelated indices and all type
+  -- skolems keep their original escape boundaries.
+  relocate-local-index :: Nat -> Nat -> UType -> UType
+  relocate-local-index binding new-level ty = case ty of
+    UCompare relation left right -> UCompare relation (relocate-local-index binding new-level left) (relocate-local-index binding new-level right)
+    UPropAnd left right -> UPropAnd (relocate-local-index binding new-level left) (relocate-local-index binding new-level right)
+    UPropOr left right -> UPropOr (relocate-local-index binding new-level left) (relocate-local-index binding new-level right)
+    UPropNot body -> UPropNot (relocate-local-index binding new-level body)
+    UPropNonZero body -> UPropNonZero (relocate-local-index binding new-level body)
+    UPropNonZeroPending body -> UPropNonZeroPending (relocate-local-index binding new-level body)
+    URequire predicates body -> URequire (relocate-local-index binding new-level predicates) (relocate-local-index binding new-level body)
+    URefine id name carrier predicate -> URefine id name (relocate-local-index binding new-level carrier) (relocate-local-index binding new-level predicate)
+    UIndexForget value -> UIndexForget (relocate-local-index binding new-level value)
+    UIndexByteLength value -> UIndexByteLength (relocate-local-index binding new-level value)
+    UIndexCall function args -> UIndexCall function (relocate-local-index binding new-level args)
+    UIndexPromote value -> UIndexPromote (relocate-local-index binding new-level value)
+    UIndexMath op left right -> UIndexMath op (relocate-local-index binding new-level left) (relocate-local-index binding new-level right)
+    UPi id name domain row result -> UPi id name (relocate-local-index binding new-level domain) (relocate-local-index binding new-level row) (relocate-local-index binding new-level result)
+    UApp f x -> UApp (relocate-local-index binding new-level f) (relocate-local-index binding new-level x)
+    UFun a b -> UFun (relocate-local-index binding new-level a) (relocate-local-index binding new-level b)
+    UFunEff a row b -> UFunEff (relocate-local-index binding new-level a) (relocate-local-index binding new-level row) (relocate-local-index binding new-level b)
+    UProofFun a row b -> UProofFun (relocate-local-index binding new-level a) (relocate-local-index binding new-level row) (relocate-local-index binding new-level b)
+    URow labels -> URow (relocate-local-index binding new-level labels)
+    URowJoin a b -> URowJoin (relocate-local-index binding new-level a) (relocate-local-index binding new-level b)
+    UTuple fields -> UTuple (relocate-local-index binding new-level fields)
+    UArg x rest -> UArg (relocate-local-index binding new-level x) (relocate-local-index binding new-level rest)
+    UIndex carrier value -> UIndex (relocate-local-index binding new-level carrier) (relocate-local-index-term binding new-level value)
+    UCon name k -> UCon name (map-kind-types (relocate-local-index binding new-level) k)
+    UBound id name k -> UBound id name (map-kind-types (relocate-local-index binding new-level) k)
+    URigid id name level k -> URigid id name level (map-kind-types (relocate-local-index binding new-level) k)
+    UMeta id k -> UMeta id (map-kind-types (relocate-local-index binding new-level) k)
+    other -> ty
+  relocate-local-index-term :: Nat -> Nat -> IndexTerm -> IndexTerm
+  relocate-local-index-term binding new-level term = case term of
+    IRigid id name level -> IRigid id name (if id == binding && level > new-level then new-level else level)
+    IApply f x -> IApply (relocate-local-index-term binding new-level f) (relocate-local-index-term binding new-level x)
+    ILambda id name body -> ILambda id name (relocate-local-index-term binding new-level body)
+    IAdd a b -> IAdd (relocate-local-index-term binding new-level a) (relocate-local-index-term binding new-level b)
+    ISubtract a b -> ISubtract (relocate-local-index-term binding new-level a) (relocate-local-index-term binding new-level b)
+    IMultiply a b -> IMultiply (relocate-local-index-term binding new-level a) (relocate-local-index-term binding new-level b)
+    other -> term
+
   let-result-escapes :: CoreTerm -> Bool
   let-result-escapes term = let-chain-mentions (type-all-ids (core-type term)) term
   let-chain-mentions :: List Nat -> CoreTerm -> Bool
@@ -1895,7 +1939,7 @@ module Bootstrap.Infer where
       CLet s ty id display sc rhs inner ->
         let binding = MkLocalBinding display sc id level in
         let bound = proof-let-env env binding id sc rhs st in
-        case check-refined-binding classes kinds families bound locals sp at name rest body expected level inner st of
+        case check-refined-binding classes kinds families bound locals sp at name rest body expected level (map-term-types (relocate-local-index id level) (map-term-types (normalize st) inner)) st of
           (result, done) -> (CLet s expected id display sc rhs result, done)
       other -> term-error at "dependent let result has no retained witness scope" st)
     else let (scheme, pairs) = generalize-with level (env-metas env st) (core-type value) st in
@@ -2119,7 +2163,7 @@ module Bootstrap.Infer where
       CLet s ty id display sc rhs inner ->
         let binding = MkLocalBinding display sc id level in
         let bound = proof-let-env env binding id sc rhs st in
-        case infer-let-binding classes kinds families bound locals sp at name rest body level wanted inner st of
+        case infer-let-binding classes kinds families bound locals sp at name rest body level wanted (map-term-types (relocate-local-index id level) (map-term-types (normalize st) inner)) st of
           (result, done) -> (CLet s (core-type result) id display sc rhs result, done)
       other -> term-error at "dependent let result has no retained witness scope" st)
     else let (scheme, pairs) = generalize-with level (env-metas env st) (core-type value) st in
@@ -2974,9 +3018,33 @@ module Bootstrap.Infer where
   apply-runtime-argument :: List (String, Kind) -> Span -> List CheckedBinding -> CoreTerm -> CoreTerm -> Store -> (CoreTerm, Store)
   apply-runtime-argument classes sp env fun value st = case store-errors st of
     Nil -> (case conditional-prefix classes sp env fun st of
-      (Some callee, checked) -> apply-checked-runtime classes sp env callee value checked
-      (None, checked) -> apply-checked-runtime classes sp env fun value checked)
+      (Some callee, checked) -> apply-scoped-argument classes sp env callee value checked
+      (None, checked) -> apply-scoped-argument classes sp env fun value checked)
     other -> (CError sp, st)
+  -- An argument can retain private witness lets in its result contract.
+  -- Evaluate the function first, then open those existing strict scopes
+  -- around the call. The actual result is checked while its witnesses
+  -- remain in scope; no symbolic equation for an opaque call is invented.
+  apply-scoped-argument :: List (String, Kind) -> Span -> List CheckedBinding -> CoreTerm -> CoreTerm -> Store -> (CoreTerm, Store)
+  apply-scoped-argument classes sp env fun value st = case value of
+    CLet source ty id display sc rhs body -> case fresh-id st of
+      (function-id, next) ->
+        let name = "#argument-function" in
+        let scheme = mono (core-type fun) in
+        let binding = MkLocalBinding name scheme function-id (store-level next) in
+        let bound = proof-let-env env binding function-id scheme fun next in
+        case apply-argument-lets classes sp bound (CLocal sp (core-type fun) function-id name Nil) value next of
+          (call, done) -> (CLet sp (core-type call) function-id name scheme fun call, done)
+    other -> apply-checked-runtime classes sp env fun value st
+  apply-argument-lets :: List (String, Kind) -> Span -> List CheckedBinding -> CoreTerm -> CoreTerm -> Store -> (CoreTerm, Store)
+  apply-argument-lets classes sp env fun value st = case value of
+    CLet source ty id display sc rhs body ->
+      let hidden = string-concat "#argument-let:" (int-to-string (nat-to-int id)) in
+      let binding = MkLocalBinding hidden sc id (store-level st) in
+      let bound = proof-let-env env binding id sc rhs st in
+      case apply-argument-lets classes sp bound fun body st of
+        (call, done) -> (CLet source (core-type call) id display sc rhs call, done)
+    other -> apply-checked-runtime classes sp env fun value st
   apply-checked-runtime :: List (String, Kind) -> Span -> List CheckedBinding -> CoreTerm -> CoreTerm -> Store -> (CoreTerm, Store)
   apply-checked-runtime classes sp env fun value st = case normalize st (core-type fun) of
     UPi id name domain effects result -> let checked = unify sp domain (core-type value) st in
