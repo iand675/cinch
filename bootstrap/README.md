@@ -149,8 +149,10 @@ remain required; see [the source proof report](source-proof-checkpoint-results.j
 Kernel-owned `Yes`/`No` retain one erased source evidence field and no runtime
 payload. Their source patterns, proposition scopes and exact metadata checks
 pass, as do the separate fixed-semantics Core decision checks. Source `decide`
-syntax and typed runtime lowering remain required. Broader regressions and
-fresh stages are finishing; see [the decision report](decision-checkpoint-results.json).
+syntax and typed runtime lowering remain required. All15 whole focused targets
+pass; fresh stage0/1 pass six smokes and stage2 stops before bodies at decide
+and the imported measure contract. Full169+5 validation is running; see
+[the decision report](decision-checkpoint-results.json).
 
 The orchestration checks run with:
 

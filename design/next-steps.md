@@ -17,9 +17,15 @@ unfinished.
 All12 source constructor cases, nine metadata-corruption cases and18 source
 proof cases pass. The latter now check that an erased call retains declared
 divergence. Compiled decision/proof checks pass at five identities above2^128,
-together with Core typing, effects and parser coverage. The complete pipeline,
-seven additional focused targets and a fresh staged attempt are finishing.
-The complete new169+5 Native-assisted suite has not run. The installed164+5
+together with Core typing, effects and parser coverage. All15 whole focused
+targets pass, including the complete pipeline, source dictionaries, actual
+Text.Json, dependent functions, intrinsics and inference. Fresh stage0/1 pass
+six smokes. Stage2 now accepts the Yes/No headers and exits4 at two remaining
+headers: decide and the imported measure contract. It stops before bodies and
+produces no IR or compiler executable; header counts are not a completion
+percentage. The exact staged compiler bundle matches this checkpoint.
+The complete new169+5 Native-assisted suite is running:159 fresh gates and15
+exact-source whole focused targets. The installed164+5
 snapshot remains the last complete baseline; it does not establish this later
 implementation or the self-built frontend suite. [The decision report](../bootstrap/decision-checkpoint-results.json)
 records exact sources and scope. Self-hosting is not complete. The Native seed,

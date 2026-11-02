@@ -1,6 +1,6 @@
 {
   "recorded_at": "2026-11-02T00:35:42.783224+00:00",
-  "status": "work in progress: source static preflight and two whole compiled Rust targets passed; seven existing focused regressions running",
+  "status": "all nine whole focused targets and Native preflight passed; full167+5 and fresh source-proof stages not run; superseded by separately validated decision checkpoint",
   "source_sha256": "140f225d6303c3faabb484a1d46adf939df458aa6b9d66da9b4c0952862bcfd7",
   "source_inputs": 592,
   "compiler_named_source_sha256": "e2373cb1ad6bc78d8dedef5aa782cbc755c6123ef51ead557ea3f2544b7ef2ac",
@@ -124,9 +124,11 @@
         "--test-threads=1"
       ],
       "cwd": "/tmp/cinch-source-proofs-validation-2/source/compiler",
+      "exit_code": 0,
+      "finished": "2026-11-02T00:37:41.077890+00:00",
       "name": "bootstrap_source_pi",
       "started": "2026-11-02T00:35:37.632963+00:00",
-      "status": "running"
+      "status": "passed"
     },
     {
       "command": [
@@ -142,8 +144,11 @@
         "--test-threads=1"
       ],
       "cwd": "/tmp/cinch-source-proofs-validation-2/source/compiler",
+      "exit_code": 0,
+      "finished": "2026-11-02T00:48:25.875740+00:00",
       "name": "bootstrap_source_instances",
-      "status": "pending"
+      "started": "2026-11-02T00:37:41.078279+00:00",
+      "status": "passed"
     },
     {
       "command": [
@@ -159,8 +164,11 @@
         "--test-threads=1"
       ],
       "cwd": "/tmp/cinch-source-proofs-validation-2/source/compiler",
+      "exit_code": 0,
+      "finished": "2026-11-02T00:51:06.483141+00:00",
       "name": "bootstrap_infer",
-      "status": "pending"
+      "started": "2026-11-02T00:48:25.876181+00:00",
+      "status": "passed"
     },
     {
       "command": [
@@ -176,8 +184,11 @@
         "--test-threads=1"
       ],
       "cwd": "/tmp/cinch-source-proofs-validation-2/source/compiler",
+      "exit_code": 0,
+      "finished": "2026-11-02T00:51:45.228122+00:00",
       "name": "bootstrap_parse",
-      "status": "pending"
+      "started": "2026-11-02T00:51:06.483597+00:00",
+      "status": "passed"
     },
     {
       "command": [
@@ -193,8 +204,11 @@
         "--test-threads=1"
       ],
       "cwd": "/tmp/cinch-source-proofs-validation-2/source/compiler",
+      "exit_code": 0,
+      "finished": "2026-11-02T00:58:34.315736+00:00",
       "name": "bootstrap_pipeline",
-      "status": "pending"
+      "started": "2026-11-02T00:51:45.228598+00:00",
+      "status": "passed"
     }
   ],
   "source_cases": 16,
