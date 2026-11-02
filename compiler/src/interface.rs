@@ -18,7 +18,7 @@ use std::fmt;
 /// 5: definition-site class contexts, method slots and resolved method schemes.
 /// 4: occurrence-resolved pure schemes and their private nominal contracts.
 /// 3: declaration kinds, constructor schemes and class export names.
-pub const SCHEMA_VERSION: u32 = 7;
+pub const SCHEMA_VERSION: u32 = 8;
 /// 5: negative counts are atomic (mark-on-spawn, `cinch_mark_mt`,
 /// `cinch_dup_mt`/`cinch_drop_mt`); joins hand results out once;
 /// `cinch_reclaim_enable`; the quote encoder gains `SET`/`DUP`/`DROP`; one
@@ -181,6 +181,9 @@ pub fn topo_order(
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ValueExport {
     pub name: String,
+    /// Closed executable semantics for this exact symbol; full declaration
+    /// association and any result refinements must be checked by the consumer.
+    pub total_body: Option<crate::total::CheckedGraph>,
     /// Canonical rendering of the scheme (quantifiers, `using` context,
     /// type with effect rows).
     pub scheme: String,
@@ -206,8 +209,17 @@ pub struct CtorExport {
 /// consumers must not infer identities from the display scheme instead.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ResolvedScheme {
+    pub measures: Vec<MeasureContract>,
     pub scheme: String,
     pub nominals: Vec<NominalContract>,
+}
+
+/// A private defining measure declaration grants no source import names.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct MeasureContract {
+    pub identity: String,
+    pub resolved: Box<ResolvedScheme>,
+    pub total_body: crate::total::CheckedGraph,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -608,6 +620,7 @@ impl Iface {
                         ("resolved", resolved_scheme_json(v.resolved.as_ref())),
                         ("symbol", (&v.symbol).into()),
                         ("arity", v.arity.into()),
+                        ("total_body", v.total_body.as_ref().map_or(JsonValue::Null, |graph| parse_json(&graph.to_json()).expect("checked total graph JSON"))),
                     ])
                 }),
             ),
@@ -915,6 +928,7 @@ impl Iface {
                 resolved: field_resolved_scheme(o)?,
                 symbol: field_str(o, "symbol")?,
                 arity: field_num(o, "arity")?,
+                total_body: field_total_body(o)?,
             });
         }
         let mut types = Vec::new();
@@ -1547,12 +1561,34 @@ fn parameter_json(p: &ParameterExport) -> JsonValue {
     ])
 }
 
+fn field_total_body(o: &BTreeMap<String, JsonValue>) -> Result<Option<crate::total::CheckedGraph>, ParseError> {
+    let value = o.get("total_body").ok_or_else(|| ParseError("missing value total_body".into()))?;
+    if matches!(value, JsonValue::Null) { return Ok(None) }
+    if field_resolved_scheme(o)?.is_none() { return Err(ParseError("total body requires a resolved declaration".into())) }
+    let graph = crate::total::CheckedGraph::from_json(&value.to_canonical_string())
+        .map_err(|error| ParseError(format!("invalid total body: {}", error.0)))?;
+    let symbol = field_str(o, "symbol")?;
+    let root = graph.get(&symbol).ok_or_else(|| ParseError("total body has no matching value symbol".into()))?;
+    if root.parameters.len() as u64 != field_num(o, "arity")? {
+        return Err(ParseError("total body arity disagrees with its value declaration".into()))
+    }
+    if graph.closure([symbol.as_str()]).map_err(|error| ParseError(error.0))? != graph {
+        return Err(ParseError("total body includes unrelated definitions".into()))
+    }
+    Ok(Some(graph))
+}
+
 fn resolved_scheme_json(scheme: Option<&ResolvedScheme>) -> JsonValue {
     let Some(scheme) = scheme else { return JsonValue::Null };
     let mut nominals = scheme.nominals.clone();
     nominals.sort();
     JsonValue::obj([
         ("scheme", (&scheme.scheme).into()),
+        ("measures", JsonValue::arr(&scheme.measures, |m| JsonValue::obj([
+            ("identity", (&m.identity).into()),
+            ("resolved", resolved_scheme_json(Some(&m.resolved))),
+            ("total_body", parse_json(&m.total_body.to_json()).expect("checked measure graph JSON")),
+        ]))),
         ("nominals", JsonValue::arr(&nominals, |n| JsonValue::obj([
             ("identity", (&n.identity).into()),
             ("kind", (&n.kind).into()),
@@ -1574,6 +1610,10 @@ fn resolved_scheme_json(scheme: Option<&ResolvedScheme>) -> JsonValue {
 }
 
 fn field_resolved_scheme(o: &BTreeMap<String, JsonValue>) -> Result<Option<ResolvedScheme>, ParseError> {
+    field_resolved_scheme_depth(o, 0)
+}
+fn field_resolved_scheme_depth(o: &BTreeMap<String, JsonValue>, depth: usize) -> Result<Option<ResolvedScheme>, ParseError> {
+    if depth > 1 { return Err(ParseError("nested defining measure schemes are unsupported".into())) }
     let value = o.get("resolved").ok_or_else(|| ParseError("resolved scheme".into()))?;
     if matches!(value, JsonValue::Null) { return Ok(None) }
     let value = value.as_object()?;
@@ -1621,7 +1661,25 @@ fn field_resolved_scheme(o: &BTreeMap<String, JsonValue>) -> Result<Option<Resol
         };
         nominals.push(NominalContract { identity, kind, parameters, constructors, refinement });
     }
-    Ok(Some(ResolvedScheme { scheme, nominals }))
+    let mut measures: Vec<MeasureContract> = Vec::new();
+    if let Some(rows) = value.get("measures") {
+        for row in rows.as_array()? {
+            if depth != 0 { return Err(ParseError("nested defining measure schemes are unsupported".into())) }
+            let row = row.as_object()?;
+            let identity = field_str(row, "identity")?;
+            if identity.is_empty() || measures.iter().any(|m| m.identity == identity) {
+                return Err(ParseError("duplicate or empty defining measure identity".into()))
+            }
+            let resolved = field_resolved_scheme_depth(row, depth + 1)?.ok_or_else(|| ParseError("measure has no defining scheme".into()))?;
+            let graph = row.get("total_body").ok_or_else(|| ParseError("measure has no total body".into()))?;
+            let graph = crate::total::CheckedGraph::from_json(&graph.to_canonical_string()).map_err(|e| ParseError(e.0))?;
+            if graph.get(&identity).is_none() || graph.closure([identity.as_str()]).map_err(|e| ParseError(e.0))? != graph {
+                return Err(ParseError("measure body must contain exactly its defining root closure".into()))
+            }
+            measures.push(MeasureContract { identity, resolved: Box::new(resolved), total_body: graph });
+        }
+    }
+    Ok(Some(ResolvedScheme { scheme, nominals, measures }))
 }
 
 fn field_parameters(o: &BTreeMap<String, JsonValue>) -> Result<Vec<ParameterExport>, ParseError> {
@@ -1931,6 +1989,7 @@ mod tests {
             iface_hash: "deadbeef".into(),
         });
         f.exports.values.push(ValueExport {
+            total_body: None,
             name: "main".into(),
             scheme: "Int".into(),
             resolved: None,
@@ -1938,6 +1997,7 @@ mod tests {
             arity: 0,
         });
         f.exports.values.push(ValueExport {
+            total_body: None,
             name: "plus".into(),
             scheme: "forall a. using (add :: Add a) => a -> a -> a".into(),
             resolved: None,

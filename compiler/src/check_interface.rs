@@ -8,6 +8,7 @@ struct DefinitionScheme {
     text: String,
     references: std::collections::BTreeSet<(String, String)>,
     con_params: Vec<(String, usize)>,
+    measure_calls: std::collections::BTreeSet<String>,
 }
 
 // Every portable predicate binder retains its actual checked carrier sort.
@@ -18,6 +19,8 @@ enum InterfaceIndexSort { Mathematical, Machine, Bytes }
 #[derive(Default)]
 struct InterfaceIndexScope {
     locals: std::collections::BTreeMap<String, InterfaceIndexSort>,
+    allow_measures: bool,
+    measure_calls: std::cell::RefCell<std::collections::BTreeSet<String>>,
 }
 
 impl Checker {
@@ -43,7 +46,30 @@ impl Checker {
         }
     }
 
-    fn portable_index(term: &ITerm, scope: &InterfaceIndexScope) -> Option<(ITerm, InterfaceIndexSort)> {
+    fn interface_measure_signature(&self, identity: &str) -> Option<(Vec<InterfaceIndexSort>, InterfaceIndexSort)> {
+        let value = self.qualified.values().find(|value| fn_id(&value.module, &value.name).0 == identity)?;
+        let sc = &value.scheme;
+        if !sc.params.is_empty() || !sc.idx_params.is_empty() || !sc.val_params.is_empty()
+            || !sc.prop_params.is_empty() || !sc.region_params.is_empty() || !sc.row_params.is_empty()
+            || !sc.ctx.is_empty() || !sc.obligs.is_empty() { return None }
+        let convert = |ty: &Ty| match ty {
+            Ty::Nat | Ty::Int => Some(InterfaceIndexSort::Mathematical),
+            Ty::Prim(Scalar::I64) => Some(InterfaceIndexSort::Machine),
+            _ => None,
+        };
+        let mut ty = &sc.ty;
+        let mut parameters = Vec::new();
+        while let Ty::Fun(domain, _, row, result) = ty {
+            if !row.is_pure() { return None }
+            parameters.push(convert(domain)?);
+            ty = result;
+        }
+        let result = self.interface_index_sort(ty, &mut Vec::new())?;
+        if result == InterfaceIndexSort::Bytes { return None }
+        Some((parameters, result))
+    }
+
+    fn portable_index(&self, term: &ITerm, scope: &InterfaceIndexScope) -> Option<(ITerm, InterfaceIndexSort)> {
         use InterfaceIndexSort::*;
         Some(match term {
             ITerm::Var(n) => {
@@ -53,8 +79,8 @@ impl Checker {
             }
             ITerm::Num(_) => (term.clone(), Mathematical),
             ITerm::Bin(op, a, b) => {
-                let (left, ls) = Self::portable_index(a, scope)?;
-                let (right, rs) = Self::portable_index(b, scope)?;
+                let (left, ls) = self.portable_index(a, scope)?;
+                let (right, rs) = self.portable_index(b, scope)?;
                 if ls != Mathematical || rs != Mathematical { return None }
                 (ITerm::Bin(*op, Box::new(left), Box::new(right)), Mathematical)
             }
@@ -63,27 +89,40 @@ impl Checker {
                 if scope.locals.get(n) != Some(&Bytes) { return None }
                 (ITerm::app_fn("b.bytesLen", vec![ITerm::Var(n.clone())]), Mathematical)
             }
+            ITerm::App(f, args) if scope.allow_measures => {
+                let ITerm::Fn(identity) = &**f else { return None };
+                let (parameters, result) = self.interface_measure_signature(identity)?;
+                if parameters.len() != args.len() { return None }
+                let mut arguments = Vec::new();
+                for (argument, expected) in args.iter().zip(parameters) {
+                    let (value, actual) = self.portable_index(argument, scope)?;
+                    if actual != expected { return None }
+                    arguments.push(value);
+                }
+                scope.measure_calls.borrow_mut().insert(identity.clone());
+                (ITerm::app_fn(identity.clone(), arguments), result)
+            }
             _ => return None,
         })
     }
 
-    fn portable_predicate(term: &PTerm, scope: &InterfaceIndexScope, negation: bool) -> Option<PTerm> {
+    fn portable_predicate(&self, term: &PTerm, scope: &InterfaceIndexScope, negation: bool) -> Option<PTerm> {
         Some(match term {
             PTerm::Cmp(op, a, b) => PTerm::Cmp(*op,
-                Box::new(Self::portable_index(a, scope)?.0),
-                Box::new(Self::portable_index(b, scope)?.0)),
+                Box::new(self.portable_index(a, scope)?.0),
+                Box::new(self.portable_index(b, scope)?.0)),
             PTerm::Eq(a, b) if negation => PTerm::Eq(
-                Box::new(Self::portable_index(a, scope)?.0),
-                Box::new(Self::portable_index(b, scope)?.0)),
+                Box::new(self.portable_index(a, scope)?.0),
+                Box::new(self.portable_index(b, scope)?.0)),
             PTerm::And(a, b) => PTerm::And(
-                Box::new(Self::portable_predicate(a, scope, negation)?),
-                Box::new(Self::portable_predicate(b, scope, negation)?)),
+                Box::new(self.portable_predicate(a, scope, negation)?),
+                Box::new(self.portable_predicate(b, scope, negation)?)),
             PTerm::Or(a, b) => PTerm::Or(
-                Box::new(Self::portable_predicate(a, scope, negation)?),
-                Box::new(Self::portable_predicate(b, scope, negation)?)),
-            PTerm::Not(p) if negation => PTerm::Not(Box::new(Self::portable_predicate(p, scope, true)?)),
+                Box::new(self.portable_predicate(a, scope, negation)?),
+                Box::new(self.portable_predicate(b, scope, negation)?)),
+            PTerm::Not(p) if negation => PTerm::Not(Box::new(self.portable_predicate(p, scope, true)?)),
             PTerm::Pred(PredFn::NonZero, value) => PTerm::Pred(PredFn::NonZero,
-                Box::new(Self::portable_index(value, scope)?.0)),
+                Box::new(self.portable_index(value, scope)?.0)),
             _ => return None,
         })
     }
@@ -211,7 +250,7 @@ impl Checker {
             }
         }
         if context.len() != scheme.ctx.len() || predicate_count != scheme.obligs.len() { return }
-        let Some(predicates) = self.resolved_numeric_preconditions(body, scheme) else { return };
+        let Some((predicates, measure_calls)) = self.resolved_numeric_preconditions(body, scheme) else { return };
         context.extend(predicates);
         let text = if class_target { self.resolved_source_class_type(body, scheme, &vars, &mut references) }
             else { self.resolved_checked_source_type(body, &scheme.ty, scheme, &vars, &mut references, &[]) };
@@ -219,7 +258,7 @@ impl Checker {
         if !context.is_empty() { text = format!("using ({}) => {text}", context.join(", ")); }
         if !prefix.is_empty() { text = format!("forall {}. {text}", prefix.join(" ")); }
         self.interface_source_schemes.insert((module.to_string(), name.to_string()), DefinitionScheme {
-            text, references, con_params: scheme.con_params.clone(),
+            text, references, con_params: scheme.con_params.clone(), measure_calls,
         });
     }
 
@@ -396,7 +435,7 @@ impl Checker {
                     self.bind_interface_index(&mut scope, name, ty);
                 }
             }
-            let predicate = Self::portable_predicate(&predicate, &scope, false)?;
+            let predicate = self.portable_predicate(&predicate, &scope, false)?;
             return Some(format!("(refined ({predicate}) {carrier_text})"));
         }
         match (source, checked) {
@@ -435,10 +474,11 @@ impl Checker {
     // Use the checked predicates, whose argument positions are normalized
     // to $aN by conv_scheme. Rebind only actual computational arguments.
     // Exporting a conditional signature must not guess from display text.
-    fn resolved_numeric_preconditions(&self, mut source: &ast::Type, scheme: &Scheme) -> Option<Vec<String>> {
+    fn resolved_numeric_preconditions(&self, mut source: &ast::Type, scheme: &Scheme) -> Option<(Vec<String>, std::collections::BTreeSet<String>)> {
         let mut checked = &scheme.ty;
         let mut names: Vec<Option<String>> = Vec::new();
         let mut scope = InterfaceIndexScope::default();
+        scope.allow_measures = true;
         loop {
             let (name, result) = match source {
                 ast::Type::DepFun(name, _, None, _, result, _) => (Some(name.text.clone()), &**result),
@@ -467,9 +507,9 @@ impl Checker {
                     rebound = rebound.subst(&format!("$a{position}"), &ITerm::Var(name.clone()));
                 }
             }
-            out.push(Self::portable_predicate(&rebound, &scope, false)?.to_string());
+            out.push(self.portable_predicate(&rebound, &scope, false)?.to_string());
         }
-        Some(out)
+        Some((out, scope.measure_calls.into_inner()))
     }
 
     fn resolved_kernel_effect_row(&self, row: &ast::EffectRow, scheme: &Scheme, vars: &[String]) -> Option<String> {
@@ -515,12 +555,26 @@ impl Checker {
         }
         Some(crate::interface::RefinementExport {
             binder: r.binder.clone(), carrier,
-            predicate: Self::portable_predicate(&r.pred, &scope, true)?.to_string(),
+            predicate: self.portable_predicate(&r.pred, &scope, true)?.to_string(),
         })
     }
 
     fn resolved_interface_scheme(&self, module: &str, name: &str) -> Option<crate::interface::ResolvedScheme> {
         let source = self.interface_source_schemes.get(&(module.to_string(), name.to_string()))?;
+        // Identities were captured by checked definition-site conversion.
+        // Finalization reads those actual values, never re-resolves a source
+        // spelling in the emitter's current module. No scheme recursion is
+        // licensed by this first closed measure tier.
+        let mut measures = Vec::new();
+        for identity in &source.measure_calls {
+            let value = self.qualified.values().find(|value| fn_id(&value.module, &value.name).0 == *identity)?;
+            let defining = self.interface_source_schemes.get(&(value.module.clone(), value.name.clone()))?;
+            if !defining.measure_calls.is_empty() { return None }
+            let total_body = self.interface_value_body(value)?;
+            let resolved = self.resolved_interface_scheme(&value.module, &value.name)?;
+            measures.push(crate::interface::MeasureContract { identity: identity.clone(), resolved: Box::new(resolved), total_body });
+        }
+
         let mut nominals = Vec::new();
         for (module, name) in &source.references {
             let info = self.types.get(name)?.iter().find(|t| &t.module == module)?;
@@ -543,6 +597,6 @@ impl Checker {
                 constructors: if refined || signature || info.opaque { None } else { Some(info.ctors.iter().map(|(c, _)| format!("{module}.{c}")).collect()) },
             });
         }
-        Some(crate::interface::ResolvedScheme { scheme: source.text.clone(), nominals })
+        Some(crate::interface::ResolvedScheme { scheme: source.text.clone(), nominals, measures })
     }
 }

@@ -112,9 +112,9 @@ fn the_loader_checks_emitted_interfaces_and_dependency_identities() {
     cycle_a.imports.push(IfaceRef { module: "CycleB".into(), iface_hash: "0".into() });
     cycle_b.imports.push(IfaceRef { module: "CycleA".into(), iface_hash: "0".into() });
     let cycle = vec![row(&dir, "cycle-a.cinchif", &cycle_a), row(&dir, "cycle-b.cinchif", &cycle_b)];
-    let nominal_value = |symbol: &str, identity: &str, constructors: Vec<String>| ValueExport {
+    let nominal_value = |symbol: &str, identity: &str, constructors: Vec<String>| ValueExport { total_body: None,
         name: symbol.into(), symbol: format!("Origin.{symbol}"), scheme: "Hidden".into(), arity: 0,
-        resolved: Some(ResolvedScheme { scheme: identity.into(), nominals: vec![NominalContract { refinement: None,
+        resolved: Some(ResolvedScheme { measures: vec![], scheme: identity.into(), nominals: vec![NominalContract { refinement: None,
             identity: identity.into(), kind: "data".into(), parameters: vec![], constructors: Some(constructors),
         }] }),
     };

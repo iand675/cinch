@@ -9,7 +9,7 @@ module Bootstrap.Nominal where
   import Algebra.Semigroup
 
   export interface-global, resolved-entry-valid, resolved-nominals
-  export resolved-text, qualify-resolved, kernel-type-name, qualify-refinement-predicate
+  export resolved-text, qualify-resolved, kernel-type-name, qualify-refinement-predicate, resolved-measures
 
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
@@ -67,9 +67,34 @@ module Bootstrap.Nominal where
   resolved-entry-valid :: Json -> Bool
   resolved-entry-valid metadata = present "resolved" metadata && (case field "resolved" metadata of
     JNull -> True
-    row -> nonempty (field "scheme" row) && valid-nominals (field "nominals" row) Nil)
+    row -> nonempty (field "scheme" row) && valid-nominals (field "nominals" row) Nil && valid-measures (field "measures" row) Nil)
   resolved-nominals :: Json -> Json
-  resolved-nominals metadata = case field "resolved" metadata of JNull -> JArrEnd; row -> field "nominals" row
+  resolved-nominals metadata = case field "resolved" metadata of JNull -> JArrEnd; row -> append-rows (field "nominals" row) (measure-nominals (field "measures" row))
+  append-rows :: Json -> Json -> Json
+  append-rows first second = case first of JArr row rest -> JArr row (append-rows rest second); other -> second
+  resolved-measures :: Json -> Json
+  resolved-measures metadata = case field "measures" (field "resolved" metadata) of JNull -> JArrEnd; rows -> rows
+  measure-nominals :: Json -> Json
+  measure-nominals rows = case rows of JArr row rest -> append-rows (field "nominals" (field "resolved" row)) (measure-nominals rest); other -> JArrEnd
+  valid-measures :: Json -> List String -> Bool
+  valid-measures rows seen = case rows of
+    JArr row rest -> let identity = text (field "identity" row) in
+      string-length identity > 0 && not (has identity seen) && nonempty (field "scheme" (field "resolved" row))
+      && valid-nominals (field "nominals" (field "resolved" row)) Nil
+      && (case field "measures" (field "resolved" row) of JNull -> True; JArrEnd -> True; other -> False)
+      && present "total_body" row && (case field "total_body" row of JNull -> False; other -> True)
+      && valid-measures rest (Cons identity seen)
+    JArrEnd -> True
+    JNull -> True
+    other -> False
+  measure-references :: Json -> Json
+  measure-references rows = case rows of
+    JArr row rest -> JArr (JObj "identity" (field "identity" row) (JObj "kind" (JStr "measure") JObjEnd)) (measure-references rest)
+    other -> JArrEnd
+  measure-reference :: String -> Json -> Bool
+  measure-reference name rows = case rows of
+    JArr row rest -> (same name (text (field "identity" row)) && same "measure" (text (field "kind" row))) || measure-reference name rest
+    other -> False
   resolved-text :: Json -> Option String
   resolved-text metadata = case field "scheme" (field "resolved" metadata) of JStr scheme -> Some scheme; other -> None
   contains-identity :: String -> Json -> Bool
@@ -183,7 +208,7 @@ module Bootstrap.Nominal where
       else fail s "resolved effect label has an unknown identity or region"
     other -> fail (type-expr-span label) "resolved effect label needs region elaboration"
   qualify-resolved :: Json -> TypeExpr -> (TypeExpr, List Diagnostic)
-  qualify-resolved metadata ty = if resolved-entry-valid metadata then qualify (resolved-nominals metadata) Nil ty
+  qualify-resolved metadata ty = if resolved-entry-valid metadata then qualify (append-rows (resolved-nominals metadata) (measure-references (resolved-measures metadata))) Nil ty
     else fail (type-expr-span ty) "invalid resolved nominal contract"
 
   contract-argument-names :: TypeExpr -> List String
@@ -207,7 +232,12 @@ module Bootstrap.Nominal where
         (value, errors) -> (TApp sp (TName at "#kernel.bytes-length") (TArg arg value (TArgsEnd end)), errors))
       else if same name "NonZero" then (case qualify-predicate refs locals input of
         (value, errors) -> (TApp sp (TName at name) (TArg arg value (TArgsEnd end)), errors))
+      else if measure-reference name refs then (case qualify-predicate-args refs locals (TArg arg input (TArgsEnd end)) of
+        (arguments, errors) -> (TApp sp (TName at (interface-global name)) arguments, errors))
       else fail sp "resolved predicate needs checked mathematical operands"
+    TApp sp (TName at name) arguments -> if measure-reference name refs then (case qualify-predicate-args refs locals arguments of
+      (values, errors) -> (TApp sp (TName at (interface-global name)) values, errors))
+      else fail sp "resolved predicate application has no defining measure contract"
     TName s name -> if same name "True" || same name "False" then (syntax, Nil) else qualify-name refs locals s name
     TIndex s text -> (syntax, Nil)
     TNegate s body -> case qualify-predicate refs locals body of (out, errors) -> (TNegate s out, errors)
@@ -221,3 +251,10 @@ module Bootstrap.Nominal where
   -- Decode its kernel operations using the same rule as resolved schemes.
   qualify-refinement-predicate :: List String -> TypeExpr -> (TypeExpr, List Diagnostic)
   qualify-refinement-predicate locals syntax = qualify-predicate JArrEnd locals syntax
+
+  qualify-predicate-args :: Json -> List String -> TypeExpr -> (TypeExpr, List Diagnostic)
+  qualify-predicate-args refs locals arguments = case arguments of
+    TArgsEnd sp -> (arguments, Nil)
+    TArg sp first rest -> (case (qualify-predicate refs locals first, qualify-predicate-args refs locals rest) of
+      ((value, errors), (more, others)) -> (TArg sp value more, errors <> others))
+    other -> fail (type-expr-span arguments) "invalid defining measure argument spine"

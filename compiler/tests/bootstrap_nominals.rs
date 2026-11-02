@@ -55,10 +55,10 @@ fn imported_nominals_are_checked_with_defining_identities_in_cinch() {
     rows.push(format!("[{},{},{}]", quote("WrongArity"), quote(&wrong_arity.iface_hash()), quote(&path.display().to_string())));
     for (module, scheme, resolved) in [
         ("DisplayOnly", "String", None),
-        ("Unbound", "Int", Some(ResolvedScheme { scheme: "Missing.Token".into(), nominals: vec![] })),
+        ("Unbound", "Int", Some(ResolvedScheme { measures: vec![], scheme: "Missing.Token".into(), nominals: vec![] })),
     ] {
         let mut iface = Iface::new(module, "");
-        iface.exports.values.push(ValueExport { name: "value".into(), symbol: format!("{module}.value"), scheme: scheme.into(), resolved, arity: 0 });
+        iface.exports.values.push(ValueExport { total_body: None, name: "value".into(), symbol: format!("{module}.value"), scheme: scheme.into(), resolved, arity: 0 });
         let path = dir.join(format!("{module}.cinchif"));
         std::fs::write(&path, iface.to_json()).unwrap();
         rows.push(format!("[{},{},{}]", quote(module), quote(&iface.iface_hash()), quote(&path.display().to_string())));
@@ -79,9 +79,9 @@ fn imported_nominals_are_checked_with_defining_identities_in_cinch() {
             iface.imports.push(IfaceRef { module: "A".into(), iface_hash: a.iface_hash() });
             vec![NominalContract { refinement: None, identity: "A.Token".into(), kind: "data".into(), parameters: vec![], constructors: Some(vec!["A.Mk".into()]) }]
         } else { vec![] };
-        iface.exports.values.push(ValueExport {
+        iface.exports.values.push(ValueExport { total_body: None,
             name: "value".into(), symbol: format!("{module}.value"), scheme: scheme.into(), arity: 1,
-            resolved: Some(ResolvedScheme { scheme: scheme.into(), nominals }),
+            resolved: Some(ResolvedScheme { measures: vec![], scheme: scheme.into(), nominals }),
         });
         let path = dir.join(format!("{module}.cinchif"));
         std::fs::write(&path, iface.to_json()).unwrap();
@@ -104,7 +104,7 @@ fn imported_nominals_are_checked_with_defining_identities_in_cinch() {
             ctors: vec![CtorExport {
                 name: "Pack".into(), symbol: symbol.clone(), tag: 0,
                 scheme: format!("forall (a :: Type). {body}"), fields: vec!["a".into()], erased: vec![false],
-                resolved: Some(ResolvedScheme { scheme: format!("forall (a :: Type). {body}"), nominals: vec![NominalContract { refinement: None,
+                resolved: Some(ResolvedScheme { measures: vec![], scheme: format!("forall (a :: Type). {body}"), nominals: vec![NominalContract { refinement: None,
                     identity, kind: "data".into(), parameters, constructors: Some(vec![symbol]),
                 }] }),
             }],

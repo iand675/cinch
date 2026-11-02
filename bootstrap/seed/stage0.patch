@@ -393,7 +393,7 @@
          }
      }
  }
-@@ -2664,6 +2666,12 @@
+@@ -2664,6 +2666,14 @@
      param_inst_defs: HashMap<(String, String), crate::core::InstanceDef>,
      /// Each module's own fixity declarations, for its interface.
      module_fixities: Vec<(String, crate::interface::FixityExport)>,
@@ -403,10 +403,12 @@
 +    /// Captured while checking each source signature, before nominal
 +    /// definition identities disappear from the legacy `Ty` spelling.
 +    interface_source_schemes: HashMap<(String, String), DefinitionScheme>,
++    interface_total_bodies: std::collections::BTreeMap<String, crate::total::PendingDefinition>,
++    interface_checked_bodies: Option<crate::total::CheckedGraph>,
      /// Each module's foreign declarations, for its interface.
      module_foreign: Vec<(String, crate::interface::ForeignExport)>,
      /// Real foreign binding contracts by unit name (foreign function
-@@ -3061,6 +3069,15 @@
+@@ -3061,6 +3071,15 @@
      GlobalId(format!("{module}.{name}"))
  }
  
@@ -422,16 +424,18 @@
  /// The named functions a proposition's index terms apply, with the
  /// argument count of each use (a bare reference is arity zero).
  fn index_heads(p: &PTerm, out: &mut Vec<(String, usize)>) {
-@@ -3193,6 +3210,8 @@
+@@ -3193,6 +3212,10 @@
              module_names: std::collections::HashSet::new(),
              param_inst_defs: HashMap::new(),
              module_fixities: Vec::new(),
 +            interface_binders: HashMap::new(),
 +            interface_source_schemes: HashMap::new(),
++            interface_total_bodies: std::collections::BTreeMap::new(),
++            interface_checked_bodies: None,
              module_foreign: Vec::new(),
              foreign_plans: Vec::new(),
              pending_foreign: Vec::new(),
-@@ -3575,6 +3594,7 @@
+@@ -3575,6 +3598,7 @@
      /// The integer sort of a named function's result applied to `arity`
      /// arguments (the head of an index-level application).
      fn fn_int_sort(&self, head: &str, arity: usize) -> Option<IntSort> {
@@ -439,7 +443,7 @@
          let (module, name) = head.rsplit_once('.')?;
          let v = self.qualified.get(&(module.to_string(), name.to_string()))?;
          let mut ty = v.scheme.ty.clone();
-@@ -3648,6 +3668,9 @@
+@@ -3648,6 +3672,9 @@
              }),
              ITerm::App(f, args) => {
                  let ITerm::Fn(h) = &**f else { return false };
@@ -449,7 +453,7 @@
                  let Some((module, name)) = h.rsplit_once('.') else { return false };
                  match self.qualified.get(&(module.to_string(), name.to_string())).map(|v| &v.kind) {
                      Some(ValueKind::Prim(op)) => {
-@@ -3704,6 +3727,14 @@
+@@ -3704,6 +3731,14 @@
          let mut apps = Vec::new();
          preds(p, &mut apps);
          for (head, args, term) in apps {
@@ -464,7 +468,7 @@
              let Some((module, name)) = head.rsplit_once('.') else { continue };
              let Some(v) = self.qualified.get(&(module.to_string(), name.to_string())) else { continue };
              let mut ty = v.scheme.ty.clone();
-@@ -4906,6 +4937,7 @@
+@@ -4906,6 +4941,7 @@
                      ))
                  }
              },
@@ -472,7 +476,7 @@
              ITerm::Fn(g) => {
                  self.check_executable(&g, span)?;
                  ECore::Global(GlobalId(g), Vec::new())
-@@ -5843,7 +5875,7 @@
+@@ -5843,7 +5879,7 @@
                  }
              });
              match found {
@@ -481,7 +485,7 @@
                  Err(_) => {
                      return Err(Error::at(
                          span,
-@@ -6058,7 +6090,7 @@
+@@ -6058,7 +6094,7 @@
                              // A measure atom over any container: the
                              // binder may appear only under the baked
                              // measures (`length xs > 100`).
@@ -490,7 +494,7 @@
                                  Ok(())
                              } else {
                                  Err(Error::at(
-@@ -7460,6 +7492,7 @@
+@@ -7460,6 +7496,7 @@
                          .collect();
                      let constraints = self.kind_constraints.borrow().clone();
                      let mut type_params: Vec<String> = Vec::new();
@@ -498,7 +502,7 @@
                      let mut val_params: Vec<(String, Ty)> = Vec::new();
                      let mut prop_params: Vec<String> = Vec::new();
                      for (name, hint, span) in binders {
-@@ -7469,12 +7502,17 @@
+@@ -7469,12 +7506,17 @@
                          let kind =
                              self.resolve_binder_kind(&name, hint.as_ref(), &constraints, span)?;
                          match kind {
@@ -518,7 +522,7 @@
                          params: type_params,
                          idx_params: Vec::new(),
                          val_params,
-@@ -7484,9 +7522,199 @@
+@@ -7484,9 +7526,199 @@
                          ctx,
                          obligs,
                          ty: Self::positional_results(&t, 0),
@@ -721,11 +725,12 @@
          }
      }
  
-@@ -9151,3 +9379,4 @@
+@@ -9151,3 +9383,5 @@
  // `check_decls.rs`. Both are included at module scope.
  include!("check_terms.rs");
  include!("check_decls.rs");
 +include!("check_interface.rs");
++include!("check_total.rs");
 --- a/compiler/src/check_decls.rs
 +++ b/compiler/src/check_decls.rs
 @@ -53,7 +53,7 @@
@@ -1086,7 +1091,55 @@
                  });
                  self.instances.entry(bi.target.class.clone()).or_default().push(idx);
                  unit_insts.push(UnitInst { inst_name: bi.name.clone() });
-@@ -9954,6 +10037,7 @@
+@@ -6504,7 +6587,7 @@
+             );
+             self.current_logical = None;
+             self.cur_tparams = tparams;
+-            return self.finish_fn(id.clone(), param_ids, body, None, None, true, meta);
++            return self.finish_fn(id.clone(), param_ids, body, None, None, true, meta, None);
+         }
+         self.pending_refs.clear();
+         self.current_logical = None;
+@@ -6518,7 +6601,8 @@
+             );
+         }
+         self.cur_tparams = tparams;
+-        self.finish_fn(id.clone(), param_ids, body, None, None, false, meta)
++        let total_result = self.total_sort(&self.uni.zonk(&rest), &mut Vec::new());
++        self.finish_fn(id.clone(), param_ids, body, None, None, false, meta, total_result)
+     }
+ 
+     /// Structural termination for the logical fragment (core
+@@ -6685,6 +6769,7 @@
+         ctor: Option<(usize, usize)>,
+         erased: bool,
+         meta: crate::core::FnMeta,
++        total_result: Option<crate::total::Sort>,
+     ) -> Result<()> {
+         let sol = self.solve_wants()?;
+         // Evidence invalidation over mutable state: regions unify during
+@@ -6723,6 +6808,9 @@
+                 self.fold_pass(core, &mid, true);
+             }
+             self.fold_pass(&mut body, &id.0.clone(), true);
++        }
++        if !erased && prim.is_none() && ctor.is_none() && meta.pure && !meta.prim_body {
++            if let Some(result) = total_result { self.remember_total_body(&id, &param_ids, result, &body); }
+         }
+         let mut hoisted = Vec::new();
+         hoist_lambdas(&mut body, &id.0, &mut self.lam_counter, &mut hoisted);
+@@ -9231,8 +9319,10 @@
+             });
+             main_exit = Some(exit_id);
+         }
++        let total_bodies = self.interface_checked_bodies.clone().unwrap_or_else(|| self.checked_total_bodies());
+         let (plans, foreigns) = self.build_abi_maps();
+         Ok(Program {
++            total_bodies,
+             fns: self.fns,
+             instances: self.instance_defs,
+             main: main_exit,
+@@ -9954,6 +10044,7 @@
              abi: "ccall".to_string(),
              external: f.symbol.clone(),
              ty: render_scheme(&Scheme {
@@ -1094,7 +1147,7 @@
              obligs: Vec::new(),
                  params: Vec::new(),
                  idx_params: Vec::new(),
-@@ -14734,17 +14818,31 @@
+@@ -14734,17 +14825,31 @@
      }
  }
  
@@ -1132,7 +1185,7 @@
          .chain(s.row_params.iter().cloned())
          .chain(s.region_params.iter().cloned())
          .collect();
-@@ -14756,20 +14854,131 @@
+@@ -14756,20 +14861,131 @@
          }
          out.push_str(". ");
      }
@@ -1270,7 +1323,7 @@
  }
  
  /// A module's declared import names, keyed by their full dotted names.
-@@ -15011,6 +15220,7 @@
+@@ -15011,6 +15227,7 @@
          let pending = std::mem::take(&mut self.pending_instance_heads);
          for (module, inst) in pending {
              self.build_scope(&module, false);
@@ -1278,7 +1331,7 @@
              let params: Vec<String> = inst.params.iter().map(|p| p.text.clone()).collect();
              let mut ctx: Vec<InstCtx> = Vec::new();
              for c in &inst.ctx {
-@@ -15034,6 +15244,7 @@
+@@ -15034,6 +15251,7 @@
                      return Err(e);
                  }
              };
@@ -1286,7 +1339,7 @@
              if class == "Copy" {
                  return Err(Error::at(
                      inst.span,
-@@ -15069,6 +15280,7 @@
+@@ -15069,6 +15287,7 @@
              // quantifier, no constraint, and its type must be the class
              // method's at this instance (checked with the body).
              let mut method_obligs: Vec<(usize, String, Vec<PTerm>)> = Vec::new();
@@ -1294,7 +1347,7 @@
              for (mname, mty) in &inst.method_sigs {
                  let midx = self.sigs.get(&class).and_then(|ss| {
                      ss.iter().find_map(|s| s.methods.iter().position(|(m, _)| *m == mname.text))
-@@ -15112,10 +15324,11 @@
+@@ -15112,10 +15331,11 @@
                      ));
                  }
                  method_obligs.push((midx, mname.text.clone(), preds));
@@ -1307,7 +1360,7 @@
                  module: module.clone(),
                  name: inst.name.text.clone(),
                  params,
-@@ -15128,7 +15341,10 @@
+@@ -15128,7 +15348,10 @@
                  // published per instantiation.
                  base: self.param_modules.contains(&module),
                  method_obligs,
@@ -1319,7 +1372,7 @@
              self.instances.entry(class).or_default().push(idx);
          }
          Ok(())
-@@ -15212,12 +15428,64 @@
+@@ -15212,12 +15435,64 @@
          Ok(())
      }
  
@@ -1384,7 +1437,7 @@
      ) -> crate::interface::Iface {
          use crate::interface::*;
          let mut iface = Iface::new(module, source_hash);
-@@ -15230,9 +15498,9 @@
+@@ -15230,9 +15505,9 @@
          // The export surface (surface grammar local amendments section
          // 11): with `export` declarations exactly the names their items
          // resolve to, re-exports included; the declared names as before
@@ -1397,7 +1450,7 @@
          let mut surface: Vec<(String, SurfaceName)> = match self.module_surface.get(module) {
              Some(sm) => sm
                  .iter()
-@@ -15256,10 +15524,11 @@
+@@ -15256,10 +15531,12 @@
          for (local, d) in &surface {
              if let Some(v) = self.qualified.get(&(d.module.clone(), d.name.clone())) {
                  match &v.kind {
@@ -1405,12 +1458,13 @@
 +                    ValueKind::TopFn | ValueKind::Prim(_) | ValueKind::PrimDecl { .. } | ValueKind::Foreign { .. } => {
                          iface.exports.values.push(ValueExport {
                              name: local.clone(),
++                            total_body: self.interface_value_body(v),
                              scheme: render_scheme(&v.scheme),
 +                            resolved: self.resolved_interface_scheme(&d.module, &d.name),
                              symbol: format!("{}.{}", d.module, d.name),
                              arity: (v.scheme.ty.arity()
                                  + v.scheme.ctx.len()
-@@ -15357,6 +15626,9 @@
+@@ -15357,6 +15634,9 @@
                              }) {
                                  ctors.push(CtorExport {
                                      name: ctor_local.clone(),
@@ -1420,7 +1474,7 @@
                                      tag: *tag as u64,
                                      fields: fields.clone(),
                                      erased: field_erased.clone(),
-@@ -15373,12 +15645,31 @@
+@@ -15373,12 +15653,31 @@
                          params = r.params.clone();
                      }
                  }
@@ -1453,7 +1507,7 @@
                  });
                  // Computed layout facts (attribute annotations
                  // specification section 4.3): part of the contract
-@@ -15399,67 +15690,37 @@
+@@ -15399,67 +15698,37 @@
                  layout.name = local.clone();
                  iface.layouts.push(layout);
              }
@@ -1542,7 +1596,7 @@
                  ctx: i
                      .ctx
                      .iter()
-@@ -15475,9 +15736,68 @@
+@@ -15475,9 +15744,68 @@
                  implicit: i.implicit,
              });
          }
@@ -1614,7 +1668,7 @@
              }
          }
          let mut prims = Vec::new();
-@@ -15549,10 +15869,155 @@
+@@ -15549,10 +15877,155 @@
      }
  }
  
@@ -1771,7 +1825,12 @@
  /// declarations) for the artifact manifest.
  pub fn check_program_multi(
      prelude: &[ast::Module],
-@@ -15924,7 +16389,7 @@
+@@ -15921,10 +16394,12 @@
+     // verify against the checked program's D104 groups before any
+     // interface is emitted (decisions D112-D114).
+     let safety_records = std::mem::take(&mut c.safety_records);
++    // Body-dependent contracts are finalized only after all checked bodies.
++    c.interface_checked_bodies = Some(c.checked_total_bodies());
      // Interfaces in dependency order: imports are known when built.
      let mut ifaces = Vec::new();
      let mut built: Vec<(String, String)> = Vec::new(); // (module, iface_hash)
@@ -1780,7 +1839,7 @@
          let mut refs: Vec<(String, String)> = Vec::new();
          for i in imports {
              if refs.iter().any(|(m, _)| m == i) {
-@@ -15938,24 +16403,25 @@
+@@ -15938,24 +16413,25 @@
              .get(module)
              .cloned()
              .unwrap_or_default();
@@ -1820,7 +1879,7 @@
      }
      let diags = std::mem::take(&mut c.diags);
      // P21's probe (the REPL is backed by the analysis layer): evaluate
-@@ -18747,7 +19213,13 @@
+@@ -18747,7 +19223,13 @@
          use crate::core::{ArithMode, ArithOp, BitOp, CmpOp, IntOp, NatOp, PrimOp, ShiftOp};
          match op {
              PrimOp::Nat(nat) => {
@@ -1835,7 +1894,7 @@
                  let b = if args.len() > 1 { big_of(&args[1], "`Nat`")? } else { Big::zero() };
                  Ok(match nat {
                      NatOp::Add => big_value(a.add(&b), true),
-@@ -18786,7 +19258,11 @@
+@@ -18786,7 +19268,11 @@
                  })
              }
              PrimOp::Int(int) => {
@@ -1848,7 +1907,7 @@
                  let b = if args.len() > 1 { big_of(&args[1], "`Int`")? } else { Big::zero() };
                  Ok(match int {
                      IntOp::Add => big_value(a.add(&b), false),
-@@ -18814,6 +19290,16 @@
+@@ -18814,6 +19300,16 @@
                          big_value(a, true)
                      }
                  })
@@ -1865,7 +1924,7 @@
              }
              PrimOp::EqBool => Ok(Value::Bool(
                  (word_of(&args[0], "`Bool`")? != 0) == (word_of(&args[1], "`Bool`")? != 0),
-@@ -20654,6 +21140,7 @@
+@@ -20654,6 +21150,7 @@
                  ctx.push((format!("c{i}"), ClassApp { class: class.class, args }));
              }
              crate::types::Scheme {
@@ -1875,7 +1934,7 @@
                  idx_params: Vec::new(),
 --- /dev/null
 +++ b/compiler/src/check_interface.rs
-@@ -0,0 +1,548 @@
+@@ -0,0 +1,602 @@
 +// Definition-site contracts for rank-one values and class dictionaries.
 +// Kernel regions and closed builtin effects retain their checked syntax.
 +// Unsupported dependent and open-row schemes keep `resolved: null`.
@@ -1886,6 +1945,7 @@
 +    text: String,
 +    references: std::collections::BTreeSet<(String, String)>,
 +    con_params: Vec<(String, usize)>,
++    measure_calls: std::collections::BTreeSet<String>,
 +}
 +
 +// Every portable predicate binder retains its actual checked carrier sort.
@@ -1896,6 +1956,8 @@
 +#[derive(Default)]
 +struct InterfaceIndexScope {
 +    locals: std::collections::BTreeMap<String, InterfaceIndexSort>,
++    allow_measures: bool,
++    measure_calls: std::cell::RefCell<std::collections::BTreeSet<String>>,
 +}
 +
 +impl Checker {
@@ -1921,7 +1983,30 @@
 +        }
 +    }
 +
-+    fn portable_index(term: &ITerm, scope: &InterfaceIndexScope) -> Option<(ITerm, InterfaceIndexSort)> {
++    fn interface_measure_signature(&self, identity: &str) -> Option<(Vec<InterfaceIndexSort>, InterfaceIndexSort)> {
++        let value = self.qualified.values().find(|value| fn_id(&value.module, &value.name).0 == identity)?;
++        let sc = &value.scheme;
++        if !sc.params.is_empty() || !sc.idx_params.is_empty() || !sc.val_params.is_empty()
++            || !sc.prop_params.is_empty() || !sc.region_params.is_empty() || !sc.row_params.is_empty()
++            || !sc.ctx.is_empty() || !sc.obligs.is_empty() { return None }
++        let convert = |ty: &Ty| match ty {
++            Ty::Nat | Ty::Int => Some(InterfaceIndexSort::Mathematical),
++            Ty::Prim(Scalar::I64) => Some(InterfaceIndexSort::Machine),
++            _ => None,
++        };
++        let mut ty = &sc.ty;
++        let mut parameters = Vec::new();
++        while let Ty::Fun(domain, _, row, result) = ty {
++            if !row.is_pure() { return None }
++            parameters.push(convert(domain)?);
++            ty = result;
++        }
++        let result = self.interface_index_sort(ty, &mut Vec::new())?;
++        if result == InterfaceIndexSort::Bytes { return None }
++        Some((parameters, result))
++    }
++
++    fn portable_index(&self, term: &ITerm, scope: &InterfaceIndexScope) -> Option<(ITerm, InterfaceIndexSort)> {
 +        use InterfaceIndexSort::*;
 +        Some(match term {
 +            ITerm::Var(n) => {
@@ -1931,8 +2016,8 @@
 +            }
 +            ITerm::Num(_) => (term.clone(), Mathematical),
 +            ITerm::Bin(op, a, b) => {
-+                let (left, ls) = Self::portable_index(a, scope)?;
-+                let (right, rs) = Self::portable_index(b, scope)?;
++                let (left, ls) = self.portable_index(a, scope)?;
++                let (right, rs) = self.portable_index(b, scope)?;
 +                if ls != Mathematical || rs != Mathematical { return None }
 +                (ITerm::Bin(*op, Box::new(left), Box::new(right)), Mathematical)
 +            }
@@ -1941,27 +2026,40 @@
 +                if scope.locals.get(n) != Some(&Bytes) { return None }
 +                (ITerm::app_fn("b.bytesLen", vec![ITerm::Var(n.clone())]), Mathematical)
 +            }
++            ITerm::App(f, args) if scope.allow_measures => {
++                let ITerm::Fn(identity) = &**f else { return None };
++                let (parameters, result) = self.interface_measure_signature(identity)?;
++                if parameters.len() != args.len() { return None }
++                let mut arguments = Vec::new();
++                for (argument, expected) in args.iter().zip(parameters) {
++                    let (value, actual) = self.portable_index(argument, scope)?;
++                    if actual != expected { return None }
++                    arguments.push(value);
++                }
++                scope.measure_calls.borrow_mut().insert(identity.clone());
++                (ITerm::app_fn(identity.clone(), arguments), result)
++            }
 +            _ => return None,
 +        })
 +    }
 +
-+    fn portable_predicate(term: &PTerm, scope: &InterfaceIndexScope, negation: bool) -> Option<PTerm> {
++    fn portable_predicate(&self, term: &PTerm, scope: &InterfaceIndexScope, negation: bool) -> Option<PTerm> {
 +        Some(match term {
 +            PTerm::Cmp(op, a, b) => PTerm::Cmp(*op,
-+                Box::new(Self::portable_index(a, scope)?.0),
-+                Box::new(Self::portable_index(b, scope)?.0)),
++                Box::new(self.portable_index(a, scope)?.0),
++                Box::new(self.portable_index(b, scope)?.0)),
 +            PTerm::Eq(a, b) if negation => PTerm::Eq(
-+                Box::new(Self::portable_index(a, scope)?.0),
-+                Box::new(Self::portable_index(b, scope)?.0)),
++                Box::new(self.portable_index(a, scope)?.0),
++                Box::new(self.portable_index(b, scope)?.0)),
 +            PTerm::And(a, b) => PTerm::And(
-+                Box::new(Self::portable_predicate(a, scope, negation)?),
-+                Box::new(Self::portable_predicate(b, scope, negation)?)),
++                Box::new(self.portable_predicate(a, scope, negation)?),
++                Box::new(self.portable_predicate(b, scope, negation)?)),
 +            PTerm::Or(a, b) => PTerm::Or(
-+                Box::new(Self::portable_predicate(a, scope, negation)?),
-+                Box::new(Self::portable_predicate(b, scope, negation)?)),
-+            PTerm::Not(p) if negation => PTerm::Not(Box::new(Self::portable_predicate(p, scope, true)?)),
++                Box::new(self.portable_predicate(a, scope, negation)?),
++                Box::new(self.portable_predicate(b, scope, negation)?)),
++            PTerm::Not(p) if negation => PTerm::Not(Box::new(self.portable_predicate(p, scope, true)?)),
 +            PTerm::Pred(PredFn::NonZero, value) => PTerm::Pred(PredFn::NonZero,
-+                Box::new(Self::portable_index(value, scope)?.0)),
++                Box::new(self.portable_index(value, scope)?.0)),
 +            _ => return None,
 +        })
 +    }
@@ -2089,7 +2187,7 @@
 +            }
 +        }
 +        if context.len() != scheme.ctx.len() || predicate_count != scheme.obligs.len() { return }
-+        let Some(predicates) = self.resolved_numeric_preconditions(body, scheme) else { return };
++        let Some((predicates, measure_calls)) = self.resolved_numeric_preconditions(body, scheme) else { return };
 +        context.extend(predicates);
 +        let text = if class_target { self.resolved_source_class_type(body, scheme, &vars, &mut references) }
 +            else { self.resolved_checked_source_type(body, &scheme.ty, scheme, &vars, &mut references, &[]) };
@@ -2097,7 +2195,7 @@
 +        if !context.is_empty() { text = format!("using ({}) => {text}", context.join(", ")); }
 +        if !prefix.is_empty() { text = format!("forall {}. {text}", prefix.join(" ")); }
 +        self.interface_source_schemes.insert((module.to_string(), name.to_string()), DefinitionScheme {
-+            text, references, con_params: scheme.con_params.clone(),
++            text, references, con_params: scheme.con_params.clone(), measure_calls,
 +        });
 +    }
 +
@@ -2274,7 +2372,7 @@
 +                    self.bind_interface_index(&mut scope, name, ty);
 +                }
 +            }
-+            let predicate = Self::portable_predicate(&predicate, &scope, false)?;
++            let predicate = self.portable_predicate(&predicate, &scope, false)?;
 +            return Some(format!("(refined ({predicate}) {carrier_text})"));
 +        }
 +        match (source, checked) {
@@ -2313,10 +2411,11 @@
 +    // Use the checked predicates, whose argument positions are normalized
 +    // to $aN by conv_scheme. Rebind only actual computational arguments.
 +    // Exporting a conditional signature must not guess from display text.
-+    fn resolved_numeric_preconditions(&self, mut source: &ast::Type, scheme: &Scheme) -> Option<Vec<String>> {
++    fn resolved_numeric_preconditions(&self, mut source: &ast::Type, scheme: &Scheme) -> Option<(Vec<String>, std::collections::BTreeSet<String>)> {
 +        let mut checked = &scheme.ty;
 +        let mut names: Vec<Option<String>> = Vec::new();
 +        let mut scope = InterfaceIndexScope::default();
++        scope.allow_measures = true;
 +        loop {
 +            let (name, result) = match source {
 +                ast::Type::DepFun(name, _, None, _, result, _) => (Some(name.text.clone()), &**result),
@@ -2345,9 +2444,9 @@
 +                    rebound = rebound.subst(&format!("$a{position}"), &ITerm::Var(name.clone()));
 +                }
 +            }
-+            out.push(Self::portable_predicate(&rebound, &scope, false)?.to_string());
++            out.push(self.portable_predicate(&rebound, &scope, false)?.to_string());
 +        }
-+        Some(out)
++        Some((out, scope.measure_calls.into_inner()))
 +    }
 +
 +    fn resolved_kernel_effect_row(&self, row: &ast::EffectRow, scheme: &Scheme, vars: &[String]) -> Option<String> {
@@ -2393,12 +2492,26 @@
 +        }
 +        Some(crate::interface::RefinementExport {
 +            binder: r.binder.clone(), carrier,
-+            predicate: Self::portable_predicate(&r.pred, &scope, true)?.to_string(),
++            predicate: self.portable_predicate(&r.pred, &scope, true)?.to_string(),
 +        })
 +    }
 +
 +    fn resolved_interface_scheme(&self, module: &str, name: &str) -> Option<crate::interface::ResolvedScheme> {
 +        let source = self.interface_source_schemes.get(&(module.to_string(), name.to_string()))?;
++        // Identities were captured by checked definition-site conversion.
++        // Finalization reads those actual values, never re-resolves a source
++        // spelling in the emitter's current module. No scheme recursion is
++        // licensed by this first closed measure tier.
++        let mut measures = Vec::new();
++        for identity in &source.measure_calls {
++            let value = self.qualified.values().find(|value| fn_id(&value.module, &value.name).0 == *identity)?;
++            let defining = self.interface_source_schemes.get(&(value.module.clone(), value.name.clone()))?;
++            if !defining.measure_calls.is_empty() { return None }
++            let total_body = self.interface_value_body(value)?;
++            let resolved = self.resolved_interface_scheme(&value.module, &value.name)?;
++            measures.push(crate::interface::MeasureContract { identity: identity.clone(), resolved: Box::new(resolved), total_body });
++        }
++
 +        let mut nominals = Vec::new();
 +        for (module, name) in &source.references {
 +            let info = self.types.get(name)?.iter().find(|t| &t.module == module)?;
@@ -2421,7 +2534,7 @@
 +                constructors: if refined || signature || info.opaque { None } else { Some(info.ctors.iter().map(|(c, _)| format!("{module}.{c}")).collect()) },
 +            });
 +        }
-+        Some(crate::interface::ResolvedScheme { scheme: source.text.clone(), nominals })
++        Some(crate::interface::ResolvedScheme { scheme: source.text.clone(), nominals, measures })
 +    }
 +}
 --- a/compiler/src/check_terms.rs
@@ -2481,9 +2594,276 @@
                                      return Err(Error::at(
                                          sp.span(),
                                          format!(
+--- /dev/null
++++ b/compiler/src/check_total.rs
+@@ -0,0 +1,244 @@
++// Native producer for portable total bodies. Ordinary callable schemes and
++// class/slot spellings grant no semantics; resolve the actual closed method
++// field, then inspect its checked body and fixed primitive operations.
++impl Checker {
++    fn total_sort(&self, ty: &Ty, seen: &mut Vec<Ty>) -> Option<crate::total::Sort> {
++        use crate::total::Sort;
++        Some(match ty {
++            Ty::Nat => Sort::Nat,
++            Ty::Int => Sort::Int,
++            Ty::Bool => Sort::Bool,
++            Ty::Bytes => Sort::Bytes,
++            Ty::Prim(Scalar::I64) => Sort::I64,
++            Ty::Adt(..) if !seen.contains(ty) => {
++                seen.push(ty.clone());
++                let base = self.refine_view(ty)?.base?;
++                return self.total_sort(&base, seen);
++            }
++            _ => return None,
++        })
++    }
++    fn remember_total_body(&mut self, id: &GlobalId, parameters: &[LocalId], result: crate::total::Sort, body: &ECore) {
++        let parameters_sort = parameters.iter().map(|id| {
++            let ty = self.uni.zonk(self.local_tys.get(id)?);
++            self.total_sort(&ty, &mut Vec::new())
++        }).collect::<Option<Vec<_>>>();
++        let Some(parameters_sort) = parameters_sort else { return };
++        let Some(body) = pending_total_expr(body, parameters) else { return };
++        self.interface_total_bodies.insert(id.0.clone(), crate::total::PendingDefinition {
++            identity: id.0.clone(), parameters: parameters_sort, result, body,
++        });
++    }
++    fn checked_total_bodies(&self) -> crate::total::CheckedGraph {
++        let primitives = self.fns.iter().filter_map(|function| {
++            let operation = total_primitive(function.prim?)?;
++            if function.params.len() != operation.signature().0.len() { return None }
++            Some((function.id.0.clone(), operation))
++        }).collect();
++        let mut producer = TotalProducer {
++            pending: &self.interface_total_bodies, instances: &self.instance_defs,
++            primitives, graph: crate::total::CheckedGraph::empty(),
++            visiting: std::collections::BTreeSet::new(), refused: std::collections::BTreeSet::new(),
++        };
++        for identity in self.interface_total_bodies.keys() { producer.definition(identity); }
++        producer.graph
++    }
++}
++
++fn total_primitive(primitive: PrimOp) -> Option<crate::total::Op> {
++    use crate::total::Op;
++    Some(match primitive {
++        PrimOp::Nat(NatOp::Add) => Op::NatAdd,
++        PrimOp::Nat(NatOp::Mul) => Op::NatMul,
++        PrimOp::Nat(NatOp::Cmp) => Op::NatCmp,
++        PrimOp::Int(IntOp::Add) => Op::IntAdd,
++        PrimOp::Int(IntOp::Sub) => Op::IntSub,
++        PrimOp::Int(IntOp::Mul) => Op::IntMul,
++        PrimOp::Int(IntOp::Neg) => Op::IntNeg,
++        PrimOp::Int(IntOp::Cmp) => Op::IntCmp,
++        PrimOp::Int(IntOp::FromNat) => Op::IntFromNat,
++        PrimOp::Int(IntOp::FromI64) => Op::IntFromI64,
++        PrimOp::Bytes(BytesOp::Len) => Op::BytesLen,
++        PrimOp::Cmp { ty: Scalar::I64, op } => match op {
++            CmpOp::Eq => Op::I64Eq, CmpOp::Ne => Op::I64Ne,
++            CmpOp::Lt => Op::I64Lt, CmpOp::Le => Op::I64Le,
++            CmpOp::Gt => Op::I64Gt, CmpOp::Ge => Op::I64Ge,
++        },
++        PrimOp::EqBool => Op::BoolEq, PrimOp::NeBool => Op::BoolNe,
++        PrimOp::NotBool => Op::BoolNot, PrimOp::AndBool => Op::BoolAnd, PrimOp::OrBool => Op::BoolOr,
++        _ => return None,
++    })
++}
++
++fn pending_total_expr(body: &ECore, scope: &[LocalId]) -> Option<crate::total::PendingExpr> {
++    pending_total_expr_inner(body, scope, &[])
++}
++fn total_dictionary(expression: &ECore, dictionaries: &[(LocalId, String)]) -> Option<String> {
++    match expression {
++        ECore::InstDict(id, contexts, actuals) if contexts.is_empty() && actuals.is_empty() => Some(id.0.clone()),
++        ECore::Var(id) => dictionaries.iter().rev().find(|(local, _)| local == id).map(|(_, name)| name.clone()),
++        _ => None,
++    }
++}
++fn pending_total_expr_inner(body: &ECore, scope: &[LocalId], dictionaries: &[(LocalId, String)]) -> Option<crate::total::PendingExpr> {
++    use crate::total::{PendingExpr as P, Sort};
++    let arguments = |args: &[ECore]| args.iter().map(|arg| pending_total_expr_inner(arg, scope, dictionaries)).collect::<Option<Vec<_>>>();
++    Some(match body {
++        ECore::Var(id) => P::Local(scope.iter().rposition(|bound| bound == id)?),
++        ECore::ConstBig { nat, digits } => P::Number(if *nat { Sort::Nat } else { Sort::Int }, digits.clone()),
++        ECore::Int(value) => P::Number(Sort::I64, value.to_string()),
++        ECore::Bool(value) => P::Bool(*value),
++        ECore::Global(id, actuals) if actuals.is_empty() => P::Call(id.0.clone(), Vec::new()),
++        ECore::If(condition, yes, no) => P::If(Box::new(pending_total_expr_inner(condition, scope, dictionaries)?), Box::new(pending_total_expr_inner(&yes.body, scope, dictionaries)?), Box::new(pending_total_expr_inner(&no.body, scope, dictionaries)?)),
++        ECore::Let(id, value, body) => {
++            if let Some(dictionary) = total_dictionary(value, dictionaries) {
++                let mut nested = dictionaries.to_vec(); nested.push((*id, dictionary));
++                return pending_total_expr_inner(body, scope, &nested);
++            }
++            let value = pending_total_expr_inner(value, scope, dictionaries)?;
++            let mut inner = scope.to_vec(); inner.push(*id);
++            P::Let(Box::new(value), Box::new(pending_total_expr_inner(body, &inner, dictionaries)?))
++        }
++        ECore::App(function, args) => {
++            // Recover the actual curried spine, preserving argument order.
++            let mut groups = vec![args.as_slice()]; let mut head = &**function;
++            while let ECore::App(function, args) = head { groups.push(args.as_slice()); head = function; }
++            let mut args = Vec::new();
++            for group in groups.into_iter().rev() { args.extend(arguments(group)?); }
++            match head {
++                ECore::Prim(operation) => P::Primitive(total_primitive(*operation)?, args),
++                ECore::Global(id, actuals) if actuals.is_empty() => P::Call(id.0.clone(), args),
++                ECore::DictProj(dictionary, slot, _, _) => P::Selected { dictionary: total_dictionary(dictionary, dictionaries)?, slot: *slot, arguments: args },
++                _ => return None,
++            }
++        }
++        // No holes, unknown dictionary providers, effects, content reads,
++        // closure environments, foreign calls or unchecked partial operations.
++        _ => return None,
++    })
++}
++
++struct TotalProducer<'a> {
++    pending: &'a std::collections::BTreeMap<String, crate::total::PendingDefinition>,
++    instances: &'a [crate::core::InstanceDef],
++    primitives: std::collections::BTreeMap<String, crate::total::Op>,
++    graph: crate::total::CheckedGraph,
++    visiting: std::collections::BTreeSet<String>,
++    refused: std::collections::BTreeSet<String>,
++}
++impl TotalProducer<'_> {
++    fn definition(&mut self, identity: &str) -> Option<()> {
++        use crate::total::Expr;
++        if self.graph.get(identity).is_some() { return Some(()) }
++        if self.refused.contains(identity) || !self.visiting.insert(identity.to_string()) { return None }
++        let candidate = if let Some(pending) = self.pending.get(identity).cloned() {
++            self.expression(&pending.body).map(|body| (pending.identity, pending.parameters, pending.result, body))
++        } else if let Some(operation) = self.primitives.get(identity) {
++            let parameters = operation.signature().0.to_vec();
++            let arguments = (0..parameters.len()).map(Expr::Local).collect();
++            Some((identity.to_string(), parameters, operation.signature().1, Expr::Primitive(*operation, arguments)))
++        } else { None };
++        self.visiting.remove(identity);
++        if let Some((identity, parameters, result, body)) = candidate {
++            if self.graph.infer(&body, &parameters).ok() == Some(result) && self.graph.define(identity.clone(), parameters, body).is_ok() { return Some(()) }
++        }
++        self.refused.insert(identity.to_string()); None
++    }
++    fn expression(&mut self, expression: &crate::total::PendingExpr) -> Option<crate::total::Expr> {
++        use crate::total::{PendingExpr as P, Expr as E};
++        Some(match expression {
++            P::Local(slot) => E::Local(*slot),
++            P::Number(sort, decimal) => E::Number { sort: *sort, decimal: decimal.clone() },
++            P::Bool(value) => E::Bool(*value),
++            P::Primitive(op, arguments) => E::Primitive(*op, self.arguments(arguments)?),
++            P::Call(target, arguments) => {
++                self.definition(target)?;
++                E::Call { target: target.clone(), arguments: self.arguments(arguments)? }
++            }
++            P::Selected { dictionary, slot, arguments } => {
++                let instance = self.instances.iter().find(|instance| instance.id.0 == *dictionary)?;
++                if instance.tparams != 0 || instance.subdict_count != 0 { return None }
++                let target = instance.methods.get(*slot)?.0.clone();
++                self.definition(&target)?;
++                E::Call { target, arguments: self.arguments(arguments)? }
++            }
++            P::Let(value, body) => E::Let { value: Box::new(self.expression(value)?), body: Box::new(self.expression(body)?) },
++            P::If(condition, yes, no) => E::If { condition: Box::new(self.expression(condition)?), yes: Box::new(self.expression(yes)?), no: Box::new(self.expression(no)?) },
++        })
++    }
++    fn arguments(&mut self, arguments: &[crate::total::PendingExpr]) -> Option<Vec<crate::total::Expr>> {
++        arguments.iter().map(|argument| self.expression(argument)).collect()
++    }
++}
++
++impl Checker {
++    fn interface_value_body(&self, value: &ValueInfo) -> Option<crate::total::CheckedGraph> {
++        let scheme = &value.scheme;
++        if !scheme.params.is_empty() || !scheme.idx_params.is_empty() || !scheme.val_params.is_empty()
++            || !scheme.prop_params.is_empty() || !scheme.region_params.is_empty() || !scheme.row_params.is_empty()
++            || !scheme.ctx.is_empty() || !scheme.obligs.is_empty() { return None }
++        self.resolved_interface_scheme(&value.module, &value.name)?;
++        let identity = fn_id(&value.module, &value.name).0;
++        let graph = self.interface_checked_bodies.as_ref()?;
++        let definition = graph.get(&identity)?;
++        let mut ty = &scheme.ty;
++        let mut parameters = Vec::new();
++        while let Ty::Fun(domain, _, row, result) = ty {
++            if !row.is_pure() { return None }
++            // Refinement domains, Pi binders and hidden proof/dictionary
++            // contexts must never disappear through a base-sort projection.
++            parameters.push(plain_total_sort(domain)?);
++            ty = result;
++        }
++        if parameters != definition.parameters { return None }
++        if let Some(sort) = plain_total_sort(ty) {
++            if sort != definition.result { return None }
++        } else {
++            let view = self.refine_view(ty)?;
++            let base = view.base?;
++            let sort = plain_total_sort(&base)?;
++            if !matches!(sort, crate::total::Sort::Nat | crate::total::Sort::Int | crate::total::Sort::I64)
++                || sort != definition.result || !literal_result_predicate(&view.pred, &view.binder) { return None }
++            // This mirrors the independent consumer's supported finite
++            // envelope tier. More general refinements retain their scheme
++            // without advertising executable index authority.
++            let mut fuel = 4096;
++            if !finite_total_result(graph, &definition.body, &vec![false; parameters.len()], &mut fuel) { return None }
++        }
++        graph.closure([identity.as_str()]).ok()
++    }
++}
++fn plain_total_sort(ty: &Ty) -> Option<crate::total::Sort> {
++    use crate::total::Sort;
++    Some(match ty { Ty::Nat => Sort::Nat, Ty::Int => Sort::Int, Ty::Bool => Sort::Bool,
++        Ty::Bytes => Sort::Bytes, Ty::Prim(Scalar::I64) => Sort::I64, _ => return None })
++}
++fn literal_result_predicate(predicate: &PTerm, binder: &str) -> bool {
++    fn atom(term: &ITerm, binder: &str) -> bool { matches!(term, ITerm::Num(_)) || matches!(term, ITerm::Var(name) if name == binder) }
++    match predicate {
++        PTerm::Cmp(op, a, b) => *op != IdxCmp::Ne && atom(a, binder) && atom(b, binder),
++        PTerm::Eq(a, b) => atom(a, binder) && atom(b, binder),
++        PTerm::And(a, b) => literal_result_predicate(a, binder) && literal_result_predicate(b, binder),
++        _ => false,
++    }
++}
++fn finite_total_result(graph: &crate::total::CheckedGraph, expression: &crate::total::Expr, scope: &[bool], fuel: &mut usize) -> bool {
++    use crate::total::Expr;
++    if *fuel == 0 { return false }
++    *fuel -= 1;
++    match expression {
++        Expr::Number { .. } => true,
++        Expr::Local(slot) => scope.get(*slot).copied().unwrap_or(false),
++        Expr::If { yes, no, .. } => finite_total_result(graph, yes, scope, fuel) && finite_total_result(graph, no, scope, fuel),
++        Expr::Let { value, body } => {
++            let value = finite_total_result(graph, value, scope, fuel);
++            let mut nested = scope.to_vec(); nested.push(value);
++            finite_total_result(graph, body, &nested, fuel)
++        }
++        Expr::Call { target, arguments } => {
++            let actual = arguments.iter().map(|argument| finite_total_result(graph, argument, scope, fuel)).collect::<Vec<_>>();
++            graph.get(target).is_some_and(|callee| finite_total_result(graph, &callee.body, &actual, fuel))
++        }
++        _ => false,
++    }
++}
+--- a/compiler/src/codegen.rs
++++ b/compiler/src/codegen.rs
+@@ -6110,6 +6110,7 @@
+     fn main_prog(mut fns: Vec<FnDef>, body: Core) -> Program {
+         fns.push(thunk("program.main", body));
+         Program {
++            total_bodies: crate::total::CheckedGraph::empty(),
+             rewrites: Vec::new(),
+             fns,
+             instances: vec![],
 --- a/compiler/src/core.rs
 +++ b/compiler/src/core.rs
-@@ -5425,6 +5425,7 @@
+@@ -2835,6 +2835,9 @@
+ 
+ #[derive(Clone, Debug)]
+ pub struct Program {
++    /// Typed, acyclic primitive body descriptions captured from actual checked
++    /// definitions. Not admitted by schema-7 interfaces.
++    pub total_bodies: crate::total::CheckedGraph,
+     pub fns: Vec<FnDef>,
+     pub instances: Vec<InstanceDef>,
+     /// The synthesized exit adapter for `main :: Int`, when the entry module
+@@ -5425,6 +5428,7 @@
      changed: bool,
      fuel_left: u32,
      fuel_reported: bool,
@@ -2491,7 +2871,7 @@
  }
  
  impl Driver<'_> {
-@@ -5984,10 +5985,18 @@
+@@ -5984,10 +5988,18 @@
              self.site("unfold", Some("opaque boundary: a replaceable dispatch boundary residualizes".to_string()));
              return None;
          }
@@ -2511,7 +2891,7 @@
          if self.stack.iter().any(|s| s == &g.0) {
              self.site("unfold", Some("whistle: a repeated configuration folds to a residual call".to_string()));
              return None;
-@@ -6597,6 +6606,8 @@
+@@ -6597,6 +6609,8 @@
          if orig.prim.is_some() || orig.ctor.is_some() {
              continue;
          }
@@ -2520,7 +2900,7 @@
          let mut drv = Driver {
              cx: &cx,
              defs: defs.clone(),
-@@ -6616,22 +6627,33 @@
+@@ -6616,22 +6630,33 @@
              changed: false,
              fuel_left: profile.fuel,
              fuel_reported: false,
@@ -2559,7 +2939,7 @@
                  break;
              }
          }
-@@ -6730,6 +6752,63 @@
+@@ -6730,6 +6755,64 @@
  #[cfg(test)]
  mod tests {
      use super::*;
@@ -2595,6 +2975,7 @@
 +            });
 +        }
 +        let mut program = Program {
++            total_bodies: crate::total::CheckedGraph::empty(),
 +            fns, instances: vec![], main: None, rewrites: vec![],
 +            plans: Default::default(), foreigns: Default::default(),
 +            prims: vec![], laws: vec![],
@@ -2722,7 +3103,34 @@
          }
 --- a/compiler/src/incremental.rs
 +++ b/compiler/src/incremental.rs
-@@ -1214,15 +1214,19 @@
+@@ -585,6 +585,7 @@
+ /// One module's cached checked state (user and prelude modules alike).
+ #[derive(Clone, Debug, Default)]
+ struct ModuleState {
++    total_bodies: Vec<crate::total::Definition>,
+     imports: Vec<String>,
+     source_hash: String,
+     iface: Option<Iface>,
+@@ -773,6 +774,7 @@
+ /// A checked run's raw global lists (pre-optimization).
+ #[derive(Clone, Debug, Default)]
+ struct RunLists {
++    total_bodies: crate::total::CheckedGraph,
+     fns: Vec<FnDef>,
+     instances: Vec<InstanceDef>,
+     laws: Vec<LawRow>,
+@@ -788,6 +790,10 @@
+ }
+ 
+ impl Session {
++    pub fn total_bodies(&mut self) -> Result<crate::total::CheckedGraph> {
++        Ok(self.merged_program()?.total_bodies)
++    }
++
+     /// Open the project at `entry` and run a full cold build.
+     pub fn open(entry: &Path) -> Result<(Session, SessionReport)> {
+         let root = entry
+@@ -1214,15 +1220,19 @@
          self.prelude_order = prelude.modules.iter().map(|m| m.name.text.clone()).collect();
          let prelude_fixities = prelude.base.clone();
          let mut module_fixities: HashMap<String, FixityTable> = prelude.fixities.clone();
@@ -2743,7 +3151,54 @@
                  }
                  parsed_by_file.insert(file.clone(), parsed);
              }
-@@ -2147,7 +2151,7 @@
+@@ -1274,6 +1284,12 @@
+             match owner_module(&f.id.0, &all) {
+                 Some(m) => fns_by.entry(m).or_default().push(f.clone()),
+                 None => loose.push(f.clone()),
++            }
++        }
++        let mut totals_by: HashMap<String, Vec<crate::total::Definition>> = HashMap::new();
++        for definition in program.total_bodies.definitions() {
++            if let Some(owner) = owner_module(&definition.identity, &all).or_else(|| slice.last().cloned()) {
++                totals_by.entry(owner).or_default().push(definition.clone());
+             }
+         }
+         let mut inst_by: HashMap<String, Vec<InstanceDef>> = HashMap::new();
+@@ -1365,6 +1381,7 @@
+             st.source_hash = hashes.get(m).cloned().unwrap_or_default();
+             st.iface = Some(iface.clone());
+             st.fns = fresh_fns;
++            st.total_bodies = totals_by.remove(m).unwrap_or_default();
+             st.instances = inst_by.remove(m).unwrap_or_default();
+             st.laws = laws_by.remove(m).unwrap_or_default();
+             st.rewrites = rew_by.remove(m).unwrap_or_default();
+@@ -1388,6 +1405,7 @@
+         // The run's raw lists: a full run is its own canonical order.
+         let full = slice_set.len() == self.order.len();
+         self.run = Some(RunLists {
++            total_bodies: program.total_bodies.clone(),
+             fns: program.fns.clone(),
+             instances: program.instances.clone(),
+             laws: program.laws.clone(),
+@@ -1538,6 +1556,7 @@
+             if run.full {
+                 let main_exit = self.main_exit.clone().map(crate::core::GlobalId);
+                 return Ok(Program {
++                    total_bodies: run.total_bodies,
+                     fns: run.fns,
+                     instances: run.instances,
+                     main: main_exit,
+@@ -1584,7 +1603,9 @@
+             .map(|p| format!("{}.{}", p.module, p.name))
+             .collect();
+         self.layouts.prims = segment_ids(&prim_ids, &self.all_modules);
++        let total_bodies = crate::total::CheckedGraph::closed_subset(self.states.values().flat_map(|s| s.total_bodies.clone()).collect());
+         Ok(Program {
++            total_bodies,
+             fns,
+             instances,
+             main: main_exit,
+@@ -2147,7 +2168,7 @@
      ) -> Result<crate::parser::ParsedModules> {
          let adapters = self.wit.clone();
          let prelude = parse_prelude(&adapters)?;
@@ -2752,7 +3207,7 @@
          // Thread the fixities of every file that precedes this one in
          // project order (dependency order: imports first).
          let order_files: Vec<String> = self
-@@ -2161,7 +2165,7 @@
+@@ -2161,7 +2182,7 @@
              }
              let Some(t) = self.texts.get(f) else { continue };
              if let Ok(pm) = parse_source(t, f, &prelude.base, &tables) {
@@ -2771,7 +3226,7 @@
 +/// 5: definition-site class contexts, method slots and resolved method schemes.
 +/// 4: occurrence-resolved pure schemes and their private nominal contracts.
 +/// 3: declaration kinds, constructor schemes and class export names.
-+pub const SCHEMA_VERSION: u32 = 7;
++pub const SCHEMA_VERSION: u32 = 8;
  /// 5: negative counts are atomic (mark-on-spawn, `cinch_mark_mt`,
  /// `cinch_dup_mt`/`cinch_drop_mt`); joins hand results out once;
  /// `cinch_reclaim_enable`; the quote encoder gains `SET`/`DUP`/`DROP`; one
@@ -2820,7 +3275,13 @@
  }
  
  /// Order modules so every import precedes its importers; detect cycles.
-@@ -152,33 +184,85 @@
+@@ -149,36 +181,100 @@
+ #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+ pub struct ValueExport {
+     pub name: String,
++    /// Closed executable semantics for this exact symbol; full declaration
++    /// association and any result refinements must be checked by the consumer.
++    pub total_body: Option<crate::total::CheckedGraph>,
      /// Canonical rendering of the scheme (quantifiers, `using` context,
      /// type with effect rows).
      pub scheme: String,
@@ -2846,8 +3307,17 @@
 +/// consumers must not infer identities from the display scheme instead.
 +#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 +pub struct ResolvedScheme {
++    pub measures: Vec<MeasureContract>,
 +    pub scheme: String,
 +    pub nominals: Vec<NominalContract>,
++}
++
++/// A private defining measure declaration grants no source import names.
++#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
++pub struct MeasureContract {
++    pub identity: String,
++    pub resolved: Box<ResolvedScheme>,
++    pub total_body: crate::total::CheckedGraph,
 +}
 +
 +#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -2907,7 +3377,7 @@
      /// The identity of the method's default, when the class gives one:
      /// an instance that omits the method inlines the default, so the
      /// default is part of the class's contract.
-@@ -188,7 +272,10 @@
+@@ -188,7 +284,10 @@
  #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
  pub struct SigExport {
      pub name: String,
@@ -2918,7 +3388,7 @@
      pub methods: Vec<MethodExport>,
  }
  
-@@ -197,6 +284,10 @@
+@@ -197,6 +296,10 @@
      pub id: String,
      pub class: String,
      pub target: String,
@@ -2929,7 +3399,7 @@
      pub ctx: Vec<String>,
      pub methods: Vec<String>,
      /// Whether automatic resolution may select this instance (default
-@@ -204,6 +295,15 @@
+@@ -204,6 +307,15 @@
      /// dictionary is selected by name and may coexist with other
      /// implementations of the same class).
      pub implicit: bool,
@@ -2945,15 +3415,18 @@
  }
  
  /// One instantiation unit of the module (`import M (args) as N`, module
-@@ -505,6 +605,7 @@
+@@ -505,8 +617,10 @@
                      JsonValue::obj([
                          ("name", (&v.name).into()),
                          ("scheme", (&v.scheme).into()),
 +                        ("resolved", resolved_scheme_json(v.resolved.as_ref())),
                          ("symbol", (&v.symbol).into()),
                          ("arity", v.arity.into()),
++                        ("total_body", v.total_body.as_ref().map_or(JsonValue::Null, |graph| parse_json(&graph.to_json()).expect("checked total graph JSON"))),
                      ])
-@@ -515,13 +616,25 @@
+                 }),
+             ),
+@@ -515,13 +629,25 @@
                  JsonValue::arr(&types, |t| {
                      JsonValue::obj([
                          ("name", (&t.name).into()),
@@ -2979,7 +3452,7 @@
                                      ("tag", c.tag.into()),
                                      ("fields", (&c.fields).into()),
                                      ("erased", (&c.erased).into()),
-@@ -537,13 +650,19 @@
+@@ -537,13 +663,19 @@
                  JsonValue::arr(&sigs, |s| {
                      JsonValue::obj([
                          ("name", (&s.name).into()),
@@ -2999,7 +3472,7 @@
                                  ]);
                                  if let (JsonValue::Obj(map), Some(d)) = (&mut o, &m.default) {
                                      map.insert("default".to_string(), d.into());
-@@ -557,10 +676,16 @@
+@@ -557,10 +689,16 @@
              (
                  "instances",
                  JsonValue::arr(&insts, |inst| {
@@ -3016,15 +3489,18 @@
                          ("ctx", (&inst.ctx).into()),
                          ("methods", (&inst.methods).into()),
                          ("implicit", inst.implicit.into()),
-@@ -787,6 +912,7 @@
+@@ -787,8 +925,10 @@
              values.push(ValueExport {
                  name: field_str(o, "name")?,
                  scheme: field_str(o, "scheme")?,
 +                resolved: field_resolved_scheme(o)?,
                  symbol: field_str(o, "symbol")?,
                  arity: field_num(o, "arity")?,
++                total_body: field_total_body(o)?,
              });
-@@ -799,6 +925,9 @@
+         }
+         let mut types = Vec::new();
+@@ -799,6 +939,9 @@
                  let co = c.as_object().map_err(|_| ParseError("ctor entry".into()))?;
                  ctors.push(CtorExport {
                      name: field_str(co, "name")?,
@@ -3034,7 +3510,7 @@
                      tag: field_num(co, "tag")?,
                      fields: field_list(co, "fields")?,
                      erased: co
-@@ -810,13 +939,37 @@
+@@ -810,13 +953,37 @@
                          .collect::<Result<Vec<_>, _>>()?,
                  });
              }
@@ -3074,7 +3550,7 @@
          }
          let mut signatures = Vec::new();
          for item in ex_get("signatures")?.as_array()? {
-@@ -826,35 +979,68 @@
+@@ -826,35 +993,68 @@
                  let mo = m.as_object().map_err(|_| ParseError("method entry".into()))?;
                  methods.push(MethodExport {
                      name: field_str(mo, "name")?,
@@ -3149,7 +3625,7 @@
          }
          let mut fixities = Vec::new();
          for item in ex_get("fixities")?.as_array()? {
-@@ -1353,6 +1539,109 @@
+@@ -1353,6 +1553,153 @@
  }
  
  /// One foreign parameter or result's binding contract.
@@ -3161,12 +3637,34 @@
 +    ])
 +}
 +
++fn field_total_body(o: &BTreeMap<String, JsonValue>) -> Result<Option<crate::total::CheckedGraph>, ParseError> {
++    let value = o.get("total_body").ok_or_else(|| ParseError("missing value total_body".into()))?;
++    if matches!(value, JsonValue::Null) { return Ok(None) }
++    if field_resolved_scheme(o)?.is_none() { return Err(ParseError("total body requires a resolved declaration".into())) }
++    let graph = crate::total::CheckedGraph::from_json(&value.to_canonical_string())
++        .map_err(|error| ParseError(format!("invalid total body: {}", error.0)))?;
++    let symbol = field_str(o, "symbol")?;
++    let root = graph.get(&symbol).ok_or_else(|| ParseError("total body has no matching value symbol".into()))?;
++    if root.parameters.len() as u64 != field_num(o, "arity")? {
++        return Err(ParseError("total body arity disagrees with its value declaration".into()))
++    }
++    if graph.closure([symbol.as_str()]).map_err(|error| ParseError(error.0))? != graph {
++        return Err(ParseError("total body includes unrelated definitions".into()))
++    }
++    Ok(Some(graph))
++}
++
 +fn resolved_scheme_json(scheme: Option<&ResolvedScheme>) -> JsonValue {
 +    let Some(scheme) = scheme else { return JsonValue::Null };
 +    let mut nominals = scheme.nominals.clone();
 +    nominals.sort();
 +    JsonValue::obj([
 +        ("scheme", (&scheme.scheme).into()),
++        ("measures", JsonValue::arr(&scheme.measures, |m| JsonValue::obj([
++            ("identity", (&m.identity).into()),
++            ("resolved", resolved_scheme_json(Some(&m.resolved))),
++            ("total_body", parse_json(&m.total_body.to_json()).expect("checked measure graph JSON")),
++        ]))),
 +        ("nominals", JsonValue::arr(&nominals, |n| JsonValue::obj([
 +            ("identity", (&n.identity).into()),
 +            ("kind", (&n.kind).into()),
@@ -3188,6 +3686,10 @@
 +}
 +
 +fn field_resolved_scheme(o: &BTreeMap<String, JsonValue>) -> Result<Option<ResolvedScheme>, ParseError> {
++    field_resolved_scheme_depth(o, 0)
++}
++fn field_resolved_scheme_depth(o: &BTreeMap<String, JsonValue>, depth: usize) -> Result<Option<ResolvedScheme>, ParseError> {
++    if depth > 1 { return Err(ParseError("nested defining measure schemes are unsupported".into())) }
 +    let value = o.get("resolved").ok_or_else(|| ParseError("resolved scheme".into()))?;
 +    if matches!(value, JsonValue::Null) { return Ok(None) }
 +    let value = value.as_object()?;
@@ -3235,7 +3737,25 @@
 +        };
 +        nominals.push(NominalContract { identity, kind, parameters, constructors, refinement });
 +    }
-+    Ok(Some(ResolvedScheme { scheme, nominals }))
++    let mut measures: Vec<MeasureContract> = Vec::new();
++    if let Some(rows) = value.get("measures") {
++        for row in rows.as_array()? {
++            if depth != 0 { return Err(ParseError("nested defining measure schemes are unsupported".into())) }
++            let row = row.as_object()?;
++            let identity = field_str(row, "identity")?;
++            if identity.is_empty() || measures.iter().any(|m| m.identity == identity) {
++                return Err(ParseError("duplicate or empty defining measure identity".into()))
++            }
++            let resolved = field_resolved_scheme_depth(row, depth + 1)?.ok_or_else(|| ParseError("measure has no defining scheme".into()))?;
++            let graph = row.get("total_body").ok_or_else(|| ParseError("measure has no total body".into()))?;
++            let graph = crate::total::CheckedGraph::from_json(&graph.to_canonical_string()).map_err(|e| ParseError(e.0))?;
++            if graph.get(&identity).is_none() || graph.closure([identity.as_str()]).map_err(|e| ParseError(e.0))? != graph {
++                return Err(ParseError("measure body must contain exactly its defining root closure".into()))
++            }
++            measures.push(MeasureContract { identity, resolved: Box::new(resolved), total_body: graph });
++        }
++    }
++    Ok(Some(ResolvedScheme { scheme, nominals, measures }))
 +}
 +
 +fn field_parameters(o: &BTreeMap<String, JsonValue>) -> Result<Vec<ParameterExport>, ParseError> {
@@ -3259,8 +3779,11 @@
  fn foreign_param_json(p: &ForeignParam) -> JsonValue {
      JsonValue::obj([
          ("type", (&p.ty).into()),
-@@ -1644,39 +1933,52 @@
+@@ -1642,41 +1989,56 @@
+             iface_hash: "deadbeef".into(),
+         });
          f.exports.values.push(ValueExport {
++            total_body: None,
              name: "main".into(),
              scheme: "Int".into(),
 +            resolved: None,
@@ -3268,6 +3791,7 @@
              arity: 0,
          });
          f.exports.values.push(ValueExport {
++            total_body: None,
              name: "plus".into(),
              scheme: "forall a. using (add :: Add a) => a -> a -> a".into(),
 +            resolved: None,
@@ -3312,7 +3836,7 @@
              ctx: vec![],
              methods: vec!["Main.Add_Int.+".into()],
              implicit: true,
-@@ -1732,6 +2034,26 @@
+@@ -1732,6 +2094,26 @@
      }
  
      #[test]
@@ -3339,7 +3863,7 @@
      fn canonical_and_stable() {
          let f = sample();
          assert_eq!(f.to_json(), f.to_json());
-@@ -1775,7 +2097,7 @@
+@@ -1775,7 +2157,7 @@
      #[test]
      fn rejects_wrong_schema() {
          let text = sample().to_json();
@@ -3348,7 +3872,7 @@
          assert_ne!(wrong, text, "the schema field was rewritten");
          assert!(Iface::from_json(&wrong).is_err());
      }
-@@ -1829,6 +2151,8 @@
+@@ -1829,6 +2211,8 @@
              id: "Other.Add_Int".into(),
              class: "Add".into(),
              target: "Add Int".into(),
@@ -3357,7 +3881,7 @@
              ctx: vec![],
              methods: vec![],
              implicit: true,
-@@ -1879,7 +2203,7 @@
+@@ -1879,7 +2263,7 @@
      fn parser_is_strict() {
          let text = sample().to_json();
          assert!(Iface::from_json(&format!("{text}trailing")).is_err());
@@ -3366,6 +3890,16 @@
          assert_ne!(dup, text, "the duplicate was spliced in");
          assert!(Iface::from_json(&dup).is_err());
          assert!(Iface::from_json("{\"schema\": 1, module: 2}").is_err());
+--- a/compiler/src/lib.rs
++++ b/compiler/src/lib.rs
+@@ -22,6 +22,7 @@
+ pub mod specialize;
+ pub mod store;
+ pub mod types;
++pub mod total;
+ 
+ use std::fmt;
+ 
 --- a/compiler/src/parser.rs
 +++ b/compiler/src/parser.rs
 @@ -21,7 +21,9 @@
@@ -3853,6 +4387,332 @@
      }
  }
  
+--- /dev/null
++++ b/compiler/src/total.rs
+@@ -0,0 +1,240 @@
++//! Checked, closed first-order bodies for stable numeric observations.
++//!
++//! This representation carries executable semantics, not a purity hint or a
++//! class-name convention. It is deliberately independent of source spelling.
++//! Consumers must validate the whole dependency graph before using a call as
++//! an index. No schema-7 interface admits these bodies yet.
++use std::collections::{BTreeMap, BTreeSet};
++
++#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
++pub enum Sort { Nat, Int, Bool, Bytes, I64 }
++
++/// Every admitted operation has a fixed total runtime-ABI meaning. In
++/// particular there is no wrapping arithmetic, partial Nat subtraction,
++/// division, buffer-content read, allocation, foreign call or arbitrary prim.
++#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
++pub enum Op {
++    NatAdd, NatMul, NatCmp,
++    IntAdd, IntSub, IntMul, IntNeg, IntCmp, IntFromNat, IntFromI64,
++    I64Eq, I64Ne, I64Lt, I64Le, I64Gt, I64Ge,
++    BoolEq, BoolNe, BoolNot, BoolAnd, BoolOr,
++    BytesLen,
++}
++impl Op {
++    pub fn signature(self) -> (&'static [Sort], Sort) {
++        use Sort::*;
++        match self {
++            Self::NatAdd | Self::NatMul => (&[Nat, Nat], Nat),
++            Self::NatCmp => (&[Nat, Nat], I64),
++            Self::IntAdd | Self::IntSub | Self::IntMul => (&[Int, Int], Int),
++            Self::IntNeg => (&[Int], Int),
++            Self::IntCmp => (&[Int, Int], I64),
++            Self::IntFromNat => (&[Nat], Int),
++            Self::IntFromI64 => (&[I64], Int),
++            Self::I64Eq | Self::I64Ne | Self::I64Lt | Self::I64Le | Self::I64Gt | Self::I64Ge => (&[I64, I64], Bool),
++            Self::BoolEq | Self::BoolNe | Self::BoolAnd | Self::BoolOr => (&[Bool, Bool], Bool),
++            Self::BoolNot => (&[Bool], Bool),
++            Self::BytesLen => (&[Bytes], Nat),
++        }
++    }
++}
++
++#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
++pub enum Expr {
++    /// A lexical slot: parameters first, then strict-let binders in scope.
++    Local(usize),
++    Number { sort: Sort, decimal: String },
++    Bool(bool),
++    Primitive(Op, Vec<Expr>),
++    Call { target: String, arguments: Vec<Expr> },
++    Let { value: Box<Expr>, body: Box<Expr> },
++    If { condition: Box<Expr>, yes: Box<Expr>, no: Box<Expr> },
++}
++
++#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
++pub struct Definition {
++    pub identity: String,
++    pub parameters: Vec<Sort>,
++    pub result: Sort,
++    pub body: Expr,
++}
++
++#[derive(Clone, Debug, PartialEq, Eq)]
++pub struct Invalid(pub String);
++
++/// The constructor is private. A valid graph is closed, well typed and
++/// acyclic; recursively calling a pure-typed function cannot manufacture it.
++#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Default)]
++pub struct CheckedGraph { definitions: BTreeMap<String, Definition> }
++
++fn number(sort: Sort, decimal: &str) -> bool {
++    let digits = decimal.strip_prefix('-').unwrap_or(decimal);
++    if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) { return false }
++    match sort {
++        Sort::Nat => !decimal.starts_with('-'),
++        Sort::Int => true,
++        Sort::I64 => decimal.parse::<i64>().is_ok(),
++        _ => false,
++    }
++}
++
++impl CheckedGraph {
++    pub fn check(definitions: Vec<Definition>) -> Result<Self, Invalid> {
++        let mut by_name = BTreeMap::new();
++        for definition in definitions {
++            if definition.identity.is_empty() || by_name.insert(definition.identity.clone(), definition).is_some() {
++                return Err(Invalid("empty or duplicate total-body identity".into()));
++            }
++        }
++        let graph = Self { definitions: by_name };
++        for definition in graph.definitions.values() {
++            let inferred = graph.infer(&definition.body, &definition.parameters)?;
++            if inferred != definition.result { return Err(Invalid(format!("{}: body result sort disagrees with its declaration", definition.identity))) }
++        }
++        let mut done = BTreeSet::new();
++        for identity in graph.definitions.keys() { graph.acyclic(identity, &mut BTreeSet::new(), &mut done)?; }
++        Ok(graph)
++    }
++    pub fn empty() -> Self { Self { definitions: BTreeMap::new() } }
++    /// Incremental sessions can retain ordinary callers when a callee body
++    /// changes. Rebuild their semantic closure from the current definitions;
++    /// missing/invalid/cyclic bodies lose authority instead of keeping stale
++    /// transitive contracts. Conflicting duplicate identities are discarded.
++    pub fn closed_subset(definitions: Vec<Definition>) -> Self {
++        let mut pending = BTreeMap::new();
++        let mut conflicts = BTreeSet::new();
++        for definition in definitions {
++            if let Some(prior) = pending.insert(definition.identity.clone(), definition.clone()) {
++                if prior != definition { conflicts.insert(definition.identity); }
++            }
++        }
++        for name in conflicts { pending.remove(&name); }
++        let mut graph = Self::empty();
++        loop {
++            let ready = pending.iter().filter_map(|(name, definition)| {
++                (graph.infer(&definition.body, &definition.parameters).ok() == Some(definition.result)).then_some(name.clone())
++            }).collect::<Vec<_>>();
++            if ready.is_empty() { break }
++            for name in ready {
++                let definition = pending.remove(&name).unwrap();
++                graph.definitions.insert(name, definition);
++            }
++        }
++        graph
++    }
++    /// Add a body only after all its callees. Inference uses checked existing
++    /// definitions; a self/forward reference has no authority in this graph.
++    pub fn define(&mut self, identity: String, parameters: Vec<Sort>, body: Expr) -> Result<(), Invalid> {
++        if identity.is_empty() || self.definitions.contains_key(&identity) { return Err(Invalid("empty or duplicate total-body identity".into())) }
++        let result = self.infer(&body, &parameters)?;
++        self.definitions.insert(identity.clone(), Definition { identity, parameters, result, body });
++        Ok(())
++    }
++    /// Project only the requested definitions and their complete dependencies.
++    /// The caller must choose roots from the owning package's checked exports;
++    /// this operation proves closure, not ownership or a declared refinement.
++    pub fn closure<'a>(&self, roots: impl IntoIterator<Item=&'a str>) -> Result<Self, Invalid> {
++        let mut pending = roots.into_iter().map(str::to_string).collect::<Vec<_>>();
++        let mut selected = BTreeMap::new();
++        while let Some(identity) = pending.pop() {
++            if selected.contains_key(&identity) { continue }
++            let definition = self.get(&identity)
++                .ok_or_else(|| Invalid(format!("missing total-body root: {identity}")))?;
++            let mut calls = BTreeSet::new();
++            dependencies(&definition.body, &mut calls);
++            pending.extend(calls);
++            selected.insert(identity, definition.clone());
++        }
++        // A subgraph of an already checked DAG remains checked when every
++        // referenced callee is retained. It cannot introduce new semantics.
++        Ok(Self { definitions: selected })
++    }
++    pub fn definitions(&self) -> impl Iterator<Item=&Definition> { self.definitions.values() }
++    pub fn get(&self, identity: &str) -> Option<&Definition> { self.definitions.get(identity) }
++    pub fn infer(&self, expression: &Expr, scope: &[Sort]) -> Result<Sort, Invalid> {
++        let fail = || Invalid("ill-scoped or ill-sorted total body".into());
++        match expression {
++            Expr::Local(slot) => scope.get(*slot).copied().ok_or_else(fail),
++            Expr::Number { sort, decimal } => if number(*sort, decimal) { Ok(*sort) } else { Err(fail()) },
++            Expr::Bool(_) => Ok(Sort::Bool),
++            Expr::Primitive(operation, arguments) => {
++                let (parameters, result) = operation.signature();
++                self.arguments(arguments, parameters, scope)?; Ok(result)
++            }
++            Expr::Call { target, arguments } => {
++                let callee = self.get(target).ok_or_else(|| Invalid(format!("missing total body: {target}")))?;
++                self.arguments(arguments, &callee.parameters, scope)?; Ok(callee.result)
++            }
++            Expr::Let { value, body } => {
++                let sort = self.infer(value, scope)?;
++                let mut nested = scope.to_vec(); nested.push(sort);
++                self.infer(body, &nested)
++            }
++            Expr::If { condition, yes, no } => {
++                if self.infer(condition, scope)? != Sort::Bool { return Err(fail()) }
++                let yes = self.infer(yes, scope)?;
++                if yes != self.infer(no, scope)? { return Err(fail()) }
++                Ok(yes)
++            }
++        }
++    }
++    fn arguments(&self, arguments: &[Expr], parameters: &[Sort], scope: &[Sort]) -> Result<(), Invalid> {
++        if arguments.len() != parameters.len() { return Err(Invalid("total call/primitive arity mismatch".into())) }
++        for (argument, expected) in arguments.iter().zip(parameters) {
++            if self.infer(argument, scope)? != *expected { return Err(Invalid("total call/primitive argument sort mismatch".into())) }
++        }
++        Ok(())
++    }
++    fn acyclic(&self, identity: &str, visiting: &mut BTreeSet<String>, done: &mut BTreeSet<String>) -> Result<(), Invalid> {
++        if done.contains(identity) { return Ok(()) }
++        if !visiting.insert(identity.to_string()) { return Err(Invalid(format!("cyclic total-body dependency: {identity}"))) }
++        let mut calls = BTreeSet::new(); dependencies(&self.definitions[identity].body, &mut calls);
++        for target in calls { self.acyclic(&target, visiting, done)?; }
++        visiting.remove(identity); done.insert(identity.to_string()); Ok(())
++    }
++    /// Stable structural content, including the exact transitive bodies.
++    /// This is the preimage for the interface's eventual versioned digest,
++    /// not a cryptographic or semantic-equivalence claim.
++    pub fn content(&self, identity: &str) -> Option<String> {
++        fn visit(graph: &CheckedGraph, identity: &str, seen: &mut BTreeSet<String>, out: &mut String) {
++            if !seen.insert(identity.to_string()) { return }
++            let definition = &graph.definitions[identity];
++            let mut calls = BTreeSet::new(); dependencies(&definition.body, &mut calls);
++            for target in calls { visit(graph, &target, seen, out); }
++            out.push_str(&format!("total-body-v1:{definition:?}\n"));
++        }
++        self.get(identity)?;
++        let mut out = String::new(); visit(self, identity, &mut BTreeSet::new(), &mut out); Some(out)
++    }
++}
++
++fn dependencies(expression: &Expr, out: &mut BTreeSet<String>) {
++    match expression {
++        Expr::Call { target, arguments } => { out.insert(target.clone()); for arg in arguments { dependencies(arg, out) } }
++        Expr::Primitive(_, arguments) => for arg in arguments { dependencies(arg, out) },
++        Expr::Let { value, body } => { dependencies(value, out); dependencies(body, out); }
++        Expr::If { condition, yes, no } => { dependencies(condition, out); dependencies(yes, out); dependencies(no, out); }
++        _ => {}
++    }
++}
++
++/// Extraction inputs are retained after Native has checked types and filled
++/// dictionary/literal holes, before source scope and local types disappear.
++#[derive(Clone, Debug)]
++pub(crate) struct PendingDefinition {
++    pub identity: String,
++    pub parameters: Vec<Sort>,
++    pub result: Sort,
++    pub body: PendingExpr,
++}
++#[derive(Clone, Debug)]
++pub(crate) enum PendingExpr {
++    Local(usize), Number(Sort, String), Bool(bool),
++    Primitive(Op, Vec<PendingExpr>),
++    Call(String, Vec<PendingExpr>),
++    Selected { dictionary: String, slot: usize, arguments: Vec<PendingExpr> },
++    Let(Box<PendingExpr>, Box<PendingExpr>),
++    If(Box<PendingExpr>, Box<PendingExpr>, Box<PendingExpr>),
++}
++
++include!("total_codec.rs");
+--- /dev/null
++++ b/compiler/src/total_codec.rs
+@@ -0,0 +1,80 @@
++// Versioned body data is a separate artifact until interface schema migration
++// and independent Cinch admission are connected. Unknown/duplicate fields are
++// errors; a caller cannot add an ignored semantic qualifier.
++use crate::interface::{parse_json, JsonValue as J};
++
++impl Sort {
++    pub fn name(self) -> &'static str { match self { Self::Nat => "Nat", Self::Int => "Int", Self::Bool => "Bool", Self::Bytes => "Bytes", Self::I64 => "I64" } }
++    fn parse(name: &str) -> Option<Self> { Some(match name { "Nat" => Self::Nat, "Int" => Self::Int, "Bool" => Self::Bool, "Bytes" => Self::Bytes, "I64" => Self::I64, _ => return None }) }
++}
++impl Op {
++    fn parse(name: &str) -> Option<Self> {
++        Some(match name {
++            "NatAdd" => Self::NatAdd, "NatMul" => Self::NatMul, "NatCmp" => Self::NatCmp,
++            "IntAdd" => Self::IntAdd, "IntSub" => Self::IntSub, "IntMul" => Self::IntMul,
++            "IntNeg" => Self::IntNeg, "IntCmp" => Self::IntCmp, "IntFromNat" => Self::IntFromNat, "IntFromI64" => Self::IntFromI64,
++            "I64Eq" => Self::I64Eq, "I64Ne" => Self::I64Ne, "I64Lt" => Self::I64Lt,
++            "I64Le" => Self::I64Le, "I64Gt" => Self::I64Gt, "I64Ge" => Self::I64Ge,
++            "BoolEq" => Self::BoolEq, "BoolNe" => Self::BoolNe, "BoolNot" => Self::BoolNot,
++            "BoolAnd" => Self::BoolAnd, "BoolOr" => Self::BoolOr, "BytesLen" => Self::BytesLen,
++            _ => return None,
++        })
++    }
++}
++fn expr_json(expression: &Expr) -> J {
++    match expression {
++        Expr::Local(slot) => J::obj([("node", "local".into()), ("slot", J::Num(*slot as u64))]),
++        Expr::Number { sort, decimal } => J::obj([("node", "number".into()), ("sort", sort.name().into()), ("decimal", decimal.into())]),
++        Expr::Bool(value) => J::obj([("node", "bool".into()), ("value", (*value).into())]),
++        Expr::Primitive(operation, arguments) => J::obj([("node", "primitive".into()), ("operation", format!("{operation:?}").into()), ("arguments", J::arr(arguments, expr_json))]),
++        Expr::Call { target, arguments } => J::obj([("node", "call".into()), ("target", target.into()), ("arguments", J::arr(arguments, expr_json))]),
++        Expr::Let { value, body } => J::obj([("node", "let".into()), ("value", expr_json(value)), ("body", expr_json(body))]),
++        Expr::If { condition, yes, no } => J::obj([("node", "if".into()), ("condition", expr_json(condition)), ("yes", expr_json(yes)), ("no", expr_json(no))]),
++    }
++}
++fn object<'a>(value: &'a J, fields: &[&str]) -> Result<&'a BTreeMap<String, J>, Invalid> {
++    let o = value.as_object().map_err(|e| Invalid(e.to_string()))?;
++    if o.len() != fields.len() || !fields.iter().all(|key| o.contains_key(*key)) { return Err(Invalid("unexpected total-body fields".into())) }
++    Ok(o)
++}
++fn string(value: &J) -> Result<&str, Invalid> { value.as_str().map_err(|e| Invalid(e.to_string())) }
++fn array(value: &J) -> Result<&Vec<J>, Invalid> { value.as_array().map_err(|e| Invalid(e.to_string())) }
++fn decode_expr(value: &J) -> Result<Expr, Invalid> {
++    let initial = value.as_object().map_err(|e| Invalid(e.to_string()))?;
++    let node = initial.get("node").ok_or_else(|| Invalid("missing total-body node".into()))?;
++    Ok(match string(node)? {
++        "local" => { let o=object(value, &["node","slot"])?; Expr::Local(usize::try_from(o["slot"].as_num().map_err(|e| Invalid(e.to_string()))?).map_err(|_| Invalid("total slot overflow".into()))?) }
++        "number" => { let o=object(value,&["node","sort","decimal"])?; Expr::Number { sort: Sort::parse(string(&o["sort"])?).ok_or_else(|| Invalid("unknown total sort".into()))?, decimal:string(&o["decimal"])?.into() } }
++        "bool" => { let o=object(value,&["node","value"])?; Expr::Bool(o["value"].as_bool().map_err(|e| Invalid(e.to_string()))?) }
++        "primitive" => { let o=object(value,&["node","operation","arguments"])?; Expr::Primitive(Op::parse(string(&o["operation"])?).ok_or_else(|| Invalid("unknown total primitive".into()))?, array(&o["arguments"])?.iter().map(decode_expr).collect::<Result<_,_>>()?) }
++        "call" => { let o=object(value,&["node","target","arguments"])?; Expr::Call { target:string(&o["target"])?.into(), arguments:array(&o["arguments"])?.iter().map(decode_expr).collect::<Result<_,_>>()? } }
++        "let" => { let o=object(value,&["node","value","body"])?; Expr::Let { value:Box::new(decode_expr(&o["value"])?), body:Box::new(decode_expr(&o["body"])?) } }
++        "if" => { let o=object(value,&["node","condition","yes","no"])?; Expr::If { condition:Box::new(decode_expr(&o["condition"])?), yes:Box::new(decode_expr(&o["yes"])?), no:Box::new(decode_expr(&o["no"])?) } }
++        _ => return Err(Invalid("unknown total-body node".into())),
++    })
++}
++impl CheckedGraph {
++    pub fn to_json(&self) -> String {
++        J::obj([("version", J::Num(1)), ("definitions", J::arr(self.definitions(), |d| J::obj([
++            ("identity", d.identity.as_str().into()),
++            ("parameters", J::arr(&d.parameters, |s| s.name().into())),
++            ("result", d.result.name().into()), ("body", expr_json(&d.body)),
++        ])))]).to_canonical_string()
++    }
++    pub fn from_json(text: &str) -> Result<Self, Invalid> {
++        let data=parse_json(text).map_err(|e| Invalid(e.to_string()))?;
++        let root=object(&data,&["version","definitions"])?;
++        if root["version"].as_num().map_err(|e| Invalid(e.to_string()))? != 1 { return Err(Invalid("unknown total-body version".into())) }
++        let mut definitions=Vec::new();
++        for row in array(&root["definitions"])? {
++            let o=object(row,&["identity","parameters","result","body"])?;
++            definitions.push(Definition {
++                identity:string(&o["identity"])?.into(),
++                parameters:array(&o["parameters"])?.iter().map(|p| Sort::parse(string(p)?).ok_or_else(|| Invalid("unknown total parameter sort".into()))).collect::<Result<_,_>>()?,
++                result:Sort::parse(string(&o["result"])?).ok_or_else(|| Invalid("unknown total result sort".into()))?,
++                body:decode_expr(&o["body"])?,
++            });
++        }
++        Self::check(definitions)
++    }
++}
 --- a/compiler/src/types.rs
 +++ b/compiler/src/types.rs
 @@ -472,6 +472,11 @@

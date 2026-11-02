@@ -170,3 +170,75 @@ impl TotalProducer<'_> {
         arguments.iter().map(|argument| self.expression(argument)).collect()
     }
 }
+
+impl Checker {
+    fn interface_value_body(&self, value: &ValueInfo) -> Option<crate::total::CheckedGraph> {
+        let scheme = &value.scheme;
+        if !scheme.params.is_empty() || !scheme.idx_params.is_empty() || !scheme.val_params.is_empty()
+            || !scheme.prop_params.is_empty() || !scheme.region_params.is_empty() || !scheme.row_params.is_empty()
+            || !scheme.ctx.is_empty() || !scheme.obligs.is_empty() { return None }
+        self.resolved_interface_scheme(&value.module, &value.name)?;
+        let identity = fn_id(&value.module, &value.name).0;
+        let graph = self.interface_checked_bodies.as_ref()?;
+        let definition = graph.get(&identity)?;
+        let mut ty = &scheme.ty;
+        let mut parameters = Vec::new();
+        while let Ty::Fun(domain, _, row, result) = ty {
+            if !row.is_pure() { return None }
+            // Refinement domains, Pi binders and hidden proof/dictionary
+            // contexts must never disappear through a base-sort projection.
+            parameters.push(plain_total_sort(domain)?);
+            ty = result;
+        }
+        if parameters != definition.parameters { return None }
+        if let Some(sort) = plain_total_sort(ty) {
+            if sort != definition.result { return None }
+        } else {
+            let view = self.refine_view(ty)?;
+            let base = view.base?;
+            let sort = plain_total_sort(&base)?;
+            if !matches!(sort, crate::total::Sort::Nat | crate::total::Sort::Int | crate::total::Sort::I64)
+                || sort != definition.result || !literal_result_predicate(&view.pred, &view.binder) { return None }
+            // This mirrors the independent consumer's supported finite
+            // envelope tier. More general refinements retain their scheme
+            // without advertising executable index authority.
+            let mut fuel = 4096;
+            if !finite_total_result(graph, &definition.body, &vec![false; parameters.len()], &mut fuel) { return None }
+        }
+        graph.closure([identity.as_str()]).ok()
+    }
+}
+fn plain_total_sort(ty: &Ty) -> Option<crate::total::Sort> {
+    use crate::total::Sort;
+    Some(match ty { Ty::Nat => Sort::Nat, Ty::Int => Sort::Int, Ty::Bool => Sort::Bool,
+        Ty::Bytes => Sort::Bytes, Ty::Prim(Scalar::I64) => Sort::I64, _ => return None })
+}
+fn literal_result_predicate(predicate: &PTerm, binder: &str) -> bool {
+    fn atom(term: &ITerm, binder: &str) -> bool { matches!(term, ITerm::Num(_)) || matches!(term, ITerm::Var(name) if name == binder) }
+    match predicate {
+        PTerm::Cmp(op, a, b) => *op != IdxCmp::Ne && atom(a, binder) && atom(b, binder),
+        PTerm::Eq(a, b) => atom(a, binder) && atom(b, binder),
+        PTerm::And(a, b) => literal_result_predicate(a, binder) && literal_result_predicate(b, binder),
+        _ => false,
+    }
+}
+fn finite_total_result(graph: &crate::total::CheckedGraph, expression: &crate::total::Expr, scope: &[bool], fuel: &mut usize) -> bool {
+    use crate::total::Expr;
+    if *fuel == 0 { return false }
+    *fuel -= 1;
+    match expression {
+        Expr::Number { .. } => true,
+        Expr::Local(slot) => scope.get(*slot).copied().unwrap_or(false),
+        Expr::If { yes, no, .. } => finite_total_result(graph, yes, scope, fuel) && finite_total_result(graph, no, scope, fuel),
+        Expr::Let { value, body } => {
+            let value = finite_total_result(graph, value, scope, fuel);
+            let mut nested = scope.to_vec(); nested.push(value);
+            finite_total_result(graph, body, &nested, fuel)
+        }
+        Expr::Call { target, arguments } => {
+            let actual = arguments.iter().map(|argument| finite_total_result(graph, argument, scope, fuel)).collect::<Vec<_>>();
+            graph.get(target).is_some_and(|callee| finite_total_result(graph, &callee.body, &actual, fuel))
+        }
+        _ => false,
+    }
+}

@@ -11,7 +11,7 @@ module Bootstrap.BodyContract where
 
   export BodyBinding, check-body-binding, binding-name, binding-native, binding-role
   export binding-scheme, binding-function, binding-equal, binding-matches
-  export body-bindings-closed, body-binding, body-function, body-type-authorized
+  export body-bindings-closed, body-binding, body-function, body-type-authorized, body-kind-authorized, body-scheme-authorized
 
   data BodyBinding where
     VerifiedBody :: String -> String -> String -> Scheme -> TotalFunction -> BodyBinding
@@ -96,6 +96,7 @@ module Bootstrap.BodyContract where
   compatible binding bindings = case bindings of
     Nil -> True
     Cons first rest -> not (same (binding-name first) (binding-name binding))
+      && total-functions-compatible (binding-function first) (binding-function binding)
       && (not (same (binding-native first) (binding-native binding)) || total-function-equal (binding-function first) (binding-function binding))
       && compatible binding rest
   body-bindings-closed :: List BodyBinding -> Bool
@@ -138,3 +139,15 @@ module Bootstrap.BodyContract where
     UTuple fields -> body-type-authorized bindings fields
     UArg a b -> body-type-authorized bindings a && body-type-authorized bindings b
     other -> True
+
+  body-parameters-authorized :: List BodyBinding -> List Quant -> Bool
+  body-parameters-authorized bindings parameters = case parameters of
+    Nil -> True
+    Cons parameter rest -> body-kind-authorized bindings (quant-kind parameter) && body-parameters-authorized bindings rest
+  body-requirements-authorized :: List BodyBinding -> List Requirement -> Bool
+  body-requirements-authorized bindings requirements = case requirements of
+    Nil -> True
+    Cons requirement rest -> body-type-authorized bindings (requirement-type requirement) && body-requirements-authorized bindings rest
+  body-scheme-authorized :: List BodyBinding -> Scheme -> Bool
+  body-scheme-authorized bindings scheme = body-parameters-authorized bindings (scheme-params scheme)
+    && body-requirements-authorized bindings (scheme-requirements scheme) && body-type-authorized bindings (scheme-body scheme)

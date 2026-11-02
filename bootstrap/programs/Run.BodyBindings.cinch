@@ -84,6 +84,8 @@ module Main where
         , body-type-authorized [binding] claimed
         , not (body-type-authorized [binding] altered)
         , not (body-type-authorized Nil claimed)
+        , not (body-scheme-authorized Nil (qualified [MkQuant (id + 50) "carrier" (value-kind (URefine (id + 60) "value" nat (UCompare "==" (UIndex nat (IBound (id + 60) "value")) (UIndexCall function (UArg (UIndex nat (IInteger 7)) UEnd))))) False] Nil nat))
+        , not (body-scheme-authorized Nil (qualified Nil [MkRequirement "dictionary" (UApp (UCon "Witness" (KFun (value-kind nat) KType)) (UIndexCall function (UArg (UIndex nat (IInteger 7)) UEnd)))] nat))
         , not (body-bindings-closed [binding, next])
         , (case close-globals [GlobalBody (GlobalValue "other" "external" original) binding] of None -> True; other -> False)
         , (case close-globals [GlobalBody (GlobalValue "width" "external" original) binding, GlobalValue "width" "external" original] of None -> True; other -> False)

@@ -102,7 +102,7 @@ module Bootstrap.Interface where
   -- (`interface::SCHEMA_VERSION`). A later schema is answered as a mismatch
   -- rather than guessed at.
   iface-schema-version :: Nat
-  iface-schema-version = 7
+  iface-schema-version = 8
 
   -- ----------------------------------------------------------------- bytes
 

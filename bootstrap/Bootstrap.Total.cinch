@@ -8,8 +8,8 @@ module Bootstrap.Total where
   import Algebra.Semigroup
   import Text.Json (canonical-bytes)
 
-  export TotalGraph, TotalFunction, check-total-graph, total-function
-  export total-identity, total-parameters, total-result, total-body, total-document, total-bounds, total-function-document, total-function-equal
+  export TotalGraph, TotalFunction, check-total-graph, total-function, total-graph-for-roots
+  export total-identity, total-parameters, total-result, total-body, total-document, total-bounds, total-function-document, total-function-equal, total-functions-compatible
 
   data TotalGraph where
     MkTotalGraph :: Json -> TotalGraph
@@ -207,3 +207,23 @@ module Bootstrap.Total where
     MkTotalFunction (MkTotalGraph doc) name -> (case literal-results (field "definitions" doc) (unknown-domains (total-parameters function)) (total-body function) 4096 of
       (Some (Cons value rest), remaining) -> Some (result-envelope rest value value)
       other -> None)
+
+  total-owned-rows :: Json -> List String -> Bool
+  total-owned-rows rows reachable = case rows of
+    JArr row rest -> has (text (field "identity" row)) reachable && total-owned-rows rest reachable
+    JArrEnd -> True
+    other -> False
+  total-graph-for-roots :: TotalGraph -> List String -> Bool
+  total-graph-for-roots graph roots = case graph of MkTotalGraph doc -> (case acyclic-calls (field "definitions" doc) Nil Nil roots of
+    Some reachable -> total-owned-rows (field "definitions" doc) reachable
+    None -> False)
+
+  compatible-definitions :: Json -> Json -> Bool
+  compatible-definitions first second = case first of
+    JArr row rest -> (case find (text (field "identity" row)) second of
+      Some prior -> bytes-compare (canonical-bytes row) (canonical-bytes prior) == 0
+      None -> True) && compatible-definitions rest second
+    JArrEnd -> True
+    other -> False
+  total-functions-compatible :: TotalFunction -> TotalFunction -> Bool
+  total-functions-compatible first second = compatible-definitions (field "definitions" (total-function-document first)) (field "definitions" (total-function-document second))

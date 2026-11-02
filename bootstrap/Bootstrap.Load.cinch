@@ -4,9 +4,10 @@
 module Bootstrap.Load where
 
   import Bootstrap.Ast (TypeExpr)
+  import Bootstrap.Total
   import Bootstrap.Interface (iface-parse, iface-schema-version, fnv-source-hash)
   import Bootstrap.Parse (parse-scheme)
-  import Bootstrap.Nominal (resolved-entry-valid, resolved-nominals)
+  import Bootstrap.Nominal (resolved-entry-valid, resolved-nominals, resolved-measures)
   import Data.Bytes (bytes-compare)
   import Data.Json
   import Text.Json (canonical-bytes)
@@ -207,7 +208,7 @@ module Bootstrap.Load where
       string-length name > 0 && not (member name seen)
       && string-length (text (field "symbol" row)) > 0
       && string-length (text (field "scheme" row)) > 0 && nat-p (field "tag" row)
-      && resolved-entry-valid row
+      && resolved-entry-valid row && measure-bodies-valid (resolved-measures row)
       && strings-p (field "fields" row) && bools-p (field "erased" row)
       && array-length (field "fields" row) == array-length (field "erased" row)
       && ctors-valid rest (Cons name seen)
@@ -247,7 +248,7 @@ module Bootstrap.Load where
       string-length name > 0 && not (member name seen)
       && string-length (text (field "scheme" row)) > 0 && strings-p (field "exports" row)
       && nat-p (field "slot" row) && number (field "slot" row) == list-length seen
-      && resolved-entry-valid row
+      && resolved-entry-valid row && measure-bodies-valid (resolved-measures row)
       && method-default-valid row
       && methods-valid rest (Cons name seen)
     JArrEnd -> True
@@ -285,12 +286,29 @@ module Bootstrap.Load where
       && string-length (text (field "class" row)) > 0 && string-length (text (field "target" row)) > 0
       && strings-p (field "ctx" row) && strings-p (field "methods" row)
       && (case field "implicit" row of JBool value -> True; other -> False)
-      && resolved-entry-valid row && instance-methods-valid (field "method_contracts" row) Nil Nil
+      && resolved-entry-valid row && measure-bodies-valid (resolved-measures row) && instance-methods-valid (field "method_contracts" row) Nil Nil
       && (case field "method_contracts" row of JArrEnd -> True; other -> (case field "resolved" row of JNull -> True; other -> False))
       && instances-valid rest (Cons identity seen)
     JArrEnd -> True
     other -> False
 
+  has-field :: String -> Json -> Bool
+  has-field name doc = case doc of JObj key value rest -> same name key || has-field name rest; other -> False
+  measure-bodies-valid :: Json -> Bool
+  measure-bodies-valid rows = case rows of
+    JArr row rest -> (case check-total-graph (field "total_body" row) of
+      Some graph -> total-graph-for-roots graph [text (field "identity" row)] && (case total-function graph (text (field "identity" row)) of Some function -> True; None -> False)
+      None -> False) && measure-bodies-valid rest
+    JArrEnd -> True
+    other -> False
+  value-body-valid :: Json -> Bool
+  value-body-valid row = has-field "total_body" row && (case field "total_body" row of
+    JNull -> True
+    doc -> (case field "resolved" row of JNull -> False; other -> (case check-total-graph doc of
+      Some graph -> (case total-function graph (text (field "symbol" row)) of
+        Some function -> list-length (total-parameters function) == number (field "arity" row) && total-graph-for-roots graph [text (field "symbol" row)]
+        None -> False)
+      None -> False)))
   values-valid :: Json -> List String -> Bool
   values-valid values seen = case values of
     JArr v rest ->
@@ -298,7 +316,7 @@ module Bootstrap.Load where
       string-length name > 0 && not (member name seen)
       && string-length (text (field "symbol" v)) > 0
       && string-length (text (field "scheme" v)) > 0
-      && resolved-entry-valid v
+      && resolved-entry-valid v && measure-bodies-valid (resolved-measures v) && value-body-valid v
       && nat-p (field "arity" v) && values-valid rest (Cons name seen)
     JArrEnd -> True
     other -> False
@@ -531,6 +549,71 @@ module Bootstrap.Load where
         Err message -> Err message
         Ok unit -> verify-nominal-set rest all checked
 
+  body-declaration :: String -> Json -> Json
+  body-declaration identity row = JObj "identity" (JStr identity) (JObj "resolved" (field "resolved" row) (JObj "total_body" (field "total_body" row) JObjEnd))
+  value-body-declarations :: Json -> List Json
+  value-body-declarations rows = case rows of
+    JArr row rest -> (case field "total_body" row of JNull -> Nil; doc -> [body-declaration (text (field "symbol" row)) row])
+      <> json-rows (resolved-measures row) <> value-body-declarations rest
+    other -> Nil
+  signature-body-declarations :: Json -> List Json
+  signature-body-declarations rows = case rows of
+    JArr row rest -> value-body-declarations (field "methods" row) <> signature-body-declarations rest
+    other -> Nil
+  interface-body-declarations :: LoadedInterface -> List Json
+  interface-body-declarations i = let exports = field "exports" (loaded-contract i) in
+    value-body-declarations (field "values" exports) <> signature-body-declarations (field "signatures" exports)
+      <> value-body-declarations (field "instances" exports)
+  prefix-chars :: List Char -> List Char -> Bool
+  prefix-chars first second = case (first, second) of
+    (Nil, other) -> True
+    (Cons a rest, Cons b more) -> char-code a == char-code b && prefix-chars rest more
+    other -> False
+  body-node-owner :: String -> List LoadedInterface -> String -> String
+  body-node-owner identity interfaces best = case interfaces of
+    Nil -> best
+    Cons i rest -> let name = loaded-module i in
+      body-node-owner identity rest (if string-length name > string-length best && prefix-chars (unpack (string-concat name ".")) (unpack identity) then name else best)
+  verify-body-nodes :: Json -> List String -> List LoadedInterface -> List (String, Bytes) -> Result String (List (String, Bytes))
+  verify-body-nodes rows reachable all seen = case rows of
+    JArr row rest -> let identity = text (field "identity" row) in
+      let owner = body-node-owner identity all "" in
+      let key = string-concat "#total-definition:" identity in
+      let bytes = canonical-bytes row in
+      if string-length owner == 0 || not (member owner reachable) then Err (string-concat "total body dependency is outside the checked module closure: " identity)
+      else (case prior-nominal key seen of
+        None -> verify-body-nodes rest reachable all (Cons (key, bytes) seen)
+        Some prior -> if bytes-compare prior bytes == 0 then verify-body-nodes rest reachable all seen
+          else Err (string-concat "conflicting actual total body dependency: " identity))
+    JArrEnd -> Ok seen
+    other -> Err "invalid total body definition table"
+  verify-body-declarations :: List Json -> List String -> List LoadedInterface -> List (String, Bytes) -> Result String (List (String, Bytes))
+  verify-body-declarations declarations reachable all seen = case declarations of
+    Nil -> Ok seen
+    Cons row rest -> let identity = text (field "identity" row) in
+      let bytes = canonical-bytes (body-declaration identity row) in
+      if not (member (body-node-owner identity all "") reachable) then Err (string-concat "total body identity is outside the checked dependency closure: " identity)
+      else (case find-interface (body-node-owner identity all "") all of
+        None -> Err (string-concat "missing defining total body interface: " identity)
+        Some owner -> (case entry-by "symbol" identity (field "values" (field "exports" (loaded-contract owner))) of
+          Some definition -> if bytes-compare bytes (canonical-bytes (body-declaration identity definition)) == 0 then verify-body-consistency row rest reachable all seen bytes
+            else Err (string-concat "total body disagrees with its declaring module: " identity)
+          None -> verify-body-consistency row rest reachable all seen bytes))
+  verify-body-consistency :: Json -> List Json -> List String -> List LoadedInterface -> List (String, Bytes) -> Bytes -> Result String (List (String, Bytes))
+  verify-body-consistency row rest reachable all seen bytes = let identity = text (field "identity" row) in
+    case verify-body-nodes (field "definitions" (field "total_body" row)) reachable all seen of
+      Err message -> Err message
+      Ok checked -> (case prior-nominal identity checked of
+        None -> verify-body-declarations rest reachable all (Cons (identity, bytes) checked)
+        Some prior -> if bytes-compare prior bytes == 0 then verify-body-declarations rest reachable all checked
+          else Err (string-concat "conflicting defining total body declarations: " identity))
+  verify-body-set :: List LoadedInterface -> List LoadedInterface -> List (String, Bytes) -> Result String Unit
+  verify-body-set remaining all seen = case remaining of
+    Nil -> Ok ()
+    Cons i rest -> (case verify-body-declarations (interface-body-declarations i) (reachable-modules [loaded-module i] all Nil) all seen of
+      Err message -> Err (string-concat-all [loaded-module i, ": ", message])
+      Ok checked -> verify-body-set rest all checked)
+
   validate-interface-set :: List LoadedInterface -> Result String (List LoadedInterface)
   validate-interface-set loaded = if duplicate-module loaded Nil then Err "duplicate interface module in resolved context"
     else case order-interfaces loaded Nil Nil of
@@ -539,7 +622,7 @@ module Bootstrap.Load where
         Ok unit -> Err message
       Ok ordered -> case verify-set loaded loaded of
         Err message -> Err message
-        Ok unit -> case verify-nominal-set loaded loaded Nil of Err message -> Err message; Ok checked -> Ok ordered
+        Ok unit -> case verify-nominal-set loaded loaded Nil of Err message -> Err message; Ok checked -> (case verify-body-set loaded loaded Nil of Err message -> Err message; Ok unit -> Ok ordered)
 
   duplicate-module :: List LoadedInterface -> List String -> Bool
   duplicate-module loaded seen = case loaded of

@@ -64,7 +64,7 @@ pub struct Invalid(pub String);
 
 /// The constructor is private. A valid graph is closed, well typed and
 /// acyclic; recursively calling a pure-typed function cannot manufacture it.
-#[derive(Clone, Debug, PartialEq, Eq, Default)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub struct CheckedGraph { definitions: BTreeMap<String, Definition> }
 
 fn number(sort: Sort, decimal: &str) -> bool {

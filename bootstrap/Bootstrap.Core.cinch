@@ -22,7 +22,7 @@ module Bootstrap.Core where
   export CDecision, decision-type, decision-constructor-scheme, scoped-decision-valid, stable-index-source
   export CRefine, CForget, prove-refinement, CRequire, CDischarge, core-predicates, prove-predicates, required-body, CProved, core-condition, core-let-fact, prove-subtraction, numeric-method-operation
   export ProofScope, make-proof-scope, scoped-prove-refinement, scoped-prove-predicates, scoped-core-predicates, scoped-core-condition, scoped-core-let-fact, scoped-prove-subtraction
-  export scope-bodies, with-body-bindings, core-definition-bodies-closed, seal-definition-with-bodies
+  export scoped-total-call-index, scope-bodies, with-body-bindings, core-definition-bodies-closed, seal-definition-with-bodies
   export CoreClause, MkCoreClause, CoreDefinition, MkCoreDefinition
   export core-type, core-name, core-scheme, core-clauses, core-openings, core-private-types
   export CoreGiven, CGiven, CoreEvidence, CENeeded, CEGiven, CEInstance
@@ -832,7 +832,7 @@ module Bootstrap.Core where
   core-definition-bodies-closed :: List BodyBinding -> CoreDefinition -> Bool
   core-definition-bodies-closed bodies definition = body-bindings-closed bodies && (case definition of
     MkCoreDefinition s name sc openings givens private clauses -> let values = opening-value-ids (scheme-params sc) openings in
-      scheme-closed sc && scheme-index-scope Nil sc && givens-closed givens && givens-index-scope values givens && valid-clauses clauses && scoped-clauses values clauses && body-type-authorized bodies (scheme-body sc) && proof-contract-clauses bodies (substitute-bound openings (scheme-body sc)) clauses)
+      scheme-closed sc && scheme-index-scope Nil sc && givens-closed givens && givens-index-scope values givens && valid-clauses clauses && scoped-clauses values clauses && body-scheme-authorized bodies sc && proof-contract-clauses bodies (substitute-bound openings (scheme-body sc)) clauses)
 
   -- Operation certificates are rechecked against facts derived from the
   -- retained Core control flow. Display names never identify proof values.
@@ -1652,3 +1652,8 @@ module Bootstrap.Core where
   goals-body-facts gamma goals = case goals of Nil -> Nil; Cons goal rest -> proposition-body-facts gamma goal <> goals-body-facts gamma rest
   goal-assumptions :: ProofScope -> List Proposition -> List Proposition -> List Proposition
   goal-assumptions gamma facts goals = proof-assumptions gamma facts <> goals-body-facts gamma goals
+
+  scoped-total-call-index :: ProofScope -> List Proposition -> CoreTerm -> Option UType
+  scoped-total-call-index gamma facts term = if not (proof-term gamma facts term) then None else case actual-index gamma facts term of
+    Some (UIndexCall function arguments) -> Some (UIndexCall function arguments)
+    other -> None

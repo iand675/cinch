@@ -83,7 +83,7 @@ module Bootstrap.Global where
   declarations-body-authorized :: List BodyBinding -> List CoreGlobal -> Bool
   declarations-body-authorized bindings declarations = case declarations of
     Nil -> True
-    Cons declaration rest -> body-type-authorized bindings (scheme-body (global-scheme declaration)) && declarations-body-authorized bindings rest
+    Cons declaration rest -> body-scheme-authorized bindings (global-scheme declaration) && declarations-body-authorized bindings rest
   close-globals :: List CoreGlobal -> Option CoreGlobals
   close-globals declarations = if globals-closed declarations then Some (ClosedGlobals declarations) else None
 

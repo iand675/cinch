@@ -57,7 +57,7 @@ module Bootstrap.Typing where
   wf :: TypingContext -> TypeScope -> UType -> Bool
   wf context scope ty = body-type-authorized (context-bodies context) ty && type-well-formed (context-kinds context) scope ty
   actual-types :: TypingContext -> TypeScope -> List UType -> Bool
-  actual-types context scope types = case types of Nil -> True; Cons ty rest -> argument-well-formed (context-kinds context) scope ty && actual-types context scope rest
+  actual-types context scope types = case types of Nil -> True; Cons ty rest -> body-type-authorized (context-bodies context) ty && argument-well-formed (context-kinds context) scope ty && actual-types context scope rest
   evidence-types :: TypingContext -> TypeScope -> CoreEvidence -> Bool
   evidence-types context scope evidence = case evidence of
     CEGiven sp ty symbol -> wf context scope ty
@@ -197,7 +197,7 @@ module Bootstrap.Typing where
     CGuard sp ty condition body -> type-is "Bool" (core-type condition) && equal-type ty (core-type body) && checked-term context scope gamma facts condition && checked-term context scope gamma (branch-facts gamma facts condition True) body
     other -> False)
   checked-let :: TypingContext -> TypeScope -> ProofScope -> List Proposition -> UType -> Nat -> Scheme -> CoreTerm -> CoreTerm -> Bool
-  checked-let context scope gamma facts ty id sc rhs body = scheme-well-formed (context-kinds context) scope sc
+  checked-let context scope gamma facts ty id sc rhs body = body-scheme-authorized (context-bodies context) sc && scheme-well-formed (context-kinds context) scope sc
     && (case scheme-requirements sc of Nil -> True; other -> False)
     && equal-type (scheme-body sc) (core-type rhs) && equal-type ty (core-type body)
     && (case scheme-type-scope (context-kinds context) scope (scheme-params sc) of Some universal -> checked-term context universal gamma facts rhs; None -> False)
@@ -209,13 +209,13 @@ module Bootstrap.Typing where
   openings-scope :: TypingContext -> TypeScope -> List (Nat, UType) -> Option TypeScope
   openings-scope context scope openings = case openings of
     Nil -> Some scope
-    Cons (key, URigid id name level kind) rest -> if kind-well-formed (context-kinds context) scope kind then
+    Cons (key, URigid id name level kind) rest -> if body-kind-authorized (context-bodies context) kind && kind-well-formed (context-kinds context) scope kind then
       (case add-rigid-kind id kind scope of Some bound -> openings-scope context bound rest; None -> None) else None
     other -> None
   private-scope :: TypeScope -> List (Nat, Kind) -> Option TypeScope
   private-scope scope entries = case entries of Nil -> Some scope; Cons (id, kind) rest -> case add-rigid-kind id kind scope of Some bound -> private-scope bound rest; None -> None
   private-kinds :: TypingContext -> TypeScope -> List (Nat, Kind) -> Bool
-  private-kinds context scope entries = case entries of Nil -> True; Cons (id, kind) rest -> kind-well-formed (context-kinds context) scope kind && private-kinds context scope rest
+  private-kinds context scope entries = case entries of Nil -> True; Cons (id, kind) rest -> body-kind-authorized (context-bodies context) kind && kind-well-formed (context-kinds context) scope kind && private-kinds context scope rest
   givens-typed :: TypingContext -> TypeScope -> List CoreGiven -> Bool
   givens-typed context scope givens = case givens of Nil -> True; Cons given rest -> wf context scope (given-type given) && givens-typed context scope rest
   clause-typed :: TypingContext -> TypeScope -> ProofScope -> UType -> UType -> List CorePattern -> CoreTerm -> Bool

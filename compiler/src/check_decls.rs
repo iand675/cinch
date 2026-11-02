@@ -9319,7 +9319,7 @@ impl Checker {
             });
             main_exit = Some(exit_id);
         }
-        let total_bodies = self.checked_total_bodies();
+        let total_bodies = self.interface_checked_bodies.clone().unwrap_or_else(|| self.checked_total_bodies());
         let (plans, foreigns) = self.build_abi_maps();
         Ok(Program {
             total_bodies,
@@ -15534,6 +15534,7 @@ impl Checker {
                     ValueKind::TopFn | ValueKind::Prim(_) | ValueKind::PrimDecl { .. } | ValueKind::Foreign { .. } => {
                         iface.exports.values.push(ValueExport {
                             name: local.clone(),
+                            total_body: self.interface_value_body(v),
                             scheme: render_scheme(&v.scheme),
                             resolved: self.resolved_interface_scheme(&d.module, &d.name),
                             symbol: format!("{}.{}", d.module, d.name),
@@ -16393,6 +16394,8 @@ fn check_program_multi_full_impl(
     // verify against the checked program's D104 groups before any
     // interface is emitted (decisions D112-D114).
     let safety_records = std::mem::take(&mut c.safety_records);
+    // Body-dependent contracts are finalized only after all checked bodies.
+    c.interface_checked_bodies = Some(c.checked_total_bodies());
     // Interfaces in dependency order: imports are known when built.
     let mut ifaces = Vec::new();
     let mut built: Vec<(String, String)> = Vec::new(); // (module, iface_hash)

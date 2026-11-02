@@ -1,5 +1,33 @@
 # Next steps (as of 2026-11-02)
 
+The actual stage2 attempt now gets past the imported measure-contract header and
+reaches compiler body checking. Schema8 carries checked executable bodies with
+their complete defining schemes and private measure dependencies. Cinch binds
+these to actual imported globals, reifies retained calls and independently
+rechecks the resulting Core proofs. Shared private definitions must agree;
+private contracts grant no source names. Definition-owned fixities are unchanged.
+
+Fresh stage0 and stage1 pass their six combined smoke checks with the intentionally
+updated seed. Actual stage2 exits4 with758 body diagnostics and no IR/compiler.
+The largest groups are333 unsupported expression elaborations,159 unresolved
+effect inclusions and constructor pattern arity errors. List literals are one
+confirmed unsupported expression form. This is the next compiler-body boundary,
+not a self-hosting success.
+
+The Native producer passes140 unit tests and actual-header roundtrip checks.
+The first compiled Cinch consumer passes13 runtime cases, including the real
+UTF8 header and changed defining bodies. Stronger body authority passes18 checks
+at each of five identities above2^128. The strengthened consumer rerun and complete
+177+5 Native-assisted suite are running; individual evidence and exact snapshots
+are recorded in [the measure-contract report](../bootstrap/measure-contract-checkpoint-results.json).
+
+The previous complete172+5 body-only foundation remains the last full-suite pass.
+The current self-built frontend suite, selected dictionary method body authority,
+complete proof/usage/totality, typed runtime lowering and stage2/3 fixed point
+remain unfinished. Later stages receive checked base interfaces, never Native
+compiler implementation bodies or a Native frontend fallback.
+
+## Previous body-binding checkpoint (35d36d6)
 Checked total bodies can now be associated with actual external global declarations
 and retained through final Core checking and certificate refresh. The association
 checks the Native identity, full monomorphic ordinary scheme, actual body and
