@@ -7,11 +7,12 @@ module Bootstrap.Type where
   import Data.Json
   import Data.Nat (nat-from-int, nat-to-int)
   import Bootstrap.Index
+  import Bootstrap.Total (TotalFunction, check-total-graph, total-function, total-identity, total-parameters, total-result, total-function-document, total-function-equal)
   import Text.Show (int-to-string)
 
   export Kind, KType, KProp, KRegion, KEffect, KRow, KFun, KValue, kind-equal, kind-text
   export valid-kind, map-kind-types, value-kind, value-carrier
-  export UType, UPropLit, UCompare, UPropAnd, UPropOr, UPropNot, UPropNonZero, UPropNonZeroPending, URequire, URefine, UCon, UBound, URigid, UMeta, UIndex, UIndexForget, UIndexPromote, UIndexByteLength, UIndexMath, UPi, UApp, UFun, UFunEff, UProofFun, URow, URowJoin, UTuple, UArg, UEnd, UError
+  export UType, UPropLit, UCompare, UPropAnd, UPropOr, UPropNot, UPropNonZero, UPropNonZeroPending, URequire, URefine, UCon, UBound, URigid, UMeta, UIndex, UIndexForget, UIndexPromote, UIndexByteLength, UIndexCall, UIndexMath, UPi, UApp, UFun, UFunEff, UProofFun, URow, URowJoin, UTuple, UArg, UEnd, UError
   export without-index-levels, index-of-type, index-runtime-admissible, typed-index-admissible, open-pi, open-refinement
   export include-effects, union-effects
   export Quant, MkQuant, quant-id, quant-name, quant-kind, quant-implicit
@@ -61,6 +62,10 @@ module Bootstrap.Type where
     -- substitution. Projection is not permission to weaken a binder sort.
     UIndexForget :: UType -> UType
     UIndexByteLength :: UType -> UType
+    -- A checked executable body and typed argument spine retain the evidence
+    -- lost by a bare IApply/IGlobal. This node does not license a source call
+    -- until Core also matches its actual defining function and arguments.
+    UIndexCall :: TotalFunction -> UType -> UType
     UIndexPromote :: UType -> UType
     UIndexMath :: String -> UType -> UType -> UType
     UPi :: Nat -> String -> UType -> UType -> UType -> UType
@@ -112,6 +117,7 @@ module Bootstrap.Type where
     UIndex carrier value -> tree "index" [carrier-tree carrier, index-tree value]
     UIndexForget value -> tree "index-forget" [carrier-tree value]
     UIndexByteLength value -> tree "index-byte-length" [carrier-tree value]
+    UIndexCall function args -> tree "index-total-call" [total-function-document function, JStr (total-identity function), carrier-tree args]
     UIndexPromote value -> tree "index-promote" [carrier-tree value]
     UIndexMath op left right -> tree "index-math" [JStr op, carrier-tree left, carrier-tree right]
     UPi id name domain row result -> tree "pi" [JNum (nat-to-int id), JStr name, carrier-tree domain, carrier-tree row, carrier-tree result]
@@ -153,7 +159,10 @@ module Bootstrap.Type where
           else if same-tag tag "row-join" then Some (URowJoin left right) else if same-tag tag "arg" then Some (UArg left right) else if same-tag tag "prop-and" then Some (UPropAnd left right) else if same-tag tag "prop-or" then Some (UPropOr left right) else if same-tag tag "required" then Some (URequire left right) else None
         other -> None
     JArr (JStr tag) (JArr a (JArr b (JArr c JArrEnd))) ->
-      if same-tag tag "prop-compare" then (case (a, read-carrier-tree b, read-carrier-tree c) of (JStr relation, Some left, Some right) -> Some (UCompare relation left right); other -> None)
+      if same-tag tag "index-total-call" then (case (check-total-graph a, b, read-carrier-tree c) of
+        (Some graph, JStr identity, Some args) -> (case total-function graph identity of Some function -> Some (UIndexCall function args); None -> None)
+        other -> None)
+      else if same-tag tag "prop-compare" then (case (a, read-carrier-tree b, read-carrier-tree c) of (JStr relation, Some left, Some right) -> Some (UCompare relation left right); other -> None)
       else if same-tag tag "index-math" then (case (a, read-carrier-tree b, read-carrier-tree c) of (JStr op, Some left, Some right) -> Some (UIndexMath op left right); other -> None)
       else if same-tag tag "bound" then (case (tree-natural a, b, read-kind-tree c) of (Some id, JStr name, Some kind) -> Some (UBound id name kind); other -> None)
       else if same-tag tag "effect-fun" then (case (read-carrier-tree a, read-carrier-tree b, read-carrier-tree c) of (Some domain, Some row, Some result) -> Some (UFunEff domain row result); other -> None)
@@ -199,6 +208,7 @@ module Bootstrap.Type where
     URefine id name carrier predicate -> URefine id name (opaque-carrier carrier) (opaque-carrier predicate)
     UIndexForget value -> UIndexForget (opaque-carrier value)
     UIndexByteLength value -> UIndexByteLength (opaque-carrier value)
+    UIndexCall function args -> UIndexCall function (opaque-carrier args)
     UIndexPromote value -> UIndexPromote (opaque-carrier value)
     UIndexMath op left right -> UIndexMath op (opaque-carrier left) (opaque-carrier right)
     UMeta id k -> URigid (id * 2) "#kind-meta" 0 (map-kind-types opaque-carrier k)
@@ -378,6 +388,7 @@ module Bootstrap.Type where
     URefine id name carrier predicate -> URefine id name (normalize st carrier) (normalize st predicate)
     UIndexForget value -> UIndexForget (normalize st value)
     UIndexByteLength value -> UIndexByteLength (normalize st value)
+    UIndexCall function args -> UIndexCall function (normalize st args)
     UIndexPromote value -> normalize-promoted-index (normalize st value)
     UIndexMath op left right -> make-index-math op (normalize st left) (normalize st right)
     UMeta id k -> case find-cell id st of
@@ -410,6 +421,7 @@ module Bootstrap.Type where
     other -> ty
   index-of-type :: UType -> Option IndexTerm
   index-of-type ty = case ty of
+    UIndexCall function args -> None
     UIndexByteLength value -> case index-of-type value of Some input -> Some (IApply (IGlobal "<intrinsic>.bytes-length") input); None -> None
     UIndex carrier value -> Some value
     UMeta id k -> case value-carrier k of Some carrier -> Some (IMeta id); None -> None
@@ -446,6 +458,7 @@ module Bootstrap.Type where
     UIndex carrier value -> value-kind carrier
     UIndexForget value -> case typed-index-carrier value of Some (URefine id name carrier predicate) -> value-kind carrier; other -> KType
     UIndexByteLength value -> value-kind (UCon "Nat" KType)
+    UIndexCall function args -> value-kind (UCon (total-result function) KType)
     UIndexPromote value -> value-kind (UCon "Int" KType)
     UIndexMath op left right -> case typed-index-carrier left of Some carrier -> value-kind carrier; None -> KType
     UApp f x -> case type-kind f of KFun a b -> b; other -> KType
@@ -490,6 +503,7 @@ module Bootstrap.Type where
     UIndex carrier value -> carrier-type carrier && index-shape carrier value
     UIndexForget value -> valid-type value && (case typed-index-carrier value of Some (URefine id name carrier predicate) -> carrier-type carrier; other -> False)
     UIndexByteLength value -> valid-type value && (case typed-index-carrier value of Some carrier -> same-shape carrier (UCon "Bytes" KType); None -> False)
+    UIndexCall function args -> total-call-arguments (total-parameters function) args
     UIndexPromote value -> valid-type value && (case typed-index-carrier value of Some carrier -> promotable-carrier carrier; None -> False)
     UIndexMath op left right -> valid-typed-math op left right
     UPi id name domain row result -> not (contains-id id (type-free-bound domain)) && carrier-type domain && valid-type row && kind-equal (type-kind row) KRow && carrier-type result
@@ -543,6 +557,7 @@ module Bootstrap.Type where
     UIndex carrier value -> index-display value
     UIndexForget value -> string-concat "forget-index " (type-text value)
     UIndexByteLength value -> string-concat "bytes-length-index " (type-text value)
+    UIndexCall function args -> string-concat-all ["checked-call ", total-identity function, " ", type-text args]
     UIndexPromote value -> string-concat "integer-index " (type-text value)
     UIndexMath op left right -> string-concat-all ["(", type-text left, " ", op, " ", type-text right, ")"]
     UPi id name domain row result -> string-concat-all ["((", name, " :: ", type-text domain, ") ->", type-text row, " ", type-text result, ")"]
@@ -579,6 +594,7 @@ module Bootstrap.Type where
     URigid id name level k -> kind-metas st k
     UIndexForget value -> free-metas st value
     UIndexByteLength value -> free-metas st value
+    UIndexCall function args -> free-metas st args
     UIndexPromote value -> free-metas st value
     UIndexMath op left right -> merge-ids (free-metas st left) (free-metas st right)
     UIndex carrier value -> merge-ids (free-metas st carrier) (index-free-metas value)
@@ -623,6 +639,7 @@ module Bootstrap.Type where
     UMeta id k -> kind-escapes level k
     UIndexForget value -> escapes level value
     UIndexByteLength value -> escapes level value
+    UIndexCall function args -> escapes level args
     UIndexPromote value -> escapes level value
     UIndexMath op left right -> escapes level left || escapes level right
     UIndex carrier value -> escapes level carrier || index-escapes level value
@@ -711,6 +728,7 @@ module Bootstrap.Type where
       other -> mismatch sp a b st
     UIndexForget value -> case b of UIndexForget other -> unify sp value other st; other -> mismatch sp a b st
     UIndexByteLength value -> case b of UIndexByteLength other -> unify sp value other st; other -> mismatch sp a b st
+    UIndexCall function args -> case b of UIndexCall other values -> if total-function-equal function other then unify sp args values st else mismatch sp a b st; other -> mismatch sp a b st
     UIndexPromote value -> case b of UIndexPromote other -> unify sp value other st; other -> mismatch sp a b st
     UIndexMath op left right -> case b of UIndexMath operation a1 a2 -> if same-tag op operation then unify sp right a2 (unify sp left a1 st) else mismatch sp a b st; other -> mismatch sp a b st
     UPi id name domain row result -> unify-pi sp a (function-pi b) st
@@ -775,6 +793,7 @@ module Bootstrap.Type where
     (UIndex carrier value, UIndex other right) -> same-shape carrier other && index-equal value right
     (UIndexForget a, UIndexForget b) -> same-shape a b
     (UIndexByteLength a, UIndexByteLength b) -> same-shape a b
+    (UIndexCall function args, UIndexCall other values) -> total-function-equal function other && same-shape args values
     (UIndexPromote a, UIndexPromote b) -> same-shape a b
     (UIndexMath op a b, UIndexMath operation c d) -> same-tag op operation && same-shape a c && same-shape b d
     (UPi id name domain row result, UPi key other input effects output) -> same-pi first second
@@ -851,6 +870,7 @@ module Bootstrap.Type where
     URefine id name carrier predicate -> substitute-refinement False pairs id name carrier predicate
     UIndexForget value -> UIndexForget (substitute pairs value)
     UIndexByteLength value -> UIndexByteLength (substitute pairs value)
+    UIndexCall function args -> UIndexCall function (substitute pairs args)
     UIndexPromote value -> UIndexPromote (substitute pairs value)
     UIndexMath op left right -> make-index-math op (substitute pairs left) (substitute pairs right)
     UPi id name domain row result -> substitute-pi False pairs id name domain row result
@@ -906,6 +926,7 @@ module Bootstrap.Type where
     URefine id name carrier predicate -> substitute-refinement True pairs id name carrier predicate
     UIndexForget value -> UIndexForget (replace-metas pairs value)
     UIndexByteLength value -> UIndexByteLength (replace-metas pairs value)
+    UIndexCall function args -> UIndexCall function (replace-metas pairs args)
     UIndexPromote value -> UIndexPromote (replace-metas pairs value)
     UIndexMath op left right -> make-index-math op (replace-metas pairs left) (replace-metas pairs right)
     UPi id name domain row result -> substitute-pi True pairs id name domain row result
@@ -1089,10 +1110,23 @@ module Bootstrap.Type where
   normalize-promoted-index value = case value of
     UIndex carrier (IInteger n) -> if promotable-carrier carrier && integer-literal-valid carrier n then UIndex (UCon "Int" KType) (IInteger n) else UIndexPromote value
     other -> UIndexPromote value
+  total-call-arguments :: List String -> UType -> Bool
+  total-call-arguments parameters args = case (parameters, args) of
+    (Nil, UEnd) -> True
+    (Cons expected rest, UArg input more) -> valid-type input
+      && (case typed-index-carrier input of Some actual -> same-shape actual (UCon expected KType); None -> False)
+      && total-call-arguments rest more
+    other -> False
+  total-call-runtime-arguments :: UType -> Bool
+  total-call-runtime-arguments args = case args of
+    UEnd -> True
+    UArg input more -> typed-index-admissible input && total-call-runtime-arguments more
+    other -> False
   typed-index-admissible :: UType -> Bool
   typed-index-admissible value = valid-type value && (case value of
     UIndexForget input -> typed-index-admissible input
     UIndexByteLength input -> typed-index-admissible input
+    UIndexCall function args -> total-call-runtime-arguments args
     UIndexPromote input -> typed-index-admissible input
     UIndexMath op left right -> typed-index-admissible left && typed-index-admissible right
     other -> case (typed-index-carrier value, index-of-type value) of (Some carrier, Some term) -> index-runtime-admissible carrier term; other -> False)
@@ -1140,6 +1174,7 @@ module Bootstrap.Type where
     URefine id name carrier predicate -> if valid-type ty then validate-type-indices sp predicate (validate-type-indices sp carrier st) else add-error sp "ill-formed refinement type" st
     UIndexForget value -> if valid-type ty then validate-type-indices sp value st else add-error sp "ill-sorted index projection" st
     UIndexByteLength value -> if valid-type ty then validate-type-indices sp value st else add-error sp "ill-sorted byte-length index" st
+    UIndexCall function args -> if valid-type ty then validate-type-indices sp args st else add-error sp "ill-sorted checked total call" st
     UIndexPromote value -> if valid-type ty then validate-type-indices sp value st else add-error sp "ill-sorted integer index promotion" st
     UIndexMath op left right -> if valid-type ty then validate-type-indices sp right (validate-type-indices sp left st) else add-error sp "ill-sorted typed index arithmetic" st
     UPi id name domain row result -> validate-type-indices sp result (validate-type-indices sp row (validate-type-indices sp domain st))
@@ -1251,6 +1286,7 @@ module Bootstrap.Type where
     UMeta id k -> merge-ids [id] (kind-all-ids k)
     UIndexForget value -> type-all-ids value
     UIndexByteLength value -> type-all-ids value
+    UIndexCall function args -> type-all-ids args
     UIndexPromote value -> type-all-ids value
     UIndexMath op left right -> merge-ids (type-all-ids left) (type-all-ids right)
     UIndex carrier value -> merge-ids (type-all-ids carrier) (index-all-ids value)
@@ -1288,6 +1324,7 @@ module Bootstrap.Type where
     UMeta id k -> kind-free-bound k
     UIndexForget value -> type-free-bound value
     UIndexByteLength value -> type-free-bound value
+    UIndexCall function args -> type-free-bound args
     UIndexPromote value -> type-free-bound value
     UIndexMath op left right -> merge-ids (type-free-bound left) (type-free-bound right)
     UIndex carrier value -> merge-ids (type-free-bound carrier) (index-free-bound value)
@@ -1440,6 +1477,7 @@ module Bootstrap.Type where
     UMeta id k -> kind-pi-ids k
     UIndexForget value -> type-pi-ids value
     UIndexByteLength value -> type-pi-ids value
+    UIndexCall function args -> type-pi-ids args
     UIndexPromote value -> type-pi-ids value
     UIndexMath op left right -> merge-ids (type-pi-ids left) (type-pi-ids right)
     UIndex carrier value -> type-pi-ids carrier
@@ -1486,6 +1524,7 @@ module Bootstrap.Type where
     URefine id name carrier predicate -> URefine id name (without-index-levels carrier) (without-index-levels predicate)
     UIndexForget value -> UIndexForget (without-index-levels value)
     UIndexByteLength value -> UIndexByteLength (without-index-levels value)
+    UIndexCall function args -> UIndexCall function (without-index-levels args)
     UIndexPromote value -> UIndexPromote (without-index-levels value)
     UIndexMath op left right -> UIndexMath op (without-index-levels left) (without-index-levels right)
     UPi id name domain row result -> UPi id name (without-index-levels domain) (without-index-levels row) (without-index-levels result)

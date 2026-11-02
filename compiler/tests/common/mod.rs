@@ -66,6 +66,8 @@ pub fn project(tag: &str, files: &[(&str, &str)]) -> PathBuf {
     std::fs::create_dir_all(&dir).expect("project directory");
     std::fs::write(dir.join("Bootstrap.Index.cinch"), include_str!("../../../bootstrap/Bootstrap.Index.cinch"))
         .expect("shared index syntax dependency");
+    std::fs::write(dir.join("Bootstrap.Total.cinch"), include_str!("../../../bootstrap/Bootstrap.Total.cinch"))
+        .expect("checked total-body dependency");
     if files.iter().any(|(name, _)| matches!(*name, "Bootstrap.Core.cinch" | "Bootstrap.Check.cinch" | "Bootstrap.Infer.cinch" | "Bootstrap.Dictionary.cinch")) {
         std::fs::write(dir.join("Bootstrap.Proof.cinch"), include_str!("../../../bootstrap/Bootstrap.Proof.cinch"))
             .expect("shared proof checker dependency");

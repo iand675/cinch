@@ -106,6 +106,7 @@ module Bootstrap.Core where
     UIndexForget value -> effect-type-scope qs value
     UIndexPromote value -> effect-type-scope qs value
     UIndexByteLength value -> effect-type-scope qs value
+    UIndexCall function args -> effect-type-scope qs args
     UIndexMath op a b -> effect-type-scope qs a && effect-type-scope qs b
     URefine id name carrier predicate -> effect-binder qs id name carrier predicate
     UPi id name domain row result -> effect-binder qs id name domain (UArg row (UArg result UEnd))
@@ -430,6 +431,7 @@ module Bootstrap.Core where
     URefine id name carrier predicate -> URefine id name (freeze carrier) (freeze predicate)
     UIndexForget value -> UIndexForget (freeze value)
     UIndexByteLength value -> UIndexByteLength (freeze value)
+    UIndexCall function args -> UIndexCall function (freeze args)
     UIndexPromote value -> UIndexPromote (freeze value)
     UIndexMath op left right -> UIndexMath op (freeze left) (freeze right)
     UPi id name domain row result -> UPi id name (freeze domain) (freeze row) (freeze result)
@@ -465,6 +467,7 @@ module Bootstrap.Core where
     URefine id name carrier predicate -> type-metas st carrier <> type-metas st predicate
     UIndexForget value -> type-metas st value
     UIndexByteLength value -> type-metas st value
+    UIndexCall function args -> type-metas st args
     UIndexPromote value -> type-metas st value
     UIndexMath op left right -> type-metas st left <> type-metas st right
     UPi id name domain row result -> type-metas st domain <> type-metas st row <> type-metas st result
@@ -571,6 +574,7 @@ module Bootstrap.Core where
   closed-type ty = case ty of
     UIndexForget value -> valid-type ty && typed-index-admissible ty && closed-type value
     UIndexByteLength value -> valid-type ty && typed-index-admissible ty && closed-type value
+    UIndexCall function args -> valid-type ty && typed-index-admissible ty && closed-type args
     UIndexPromote value -> valid-type ty && typed-index-admissible ty && closed-type value
     UIndexMath op left right -> valid-type ty && typed-index-admissible ty && closed-type left && closed-type right
     URefine id name carrier predicate -> valid-type ty && closed-type carrier && closed-type predicate
@@ -710,6 +714,7 @@ module Bootstrap.Core where
     URefine id name carrier predicate -> type-index-scope bound rigid carrier && type-index-scope (Cons id bound) rigid predicate
     UIndexForget value -> type-index-scope bound rigid value
     UIndexByteLength value -> type-index-scope bound rigid value
+    UIndexCall function args -> type-index-scope bound rigid args
     UIndexPromote value -> type-index-scope bound rigid value
     UIndexMath op left right -> type-index-scope bound rigid left && type-index-scope bound rigid right
     UIndex carrier value -> type-index-scope bound rigid carrier && index-scoped bound rigid Nil value

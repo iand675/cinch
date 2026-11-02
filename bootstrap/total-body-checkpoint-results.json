@@ -1,6 +1,6 @@
 {
-  "recorded_at": "2026-11-02T03:16:05.936195+00:00",
-  "status": "standalone total-body production and independent Cinch validation pass; full Native-assisted suite and fresh stages are running; imported call admission remains incomplete",
+  "recorded_at": "2026-11-02T03:31:54.989218+00:00",
+  "status": "standalone total-body production and independent Cinch validation pass; fresh stage0/1 smokes pass; actual stage2 still refuses the one imported measure header before bodies; full Native-assisted suite is running",
   "source_sha256": "bc9fed0a468ac0137b9e4881dfe42fc09c50f2267fd2bf0874f44a834751bc1d",
   "source_inputs": 605,
   "owned_changes": [
@@ -747,15 +747,95 @@
           "--stage",
           "1"
         ],
+        "exit_code": 0,
+        "finished": "2026-11-02T03:17:15.791402+00:00",
         "log": "/tmp/cinch-total-bodies-stages-7/stage1-smoke.log",
         "name": "stage1-smoke",
         "pid": 32025,
         "started": "2026-11-02T03:13:49.833055+00:00",
-        "status": "running"
+        "status": "passed"
+      },
+      {
+        "command": [
+          "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "tooling/bootstrap.py",
+          "check"
+        ],
+        "exit_code": 1,
+        "finished": "2026-11-02T03:18:30.956940+00:00",
+        "log": "/tmp/cinch-total-bodies-stages-7/self-hosting.log",
+        "name": "self-hosting",
+        "pid": 43083,
+        "started": "2026-11-02T03:17:15.791764+00:00",
+        "status": "failed"
       }
     ],
     "source8_applicability": "Only compiler/tests/bootstrap_total.rs changed after the stage snapshot; compiler and base-library inputs are identical.",
-    "development_producer_not_in_pinned_seed": true
+    "development_producer_not_in_pinned_seed": true,
+    "summary": {
+      "0": {
+        "exit_code": 0,
+        "inputs": {
+          "host": {
+            "machine": "arm64",
+            "system": "Darwin"
+          },
+          "protocol": 2,
+          "seed": {
+            "description": "Pinned Rust seed with schema-7 definition-site nominal, class, Region and closed kernel effect contracts, dictionary slots, dependency-ordered source family overrides, dependency-sensitive pattern field names and conditional instance method proof contracts, integer conversion fixes, definition-owned fixities, guarded heap defaults and serial build/test settings and enforced optimizer residual growth bounds, portable checked numeric preconditions and dependent argument identities, checked structural NonZero precondition exports with actual argument identities, schema-7 defining refinement payloads and literal index contracts, checked anonymous refinements with actual argument/result identities and refined-argument numeric projections, semantic byte-length primitive identity, executable primitive index witnesses and actual signature-telescope observation carrier validation, closed byte-observation signature predicates and private named buffer-refinement contracts, portable checked machine-integer value comparisons with exact defining carrier scopes and opaque machine arithmetic; changed only by an intentional seed update.",
+            "patch": "bootstrap/seed/stage0.patch",
+            "patch_sha256": "655dfb04a042df9cd0aff5abebbbcd23510fb35efc92567e2d9ae8cfb9dedd5d",
+            "revision": "275de4f05b230c010aeb4b10265a04b97fb4eb1c",
+            "runtime_abi": 5,
+            "schema": 1,
+            "source_sha256": "81bb6e364f45201360e11d5b32e2b3f22cd4719a9dcb018551da034416e725e9"
+          }
+        },
+        "log": "/private/tmp/cinch-total-bodies-stages-7/source/build/bootstrap/stage0/build.log",
+        "status": "built"
+      },
+      "1": {
+        "exit_code": 0,
+        "inputs": {
+          "builder_sha256": "5ea2ff0fd8bd1aa04a74973dccf372c365eb1a436732b364397d7c767d8a2316",
+          "built_by_stage": 0,
+          "host": {
+            "machine": "arm64",
+            "system": "Darwin"
+          },
+          "protocol": 2,
+          "source_sha256": "67c3be9ae3cc57abfa788780f4cf8a323672c8e2e6534e4ae2826dc37981629e"
+        },
+        "log": "/private/tmp/cinch-total-bodies-stages-7/source/build/bootstrap/stage1/build.log",
+        "status": "built"
+      },
+      "2": {
+        "diagnostic_categories": {
+          "imported using context needs a defining signature contract": 1
+        },
+        "diagnostics": 1,
+        "exit_code": 4,
+        "inputs": {
+          "builder_sha256": "840f7ff542e37ed4f3bdc333bd682c4fc8c990cf24161db3fba947ae569c968f",
+          "built_by_stage": 1,
+          "host": {
+            "machine": "arm64",
+            "system": "Darwin"
+          },
+          "interface_set_sha256": "169c327f0729fc2060ec489c920d1a948033baab0cd7963f3d176b5f72432f43",
+          "protocol": 2,
+          "source_sha256": "67c3be9ae3cc57abfa788780f4cf8a323672c8e2e6534e4ae2826dc37981629e"
+        },
+        "log": "/private/tmp/cinch-total-bodies-stages-7/source/build/bootstrap/stage2/build.log",
+        "status": "failed"
+      }
+    },
+    "source_audit": {
+      "files": 605,
+      "sha256": "fa068fdd7bc97d8d47ead0efdc86341c033d62352f181b777f9bb72cb4cea484",
+      "status": "unchanged"
+    },
+    "no_stage2_ir_or_compiler": true
   },
   "worker_control": {
     "configured_maximum_heavy_jobs": 5,

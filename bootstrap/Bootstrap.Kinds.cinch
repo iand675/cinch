@@ -82,6 +82,7 @@ module Bootstrap.Kinds where
     UIndexForget body -> type-level body
     UIndexPromote body -> type-level body
     UIndexByteLength body -> type-level body
+    UIndexCall function args -> type-level args
     UIndexMath op a b -> highest (type-level a) (type-level b)
     other -> 0
   local-carrier :: UType -> Nat -> TypeScope -> Bool
@@ -131,6 +132,7 @@ module Bootstrap.Kinds where
     UIndexForget value -> type-well-formed kinds scope value
     UIndexPromote value -> type-well-formed kinds scope value
     UIndexByteLength value -> type-well-formed kinds scope value
+    UIndexCall function args -> valid-type ty && type-well-formed kinds scope args
     UIndexMath op a b -> type-well-formed kinds scope a && type-well-formed kinds scope b
     URow labels -> type-well-formed kinds scope labels
     URowJoin a b -> type-well-formed kinds scope a && type-well-formed kinds scope b

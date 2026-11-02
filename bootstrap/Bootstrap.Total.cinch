@@ -6,9 +6,10 @@ module Bootstrap.Total where
   import Data.Json
   import Data.Nat (nat-from-int, nat-to-int)
   import Algebra.Semigroup
+  import Text.Json (canonical-bytes)
 
   export TotalGraph, TotalFunction, check-total-graph, total-function
-  export total-identity, total-parameters, total-result, total-body, total-document, total-bounds
+  export total-identity, total-parameters, total-result, total-body, total-document, total-bounds, total-function-document, total-function-equal
 
   data TotalGraph where
     MkTotalGraph :: Json -> TotalGraph
@@ -152,6 +153,11 @@ module Bootstrap.Total where
   total-parameters function = case sorts (field "parameters" (function-row function)) of Some parameters -> parameters; None -> Nil
   total-result :: TotalFunction -> String
   total-result function = text (field "result" (function-row function))
+  total-function-document :: TotalFunction -> Json
+  total-function-document function = case function of MkTotalFunction graph name -> total-document graph
+  total-function-equal :: TotalFunction -> TotalFunction -> Bool
+  total-function-equal first second = same (total-identity first) (total-identity second)
+    && bytes-compare (canonical-bytes (total-function-document first)) (canonical-bytes (total-function-document second)) == 0
   total-body :: TotalFunction -> Json
   total-body function = field "body" (function-row function)
 

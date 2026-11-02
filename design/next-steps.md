@@ -1,5 +1,31 @@
 # Next steps (as of 2026-11-02)
 
+Typed total calls now retain the checked executable body and their actual typed
+argument spine. Kind/carrier checks, scope traversal, substitution, unification,
+escape checks and type encoding preserve that evidence. Bare function-name
+applications remain inadmissible. The independent body recognizer unfolds
+checked straight-line calls and strict lets to exact fixed arithmetic and
+comparison equations. Changing the actual defining `Ord Nat.<` body to `False`
+retains its class/slot but removes numeric comparison recognition.
+
+The typed-call target passes 24 checks at five identities above2^128. The
+actual-body target passes nine classifications for each of two real defining
+method bodies; the existing three whole byte-observation regressions pass too.
+Six further whole regressions and fresh stages are running. The complete
+174+5 suite for this Type/Core change has not run; the 172+5 matrix in flight
+belongs to the preceding body foundation. Snapshot `664bbf3c36a4bc00571db6c7bc8061d4399e288b2dbc44667975a6162dc38058`
+and exact validation scope are recorded in
+[the total-call report](../bootstrap/total-call-checkpoint-results.json).
+
+These components still need source/Core association with actual runtime globals
+and selected dictionary fields. The old Core class/slot reflection path has not
+been replaced, and `.cinchif` schema7 does not admit the body format. Full
+exported-declaration/refinement and package checks, the interface migration and
+intentional seed update remain necessary. No new measure-contract header has
+been cleared. Self-hosting and typed shared-runtime lowering remain incomplete;
+the seed, ABI5/schema7 and definition-owned fixities are unchanged.
+
+## Previous total-body foundation (2b60c7e)
 The next imported-contract foundation now carries actual closed total bodies.
 Native records checked first-order bodies and follows the selected dictionary
 field to its real method and fixed primitive operations. An independently
@@ -12,8 +38,10 @@ callee becomes cyclic or unavailable. Closed-root projection excludes unrelated
 bodies while retaining the complete dependency closure.
 
 The compiled Cinch target, seven Native body regressions, 140 compiler units,
-whole incremental target and two interface targets pass. The complete new
-172+5 Native-assisted matrix and fresh stage chain are running. The frozen
+whole incremental target and two interface targets pass. Fresh stage0/1 pass
+all six smokes; actual stage2 still exits4 at the one imported measure-contract
+header before bodies, producing no IR or compiler. The complete new
+172+5 Native-assisted matrix is running. The frozen
 validation snapshot is `bc9fed0a468ac0137b9e4881dfe42fc09c50f2267fd2bf0874f44a834751bc1d`. Exact evidence and limits are in
 [the total-body report](../bootstrap/total-body-checkpoint-results.json).
 
