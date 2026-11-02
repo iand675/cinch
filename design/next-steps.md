@@ -1,5 +1,17 @@
 # Next steps (as of 2026-11-02)
 
+Both imported arity checks now bind the actual computed Nat before conversion:
+the inference checker binds scheme arity plus dictionary requirements, and the
+legacy checker binds its type arity. The complete23-module inference and24-module
+checker closures pass through Cinch, reaching only the emitter's named runtime
+layout refusals. Both imported-precondition and global-checking regressions pass.
+Fresh stage0/1 pass all six smokes. The complete new Stage2 attempt is running;
+no Stage2 compiler or IR is claimed. The preceding inference-only repair reduced
+the actual attempt to20 diagnostics, first at the now-repaired legacy arity check.
+See [the scoped arity checkpoint](../bootstrap/arity-binding-results.json).
+
+## Previous external frontend checkpoint
+
 The shared test helpers can now explicitly select a compiled Cinch frontend
 for check, build and run. Selection errors and compiler failures never fall
 back to Rust. A real Stage1 compiler passes all three modes on owned two-module

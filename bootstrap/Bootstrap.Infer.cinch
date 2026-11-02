@@ -1127,7 +1127,9 @@ module Bootstrap.Infer where
   check-imported-value sp sc metadata st = case field "arity" metadata of
     -- Native ABI arity includes dictionary parameters. Dependent implicit
     -- values remain unsupported by the pure scheme converter above.
-    JNum arity -> if arity == nat-to-int (scheme-arity sc + list-length (scheme-requirements sc)) then st else add-error sp "imported arity disagrees with its checked scheme" st
+    JNum arity ->
+      let count = scheme-arity sc + list-length (scheme-requirements sc) in
+      if arity == nat-to-int count then st else add-error sp "imported arity disagrees with its checked scheme" st
     other -> add-error sp "imported value has no arity metadata" st
   check-imported-contract :: Span -> String -> String -> Scheme -> Json -> Store -> Store
   check-imported-contract sp name category sc metadata st = if valid-type (scheme-body sc) then

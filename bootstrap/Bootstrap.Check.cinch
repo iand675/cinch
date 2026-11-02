@@ -827,7 +827,7 @@ module Bootstrap.Check where
         (entries, errors) -> case type-to-ty t of
           (ty, more) -> (entries, errors <> (if external-word-type t then Nil else fail s "imported value needs quantified, nominal or effect-aware checking")
             <> (case external-field "arity" metadata of
-              JNum arity -> if arity == nat-to-int (ty-arity ty) then Nil else fail s "imported value arity disagrees with its checked scheme"
+              JNum arity -> let count = ty-arity ty in if arity == nat-to-int count then Nil else fail s "imported value arity disagrees with its checked scheme"
               other -> fail s "imported value has no arity metadata"))
       else (tops, acc)
     DSig s n t -> case has-sig n tops of
