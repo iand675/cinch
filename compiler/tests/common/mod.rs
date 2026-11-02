@@ -15,6 +15,8 @@ use cinch::driver::{driver, Mode};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
+pub mod external_frontend;
+
 /// The toolkit a bootstrap project ships. Order follows the modules'
 /// own imports: `Text.Parse` imports `Text.Lex` and `Text.Scan`; the
 /// renderers emit through `Text.Builder`, because a right-nested
@@ -114,6 +116,9 @@ pub fn project(tag: &str, files: &[(&str, &str)]) -> PathBuf {
 /// The driver call on a thread with a large stack: the checker recurses
 /// over the elaborated program.
 pub fn drive(mode: Mode, dir: &Path, entry: &str, out: Option<PathBuf>) -> Result<i32, String> {
+    if let Some(frontend) = external_frontend::configured()? {
+        return external_frontend::drive(&frontend, mode, dir, entry, out);
+    }
     let path = dir.join(entry);
     let handle = std::thread::Builder::new()
         .stack_size(64 * 1024 * 1024)
@@ -141,15 +146,8 @@ pub fn check(dir: &Path, entry: &str) -> Result<(), String> {
 /// Build `entry` into an executable named `out` inside the project.
 pub fn build(dir: &Path, entry: &str, out: &str) -> Result<PathBuf, String> {
     let exe = dir.join(out);
-    let path = dir.join(entry);
-    let handle = std::thread::Builder::new()
-        .stack_size(64 * 1024 * 1024)
-        .spawn(move || driver(Mode::Build, &path, Some(&exe)))
-        .expect("spawn driver thread");
-    handle
-        .join()
-        .expect("driver thread panicked")
-        .map_err(|e| e.to_string())?;
+    let code = drive(Mode::Build, dir, entry, Some(exe.clone()))?;
+    if code != 0 { return Err(format!("building {entry} returned {code}")); }
     Ok(dir.join(out))
 }
 

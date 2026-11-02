@@ -326,3 +326,25 @@ A rung's driver program is `bootstrap/programs/Run.<Rung>.cinch` (declaring
 `module Main where`), and the rung's Rust test ships that same file as its
 entry, so the program the test runs and the program a human runs are one
 artifact rather than two copies of one program.
+
+
+## Selecting an external frontend for portable tests
+
+The shared Rust test helpers accept an explicit Cinch compiler and checked base
+manifest through `CINCH_TEST_COMPILER` and `CINCH_TEST_INTERFACES`. Both variables
+must be set together. A selected compiler's failure is reported directly; it
+never falls back to the Rust frontend. With neither variable set, the existing
+Native path remains the default.
+
+The external path bundles the project's owned source files, invokes `--check`
+or `--compile-only`, and records inputs, arguments, outputs and status beneath
+`.cinch-self-tests/`. Build does not execute the artifact; run executes the
+successfully built artifact and retains its exit code. Only distinct base-family
+interfaces are accepted; Native-produced compiler implementation interfaces are
+refused. EmitIr is explicitly unsupported on this path for now.
+
+`compiler/examples/bootstrap_external_probe.rs` exercises all three supported
+modes through a compiled Cinch frontend, including multi-module input, a filename
+containing a newline, a separately runnable binary and invalid source. This is an
+adapter probe, not a complete self-built frontend suite. Tests that call Native
+APIs directly still require separate coverage and classification.

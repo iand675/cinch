@@ -1,5 +1,22 @@
 # Next steps (as of 2026-11-02)
 
+The shared test helpers can now explicitly select a compiled Cinch frontend
+for check, build and run. Selection errors and compiler failures never fall
+back to Rust. A real Stage1 compiler passes all three modes on owned two-module
+source, a separately executed binary returns37, and invalid input is refused.
+Four invocation receipts retain the actual inputs and commands. Both adapter
+control tests and the complete default-Native source-path and pipeline targets
+pass. EmitIr and tests calling Native APIs directly still require work; this is
+not a complete self-built suite. See [the adapter report](../bootstrap/external-frontend-results.json).
+
+The older frozen handler/parser snapshot has now completed all191 integration
+targets and six general gates successfully, with unchanged inputs. It predates
+the later argument-witness, JSON, interface, resolver, Boolean and CLI changes;
+it does not prove a complete latest-source pass or self-hosting. See
+[the scoped full report](../bootstrap/handler-parser-full-suite-results.json).
+
+## Previous Boolean checkpoint
+
 Boolean branch facts now preserve valid one-way implications when an opaque
 right operand prevents an exact condition reading. A true conjunction retains
 its left guard; a false disjunction retains the negative left guard. The wrong
