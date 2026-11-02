@@ -52,6 +52,7 @@ Native-assisted suites do not establish the final self-hosting gate.
 The driver also has separate frontend and build modes:
 
     cinch --check [--interfaces MANIFEST] SOURCE DIAGNOSTICS_BASE
+    cinch --emit-ir [--interfaces MANIFEST] SOURCE IR
     cinch --compile-only [--interfaces MANIFEST] SOURCE IR EXECUTABLE REPORT
 
 Check-only runs parsing, resolution and the current source/Core checks, then
@@ -382,3 +383,12 @@ source closure also passes through Cinch. The real compiler CLI route is being
 validated separately; the default pipeline still uses its standalone scalar
 renderer. Aggregates, closures, dictionaries, effects and the complete base ABI
 remain required. See [the runtime IR checkpoint](runtime-ir-results.json).
+
+
+The `--emit-ir` mode routes retained checked Core through the typed shared-runtime
+backend, writes LLVM without linking or execution, and clears stale IR if the
+emitter refuses a checked program. Mode and interface flags work in either order.
+The generated module must be linked with the matching ABI5 `libcinchruntime.a`.
+The real CLI test links and runs an exact bignum calculation, with zero leaks;
+the existing whole pipeline still passes. The complete updated compiler source
+also passes through Cinch in check-only mode. See [the emit-mode report](runtime-emit-results.json).

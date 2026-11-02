@@ -20,6 +20,7 @@ module Bootstrap.Pipeline where
   import Bootstrap.Check (CheckedProgram, check-and-retain)
   import Bootstrap.Driver (link-and-report, link-only-and-report)
   import Bootstrap.Ir (emit-checked-diagnostics, emit-checked-program)
+  import Bootstrap.RuntimeIr (emit-runtime-program)
   import Bootstrap.Parse (parse-program)
   import Bootstrap.Parse (parse-program-with)
   import Bootstrap.Load (LoadedInterface)
@@ -36,6 +37,7 @@ module Bootstrap.Pipeline where
   -- Compile-only emits and links without running the generated program.
   data PipelineMode where
     CheckOnly :: PipelineMode
+    EmitOnly :: PipelineMode
     CompileOnly :: PipelineMode
     CompileAndRun :: PipelineMode
 
@@ -148,6 +150,7 @@ module Bootstrap.Pipeline where
       CheckOnly -> case fs-write (refusal-path ir) (string-to-bytes "") of
         Ok written -> pipeline-ok
         Err e -> pipeline-write-failed
+      EmitOnly -> write-runtime-module ir (emit-runtime-program prog)
       other -> after-emit mode (emit-checked-diagnostics prog) prog ir exe report
     Err found -> write-failure ir (render-diagnostics found) pipeline-check-refused
 
@@ -155,6 +158,20 @@ module Bootstrap.Pipeline where
   after-emit mode found prog ir exe report = case found of
     Nil -> write-module mode ir (emit-checked-program prog) exe report
     Cons d rest -> write-failure ir (render-diagnostics found) pipeline-emit-refused
+
+  -- The typed backend emits a complete shared-runtime LLVM module. Linking
+  -- is separate in this mode, so an unavailable lowering cannot fall back
+  -- to the standalone fragment's representation or run an old artifact.
+  write-runtime-module :: forall r. using (io :: Io r) => Path -> Result (List Diagnostic) String ->{IO r} Int
+  write-runtime-module ir result = case result of
+    Err found -> case fs-write ir (string-to-bytes "") of
+      Err e -> pipeline-write-failed
+      Ok cleared -> write-failure ir (render-diagnostics found) pipeline-emit-refused
+    Ok text -> case fs-write ir (string-to-bytes text) of
+      Err e -> pipeline-write-failed
+      Ok written -> case fs-write (refusal-path ir) (string-to-bytes "") of
+        Err e -> pipeline-write-failed
+        Ok cleared -> pipeline-ok
 
   -- The last stage: the module lands, then the driver rung links it, runs
   -- the artifact and writes the report the caller reads.
@@ -165,3 +182,4 @@ module Bootstrap.Pipeline where
       CompileOnly -> link-only-and-report ir exe report
       CompileAndRun -> link-and-report ir exe report
       CheckOnly -> pipeline-emit-refused
+      EmitOnly -> pipeline-emit-refused

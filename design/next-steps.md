@@ -1,4 +1,16 @@
-# Next steps (as of 2026-11-02)
+# Next steps (as of 2026-11-03)
+
+The real compiler CLI now exposes `--emit-ir [--interfaces MANIFEST] SOURCE IR`
+through the retained-Core runtime backend. It writes LLVM without linking or
+running. A real emitted bignum binary returns67 and reports zero leaks; both
+interface flag orders, unsupported lowering and stale-IR clearing pass. The
+complete existing pipeline regression also passes. Cinch accepts the entire
+updated compiler source bundle with zero diagnostics. The stage runner still
+needs to select typed emission and link the matching runtime for later stages;
+there is no Stage2 executable or fixed point yet. See
+[the emit-mode checkpoint](../bootstrap/runtime-emit-results.json).
+
+## Previous shared-runtime checkpoint
 
 Typed Core now has an executable shared-runtime scalar backend in
 `Bootstrap.RuntimeIr`. Eight runtime-fed programs emit real LLVM, link to ABI5,
