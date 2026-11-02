@@ -1275,6 +1275,9 @@ module Bootstrap.Core where
   -- proof-term pass still checks the resulting certificate without repair.
   refresh-certificates :: ProofScope -> List Proposition -> CoreTerm -> CoreTerm
   refresh-certificates gamma facts term = case term of
+    CInt sp (URefine id name carrier predicate) text -> let refined = URefine id name carrier predicate in
+      let value = refresh-certificates gamma facts (CInt sp carrier text) in
+      (case scoped-prove-refinement gamma facts refined value of Some evidence -> CRefine sp refined evidence value; None -> CError sp)
     CRefine s ty evidence body -> let out = refresh-certificates gamma facts body in
       if certified-refinement gamma facts ty evidence out then CRefine s ty evidence out
       else case scoped-prove-refinement gamma facts ty out of Some fresh -> CRefine s ty fresh out; None -> CError s

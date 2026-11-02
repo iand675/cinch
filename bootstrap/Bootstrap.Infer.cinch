@@ -467,8 +467,9 @@ module Bootstrap.Infer where
     Nil -> None
   checked-literal :: Span -> UType -> String -> Store -> (CoreTerm, Store)
   checked-literal sp carrier text st = case index-number text of
-    Some value -> if integer-literal-valid (normalize st carrier) value then
-      (CInt sp carrier (int-to-string value), st) else term-error sp "literal is outside its integer carrier" st
+    Some value -> (case normalize st carrier of
+      UMeta id KType -> (CInt sp carrier (int-to-string value), pending-number sp carrier value st)
+      other -> if integer-literal-valid (normalize st carrier) value then (CInt sp carrier (int-to-string value), st) else term-error sp "literal is outside its integer carrier" st)
     None -> term-error sp "invalid or machine-suffixed mathematical literal" st
   math-carrier :: UType -> Bool
   math-carrier carrier = case carrier of UCon name KType -> same name "Nat" || same name "Int"; other -> False
@@ -1598,10 +1599,34 @@ module Bootstrap.Infer where
         (CDecision sp (normalize checked expected) predicate condition, checked) else (term, checked)
       other -> (term, checked)
 
+  collection-list :: UType -> UType
+  collection-list element = UApp (UCon (interface-global "Data.Core.List") (KFun KType KType)) element
+  raw-collection :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> UType -> Store -> (CoreTerm, Store)
+  raw-collection classes kinds families env locals sp fields element st = let list = collection-list element in case fields of
+    EArgsEnd at -> (case lookup-value at (interface-global "Data.Core.Nil") env st of
+      (nil, checked) -> (nil, unify at (core-type nil) list checked))
+    EArg at first rest -> (case check classes kinds families env locals first element st of
+      (value, checked) -> (case raw-collection classes kinds families env locals sp rest element checked of
+        (more, next) -> (case lookup-value at (interface-global "Data.Core.Cons") env next of
+          (cons, ready) -> let shaped = unify at (core-type cons) (UFun element (UFun list list)) ready in
+            (CApply at list (CApply at (UFun list list) cons value) more, shaped))))
+    other -> term-error sp "invalid collection literal element spine" st
+  infer-collection :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Option UType -> Store -> (CoreTerm, Store)
+  infer-collection classes kinds families env locals sp fields expected st = case fresh-meta KType st of
+    (element, fresh) -> (case (case expected of Some ty -> (ty, fresh); None -> fresh-meta KType fresh) of
+      (result, next) -> (case lookup-value sp (interface-global "Data.FromList.FromList.from-list") env next of
+        (method, opened) -> let shaped = unify sp (core-type method) (UFun (collection-list element) result) opened in
+          (case method of
+            CMethod at ty name owner slot actuals (Cons needed Nil) -> if not (same name (interface-global "Data.FromList.FromList.from-list") && same owner (interface-global "Data.FromList.FromList")) then term-error sp "collection literal needs its actual defining FromList method" shaped
+              else (case raw-collection classes kinds families env locals sp fields element shaped of
+                (items, checked) -> (CApply sp result method items, checked))
+            other -> term-error sp "collection literal has no checked FromList declaration" shaped)))
+
   infer :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> Store -> (CoreTerm, Store)
   infer classes kinds families env locals expr st = case expr of
     EVar s name -> case lookup-value s name env st of (term, checked) -> discharge-call classes s env term checked
     ECon s name args -> case lookup-value s name env st of (term, sn) -> infer-arguments classes kinds families env locals term args sn
+    EList s args -> infer-collection classes kinds families env locals s args None st
     ELitInt s text -> checked-literal s (primitive-type "Int") text st
     ELitStr s text -> (CString s (literal-type kinds "String") text, st)
     ELitChar s text -> (CChar s (primitive-type "Char") text, st)
@@ -1636,6 +1661,14 @@ module Bootstrap.Infer where
     other -> check-unrefined classes kinds families env locals expr expected st
   check-unrefined :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> UType -> Store -> (CoreTerm, Store)
   check-unrefined classes kinds families env locals expr expected st = case expr of
+    ETuple sp fields -> (case normalize st expected of
+      UTuple types -> (case check-tuple-elements classes kinds families env locals sp fields types st of (values, checked) -> (CTuple sp expected values, checked))
+      UMeta id KType -> (case fresh-tuple-elements sp fields st of
+        (types, opened) -> let shaped = unify sp expected (UTuple types) opened in
+          (case check-tuple-elements classes kinds families env locals sp fields types shaped of
+            (values, checked) -> (CTuple sp expected values, checked)))
+      other -> check-inferred classes kinds families env locals expr expected st)
+    EList s args -> infer-collection classes kinds families env locals s args (Some expected) st
     EIf s condition yes no -> case check classes kinds families env locals condition (primitive-type "Bool") st of
       (c, sc) -> case check classes kinds families (proof-branch env c True sc) locals yes expected sc of
         (a, sa) -> case check classes kinds families (proof-branch env c False sa) locals no expected sa of
@@ -1643,12 +1676,29 @@ module Bootstrap.Infer where
     ECase s value alternatives -> case infer classes kinds families env locals value st of
       (scrutinee, checked) -> case check-alternatives classes kinds families env locals (core-type scrutinee) expected alternatives (ensure-coverage s families env [core-type scrutinee] (alternative-rows alternatives) checked) of
         (branches, done) -> (CCase s expected scrutinee branches, done)
-    ELitInt s text -> if integer-carrier (normalize st expected) then checked-literal s expected text st else check-inferred classes kinds families env locals expr expected st
-    ENeg s (ELitInt at text) -> if integer-carrier (normalize st expected) then checked-literal s expected (string-concat "-" text) st else check-inferred classes kinds families env locals expr expected st
+    ELitInt s text -> if integer-carrier (normalize st expected) || (case normalize st expected of UMeta id KType -> True; other -> False) then checked-literal s expected text st else check-inferred classes kinds families env locals expr expected st
+    ENeg s (ELitInt at text) -> if integer-carrier (normalize st expected) || (case normalize st expected of UMeta id KType -> True; other -> False) then checked-literal s expected (string-concat "-" text) st else check-inferred classes kinds families env locals expr expected st
     ELam s ps body -> case check-lambda classes kinds families env locals ps body expected (duplicate-names s (patterns-names ps) Nil st) of
       (term, ss) -> (term, ensure-coverage s families env (take-types (list-length ps) (domains (normalize ss expected))) [ps] ss)
     EWith s bindings body -> infer-with classes kinds families env locals bindings body (Some expected) st
     other -> check-inferred classes kinds families env locals expr expected st
+  -- An expected tuple metavariable gets a structural skeleton before its
+  -- fields are checked. Literal carriers remain open for the surrounding
+  -- dictionary choice, just as they do in ordinary argument checking.
+  fresh-tuple-elements :: Span -> Expr -> Store -> (UType, Store)
+  fresh-tuple-elements sp fields st = case fields of
+    EArgsEnd at -> (UEnd, st)
+    EArg at first rest -> (case fresh-meta KType st of
+      (ty, opened) -> (case fresh-tuple-elements sp rest opened of
+        (more, checked) -> (UArg ty more, checked)))
+    other -> (UError, add-error sp "invalid tuple literal element spine" st)
+  check-tuple-elements :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> UType -> Store -> (CoreTerm, Store)
+  check-tuple-elements classes kinds families env locals sp fields types st = case (fields, types) of
+    (EArgsEnd at, UEnd) -> (CArgumentsEnd at, st)
+    (EArg at first rest, UArg ty more) -> (case check classes kinds families env locals first ty st of
+      (value, checked) -> (case check-tuple-elements classes kinds families env locals sp rest more checked of
+        (values, done) -> (CArgument at value values, done)))
+    other -> term-error sp "tuple literal arity disagrees with its expected type" st
   check-inferred :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> UType -> Store -> (CoreTerm, Store)
   check-inferred classes kinds families env locals expr expected st = case infer-expected classes kinds families env locals expr expected st of
     (term, ss) -> subsume-term (expr-span expr) term expected ss
@@ -1679,8 +1729,12 @@ module Bootstrap.Infer where
     Nil -> (fun, st)
     Cons arg rest -> case apply-argument classes kinds families env locals (expr-span arg) fun arg st of
       (applied, checked) -> apply-spine classes kinds families env locals applied rest checked
+  expression-spine-valid :: Expr -> Bool
+  expression-spine-valid fields = case fields of EArgsEnd sp -> True; EArg sp first rest -> expression-spine-valid rest; other -> False
   infer-expected :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> UType -> Store -> (CoreTerm, Store)
   infer-expected classes kinds families env locals expr expected st = case expr of
+    ECon sp name fields -> if not (expression-spine-valid fields) then term-error sp "malformed constructor argument spine" st else (case lookup-value sp name env st of
+      (constructor, opened) -> let args = exprs-of fields in apply-spine classes kinds families env locals constructor args (hint-application-result sp (core-type constructor) args expected opened))
     EApp sp function argument -> if decision-syntax-head env function then infer-decision-expected classes kinds families env locals sp argument expected st else
       (case application-spine expr Nil of
         (head, args) -> case infer classes kinds families env locals head st of

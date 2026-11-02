@@ -4,6 +4,7 @@ module Bootstrap.Dictionary where
 
   import Bootstrap.Type
   import Bootstrap.Core
+  import Bootstrap.Nominal (interface-global)
   import Text.Lex (Span)
 
   export resolve-dictionary-definition, resolve-dictionary-term
@@ -51,7 +52,7 @@ module Bootstrap.Dictionary where
   resolve-dictionary-term :: List (String, Kind) -> List CoreGiven -> CoreTerm -> Store -> (CoreTerm, Store)
   resolve-dictionary-term kinds scope term st = resolve-dictionary-term-in (MkResolution kinds Nil False 64) scope term st
   resolve-dictionary-term-with :: List (String, Kind) -> List (String, Scheme) -> List CoreGiven -> CoreTerm -> Store -> (CoreTerm, Store)
-  resolve-dictionary-term-with kinds instances scope term st = resolve-dictionary-term-in (MkResolution kinds instances False 64) scope term st
+  resolve-dictionary-term-with kinds instances scope term st = case resolve-dictionary-term-in (MkResolution kinds instances False 64) scope term st of (out, done) -> (out, finish-numbers done)
   resolve-ready-term :: List (String, Kind) -> List (String, Scheme) -> List CoreGiven -> CoreTerm -> Store -> (CoreTerm, Store)
   resolve-ready-term kinds instances scope term st = resolve-dictionary-term-in (MkResolution kinds instances True 64) scope term st
   resolve-dictionary-definition :: List (String, Kind) -> CoreDefinition -> Store -> (CoreDefinition, Store)
@@ -60,7 +61,7 @@ module Bootstrap.Dictionary where
   resolve-dictionary-definition-with kinds instances definition st =
     let level = store-level st in
     case resolve-dictionary-definition-in (MkResolution kinds instances False 64) definition (enter-level st) of
-      (out, done) -> (out, restore-level level done)
+      (out, done) -> (out, restore-level level (finish-numbers done))
 
   -- Candidate order is lexical, nearest first. A failed trial leaves the
   -- caller's substitution untouched. Only symbols present in the current
@@ -177,16 +178,25 @@ module Bootstrap.Dictionary where
   find-instance name instances = case instances of Nil -> None; Cons (symbol, sc) rest -> if same name symbol then Some sc else find-instance name rest
   instance-types :: List (Nat, UType) -> Store -> List UType
   instance-types pairs st = case pairs of Nil -> Nil; Cons (id, ty) rest -> Cons (normalize st ty) (instance-types rest st)
-  determined :: List UType -> Store -> Bool
-  determined types st = case types of Nil -> True; Cons ty rest -> valid-type (normalize st ty) && list-length (free-metas st ty) == 0 && determined rest st
   instance-arguments :: Resolution -> List CoreGiven -> Span -> List Requirement -> Store -> (CoreEvidence, Store)
   instance-arguments context allowed sp requirements st = case requirements of
     Nil -> (CEArgumentsEnd sp, st)
     Cons requirement rest -> case resolve-evidence context allowed (CENeeded sp (requirement-type requirement) allowed) st of
       (first, sf) -> if not (clean sf) then (first, sf) else case instance-arguments context allowed sp rest sf of
         (more, done) -> (CEArgument sp first more, done)
+  -- A factory may retain a type variable already present in the wanted
+  -- head. It cannot introduce an unaccounted existential type argument.
+  meta-in :: Nat -> List Nat -> Bool
+  meta-in id ids = case ids of Nil -> False; Cons first rest -> id == first || meta-in id rest
+  metas-in :: List Nat -> List Nat -> Bool
+  metas-in first second = case first of Nil -> True; Cons id rest -> meta-in id second && metas-in rest second
+  instance-parameters-scoped :: List UType -> UType -> Store -> Bool
+  instance-parameters-scoped parameters wanted st = case parameters of
+    Nil -> True
+    Cons ty rest -> valid-type (normalize st ty) && metas-in (free-metas st ty) (free-metas st wanted) && instance-parameters-scoped rest wanted st
   -- Every candidate is tried from the same immutable caller store. Only
-  -- one fully determined successful factory can commit its substitution.
+  -- one successful factory can commit its substitution; unresolved factory
+  -- parameters must already occur in the wanted head.
   instance-matches :: Resolution -> List CoreGiven -> Span -> UType -> List (String, Scheme) -> Store -> List (CoreEvidence, Store)
   instance-matches context allowed sp wanted instances st = case instances of
     Nil -> Nil
@@ -194,16 +204,27 @@ module Bootstrap.Dictionary where
       let more = instance-matches context allowed sp wanted rest st in
       case open-qualified False sc st of
         (head, requirements, pairs, opened) -> let trial = unify sp wanted head opened in
-          if not (clean trial && valid-goal (resolution-classes context) (normalize trial head) && determined (instance-types pairs trial) trial) then more
+          if not (clean trial && valid-goal (resolution-classes context) (normalize trial head) && instance-parameters-scoped (instance-types pairs trial) wanted trial) then more
           else case instance-arguments (descend-resolution context) allowed sp (map-requirements (normalize trial) requirements) trial of
             (args, done) -> if clean done then Cons (CEInstance sp (normalize done wanted) name (instance-types pairs done) args, done) more else more
   choose-instance :: Resolution -> List CoreGiven -> Span -> UType -> Store -> (CoreEvidence, Store)
+  collection-default :: UType -> Store -> Store
+  collection-default wanted st = case normalize st wanted of
+    UApp (UApp (UCon name kind) container) element -> if same name (interface-global "Data.FromList.FromList") then (case container of
+      UMeta id KType -> unify (Span 0 0 1 1) container (UApp (UCon (interface-global "Data.Core.List") (KFun KType KType)) element) st
+      other -> st) else st
+    other -> st
   choose-instance context allowed sp wanted st =
     if resolution-fuel context == 0 then fail-evidence sp wanted "dictionary instance resolution cycle or search depth exceeded" st
-    else case instance-matches context allowed sp wanted (resolution-instances context) st of
-      Cons (evidence, done) Nil -> (evidence, done)
-      Nil -> fail-evidence sp wanted (string-concat "dictionary instance resolution is required for " (type-text (normalize st wanted))) st
-      other -> fail-evidence sp wanted "ambiguous implicit dictionary instances" st
+    else let defaulted = collection-default wanted st in
+      case instance-matches context allowed sp wanted (resolution-instances context) defaulted of
+        Cons (evidence, done) Nil -> (evidence, done)
+        Nil -> fail-evidence sp wanted (string-concat "dictionary instance resolution is required for " (type-text (normalize defaulted wanted))) defaulted
+        other -> let numeric = default-numbers-for wanted defaulted in
+          (case instance-matches context allowed sp wanted (resolution-instances context) numeric of
+            Cons (evidence, done) Nil -> (evidence, done)
+            Nil -> fail-evidence sp wanted (string-concat "dictionary instance resolution is required for " (type-text (normalize numeric wanted))) numeric
+            other -> fail-evidence sp wanted "ambiguous implicit dictionary instances" numeric)
   instance-actuals :: Span -> List Quant -> List UType -> List (Nat, UType) -> Store -> (List (Nat, UType), Store)
   instance-actuals sp parameters actuals earlier st = case (parameters, actuals) of
     (Nil, Nil) -> (earlier, st)

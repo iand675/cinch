@@ -75,6 +75,17 @@
  
    type Ascii = refine (s :: String) with Ascii s
  
+--- a/compiler/prelude/Data/FromList.cinch
++++ b/compiler/prelude/Data/FromList.cinch
+@@ -7,7 +7,7 @@
+ -- Data.Set).
+ module Data.FromList where
+ 
+-  import Data.List
++  import Data.Core
+   export FromList, from-list
+ 
+ 
 --- a/compiler/prelude/Data/IpAddr.cinch
 +++ b/compiler/prelude/Data/IpAddr.cinch
 @@ -53,7 +53,6 @@
@@ -85,6 +96,16 @@
  
    export IpFamily, Ipv4Family, Ipv6Family
    export Ipv4, ipv4-parse, ipv4-from-octets, ipv4-to-string, ipv4-bytes
+--- a/compiler/prelude/Data/List.cinch
++++ b/compiler/prelude/Data/List.cinch
+@@ -31,6 +31,7 @@
+   -- name imported from two homes is an ambiguity error, and the types
+   -- live in exactly one place now.
+   import Data.Core
++  import Data.FromList
+   import Data.Ordering
+   import Relation.Eq
+   import Relation.Ord
 --- a/compiler/prelude/Data/NonEmpty.cinch
 +++ b/compiler/prelude/Data/NonEmpty.cinch
 @@ -32,7 +32,6 @@

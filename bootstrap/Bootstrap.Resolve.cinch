@@ -5,6 +5,7 @@
 module Bootstrap.Resolve where
 
   import Bootstrap.Ast
+  import Bootstrap.Nominal (interface-global)
   import Bootstrap.Builtin (builtin-bindings, builtin-declarations)
   import Bootstrap.Report (Diagnostic, MkDiagnostic)
   import Bootstrap.Load (LoadedInterface, loaded-module, loaded-exports, validate-interface-set)
@@ -393,6 +394,11 @@ module Bootstrap.Resolve where
       None -> if constructor && (same name "True" || same name "False") then (name, Nil)
         else (name, fail sp (cat ["name is not in scope: ", name]))
 
+  list-pattern :: Span -> Pat -> Pat
+  list-pattern sp fields = case fields of
+    PArgsEnd at -> PCon sp (interface-global "Data.Core.Nil") (PArgsEnd sp)
+    PArg at first rest -> PCon sp (interface-global "Data.Core.Cons") (PArg at first (PArg at (list-pattern sp rest) (PArgsEnd at)))
+    other -> PUnmodeled sp "invalid list pattern spine"
   rename-pat :: List Binding -> Pat -> (Pat, List Diagnostic)
   rename-pat visible p = case p of
     PCon s name args -> case resolve-use s True visible Nil name of
@@ -401,7 +407,7 @@ module Bootstrap.Resolve where
     PTuple s args -> case rename-pat visible args of
       (renamed, errors) -> (PTuple s renamed, errors)
     PList s args -> case rename-pat visible args of
-      (renamed, errors) -> (PList s renamed, errors)
+      (renamed, errors) -> (list-pattern s renamed, errors)
     PAs s name inner -> case rename-pat visible inner of
       (renamed, errors) -> (PAs s name renamed, errors)
     PAnn s inner ty -> case rename-pat visible inner of

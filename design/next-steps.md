@@ -1,46 +1,40 @@
 # Next steps (as of 2026-11-02)
 
-Constructor patterns now keep adjacent fields and function/lambda parameters
-separate, matching the Native grammar. `Box End n` no longer becomes `Box (End n)`.
-The compiled Cinch source/Core target passes all17 source cases and nine metadata
-mutations. Fresh stage0/1 pass all six combined smokes. Actual stage2 now reports
-597 body diagnostics, down from758, with constructor-arity errors eliminated.
-All four broader parser regressions pass: corpus, inference, dependent arguments
-and resolution. See
-[the constructor-pattern report](../bootstrap/constructor-pattern-checkpoint-results.json).
-The preceding schema8 matrix stopped after57 fresh passes at one obsolete
-negative-test diagnostic expectation. The unknown measure was correctly refused;
-the test now expects its precise missing-defining-body message. Remaining gates
-are unproven, and the collection/base dependency changes need a fresh full run.
+Collection literals now elaborate through the actual defining `FromList`
+method and retained `Nil`/`Cons` constructors. The independently compiled Cinch
+checker passes all 32 runtime-fed source cases, including custom containers,
+lexical dictionary priority, numeric ambiguity, byte limits, refinements,
+polymorphic empties, nested tuples, list-pattern coverage and element effects.
+Tuple fields receive expected structure before numeric defaulting. List and
+Bytes factories now carry complete defining schemes after removing the
+`Data.FromList`/`Data.List` dependency cycle. The pinned seed was intentionally
+updated to those tested Native sources; archive plus patch reproduces them.
 
-The actual stage2 attempt now gets past the imported measure-contract header and
-reaches compiler body checking. Schema8 carries checked executable bodies with
-their complete defining schemes and private measure dependencies. Cinch binds
-these to actual imported globals, reifies retained calls and independently
-rechecks the resulting Core proofs. Shared private definitions must agree;
-private contracts grant no source names. Definition-owned fixities are unchanged.
+The same Native seed inputs pass 140 unit tests, the prelude split and nominal
+interface targets. Fresh whole source-refinement and interface-precondition
+targets pass. The latter checks an ordinary same-spelled measure's actual
+identity, complete scheme and body, and refuses primitive identity substitution.
+The complete 178-integration plus five-general-gate suite is running on the
+current snapshot; no complete current or self-built frontend pass is claimed.
 
-Fresh stage0 and stage1 pass their six combined smoke checks with the intentionally
-updated seed. Actual stage2 exits4 with758 body diagnostics and no IR/compiler.
-The largest groups are333 unsupported expression elaborations,159 unresolved
-effect inclusions and constructor pattern arity errors. List literals are one
-confirmed unsupported expression form. This is the next compiler-body boundary,
-not a self-hosting success.
+The staged attempt immediately before the final tuple fix passes all six
+stage0/1 smokes and reaches 215 stage2 body diagnostics, down from 597. Unsupported
+expression diagnostics fall from 333 to one. It produces no stage2 IR or compiler.
+A fresh actual stage chain for the tuple-fixed sources is queued/running. The
+first earlier failure is imported conditional `Sub Nat` method selection;
+subsequent dependent/effect-row errors may be cascades. Its display method
+contract cannot authorize an unconditional dictionary or invented primitive body.
 
-The Native producer passes140 unit tests and actual-header roundtrip checks.
-The first compiled Cinch consumer passes13 runtime cases, including the real
-UTF8 header and changed defining bodies. Stronger body authority passes18 checks
-at each of five identities above2^128. The strengthened consumer passes all15 cases,
-including full-scheme and conflicting-private-body rejection. All four focused
-reader/loader/parser/precondition targets pass. The complete177+5 Native-assisted
-suite stopped at the diagnostic expectation described above; individual evidence and exact snapshots
-are recorded in [the measure-contract report](../bootstrap/measure-contract-checkpoint-results.json).
-
-The previous complete172+5 body-only foundation remains the last full-suite pass.
-The current self-built frontend suite, selected dictionary method body authority,
-complete proof/usage/totality, typed runtime lowering and stage2/3 fixed point
-remain unfinished. Later stages receive checked base interfaces, never Native
-compiler implementation bodies or a Native frontend fallback.
+Selected method implementation authority, kernel `NonZero` association, handler
+elaboration, complete independent proof/usage/totality, typed runtime lowering,
+the full self-built frontend suite and stage2/3 fixed point remain unfinished.
+Definition-owned fixities are preserved. Later stages receive checked base
+interfaces, never Native compiler implementation bodies or a Native frontend
+fallback. Work stays within five heavy jobs: four shared slots and one reserved
+fifth lane, with serial Cargo/test/codegen workers and heaps at most 2G.
+See [the collection checkpoint report](../bootstrap/collection-checkpoint-results.json)
+for exact snapshots, individual results and limits. The preceding complete
+172+5 body-only run remains the last verified full-suite pass.
 
 ## Previous body-binding checkpoint (35d36d6)
 Checked total bodies can now be associated with actual external global declarations

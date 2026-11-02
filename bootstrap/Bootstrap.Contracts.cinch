@@ -146,7 +146,7 @@ module Bootstrap.Contracts where
   pat-references p = case p of
     PCon s name args -> Cons name (pat-references args)
     PTuple s args -> pat-references args
-    PList s args -> pat-references args
+    PList s args -> [interface-global "Data.Core.Nil", interface-global "Data.Core.Cons"] <> pat-references args
     PAs s name inner -> pat-references inner
     PAnn s inner ty -> pat-references inner <> type-references ty
     PArg s x rest -> pat-references x <> pat-references rest
@@ -160,7 +160,7 @@ module Bootstrap.Contracts where
     EVar s name -> Cons name Nil
     ECon s name args -> Cons name (expr-references args)
     ETuple s args -> expr-references args
-    EList s args -> expr-references args
+    EList s args -> [interface-global "Data.Core.Nil", interface-global "Data.Core.Cons", interface-global "Data.FromList.FromList.from-list"] <> expr-references args
     EApp s f a -> expr-references f <> expr-references a
     EBin s op a b -> expr-references a <> expr-references b
     ENeg s x -> expr-references x
