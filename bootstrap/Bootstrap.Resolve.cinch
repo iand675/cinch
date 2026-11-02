@@ -659,12 +659,16 @@ module Bootstrap.Resolve where
   source-contexts :: List Module -> List Scoped -> List Decl
   source-contexts modules scopes = case scopes of
     Nil -> Nil
-    Cons (MkScoped name surface body) rest -> Cons (DSource (source-span name modules) name
-      (JObj "module" (JStr name)
-        (JObj "source_start" (JNum (nat-to-int (span-start (source-span name modules))))
-          (JObj "source_end" (JNum (nat-to-int (span-end (source-span name modules))))
-            (JObj "exports" (surface-json surface)
-              (JObj "declarations" (symbols-json body) JObjEnd)))))) (source-contexts modules rest)
+    Cons (MkScoped name surface body) rest ->
+      let at = source-span name modules in
+      let begin = span-start at in
+      let finish = span-end at in
+      Cons (DSource at name
+        (JObj "module" (JStr name)
+          (JObj "source_start" (JNum (nat-to-int begin))
+            (JObj "source_end" (JNum (nat-to-int finish))
+              (JObj "exports" (surface-json surface)
+                (JObj "declarations" (symbols-json body) JObjEnd)))))) (source-contexts modules rest)
 
   source-span :: String -> List Module -> Span
   source-span name modules = case modules of

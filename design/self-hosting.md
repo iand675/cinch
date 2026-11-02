@@ -1,5 +1,16 @@
 # Self-hosting
 
+Resolver source metadata now binds its actual span and offsets before numeric
+conversion. Its complete15-module source closure passes checking, and both whole
+resolver and pipeline regressions pass. Fresh stage0/1 pass all six smokes.
+Actualstage2 clears the resolver, then exits4 with872 diagnostics, first at
+Bootstrap.Guarded.read-expression's compound slot guard. Most later diagnostics
+may be cascades; no stage2 IR or compiler is produced. The next checker repair
+must preserve only the logically valid implication for each branch. See
+[the resolver checkpoint](../bootstrap/resolver-span-results.json).
+
+## Previous interface checkpoint
+
 The interface reader now binds the actual checked suffix length inside its
 original splice guard, then uses that value for allocation and copying. The
 whole module passes source checking; the complete interface hash/corruption
