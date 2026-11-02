@@ -45,11 +45,15 @@ module Bootstrap.Global where
   root-name ty = case ty of UCon name kind -> Some name; UApp f x -> root-name f; other -> None
   method-self :: String -> Scheme -> Bool
   method-self owner sc = case scheme-requirements sc of Cons r rest -> (case root-name (requirement-type r) of Some name -> same owner name; None -> False); Nil -> False
+  decision-global :: CoreGlobal -> Bool
+  decision-global declaration = case decision-constructor-scheme (global-name declaration) of
+    Some expected -> (case declaration of GlobalValue name role sc -> same role "constructor" && scheme-equivalent sc expected; other -> False)
+    None -> True
   globals-seen :: List CoreGlobal -> List String -> Bool
   globals-seen declarations names = case declarations of
     Nil -> True
     Cons declaration rest -> let name = global-name declaration in
-      string-length name > 0 && not (has-name name names) && contract-scheme-closed (global-scheme declaration)
+      string-length name > 0 && not (has-name name names) && contract-scheme-closed (global-scheme declaration) && decision-global declaration
       && (case declaration of GlobalValue symbol role sc -> role-valid role; GlobalMethod symbol owner slot sc -> string-length owner > 0 && method-self owner sc)
       && globals-seen rest (Cons name names)
   globals-closed :: List CoreGlobal -> Bool
@@ -142,6 +146,7 @@ module Bootstrap.Global where
     CMethod sp ty name owner slot actuals evidence -> method-reference globals givens ty name owner slot actuals evidence
     CLocal sp ty id name actuals -> local-reference locals ty id actuals
     CProofRef sp predicate id name -> kind-equal (type-kind predicate) KProp && local-reference locals predicate id Nil
+    CDecision sp ty predicate condition -> term-references globals locals givens condition
     CApply sp ty f x -> term-references globals locals givens f && term-references globals locals givens x
     CApplyEff sp ty row f x -> term-references globals locals givens f && term-references globals locals givens x
     CErasedApply sp ty row f witness -> term-references globals locals givens f && term-references globals locals givens witness

@@ -18,6 +18,8 @@ fn source_proofs_stay_erased_scoped_and_distinct_from_runtime_values() {
         ("forward actual proof", take, "forward :: forall (p :: Prop). (h :: p) -> Int\n  forward evidence = take evidence", true),
         ("proof lambda", take, "forward :: forall (p :: Prop). (h :: p) -> Int\n  forward = \\evidence -> take evidence", true),
         ("explicit truth domain", "", "take :: (h :: True) -> Int\n  take h = 1", true),
+        ("erased call retains declared divergence", "take :: forall (p :: Prop). (h :: p) ->{Diverge} Int\n  take h = take h\n  ", "forward :: forall (p :: Prop). (h :: p) ->{Diverge} Int\n  forward h = take h", true),
+        ("erased call cannot hide divergence", "take :: forall (p :: Prop). (h :: p) ->{Diverge} Int\n  take h = take h\n  ", "bad :: forall (p :: Prop). (h :: p) -> Int\n  bad h = take h", false),
         ("different proposition", "not-p :: forall (p :: Prop). (h :: Not p) -> Int\n  not-p h = 1\n  ", "bad :: forall (p :: Prop). (h :: p) -> Int\n  bad h = not-p h", false),
         ("literal is not proof", take, "bad :: Int\n  bad = take 1", false),
         ("runtime local is not proof", take, "bad :: Int -> Int\n  bad x = take x", false),

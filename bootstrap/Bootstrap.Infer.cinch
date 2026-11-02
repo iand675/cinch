@@ -134,7 +134,7 @@ module Bootstrap.Infer where
       DRefine s name params binder predicate -> True
       DEffect s name params ops -> True
       DInstance s flag name params head-type members -> True
-      DExternal s name category None metadata -> same category "type" && (case field "kind" metadata of JStr variety -> same variety "refinement"; other -> False)
+      DExternal s name category None metadata -> same category "builtin-constructor" || (same category "type" && (case field "kind" metadata of JStr variety -> same variety "refinement"; other -> False))
       DData s name (Cons p ps) ctors -> True
       DData s name Nil ctors -> ctor-needs ctors
       DForeign s direction abi symbol name ty -> True
@@ -198,7 +198,7 @@ module Bootstrap.Infer where
       other -> primitive-type name)
     else primitive-type name
   primitive-kinds :: TypeContext
-  primitive-kinds = MkTypeContext (Cons ("b.Io", KFun KRegion KType) (map-primitive ["Int", "Nat", "Bool", "Unit", "()", "String", "Char", "Bytes", "Sym", "Isize", "Usize", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "F32", "F64"]) ) Nil Nil [ByteObservation "#kernel.bytes-length" None]
+  primitive-kinds = MkTypeContext (Cons ("b.Io", KFun KRegion KType) (Cons ("b.Dec", KFun KProp KType) (map-primitive ["Int", "Nat", "Bool", "Unit", "()", "String", "Char", "Bytes", "Sym", "Isize", "Usize", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "F32", "F64"])) ) Nil Nil [ByteObservation "#kernel.bytes-length" None]
   map-primitive :: List String -> List (String, Kind)
   map-primitive names = case names of Nil -> Nil; Cons name rest -> Cons (name, KType) (map-primitive rest)
   lookup-kind :: String -> List (String, Kind) -> Option Kind
@@ -386,6 +386,7 @@ module Bootstrap.Infer where
     TName s name -> case lookup-local name locals of
       Some found -> (found, st)
       None -> if same name "Io" || same name "b.Io" then (UCon "b.Io" (KFun KRegion KType), st)
+        else if same name "Dec" || same name "b.Dec" then (case context-kind name kinds of Some kind -> (UCon name kind, st); None -> (UCon "b.Dec" (KFun KProp KType), st))
         else if external && same name "String" then bad s (string-concat "imported nominal scheme needs defining-module type identities: " name) st
         else if primitive name then (literal-type kinds name, st)
         else if external then bad s (string-concat "imported nominal scheme needs defining-module type identities: " name) st
@@ -703,7 +704,7 @@ module Bootstrap.Infer where
     TArg s arg rest -> case type-kind (normalize st head) of
       KFun domain result -> case (case value-carrier domain of
         Some carrier -> convert-index external kinds locals carrier arg st
-        None -> convert external kinds locals arg st) of
+        None -> if kind-equal domain KProp then convert-predicate external kinds locals arg st else convert external kinds locals arg st) of
           (x, sx) -> let checked = unify-kind s domain (type-kind x) sx in
             convert-args external kinds locals sp (UApp head x) rest checked
       other -> bad sp "type constructor is applied to too many arguments" st
@@ -1085,6 +1086,7 @@ module Bootstrap.Infer where
   register-external :: Span -> String -> String -> TypeExpr -> Json -> List Json -> List (String, Kind) -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   register-external sp name category ty metadata rows classes kinds env st =
     if same category "builtin" then register-kernel sp name metadata classes kinds env st
+    else if same category "builtin-constructor" then register-decision-constructor sp name metadata env st
     else if same category "method" then
       case (field "class" metadata, field "slot" metadata, resolved-text metadata) of
         (JStr identity, JNum slot, Some text) -> if slot < 0 then (env, add-error sp "negative method dictionary slot" st)
@@ -1196,6 +1198,7 @@ module Bootstrap.Infer where
         case register-external s name category ty metadata rows classes kinds env st of (e, se) -> register rows classes kinds rest e se
       DExternal s name category None metadata -> if same category "builtin" then
         (case register-kernel s name metadata classes kinds env st of (e, se) -> register rows classes kinds rest e se)
+        else if same category "builtin-constructor" then (case register-decision-constructor s name metadata env st of (e, se) -> register rows classes kinds rest e se)
         else if same category "type" || same category "signature" || same category "instance" then register rows classes kinds rest env st
         else register rows classes kinds rest env (add-error s (unsupported-import category name) st)
       DSource s name metadata -> register rows classes kinds rest env st
@@ -1231,6 +1234,18 @@ module Bootstrap.Infer where
       (JNum a, JNum b) -> a == b
       (JBool a, JBool b) -> if a then b else not b
       other -> False) && same-kernel-fields rest actual expected
+  kernel-constructor-metadata :: String -> List Decl -> Option Json
+  kernel-constructor-metadata name ds = case ds of
+    Nil -> None
+    Cons (DExternal sp symbol category syntax metadata) rest -> if same name symbol && same category "builtin-constructor" then Some metadata else kernel-constructor-metadata name rest
+    Cons other rest -> kernel-constructor-metadata name rest
+  register-decision-constructor :: Span -> String -> Json -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-decision-constructor sp name metadata env st = case (decision-constructor-scheme name, kernel-constructor-metadata name builtin-declarations) of
+    (Some sc, Some trusted) -> if same-kernel-fields ["name", "family", "parameter_kind", "runtime_abi", "tag", "arity", "runtime_arity", "scheme"] metadata trusted
+      && (case field "erased" metadata of JArr (JBool True) JArrEnd -> True; other -> False)
+      && scheme-arity sc == 1 && scheme-runtime-arity sc == 0 then add-binding sp name sc "constructor" env st
+      else (env, add-error sp "decision constructor disagrees with the kernel proof/erasure contract" st)
+    other -> (env, add-error sp "unknown kernel decision constructor" st)
   register-kernel :: Span -> String -> Json -> List (String, Kind) -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   register-kernel sp name metadata classes kinds env st =
     if not (has name ["b.newIO", "b.ioWrite", "b.ioSleep", "b.pollCancel"]) then (env, add-error sp (unsupported-import "builtin" name) st)
@@ -1738,6 +1753,9 @@ module Bootstrap.Infer where
   bind-constructor classes kinds families env locals sp ps ty expected st = case ps of
     PArgsEnd s -> (env, CPDone s, unify sp ty expected st)
     PArg s p rest -> case normalize st ty of
+      UProofFun predicate row result -> case bind-proof-pattern kinds env locals p predicate (include-effects s row (URow UEnd) st) of
+        (bound, pattern, sb) -> case bind-constructor classes kinds families bound locals sp rest result expected sb of
+          (final, patterns, done) -> (final, CPField s pattern patterns, done)
       UFun a b -> case bind-pattern classes kinds families env locals p a st of
         (bound, pattern, sb) -> case bind-constructor classes kinds families bound locals sp rest b expected sb of
           (final, patterns, ss) -> (final, CPField s pattern patterns, ss)
@@ -2105,7 +2123,7 @@ module Bootstrap.Infer where
     let (values, sv) = register rows classes kinds ds builtins aliases-checked in
     let (env, si) = register-implicit-instances classes kinds ds values sv in
     let se = check-instance-coherence (env-instances env) si in
-    let families = Cons ("Bool", ["True", "False"]) (families-of ds <> imported-families ds) in
+    let families = Cons ("Bool", ["True", "False"]) (Cons ("b.Dec", ["b.Yes", "b.No"]) (families-of ds <> imported-families ds)) in
     let (effects, sx) = case store-errors se of Nil -> checked-effects kinds env ds se; other -> (Nil, se) in
     let (descriptions, instances, sm) = case store-errors sx of Nil -> checked-source-instances rows classes kinds families env ds Nil sx; other -> (Nil, Nil, sx) in
     let (core, done) = case store-errors sm of Nil -> check-bodies classes kinds families env Nil ds ds sm; other -> (Nil, sm) in

@@ -31,7 +31,7 @@ module Bootstrap.Builtin where
     [ ("newIO", "b.newIO"), ("Runtime.newIO", "b.newIO")
     , ("ioWrite", "b.ioWrite"), ("ioRead", "b.ioRead")
     , ("ioSleep", "b.ioSleep"), ("pollCancel", "b.pollCancel")
-    , ("decide", "b.decide"), ("Yes", "b.Yes"), ("No", "b.No")
+    , ("decide", "b.decide"), ("Yes", "b.Yes"), ("No", "b.No"), ("Dec", "b.Dec")
     ]
 
   entry :: String -> String -> String -> Bool -> Decl

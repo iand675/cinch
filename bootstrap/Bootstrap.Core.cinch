@@ -17,6 +17,7 @@ module Bootstrap.Core where
   export CArgument, CArgumentsEnd, CAlternative, CAlternativesEnd, CError
   export CApplyEff, CWith, core-effects
   export CProofRef, CErasedApply, scope-erased, scoped-proof-reference
+  export CDecision, decision-type, decision-constructor-scheme, scoped-decision-valid
   export CRefine, CForget, prove-refinement, CRequire, CDischarge, core-predicates, prove-predicates, required-body, CProved, core-condition, core-let-fact, prove-subtraction, numeric-method-operation
   export ProofScope, make-proof-scope, scoped-prove-refinement, scoped-prove-predicates, scoped-core-predicates, scoped-core-condition, scoped-core-let-fact, scoped-prove-subtraction
   export CoreClause, MkCoreClause, CoreDefinition, MkCoreDefinition
@@ -189,7 +190,7 @@ module Bootstrap.Core where
   core-constructor-scheme :: CoreConstructor -> Scheme
   core-constructor-scheme c = case c of MkCoreConstructor s name sc -> sc
   constructor-fields :: UType -> List UType
-  constructor-fields ty = case ty of UPi id name a row b -> Cons a (constructor-fields b); UFun a b -> Cons a (constructor-fields b); other -> Nil
+  constructor-fields ty = case ty of UPi id name a row b -> Cons a (constructor-fields b); UFun a b -> Cons a (constructor-fields b); UProofFun predicate row result -> constructor-fields result; other -> Nil
   core-constructor-fields :: CoreConstructor -> List UType
   core-constructor-fields c = constructor-fields (scheme-body (core-constructor-scheme c))
   constructors-closed :: List CoreConstructor -> Bool
@@ -254,6 +255,9 @@ module Bootstrap.Core where
     CApply :: Span -> UType -> CoreTerm -> CoreTerm -> CoreTerm
     CApplyEff :: Span -> UType -> UType -> CoreTerm -> CoreTerm -> CoreTerm
     CErasedApply :: Span -> UType -> UType -> CoreTerm -> CoreTerm -> CoreTerm
+    -- The test is executable; the proposition is checked against that
+    -- exact test in the actual value scope before it can justify a branch.
+    CDecision :: Span -> UType -> UType -> CoreTerm -> CoreTerm
     CWith :: Span -> UType -> CoreGiven -> CoreTerm -> CoreTerm -> CoreTerm
     CLambda :: Span -> UType -> CorePattern -> CoreTerm -> CoreTerm
     CLet :: Span -> UType -> Nat -> String -> Scheme -> CoreTerm -> CoreTerm -> CoreTerm
@@ -310,6 +314,7 @@ module Bootstrap.Core where
     CApply s ty f x -> ty
     CApplyEff s ty row f x -> ty
     CErasedApply s ty row f x -> ty
+    CDecision s ty predicate condition -> ty
     CWith s ty given value body -> ty
     CLambda s ty p body -> ty
     CLet s ty id name sc rhs body -> ty
@@ -332,6 +337,7 @@ module Bootstrap.Core where
     CApply s ty f x -> union-effects (core-effects f) (core-effects x)
     CApplyEff s ty row f x -> union-effects row (union-effects (core-effects f) (core-effects x))
     CErasedApply s ty row f witness -> union-effects row (union-effects (core-effects f) (core-effects witness))
+    CDecision s ty predicate condition -> core-effects condition
     CWith s ty given value body -> union-effects (core-effects value) (core-effects body)
     CLet s ty id name scheme rhs body -> union-effects (core-effects rhs) (core-effects body)
     CIf s ty condition yes no -> union-effects (core-effects condition) (union-effects (core-effects yes) (core-effects no))
@@ -370,6 +376,7 @@ module Bootstrap.Core where
     CUse s ty name role actuals -> CUse s (f ty) name role (map-types f actuals)
     CLocal s ty id name actuals -> CLocal s (f ty) id name (map-types f actuals)
     CProofRef s ty id name -> CProofRef s (f ty) id name
+    CDecision s ty predicate condition -> CDecision s (f ty) (f predicate) (map-term-types f condition)
     CQualifiedUse s ty name role actuals evidence -> CQualifiedUse s (f ty) name role (map-types f actuals) (map-evidences f evidence)
     CMethod s ty name owner slot actuals evidence -> CMethod s (f ty) name owner slot (map-types f actuals) (map-evidences f evidence)
     CInt s ty text -> CInt s (f ty) text
@@ -521,6 +528,7 @@ module Bootstrap.Core where
     CApply s ty f x -> type-metas st ty <> term-metas st f <> term-metas st x
     CApplyEff s ty row f x -> type-metas st ty <> type-metas st row <> term-metas st f <> term-metas st x
     CErasedApply s ty row f witness -> type-metas st ty <> type-metas st row <> term-metas st f <> term-metas st witness
+    CDecision s ty predicate condition -> type-metas st ty <> type-metas st predicate <> term-metas st condition
     CWith s ty given value body -> type-metas st ty <> type-metas st (given-type given) <> term-metas st value <> term-metas st body
     CLambda s ty p body -> type-metas st ty <> pattern-metas st p <> term-metas st body
     CLet s ty id name sc rhs body -> type-metas st ty <> type-metas st (scheme-body sc) <> requirements-metas st (scheme-requirements sc) <> term-metas st rhs <> term-metas st body
@@ -643,6 +651,7 @@ module Bootstrap.Core where
     CUse s ty name role actuals -> closed-runtime-type ty && closed-types actuals
     CLocal s ty id name actuals -> closed-runtime-type ty && closed-types actuals
     CProofRef s ty id name -> False
+    CDecision s ty predicate condition -> closed-runtime-type ty && closed-type predicate && valid-type predicate && kind-equal (type-kind predicate) KProp && valid-term condition
     CQualifiedUse s ty name role actuals evidence -> closed-runtime-type ty && closed-types actuals && evidences-closed evidence
     CMethod s ty name owner slot actuals evidence -> closed-runtime-type ty && closed-types actuals && evidences-closed evidence && (case evidence of Cons first rest -> True; Nil -> False)
     CInt s ty text -> closed-runtime-type ty && valid-integer-literal ty text
@@ -779,6 +788,7 @@ module Bootstrap.Core where
     typed && (case term of
       CLocal s ty id name actuals -> local-id id scope && types-index-scope Nil rigid actuals
       CProofRef s ty id name -> local-id id scope
+      CDecision s ty predicate condition -> type-index-scope Nil rigid predicate && scoped-term values scope condition
       CUse s ty name role actuals -> not (string-compare role "local" == 0) && types-index-scope Nil rigid actuals
       CQualifiedUse s ty name role actuals evidence -> not (string-compare role "local" == 0) && types-index-scope Nil rigid actuals && evidences-index-scope rigid evidence
       CMethod s ty name owner slot actuals evidence -> types-index-scope Nil rigid actuals && evidences-index-scope rigid evidence
@@ -876,6 +886,56 @@ module Bootstrap.Core where
     (MkProofScope types values proofs, CProofRef s predicate id name) -> valid-proof-reference term && contract-equal expected predicate
       && (case scope-entry id proofs of Some declared -> valid-type declared && kind-equal (type-kind declared) KProp && contract-equal predicate declared; None -> False)
     other -> False)
+  -- These identities and schemes belong to the kernel. In particular a
+  -- constructor's source proof slot is absent from its runtime payload.
+  decision-type :: UType -> UType
+  decision-type predicate = UApp (UCon "b.Dec" (KFun KProp KType)) predicate
+  decision-constructor-scheme :: String -> Option Scheme
+  decision-constructor-scheme name =
+    let predicate = UBound 0 "p" KProp in
+    let result = decision-type predicate in
+    if string-compare name "b.Yes" == 0 then Some (MkScheme [MkQuant 0 "p" KProp False] (UProofFun predicate (URow UEnd) result))
+    else if string-compare name "b.No" == 0 then Some (MkScheme [MkQuant 0 "p" KProp False] (UProofFun (UPropNot predicate) (URow UEnd) result))
+    else None
+  decision-constant :: Bool -> CoreTerm -> Bool
+  decision-constant expected term = bool-type (core-type term) && (case term of
+    CPrimitive sp ty operation (CArgumentsEnd end) -> string-compare operation (if expected then "decision-true" else "decision-false") == 0
+    other -> False)
+  -- No class projection or ordinary global call has numeric authority
+  -- here. Only fixed arithmetic, scoped values and the checked stable
+  -- byte-length ABI observation can contribute to a runtime decision.
+  decision-operand :: ProofScope -> List Proposition -> CoreTerm -> Bool
+  decision-operand gamma facts term = case term of
+    CInt sp ty text -> integer-carrier ty && valid-integer-literal ty text
+    CLocal sp ty id name Nil -> integer-carrier ty && (case proof-local id gamma of Some declared -> contract-equal ty declared; None -> False)
+    CForget sp ty body -> integer-carrier ty && forgotten gamma facts ty body && (case body of CLocal at actual id name Nil -> True; other -> decision-operand gamma facts body)
+    CRefine sp ty certificate body -> certified-refinement gamma facts ty certificate body && decision-operand gamma facts body
+    CProved sp ty certificate body -> certified-operation gamma facts ty certificate body && (case body of
+      CPrimitive at result operation (CArgument a first (CArgument b second (CArgumentsEnd end))) -> decision-operand gamma facts first && decision-operand gamma facts second
+      other -> False)
+    CPrimitive sp ty operation (CArgument a first (CArgument b second (CArgumentsEnd end))) -> same-number-sort ty (core-type first) && same-number-sort ty (core-type second)
+      && (string-compare operation "+" == 0 || string-compare operation "*" == 0 || (string-compare operation "-" == 0 && not (nat-type ty)))
+      && decision-operand gamma facts first && decision-operand gamma facts second
+    CPrimitive sp ty operation (CArgument a first (CArgumentsEnd end)) -> string-compare operation "negate" == 0 && same-number-sort ty (core-type first) && not (nat-type ty) && decision-operand gamma facts first
+    CApply sp ty (CUse at function symbol role Nil) (CLocal arg carrier id name Nil) -> byte-length-function ty function symbol role
+      && (case proof-local id gamma of Some declared -> contract-equal carrier declared; None -> False)
+    other -> False
+  decision-predicate-test :: ProofScope -> List Proposition -> UType -> CoreTerm -> Bool
+  decision-predicate-test gamma facts predicate condition = case predicate of
+    UPropLit value -> decision-constant value condition
+    UPropNot input -> (case condition of CIf sp ty test yes no -> decision-predicate-test gamma facts input test && decision-constant False yes && decision-constant True no; other -> False)
+    UPropAnd first second -> (case condition of CIf sp ty test yes no -> decision-predicate-test gamma facts first test && decision-predicate-test gamma (branch-facts gamma facts test True) second yes && decision-constant False no; other -> False)
+    UPropOr first second -> (case condition of CIf sp ty test yes no -> decision-predicate-test gamma facts first test && decision-constant True yes && decision-predicate-test gamma (branch-facts gamma facts test False) second no; other -> False)
+    other -> (case condition of
+      CPrimitive sp ty operation (CArgument a first (CArgument b second (CArgumentsEnd end))) -> decision-operand gamma facts first && decision-operand gamma facts second
+        && (case (core-predicate gamma predicate, scoped-core-condition gamma facts condition) of (Some expected, Some actual) -> proposition-equal expected actual; other -> False)
+      other -> False)
+  scoped-decision-valid :: ProofScope -> List Proposition -> UType -> UType -> CoreTerm -> Bool
+  scoped-decision-valid gamma facts ty predicate condition = valid-type predicate && kind-equal (type-kind predicate) KProp && valid-type ty
+    && contract-equal ty (decision-type predicate) && bool-type (core-type condition)
+    && contract-equal (core-effects condition) (URow UEnd) && proof-term gamma facts condition
+    && decision-predicate-test gamma facts predicate condition
+
   proof-local :: Nat -> ProofScope -> Option UType
   proof-local id gamma = scope-entry id (scope-types gamma)
   decimal-digits :: List Char -> Int -> Bool -> Option Int
@@ -1064,6 +1124,7 @@ module Bootstrap.Core where
   proof-term gamma facts term = if is-refinement (core-type term) then proof-refined-term gamma facts term else proof-ordinary-term gamma facts term
   proof-ordinary-term :: ProofScope -> List Proposition -> CoreTerm -> Bool
   proof-ordinary-term gamma facts term = case term of
+    CDecision sp ty predicate condition -> scoped-decision-valid gamma facts ty predicate condition
     CProofRef s ty id name -> False
     CRefine s ty evidence body -> certified-refinement gamma facts ty evidence body
     CForget s ty body -> forgotten gamma facts ty body
@@ -1196,6 +1257,7 @@ module Bootstrap.Core where
     CApply s ty f x -> CApply s ty (refresh-certificates gamma facts f) (refresh-certificates gamma facts x)
     CApplyEff s ty row f x -> CApplyEff s ty row (refresh-certificates gamma facts f) (refresh-certificates gamma facts x)
     CErasedApply s ty row f witness -> CErasedApply s ty row (refresh-certificates gamma facts f) witness
+    CDecision s ty predicate condition -> CDecision s ty predicate (refresh-certificates gamma facts condition)
     CWith s ty given value body -> CWith s ty given (refresh-certificates gamma facts value) (refresh-certificates gamma facts body)
     CLambda s ty pattern body -> CLambda s ty pattern (refresh-certificates (proof-pattern pattern gamma) facts body)
     CLet s ty id name sc rhs body -> let value = refresh-certificates gamma facts rhs in

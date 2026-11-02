@@ -1,5 +1,32 @@
 # Next steps (as of 2026-11-02)
 
+Source `Yes` and `No` now use kernel-owned proof-arrow schemes. Their metadata
+must retain the defining family, Prop parameter, ABI, tag, source arity, zero
+runtime arity and erased field. Applications pass scoped evidence; patterns bind
+the actual proposition or its negation. Coverage requires both alternatives.
+Ordinary source constructors may share the visible spelling without replacing
+the kernel identities.
+
+Core also has an explicit decision node. It rechecks the executable fixed
+comparison against the proposition in the actual value scope. Swapped tests,
+changed value identities, arbitrary comparison methods and forged constructor
+schemes are rejected. Source `decide` syntax is still refused; it needs the
+checked predicate-construction bridge. Typed runtime erasure/lowering remains
+unfinished.
+
+All12 source constructor cases, nine metadata-corruption cases and18 source
+proof cases pass. The latter now check that an erased call retains declared
+divergence. Compiled decision/proof checks pass at five identities above2^128,
+together with Core typing, effects and parser coverage. The complete pipeline,
+seven additional focused targets and a fresh staged attempt are finishing.
+The complete new169+5 Native-assisted suite has not run. The installed164+5
+snapshot remains the last complete baseline; it does not establish this later
+implementation or the self-built frontend suite. [The decision report](../bootstrap/decision-checkpoint-results.json)
+records exact sources and scope. Self-hosting is not complete. The Native seed,
+ABI5/schema7 and definition-owned fixities remain unchanged.
+
+## Previous source-proof checkpoint (91dc9e7)
+
 Source proof arrows now elaborate to explicit erased binders and applications.
 `Prop` quantifiers, named and unnamed proof domains, scoped references and actual
 proof identities survive elaboration. Named evidence lives separately from
@@ -32,10 +59,11 @@ as proof arguments.
 The compiled proof-arrow target passes at five input-derived identities above
 2^128, together with the existing Core typing, value-kind, effect-type and
 source dependent-function targets. All nine whole focused targets now pass,
-+including source instances, inference, parser and the complete pipeline. Fresh
-+stage builds are running for that exact implementation. This is a work-in-progress type
+including source instances, inference, parser and the complete pipeline. Its
+matching stage0/1 pass six smokes; stage2 refuses the same four headers before
+bodies and produces no compiler. This is a work-in-progress type
 foundation: named proof terms and decisions are not enabled by this checkpoint.
-The complete new165+5 suite and fresh stages have not run. The running164+5
+The complete new165+5 suite has not run. The completed164+5
 matrix belongs to the preceding kind/term checker. No stage2 compiler or
 self-built frontend suite has passed. [The proof-arrow report](../bootstrap/proof-arrow-checkpoint-results.json)
 records exact inputs and validation scope. The seed, ABI5/schema7 and

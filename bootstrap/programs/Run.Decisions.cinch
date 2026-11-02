@@ -1,0 +1,96 @@
+module Main where
+  import Bootstrap.Type
+  import Bootstrap.Index
+  import Bootstrap.Core
+  import Bootstrap.Global
+  import Bootstrap.Typing
+  import Bootstrap.Proof
+  import Text.Lex (Span)
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read)
+
+  sp :: Span
+  sp = Span 0 0 1 1
+  int :: UType
+  int = UCon "Int" KType
+  bool :: UType
+  bool = UCon "Bool" KType
+  empty-row :: UType
+  empty-row = URow UEnd
+  zero :: CoreTerm
+  zero = CInt sp int "0"
+  constant :: Bool -> CoreTerm
+  constant value = CPrimitive sp bool (if value then "decision-true" else "decision-false") (CArgumentsEnd sp)
+  comparison :: String -> CoreTerm -> CoreTerm -> CoreTerm
+  comparison operation first second = CPrimitive sp bool operation (CArgument sp first (CArgument sp second (CArgumentsEnd sp)))
+  kinds :: List (String, Kind)
+  kinds = [("Int", KType), ("Nat", KType), ("I64", KType), ("Bool", KType), ("b.Dec", KFun KProp KType)]
+  positive :: UType -> UType
+  positive value = UCompare ">=" value (UIndex int (IInteger 0))
+  family :: List CoreGlobal
+  family = case (decision-constructor-scheme "b.Yes", decision-constructor-scheme "b.No") of
+    (Some yes, Some no) -> [GlobalValue "b.Yes" "constructor" yes, GlobalValue "b.No" "constructor" no]
+    other -> Nil
+  branch-check :: Nat -> Bool
+  branch-check nonce =
+    let x = nonce + 1 in let h = nonce + 2 in let n = nonce + 3 in let r = nonce + 4 in
+    let formal = positive (UIndex int (IBound nonce "x")) in
+    let predicate = positive (UIndex int (IRigid x "x" 0)) in
+    let result = URefine r "result" int (positive (UIndex int (IBound r "result"))) in
+    let sc = mono (UPi nonce "x" int empty-row result) in
+    let local = CPVar sp int x "x" in
+    let yes-type = UProofFun predicate empty-row (decision-type predicate) in
+    let no-type = UProofFun (UPropNot predicate) empty-row (decision-type predicate) in
+    let yes-pattern = CPConstructor sp (decision-type predicate) "b.Yes" [predicate] yes-type (CPField sp (CPProof sp predicate h "positive") (CPDone sp)) in
+    let no-pattern = CPConstructor sp (decision-type predicate) "b.No" [predicate] no-type (CPField sp (CPProof sp (UPropNot predicate) n "negative") (CPDone sp)) in
+    let gamma = proof-pattern local (make-proof-scope Nil Nil) in
+    let value = CLocal sp int x "x" Nil in
+    case (close-typing-context kinds (Cons (GlobalValue "choose" "value" sc) family), scoped-prove-refinement (proof-pattern yes-pattern gamma) Nil result value, scoped-prove-refinement (proof-pattern no-pattern gamma) Nil result zero) of
+      (Some context, Some yes, Some no) ->
+        let branches = CAlternative sp yes-pattern (CRefine sp result yes value) (CAlternative sp no-pattern (CRefine sp result no zero) (CAlternativesEnd sp)) in
+        let decision = CDecision sp (decision-type predicate) predicate (comparison ">=" value zero) in
+        let out = MkCoreDefinition sp "choose" sc Nil Nil Nil [MkCoreClause sp [local] (CCase sp result decision branches)] in
+        typing-definition-closed context out
+          && (case scoped-prove-refinement (proof-pattern no-pattern gamma) Nil result value of None -> True; Some fabricated -> False)
+      other -> False
+  checks :: Nat -> List Bool
+  checks nonce =
+    let x = nonce + 1 in let value = CLocal sp int x "x" Nil in
+    let actual = UIndex int (IRigid x "x" 0) in let predicate = positive actual in
+    let gamma = proof-pattern (CPVar sp int x "x") (make-proof-scope Nil Nil) in
+    let test = comparison ">=" value zero in
+    let check p term = scoped-decision-valid gamma Nil (decision-type p) p term in
+    let other = CLocal sp int (x + 1) "x" Nil in
+    let generic = UBound nonce "p" KProp in
+    [ check predicate test
+    , not (check predicate (comparison "<" value zero))
+    , not (check predicate (comparison ">=" other zero))
+    , not (scoped-decision-valid (make-proof-scope Nil Nil) Nil (decision-type predicate) predicate test)
+    , not (scoped-decision-valid gamma Nil (decision-type (UPropLit True)) predicate test)
+    , not (check predicate (CPrimitive sp int ">=" (CArgument sp value (CArgument sp zero (CArgumentsEnd sp)))))
+    , check (UPropLit True) (constant True)
+    , check (UPropLit False) (constant False)
+    , not (check (UPropLit True) (constant False))
+    , not (check generic (constant True))
+    , check (UPropNot predicate) (CIf sp bool test (constant False) (constant True))
+    , not (check (UPropNot predicate) (CIf sp bool test (constant True) (constant False)))
+    , check (UPropAnd predicate predicate) (CIf sp bool test test (constant False))
+    , check (UPropOr predicate predicate) (CIf sp bool test (constant True) test)
+    , not (check (UPropAnd predicate predicate) (CIf sp bool test test (constant True)))
+    , not (check (UPropOr predicate predicate) (CIf sp bool test (constant False) test))
+    , check (UPropNonZero actual) (comparison "/=" value zero)
+    , not (check (UPropNonZero actual) (comparison "==" value zero))
+    , not (check predicate (CApplyEff sp bool (URow (UArg (UCon "Diverge" KEffect) UEnd)) (CUse sp (UFunEff int (URow (UArg (UCon "Diverge" KEffect) UEnd)) bool) "effectful" "external" Nil) value))
+    , not (check predicate (CApply sp bool (CUse sp (UFun int bool) "pretend" "external" Nil) value))
+    , not (check predicate (CApply sp bool (CApply sp (UFun int bool) (CMethod sp (UFun int (UFun int bool)) "customLess" "CustomOrd" 0 Nil Nil) value) zero))
+    , (case close-globals family of Some closed -> True; None -> False)
+    , (case close-globals [GlobalValue "b.Yes" "external" (mono int)] of None -> True; Some forged -> False)
+    , (case close-globals [GlobalValue "b.No" "constructor" (MkScheme [MkQuant nonce "p" KProp False] (UProofFun generic empty-row (decision-type generic)))] of None -> True; Some forged -> False)
+    , branch-check (nonce + 10)
+    ]
+  verdict :: Int -> List Bool -> Int
+  verdict next values = case values of Nil -> 0; Cons True rest -> verdict (next + 1) rest; Cons False rest -> next
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case fs-read (path-from-string "nonce.txt") of
+    Err error -> 90
+    Ok input -> verdict 1 (checks (340282366920938463463374607431768211456 + bytes-len input))

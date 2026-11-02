@@ -1,0 +1,382 @@
+{
+  "recorded_at": "2026-11-02T01:02:22.159918+00:00",
+  "status": "work in progress: source constructor, source proof, Core decision/proof/type/effect and parser checks pass; complete pipeline and seven extra focused regressions finishing; fresh stage attempt running",
+  "source_sha256": "2be4a0cc53fe465e380c18bb236e67fe9efbd057f43947cdf56e3b8f40a903c5",
+  "source_inputs": 596,
+  "compiler_named_source_sha256": "41207dd7b65314f2f30126883175f581a6efd87c95770964181a0140212ed42e",
+  "compiler_bundle_bytes_sha256": "32a1990bdce037d1ab41c09aab2e74b8757824a3c54a206007fd5fc4816f8630",
+  "owned_changes": [
+    "bootstrap/Bootstrap.Builtin.cinch",
+    "bootstrap/Bootstrap.Core.cinch",
+    "bootstrap/Bootstrap.Dictionary.cinch",
+    "bootstrap/Bootstrap.Global.cinch",
+    "bootstrap/Bootstrap.Infer.cinch",
+    "bootstrap/Bootstrap.Typing.cinch",
+    "bootstrap/programs/Run.Decisions.cinch",
+    "bootstrap/programs/Run.SourceConstructors.cinch",
+    "compiler/tests/bootstrap_decisions.rs",
+    "compiler/tests/bootstrap_source_constructors.rs",
+    "compiler/tests/bootstrap_source_proofs.rs"
+  ],
+  "source_constructor_cases": 12,
+  "constructor_metadata_mutations": 9,
+  "source_proof_cases": 18,
+  "runtime_identity_inputs": [
+    0,
+    1,
+    17,
+    129,
+    4096
+  ],
+  "runtime_identity_base": "340282366920938463463374607431768211456",
+  "focused_results": [
+    {
+      "command": [
+        "/tmp/cinch-source-effects-stages-6/source/build/bootstrap/stage0/cinch",
+        "check",
+        "/tmp/cinch-source-constructors-validation-1/preflight/Main.cinch"
+      ],
+      "cwd": "/tmp/cinch-source-constructors-validation-1/preflight",
+      "exit_code": 0,
+      "finished": "2026-11-02T00:41:53.300827+00:00",
+      "name": "source-constructor-preflight",
+      "started": "2026-11-02T00:40:09.351376+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-source-constructors-validation-1/cargo/compiler",
+        "--test",
+        "bootstrap_source_constructors",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cwd": "/tmp/cinch-source-constructors-validation-1/source/compiler",
+      "exit_code": 0,
+      "finished": "2026-11-02T00:45:07.245562+00:00",
+      "name": "bootstrap_source_constructors",
+      "started": "2026-11-02T00:41:53.301159+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-source-constructors-validation-1/cargo/compiler",
+        "--test",
+        "bootstrap_source_proofs",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cwd": "/tmp/cinch-source-constructors-validation-1/source/compiler",
+      "exit_code": 0,
+      "finished": "2026-11-02T00:47:07.611093+00:00",
+      "name": "bootstrap_source_proofs",
+      "started": "2026-11-02T00:45:07.245908+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-source-constructors-validation-1/cargo/compiler",
+        "--test",
+        "bootstrap_decisions",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cwd": "/tmp/cinch-source-constructors-validation-1/source/compiler",
+      "exit_code": 0,
+      "finished": "2026-11-02T00:48:04.855444+00:00",
+      "name": "bootstrap_decisions",
+      "started": "2026-11-02T00:47:07.611466+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-source-constructors-validation-1/cargo/compiler",
+        "--test",
+        "bootstrap_proof_terms",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cwd": "/tmp/cinch-source-constructors-validation-1/source/compiler",
+      "exit_code": 0,
+      "finished": "2026-11-02T00:49:04.545574+00:00",
+      "name": "bootstrap_proof_terms",
+      "started": "2026-11-02T00:48:04.855815+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-source-constructors-validation-1/cargo/compiler",
+        "--test",
+        "bootstrap_typing",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cwd": "/tmp/cinch-source-constructors-validation-1/source/compiler",
+      "exit_code": 0,
+      "finished": "2026-11-02T00:50:04.617931+00:00",
+      "name": "bootstrap_typing",
+      "started": "2026-11-02T00:49:04.546024+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-source-constructors-validation-1/cargo/compiler",
+        "--test",
+        "bootstrap_effects",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cwd": "/tmp/cinch-source-constructors-validation-1/source/compiler",
+      "exit_code": 0,
+      "finished": "2026-11-02T00:53:01.489398+00:00",
+      "name": "bootstrap_effects",
+      "started": "2026-11-02T00:50:04.618343+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-source-constructors-validation-1/cargo/compiler",
+        "--test",
+        "bootstrap_parse",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cwd": "/tmp/cinch-source-constructors-validation-1/source/compiler",
+      "exit_code": 0,
+      "finished": "2026-11-02T00:53:59.587410+00:00",
+      "name": "bootstrap_parse",
+      "started": "2026-11-02T00:53:01.489846+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-source-constructors-validation-1/cargo/compiler",
+        "--test",
+        "bootstrap_pipeline",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cwd": "/tmp/cinch-source-constructors-validation-1/source/compiler",
+      "exit_code": 0,
+      "finished": "2026-11-02T01:00:55.673287+00:00",
+      "name": "bootstrap_pipeline",
+      "started": "2026-11-02T00:53:59.587867+00:00",
+      "status": "passed"
+    }
+  ],
+  "extra_focused_results": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-source-constructors-validation-1/cargo/compiler",
+        "--test",
+        "bootstrap_source_pi",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-02T00:52:26.083184+00:00",
+      "name": "bootstrap_source_pi",
+      "started": "2026-11-02T00:50:04.996446+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-source-constructors-validation-1/cargo/compiler",
+        "--test",
+        "bootstrap_source_instances",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-02T01:02:02.616025+00:00",
+      "name": "bootstrap_source_instances",
+      "started": "2026-11-02T00:50:04.999266+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-source-constructors-validation-1/cargo/compiler",
+        "--test",
+        "bootstrap_effect_types",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-02T00:53:28.860903+00:00",
+      "name": "bootstrap_effect_types",
+      "started": "2026-11-02T00:52:26.084371+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-source-constructors-validation-1/cargo/compiler",
+        "--test",
+        "bootstrap_source_effects",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-02T00:56:30.587581+00:00",
+      "name": "bootstrap_source_effects",
+      "started": "2026-11-02T00:53:28.862496+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-source-constructors-validation-1/cargo/compiler",
+        "--test",
+        "bootstrap_globals",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-02T00:57:33.174753+00:00",
+      "name": "bootstrap_globals",
+      "started": "2026-11-02T00:56:30.588680+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-source-constructors-validation-1/cargo/compiler",
+        "--test",
+        "bootstrap_intrinsics",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-02T00:59:40.695645+00:00",
+      "name": "bootstrap_intrinsics",
+      "started": "2026-11-02T00:57:33.176139+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-source-constructors-validation-1/cargo/compiler",
+        "--test",
+        "bootstrap_infer",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-02T01:02:13.767632+00:00",
+      "name": "bootstrap_infer",
+      "started": "2026-11-02T00:59:40.696363+00:00",
+      "status": "passed"
+    }
+  ],
+  "implemented": [
+    "Kernel-owned Dec Prop kind and Yes/No proof-arrow schemes",
+    "Exact builtin constructor metadata and separate source/runtime arities",
+    "Source constructor application, erased evidence patterns and two-alternative coverage",
+    "CDecision with fixed-semantics executable predicate and actual value-identity checking",
+    "Independent global protection for the actual Yes/No schemes",
+    "Positive and negative branch evidence remain distinct; arbitrary method/global tests cannot mint decision evidence",
+    "Source erased calls retain declared divergence"
+  ],
+  "source_decide_syntax_enabled": false,
+  "typed_runtime_lowering_complete": false,
+  "complete_current_suite": {
+    "status": "not run",
+    "integration_targets": 169,
+    "general_gates": 5,
+    "all_tests_passed": false,
+    "self_built_frontend": false
+  },
+  "fresh_stages": {
+    "status": "running",
+    "source_sha256": "2be4a0cc53fe465e380c18bb236e67fe9efbd057f43947cdf56e3b8f40a903c5",
+    "compiler_bundle_exact_bytes_checked_if_present": true
+  },
+  "last_complete_native_assisted_suite": {
+    "source_sha256": "d6fbf3526a03fb95a0d4bcaec732d221481379c7e8cd298ddd428ea103f5b0cc",
+    "integration_targets": 164,
+    "general_gates": 5,
+    "scope": "preceding kind/term implementation, installed separately; does not establish this later checkpoint"
+  },
+  "runtime_abi": 5,
+  "interface_schema": 7,
+  "seed_unchanged": true,
+  "self_hosting_achieved": false,
+  "remaining": [
+    "Source decide syntax and checked executable predicate construction",
+    "Ordinary total-measure contracts with actual body/primitive/instance authority",
+    "Complete independent declaration/proof/usage kernel and proof totality",
+    "Handlers and typed shared-runtime lowering for closures/data/dictionaries/effects/erasure",
+    "Genuine stage2/3 fixed point, changed-source behavior and full self-built frontend suite"
+  ]
+}

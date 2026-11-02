@@ -146,6 +146,12 @@ runtime proof inspection and value-index confusion are refused. Remaining
 focused regressions are running. Source decisions and typed runtime erasure
 remain required; see [the source proof report](source-proof-checkpoint-results.json).
 
+Kernel-owned `Yes`/`No` retain one erased source evidence field and no runtime
+payload. Their source patterns, proposition scopes and exact metadata checks
+pass, as do the separate fixed-semantics Core decision checks. Source `decide`
+syntax and typed runtime lowering remain required. Broader regressions and
+fresh stages are finishing; see [the decision report](decision-checkpoint-results.json).
+
 The orchestration checks run with:
 
     python3 -m unittest discover -s tooling/tests -v
