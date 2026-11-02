@@ -2,6 +2,21 @@
 
 ## Current verification boundary
 
+Cinch now derives a checked total call's numeric bounds when that call appears
+only in an existing hypothesis. For example, `pos + width cp <= bytes-len out`
+can imply `pos <= bytes-len out` using the actual checked Nat-returning body of
+`width`. Bounds still require the matching defining body; no source spelling
+or stale body supplies authority. Text.Lex binds `char-code c` once, then uses
+that checked Nat value for both buffer sizing and encoding.
+
+The regression fails before the proof fix and passes afterward, including
+stronger-result, missing-body and changed-body refusals at five identities
+above2^128. All37 source cases,40 guarded-call Core checks and five whole
+regression targets pass. Fresh stage0/1 pass all six smokes; actualstage2 and
+the full188+5 current-source matrix are running. The pinned f88 producer is
+unchanged: Text.Lex is compiled toolkit source, outside its embedded prelude.
+See [the hypothesis-bound report](../bootstrap/hypothesis-body-bounds-results.json).
+
 The guarded742 snapshot completed all187 integration targets and five general
 gates:176 fresh gates and16 whole gates reused only after checking identical
 relevant inputs. This is a complete development-compiler baseline, preceding

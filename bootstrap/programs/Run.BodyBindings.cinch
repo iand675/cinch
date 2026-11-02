@@ -63,6 +63,20 @@ module Main where
     let gamma = with-body-bindings [binding] (make-proof-scope [(id, nat), (other, nat)] Nil) in
     (case scoped-prove-refinement gamma Nil exact (CForget sp nat (actual-call id binding)) of Some evidence -> True; None -> False)
       && (case scoped-prove-refinement gamma Nil exact (CForget sp nat (actual-call other binding)) of None -> True; other -> False)
+  hypothesis-bounds :: Nat -> BodyBinding -> BodyBinding -> Bool
+  hypothesis-bounds id binding changed =
+    let offset = id + 1 in let output = id + 2 in let binder = id + 3 in
+    let observed = UIndexCall (binding-function binding) (UArg (UIndex nat (IRigid id "input" 0)) UEnd) in
+    let start = UIndex nat (IRigid offset "offset" 0) in
+    let actual = URefine binder "out" nat (UCompare ">=" (UIndex nat (IBound binder "out")) (UIndexMath "+" start observed)) in
+    let wanted = URefine (id + 4) "result" nat (UCompare ">=" (UIndex nat (IBound (id + 4) "result")) start) in
+    let too-strong = URefine (id + 4) "result" nat (UCompare ">=" (UIndex nat (IBound (id + 4) "result")) (UIndexMath "+" start (UIndex nat (IInteger 5)))) in
+    let scope = make-proof-scope [(id, nat), (offset, nat), (output, actual)] Nil in
+    let value = CForget sp nat (CLocal sp actual output "out" Nil) in
+    (case scoped-prove-refinement (with-body-bindings [binding] scope) Nil wanted value of Some evidence -> True; None -> False)
+      && (case scoped-prove-refinement (with-body-bindings [binding] scope) Nil too-strong value of None -> True; other -> False)
+      && (case scoped-prove-refinement scope Nil wanted value of None -> True; other -> False)
+      && (case scoped-prove-refinement (with-body-bindings [changed] scope) Nil wanted value of None -> True; other -> False)
   checks :: Nat -> TotalFunction -> TotalFunction -> List Bool
   checks id function changed =
     let original = mono (UFun nat (bounded (id + 10) 1 4)) in
@@ -73,6 +87,7 @@ module Main where
         let claimed = UIndexCall function (UArg local UEnd) in
         let altered = UIndexCall changed (UArg local UEnd) in
         [ test-proof id binding next
+        , hypothesis-bounds id binding next
         , argument-identity id binding
         , missing (check-body-binding "width" "Main.other" "external" original function)
         , missing (check-body-binding "width" "Main.width" "external" original changed)

@@ -1689,7 +1689,13 @@ module Bootstrap.Core where
   goals-body-facts :: ProofScope -> List Proposition -> List Proposition
   goals-body-facts gamma goals = case goals of Nil -> Nil; Cons goal rest -> proposition-body-facts gamma goal <> goals-body-facts gamma rest
   goal-assumptions :: ProofScope -> List Proposition -> List Proposition -> List Proposition
-  goal-assumptions gamma facts goals = proof-assumptions gamma facts <> goals-body-facts gamma goals
+  goal-assumptions gamma facts goals =
+    let hypotheses = proof-assumptions gamma facts in
+    -- A checked call can occur only in an existing refinement, while the
+    -- requested weaker result no longer mentions it. Its actual body still
+    -- supplies its bounds. Both proof search and certificate checking rebuild
+    -- these facts from the same declaration-bound body authority.
+    hypotheses <> goals-body-facts gamma (hypotheses <> goals)
 
   scoped-total-call-index :: ProofScope -> List Proposition -> CoreTerm -> Option UType
   scoped-total-call-index gamma facts term = if not (proof-term gamma facts term) then None else case actual-index gamma facts term of

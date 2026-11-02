@@ -108,8 +108,9 @@ module Text.Lex where
   chars-bytes-from pos cs = case cs of
     Nil -> bytes-new pos
     Cons c rest ->
-      let out = chars-bytes-from (pos + utf8-encode-width (char-code c)) rest in
-      let u = utf8-encode-into out pos (char-code c) in
+      let cp = char-code c in
+      let out = chars-bytes-from (pos + utf8-encode-width cp) rest in
+      let u = utf8-encode-into out pos cp in
       out
 
   chars-bytes :: List Char -> Bytes
