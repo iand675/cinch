@@ -1,0 +1,228 @@
+-- Typed Core to LLVM using the shared runtime ABI. Each generated value
+-- owns one reference; local reads duplicate, scope exits drop, and direct
+-- calls transfer arguments to the callee. Mathematical numbers remain
+-- runtime words throughout. Unsupported Core produces errors, never IR.
+module Bootstrap.RuntimeIr where
+  import Bootstrap.Check (CheckedProgram, checked-elaboration)
+  import Bootstrap.Infer (elaboration-core, elaboration-data, elaboration-effects, elaboration-classes, elaboration-instances)
+  import Bootstrap.Core
+  import Bootstrap.Type
+  import Bootstrap.Report
+  import Algebra.Semigroup
+  import Text.Builder
+  import Text.Show (nat-to-string)
+  import Text.Lex (Span)
+
+  export emit-runtime-program
+
+  data Writer where
+    Writer :: Nat -> Builder -> Builder -> List Diagnostic -> Writer
+  data Local where
+    Local :: Nat -> UType -> String -> Local
+    Discard :: UType -> String -> Local
+
+  cat :: List String -> String
+  cat xs = string-concat-all xs
+  same :: String -> String -> Bool
+  same a b = string-compare a b == 0
+  line :: Writer -> String -> Writer
+  line w text = case w of Writer next globals code errors -> Writer next globals (builder-add-line text code) errors
+  global :: Writer -> String -> Writer
+  global w text = case w of Writer next globals code errors -> Writer next (builder-add-line text globals) code errors
+  fresh :: Writer -> String -> (Writer, String)
+  fresh w prefix = case w of Writer next globals code errors -> (Writer (next + 1) globals code errors, cat [prefix, nat-to-string next])
+  refuse :: Writer -> Span -> String -> Writer
+  refuse w sp text = case w of Writer next globals code errors -> Writer next globals code (Cons (MkDiagnostic "bootstrap.runtime-ir" sp text) errors)
+  unsupported :: Writer -> Span -> String -> (Writer, String)
+  unsupported w sp text = (refuse w sp text, "0")
+  symbol :: String -> String
+  symbol name = cat ["@\"cinch.typed.", name, "\""]
+  base :: UType -> UType
+  base ty = case ty of URefine id name carrier predicate -> base carrier; URequire predicates body -> base body; other -> ty
+  named :: UType -> String -> Bool
+  named ty name = case base ty of UCon actual KType -> same actual name; other -> False
+  number :: UType -> Bool
+  number ty = named ty "Int" || named ty "Nat"
+  scalar :: UType -> Bool
+  scalar ty = number ty || named ty "Bool" || named ty "Unit"
+  runtime-number :: UType -> String
+  runtime-number ty = if named ty "Nat" then "nat" else "int"
+  count-op :: Bool -> UType -> String -> Writer -> Writer
+  count-op duplicate ty value w = if number ty then line w (cat ["  call void @cinch_", if duplicate then "dup" else "drop", "(i64 ", value, ")"]) else w
+  drop-locals :: List Local -> Writer -> Writer
+  drop-locals locals w = case locals of
+    Nil -> w
+    Cons (Local id ty value) rest -> count-op False ty value (drop-locals rest w)
+    Cons (Discard ty value) rest -> count-op False ty value (drop-locals rest w)
+  local :: Nat -> List Local -> Option (UType, String)
+  local id locals = case locals of
+    Nil -> None
+    Cons (Local key ty value) rest -> if key == id then Some (ty, value) else local id rest
+    Cons (Discard ty value) rest -> local id rest
+  definition :: String -> List CoreDefinition -> Option CoreDefinition
+  definition name definitions = case definitions of Nil -> None; Cons d rest -> if same name (core-name d) then Some d else definition name rest
+  join :: List String -> String
+  join words = case words of Nil -> ""; Cons word Nil -> word; Cons word rest -> cat [word, ", ", join rest]
+  argument-words :: List String -> List String
+  argument-words values = case values of Nil -> Nil; Cons value rest -> Cons (cat ["i64 ", value]) (argument-words rest)
+  call :: Writer -> String -> List String -> (Writer, String)
+  call w name args = let (next, result) = fresh w "%v" in
+    (line next (cat ["  ", result, " = call i64 ", name, "(", join (argument-words args), ")"]), result)
+  decimal :: Writer -> UType -> String -> (Writer, String)
+  decimal w ty text =
+    let (next, name) = fresh w "@number" in
+    let len = nat-to-string (string-length text) in
+    let declared = global next (cat [name, " = private unnamed_addr constant [", len, " x i8] c\"", text, "\""]) in
+    let (ready, result) = fresh declared "%v" in
+    (line ready (cat ["  ", result, " = call i64 @cinch_", runtime-number ty, "_from_decimal(ptr ", name, ", i64 ", len, ")"]), result)
+  head :: CoreTerm -> CoreTerm
+  head term = case term of CApply sp ty f x -> head f; other -> term
+  arguments :: CoreTerm -> List CoreTerm -> List CoreTerm
+  arguments term more = case term of CApply sp ty f x -> arguments f (Cons x more); other -> more
+  function-type :: UType -> Bool
+  function-type ty = case ty of UFun domain result -> scalar domain && function-type result; other -> scalar ty
+  arity :: UType -> Nat
+  arity ty = case ty of UFun domain result -> 1 + arity result; other -> 0
+  -- This initial lowering handles closed scalar workers. Type parameters,
+  -- dictionaries, aggregates, closures and effects retain named refusals
+  -- until their representation and ownership paths are implemented.
+  scheme-supported :: Scheme -> Bool
+  scheme-supported sc = (case scheme-params sc of Nil -> True; other -> False)
+    && (case scheme-requirements sc of Nil -> True; other -> False) && function-type (scheme-body sc)
+  expression :: List CoreDefinition -> List Local -> Writer -> CoreTerm -> (Writer, String)
+  expression definitions locals w term = case term of
+    CInt sp ty text -> if number ty then decimal w ty text else unsupported w sp "integer carrier needs runtime lowering"
+    CUnit sp ty -> (w, "0")
+    CLocal sp ty id name Nil -> case local id locals of
+      Some (declared, value) -> (count-op True declared value w, value)
+      None -> unsupported w sp "runtime local is absent from its lexical scope"
+    CUse sp ty name role Nil ->
+      if named ty "Bool" && same name "True" then (w, "1")
+      else if named ty "Bool" && same name "False" then (w, "0")
+      else direct-call definitions locals w sp name Nil
+    CApply sp ty f x -> case head term of
+      CUse at function name role Nil -> direct-call definitions locals w sp name (arguments term Nil)
+      other -> unsupported w sp "indirect or polymorphic application needs closure lowering"
+    CLet sp ty id name sc rhs body -> if scheme-supported sc && scalar (scheme-body sc) then
+      (case expression definitions locals w rhs of
+        (bound, value) -> case expression definitions (Cons (Local id (scheme-body sc) value) locals) bound body of
+          (done, result) -> (count-op False (scheme-body sc) value done, result))
+      else unsupported w sp "polymorphic or aggregate let needs runtime lowering"
+    CIf sp ty test yes no -> branch definitions locals w sp test yes no
+    CPrimitive sp ty op args -> primitive definitions locals w sp ty op args
+    CProved sp ty evidence body -> expression definitions locals w body
+    CRefine sp ty evidence body -> expression definitions locals w body
+    CForget sp ty body -> expression definitions locals w body
+    CRequire sp ty body -> expression definitions locals w body
+    CDischarge sp ty evidence body -> expression definitions locals w body
+    CDecision sp ty predicate condition -> unsupported w sp "decision constructors need runtime layouts"
+    other -> unsupported w (Span 0 0 1 1) "Core form needs typed runtime lowering"
+  expressions :: List CoreDefinition -> List Local -> Writer -> List CoreTerm -> (Writer, List String)
+  expressions definitions locals w terms = case terms of
+    Nil -> (w, Nil)
+    Cons term rest -> case expression definitions locals w term of
+      (first, value) -> case expressions definitions locals first rest of (done, values) -> (done, Cons value values)
+  direct-call :: List CoreDefinition -> List Local -> Writer -> Span -> String -> List CoreTerm -> (Writer, String)
+  direct-call definitions locals w sp name args = case definition name definitions of
+    Some d -> if scheme-supported (core-scheme d) && arity (scheme-body (core-scheme d)) == list-length args then
+      (case expressions definitions locals w args of (ready, values) -> call ready (symbol name) values)
+      else unsupported w sp "partial, overapplied or polymorphic call needs runtime lowering"
+    None -> unsupported w sp (cat ["external runtime implementation is unavailable: ", name])
+  branch :: List CoreDefinition -> List Local -> Writer -> Span -> CoreTerm -> CoreTerm -> CoreTerm -> (Writer, String)
+  branch definitions locals w sp test yes no =
+    let (tested, condition) = expression definitions locals w test in
+    let (one, slot) = fresh tested "%slot" in
+    let (two, predicate) = fresh one "%v" in
+    let (three, left) = fresh two "yes" in
+    let (four, right) = fresh three "no" in
+    let (five, end) = fresh four "join" in
+    let split = line (line (line five (cat ["  ", slot, " = alloca i64"])) (cat ["  ", predicate, " = icmp ne i64 ", condition, ", 0"])) (cat ["  br i1 ", predicate, ", label %", left, ", label %", right]) in
+    let (first, a) = expression definitions locals (line split (cat [left, ":"])) yes in
+    let middle = line (line (line first (cat ["  store i64 ", a, ", ptr ", slot])) (cat ["  br label %", end])) (cat [right, ":"]) in
+    let (second, b) = expression definitions locals middle no in
+    let joined = line (line (line second (cat ["  store i64 ", b, ", ptr ", slot])) (cat ["  br label %", end])) (cat [end, ":"]) in
+    let (ready, result) = fresh joined "%v" in
+    (line ready (cat ["  ", result, " = load i64, ptr ", slot]), result)
+  primitive :: List CoreDefinition -> List Local -> Writer -> Span -> UType -> String -> CoreTerm -> (Writer, String)
+  primitive definitions locals w sp ty op args = case args of
+    CArgument at input (CArgumentsEnd end) -> if same op "negate" && named (core-type input) "Int" then
+      (case expression definitions locals w input of
+        (ready, value) -> case call ready "@cinch_int_neg" [value] of (done, result) -> (count-op False (core-type input) value done, result))
+      else unsupported w sp "unary primitive needs runtime lowering"
+    CArgument at first (CArgument bt second (CArgumentsEnd end)) ->
+      if number (core-type first) then binary definitions locals w sp op first second
+      else if (same op "==" || same op "/=") && scalar (core-type first) then
+        (case expressions definitions locals w [first, second] of
+          (ready, [a, b]) -> compare-word ready (if same op "==" then "eq" else "ne") a b
+          other -> unsupported w sp "malformed scalar equality arguments")
+      else unsupported w sp "primitive carrier needs runtime lowering"
+    CArgumentsEnd end -> if same op "decision-true" then (w, "1") else if same op "decision-false" then (w, "0") else unsupported w sp "nullary primitive needs runtime lowering"
+    other -> unsupported w sp "primitive arity needs runtime lowering"
+  compare-word :: Writer -> String -> String -> String -> (Writer, String)
+  compare-word w predicate a b = let (one, flag) = fresh w "%v" in let (two, result) = fresh one "%v" in
+    (line (line two (cat ["  ", flag, " = icmp ", predicate, " i64 ", a, ", ", b])) (cat ["  ", result, " = zext i1 ", flag, " to i64"]), result)
+  comparison :: String -> Option String
+  comparison op = if same op "==" then Some "eq" else if same op "/=" then Some "ne" else if same op "<" then Some "slt" else if same op "<=" then Some "sle" else if same op ">" then Some "sgt" else if same op ">=" then Some "sge" else None
+  binary :: List CoreDefinition -> List Local -> Writer -> Span -> String -> CoreTerm -> CoreTerm -> (Writer, String)
+  binary definitions locals w sp op first second = case expressions definitions locals w [first, second] of
+    (ready, [a, b]) ->
+      let ty = core-type first in
+      let prefix = cat ["@cinch_", runtime-number ty, "_"] in
+      let operation = if same op "+" then Some "add" else if same op "-" then Some "sub" else if same op "*" then Some "mul" else None in
+      let lowered = (case operation of
+            Some suffix -> call ready (cat [prefix, suffix]) [a, b]
+            None -> case comparison op of
+              Some predicate -> case call ready (cat [prefix, "cmp"]) [a, b] of (compared, order) -> compare-word compared predicate order "0"
+              None -> unsupported ready sp "numeric primitive needs runtime lowering") in
+      case lowered of (done, result) -> (count-op False ty b (count-op False ty a done), result)
+    other -> unsupported w sp "malformed numeric arguments"
+  parameters :: List CorePattern -> Nat -> Writer -> (Writer, List Local, List String)
+  parameters patterns index w = case patterns of
+    Nil -> (w, Nil, Nil)
+    Cons pattern rest -> let word = cat ["%arg", nat-to-string index] in
+      let (done, locals, words) = parameters rest (index + 1) w in
+      case pattern of
+        CPVar sp ty id name -> if scalar ty then (done, Cons (Local id ty word) locals, Cons (cat ["i64 ", word]) words) else (refuse done sp "parameter needs runtime representation", locals, words)
+        CPWild sp ty -> if scalar ty then (done, Cons (Discard ty word) locals, Cons (cat ["i64 ", word]) words) else (refuse done sp "wildcard parameter needs runtime representation", locals, words)
+        other -> (refuse done (Span 0 0 1 1) "parameter pattern needs typed case lowering", locals, words)
+  worker :: List CoreDefinition -> Writer -> CoreDefinition -> Writer
+  worker definitions w d = case d of
+    MkCoreDefinition sp name sc openings givens private clauses ->
+      if not (scheme-supported sc) then refuse w sp (cat ["definition needs polymorphic, dictionary or aggregate lowering: ", name])
+      else case clauses of
+        [MkCoreClause at patterns body] ->
+          let (ready, locals, words) = parameters patterns 0 w in
+          let started = line (line ready (cat ["define i64 ", symbol name, "(", join words, ") {"])) "entry:" in
+          let (evaluated, result) = expression definitions locals started body in
+          line (line (drop-locals locals evaluated) (cat ["  ret i64 ", result])) "}"
+        other -> refuse w sp "multiple equations need typed case lowering"
+  workers :: List CoreDefinition -> List CoreDefinition -> Writer -> Writer
+  workers definitions remaining w = case remaining of Nil -> w; Cons d rest -> workers definitions rest (worker definitions w d)
+  declarations :: String
+  declarations = cat [
+    "declare void @cinch_dup(i64)\ndeclare void @cinch_drop(i64)\ndeclare void @cinch_reclaim_enable()\ndeclare i64 @cinch_exit_check(i64)\n",
+    "declare i64 @cinch_argv_init(i64, ptr)\ndeclare i64 @cinch_run_main(ptr)\n",
+    "declare i64 @cinch_int_from_decimal(ptr, i64)\ndeclare i64 @cinch_nat_from_decimal(ptr, i64)\ndeclare i64 @cinch_int_to_i64(i64)\n",
+    "declare i64 @cinch_int_add(i64, i64)\ndeclare i64 @cinch_int_sub(i64, i64)\ndeclare i64 @cinch_int_mul(i64, i64)\ndeclare i64 @cinch_int_neg(i64)\ndeclare i64 @cinch_int_cmp(i64, i64)\n",
+    "declare i64 @cinch_nat_add(i64, i64)\ndeclare i64 @cinch_nat_sub(i64, i64)\ndeclare i64 @cinch_nat_mul(i64, i64)\ndeclare i64 @cinch_nat_cmp(i64, i64)\n"]
+  entry :: String
+  entry = cat ["define i64 @cinch.typed.exit() {\nentry:\n  %result = call i64 ", symbol "main", "()\n",
+    "  %exit = call i64 @cinch_int_to_i64(i64 %result)\n  call void @cinch_drop(i64 %result)\n  ret i64 %exit\n}\n",
+    "define i32 @main(i32 %argc, ptr %argv) {\nentry:\n  call void @cinch_reclaim_enable()\n  %count = sext i32 %argc to i64\n  call i64 @cinch_argv_init(i64 %count, ptr %argv)\n",
+    "  %exit = call i64 @cinch_run_main(ptr @cinch.typed.exit)\n  %checked = call i64 @cinch_exit_check(i64 %exit)\n  %code = trunc i64 %checked to i32\n  ret i32 %code\n}\n"]
+  emit-runtime-program :: CheckedProgram -> Result (List Diagnostic) String
+  emit-runtime-program checked =
+    let typed = checked-elaboration checked in
+    let definitions = elaboration-core typed in
+    let initial = Writer 0 builder-new builder-new Nil in
+    let supported = ((case elaboration-data typed of Nil -> True; other -> False)
+      && (case elaboration-effects typed of Nil -> True; other -> False)
+      && (case elaboration-classes typed of Nil -> True; other -> False)
+      && (case elaboration-instances typed of Nil -> True; other -> False)) in
+    let ready = if supported then initial else refuse initial (Span 0 0 1 1) "declarations need shared runtime layout and dictionary lowering" in
+    let started = (case definition "main" definitions of
+          Some d -> if named (scheme-body (core-scheme d)) "Int" && arity (scheme-body (core-scheme d)) == 0 then ready else refuse ready (Span 0 0 1 1) "runtime entry must be main :: Int"
+          None -> refuse ready (Span 0 0 1 1) "runtime entry has no main definition") in
+    case workers definitions definitions started of
+      Writer next globals code Nil -> Ok (cat [declarations, builder-run globals, builder-run code, entry])
+      Writer next globals code errors -> Err errors

@@ -1,0 +1,35 @@
+-- Read source only after this compiler artifact has been built. The typed
+-- frontend and runtime emitter therefore process actual runtime input.
+module Main where
+  import Bootstrap.Check (check-and-retain)
+  import Bootstrap.RuntimeIr (emit-runtime-program)
+  import Bootstrap.Parse (parse-program)
+  import Bootstrap.Resolve (resolve-program)
+  import Bootstrap.Report (render-diagnostics)
+  import Text.Parse (ParseOutcome, Parsed, Failed)
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read, fs-write)
+
+  refused :: forall r. using (io :: Io r) => Int -> String ->{IO r} Int
+  refused code diagnostics = case fs-write (path-from-string "output.ll") (string-to-bytes "") of
+    Err error -> 6
+    Ok cleared -> case fs-write (path-from-string "output.diagnostics") (string-to-bytes diagnostics) of
+      Err error -> 6
+      Ok written -> code
+  main :: Unit ->{IO r, Diverge} Int
+  main u = with (io = newIO ()) in case fs-read (path-from-string "input.source") of
+    Err error -> 2
+    Ok bytes -> case parse-program "input.source" bytes of
+      Failed errors -> refused 3 "parse failed"
+      Parsed program Nil -> case resolve-program program of
+        (resolved, Nil) -> case check-and-retain resolved of
+          Err errors -> refused 4 (render-diagnostics errors)
+          Ok checked -> case emit-runtime-program checked of
+            Err errors -> refused 5 (render-diagnostics errors)
+            Ok ir -> case fs-write (path-from-string "output.ll") (string-to-bytes ir) of
+              Err error -> 6
+              Ok written -> case fs-write (path-from-string "output.diagnostics") (string-to-bytes "") of
+                Err error -> 6
+                Ok cleared -> 0
+        (resolved, errors) -> refused 4 (render-diagnostics errors)
+      Parsed program errors -> refused 3 "parse produced recovery errors"

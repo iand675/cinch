@@ -363,3 +363,22 @@ rejects an actual type error, and verifies that outside code cannot call the
 checked constructor. The complete scalar IR and pipeline targets pass. This
 boundary is not a claim of complete usage/totality checking, typed runtime
 lowering or successful self-hosting. See [the focused report](checked-program-results.json).
+
+
+## Typed shared-runtime lowering
+
+`Bootstrap.RuntimeIr.emit-runtime-program` consumes the retained checked Core
+and returns either a complete LLVM module or named diagnostics. The first
+implemented path covers closed scalar workers, exact mathematical Int/Nat
+arithmetic, direct calls, branches, lexical lets and recursion. Values use
+ABI5 runtime words, with duplication on local reads and cleanup at scope exits.
+The native entry uses the runtime's reserved stack and exit leak check.
+
+`programs/Run.RuntimeIr.cinch` reads source after it has been built. Eight
+runtime-fed programs emit LLVM, link to the existing runtime, return their exact
+expected results and report zero leaks, including bignums above2^128. Unsupported
+polymorphism returns named diagnostics and clears stale IR. The complete emitter
+source closure also passes through Cinch. The real compiler CLI route is being
+validated separately; the default pipeline still uses its standalone scalar
+renderer. Aggregates, closures, dictionaries, effects and the complete base ABI
+remain required. See [the runtime IR checkpoint](runtime-ir-results.json).

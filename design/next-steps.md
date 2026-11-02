@@ -1,5 +1,25 @@
 # Next steps (as of 2026-11-02)
 
+Typed Core now has an executable shared-runtime scalar backend in
+`Bootstrap.RuntimeIr`. Eight runtime-fed programs emit real LLVM, link to ABI5,
+return exact results and report zero leaks. They cover numbers above2^128,
+aliases, direct calls, branches, recursion, negatives, Naturals and discarded
+arguments. The corrected whole Rust target passes; Cinch independently accepts
+the backend's entire source dependency closure with zero diagnostics. Unsupported
+polymorphism is refused before IR is returned. The real `--emit-ir` CLI route is
+under separate validation; it is not yet part of this checkpoint.
+See [the runtime backend evidence](../bootstrap/runtime-ir-results.json).
+
+The retained-Core pipeline also passes fresh six stage0/1 smokes and a genuine
+Stage2 attempt accepts the complete compiler source, stopping only at the old
+emitter's named refusals. That stage snapshot precedes the new backend module.
+There is still no Stage2 executable or Stage3 fixed point. Aggregate, closure,
+dictionary/effect/foreign lowering, the whole-program base/layout ABI, complete
+correctness checks and complete Native/self-built suites remain required.
+See [the retained pipeline stage result](../bootstrap/checked-program-stage2-results.json).
+
+## Previous retained-Core checkpoint
+
 The pipeline now retains typed Core instead of discarding it after checking.
 A private `CheckedProgram` constructor associates the resolved source and its
 checked elaboration; the emitter receives that value. Runtime-input tests retain
