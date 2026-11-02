@@ -3,12 +3,12 @@ mod common;
 const SOURCES: &[(&str, &str)] = &[
     ("Data.Array.cinch", include_str!("../prelude/Data/Array.cinch")),
     ("Data.Array.Packed.cinch", include_str!("../prelude/Data/Array/Packed.cinch")),
-    ("Data.NDArray.cinch", include_str!("../prelude/Data/NDArray.cinch")),
+    ("Data.Tensor.cinch", include_str!("../prelude/Data/Tensor.cinch")),
     ("Data.Columnar.cinch", include_str!("../prelude/Data/Columnar.cinch")),
 ];
 
 fn run(tag: &str, body: &str) {
-    let source = format!("module Main where\n  import Data.Array\n  import Data.Array.Packed\n  import Data.NDArray\n  import Data.Columnar\n  same :: forall a. using (eq :: Eq a) => Option a -> a -> Bool\n  same o expected = case o of\n    None -> False\n    Some x -> x == expected\n{body}\n");
+    let source = format!("module Main where\n  import Data.Array\n  import Data.Array.Packed\n  import Data.Tensor\n  import Data.Columnar\n  same :: forall a. using (eq :: Eq a) => Option a -> a -> Bool\n  same o expected = case o of\n    None -> False\n    Some x -> x == expected\n{body}\n");
     let mut sources = SOURCES.to_vec();
     sources.push(("Main.cinch", &source));
     let dir = common::project(tag, &sources);
@@ -64,17 +64,17 @@ fn multidimensional_arrays_check_every_axis_and_shape_product() {
   dims :: Array Nat
   dims = array-from-list [2, 3]
   main :: Int
-  main = case ndarray-reshape dims data-words of
+  main = case tensor-reshape dims data-words of
     None -> 1
     Some matrix ->
-      if same (ndarray-get matrix (array-from-list [1, 2])) 5
-        && is-none (ndarray-get matrix (array-from-list [0, 3]))
-        && is-none (ndarray-get matrix (array-from-list [2, 0]))
-        && is-none (ndarray-get matrix (array-from-list [1]))
-      then case ndarray-set matrix (array-from-list [1, 1]) 90 of
+      if same (tensor-get matrix (array-from-list [1, 2])) 5
+        && is-none (tensor-get matrix (array-from-list [0, 3]))
+        && is-none (tensor-get matrix (array-from-list [2, 0]))
+        && is-none (tensor-get matrix (array-from-list [1]))
+      then case tensor-set matrix (array-from-list [1, 1]) 90 of
         None -> 2
-        Some changed -> if same (ndarray-get matrix (array-from-list [1, 1])) 4
-          && same (ndarray-get changed (array-from-list [1, 1])) 90 then 0 else 3
+        Some changed -> if same (tensor-get matrix (array-from-list [1, 1])) 4
+          && same (tensor-get changed (array-from-list [1, 1])) 90 then 0 else 3
       else 4
 "#);
 }
@@ -126,19 +126,21 @@ fn array_intrinsic_signatures_and_primitive_kinds_cannot_be_forged() {
         "foreign import ccall \"cinch.runtime.arrayGet\" bad :: forall a. Array a -> Nat -> a",
         "foreign import ccall \"cinch.runtime.arrayFromList\" bad :: forall a b. List a -> Array b",
         "foreign import ccall \"cinch.runtime.arrayFromList\" bad :: List Int -> Array Int",
-        "foreign import ccall \"cinch.runtime.ndarrayReshape\" bad :: forall a. Array Int -> Array a -> Option (NDArray a)",
+        "foreign import ccall \"cinch.runtime.tensorReshape\" bad :: forall a. Array Int -> Array a -> Option (Tensor a)",
         "foreign import ccall \"cinch.runtime.columnarZip\" bad :: forall a b. Columnar a -> Columnar b -> Option (Columnar (b, a))",
         "foreign import ccall \"cinch.runtime.arrayFromListU8\" bad :: List U16 -> Array U8",
+        "bad :: NDArray Int\n  bad = 0",
+        "foreign import ccall \"cinch.runtime.ndarrayGet\" bad :: forall a. Tensor a -> Array Nat -> Option a",
         "bad :: Array\n  bad = 0",
         "bad :: Array 3\n  bad = 0",
         "data Array a where\n    Forged :: a -> Array a",
-        "opaque type NDArray a :: Type",
+        "opaque type Tensor a :: Type",
         "record Columnar a where\n    value :: a",
     ] {
         let source = format!("module Main where\n  {declaration}\n  main :: Int\n  main = 0\n");
         let dir = common::project("arrays_reject", &[("Main.cinch", &source)]);
         let error = common::check(&dir, "Main.cinch").expect_err(declaration);
-        assert!(error.contains("intrinsic") || error.contains("kind") || error.contains("applied") || error.contains("builtin") || error.contains("not a type"), "{declaration}: {error}");
+        assert!(error.contains("intrinsic") || error.contains("kind") || error.contains("applied") || error.contains("builtin") || error.contains("not a type") || error.contains("unknown type"), "{declaration}: {error}");
         common::cleanup(&dir);
     }
 }
@@ -164,17 +166,17 @@ fn invalid_shapes_empty_dimensions_and_column_lengths_are_typed_failures() {
   empty :: Array Int
   empty = array-from-list []
   main :: Int
-  main = if is-none (ndarray-reshape (array-from-list [2, 4]) words)
-    && is-none (ndarray-reshape (array-from-list [9223372036854775807, 9223372036854775807]) words)
+  main = if is-none (tensor-reshape (array-from-list [2, 4]) words)
+    && is-none (tensor-reshape (array-from-list [9223372036854775807, 9223372036854775807]) words)
     && is-none (array-set words 6 99)
     && is-none (array-slice words 5 2)
     && is-none (columnar-zip (columnar-column words) (columnar-column empty))
-    then case ndarray-reshape (array-from-list [99999999999999999999999999, 0]) empty of
+    then case tensor-reshape (array-from-list [99999999999999999999999999, 0]) empty of
       None -> 1
-      Some zero -> case ndarray-reshape (array-from-list []) (array-replicate 1 (7 :: Int)) of
+      Some zero -> case tensor-reshape (array-from-list []) (array-replicate 1 (7 :: Int)) of
         None -> 2
-        Some scalar -> if same (ndarray-get scalar (array-from-list [])) 7
-          && is-none (ndarray-get zero (array-from-list [0, 0])) then 0 else 3
+        Some scalar -> if same (tensor-get scalar (array-from-list [])) 7
+          && is-none (tensor-get zero (array-from-list [0, 0])) then 0 else 3
     else 4
 "#);
 }
@@ -200,7 +202,7 @@ fn abi5_self_hosted_intrinsic_contracts_refuse_array_operations() {
   import Bootstrap.Builtin
   main :: Int
   main = if is-none (intrinsic-contract "cinch.runtime.arrayFromList")
-    && is-none (intrinsic-contract "cinch.runtime.ndarrayGet")
+    && is-none (intrinsic-contract "cinch.runtime.tensorGet")
     && is-none (intrinsic-contract "cinch.runtime.columnarZip") then 0 else 1
 "#),
     ]);

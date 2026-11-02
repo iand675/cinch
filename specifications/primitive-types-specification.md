@@ -17,7 +17,7 @@ Four families of types must not be confused:
 | --- | --- | --- |
 | Mathematical | `Nat`, `Int` | Unbounded; exact, total arithmetic; see the core specification |
 | Primitive machine scalars | `I32`, `U64`, `F64`, `Char`, `Bool` | This chapter: fixed width, unboxed, explicitly chosen overflow behavior |
-| Runtime array primitives | `Array a`, `NDArray a`, `Columnar row` | Immutable containers; [array design and ABI6 integration boundary](../design/arrays.md) |
+| Runtime array primitives | `Array a`, `Tensor a`, `Columnar row` | Immutable containers; [array design and ABI6 integration boundary](../design/arrays.md) |
 | Structured and target-indexed | `Vec n U32`, closures, records, dictionaries | Other chapters; not primitives |
 
 A primitive machine scalar value is **unboxed**: it occupies its stated fixed layout, is passed, stored and compared inline, and involves no indirection, allocation or ownership transfer. Primitive types are ordinary types in `Type`; they carry no proofs and are never erased.

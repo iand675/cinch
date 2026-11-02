@@ -65,21 +65,21 @@ pub(super) fn emit(
                 )
             });
         }
-        NdGet | NdSet => {
-            let i = rt_call(b, "cinch_ndarray_index", &[arg(0), arg(1)]);
+        TensorGet | TensorSet => {
+            let i = rt_call(b, "cinch_tensor_index", &[arg(0), arg(1)]);
             let bad = b.reg();
             b.line(&format!("{bad} = icmp slt i64 {i}, 0"));
             ret_option(b, reg, prim, name, &bad, |b| {
                 let mut args = vec![arg(0), format!("i64 {i}")];
-                if op == NdSet {
+                if op == TensorSet {
                     args.push(arg(2));
                 }
                 rt_call(
                     b,
-                    if op == NdGet {
-                        "cinch_ndarray_get"
+                    if op == TensorGet {
+                        "cinch_tensor_get"
                     } else {
-                        "cinch_ndarray_set"
+                        "cinch_tensor_set"
                     },
                     &args,
                 )
@@ -99,7 +99,7 @@ pub(super) fn emit(
                         vec![arg(0), format!("i64 {i}"), format!("i64 {n}")],
                     )
                 }
-                Reshape => ("cinch_ndarray_reshape", vec![arg(0), arg(1)]),
+                Reshape => ("cinch_tensor_reshape", vec![arg(0), arg(1)]),
                 Zip => (
                     "cinch_columnar_zip",
                     vec![
@@ -132,8 +132,8 @@ pub(super) fn emit(
         Append | Shape | Data | Column => {
             let (sym, args) = match op {
                 Append => ("cinch_array_append", vec![arg(0), arg(1)]),
-                Shape => ("cinch_ndarray_shape", vec![arg(0)]),
-                Data => ("cinch_ndarray_data", vec![arg(0)]),
+                Shape => ("cinch_tensor_shape", vec![arg(0)]),
+                Data => ("cinch_tensor_data", vec![arg(0)]),
                 Column => ("cinch_columnar_column", vec![arg(0)]),
                 _ => unreachable!(),
             };

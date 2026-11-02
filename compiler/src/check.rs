@@ -4590,7 +4590,7 @@ impl Checker {
                 .iter()
                 .all(|i| self.copy_structural(i, scope, seen)),
             Ty::Adt(name, args) => {
-                if matches!(name.as_str(), "Array" | "NDArray" | "Columnar") {
+                if matches!(name.as_str(), "Array" | "Tensor" | "Columnar") {
                     return args.iter().all(|a| self.copy_structural(a, scope, seen));
                 }
                 if seen.iter().any(|(n, a)| n == name && a == args) {

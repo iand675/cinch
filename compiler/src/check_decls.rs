@@ -190,7 +190,7 @@ fn builtin_type_name(name: &str) -> bool {
     }
     matches!(
         name,
-        "Nat" | "Int" | "Bool" | "Unit" | "Bytes" | "Sym" | "Array" | "NDArray" | "Columnar" | "Type" | "Prop"
+        "Nat" | "Int" | "Bool" | "Unit" | "Bytes" | "Sym" | "Array" | "Tensor" | "Columnar" | "Type" | "Prop"
             | "Code" | "Syntax" | "Declarations" | "Name" | "Secret"
             | "IoCap" | "FileReadCap" | "FileWriteCap" | "ProcCap"
             | "Scope" | "Task"
@@ -506,7 +506,7 @@ impl Checker {
         }
         // Opaque runtime type constructors: no source constructor can forge
         // a shape or a column layout.
-        for name in ["Array", "NDArray", "Columnar"] {
+        for name in ["Array", "Tensor", "Columnar"] {
             self.types.entry(name.into()).or_default().push(TypeKind {
                 module: "<builtin>".into(), name: name.into(), arity: 1,
                 param_kinds: vec![ParamKind::Type], ctors: Vec::new(), fields: None,
@@ -2901,7 +2901,7 @@ impl Checker {
                                 | "Unit"
                                 | "Bytes"
                                 | "Sym"
-                                | "Array" | "NDArray" | "Columnar"
+                                | "Array" | "Tensor" | "Columnar"
                                 | "Code"
                                 | "Syntax"
                                 | "Declarations"
@@ -3224,7 +3224,7 @@ impl Checker {
                                 | "Unit"
                                 | "Bytes"
                                 | "Sym"
-                                | "Array" | "NDArray" | "Columnar"
+                                | "Array" | "Tensor" | "Columnar"
                                 | "Code"
                                 | "Syntax"
                                 | "Declarations"
@@ -3447,7 +3447,7 @@ impl Checker {
                 }
                 ast::Decl::Record(rec) => {
                     let set = self.validate_attr_site(decl_attrs, AttrSite::TypeDecl)?;
-                    if matches!(rec.name.text.as_str(), "Array" | "NDArray" | "Columnar") {
+                    if matches!(rec.name.text.as_str(), "Array" | "Tensor" | "Columnar") {
                         return Err(Error::at(rec.name.span, format!("{} is a builtin primitive type and cannot be redefined", rec.name.text)));
                     }
                     if self
@@ -3668,7 +3668,7 @@ impl Checker {
                         || matches!(
                             rec.name.text.as_str(),
                             "Nat" | "Int" | "Bool" | "Unit" | "Bytes" | "Sym"
-                                | "Array" | "NDArray" | "Columnar"
+                                | "Array" | "Tensor" | "Columnar"
                                 | "Thunk" | "Lazy" | "Later" | "Ref" | "Mut" | "Io"
                                 | "Type" | "Prop"
                         )

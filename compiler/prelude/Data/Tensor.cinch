@@ -1,0 +1,11 @@
+-- Immutable row-major arrays, with checked runtime shapes of any rank.
+module Data.Tensor where
+  import Data.Core
+  import Data.Array
+
+  export tensor-reshape, tensor-shape, tensor-data, tensor-get, tensor-set
+  foreign import ccall "cinch.runtime.tensorReshape" tensor-reshape :: forall a. Array Nat -> Array a -> Option (Tensor a)
+  foreign import ccall "cinch.runtime.tensorShape" tensor-shape :: forall a. Tensor a -> Array Nat
+  foreign import ccall "cinch.runtime.tensorData" tensor-data :: forall a. Tensor a -> Array a
+  foreign import ccall "cinch.runtime.tensorGet" tensor-get :: forall a. Tensor a -> Array Nat -> Option a
+  foreign import ccall "cinch.runtime.tensorSet" tensor-set :: forall a. Tensor a -> Array Nat -> a -> Option (Tensor a)

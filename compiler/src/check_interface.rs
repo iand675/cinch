@@ -352,7 +352,7 @@ impl Checker {
                 if parts.len() == 1 && vars.contains(&name) { name }
                 else if parts.as_slice() == ["Io"] { "Io".to_string() }
                 else if parts.len() == 1 && (Scalar::parse(&name).is_some()
-                    || matches!(name.as_str(), "Int" | "Nat" | "Bool" | "Unit" | "Bytes" | "Sym" | "Array" | "NDArray" | "Columnar")) { name }
+                    || matches!(name.as_str(), "Int" | "Nat" | "Bool" | "Unit" | "Bytes" | "Sym" | "Array" | "Tensor" | "Columnar")) { name }
                 else {
                     let info = self.lookup_type(&parts).ok()?;
                     // Kernel modalities and application units need richer

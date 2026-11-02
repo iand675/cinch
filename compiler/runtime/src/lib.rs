@@ -135,7 +135,7 @@
 //! keeps the table index of its extension in those 32 bits instead:
 //! `ceil(words / 32)` table words of 32 codes each. Every other kind's
 //! map is fixed by the kind (`block::fixed_scan_code`): a memo cell's
-//! thunk (word 1), a quote block's holes (words 4..), an NDArray's two
+//! thunk (word 1), a quote block's holes (words 4..), an Tensor's two
 //! buffers, and a Columnar node's children (words 3..5) are counted.
 //! Array is the exception: its payload format selects Raw, Obj or TObj
 //! scanning of word elements, or Raw scanning of packed scalar bytes. [`cinch_free`] sizes shaped blocks from the table and

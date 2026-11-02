@@ -15,8 +15,8 @@ pub enum ArrayOp {
     Reshape,
     Shape,
     Data,
-    NdGet,
-    NdSet,
+    TensorGet,
+    TensorSet,
     Column,
     Zip,
     Rows,
@@ -39,8 +39,8 @@ impl ArrayOp {
         Self::Reshape,
         Self::Shape,
         Self::Data,
-        Self::NdGet,
-        Self::NdSet,
+        Self::TensorGet,
+        Self::TensorSet,
         Self::Column,
         Self::Zip,
         Self::Rows,
@@ -60,11 +60,11 @@ impl ArrayOp {
             Self::Set => "arraySet",
             Self::Slice => "arraySlice",
             Self::Append => "arrayAppend",
-            Self::Reshape => "ndarrayReshape",
-            Self::Shape => "ndarrayShape",
-            Self::Data => "ndarrayData",
-            Self::NdGet => "ndarrayGet",
-            Self::NdSet => "ndarraySet",
+            Self::Reshape => "tensorReshape",
+            Self::Shape => "tensorShape",
+            Self::Data => "tensorData",
+            Self::TensorGet => "tensorGet",
+            Self::TensorSet => "tensorSet",
             Self::Column => "columnarColumn",
             Self::Zip => "columnarZip",
             Self::Rows => "columnarRows",
@@ -93,7 +93,7 @@ impl ArrayOp {
         let b = Ty::Param("b".into());
         let app = |name: &str, t| Ty::Adt(name.into(), vec![t]);
         let array = |t| app("Array", t);
-        let nd = |t| app("NDArray", t);
+        let tensor = |t| app("Tensor", t);
         let col = |t| app("Columnar", t);
         let opt = |t| app("Option", t);
         match self {
@@ -104,11 +104,11 @@ impl ArrayOp {
             Self::Set => (vec![array(a.clone()), Ty::Nat, a.clone()], opt(array(a))),
             Self::Slice => (vec![array(a.clone()), Ty::Nat, Ty::Nat], opt(array(a))),
             Self::Append => (vec![array(a.clone()), array(a.clone())], array(a)),
-            Self::Reshape => (vec![array(Ty::Nat), array(a.clone())], opt(nd(a))),
-            Self::Shape => (vec![nd(a)], array(Ty::Nat)),
-            Self::Data => (vec![nd(a.clone())], array(a)),
-            Self::NdGet => (vec![nd(a.clone()), array(Ty::Nat)], opt(a)),
-            Self::NdSet => (vec![nd(a.clone()), array(Ty::Nat), a.clone()], opt(nd(a))),
+            Self::Reshape => (vec![array(Ty::Nat), array(a.clone())], opt(tensor(a))),
+            Self::Shape => (vec![tensor(a)], array(Ty::Nat)),
+            Self::Data => (vec![tensor(a.clone())], array(a)),
+            Self::TensorGet => (vec![tensor(a.clone()), array(Ty::Nat)], opt(a)),
+            Self::TensorSet => (vec![tensor(a.clone()), array(Ty::Nat), a.clone()], opt(tensor(a))),
             Self::Column => (vec![array(a.clone())], col(a)),
             Self::Zip => (
                 vec![col(a.clone()), col(b.clone())],
@@ -129,8 +129,8 @@ impl ArrayOp {
                 | Self::Set
                 | Self::Slice
                 | Self::Reshape
-                | Self::NdGet
-                | Self::NdSet
+                | Self::TensorGet
+                | Self::TensorSet
                 | Self::Zip
                 | Self::Row
                 | Self::Left
@@ -140,7 +140,7 @@ impl ArrayOp {
     }
 
     pub fn result_class(self, classes: [Class; 2]) -> Class {
-        if matches!(self, Self::Get | Self::NdGet | Self::Row) {
+        if matches!(self, Self::Get | Self::TensorGet | Self::Row) {
             classes[0]
         } else {
             Class::Obj

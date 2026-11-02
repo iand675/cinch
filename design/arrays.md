@@ -5,7 +5,7 @@ self-hosting checkpoint and its pinned producer. Runtime ABI **6** is
 required. Interface schema remains 8; the existing kinded schemes express
 these constructors without a schema change.
 
-`Array a`, `NDArray a` and `Columnar row` are opaque compiler primitives of
+`Array a`, `Tensor a` and `Columnar row` are opaque compiler primitives of
 kind `Type -> Type`. Source declarations cannot redefine them or forge
 their representations. The element and row types are invariant under
 unification. They are immutable: setting an element returns a new value.
@@ -13,7 +13,7 @@ Bounds, rank, shape and column-length failures return `None`. Allocations
 use the existing accounted heap and its `Exhausted` outcome.
 
 The operations live in explicit source modules `Data.Array`,
-`Data.Array.Packed`, `Data.NDArray` and `Data.Columnar`. Ship those modules
+`Data.Array.Packed`, `Data.Tensor` and `Data.Columnar`. Ship those modules
 beside an application's entry, as with `Text.Lex`; they are deliberately
 absent from the pinned seed's embedded prelude. The type constructors
 themselves are builtin and do not need an export declaration.
@@ -57,21 +57,21 @@ coming soon. SIMD `Vec` layout is unaffected.
 
 ## Multidimensional arrays
 
-`ndarray-reshape shape data` returns `Option (NDArray a)`. Shape is an
+`tensor-reshape shape data` returns `Option (Tensor a)`. Shape is an
 immutable `Array Nat`; data is an `Array a`. The product of dimensions
 must equal the data length. Reshape shares both buffers and allocates only
 a descriptor. It never exposes a partially validated shape.
 
-`ndarray-get value indices` and `ndarray-set value indices element` require
+`tensor-get value indices` and `tensor-set value indices element` require
 one index per axis and check every axis independently. The last axis varies
 fastest (row-major order). An invalid axis cannot spill into the next row.
-`ndarray-shape` and `ndarray-data` return shared immutable buffers.
+`tensor-shape` and `tensor-data` return shared immutable buffers.
 
 An empty shape has rank zero and contains one scalar. A zero dimension
 means zero elements; zero is detected before multiplying other dimensions,
 including bignum dimensions. Product and offset arithmetic is checked.
 Static type-level dimension lists, strided views and transpose are coming
-soon; `NDArray a` currently carries its checked shape at runtime.
+soon; `Tensor a` currently carries its checked shape at runtime.
 
 ## Columnar arrays
 
@@ -94,11 +94,11 @@ decomposition of record rows into named fields is coming soon.
 
 ## Ownership and representation
 
-ABI6 adds runtime kinds 14 (`Array`), 15 (`NDArray`) and 16 (`Columnar`).
+ABI6 adds runtime kinds 14 (`Array`), 15 (`Tensor`) and 16 (`Columnar`).
 Array payloads start with format and length, followed by inline elements.
 The format distinguishes packed raw scalars and word arrays of Raw, Obj
 or TObj elements. Reclamation and mark-on-spawn scan only counted words;
-scalar bits and metadata are never treated as pointers. NDArray scans its
+scalar bits and metadata are never treated as pointers. Tensor scans its
 two buffers. Columnar scans its children, with row counts and tuple layout
 descriptors remaining raw.
 

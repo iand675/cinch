@@ -1,6 +1,6 @@
 //! Immutable arrays. Payloads live inside accounted header blocks. Generic
 //! elements are ABI words; explicit scalar constructors pack at scalar width.
-//! NDArray shares an array and an immutable shape. Columnar is a tree of
+//! Tensor shares an array and an immutable shape. Columnar is a tree of
 //! separate columns; zip never materializes rows.
 use crate::{abi, block, rc};
 
@@ -214,9 +214,9 @@ pub unsafe extern "C" fn cinch_array_append(a: i64, b: i64) -> i64 {
     out
 }
 
-unsafe fn nd(data: i64, shape: i64) -> i64 {
+unsafe fn tensor(data: i64, shape: i64) -> i64 {
     let p =
-        unsafe { block::allocate(16, block::KIND_NDARRAY, block::RC_FRESH, false) }.cast::<i64>();
+        unsafe { block::allocate(16, block::KIND_TENSOR, block::RC_FRESH, false) }.cast::<i64>();
     unsafe {
         p.write(data);
         p.add(1).write(shape);
@@ -227,7 +227,7 @@ unsafe fn nd(data: i64, shape: i64) -> i64 {
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn cinch_ndarray_reshape(shape: i64, data: i64) -> i64 {
+pub unsafe extern "C" fn cinch_tensor_reshape(shape: i64, data: i64) -> i64 {
     let rank = unsafe { cinch_array_len(shape) };
     // A zero axis makes the product zero even if other dimensions are
     // arbitrarily large. Test it before converting or multiplying them.
@@ -245,26 +245,26 @@ pub unsafe extern "C" fn cinch_ndarray_reshape(shape: i64, data: i64) -> i64 {
     if size != unsafe { cinch_array_len(data) } {
         return 0;
     }
-    unsafe { nd(data, shape) }
+    unsafe { tensor(data, shape) }
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn cinch_ndarray_shape(a: i64) -> i64 {
-    let s = unsafe { field(a, block::KIND_NDARRAY, 1) };
+pub unsafe extern "C" fn cinch_tensor_shape(a: i64) -> i64 {
+    let s = unsafe { field(a, block::KIND_TENSOR, 1) };
     unsafe { rc::cinch_dup(s) };
     s
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn cinch_ndarray_data(a: i64) -> i64 {
-    let d = unsafe { field(a, block::KIND_NDARRAY, 0) };
+pub unsafe extern "C" fn cinch_tensor_data(a: i64) -> i64 {
+    let d = unsafe { field(a, block::KIND_TENSOR, 0) };
     unsafe { rc::cinch_dup(d) };
     d
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn cinch_ndarray_index(a: i64, indices: i64) -> i64 {
-    let shape = unsafe { field(a, block::KIND_NDARRAY, 1) };
+pub unsafe extern "C" fn cinch_tensor_index(a: i64, indices: i64) -> i64 {
+    let shape = unsafe { field(a, block::KIND_TENSOR, 1) };
     let rank = unsafe { cinch_array_len(shape) };
     if rank != unsafe { cinch_array_len(indices) } {
         return -1;
@@ -285,17 +285,17 @@ pub unsafe extern "C" fn cinch_ndarray_index(a: i64, indices: i64) -> i64 {
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn cinch_ndarray_get(a: i64, i: i64) -> i64 {
-    unsafe { cinch_array_get(field(a, block::KIND_NDARRAY, 0), i) }
+pub unsafe extern "C" fn cinch_tensor_get(a: i64, i: i64) -> i64 {
+    unsafe { cinch_array_get(field(a, block::KIND_TENSOR, 0), i) }
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn cinch_ndarray_set(a: i64, i: i64, value: i64) -> i64 {
-    let data = unsafe { cinch_array_set(field(a, block::KIND_NDARRAY, 0), i, value) };
+pub unsafe extern "C" fn cinch_tensor_set(a: i64, i: i64, value: i64) -> i64 {
+    let data = unsafe { cinch_array_set(field(a, block::KIND_TENSOR, 0), i, value) };
     if data == 0 {
         return 0;
     }
-    let out = unsafe { nd(data, field(a, block::KIND_NDARRAY, 1)) };
+    let out = unsafe { tensor(data, field(a, block::KIND_TENSOR, 1)) };
     unsafe { rc::cinch_drop(data) };
     out
 }
@@ -478,8 +478,8 @@ mod tests {
         unsafe {
             let data = cinch_array_replicate(6, 42, 0);
             let shape = naturals(&[2, 3]);
-            let nd = cinch_ndarray_reshape(shape, data);
-            assert_ne!(nd, 0);
+            let tensor = cinch_tensor_reshape(shape, data);
+            assert_ne!(tensor, 0);
             for (indices, expected) in [
                 (vec![1, 2], 5),
                 (vec![0, 3], -1),
@@ -488,29 +488,29 @@ mod tests {
                 (vec![1, 2, 0], -1),
             ] {
                 let ix = naturals(&indices);
-                assert_eq!(cinch_ndarray_index(nd, ix), expected);
+                assert_eq!(cinch_tensor_index(tensor, ix), expected);
                 rc::cinch_drop(ix);
             }
             let huge = naturals(&[i64::MAX, i64::MAX]);
-            assert_eq!(cinch_ndarray_reshape(huge, data), 0);
+            assert_eq!(cinch_tensor_reshape(huge, data), 0);
             rc::cinch_drop(huge);
-            rc::cinch_drop(nd);
+            rc::cinch_drop(tensor);
             rc::cinch_drop(data);
             rc::cinch_drop(shape);
 
             let scalar_shape = naturals(&[]);
             let scalar_data = cinch_array_replicate(1, 99, 0);
-            let scalar = cinch_ndarray_reshape(scalar_shape, scalar_data);
+            let scalar = cinch_tensor_reshape(scalar_shape, scalar_data);
             assert_ne!(scalar, 0);
-            assert_eq!(cinch_ndarray_index(scalar, scalar_shape), 0);
+            assert_eq!(cinch_tensor_index(scalar, scalar_shape), 0);
             rc::cinch_drop(scalar);
             rc::cinch_drop(scalar_data);
             rc::cinch_drop(scalar_shape);
             let empty = cinch_array_replicate(0, 0, 0);
             let shape = naturals(&[i64::MAX, i64::MAX, 0]);
-            let nd = cinch_ndarray_reshape(shape, empty);
-            assert_ne!(nd, 0);
-            rc::cinch_drop(nd);
+            let tensor = cinch_tensor_reshape(shape, empty);
+            assert_ne!(tensor, 0);
+            rc::cinch_drop(tensor);
             rc::cinch_drop(empty);
             rc::cinch_drop(shape);
         }
