@@ -17,13 +17,14 @@ identity, complete scheme and body, and refuses primitive identity substitution.
 The complete 178-integration plus five-general-gate suite is running on the
 current snapshot; no complete current or self-built frontend pass is claimed.
 
-The staged attempt immediately before the final tuple fix passes all six
+The fresh staged attempt for these exact tuple-fixed sources passes all six
 stage0/1 smokes and reaches 215 stage2 body diagnostics, down from 597. Unsupported
 expression diagnostics fall from 333 to one. It produces no stage2 IR or compiler.
-A fresh actual stage chain for the tuple-fixed sources is queued/running. The
-first earlier failure is imported conditional `Sub Nat` method selection;
-subsequent dependent/effect-row errors may be cascades. Its display method
-contract cannot authorize an unconditional dictionary or invented primitive body.
+Isolated dependent byte-buffer contracts pass source/Core checks and reach the
+named typed-lowering boundary. Imported conditional `Sub Nat` selection and the
+explicit `NonZero value proof` constructor fail independently. Subsequent
+stage2 dependent/effect-row errors may be cascades. A display method contract
+cannot authorize an unconditional dictionary or invented primitive body.
 
 Selected method implementation authority, kernel `NonZero` association, handler
 elaboration, complete independent proof/usage/totality, typed runtime lowering,
