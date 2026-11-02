@@ -20,7 +20,8 @@
     "total": 182,
     "units": 142
   },
-  "patch_sha256": "f0349db101a6a7034a9b93e85922bf90deece3341586e20a53dc40d1f84282c3",
+  "patch_composition": "reviewed f88 patch followed by the two standalone ownership deltas; archive reproduction exactly matches the same tested b16 producer",
+  "patch_sha256": "d3cf11c33cfdee17158c83be5971c9289d99dce428d9f126ee8ac8d2c2905ac7",
   "producer_scope": "previous f88 producer plus only the collection ownership repairs; excludes later syntax/tactic prototypes and staged ABI6 arrays",
   "producer_source_sha256": "d04131978b309b2a20cdf074690518d3b8d4abec4b1018bc83ff770a6920f2f1",
   "producer_tests": {
