@@ -904,7 +904,11 @@ fn fold_blocked(e: &ECore) -> bool {
             args.iter().any(fold_blocked)
         }
         ECore::App(f, args) => fold_blocked(f) || args.iter().any(fold_blocked),
-        ECore::Lam { body, .. } => fold_blocked(body),
+        // Folding runs before lambda hoisting. Even a closed callback
+        // cannot be lowered yet, and closures have no constant reification.
+        // Keep the ordinary runtime construction instead of trying to
+        // lower an unhoisted lambda while folding its enclosing list.
+        ECore::Lam { .. } => true,
         ECore::Let(_, v, body) => fold_blocked(v) || fold_blocked(body),
         ECore::If(c, t, f) => {
             fold_blocked(c) || fold_blocked(&t.body) || fold_blocked(&f.body)

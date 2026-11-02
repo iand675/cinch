@@ -32,6 +32,45 @@ fn expect_err(name: &str, src: &str, needles: &[&str]) {
 // ------------------------------------------------------------ multiplicities
 
 #[test]
+fn strict_aliases_preserve_linear_and_affine_usage() {
+    for multiplicity in ["%1", "%aff"] {
+        expect_err(
+            "alias-double-use",
+            &format!(r#"
+module Main where
+  duplicate :: Nat {multiplicity} -> Nat
+  duplicate value = let temporary = value in let alias = temporary in alias + alias
+  main :: Int
+  main = 0
+"#),
+            &["used 2 time"],
+        );
+    }
+    expect_err(
+        "linear-alias-drop",
+        r#"
+module Main where
+  discard :: Nat %1 -> Nat
+  discard value = let alias = value in 0
+  main :: Int
+  main = 0
+"#,
+        &["multiplicity %1", "never used"],
+    );
+    expect_ok(
+        "linear-alias-branch",
+        r#"
+module Main where
+  choose :: Bool -> Nat %1 -> Nat
+  choose flag value = let alias = value in if flag then alias else alias
+  main :: Int
+  main = if choose True 42 == 42 then 0 else 1
+"#,
+        0,
+    );
+}
+
+#[test]
 fn linear_double_use_is_rejected() {
     expect_err(
         "linear-double-use",

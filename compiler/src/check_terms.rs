@@ -5992,7 +5992,15 @@ impl Checker {
                     let scheme = self.generalize_local(env, l, &ty, is_value.then_some(&core));
                     let equation = self.checked_nat_let_fact(env, &name.text, l, &core, &ty);
                     self.note_value_alias(l, &core);
-                    self.bind_local(env, &name.text, l, scheme, None, name.span)?;
+                                        // A strict alias transfers the source binder's usage
+                    // discipline. Otherwise `let y = x` launders a %1/%aff
+                    // parameter into an unrestricted local (also observable
+                    // through syntax templates that introduce temporaries).
+                    let mult = match &core {
+                        ECore::Var(source) => self.effective_mult(*source),
+                        _ => None,
+                    };
+                    self.bind_local(env, &name.text, l, scheme, mult, name.span)?;
                     if let Some(fact) = equation { self.bind_facts(env, &[fact], self.ev_writes.len(), *span)?; }
                     // A let-generalized local's uses are copies of its
                     // definition, so the binding itself is never read.
@@ -6010,7 +6018,11 @@ impl Checker {
                             let scheme = self.generalize_local(env, l, &bt, def);
                             let equation = self.checked_nat_let_fact(env, &n.text, l, &bc, &bt);
                             self.note_value_alias(l, &bc);
-                            self.bind_local(env, &n.text, l, scheme, None, n.span)?;
+                                                        let mult = match &bc {
+                                ECore::Var(source) => self.effective_mult(*source),
+                                _ => None,
+                            };
+                            self.bind_local(env, &n.text, l, scheme, mult, n.span)?;
                             if let Some(fact) = equation { self.bind_facts(env, &[fact], self.ev_writes.len(), *span)?; }
                             if self.gen_defs.contains_key(&l) {
                                 continue;
