@@ -75,3 +75,11 @@ The user's goal is for Cinch to be a nicer language than Lean. Lean's site leads
 - Do not name Lean or other languages on the page, and do not claim comparative facts about them.
 
 Today a branch on `length xs > 0` does not discharge `NotNull xs` or `NonZero (length xs)`; pattern matching on `Cons` does. Keep examples on the forms that check.
+
+## Programs, not proofs; bulletproof code (2026-11-02)
+
+The user wants Cinch positioned as a language for correct programs, not as a mathematics tool, and wants the copy to lean into the retrofuturist design: "better programming from an alternate universe", "bulletproof code", sci-fi and fun.
+
+- Headline: **Bulletproof code.** It is also the language's design constraint (`design/no-faults.md`: if it compiles, it should be bulletproof).
+- The alternate-universe idea lives in small printed parts of the hardware, not in body copy: the hero running head ("Programming from the timeline where it went right") and the console's maker's plate ("Cinch · made to not fail"). Keep any new ones short, printed in mono, and attached to an object. Body copy stays plain and specific.
+- Keep "proof" out of the hero, section labels, and tour headings. Say checked, guaranteed, or worked out by the compiler. The induction example (`plusZero`) was removed from the landing page; theorem-style examples belong in the tutorials. Proofs stay in the docs and the specification, where library authors meet them.

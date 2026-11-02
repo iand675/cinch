@@ -26,7 +26,7 @@ const features = [
   { n: '01', title: 'Ownership and effects', text: 'A signature lists the effects a function can perform and the data it borrows. A higher-order function takes on the effects of its callback, so mapping a logging function over a list is a logging computation, and the type says so.', href: '/learn/12-ownership-and-regions/', link: 'Tutorial 12: Ownership, borrowing, and regions' },
   { n: '02', title: 'Structured concurrency', text: 'Every task belongs to a scope and finishes before the scope does, so a request handler cannot leak background work. Channels are bounded and move ownership of what they carry, which means a full channel slows its sender down. Cancellation, joining, and cleanup each have their own contract.', href: '/learn/17-structured-concurrency/', link: 'Tutorial 17: Structured tasks and cancellation' },
   { n: '03', title: 'Temporal contracts', text: 'State what a service must never do and what it must eventually do: a payment is never captured twice, and every accepted order is eventually shipped or refunded. Assumptions about the scheduler and the network are written into the contract, where a reviewer can see them.', href: '/learn/21-upgrades-and-contracts/', link: 'Tutorial 21: State evolution and temporal contracts' },
-  { n: '04', title: 'Productive streams', text: 'A stream can be infinite, like a feed of log lines or market ticks. The checker proves that each stream always produces its next element, so a consumer never hangs waiting. A search that might never find a match gets a weaker type, because it might never return.', href: '/learn/15-streams-and-producers/', link: 'Tutorial 15: Productive streams and partial producers' },
+  { n: '04', title: 'Productive streams', text: 'A stream can be infinite, like a feed of log lines or market ticks. The compiler checks that each stream always produces its next element, so a consumer never hangs waiting. A search that might never find a match gets a weaker type, because it might never return.', href: '/learn/15-streams-and-producers/', link: 'Tutorial 15: Productive streams and partial producers' },
   { n: '05', title: 'Foreign code and Wasm', text: 'Keep the C and Rust libraries you already depend on. A foreign call declares its ABI, who owns each pointer, and how it fails, so the unsafe boundary is written down in one place. WebAssembly component interfaces carry the same information.', href: '/learn/20-foreign-code-and-targets/', link: 'Tutorial 20: Foreign code, layouts, and target profiles' },
 ];
 ---
@@ -34,9 +34,9 @@ const features = [
 <html lang="en" class="cinch-landing" data-theme="dark">
   <head>
     <meta charset="UTF-8" /><meta name="viewport" content="width=device-width" />
-    <title>Cinch — Power, with proof.</title>
+    <title>Cinch — Bulletproof code.</title>
     <link rel="canonical" href={new URL('/', Astro.site)} />
-    <meta name="description" content="Cinch is a functional language with dependent types, for the programs you ship. Most guarantees need no written proof, and a program that compiles does not crash." />
+    <meta name="description" content="Bulletproof code. Cinch is a functional language for the programs you ship. If a Cinch program compiles, it does not crash, and anything that can still go wrong shows up in its type." />
     <meta name="theme-color" content="#191a17" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="preload" href="/fonts/momo-trust-display.ttf" as="font" type="font/ttf" crossorigin />
@@ -52,10 +52,10 @@ const features = [
       <section class="hero" aria-labelledby="hero-title">
                 <div class="hero-grid">
           <div class="hero-copy">
-            <div class="hero-stripes" aria-hidden="true"><span></span><span></span><span></span></div>
+            <div class="hero-runhead"><div class="hero-stripes" aria-hidden="true"><span></span><span></span><span></span></div><p class="mono">Programming from the timeline where it went right</p></div>
             <HeroHeadline />
-            <p class="hero-description">A functional language with dependent types, for the programs you ship.</p>
-            <p class="hero-detail">Most guarantees need no written proof. The compiler reads them from your types and pattern matches, and when one is missing it tells you how to supply it. If a Cinch program compiles, it does not crash.</p>
+            <p class="hero-description">A functional language for the programs you ship.</p>
+            <p class="hero-detail">If a Cinch program compiles, it does not crash. Anything that can still go wrong, like a missing file or a dropped connection, shows up in its type. The compiler works out most guarantees from your types and pattern matches, and when one is missing it tells you how to supply it.</p>
             <div class="hero-actions"><a class="button button-primary" href="/downloads/">Get Cinch <span>↗</span></a><a class="text-link" href={tutorial}>Write your first program <span>→</span></a></div>
             <p class="hero-note">Prebuilt for macOS, Linux, and Windows. The tutorial assumes no Haskell.</p>
           </div>
@@ -65,8 +65,8 @@ const features = [
       </section>
       <section class="manifesto light-section" id="why-cinch" aria-labelledby="manifesto-title">
         <div class="section-index mono"><span>THE LANGUAGE</span></div>
-        <div class="manifesto-grid"><h2 id="manifesto-title">Familiar code.<br /><span>Stronger types.</span></h2><div class="manifesto-copy"><p>If you have written Haskell or OCaml, most Cinch code will look familiar. What changes is how much a type can say, and that the compiler holds the code to it.</p><p>Algebraic data types, pattern matching, higher-order functions, and instances work as you would expect. Evaluation is strict, and ownership and borrowing manage memory, files, and sockets without a tracing garbage collector.</p><p>When you need a stronger guarantee, such as an index that is in bounds or a list that is never empty, you write it in the type and the compiler checks it. Linear arithmetic like <code>i + 1 &lt;= length xs</code> is proved for you.</p><a class="text-link" href="/specifications/core-language-specification/">Core language specification <span>↗</span></a></div></div>
-        <nav class="language-jump" aria-label="Explore language features"><a href="#proofs">Proofs and refinements ↓</a><a href="#specialization">Type specialization ↓</a><a href="#staging">Typed staging ↓</a><a href="#optimization">Verified optimization ↓</a><a href="#live-development">Incremental builds and hot reload ↓</a><a href="#runtime-contracts">Runtime contracts ↓</a></nav>
+        <div class="manifesto-grid"><h2 id="manifesto-title">Familiar code.<br /><span>Stronger types.</span></h2><div class="manifesto-copy"><p>If you have written Haskell or OCaml, most Cinch code will look familiar. What changes is how much a type can say, and that the compiler holds the code to it.</p><p>Algebraic data types, pattern matching, higher-order functions, and instances work as you would expect. Evaluation is strict, and ownership and borrowing manage memory, files, and sockets without a tracing garbage collector.</p><p>When you need a stronger guarantee, such as an index that is in bounds or a list that is never empty, you write it in the type and the compiler checks it. Linear arithmetic like <code>i + 1 &lt;= length xs</code> is checked for you.</p><a class="text-link" href="/specifications/core-language-specification/">Core language specification <span>↗</span></a></div></div>
+        <nav class="language-jump" aria-label="Explore language features"><a href="#proofs">Checked data ↓</a><a href="#specialization">Type specialization ↓</a><a href="#staging">Typed staging ↓</a><a href="#optimization">Optimization ↓</a><a href="#live-development">Incremental builds and hot reload ↓</a><a href="#runtime-contracts">Runtime contracts ↓</a></nav>
       </section>
       <div class="panel-joint" aria-hidden="true"><span></span><i></i><span></span></div>
       <section class="proof-section" id="average" aria-labelledby="proof-title">
@@ -87,10 +87,10 @@ const features = [
       <section class="reading-section" aria-labelledby="reading-title">
         <div class="section-index mono"><span>DOCUMENTATION</span></div>
         <div class="reading-heading"><h2 id="reading-title">Learn the<br />language.</h2><p>Start with a working program.<br />Keep the compiler guide nearby.</p></div>
-        <div class="reading-links"><a href={tutorial}><h3>Tutorials</h3><p>22 chapters, from a first executable to dependent proofs, each with worked programs and exercises.</p><span class="reading-arrow" aria-hidden="true">↗</span></a><a href="/reference/00-guide/"><h3>Compiler guide</h3><p>Syntax, commands, and the checking rule behind each error the compiler reports.</p><span class="reading-arrow" aria-hidden="true">↗</span></a><a href="/library/00-index/"><h3>Library reference</h3><p>Every module that ships with the compiler, documented from its checked interface.</p><span class="reading-arrow" aria-hidden="true">↗</span></a></div>
+        <div class="reading-links"><a href={tutorial}><h3>Tutorials</h3><p>22 chapters, from a first executable to concurrency and live upgrades, each with worked programs and exercises.</p><span class="reading-arrow" aria-hidden="true">↗</span></a><a href="/reference/00-guide/"><h3>Compiler guide</h3><p>Syntax, commands, and the checking rule behind each error the compiler reports.</p><span class="reading-arrow" aria-hidden="true">↗</span></a><a href="/library/00-index/"><h3>Library reference</h3><p>Every module that ships with the compiler, documented from its checked interface.</p><span class="reading-arrow" aria-hidden="true">↗</span></a></div>
         
       </section>
-      <section class="closing"><div class="mono">TUTORIAL 1 / BUILD AND RUN A PROGRAM</div><a href={tutorial}><h2>Write your<br /><span>first program.</span></h2><span class="closing-arrow" aria-hidden="true">↗</span></a><p class="closing-note">Chapter 1 starts from an empty directory and ends with a running program. Proofs wait until chapter 14.</p></section>
+      <section class="closing"><div class="mono">TUTORIAL 1 / BUILD AND RUN A PROGRAM</div><a href={tutorial}><h2>Write your<br /><span>first program.</span></h2><span class="closing-arrow" aria-hidden="true">↗</span></a><p class="closing-note">Chapter 1 starts from an empty directory and ends with a running program.</p></section>
     </main>
     <footer class="landing-footer"><Brand /><div><a href="/documentation/">Documentation</a><a href="/packages/">Packages</a><a href="/downloads/">Downloads</a><a href={project.repository}>GitHub ↗</a><a href="#main">Back to top ↑</a></div></footer>
     <PremiumPagePreview />

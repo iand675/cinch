@@ -5,7 +5,7 @@ const premium = {
   founders: {file: 'founders-grotesk', width: 929, height: 329},
 };
 ---
-<h1 id="hero-title">Power,<br />with <em>proof.</em></h1>
+<h1 id="hero-title">Bulletproof<br /><em>code.</em></h1>
 <script is:inline define:vars={{ typeStudyEnabled: import.meta.env.DEV, premium }}>
   // Static Astro pages do not expose query parameters while rendering.
   // Keep this local comparison in the browser and leave production unchanged.
@@ -23,7 +23,7 @@ const premium = {
       image.alt = '';
       image.setAttribute('aria-hidden', 'true');
       heading.className = 'type-paid';
-      heading.setAttribute('aria-label', 'Power, with proof.');
+      heading.setAttribute('aria-label', 'Bulletproof code.');
       heading.replaceChildren(image);
     }
   }
