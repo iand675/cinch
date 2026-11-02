@@ -74,6 +74,18 @@ fn assumption_matches_free_local_indices_without_alpha_renaming() {
 }
 
 #[test]
+fn tactics_preserve_bootstrap_value_identity_across_aliases_and_shadowing() {
+    for (fact, plan) in [("i < n", "assumption"), ("i + 1 <= n", "linear")] {
+        checks(&format!(r#"
+  safe :: (i :: Nat) -> (n :: Nat) -> Option (Fin n)
+  safe i n = case decide ({fact}) of
+    Yes bound -> let saved = i in let i = n in Some (Fin saved (Proof.search "{plan}"))
+    No _ -> None
+"#));
+    }
+}
+
+#[test]
 fn both_strategies_record_mutable_evidence_dependencies() {
     for (fact, plan) in [("copyOut m < 5", "assumption"), ("copyOut m + 1 <= 5", "linear")] {
         let body = format!(r#"

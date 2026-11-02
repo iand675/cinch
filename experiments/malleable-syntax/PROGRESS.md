@@ -120,6 +120,7 @@ claims need whole-source tests rather than isolated grammar checks.
   budgets, live reactive UI, syntax-object hygiene and native extension identity
   remain open.
 
-No PR, push, merge or installation into the user's editors is authorized or has
-been performed. Local edits, local commits and continued experiments are
-authorized by the task.
+The user has now authorized reconciliation and a local merge into the ongoing
+bootstrap branch, plus coordination with that chat. See INTEGRATION.md for the
+integration checkpoint. No push, PR or editor installation is part of this
+integration request.

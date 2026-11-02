@@ -3,8 +3,10 @@
 This is an isolated front-end experiment on `codex/malleable-syntax-poc`.
 It explores library-authored grammar, expansion, interleaved host code,
 compiler checking, and editor composition before choosing a production API.
-The original compiler checkout is untouched. `source-snapshot.json` identifies
-the current-source snapshot used as the worktree's baseline (`fb198a8`).
+The original compiler checkout is untouched. `source-snapshot.json` records
+the experiment's initial current-source snapshot (`fb198a8`). The bootstrap
+integration replays only the prototype commits over the newer compiler; see
+[the integration notes](INTEGRATION.md).
 
 The [second pass](SECOND_PASS.md) adds projected, branching participant APIs and
 shape-checked reverse-mode tensor differentiation, along with syntax expansion

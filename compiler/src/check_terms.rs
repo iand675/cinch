@@ -4135,7 +4135,11 @@ impl Checker {
         {
             return Err(Error::at(span, "tactic plan needs 1–8 steps: assumption or linear"));
         }
-        let goal = self.reduce_prop(prop);
+        // The bootstrap branch tracks proof values across strict aliases
+        // and shadowing. Put the goal in the same current value scope as
+        // `evidence_in`, rather than comparing old source spellings.
+        let caller = env.locals.iter().map(|(name, id, _)| (name.clone(), *id)).collect();
+        let goal = self.proof_in_value_scope(prop, &caller, env);
         let evidence = self.evidence_in(env);
         for step in steps {
             let used = match step {
@@ -4148,7 +4152,7 @@ impl Checker {
                 // `linear_discharge` searches for certificates; the trusted
                 // `check_linear_proof` rechecks them before it returns. Only
                 // facts actually cited by those certificates count as uses.
-                "linear" => self.linear_discharge(&evidence, prop),
+                "linear" => self.linear_discharge(&evidence, &goal),
                 _ => unreachable!("plan validated above"),
             };
             if let Some(used) = used {
@@ -6050,7 +6054,7 @@ impl Checker {
                     let scheme = self.generalize_local(env, l, &ty, is_value.then_some(&core));
                     let equation = self.checked_nat_let_fact(env, &name.text, l, &core, &ty);
                     self.note_value_alias(l, &core);
-                                        // A strict alias transfers the source binder's usage
+                    // A strict alias transfers the source binder's usage
                     // discipline. Otherwise `let y = x` launders a %1/%aff
                     // parameter into an unrestricted local (also observable
                     // through syntax templates that introduce temporaries).
@@ -6076,7 +6080,7 @@ impl Checker {
                             let scheme = self.generalize_local(env, l, &bt, def);
                             let equation = self.checked_nat_let_fact(env, &n.text, l, &bc, &bt);
                             self.note_value_alias(l, &bc);
-                                                        let mult = match &bc {
+                            let mult = match &bc {
                                 ECore::Var(source) => self.effective_mult(*source),
                                 _ => None,
                             };
