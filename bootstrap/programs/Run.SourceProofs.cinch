@@ -1,0 +1,45 @@
+-- Source arrives after compilation; both checker routing and retained Core
+-- must agree. No Rust frontend is used to check this source text.
+module Main where
+  import Bootstrap.Ast
+  import Bootstrap.Parse (parse-program)
+  import Bootstrap.Check (check-program)
+  import Bootstrap.Infer
+  import Bootstrap.Type
+  import Bootstrap.Core
+  import Bootstrap.Index
+  import Algebra.Semigroup
+  import Bootstrap.Report (render-diagnostics)
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read, fs-write)
+  import Text.Parse (ParseOutcome, Parsed, Failed)
+
+  same :: String -> String -> Bool
+  same a b = string-compare a b == 0
+  find :: String -> List CoreDefinition -> Option CoreDefinition
+  find name definitions = case definitions of Nil -> None; Cons d rest -> if same name (core-name d) then Some d else find name rest
+  all-closed :: List CoreDefinition -> Bool
+  all-closed definitions = case definitions of Nil -> True; Cons d rest -> core-definition-closed d && all-closed rest
+  linked :: List CoreDefinition -> Bool
+  linked definitions = case find "forward" definitions of
+    Some d -> case core-clauses d of
+      Cons (MkCoreClause s [CPProof at predicate id name] (CErasedApply call result row fun (CProofRef ref condition key display))) Nil -> id == key
+      Cons (MkCoreClause s Nil (CLambda lambda ty (CPProof at predicate id name) (CErasedApply call result row fun (CProofRef ref condition key display)))) Nil -> id == key
+      other -> False
+    None -> True
+  run :: Bytes -> (Int, String)
+  run source = case parse-program "source-proofs" source of
+    Parsed program Nil -> let checked = check-program program in
+      let result = elaborate-program "source-proofs" program in
+      let errors = elaboration-errors result in
+      if list-length checked > 0 || list-length errors > 0 then
+        (if list-length (elaboration-core result) == 0 then 4 else 93, render-diagnostics (checked <> errors))
+      else if all-closed (elaboration-core result) && linked (elaboration-core result) then (0, "")
+      else (94, "source proof binder lost identity or retained invalid Core")
+    other -> (2, "source parse failed")
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case fs-read (path-from-string "source.cinch") of
+    Err error -> 90
+    Ok source -> let (status, report) = run source in case fs-write (path-from-string "source-proofs-report.txt") (string-to-bytes report) of
+      Err error -> 91
+      Ok _ -> status

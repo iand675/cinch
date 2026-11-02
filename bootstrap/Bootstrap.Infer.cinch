@@ -56,12 +56,13 @@ module Bootstrap.Infer where
     MkValueBinding :: String -> Scheme -> Nat -> Nat -> UType -> CheckedBinding
     MkIntrinsicBinding :: String -> Scheme -> String -> CheckedBinding
     MkProofBinding :: Proposition -> CheckedBinding
+    MkErasedBinding :: String -> UType -> Nat -> CheckedBinding
   checked-name :: CheckedBinding -> String
-  checked-name b = case b of MkCheckedBinding name sc role -> name; MkMethodBinding name sc owner slot -> name; MkGivenBinding name ty symbol -> name; MkLocalBinding name sc id level -> name; MkValueBinding name sc id level value -> name; MkIntrinsicBinding name sc symbol -> name; MkProofBinding fact -> ""
+  checked-name b = case b of MkCheckedBinding name sc role -> name; MkMethodBinding name sc owner slot -> name; MkGivenBinding name ty symbol -> name; MkLocalBinding name sc id level -> name; MkValueBinding name sc id level value -> name; MkIntrinsicBinding name sc symbol -> name; MkProofBinding fact -> ""; MkErasedBinding name predicate id -> name
   checked-scheme :: CheckedBinding -> Scheme
-  checked-scheme b = case b of MkCheckedBinding name sc role -> sc; MkMethodBinding name sc owner slot -> sc; MkGivenBinding name ty symbol -> mono ty; MkLocalBinding name sc id level -> sc; MkValueBinding name sc id level value -> sc; MkIntrinsicBinding name sc symbol -> sc; MkProofBinding fact -> mono UError
+  checked-scheme b = case b of MkCheckedBinding name sc role -> sc; MkMethodBinding name sc owner slot -> sc; MkGivenBinding name ty symbol -> mono ty; MkLocalBinding name sc id level -> sc; MkValueBinding name sc id level value -> sc; MkIntrinsicBinding name sc symbol -> sc; MkProofBinding fact -> mono UError; MkErasedBinding name predicate id -> mono predicate
   checked-role :: CheckedBinding -> String
-  checked-role b = case b of MkCheckedBinding name sc role -> role; MkMethodBinding name sc owner slot -> "method"; MkGivenBinding name ty symbol -> "dictionary"; MkLocalBinding name sc id level -> "local"; MkValueBinding name sc id level value -> "local"; MkIntrinsicBinding name sc symbol -> "intrinsic"; MkProofBinding fact -> "proof"
+  checked-role b = case b of MkCheckedBinding name sc role -> role; MkMethodBinding name sc owner slot -> "method"; MkGivenBinding name ty symbol -> "dictionary"; MkLocalBinding name sc id level -> "local"; MkValueBinding name sc id level value -> "local"; MkIntrinsicBinding name sc symbol -> "intrinsic"; MkProofBinding fact -> "proof"; MkErasedBinding name predicate id -> "erased-proof"
   data Elaboration where
     MkElaboration :: List Diagnostic -> List CheckedBinding -> List Json -> List CoreDefinition -> List CoreData -> List CoreEffect -> CoreClassContext -> List CoreInstance -> Elaboration
   elaboration-errors :: Elaboration -> List Diagnostic
@@ -211,12 +212,13 @@ module Bootstrap.Infer where
   -- Type -> Type classifies a type constructor.
   kind-form :: TypeExpr -> Bool
   kind-form ty = case ty of
-    TName s name -> has name ["Type", "Region", "Effect", "Row"]
+    TName s name -> has name ["Type", "Prop", "Region", "Effect", "Row"]
     TFun s a b -> kind-form a && kind-form b
     other -> False
   kind-of :: Bool -> TypeContext -> List (String, UType) -> TypeExpr -> Store -> (Kind, Store)
   kind-of external kinds locals ty st = case ty of
     TName s name -> if same name "Type" then (KType, st)
+      else if same name "Prop" then (KProp, st)
       else if same name "Region" then (KRegion, st)
       else if same name "Effect" then (KEffect, st)
       else if same name "Row" then (KRow, st)
@@ -623,6 +625,8 @@ module Bootstrap.Infer where
     other -> None
   bind-arrow-pattern :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Pat -> UType -> Store -> (List CheckedBinding, CorePattern, UType, UType, Store)
   bind-arrow-pattern classes kinds families env locals pat expected st = case normalize st expected of
+    UProofFun predicate effects result -> case bind-proof-pattern kinds env locals pat predicate st of
+      (bound, pattern, checked) -> (bound, pattern, effects, result, checked)
     UPi id name domain effects result -> case bind-pattern classes kinds families env locals pat domain st of
       (bound, pattern, checked) -> if pi-dependent (normalize checked expected) then
         (case pattern-value pattern of
@@ -637,19 +641,34 @@ module Bootstrap.Infer where
 
   local-types :: List (String, UType) -> List UType
   local-types locals = case locals of Nil -> Nil; Cons (name, ty) rest -> Cons ty (local-types rest)
+  proof-domain :: List (String, UType) -> TypeExpr -> Bool
+  proof-domain locals syntax = predicate-syntax syntax || (case syntax of
+    TName sp name -> (case lookup-local name locals of Some ty -> kind-equal (type-kind ty) KProp; None -> False)
+    TApp sp (TName at name) (TArg arg input (TArgsEnd end)) -> same name "Not"
+    other -> False)
+  convert-domain :: Bool -> TypeContext -> List (String, UType) -> TypeExpr -> Store -> (UType, Store)
+  convert-domain external kinds locals syntax st = if proof-domain locals syntax then convert-predicate external kinds locals syntax st else convert external kinds locals syntax st
+  convert-proof-arrow :: Bool -> TypeContext -> List (String, UType) -> Span -> UType -> Option TypeExpr -> TypeExpr -> Store -> (UType, Store)
+  convert-proof-arrow external kinds locals sp predicate row result st =
+    case (case row of None -> (URow UEnd, st); Some effects -> convert-row kinds locals effects st) of
+      (effects, sr) -> case convert external kinds locals result sr of
+        (out, done) -> let ty = UProofFun predicate effects out in
+          (ty, if valid-type ty then done else add-error sp "ill-formed source erased arrow" done)
   convert-arrow :: Bool -> TypeContext -> List (String, UType) -> Span -> TypeExpr -> Option TypeExpr -> TypeExpr -> Store -> (UType, Store)
   convert-arrow external kinds locals sp argument row result st = case argument of
-    TBound s name carrier (TBoundsEnd end) -> case convert external kinds locals carrier st of
-      (domain, checked) -> case fresh-for-types (Cons domain (local-types locals)) (expect-type s domain checked) of
-        (id, fresh) -> let bound = Cons (name, UBound id name (value-kind domain)) locals in
-          case (case row of None -> (URow UEnd, fresh); Some effects -> convert-row kinds bound effects fresh) of
-            (effects, sr) -> case convert external kinds bound result sr of
-              (out, done) -> let ty = UPi id name domain effects out in
-                (ty, if valid-type ty then done else add-error sp "ill-formed source dependent function" done)
-    other -> case convert external kinds locals argument st of
-      (domain, checked) -> case (case row of None -> (URow UEnd, checked); Some effects -> convert-row kinds locals effects checked) of
-        (effects, sr) -> case convert external kinds locals result sr of
-          (out, done) -> (function-type domain effects out, expect-type sp out (expect-type sp domain done))
+    TBound s name carrier (TBoundsEnd end) -> case convert-domain external kinds locals carrier st of
+      (domain, checked) -> if kind-equal (type-kind domain) KProp then convert-proof-arrow external kinds locals sp domain row result checked else
+        (case fresh-for-types (Cons domain (local-types locals)) (expect-type s domain checked) of
+          (id, fresh) -> let bound = Cons (name, UBound id name (value-kind domain)) locals in
+            case (case row of None -> (URow UEnd, fresh); Some effects -> convert-row kinds bound effects fresh) of
+              (effects, sr) -> case convert external kinds bound result sr of
+                (out, done) -> let ty = UPi id name domain effects out in
+                  (ty, if valid-type ty then done else add-error sp "ill-formed source dependent function" done))
+    other -> case convert-domain external kinds locals argument st of
+      (domain, checked) -> if kind-equal (type-kind domain) KProp then convert-proof-arrow external kinds locals sp domain row result checked else
+        (case (case row of None -> (URow UEnd, checked); Some effects -> convert-row kinds locals effects checked) of
+          (effects, sr) -> case convert external kinds locals result sr of
+            (out, done) -> (function-type domain effects out, expect-type sp out (expect-type sp domain done)))
 
   expect-type :: Span -> UType -> Store -> Store
   expect-type sp ty st = if kind-equal (type-kind ty) KType then st else add-error sp "a value type must have kind Type" st
@@ -1264,6 +1283,7 @@ module Bootstrap.Infer where
               more -> needed-evidence sp (env-givens env) requirements in
         let actuals = actual-types pairs in
         case b of
+          MkErasedBinding name predicate id -> (CProofRef sp predicate id name, ss)
           MkMethodBinding method sc owner slot -> (CMethod sp ty name owner slot actuals evidence, ss)
           MkGivenBinding source dict symbol -> (CUse sp ty symbol "dictionary" actuals, ss)
           MkLocalBinding source sc id level -> case requirements of
@@ -1304,7 +1324,12 @@ module Bootstrap.Infer where
     (Nil, Nil) -> Cons (id, normalize st (scheme-body sc)) rest
     other -> rest
   proof-context :: List CheckedBinding -> Store -> ProofScope
-  proof-context env st = make-proof-scope (proof-gamma env st) (proof-values env st)
+  proof-context env st = proof-erased env st (make-proof-scope (proof-gamma env st) (proof-values env st))
+  proof-erased :: List CheckedBinding -> Store -> ProofScope -> ProofScope
+  proof-erased env st gamma = case env of
+    Nil -> gamma
+    Cons (MkErasedBinding name predicate id) rest -> scope-erased id (normalize st predicate) (proof-erased rest st gamma)
+    Cons other rest -> proof-erased rest st gamma
   proof-values :: List CheckedBinding -> Store -> List (Nat, UType)
   proof-values env st = case env of
     Nil -> Nil
@@ -1549,12 +1574,15 @@ module Bootstrap.Infer where
     UPi id name a row b -> if pi-dependent (normalize st ty) then (UError, UError, UError, add-error sp "dependent arrow needs an actual argument witness" st) else (a, row, b, st)
     UFun a b -> (a, URow UEnd, b, st)
     UFunEff a row b -> (a, row, b, st)
+    UProofFun predicate row result -> (predicate, row, result, st)
     other -> case fresh-meta KType st of
       (a, sa) -> case fresh-meta KType sa of
         (b, sb) -> case fresh-meta KRow sb of
           (row, sr) -> (a, row, b, unify sp ty (UFunEff a row b) sr)
   apply-argument :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> CoreTerm -> Expr -> Store -> (CoreTerm, Store)
   apply-argument classes kinds families env locals sp fun arg st = case normalize st (core-type fun) of
+    UProofFun predicate effects result -> case erased-argument sp env arg predicate st of
+      (witness, checked) -> discharge-call classes sp env (CErasedApply sp result effects fun witness) checked
     UPi id name domain effects result -> case check classes kinds families env locals arg domain st of
       (value, checked) -> if pi-dependent (normalize checked (core-type fun)) then
         (apply-dependent classes sp env fun value checked)
@@ -1562,6 +1590,12 @@ module Bootstrap.Infer where
     other -> case arrow-parts sp (core-type fun) st of
       (a, row, b, sf) -> case check classes kinds families env locals arg a sf of
         (value, checked) -> discharge-call classes sp env (applied-core sp b (normalize checked row) fun value) checked
+  erased-argument :: Span -> List CheckedBinding -> Expr -> UType -> Store -> (CoreTerm, Store)
+  erased-argument sp env syntax expected st = case syntax of
+    EVar at name -> (case lookup-binding name env of
+      Some (MkErasedBinding display predicate id) -> (CProofRef at predicate id name, unify sp predicate expected st)
+      other -> term-error sp "erased argument needs a scoped proof reference" st)
+    other -> term-error sp "erased argument needs a scoped total proof term" st
   applied-core :: Span -> UType -> UType -> CoreTerm -> CoreTerm -> CoreTerm
   applied-core sp result row fun arg = case row of URow UEnd -> CApply sp result fun arg; other -> CApplyEff sp result row fun arg
   infer-with :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> Expr -> Option UType -> Store -> (CoreTerm, Store)
@@ -1654,6 +1688,12 @@ module Bootstrap.Infer where
   duplicate-names sp names seen st = case names of Nil -> st; Cons n rest -> duplicate-names sp rest (Cons n seen) (if has n seen then add-error sp (string-concat "duplicate pattern binder: " n) st else st)
   patterns-names :: List Pat -> List String
   patterns-names ps = case ps of Nil -> Nil; Cons p rest -> pattern-names p <> patterns-names rest
+  bind-proof-pattern :: TypeContext -> List CheckedBinding -> List (String, UType) -> Pat -> UType -> Store -> (List CheckedBinding, CorePattern, Store)
+  bind-proof-pattern kinds env locals pattern predicate st = case pattern of
+    PWild sp -> (case fresh-id st of (id, fresh) -> (env, CPProof sp predicate id "_", fresh))
+    PVar sp name -> (case fresh-id st of (id, fresh) -> (Cons (MkErasedBinding name predicate id) env, CPProof sp predicate id name, fresh))
+    PAnn sp inner annotation -> (case convert-predicate False kinds (value-locals env locals) annotation st of (actual, checked) -> bind-proof-pattern kinds env locals inner predicate (unify sp predicate actual checked))
+    other -> (env, CPWild (pat-span pattern) UError, add-error (pat-span pattern) "erased proof pattern cannot inspect evidence" st)
   bind-pattern :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Pat -> UType -> Store -> (List CheckedBinding, CorePattern, Store)
   bind-pattern classes kinds families env locals pat expected st = case pat of
     PWild s -> (env, CPWild s expected, st)
@@ -1912,6 +1952,7 @@ module Bootstrap.Infer where
     MkValueBinding n sc id level value -> MkValueBinding n (map-scheme-types (normalize st) sc) id level (normalize st value)
     MkIntrinsicBinding n sc symbol -> MkIntrinsicBinding n (map-scheme-types (normalize st) sc) symbol
     MkProofBinding fact -> MkProofBinding fact
+    MkErasedBinding name predicate id -> MkErasedBinding name (normalize st predicate) id
   finish-bindings :: Store -> List CheckedBinding -> List CheckedBinding
   finish-bindings st env = case env of Nil -> Nil; Cons b rest -> Cons (finish-binding st b) (finish-bindings st rest)
   global-bindings :: List CheckedBinding -> List CoreGlobal -> List CoreGlobal
@@ -2153,9 +2194,11 @@ module Bootstrap.Infer where
     other -> False
   convert-predicate :: Bool -> TypeContext -> List (String, UType) -> TypeExpr -> Store -> (UType, Store)
   convert-predicate external kinds locals syntax st = case syntax of
-    TName s name -> if same name "True" || same name "False" then (UPropLit (same name "True"), st) else bad s "unsupported proof predicate" st
+    TName s name -> if same name "True" || same name "False" then (UPropLit (same name "True"), st) else
+      (case lookup-local name locals of Some predicate -> if kind-equal (type-kind predicate) KProp && valid-type predicate then (predicate, st) else bad s "predicate variable must have kind Prop" st; None -> bad s "unsupported proof predicate" st)
     TApp sp (TName at name) (TArg arg input (TArgsEnd end)) ->
-      if not (same name "NonZero") then bad sp "unsupported proof predicate former" st
+      if same name "Not" then (case convert-predicate external kinds locals input st of (predicate, checked) -> (UPropNot predicate, checked))
+      else if not (same name "NonZero") then bad sp "unsupported proof predicate former" st
       else let carrier = predicate-comparison-carrier locals input input in
         if math-carrier carrier then (case convert-predicate-index external kinds locals carrier input st of
           (value, checked) -> let predicate = UPropNonZero value in

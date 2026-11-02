@@ -68,6 +68,7 @@ module Bootstrap.Typing where
   pattern-type pattern = case pattern of
     CPWild sp ty -> ty
     CPVar sp ty id name -> ty
+    CPProof sp ty id name -> ty
     CPAs sp ty id name inner -> ty
     CPConstructor sp ty name actuals constructor fields -> ty
     CPInt sp ty text -> ty
@@ -80,7 +81,7 @@ module Bootstrap.Typing where
   tuple-fields :: UType -> Option UType
   tuple-fields ty = case ty of UTuple fields -> Some fields; UCon name KType -> if same name "Unit" then Some UEnd else None; other -> None
   pattern-scope :: TypingContext -> TypeScope -> UType -> CorePattern -> Option TypeScope
-  pattern-scope context scope expected pattern = if not (wf context scope expected && proper-type expected && equal-type expected (pattern-type pattern)) then None else case pattern of
+  pattern-scope context scope expected pattern = if not (wf context scope expected && equal-type expected (pattern-type pattern)) then None else if kind-equal (type-kind expected) KProp then (case pattern of CPProof sp predicate id name -> add-local-scheme id (mono predicate) scope; other -> None) else if not (proper-type expected) then None else case pattern of
     CPWild sp ty -> Some scope
     CPVar sp ty id name -> add-local-scheme id (mono ty) scope
     CPAs sp ty id name inner -> case add-local-scheme id (mono ty) scope of Some bound -> pattern-scope context bound expected inner; None -> None
@@ -99,6 +100,7 @@ module Bootstrap.Typing where
   arrow-domain ty = case ty of
     UFun a b -> Some (a, empty-row)
     UFunEff a row b -> Some (a, row)
+    UProofFun predicate row result -> Some (predicate, row)
     UPi id name a row b -> Some (a, row)
     other -> None
   constructor-fields :: TypingContext -> TypeScope -> UType -> UType -> CorePattern -> Option TypeScope
@@ -167,6 +169,8 @@ module Bootstrap.Typing where
     CUnit sp ty -> type-is "Unit" ty
     CApply sp ty f x -> checked-application context scope gamma facts ty empty-row f x
     CApplyEff sp ty row f x -> wf context scope row && checked-application context scope gamma facts ty row f x
+    CErasedApply sp ty row f witness -> wf context scope row && checked-term context scope gamma facts f
+      && (case core-type f of UProofFun predicate effects result -> equal-type result ty && equal-type effects row && wf context scope predicate && scoped-proof-reference gamma predicate witness; other -> False)
     CLambda sp ty pattern body -> (case (arrow-domain ty, pattern-result ty pattern) of
       (Some (domain, row), Some result) -> (case pattern-scope context scope domain pattern of
         Some bound -> equal-type result (core-type body) && checked-term context bound (proof-pattern pattern gamma) facts body && effects-fit (core-effects body) row

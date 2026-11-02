@@ -123,6 +123,7 @@ module Bootstrap.Global where
   pattern-locals :: List CoreGlobal -> List (Nat, Scheme) -> CorePattern -> Option (List (Nat, Scheme))
   pattern-locals globals locals pattern = case pattern of
     CPVar sp ty id name -> bind-local id (mono ty) locals
+    CPProof sp ty id name -> bind-local id (mono ty) locals
     CPAs sp ty id name inner -> case bind-local id (mono ty) locals of Some bound -> pattern-locals globals bound inner; None -> None
     CPConstructor sp ty name actuals constructor fields -> if constructor-reference globals name actuals constructor then pattern-locals globals locals fields else None
     CPTuple sp ty fields -> pattern-locals globals locals fields
@@ -140,8 +141,10 @@ module Bootstrap.Global where
     CQualifiedUse sp ty name role actuals evidence -> value-reference globals givens ty name role actuals evidence
     CMethod sp ty name owner slot actuals evidence -> method-reference globals givens ty name owner slot actuals evidence
     CLocal sp ty id name actuals -> local-reference locals ty id actuals
+    CProofRef sp predicate id name -> kind-equal (type-kind predicate) KProp && local-reference locals predicate id Nil
     CApply sp ty f x -> term-references globals locals givens f && term-references globals locals givens x
     CApplyEff sp ty row f x -> term-references globals locals givens f && term-references globals locals givens x
+    CErasedApply sp ty row f witness -> term-references globals locals givens f && term-references globals locals givens witness
     CWith sp ty given value body -> (case lookup-given (given-symbol given) givens of Some prior -> False; None -> True)
       && equal-type (given-type given) (core-type value) && term-references globals locals givens value
       && term-references globals locals (Cons given givens) body

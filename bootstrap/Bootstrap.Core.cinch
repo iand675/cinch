@@ -12,10 +12,11 @@ module Bootstrap.Core where
   import Text.Lex (Span)
   import Algebra.Semigroup
 
-  export CorePattern, CPWild, CPVar, CPAs, CPConstructor, CPInt, CPString, CPChar, CPTuple, CPField, CPDone
+  export CorePattern, CPWild, CPProof, CPVar, CPAs, CPConstructor, CPInt, CPString, CPChar, CPTuple, CPField, CPDone
   export CoreTerm, CUse, CLocal, CInt, CString, CChar, CUnit, CApply, CLambda, CLet, CIf, CCase, CTuple, CPrimitive, CGuard
   export CArgument, CArgumentsEnd, CAlternative, CAlternativesEnd, CError
   export CApplyEff, CWith, core-effects
+  export CProofRef, CErasedApply, scope-erased, scoped-proof-reference
   export CRefine, CForget, prove-refinement, CRequire, CDischarge, core-predicates, prove-predicates, required-body, CProved, core-condition, core-let-fact, prove-subtraction, numeric-method-operation
   export ProofScope, make-proof-scope, scoped-prove-refinement, scoped-prove-predicates, scoped-core-predicates, scoped-core-condition, scoped-core-let-fact, scoped-prove-subtraction
   export CoreClause, MkCoreClause, CoreDefinition, MkCoreDefinition
@@ -201,6 +202,8 @@ module Bootstrap.Core where
   data CorePattern where
     CPWild :: Span -> UType -> CorePattern
     CPVar :: Span -> UType -> Nat -> String -> CorePattern
+    -- Proof binders never introduce a runtime local or value index.
+    CPProof :: Span -> UType -> Nat -> String -> CorePattern
     CPAs :: Span -> UType -> Nat -> String -> CorePattern -> CorePattern
     CPConstructor :: Span -> UType -> String -> List UType -> UType -> CorePattern -> CorePattern
     CPInt :: Span -> UType -> String -> CorePattern
@@ -241,6 +244,7 @@ module Bootstrap.Core where
   data CoreTerm where
     CUse :: Span -> UType -> String -> String -> List UType -> CoreTerm
     CLocal :: Span -> UType -> Nat -> String -> List UType -> CoreTerm
+    CProofRef :: Span -> UType -> Nat -> String -> CoreTerm
     CQualifiedUse :: Span -> UType -> String -> String -> List UType -> List CoreEvidence -> CoreTerm
     CMethod :: Span -> UType -> String -> String -> Nat -> List UType -> List CoreEvidence -> CoreTerm
     CInt :: Span -> UType -> String -> CoreTerm
@@ -249,6 +253,7 @@ module Bootstrap.Core where
     CUnit :: Span -> UType -> CoreTerm
     CApply :: Span -> UType -> CoreTerm -> CoreTerm -> CoreTerm
     CApplyEff :: Span -> UType -> UType -> CoreTerm -> CoreTerm -> CoreTerm
+    CErasedApply :: Span -> UType -> UType -> CoreTerm -> CoreTerm -> CoreTerm
     CWith :: Span -> UType -> CoreGiven -> CoreTerm -> CoreTerm -> CoreTerm
     CLambda :: Span -> UType -> CorePattern -> CoreTerm -> CoreTerm
     CLet :: Span -> UType -> Nat -> String -> Scheme -> CoreTerm -> CoreTerm -> CoreTerm
@@ -295,6 +300,7 @@ module Bootstrap.Core where
   core-type term = case term of
     CUse s ty name role actuals -> ty
     CLocal s ty id name actuals -> ty
+    CProofRef s ty id name -> ty
     CQualifiedUse s ty name role actuals evidence -> ty
     CMethod s ty name owner slot actuals evidence -> ty
     CInt s ty text -> ty
@@ -303,6 +309,7 @@ module Bootstrap.Core where
     CUnit s ty -> ty
     CApply s ty f x -> ty
     CApplyEff s ty row f x -> ty
+    CErasedApply s ty row f x -> ty
     CWith s ty given value body -> ty
     CLambda s ty p body -> ty
     CLet s ty id name sc rhs body -> ty
@@ -324,6 +331,7 @@ module Bootstrap.Core where
   core-effects term = case term of
     CApply s ty f x -> union-effects (core-effects f) (core-effects x)
     CApplyEff s ty row f x -> union-effects row (union-effects (core-effects f) (core-effects x))
+    CErasedApply s ty row f witness -> union-effects row (union-effects (core-effects f) (core-effects witness))
     CWith s ty given value body -> union-effects (core-effects value) (core-effects body)
     CLet s ty id name scheme rhs body -> union-effects (core-effects rhs) (core-effects body)
     CIf s ty condition yes no -> union-effects (core-effects condition) (union-effects (core-effects yes) (core-effects no))
@@ -348,6 +356,7 @@ module Bootstrap.Core where
   map-pattern-types f p = case p of
     CPWild s ty -> CPWild s (f ty)
     CPVar s ty id name -> CPVar s (f ty) id name
+    CPProof s ty id name -> CPProof s (f ty) id name
     CPAs s ty id name inner -> CPAs s (f ty) id name (map-pattern-types f inner)
     CPConstructor s ty name actuals constructor fields -> CPConstructor s (f ty) name (map-types f actuals) (f constructor) (map-pattern-types f fields)
     CPInt s ty text -> CPInt s (f ty) text
@@ -360,6 +369,7 @@ module Bootstrap.Core where
   map-term-types f term = case term of
     CUse s ty name role actuals -> CUse s (f ty) name role (map-types f actuals)
     CLocal s ty id name actuals -> CLocal s (f ty) id name (map-types f actuals)
+    CProofRef s ty id name -> CProofRef s (f ty) id name
     CQualifiedUse s ty name role actuals evidence -> CQualifiedUse s (f ty) name role (map-types f actuals) (map-evidences f evidence)
     CMethod s ty name owner slot actuals evidence -> CMethod s (f ty) name owner slot (map-types f actuals) (map-evidences f evidence)
     CInt s ty text -> CInt s (f ty) text
@@ -367,6 +377,7 @@ module Bootstrap.Core where
     CChar s ty text -> CChar s (f ty) text
     CUnit s ty -> CUnit s (f ty)
     CApply s ty fun arg -> CApply s (f ty) (map-term-types f fun) (map-term-types f arg)
+    CErasedApply s ty row fun witness -> CErasedApply s (f ty) (f row) (map-term-types f fun) (map-term-types f witness)
     CApplyEff s ty row fun arg -> case f row of
       URow UEnd -> CApply s (f ty) (map-term-types f fun) (map-term-types f arg)
       effects -> CApplyEff s (f ty) effects (map-term-types f fun) (map-term-types f arg)
@@ -487,6 +498,7 @@ module Bootstrap.Core where
   pattern-metas st p = case p of
     CPWild s ty -> type-metas st ty
     CPVar s ty id name -> type-metas st ty
+    CPProof s ty id name -> type-metas st ty
     CPAs s ty id name inner -> type-metas st ty <> pattern-metas st inner
     CPConstructor s ty name actuals constructor fields -> type-metas st ty <> types-metas st actuals <> type-metas st constructor <> pattern-metas st fields
     CPInt s ty text -> type-metas st ty
@@ -499,6 +511,7 @@ module Bootstrap.Core where
   term-metas st term = case term of
     CUse s ty name role actuals -> type-metas st ty <> types-metas st actuals
     CLocal s ty id name actuals -> type-metas st ty <> types-metas st actuals
+    CProofRef s ty id name -> type-metas st ty
     CQualifiedUse s ty name role actuals evidence -> type-metas st ty <> types-metas st actuals <> evidences-metas st evidence
     CMethod s ty name owner slot actuals evidence -> type-metas st ty <> types-metas st actuals <> evidences-metas st evidence
     CInt s ty text -> type-metas st ty
@@ -507,6 +520,7 @@ module Bootstrap.Core where
     CUnit s ty -> type-metas st ty
     CApply s ty f x -> type-metas st ty <> term-metas st f <> term-metas st x
     CApplyEff s ty row f x -> type-metas st ty <> type-metas st row <> term-metas st f <> term-metas st x
+    CErasedApply s ty row f witness -> type-metas st ty <> type-metas st row <> term-metas st f <> term-metas st witness
     CWith s ty given value body -> type-metas st ty <> type-metas st (given-type given) <> term-metas st value <> term-metas st body
     CLambda s ty p body -> type-metas st ty <> pattern-metas st p <> term-metas st body
     CLet s ty id name sc rhs body -> type-metas st ty <> type-metas st (scheme-body sc) <> requirements-metas st (scheme-requirements sc) <> term-metas st rhs <> term-metas st body
@@ -612,6 +626,7 @@ module Bootstrap.Core where
   valid-pattern p = case p of
     CPWild s ty -> closed-runtime-type ty
     CPVar s ty id name -> closed-runtime-type ty
+    CPProof s ty id name -> closed-type ty && valid-type ty && kind-equal (type-kind ty) KProp
     CPAs s ty id name inner -> closed-runtime-type ty && valid-pattern inner
     CPConstructor s ty name actuals constructor fields -> closed-runtime-type ty && closed-types actuals && closed-type constructor && valid-pattern fields
     CPInt s ty text -> closed-runtime-type ty && valid-integer-literal ty text
@@ -620,10 +635,14 @@ module Bootstrap.Core where
     CPTuple s ty fields -> closed-runtime-type ty && valid-pattern fields
     CPField s x rest -> valid-pattern x && valid-pattern rest
     CPDone s -> True
+  -- A proof reference is legal only in an erased operand position.
+  valid-proof-reference :: CoreTerm -> Bool
+  valid-proof-reference term = case term of CProofRef s predicate id name -> closed-type predicate && valid-type predicate && kind-equal (type-kind predicate) KProp; other -> False
   valid-term :: CoreTerm -> Bool
   valid-term term = case term of
     CUse s ty name role actuals -> closed-runtime-type ty && closed-types actuals
     CLocal s ty id name actuals -> closed-runtime-type ty && closed-types actuals
+    CProofRef s ty id name -> False
     CQualifiedUse s ty name role actuals evidence -> closed-runtime-type ty && closed-types actuals && evidences-closed evidence
     CMethod s ty name owner slot actuals evidence -> closed-runtime-type ty && closed-types actuals && evidences-closed evidence && (case evidence of Cons first rest -> True; Nil -> False)
     CInt s ty text -> closed-runtime-type ty && valid-integer-literal ty text
@@ -632,6 +651,7 @@ module Bootstrap.Core where
     CUnit s ty -> closed-runtime-type ty
     CApply s ty f x -> closed-runtime-type ty && valid-term f && valid-term x
     CApplyEff s ty row f x -> closed-runtime-type ty && closed-type row && kind-equal (type-kind row) KRow && valid-term f && valid-term x
+    CErasedApply s ty row f witness -> closed-runtime-type ty && closed-type row && kind-equal (type-kind row) KRow && valid-term f && valid-proof-reference witness
     CWith s ty given value body -> closed-runtime-type ty && closed-type (given-type given) && valid-term value && valid-term body
     CLambda s ty p body -> closed-runtime-type ty && valid-pattern p && valid-term body
     CLet s ty id name sc rhs body -> closed-runtime-type ty && scheme-closed sc && valid-term rhs && valid-term body
@@ -738,6 +758,7 @@ module Bootstrap.Core where
   pattern-scope :: List Nat -> CorePattern -> List Nat -> Option (List Nat)
   pattern-scope values pattern scope = case pattern of
     CPVar s ty id name -> if type-index-scope Nil (values <> scope) ty then bind-local-id id scope else None
+    CPProof s ty id name -> if type-index-scope Nil (values <> scope) ty then bind-local-id id scope else None
     CPAs s ty id name inner -> if type-index-scope Nil (values <> scope) ty then (case bind-local-id id scope of Some bound -> pattern-scope values inner bound; None -> None) else None
     CPConstructor s ty name actuals constructor fields -> if type-index-scope Nil (values <> scope) ty && types-index-scope Nil (values <> scope) actuals && type-index-scope Nil (values <> scope) constructor then pattern-scope values fields scope else None
     CPTuple s ty fields -> if type-index-scope Nil (values <> scope) ty then pattern-scope values fields scope else None
@@ -757,6 +778,7 @@ module Bootstrap.Core where
     let typed = case term of CArgument s value rest -> True; CArgumentsEnd s -> True; CAlternative s p body rest -> True; CAlternativesEnd s -> True; other -> type-index-scope Nil rigid (core-type term) in
     typed && (case term of
       CLocal s ty id name actuals -> local-id id scope && types-index-scope Nil rigid actuals
+      CProofRef s ty id name -> local-id id scope
       CUse s ty name role actuals -> not (string-compare role "local" == 0) && types-index-scope Nil rigid actuals
       CQualifiedUse s ty name role actuals evidence -> not (string-compare role "local" == 0) && types-index-scope Nil rigid actuals && evidences-index-scope rigid evidence
       CMethod s ty name owner slot actuals evidence -> types-index-scope Nil rigid actuals && evidences-index-scope rigid evidence
@@ -764,6 +786,7 @@ module Bootstrap.Core where
       CLet s ty id name scheme rhs body -> scheme-index-scope rigid scheme && scoped-term values scope rhs && (case bind-local-id id scope of Some bound -> scoped-term values bound body; None -> False)
       CApply s ty f x -> scoped-term values scope f && scoped-term values scope x
       CApplyEff s ty row f x -> type-index-scope Nil rigid row && scoped-term values scope f && scoped-term values scope x
+      CErasedApply s ty row f witness -> type-index-scope Nil rigid row && scoped-term values scope f && scoped-term values scope witness
       CWith s ty given value body -> type-index-scope Nil rigid (given-type given) && scoped-term values scope value && scoped-term values scope body
       CIf s ty condition yes no -> scoped-term values scope condition && scoped-term values scope yes && scoped-term values scope no
       CCase s ty value alternatives -> scoped-term values scope value && scoped-term values scope alternatives
@@ -805,21 +828,21 @@ module Bootstrap.Core where
   -- Elaboration may supply checked witness hints; closed Core reconstructs
   -- every definition from the actual strict let RHS before checking its body.
   data ProofScope where
-    MkProofScope :: List (Nat, UType) -> List (Nat, UType) -> ProofScope
+    MkProofScope :: List (Nat, UType) -> List (Nat, UType) -> List (Nat, UType) -> ProofScope
   empty-proof-scope :: ProofScope
-  empty-proof-scope = MkProofScope Nil Nil
+  empty-proof-scope = MkProofScope Nil Nil Nil
   scope-types :: ProofScope -> List (Nat, UType)
-  scope-types scope = case scope of MkProofScope types values -> types
+  scope-types scope = case scope of MkProofScope types values proofs -> types
   scope-entry :: Nat -> List (Nat, UType) -> Option UType
   scope-entry id entries = case entries of Nil -> None; Cons (key, value) rest -> if id == key then Some value else scope-entry id rest
   scope-value :: Nat -> ProofScope -> Option UType
-  scope-value id scope = case scope of MkProofScope types values -> scope-entry id values
+  scope-value id scope = case scope of MkProofScope types values proofs -> scope-entry id values
   scope-remove :: Nat -> List (Nat, UType) -> List (Nat, UType)
   scope-remove id entries = case entries of Nil -> Nil; Cons (key, value) rest -> if id == key then scope-remove id rest else Cons (key, value) (scope-remove id rest)
   scope-without-value :: Nat -> ProofScope -> ProofScope
-  scope-without-value id scope = case scope of MkProofScope types values -> MkProofScope types (scope-remove id values)
+  scope-without-value id scope = case scope of MkProofScope types values proofs -> MkProofScope types (scope-remove id values) proofs
   scope-local :: Nat -> UType -> ProofScope -> ProofScope
-  scope-local id ty scope = case scope of MkProofScope types values -> MkProofScope (Cons (id, ty) types) (scope-remove id values)
+  scope-local id ty scope = case scope of MkProofScope types values proofs -> MkProofScope (Cons (id, ty) types) (scope-remove id values) (scope-remove id proofs)
   scope-index-valid :: UType -> UType -> Bool
   scope-index-valid carrier value = valid-type value && typed-index-admissible value && kind-equal (type-kind value) (value-kind carrier)
   scope-definitions :: List (Nat, UType) -> List (Nat, UType) -> List (Nat, UType)
@@ -829,7 +852,7 @@ module Bootstrap.Core where
       Some carrier -> if scope-index-valid carrier value then Cons (id, value) (scope-definitions types rest) else scope-definitions types rest
       None -> scope-definitions types rest
   make-proof-scope :: List (Nat, UType) -> List (Nat, UType) -> ProofScope
-  make-proof-scope types values = MkProofScope types (scope-definitions types values)
+  make-proof-scope types values = MkProofScope types (scope-definitions types values) Nil
   scope-index :: ProofScope -> Nat -> String -> UType -> Option UType
   scope-index scope id name ty = case proof-local id scope of
     Some declared -> if not (contract-equal ty declared) then None else case scope-value id scope of
@@ -841,10 +864,18 @@ module Bootstrap.Core where
     case (scheme-params scheme, scheme-requirements scheme) of
       (Nil, Nil) -> if not (contract-equal (scheme-body scheme) (core-type rhs)) then bound else case actual-index scope facts rhs of
         Some value -> if scope-index-valid (scheme-body scheme) value then
-          (case bound of MkProofScope types values -> MkProofScope types (Cons (id, value) values)) else bound
+          (case bound of MkProofScope types values proofs -> MkProofScope types (Cons (id, value) values) proofs) else bound
         None -> bound
       other -> bound
 
+  scope-erased :: Nat -> UType -> ProofScope -> ProofScope
+  scope-erased id predicate gamma = case gamma of
+    MkProofScope types values proofs -> MkProofScope (scope-remove id types) (scope-remove id values) (Cons (id, predicate) (scope-remove id proofs))
+  scoped-proof-reference :: ProofScope -> UType -> CoreTerm -> Bool
+  scoped-proof-reference gamma expected term = valid-type expected && kind-equal (type-kind expected) KProp && (case (gamma, term) of
+    (MkProofScope types values proofs, CProofRef s predicate id name) -> valid-proof-reference term && contract-equal expected predicate
+      && (case scope-entry id proofs of Some declared -> valid-type declared && kind-equal (type-kind declared) KProp && contract-equal predicate declared; None -> False)
+    other -> False)
   proof-local :: Nat -> ProofScope -> Option UType
   proof-local id gamma = scope-entry id (scope-types gamma)
   decimal-digits :: List Char -> Int -> Bool -> Option Int
@@ -868,7 +899,13 @@ module Bootstrap.Core where
   natural-facts :: List Nat -> List Proposition
   natural-facts ids = case ids of Nil -> Nil; Cons id rest -> Cons (PCompare AtLeast (proof-variable id) (AInteger 0)) (natural-facts rest)
   proof-assumptions :: ProofScope -> List Proposition -> List Proposition
-  proof-assumptions gamma facts = natural-facts (natural-ids (refinement-gamma (scope-types gamma))) <> machine-facts (machine-ids (scope-types gamma)) (scope-types gamma) <> byte-length-facts (byte-buffer-ids (scope-types gamma)) <> refinement-facts gamma (scope-types gamma) <> facts
+  proof-assumptions gamma facts = natural-facts (natural-ids (refinement-gamma (scope-types gamma))) <> machine-facts (machine-ids (scope-types gamma)) (scope-types gamma) <> byte-length-facts (byte-buffer-ids (scope-types gamma)) <> refinement-facts gamma (scope-types gamma) <> erased-facts gamma <> facts
+  erased-facts :: ProofScope -> List Proposition
+  erased-facts gamma = case gamma of MkProofScope types values proofs -> erased-predicates gamma proofs
+  erased-predicates :: ProofScope -> List (Nat, UType) -> List Proposition
+  erased-predicates gamma proofs = case proofs of
+    Nil -> Nil
+    Cons (id, predicate) rest -> case core-predicate gamma predicate of Some p -> Cons p (erased-predicates gamma rest); None -> erased-predicates gamma rest
   machine-ids :: List (Nat, UType) -> List Nat
   machine-ids gamma = case gamma of
     Nil -> Nil
@@ -1010,6 +1047,7 @@ module Bootstrap.Core where
   proof-pattern :: CorePattern -> ProofScope -> ProofScope
   proof-pattern pattern gamma = case pattern of
     CPVar s ty id name -> scope-local id ty gamma
+    CPProof s predicate id name -> scope-erased id predicate gamma
     CPAs s ty id name inner -> proof-pattern inner (scope-local id ty gamma)
     CPConstructor s ty name actuals ctor fields -> proof-pattern fields gamma
     CPTuple s ty fields -> proof-pattern fields gamma
@@ -1017,13 +1055,20 @@ module Bootstrap.Core where
     other -> gamma
   proof-patterns :: List CorePattern -> ProofScope -> ProofScope
   proof-patterns patterns gamma = case patterns of Nil -> gamma; Cons p rest -> proof-patterns rest (proof-pattern p gamma)
+  erased-application :: ProofScope -> List Proposition -> UType -> UType -> CoreTerm -> CoreTerm -> Bool
+  erased-application gamma facts ty row fun witness = proof-term gamma facts fun && (case core-type fun of
+    UProofFun predicate effects result -> valid-type (core-type fun) && contract-equal result ty && contract-equal effects row
+      && scoped-proof-reference gamma predicate witness
+    other -> False)
   proof-term :: ProofScope -> List Proposition -> CoreTerm -> Bool
   proof-term gamma facts term = if is-refinement (core-type term) then proof-refined-term gamma facts term else proof-ordinary-term gamma facts term
   proof-ordinary-term :: ProofScope -> List Proposition -> CoreTerm -> Bool
   proof-ordinary-term gamma facts term = case term of
+    CProofRef s ty id name -> False
     CRefine s ty evidence body -> certified-refinement gamma facts ty evidence body
     CForget s ty body -> forgotten gamma facts ty body
     CLocal s ty id name Nil -> case proof-local id gamma of Some declared -> contract-equal ty declared; None -> False
+    CErasedApply s ty row f witness -> erased-application gamma facts ty row f witness
     CInt s ty text -> valid-integer-literal ty text
     CRequire s ty body -> False
     CDischarge s ty evidence body -> discharged gamma facts ty evidence body
@@ -1100,6 +1145,7 @@ module Bootstrap.Core where
     CRefine s ty evidence body -> certified-refinement gamma facts ty evidence body
     CForget s ty body -> forgotten gamma facts ty body
     CLocal s ty id name Nil -> case proof-local id gamma of Some declared -> contract-equal ty declared; None -> False
+    CErasedApply s ty row f witness -> erased-application gamma facts ty row f witness
     CApply s ty f x -> proof-term gamma facts f && proof-term gamma facts x && application-type gamma facts ty (URow UEnd) f x
     CApplyEff s ty row f x -> proof-term gamma facts f && proof-term gamma facts x && application-type gamma facts ty row f x
     CDischarge s ty evidence body -> discharged gamma facts ty evidence body
@@ -1149,6 +1195,7 @@ module Bootstrap.Core where
         other -> CError s
     CApply s ty f x -> CApply s ty (refresh-certificates gamma facts f) (refresh-certificates gamma facts x)
     CApplyEff s ty row f x -> CApplyEff s ty row (refresh-certificates gamma facts f) (refresh-certificates gamma facts x)
+    CErasedApply s ty row f witness -> CErasedApply s ty row (refresh-certificates gamma facts f) witness
     CWith s ty given value body -> CWith s ty given (refresh-certificates gamma facts value) (refresh-certificates gamma facts body)
     CLambda s ty pattern body -> CLambda s ty pattern (refresh-certificates (proof-pattern pattern gamma) facts body)
     CLet s ty id name sc rhs body -> let value = refresh-certificates gamma facts rhs in
@@ -1327,7 +1374,7 @@ module Bootstrap.Core where
     CApplyEff s ty row f x -> closed-type row && valid-term f && valid-term x
     other -> False)
   pattern-type :: CorePattern -> UType
-  pattern-type pattern = case pattern of CPVar s ty id name -> ty; CPAs s ty id name inner -> ty; CPWild s ty -> ty; CPInt s ty text -> ty; CPString s ty text -> ty; CPChar s ty text -> ty; CPConstructor s ty name actuals ctor fields -> ty; CPTuple s ty fields -> ty; other -> UError
+  pattern-type pattern = case pattern of CPVar s ty id name -> ty; CPProof s ty id name -> ty; CPAs s ty id name inner -> ty; CPWild s ty -> ty; CPInt s ty text -> ty; CPString s ty text -> ty; CPChar s ty text -> ty; CPConstructor s ty name actuals ctor fields -> ty; CPTuple s ty fields -> ty; other -> UError
   pattern-index :: CorePattern -> Option UType
   pattern-index pattern = case pattern of
     CPVar s ty id name -> Some (UIndex ty (IRigid id name 0))
@@ -1336,6 +1383,7 @@ module Bootstrap.Core where
     other -> None
   pattern-result :: UType -> CorePattern -> Option UType
   pattern-result fun pattern = case fun of
+    UProofFun predicate row result -> case pattern of CPProof s actual id name -> if valid-type predicate && kind-equal (type-kind predicate) KProp && contract-equal predicate actual then Some result else None; other -> None
     UPi id name domain row result -> if not (contract-equal domain (pattern-type pattern)) then None
       else if pi-dependent fun then (case pattern-index pattern of Some index -> Some (substitute-bound [(id, index)] result); None -> None) else Some result
     UFun domain result -> if contract-equal domain (pattern-type pattern) then Some result else None

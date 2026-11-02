@@ -1,5 +1,26 @@
 # Next steps (as of 2026-11-02)
 
+Source proof arrows now elaborate to explicit erased binders and applications.
+`Prop` quantifiers, named and unnamed proof domains, scoped references and actual
+proof identities survive elaboration. Named evidence lives separately from
+runtime value indices and can justify checked refinements. Erased applications
+retain their call and latent effect row; ordinary runtime values cannot fill a
+proof slot, and proofs cannot become conditions, integer results or runtime
+indices. Proof computation/return and totality still require further work.
+
+The compiled Core proof target passes at five runtime-derived identities above
+2^128. The source target passes all16 cases, including generic proof forwarding,
+proof lambdas, shadowing and rejection of wrong, computed or runtime evidence.
+Seven existing focused regression targets are still running. This is a
+work-in-progress checkpoint: the complete new167+5 suite and fresh stages have
+not run. The existing fragment emitter refuses these non-runtime signatures;
+typed proof erasure and runtime lowering remain required. `decide`, `Yes` and
+`No` source forms are not enabled here. [The source proof report](../bootstrap/source-proof-checkpoint-results.json)
+records exact validation scope. No self-built stage2 compiler or full frontend
+suite has passed. The seed, ABI5/schema7 and definition-owned fixities are unchanged.
+
+## Previous proof-arrow type checkpoint (b331049)
+
 The type engine now distinguishes an erased proof arrow from a runtime
 function arrow. Its domain must have kind Prop; its result is a proper runtime
 type and its latent effect row is retained. Source arity includes the proof
@@ -10,8 +31,9 @@ as proof arguments.
 
 The compiled proof-arrow target passes at five input-derived identities above
 2^128, together with the existing Core typing, value-kind, effect-type and
-source dependent-function targets. Source-instance, inference, parser and
-pipeline regressions are still running. This is a work-in-progress type
+source dependent-function targets. All nine whole focused targets now pass,
++including source instances, inference, parser and the complete pipeline. Fresh
++stage builds are running for that exact implementation. This is a work-in-progress type
 foundation: named proof terms and decisions are not enabled by this checkpoint.
 The complete new165+5 suite and fresh stages have not run. The running164+5
 matrix belongs to the preceding kind/term checker. No stage2 compiler or

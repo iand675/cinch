@@ -101,6 +101,7 @@ module Bootstrap.Dictionary where
   resolve-dictionary-term-in context scope term st = if not (clean st) then (term, st) else resolve-term context scope term st
   resolve-term :: Resolution -> List CoreGiven -> CoreTerm -> Store -> (CoreTerm, Store)
   resolve-term context scope term st = case term of
+    CErasedApply sp ty row fun witness -> case resolve-term context scope fun st of (out, done) -> (CErasedApply sp ty row out witness, done)
     CQualifiedUse sp ty name role actuals evidence -> case resolve-evidences context scope evidence st of
       (resolved, checked) -> (CQualifiedUse sp ty name role actuals resolved, checked)
     CMethod sp ty name owner slot actuals evidence -> case evidence of

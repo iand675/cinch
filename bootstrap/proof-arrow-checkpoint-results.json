@@ -1,6 +1,6 @@
 {
-  "recorded_at": "2026-11-02T00:12:45.921541+00:00",
-  "status": "work in progress: compiled erased-arrow and four existing whole targets pass; remaining focused regressions running",
+  "recorded_at": "2026-11-02T00:35:42.782861+00:00",
+  "status": "all nine whole focused Rust targets and Native preflight passed; full165+5 not run; fresh stages running",
   "source_sha256": "f6b78e1327eeec91d4904dd1bff1cabaa0b5627927cb383a39d1928a67d629ea",
   "source_inputs": 588,
   "compiler_named_source_sha256": "7e6cb14c67df9c601c44d3aa413967c0ddb6d6bd881075ddc41ebb7ebd7762df",
@@ -143,9 +143,11 @@
         "--test-threads=1"
       ],
       "cwd": "/tmp/cinch-proof-arrows-validation-3/source/compiler",
+      "exit_code": 0,
+      "finished": "2026-11-02T00:22:25.138651+00:00",
       "name": "bootstrap_source_instances",
       "started": "2026-11-02T00:10:55.413921+00:00",
-      "status": "running"
+      "status": "passed"
     },
     {
       "command": [
@@ -161,8 +163,11 @@
         "--test-threads=1"
       ],
       "cwd": "/tmp/cinch-proof-arrows-validation-3/source/compiler",
+      "exit_code": 0,
+      "finished": "2026-11-02T00:25:13.107572+00:00",
       "name": "bootstrap_infer",
-      "status": "pending"
+      "started": "2026-11-02T00:22:25.139107+00:00",
+      "status": "passed"
     },
     {
       "command": [
@@ -178,8 +183,11 @@
         "--test-threads=1"
       ],
       "cwd": "/tmp/cinch-proof-arrows-validation-3/source/compiler",
+      "exit_code": 0,
+      "finished": "2026-11-02T00:25:53.466893+00:00",
       "name": "bootstrap_parse",
-      "status": "pending"
+      "started": "2026-11-02T00:25:13.108022+00:00",
+      "status": "passed"
     },
     {
       "command": [
@@ -195,8 +203,11 @@
         "--test-threads=1"
       ],
       "cwd": "/tmp/cinch-proof-arrows-validation-3/source/compiler",
+      "exit_code": 0,
+      "finished": "2026-11-02T00:32:48.838821+00:00",
       "name": "bootstrap_pipeline",
-      "status": "pending"
+      "started": "2026-11-02T00:25:53.467300+00:00",
+      "status": "passed"
     }
   ],
   "runtime_identity_inputs": [
@@ -227,8 +238,8 @@
     "general_gates": 5
   },
   "fresh_stages": {
-    "status": "not run for erased-arrow candidate",
-    "previous_typing_stage_report": "core-typing-checkpoint-results.json"
+    "status": "running for proof-arrow implementation before source proof terms",
+    "path": "/tmp/cinch-proof-arrows-stages-3"
   },
   "runtime_abi": 5,
   "interface_schema": 7,

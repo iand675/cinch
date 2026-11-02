@@ -135,9 +135,15 @@ semantic proof authority, totality and usage remain required; see
 
 `UProofFun` retains a Prop domain, latent effect row and proper result type.
 Source and runtime arity differ explicitly; ordinary runtime arguments cannot
-stand in for erased evidence. Compiled type/scope checks pass, with remaining
-focused regressions still running. This checkpoint does not yet admit source
-proof terms or decisions; see [its report](proof-arrow-checkpoint-results.json).
+stand in for erased evidence. The preceding type-only checkpoint passes all
+nine focused targets; see [its report](proof-arrow-checkpoint-results.json).
+Current source-proof validation and runtime limits are described below.
+
+`CPProof`, `CProofRef` and `CErasedApply` retain scoped proof identities and
+call effects. Source proof forwarding and lambda checks pass; wrong evidence,
+runtime proof inspection and value-index confusion are refused. Remaining
+focused regressions are running. Source decisions and typed runtime erasure
+remain required; see [the source proof report](source-proof-checkpoint-results.json).
 
 The orchestration checks run with:
 
