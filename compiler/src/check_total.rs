@@ -23,7 +23,15 @@ impl Checker {
             let ty = self.uni.zonk(self.local_tys.get(id)?);
             self.total_sort(&ty, &mut Vec::new())
         }).collect::<Option<Vec<_>>>();
-        let Some(parameters_sort) = parameters_sort else { return };
+        let Some(parameters_sort) = parameters_sort else { self.interface_guarded_bodies.remove(&id.0); return };
+        // Rechecking an unsupported replacement must remove old authority.
+        self.interface_guarded_bodies.remove(&id.0);
+        if result == crate::total::Sort::Nat && parameters.iter().all(|id| self.local_tys.get(id).is_some_and(|ty| self.uni.zonk(ty) == Ty::Nat)) {
+            let scope = parameters.iter().enumerate().map(|(slot, id)| (*id, slot)).collect::<Vec<_>>();
+            if let Some(expression) = pending_guarded_nat(body, &scope) {
+                self.interface_guarded_bodies.insert(id.0.clone(), (parameters.len(), expression));
+            }
+        }
         let Some(body) = pending_total_expr(body, parameters) else { return };
         self.interface_total_bodies.insert(id.0.clone(), crate::total::PendingDefinition {
             identity: id.0.clone(), parameters: parameters_sort, result, body,
@@ -240,5 +248,74 @@ fn finite_total_result(graph: &crate::total::CheckedGraph, expression: &crate::t
             graph.get(target).is_some_and(|callee| finite_total_result(graph, &callee.body, &actual, fuel))
         }
         _ => false,
+    }
+}
+
+
+#[derive(Clone)]
+enum PendingGuardedNat {
+    Argument(usize),
+    Subtract(Box<PendingGuardedNat>, Box<PendingGuardedNat>),
+    Call(String, Vec<PendingGuardedNat>),
+}
+fn pending_guarded_nat(body: &ECore, scope: &[(LocalId, usize)]) -> Option<PendingGuardedNat> {
+    use PendingGuardedNat as P;
+    Some(match body {
+        ECore::Var(id) => P::Argument(scope.iter().rev().find(|(bound, _)| bound == id)?.1),
+        ECore::Let(id, value, body) => {
+            // Only a pure parameter alias can disappear from a strict let;
+            // a discarded partial computation must never be erased here.
+            let ECore::Var(original) = &**value else { return None };
+            let slot = scope.iter().rev().find(|(bound, _)| bound == original)?.1;
+            let mut inner = scope.to_vec(); inner.push((*id, slot));
+            return pending_guarded_nat(body, &inner);
+        }
+        ECore::App(function, arguments) => {
+            let mut groups = vec![arguments.as_slice()]; let mut head = &**function;
+            while let ECore::App(function, arguments) = head { groups.push(arguments.as_slice()); head = function; }
+            let mut values = Vec::new();
+            for group in groups.into_iter().rev() {
+                for value in group { values.push(pending_guarded_nat(value, scope)?); }
+            }
+            match head {
+                ECore::Prim(PrimOp::Nat(NatOp::Sub)) if values.len() == 2 => {
+                    let mut values = values.into_iter(); P::Subtract(Box::new(values.next()?), Box::new(values.next()?))
+                }
+                ECore::Global(identity, actuals) if actuals.is_empty() => P::Call(identity.0.clone(), values),
+                _ => return None,
+            }
+        }
+        _ => return None,
+    })
+}
+impl Checker {
+    fn guarded_nat_body(&self, identity: &GlobalId, scheme: &Scheme) -> Option<crate::interface::GuardedNatBody> {
+        let mut ty = &scheme.ty; let mut arity = 0usize;
+        loop {
+            match ty {
+                Ty::Fun(domain, _, row, result) | Ty::Pi { dom: domain, eff: row, cod: result, .. } => {
+                    if **domain != Ty::Nat || !row.is_pure() { return None }
+                    arity += 1; ty = result;
+                }
+                Ty::Nat => break,
+                _ => return None,
+            }
+        }
+        let (count, pending) = self.interface_guarded_bodies.get(&identity.0)?;
+        if *count != arity { return None }
+        fn resolve(checker: &Checker, term: &PendingGuardedNat, depth: usize) -> Option<crate::interface::GuardedNatExpr> {
+            if depth > 64 { return None }
+            use crate::interface::GuardedNatExpr as E;
+            Some(match term {
+                PendingGuardedNat::Argument(slot) => E::Argument(*slot as u64),
+                PendingGuardedNat::Subtract(a, b) => E::Subtract(Box::new(resolve(checker, a, depth + 1)?), Box::new(resolve(checker, b, depth + 1)?)),
+                PendingGuardedNat::Call(identity, args) => {
+                    let function = checker.fns.iter().find(|f| f.id.0 == *identity)?;
+                    if function.prim != Some(PrimOp::Nat(NatOp::Sub)) || function.params.len() != 2 || args.len() != 2 { return None }
+                    E::Subtract(Box::new(resolve(checker, &args[0], depth + 1)?), Box::new(resolve(checker, &args[1], depth + 1)?))
+                }
+            })
+        }
+        Some(crate::interface::GuardedNatBody { parameters: arity as u64, root: resolve(self, pending, 0)? })
     }
 }

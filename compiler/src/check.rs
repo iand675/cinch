@@ -2673,6 +2673,7 @@ struct Checker {
     /// definition identities disappear from the legacy `Ty` spelling.
     interface_source_schemes: HashMap<(String, String), DefinitionScheme>,
     interface_total_bodies: std::collections::BTreeMap<String, crate::total::PendingDefinition>,
+    interface_guarded_bodies: std::collections::BTreeMap<String, (usize, PendingGuardedNat)>,
     interface_checked_bodies: Option<crate::total::CheckedGraph>,
     /// Each module's foreign declarations, for its interface.
     module_foreign: Vec<(String, crate::interface::ForeignExport)>,
@@ -3220,6 +3221,7 @@ impl Checker {
             interface_binders: HashMap::new(),
             interface_source_schemes: HashMap::new(),
             interface_total_bodies: std::collections::BTreeMap::new(),
+            interface_guarded_bodies: std::collections::BTreeMap::new(),
             interface_checked_bodies: None,
             module_foreign: Vec::new(),
             foreign_plans: Vec::new(),

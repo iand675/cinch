@@ -414,7 +414,7 @@
          }
      }
  }
-@@ -2664,6 +2666,14 @@
+@@ -2664,6 +2666,15 @@
      param_inst_defs: HashMap<(String, String), crate::core::InstanceDef>,
      /// Each module's own fixity declarations, for its interface.
      module_fixities: Vec<(String, crate::interface::FixityExport)>,
@@ -425,11 +425,12 @@
 +    /// definition identities disappear from the legacy `Ty` spelling.
 +    interface_source_schemes: HashMap<(String, String), DefinitionScheme>,
 +    interface_total_bodies: std::collections::BTreeMap<String, crate::total::PendingDefinition>,
++    interface_guarded_bodies: std::collections::BTreeMap<String, (usize, PendingGuardedNat)>,
 +    interface_checked_bodies: Option<crate::total::CheckedGraph>,
      /// Each module's foreign declarations, for its interface.
      module_foreign: Vec<(String, crate::interface::ForeignExport)>,
      /// Real foreign binding contracts by unit name (foreign function
-@@ -2677,6 +2687,11 @@
+@@ -2677,6 +2688,11 @@
      /// (local ids are unique across the whole check, so entries never
      /// collide between definitions).
      local_tys: HashMap<LocalId, Ty>,
@@ -441,7 +442,7 @@
      /// Binders whose class is fixed without a type: dictionaries,
      /// capability evidence and markers.
      local_cls: HashMap<LocalId, crate::repr::Class>,
-@@ -3061,6 +3076,15 @@
+@@ -3061,6 +3077,15 @@
      GlobalId(format!("{module}.{name}"))
  }
  
@@ -457,13 +458,14 @@
  /// The named functions a proposition's index terms apply, with the
  /// argument count of each use (a bare reference is arity zero).
  fn index_heads(p: &PTerm, out: &mut Vec<(String, usize)>) {
-@@ -3193,10 +3217,16 @@
+@@ -3193,10 +3218,17 @@
              module_names: std::collections::HashSet::new(),
              param_inst_defs: HashMap::new(),
              module_fixities: Vec::new(),
 +            interface_binders: HashMap::new(),
 +            interface_source_schemes: HashMap::new(),
 +            interface_total_bodies: std::collections::BTreeMap::new(),
++            interface_guarded_bodies: std::collections::BTreeMap::new(),
 +            interface_checked_bodies: None,
              module_foreign: Vec::new(),
              foreign_plans: Vec::new(),
@@ -474,7 +476,7 @@
              local_cls: HashMap::new(),
              local_origin: HashMap::new(),
              cur_tparams: Vec::new(),
-@@ -3409,6 +3439,10 @@
+@@ -3409,6 +3441,10 @@
          // name this derivation site when the item goes stale.
          if matches!(self.uni.zonk(&scheme.ty), Ty::Prp(_)) {
              self.ev_derivs.insert(l, (self.ev_writes.len(), span));
@@ -485,7 +487,7 @@
          }
          env.locals.push((name.to_string(), l, scheme));
          Ok(())
-@@ -3424,7 +3458,14 @@
+@@ -3424,7 +3460,14 @@
          let mut muts = Vec::new();
          let mut refs = Vec::new();
          for v in vars {
@@ -501,7 +503,7 @@
                  match self.uni.zonk(&s.ty) {
                      Ty::Mut(r, _) => {
                          if !muts.contains(&r) {
-@@ -3575,6 +3616,7 @@
+@@ -3575,6 +3618,7 @@
      /// The integer sort of a named function's result applied to `arity`
      /// arguments (the head of an index-level application).
      fn fn_int_sort(&self, head: &str, arity: usize) -> Option<IntSort> {
@@ -509,7 +511,7 @@
          let (module, name) = head.rsplit_once('.')?;
          let v = self.qualified.get(&(module.to_string(), name.to_string()))?;
          let mut ty = v.scheme.ty.clone();
-@@ -3648,6 +3690,9 @@
+@@ -3648,6 +3692,9 @@
              }),
              ITerm::App(f, args) => {
                  let ITerm::Fn(h) = &**f else { return false };
@@ -519,7 +521,7 @@
                  let Some((module, name)) = h.rsplit_once('.') else { return false };
                  match self.qualified.get(&(module.to_string(), name.to_string())).map(|v| &v.kind) {
                      Some(ValueKind::Prim(op)) => {
-@@ -3704,6 +3749,14 @@
+@@ -3704,6 +3751,14 @@
          let mut apps = Vec::new();
          preds(p, &mut apps);
          for (head, args, term) in apps {
@@ -534,7 +536,7 @@
              let Some((module, name)) = head.rsplit_once('.') else { continue };
              let Some(v) = self.qualified.get(&(module.to_string(), name.to_string())) else { continue };
              let mut ty = v.scheme.ty.clone();
-@@ -4906,6 +4959,7 @@
+@@ -4906,6 +4961,7 @@
                      ))
                  }
              },
@@ -542,7 +544,7 @@
              ITerm::Fn(g) => {
                  self.check_executable(&g, span)?;
                  ECore::Global(GlobalId(g), Vec::new())
-@@ -5843,7 +5897,7 @@
+@@ -5843,7 +5899,7 @@
                  }
              });
              match found {
@@ -551,7 +553,7 @@
                  Err(_) => {
                      return Err(Error::at(
                          span,
-@@ -6058,7 +6112,7 @@
+@@ -6058,7 +6114,7 @@
                              // A measure atom over any container: the
                              // binder may appear only under the baked
                              // measures (`length xs > 100`).
@@ -560,7 +562,7 @@
                                  Ok(())
                              } else {
                                  Err(Error::at(
-@@ -6266,6 +6320,20 @@
+@@ -6266,6 +6322,20 @@
                  "the `refined` former takes a predicate and at most one container (`refined P T`)",
              ));
          }
@@ -581,7 +583,7 @@
          let mut out = vec![Ty::Prp(Box::new(pred))];
          if let Some(t) = args.get(1) {
              out.push(self.conv_type(t, vars)?);
-@@ -7460,6 +7528,7 @@
+@@ -7460,6 +7530,7 @@
                          .collect();
                      let constraints = self.kind_constraints.borrow().clone();
                      let mut type_params: Vec<String> = Vec::new();
@@ -589,7 +591,7 @@
                      let mut val_params: Vec<(String, Ty)> = Vec::new();
                      let mut prop_params: Vec<String> = Vec::new();
                      for (name, hint, span) in binders {
-@@ -7469,12 +7538,17 @@
+@@ -7469,12 +7540,17 @@
                          let kind =
                              self.resolve_binder_kind(&name, hint.as_ref(), &constraints, span)?;
                          match kind {
@@ -609,7 +611,7 @@
                          params: type_params,
                          idx_params: Vec::new(),
                          val_params,
-@@ -7484,9 +7558,199 @@
+@@ -7484,9 +7560,199 @@
                          ctx,
                          obligs,
                          ty: Self::positional_results(&t, 0),
@@ -812,7 +814,7 @@
          }
      }
  
-@@ -9151,3 +9415,18 @@
+@@ -9151,3 +9417,18 @@
  // `check_decls.rs`. Both are included at module scope.
  include!("check_terms.rs");
  include!("check_decls.rs");
@@ -2046,7 +2048,7 @@
                  idx_params: Vec::new(),
 --- /dev/null
 +++ b/compiler/src/check_interface.rs
-@@ -0,0 +1,620 @@
+@@ -0,0 +1,621 @@
 +// Definition-site contracts for rank-one values and class dictionaries.
 +// Kernel regions and closed builtin effects retain their checked syntax.
 +// Unsupported dependent and open-row schemes keep `resolved: null`.
@@ -2248,6 +2250,7 @@
 +            head: self.resolved_interface_scheme(&info.module, &format!("@conditional-head:{}", info.name))?,
 +            implementation: implementation.0.clone(),
 +            resolved: self.resolved_interface_scheme(&info.module, &format!("@conditional-method:{}:{slot}", info.name))?,
++            body: info.method_contracts.iter().find(|(index, _, _)| *index == slot).and_then(|(_, _, scheme)| self.guarded_nat_body(implementation, scheme)),
 +        })
 +    }
 +
@@ -2818,7 +2821,7 @@
                                          format!(
 --- /dev/null
 +++ b/compiler/src/check_total.rs
-@@ -0,0 +1,244 @@
+@@ -0,0 +1,321 @@
 +// Native producer for portable total bodies. Ordinary callable schemes and
 +// class/slot spellings grant no semantics; resolve the actual closed method
 +// field, then inspect its checked body and fixed primitive operations.
@@ -2844,7 +2847,15 @@
 +            let ty = self.uni.zonk(self.local_tys.get(id)?);
 +            self.total_sort(&ty, &mut Vec::new())
 +        }).collect::<Option<Vec<_>>>();
-+        let Some(parameters_sort) = parameters_sort else { return };
++        let Some(parameters_sort) = parameters_sort else { self.interface_guarded_bodies.remove(&id.0); return };
++        // Rechecking an unsupported replacement must remove old authority.
++        self.interface_guarded_bodies.remove(&id.0);
++        if result == crate::total::Sort::Nat && parameters.iter().all(|id| self.local_tys.get(id).is_some_and(|ty| self.uni.zonk(ty) == Ty::Nat)) {
++            let scope = parameters.iter().enumerate().map(|(slot, id)| (*id, slot)).collect::<Vec<_>>();
++            if let Some(expression) = pending_guarded_nat(body, &scope) {
++                self.interface_guarded_bodies.insert(id.0.clone(), (parameters.len(), expression));
++            }
++        }
 +        let Some(body) = pending_total_expr(body, parameters) else { return };
 +        self.interface_total_bodies.insert(id.0.clone(), crate::total::PendingDefinition {
 +            identity: id.0.clone(), parameters: parameters_sort, result, body,
@@ -3061,6 +3072,75 @@
 +            graph.get(target).is_some_and(|callee| finite_total_result(graph, &callee.body, &actual, fuel))
 +        }
 +        _ => false,
++    }
++}
++
++
++#[derive(Clone)]
++enum PendingGuardedNat {
++    Argument(usize),
++    Subtract(Box<PendingGuardedNat>, Box<PendingGuardedNat>),
++    Call(String, Vec<PendingGuardedNat>),
++}
++fn pending_guarded_nat(body: &ECore, scope: &[(LocalId, usize)]) -> Option<PendingGuardedNat> {
++    use PendingGuardedNat as P;
++    Some(match body {
++        ECore::Var(id) => P::Argument(scope.iter().rev().find(|(bound, _)| bound == id)?.1),
++        ECore::Let(id, value, body) => {
++            // Only a pure parameter alias can disappear from a strict let;
++            // a discarded partial computation must never be erased here.
++            let ECore::Var(original) = &**value else { return None };
++            let slot = scope.iter().rev().find(|(bound, _)| bound == original)?.1;
++            let mut inner = scope.to_vec(); inner.push((*id, slot));
++            return pending_guarded_nat(body, &inner);
++        }
++        ECore::App(function, arguments) => {
++            let mut groups = vec![arguments.as_slice()]; let mut head = &**function;
++            while let ECore::App(function, arguments) = head { groups.push(arguments.as_slice()); head = function; }
++            let mut values = Vec::new();
++            for group in groups.into_iter().rev() {
++                for value in group { values.push(pending_guarded_nat(value, scope)?); }
++            }
++            match head {
++                ECore::Prim(PrimOp::Nat(NatOp::Sub)) if values.len() == 2 => {
++                    let mut values = values.into_iter(); P::Subtract(Box::new(values.next()?), Box::new(values.next()?))
++                }
++                ECore::Global(identity, actuals) if actuals.is_empty() => P::Call(identity.0.clone(), values),
++                _ => return None,
++            }
++        }
++        _ => return None,
++    })
++}
++impl Checker {
++    fn guarded_nat_body(&self, identity: &GlobalId, scheme: &Scheme) -> Option<crate::interface::GuardedNatBody> {
++        let mut ty = &scheme.ty; let mut arity = 0usize;
++        loop {
++            match ty {
++                Ty::Fun(domain, _, row, result) | Ty::Pi { dom: domain, eff: row, cod: result, .. } => {
++                    if **domain != Ty::Nat || !row.is_pure() { return None }
++                    arity += 1; ty = result;
++                }
++                Ty::Nat => break,
++                _ => return None,
++            }
++        }
++        let (count, pending) = self.interface_guarded_bodies.get(&identity.0)?;
++        if *count != arity { return None }
++        fn resolve(checker: &Checker, term: &PendingGuardedNat, depth: usize) -> Option<crate::interface::GuardedNatExpr> {
++            if depth > 64 { return None }
++            use crate::interface::GuardedNatExpr as E;
++            Some(match term {
++                PendingGuardedNat::Argument(slot) => E::Argument(*slot as u64),
++                PendingGuardedNat::Subtract(a, b) => E::Subtract(Box::new(resolve(checker, a, depth + 1)?), Box::new(resolve(checker, b, depth + 1)?)),
++                PendingGuardedNat::Call(identity, args) => {
++                    let function = checker.fns.iter().find(|f| f.id.0 == *identity)?;
++                    if function.prim != Some(PrimOp::Nat(NatOp::Sub)) || function.params.len() != 2 || args.len() != 2 { return None }
++                    E::Subtract(Box::new(resolve(checker, &args[0], depth + 1)?), Box::new(resolve(checker, &args[1], depth + 1)?))
++                }
++            })
++        }
++        Some(crate::interface::GuardedNatBody { parameters: arity as u64, root: resolve(self, pending, 0)? })
 +    }
 +}
 --- a/compiler/src/codegen.rs
@@ -3621,7 +3701,7 @@
      pub ctx: Vec<String>,
      pub methods: Vec<String>,
      /// Whether automatic resolution may select this instance (default
-@@ -204,6 +307,26 @@
+@@ -204,6 +307,40 @@
      /// dictionary is selected by name and may coexist with other
      /// implementations of the same class).
      pub implicit: bool,
@@ -3645,10 +3725,24 @@
 +    pub head: ResolvedScheme,
 +    pub implementation: String,
 +    pub resolved: ResolvedScheme,
++    /// Actual checked Nat-only body. Its subtraction nodes require a
++    /// separate, independent proof of totality under the callable guard.
++    pub body: Option<GuardedNatBody>,
++}
++
++#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
++pub struct GuardedNatBody {
++    pub parameters: u64,
++    pub root: GuardedNatExpr,
++}
++#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
++pub enum GuardedNatExpr {
++    Argument(u64),
++    Subtract(Box<GuardedNatExpr>, Box<GuardedNatExpr>),
  }
  
  /// One instantiation unit of the module (`import M (args) as N`, module
-@@ -505,8 +628,10 @@
+@@ -505,8 +642,10 @@
                      JsonValue::obj([
                          ("name", (&v.name).into()),
                          ("scheme", (&v.scheme).into()),
@@ -3659,7 +3753,7 @@
                      ])
                  }),
              ),
-@@ -515,13 +640,25 @@
+@@ -515,13 +654,25 @@
                  JsonValue::arr(&types, |t| {
                      JsonValue::obj([
                          ("name", (&t.name).into()),
@@ -3685,7 +3779,7 @@
                                      ("tag", c.tag.into()),
                                      ("fields", (&c.fields).into()),
                                      ("erased", (&c.erased).into()),
-@@ -537,13 +674,19 @@
+@@ -537,13 +688,19 @@
                  JsonValue::arr(&sigs, |s| {
                      JsonValue::obj([
                          ("name", (&s.name).into()),
@@ -3705,7 +3799,7 @@
                                  ]);
                                  if let (JsonValue::Obj(map), Some(d)) = (&mut o, &m.default) {
                                      map.insert("default".to_string(), d.into());
-@@ -557,10 +700,31 @@
+@@ -557,10 +714,37 @@
              (
                  "instances",
                  JsonValue::arr(&insts, |inst| {
@@ -3726,10 +3820,16 @@
 +                                fields.push(("checked", JsonValue::obj([
 +                                    ("schema", 1u64.into()),
 +                                    ("head", JsonValue::obj([("resolved", resolved_scheme_json(Some(&checked.head)))])),
-+                                    ("implementation", JsonValue::obj([
-+                                        ("identity", (&checked.implementation).into()),
-+                                        ("resolved", resolved_scheme_json(Some(&checked.resolved))),
-+                                    ])),
++                                    ("implementation", {
++                                        let mut declaration = JsonValue::obj([
++                                            ("identity", (&checked.implementation).into()),
++                                            ("resolved", resolved_scheme_json(Some(&checked.resolved))),
++                                        ]);
++                                        if let (Some(body), JsonValue::Obj(fields)) = (&checked.body, &mut declaration) {
++                                            fields.insert("body".into(), guarded_nat_body_json(body));
++                                        }
++                                        declaration
++                                    }),
 +                                ])));
 +                            }
 +                            JsonValue::Obj(fields.into_iter().map(|(key, value)| (key.to_string(), value)).collect())
@@ -3737,7 +3837,7 @@
                          ("ctx", (&inst.ctx).into()),
                          ("methods", (&inst.methods).into()),
                          ("implicit", inst.implicit.into()),
-@@ -787,8 +951,10 @@
+@@ -787,8 +971,10 @@
              values.push(ValueExport {
                  name: field_str(o, "name")?,
                  scheme: field_str(o, "scheme")?,
@@ -3748,7 +3848,7 @@
              });
          }
          let mut types = Vec::new();
-@@ -799,6 +965,9 @@
+@@ -799,6 +985,9 @@
                  let co = c.as_object().map_err(|_| ParseError("ctor entry".into()))?;
                  ctors.push(CtorExport {
                      name: field_str(co, "name")?,
@@ -3758,7 +3858,7 @@
                      tag: field_num(co, "tag")?,
                      fields: field_list(co, "fields")?,
                      erased: co
-@@ -810,13 +979,37 @@
+@@ -810,13 +999,37 @@
                          .collect::<Result<Vec<_>, _>>()?,
                  });
              }
@@ -3798,7 +3898,7 @@
          }
          let mut signatures = Vec::new();
          for item in ex_get("signatures")?.as_array()? {
-@@ -826,35 +1019,91 @@
+@@ -826,35 +1039,95 @@
                  let mo = m.as_object().map_err(|_| ParseError("method entry".into()))?;
                  methods.push(MethodExport {
                      name: field_str(mo, "name")?,
@@ -3854,6 +3954,10 @@
 +                            head: field_resolved_scheme(head)?.ok_or_else(|| ParseError("unresolved conditional head".into()))?,
 +                            implementation: identity,
 +                            resolved: field_resolved_scheme(implementation)?.ok_or_else(|| ParseError("unresolved conditional implementation".into()))?,
++                            body: match implementation.get("body") {
++                                None | Some(JsonValue::Null) => None,
++                                Some(value) => Some(read_guarded_nat_body(value)?),
++                            },
 +                        })
 +                    }
 +                };
@@ -3896,7 +4000,7 @@
          }
          let mut fixities = Vec::new();
          for item in ex_get("fixities")?.as_array()? {
-@@ -1353,6 +1602,153 @@
+@@ -1353,6 +1626,188 @@
  }
  
  /// One foreign parameter or result's binding contract.
@@ -3923,6 +4027,41 @@
 +        return Err(ParseError("total body includes unrelated definitions".into()))
 +    }
 +    Ok(Some(graph))
++}
++
++fn guarded_nat_expr_json(expression: &GuardedNatExpr) -> JsonValue {
++    match expression {
++        GuardedNatExpr::Argument(slot) => JsonValue::obj([("node", "argument".into()), ("slot", (*slot).into())]),
++        GuardedNatExpr::Subtract(left, right) => JsonValue::obj([
++            ("node", "nat-subtract".into()), ("left", guarded_nat_expr_json(left)), ("right", guarded_nat_expr_json(right)),
++        ]),
++    }
++}
++fn guarded_nat_body_json(body: &GuardedNatBody) -> JsonValue {
++    JsonValue::obj([("schema", 1u64.into()), ("parameters", body.parameters.into()), ("root", guarded_nat_expr_json(&body.root))])
++}
++fn read_guarded_nat_expr(value: &JsonValue, parameters: u64, depth: usize) -> Result<GuardedNatExpr, ParseError> {
++    if depth > 64 { return Err(ParseError("guarded body depth".into())) }
++    let object = value.as_object()?;
++    match field_str(object, "node")?.as_str() {
++        "argument" => {
++            let slot = field_num(object, "slot")?;
++            if slot >= parameters { return Err(ParseError("guarded argument outside actual function scope".into())) }
++            Ok(GuardedNatExpr::Argument(slot))
++        }
++        "nat-subtract" => Ok(GuardedNatExpr::Subtract(
++            Box::new(read_guarded_nat_expr(object.get("left").ok_or_else(|| ParseError("guarded left operand".into()))?, parameters, depth + 1)?),
++            Box::new(read_guarded_nat_expr(object.get("right").ok_or_else(|| ParseError("guarded right operand".into()))?, parameters, depth + 1)?),
++        )),
++        _ => Err(ParseError("unsupported guarded body node".into())),
++    }
++}
++fn read_guarded_nat_body(value: &JsonValue) -> Result<GuardedNatBody, ParseError> {
++    let object = value.as_object()?;
++    if field_num(object, "schema")? != 1 { return Err(ParseError("guarded body schema".into())) }
++    let parameters = field_num(object, "parameters")?;
++    let root = read_guarded_nat_expr(object.get("root").ok_or_else(|| ParseError("guarded body root".into()))?, parameters, 0)?;
++    Ok(GuardedNatBody { parameters, root })
 +}
 +
 +fn resolved_scheme_json(scheme: Option<&ResolvedScheme>) -> JsonValue {
@@ -4050,7 +4189,7 @@
  fn foreign_param_json(p: &ForeignParam) -> JsonValue {
      JsonValue::obj([
          ("type", (&p.ty).into()),
-@@ -1642,41 +2038,56 @@
+@@ -1642,41 +2097,56 @@
              iface_hash: "deadbeef".into(),
          });
          f.exports.values.push(ValueExport {
@@ -4107,7 +4246,7 @@
              ctx: vec![],
              methods: vec!["Main.Add_Int.+".into()],
              implicit: true,
-@@ -1732,6 +2143,26 @@
+@@ -1732,6 +2202,26 @@
      }
  
      #[test]
@@ -4134,7 +4273,7 @@
      fn canonical_and_stable() {
          let f = sample();
          assert_eq!(f.to_json(), f.to_json());
-@@ -1775,7 +2206,7 @@
+@@ -1775,7 +2265,7 @@
      #[test]
      fn rejects_wrong_schema() {
          let text = sample().to_json();
@@ -4143,7 +4282,7 @@
          assert_ne!(wrong, text, "the schema field was rewritten");
          assert!(Iface::from_json(&wrong).is_err());
      }
-@@ -1829,6 +2260,8 @@
+@@ -1829,6 +2319,8 @@
              id: "Other.Add_Int".into(),
              class: "Add".into(),
              target: "Add Int".into(),
@@ -4152,7 +4291,7 @@
              ctx: vec![],
              methods: vec![],
              implicit: true,
-@@ -1879,7 +2312,7 @@
+@@ -1879,7 +2371,7 @@
      fn parser_is_strict() {
          let text = sample().to_json();
          assert!(Iface::from_json(&format!("{text}trailing")).is_err());

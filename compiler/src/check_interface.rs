@@ -199,6 +199,7 @@ impl Checker {
             head: self.resolved_interface_scheme(&info.module, &format!("@conditional-head:{}", info.name))?,
             implementation: implementation.0.clone(),
             resolved: self.resolved_interface_scheme(&info.module, &format!("@conditional-method:{}:{slot}", info.name))?,
+            body: info.method_contracts.iter().find(|(index, _, _)| *index == slot).and_then(|(_, _, scheme)| self.guarded_nat_body(implementation, scheme)),
         })
     }
 

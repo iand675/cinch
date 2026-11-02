@@ -1,5 +1,22 @@
 # Next steps (as of 2026-11-02)
 
+Rust now exports a bounded, optional Nat body tree for closed conditional
+methods from the actual checked implementation and primitive identity. Changing
+the body with the same class, slot and scheme changes its interface hash.
+Out-of-scope arguments and over-depth records are refused. All 141 Native unit
+tests and the whole class, conditional-method and guarded-body interface targets
+pass. The pinned seed is intentionally updated to those exact tested Native
+sources (641613b); archive plus patch reproduces them. ABI5/schema8 remain
+unchanged. See [the body-export report](../bootstrap/guarded-body-export-results.json).
+
+The Cinch consumer and a newly exposed Rust strict-let equation bug remain
+private and under validation. The conditional182+5 full suite stopped after
+142 fresh passes at a module-instantiation fixture that also changed its
+exported body; a fresh continuation now holds that body constant. No complete
+current or self-built frontend suite pass is claimed. Genuine self-hosting
+remains incomplete.
+
+
 The independent Cinch checker now selects imported closed conditional
 implementations using the actual checked class head and dictionary slot.
 Lexical dictionaries retain priority. Calls target the real private function,

@@ -327,6 +327,20 @@ pub struct CheckedInstanceMethod {
     pub head: ResolvedScheme,
     pub implementation: String,
     pub resolved: ResolvedScheme,
+    /// Actual checked Nat-only body. Its subtraction nodes require a
+    /// separate, independent proof of totality under the callable guard.
+    pub body: Option<GuardedNatBody>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct GuardedNatBody {
+    pub parameters: u64,
+    pub root: GuardedNatExpr,
+}
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum GuardedNatExpr {
+    Argument(u64),
+    Subtract(Box<GuardedNatExpr>, Box<GuardedNatExpr>),
 }
 
 /// One instantiation unit of the module (`import M (args) as N`, module
@@ -717,10 +731,16 @@ impl Iface {
                                 fields.push(("checked", JsonValue::obj([
                                     ("schema", 1u64.into()),
                                     ("head", JsonValue::obj([("resolved", resolved_scheme_json(Some(&checked.head)))])),
-                                    ("implementation", JsonValue::obj([
-                                        ("identity", (&checked.implementation).into()),
-                                        ("resolved", resolved_scheme_json(Some(&checked.resolved))),
-                                    ])),
+                                    ("implementation", {
+                                        let mut declaration = JsonValue::obj([
+                                            ("identity", (&checked.implementation).into()),
+                                            ("resolved", resolved_scheme_json(Some(&checked.resolved))),
+                                        ]);
+                                        if let (Some(body), JsonValue::Obj(fields)) = (&checked.body, &mut declaration) {
+                                            fields.insert("body".into(), guarded_nat_body_json(body));
+                                        }
+                                        declaration
+                                    }),
                                 ])));
                             }
                             JsonValue::Obj(fields.into_iter().map(|(key, value)| (key.to_string(), value)).collect())
@@ -1071,6 +1091,10 @@ impl Iface {
                             head: field_resolved_scheme(head)?.ok_or_else(|| ParseError("unresolved conditional head".into()))?,
                             implementation: identity,
                             resolved: field_resolved_scheme(implementation)?.ok_or_else(|| ParseError("unresolved conditional implementation".into()))?,
+                            body: match implementation.get("body") {
+                                None | Some(JsonValue::Null) => None,
+                                Some(value) => Some(read_guarded_nat_body(value)?),
+                            },
                         })
                     }
                 };
@@ -1625,6 +1649,41 @@ fn field_total_body(o: &BTreeMap<String, JsonValue>) -> Result<Option<crate::tot
         return Err(ParseError("total body includes unrelated definitions".into()))
     }
     Ok(Some(graph))
+}
+
+fn guarded_nat_expr_json(expression: &GuardedNatExpr) -> JsonValue {
+    match expression {
+        GuardedNatExpr::Argument(slot) => JsonValue::obj([("node", "argument".into()), ("slot", (*slot).into())]),
+        GuardedNatExpr::Subtract(left, right) => JsonValue::obj([
+            ("node", "nat-subtract".into()), ("left", guarded_nat_expr_json(left)), ("right", guarded_nat_expr_json(right)),
+        ]),
+    }
+}
+fn guarded_nat_body_json(body: &GuardedNatBody) -> JsonValue {
+    JsonValue::obj([("schema", 1u64.into()), ("parameters", body.parameters.into()), ("root", guarded_nat_expr_json(&body.root))])
+}
+fn read_guarded_nat_expr(value: &JsonValue, parameters: u64, depth: usize) -> Result<GuardedNatExpr, ParseError> {
+    if depth > 64 { return Err(ParseError("guarded body depth".into())) }
+    let object = value.as_object()?;
+    match field_str(object, "node")?.as_str() {
+        "argument" => {
+            let slot = field_num(object, "slot")?;
+            if slot >= parameters { return Err(ParseError("guarded argument outside actual function scope".into())) }
+            Ok(GuardedNatExpr::Argument(slot))
+        }
+        "nat-subtract" => Ok(GuardedNatExpr::Subtract(
+            Box::new(read_guarded_nat_expr(object.get("left").ok_or_else(|| ParseError("guarded left operand".into()))?, parameters, depth + 1)?),
+            Box::new(read_guarded_nat_expr(object.get("right").ok_or_else(|| ParseError("guarded right operand".into()))?, parameters, depth + 1)?),
+        )),
+        _ => Err(ParseError("unsupported guarded body node".into())),
+    }
+}
+fn read_guarded_nat_body(value: &JsonValue) -> Result<GuardedNatBody, ParseError> {
+    let object = value.as_object()?;
+    if field_num(object, "schema")? != 1 { return Err(ParseError("guarded body schema".into())) }
+    let parameters = field_num(object, "parameters")?;
+    let root = read_guarded_nat_expr(object.get("root").ok_or_else(|| ParseError("guarded body root".into()))?, parameters, 0)?;
+    Ok(GuardedNatBody { parameters, root })
 }
 
 fn resolved_scheme_json(scheme: Option<&ResolvedScheme>) -> JsonValue {
