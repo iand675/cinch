@@ -1,5 +1,25 @@
 # Next steps (as of 2026-11-02)
 
+## Current verification boundary
+
+The guarded742 snapshot completed all187 integration targets and five general
+gates:176 fresh gates and16 whole gates reused only after checking identical
+relevant inputs. This is a complete development-compiler baseline, preceding
+the later f88 byte-let fix, curried-let fix and syntax/tactic integration.
+See [the guarded full-suite report](../bootstrap/guarded-full-suite-results.json).
+
+The f88 stage chain with the curried-let fix passes all six stage0/1 smokes.
+Its actual stage2 clears Text.Builder's byte-copy bound, then exits4 with1709
+diagnostics. The first remaining error is Text.Lex's repeated character-code
+conversion inside a dependent Nat index. No stage2 compiler, stage3 fixed point
+or self-built frontend suite exists yet. See [the stage report](../bootstrap/guarded-stages-results.json).
+
+The reconciled syntax/tactic integration separately passes273 Native tests,
+39 experiment tests and19 bootstrap-tooling tests. Its bootstrap sources and
+f88 seed pin are unchanged. Neither that focused result nor the earlier full
+baseline establishes a complete suite pass for the combined latest sources.
+Historical checkpoints below retain their original validation boundaries.
+
 ## Malleable syntax experiment
 
 The branch also carries the isolated [syntax and tactic prototypes](../experiments/malleable-syntax/INTEGRATION.md):
@@ -23,8 +43,8 @@ previously failing inline byte-copy bounds, explicit offsets, refined buffers,
 wrong offsets/missing guards and argument-capture regressions. The40 call,
 50 body/declaration/stale-alias and50 admission checks also pass. All142 Native
 units and12 whole Native targets pass on the same Native implementation.
-A fresh f88 staged attempt is running; the187+5 sweep remains scoped to the
-preceding742 snapshot. No genuine bootstrap or full current-source suite pass
+A fresh f88 staged attempt completed as recorded above; the187+5 sweep passed
+on the preceding742 snapshot. No genuine bootstrap or full current-source suite pass
 is claimed. See [the curried-let scope report](../bootstrap/curried-let-scope-results.json).
 
 
