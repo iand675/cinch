@@ -156,8 +156,10 @@ and the imported measure contract. Full169+5 validation is running; see
 
 Source `decide` now retains checked predicates and executable Core decisions,
 including short-circuit logical forms and stable strict-let value identity.
-Its source/Core checks pass; broader regressions and fresh stages are still
-unfinished. Unknown method bodies cannot define arithmetic aliases. Typed
+Its source/Core and dependent-function checks pass. Fresh stage0/1 pass six
+smokes; actual stage2 stops before bodies at one imported measure-contract
+header and produces no IR or compiler executable. Broader regressions are still
+running. Unknown method bodies cannot define arithmetic aliases. Typed
 runtime lowering and genuine self-hosting remain required. See
 [the source decision report](source-decision-checkpoint-results.json).
 

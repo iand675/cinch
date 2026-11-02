@@ -12,8 +12,12 @@ method's name and slot cannot make its result a mathematical alias: without
 checked body authority that result remains a fresh runtime value. The source
 and Core decision targets pass, including wrong identities, negative evidence,
 logical ambiguity, large integers, metadata/type-cache corruption and unknown
-method-body aliases. Broader focused regressions and a fresh stage attempt are
-still unfinished. The complete new170+5 suite has not run. The prior169+5
+method-body aliases. The dependent-function target also passes. Fresh stage0/1
+pass all six smokes. Actual stage2 accepts the decision header and exits4 at
+one imported measure-contract header before bodies; it produces no IR or
+compiler executable. The exact staged compiler bundle matches this checkpoint.
+Broader focused regressions are still running. The complete new170+5 suite
+has not run. The prior169+5
 constructor matrix is still running and cannot establish this new code.
 The installed164+5 snapshot remains the last complete baseline.
 

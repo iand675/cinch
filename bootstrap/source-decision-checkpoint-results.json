@@ -1,6 +1,6 @@
 {
-  "recorded_at": "2026-11-02T01:54:23.008409+00:00",
-  "status": "work in progress: source and Core decision checks pass; broader focused tests and fresh stages are unfinished",
+  "recorded_at": "2026-11-02T01:57:13.978568+00:00",
+  "status": "source/Core decisions and dependent-function targets pass; all six fresh stage0/1 smokes pass; actual stage2 refuses one imported measure header before bodies; broader regressions are unfinished",
   "source_sha256": "be18fae893bef945d24a2f681ac38264f6b1796d117f62702b6f57da63159ac1",
   "source_inputs": 598,
   "verified_publication_code_inputs": [
@@ -554,10 +554,12 @@
         "--test-threads=1"
       ],
       "cwd": "/tmp/cinch-source-decisions-validation-5/source/compiler",
+      "exit_code": 0,
+      "finished": "2026-11-02T01:56:19.623424+00:00",
       "name": "bootstrap_source_pi",
       "pid": 92882,
       "started": "2026-11-02T01:53:22.133724+00:00",
-      "status": "running"
+      "status": "passed"
     },
     {
       "command": [
@@ -574,7 +576,9 @@
       ],
       "cwd": "/tmp/cinch-source-decisions-validation-5/source/compiler",
       "name": "bootstrap_source_instances",
-      "status": "pending"
+      "pid": 7430,
+      "started": "2026-11-02T01:56:19.623935+00:00",
+      "status": "running"
     },
     {
       "command": [
@@ -697,6 +701,7 @@
     }
   ],
   "fresh_stages": {
+    "source_sha256": "be18fae893bef945d24a2f681ac38264f6b1796d117f62702b6f57da63159ac1",
     "results": [
       {
         "command": [
@@ -722,14 +727,93 @@
           "--stage",
           "1"
         ],
+        "exit_code": 0,
+        "finished": "2026-11-02T01:54:35.406120+00:00",
         "log": "/tmp/cinch-source-decisions-stages-5/stage1-smoke.log",
         "name": "stage1-smoke",
         "pid": 83444,
         "started": "2026-11-02T01:50:46.987270+00:00",
-        "status": "running"
+        "status": "passed"
+      },
+      {
+        "command": [
+          "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "tooling/bootstrap.py",
+          "check"
+        ],
+        "exit_code": 1,
+        "finished": "2026-11-02T01:55:52.350693+00:00",
+        "log": "/tmp/cinch-source-decisions-stages-5/self-hosting.log",
+        "name": "self-hosting",
+        "pid": 96428,
+        "started": "2026-11-02T01:54:35.406463+00:00",
+        "status": "failed"
       }
     ],
-    "compiler_bundle_exact_bytes": true
+    "summary": {
+      "0": {
+        "exit_code": 0,
+        "inputs": {
+          "host": {
+            "machine": "arm64",
+            "system": "Darwin"
+          },
+          "protocol": 2,
+          "seed": {
+            "description": "Pinned Rust seed with schema-7 definition-site nominal, class, Region and closed kernel effect contracts, dictionary slots, dependency-ordered source family overrides, dependency-sensitive pattern field names and conditional instance method proof contracts, integer conversion fixes, definition-owned fixities, guarded heap defaults and serial build/test settings and enforced optimizer residual growth bounds, portable checked numeric preconditions and dependent argument identities, checked structural NonZero precondition exports with actual argument identities, schema-7 defining refinement payloads and literal index contracts, checked anonymous refinements with actual argument/result identities and refined-argument numeric projections, semantic byte-length primitive identity, executable primitive index witnesses and actual signature-telescope observation carrier validation, closed byte-observation signature predicates and private named buffer-refinement contracts, portable checked machine-integer value comparisons with exact defining carrier scopes and opaque machine arithmetic; changed only by an intentional seed update.",
+            "patch": "bootstrap/seed/stage0.patch",
+            "patch_sha256": "655dfb04a042df9cd0aff5abebbbcd23510fb35efc92567e2d9ae8cfb9dedd5d",
+            "revision": "275de4f05b230c010aeb4b10265a04b97fb4eb1c",
+            "runtime_abi": 5,
+            "schema": 1,
+            "source_sha256": "81bb6e364f45201360e11d5b32e2b3f22cd4719a9dcb018551da034416e725e9"
+          }
+        },
+        "log": "/private/tmp/cinch-source-decisions-stages-5/source/build/bootstrap/stage0/build.log",
+        "status": "built"
+      },
+      "1": {
+        "exit_code": 0,
+        "inputs": {
+          "builder_sha256": "369655c517b88c6009585936ded37cf9e84e0bda9c5ebaf6fb763947fd42aea3",
+          "built_by_stage": 0,
+          "host": {
+            "machine": "arm64",
+            "system": "Darwin"
+          },
+          "protocol": 2,
+          "source_sha256": "86cf12107d5093773d640b0ecf0f2dd6a7bb093dbba5b2da3ee6f7a3b5f47017"
+        },
+        "log": "/private/tmp/cinch-source-decisions-stages-5/source/build/bootstrap/stage1/build.log",
+        "status": "built"
+      },
+      "2": {
+        "diagnostic_categories": {
+          "imported using context needs a defining signature contract": 1
+        },
+        "diagnostics": 1,
+        "exit_code": 4,
+        "inputs": {
+          "builder_sha256": "287a78ff822f3ce9d818dd014335538d57f9766065bbbbcd44aa61f3e4bad680",
+          "built_by_stage": 1,
+          "host": {
+            "machine": "arm64",
+            "system": "Darwin"
+          },
+          "interface_set_sha256": "91f51220da23d737aeeb973da570fa7c2b46213afc5c733e95d4f69c1e5731c1",
+          "protocol": 2,
+          "source_sha256": "86cf12107d5093773d640b0ecf0f2dd6a7bb093dbba5b2da3ee6f7a3b5f47017"
+        },
+        "log": "/private/tmp/cinch-source-decisions-stages-5/source/build/bootstrap/stage2/build.log",
+        "status": "failed"
+      }
+    },
+    "all_six_smokes_passed": true,
+    "compiler_bundle_exact_bytes": true,
+    "compiler_bundle_bytes_sha256": "af20e881ead316017de1ff7779cfebf94ef4119ed18101c99047cf7ad546dbf4",
+    "no_stage2_ir_or_executable": true,
+    "before_bodies": true,
+    "self_hosting_achieved": false
   },
   "implemented": [
     "Definition-owned decide syntax marker; no first-class function or shadow-name authority",
@@ -767,5 +851,20 @@
   "runtime_abi": 5,
   "interface_schema": 7,
   "seed_unchanged": true,
-  "self_hosting_achieved": false
+  "self_hosting_achieved": false,
+  "worker_control": {
+    "maximum_heavy_jobs": 5,
+    "stage_lock_mismatch_corrected_during_run": true,
+    "shared_slot_guard": {
+      "status": "released after stage process terminated",
+      "stage_parent_pid": 78865,
+      "paused_pids": [
+        78865,
+        83444,
+        83445,
+        94288,
+        94289
+      ]
+    }
+  }
 }
