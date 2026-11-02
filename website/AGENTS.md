@@ -36,7 +36,8 @@ These instructions apply to `website/`. This site has an established, user-selec
 | Docs code palettes and render-cache identity | `src/themes/syntax.mjs`, `astro.config.mjs`, `src/loaders/safelang-docs.ts` |
 | Interactive type illustration | `src/components/ContractConsole.astro` and its rules in `landing.css` |
 | Manual-style technical figure | `src/components/TechnicalFigure.astro` (tutorial), `src/components/AverageFigure.astro` (landing), `src/styles/technical-figure.css` |
-| Checked landing examples | `src/data/examples/*.cinch` |
+| Checked landing examples and recorded runs | `src/data/examples/*.cinch`, `src/data/examples/recordings.json`, `scripts/record-examples.py` |
+| Runnable code window | `src/components/RunnableSource.astro`, `.run-output` rules in `landing.css` |
 | Landing gadgets (bits, staging, fusion, SIMD, upgrade) | `src/components/LanguageTour.astro`, `src/components/LiveEvolution.astro`, rules in `src/styles/language-tour.css` |
 | Docs content and route adaptation | `src/loaders/safelang-docs.ts`, `src/components/MarkdownContent.astro`, `astro.config.mjs` |
 | Package fixtures and generated API references | `src/lib/catalogue.ts`, `src/pages/packages/`, `src/components/catalogue/` |
@@ -50,6 +51,7 @@ Reuse the owning layout/component before duplicating it. Prefer semantic colour 
 - Preserve the source Markdown, heading anchors, existing documentation routes, and navigation. The loader reads documentation outside `website/`; do not create parallel copies of the book or change technical examples merely to fit a layout.
 - The console illustrates `average :: NonEmpty Int -> Int` on one customer's orders; it does not run a compiler. Its controls must keep the order count, visual cells, equation, explanation, and accessible state in agreement.
 - Landing examples should be code a working programmer recognises from their own job (the average-order-value crash), not a famous incident or a type-theory exercise. Code shown as compiling or rejected comes from `src/data/examples/` and must give that result under `cinch check`.
+- Runnable windows call `window.cinch.run(file, source)` when the browser build of the compiler registers it, and otherwise play back the recording for that file. Recordings come only from `npm run examples:record` against the real compiler (it needs a clang new enough for the emitted IR, for example clang 20 via `CINCH_CLANG`). `npm run examples:check` fails when a recording is stale. Never hand-edit `recordings.json`. Until the browser build lands, runnable code is read-only.
 - Gadgets change a quantity their section is about, animate only when the reader acts, and honour `prefers-reduced-motion`. Their controls are console keycaps (`.gadget-key`, `.gadget-stepper`), never tab bars. The user rejected tabbed "deck key" selectors, a manual-spread restyle of the runtime-contracts rows, and a module-wall restyle of the documentation links (2026-11-01).
 - Packages, versions, API signatures, and release bundles currently include **explicitly labelled sample data**. Keep those labels and indexing rules until real data replaces the fixtures. A sample ZIP is not a compiler distribution. Do not invent compatibility, adoption, benchmark, security, or release claims.
 - Keep real controls native and keyboard-operable where practical. Preserve skip links, visible focus, meaningful link names, selectable code, figure descriptions, and local overflow for long signatures. Decorative SVG/CSS belongs outside the accessibility tree; informative diagrams need a description and caption.

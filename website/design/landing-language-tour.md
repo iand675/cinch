@@ -6,7 +6,7 @@ The hero console and the average-order-value section are followed by `LanguageTo
 
 | Landing material | Primary repository source | Editorial constraints |
 | --- | --- | --- |
-| Hero console, "The empty‑list crash never ships", Figure 01 | `src/data/examples/average.cinch` (accepted) and `average-unchecked.cinch` (rejected at `12:27`: the obligation `NotNull orders` needs evidence); `learn/13-refinements-and-safe-operations.md`; `(/) :: a -> NonZero a -> a` in `Algebra.Arithmetic` | Check with `../compiler/target/release/cinch check src/data/examples/<file>`. A plain-list `average` is rejected for `NonZero length orders`. Today a branch on `length xs > 0` does not discharge `NonZero (length xs)`, so the page uses `NonEmpty` and `non-empty` rather than an `if` |
+| Hero console, "The empty‑list crash never ships", Figure 01 | `src/data/examples/average-report.cinch` (accepted; its run prints `24` then `no orders yet`) and `average-unchecked.cinch` (rejected at `12:27`: the obligation `NotNull orders` needs evidence); `learn/13-refinements-and-safe-operations.md`; `(/) :: a -> NonZero a -> a` in `Algebra.Arithmetic` | Check with `../compiler/target/release/cinch check src/data/examples/<file>`. A plain-list `average` is rejected for `NonZero length orders`. Today a branch on `length xs > 0` does not discharge `NonZero (length xs)`, so the page uses `NonEmpty` and `non-empty` rather than an `if` |
 | Runtime bounds evidence and `plusZero` induction | `tutorials/02-proofs-and-runtime-checks.md` | Concrete decision evidence differs from a universal proof; erasure does not remove the executable comparison |
 | `NonEmpty` refinement | `design/refinement-types.md` | Keep the container representation; method availability depends on preservation; distinguish refinements from semantic newtypes |
 | Tactics, certificate checking, proof kernel | `design/proof-automation.md` | Search is untrusted; accepted evidence is checked; unresolved work is not a proof |
@@ -60,3 +60,7 @@ The user asked for a pass using the copy-editing skill's seven sweeps (clarity, 
 - Each call to action answers the likely hesitation next to it: platforms and no Haskell required in the hero; chapter 1 from an empty directory and proofs waiting until chapter 14 at the close.
 - Avoid repeated two-fragment "X. Y." headlines, "keeps A, not B" contrasts, and insider terms (dispatch epoch, codata, version-coexistence protocol) in body copy.
 - Do not invent proof. Adoption, testimonials, benchmark numbers, and licence terms stay off the page until real ones exist.
+
+## Runnables (2026-11-02)
+
+The browser build of the compiler is coming. Until it lands, the `average-report.cinch` window is a placeholder runnable: its Run key plays back output recorded from the real compiler by `scripts/record-examples.py`, line by line. When the browser build registers `window.cinch = { run(file, source) }`, the same key calls it with no page change. The next step is to make the code editable once the engine exists, and to give other code windows on the page the same treatment.

@@ -11,7 +11,9 @@
     "verify:preview": "python3 scripts/verify-preview.py",
     "verify:docs": "python3 scripts/generate-library-reference.py --check && python3 scripts/verify-docs.py",
     "verify:examples": "python3 scripts/verify-doc-examples.py",
-    "docs:library": "python3 scripts/generate-library-reference.py"
+    "docs:library": "python3 scripts/generate-library-reference.py",
+    "examples:record": "python3 scripts/record-examples.py",
+    "examples:check": "python3 scripts/record-examples.py --check"
   },
   "dependencies": {
     "@astrojs/starlight": "^0.42.7",

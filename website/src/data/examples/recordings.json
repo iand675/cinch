@@ -1,0 +1,14 @@
+{
+  "average-report.cinch": {
+    "command": "cinch run average-report.cinch",
+    "stdout": "24\nno orders yet\n",
+    "stderr": "",
+    "exit": 0
+  },
+  "average-unchecked.cinch": {
+    "command": "cinch check average-unchecked.cinch",
+    "stdout": "",
+    "stderr": "cinch: 12:27: the obligation `NotNull orders` needs `Dec` evidence or a branch fact at this use (discharge it in the `Dec`/`decide` world: `case decide (NotNull orders) of Yes w -> ...`, under a branch condition that implies it (`if ... then`, a guard, or the left operand of `&&`), or pass an argument whose refinement implies it): no evidence for `NotNull orders` is in scope here (in average-unchecked.cinch)",
+    "exit": 1
+  }
+}
