@@ -16,10 +16,11 @@ method-body aliases. The dependent-function target also passes. Fresh stage0/1
 pass all six smokes. Actual stage2 accepts the decision header and exits4 at
 one imported measure-contract header before bodies; it produces no IR or
 compiler executable. The exact staged compiler bundle matches this checkpoint.
-Broader focused regressions are still running. The complete new170+5 suite
-has not run. The prior169+5
-constructor matrix is still running and cannot establish this new code.
-The installed164+5 snapshot remains the last complete baseline.
+Broader focused regressions and the complete new170+5 matrix are running.
+The preceding169+5 constructor matrix now passes all gates, including140
+compiler units,166 runtime tests and19 tooling tests with no compiler/runtime
+ignores. Its exact code is installed in the main working checkout. That pass
+does not establish this newer source-decision implementation.
 
 Self-hosting remains incomplete. Ordinary total-measure contracts, actual
 primitive/instance-body authority, complete proof/usage/totality checking,

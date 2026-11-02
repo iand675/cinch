@@ -81,8 +81,8 @@ runtime intrinsics, and effect handlers still need elaboration. Source
 effect declarations retain checked operation schemes and dispatch slots;
 operation calls retain their declared effect rows.
 The decision contracts keep `decide` as predicate syntax and retain
-`Yes`/`No`'s erased evidence fields; they require dependent checking before
-acceptance.
+`Yes`/`No`'s erased evidence fields. Source elaboration and independent Core
+checks validate their scoped predicates and separate source/runtime arities.
 
 `Bootstrap.Type` and `Bootstrap.Infer` add rank-one checking in Cinch:
 fresh instantiation, rigid quantified variables, kind checks, occurs and
@@ -129,8 +129,9 @@ primitive operands, strict lets and latent rows. They run after source
 elaboration and global-reference checking. Their focused tests and the
 full pipeline pass. Fresh stage0/1 pass six smokes; actual stage2 refuses
 four headers before body checking and produces no compiler. That preceding
-kind/term implementation now passes all164+5 Native-assisted gates and is
-installed in the main checkout. Later proof work has separate validation. Full declaration/coverage,
+kind/term implementation passed all164+5 Native-assisted gates. It has been
+superseded locally by the validated169+5 constructor snapshot. The later
+source-decision implementation has separate validation. Full declaration/coverage,
 semantic proof authority, totality and usage remain required; see
 [the Core typing report](core-typing-checkpoint-results.json).
 
@@ -142,24 +143,24 @@ Current source-proof validation and runtime limits are described below.
 
 `CPProof`, `CProofRef` and `CErasedApply` retain scoped proof identities and
 call effects. Source proof forwarding and lambda checks pass; wrong evidence,
-runtime proof inspection and value-index confusion are refused. Remaining
-focused regressions are running. Source decisions and typed runtime erasure
-remain required; see [the source proof report](source-proof-checkpoint-results.json).
+runtime proof inspection and value-index confusion are refused. These checks
+are included in the completed169+5 constructor suite. General proof computation,
+totality and typed runtime erasure remain required; see [the source proof report](source-proof-checkpoint-results.json).
 
 Kernel-owned `Yes`/`No` retain one erased source evidence field and no runtime
 payload. Their source patterns, proposition scopes and exact metadata checks
-pass, as do the separate fixed-semantics Core decision checks. Source `decide`
-syntax and typed runtime lowering remain required. All15 whole focused targets
-pass; fresh stage0/1 pass six smokes and stage2 stops before bodies at decide
-and the imported measure contract. Full169+5 validation is running; see
+pass, as do the separate fixed-semantics Core decision checks. That constructor
+snapshot now passes the complete169+5 Native-assisted suite and its exact code
+is installed locally. Its stage2 attempt stopped at two headers before bodies;
+the newer source-decision attempt below has its own evidence. See
 [the decision report](decision-checkpoint-results.json).
 
 Source `decide` now retains checked predicates and executable Core decisions,
 including short-circuit logical forms and stable strict-let value identity.
 Its source/Core and dependent-function checks pass. Fresh stage0/1 pass six
 smokes; actual stage2 stops before bodies at one imported measure-contract
-header and produces no IR or compiler executable. Broader regressions are still
-running. Unknown method bodies cannot define arithmetic aliases. Typed
+header and produces no IR or compiler executable. Broader regressions and its
+complete170+5 matrix are running. Unknown method bodies cannot define arithmetic aliases. Typed
 runtime lowering and genuine self-hosting remain required. See
 [the source decision report](source-decision-checkpoint-results.json).
 

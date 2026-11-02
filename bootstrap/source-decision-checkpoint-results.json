@@ -1,5 +1,5 @@
 {
-  "recorded_at": "2026-11-02T01:57:13.978568+00:00",
+  "recorded_at": "2026-11-02T02:02:36.504666+00:00",
   "status": "source/Core decisions and dependent-function targets pass; all six fresh stage0/1 smokes pass; actual stage2 refuses one imported measure header before bodies; broader regressions are unfinished",
   "source_sha256": "be18fae893bef945d24a2f681ac38264f6b1796d117f62702b6f57da63159ac1",
   "source_inputs": 598,
@@ -833,27 +833,38 @@
   "source_decide_syntax_enabled": true,
   "typed_runtime_lowering_complete": false,
   "complete_current_suite": {
-    "status": "not run",
+    "status": "running",
     "integration_targets": 170,
     "general_gates": 5,
     "all_tests_passed": false,
-    "self_built_frontend": false
+    "self_built_frontend": false,
+    "fresh_gates": 164,
+    "reserved_whole_focused_targets": 11,
+    "workers": 4,
+    "fifth_lane": "reserved whole focused checks"
   },
   "preceding_constructor_matrix": {
     "source_sha256": "2be4a0cc53fe465e380c18bb236e67fe9efbd057f43947cdf56e3b8f40a903c5",
-    "status": "running; this is not evidence for the new implementation"
+    "status": "passed",
+    "integration_targets": 169,
+    "general_gates": 5,
+    "compiler_units": 140,
+    "runtime_tests": 166,
+    "tooling_tests": 19,
+    "exact_code_installed_locally": true,
+    "scope": "preceding constructor implementation; does not establish this newer decision code"
   },
   "last_complete_native_assisted_suite": {
-    "source_sha256": "d6fbf3526a03fb95a0d4bcaec732d221481379c7e8cd298ddd428ea103f5b0cc",
-    "integration_targets": 164,
-    "general_gates": 5
+    "source_sha256": "2be4a0cc53fe465e380c18bb236e67fe9efbd057f43947cdf56e3b8f40a903c5",
+    "integration_targets": 169,
+    "general_gates": 5,
+    "scope": "this constructor implementation; does not establish the later source-decision implementation"
   },
   "runtime_abi": 5,
   "interface_schema": 7,
   "seed_unchanged": true,
   "self_hosting_achieved": false,
   "worker_control": {
-    "maximum_heavy_jobs": 5,
     "stage_lock_mismatch_corrected_during_run": true,
     "shared_slot_guard": {
       "status": "released after stage process terminated",
@@ -865,6 +876,69 @@
         94288,
         94289
       ]
-    }
+    },
+    "configured_maximum_heavy_jobs": 5,
+    "temporary_overlap_before_lock_correction": 6
+  },
+  "previous_complete_native_assisted_suite": {
+    "source_sha256": "d6fbf3526a03fb95a0d4bcaec732d221481379c7e8cd298ddd428ea103f5b0cc",
+    "integration_targets": 164,
+    "general_gates": 5
+  },
+  "remaining_stage_header": {
+    "module": "Data.String",
+    "exports": {
+      "utf8-encode-into": {
+        "arity": 3,
+        "name": "utf8-encode-into",
+        "resolved": null,
+        "scheme": "using ((arg1 + (Data.String.utf8-encode-width arg2)) <= (Data.Bytes.bytes-len arg0)) => ((arg0 :: Bytes) -> ((arg1 :: Nat) -> ((arg2 :: Nat) -> Nat)))",
+        "symbol": "Data.String.utf8-encode-into"
+      },
+      "utf8-encode-width": {
+        "arity": 1,
+        "name": "utf8-encode-width",
+        "resolved": {
+          "nominals": [
+            {
+              "constructors": null,
+              "identity": "Algebra.Arithmetic.InRange",
+              "kind": "refinement",
+              "parameters": [
+                {
+                  "implicit": false,
+                  "kind": "Int",
+                  "name": "lo"
+                },
+                {
+                  "implicit": false,
+                  "kind": "Int",
+                  "name": "hi"
+                },
+                {
+                  "implicit": false,
+                  "kind": "Type",
+                  "name": "a"
+                }
+              ],
+              "params": [
+                "lo",
+                "hi",
+                "a"
+              ],
+              "refinement": {
+                "binder": "x",
+                "carrier": "a",
+                "predicate": "(lo <= x && x <= hi)"
+              }
+            }
+          ],
+          "scheme": "(Nat -> (((Algebra.Arithmetic.InRange 1) 4) Nat))"
+        },
+        "scheme": "(Nat -> InRange 1 4 Nat)",
+        "symbol": "Data.String.utf8-encode-width"
+      }
+    },
+    "required_work": "Retain definition-site call identities and independently checked pure total body contracts; do not infer arithmetic authority from a function name or ordinary scheme"
   }
 }
