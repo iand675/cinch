@@ -326,7 +326,9 @@ impl Checker {
     // the source operator spelling. The ordinary deferred call discharge
     // still checks the call's original, pre-binding evidence snapshot.
     fn checked_nat_let_fact(&self, env: &Env, name: &str, local: LocalId, core: &ECore, ty: &Ty) -> Option<Fact> {
-        if self.uni.zonk(ty) != Ty::Nat || !matches!(core, ECore::App(..) | ECore::Var(_)) { return None }
+        let ty = self.uni.zonk(ty);
+        let carrier = self.refine_view(&ty).and_then(|r| r.base).unwrap_or(ty);
+        if carrier != Ty::Nat || !matches!(core, ECore::App(..) | ECore::Var(_)) { return None }
         let value = self.checked_nat_reading(env, core, 0)?;
         let mut names = self.term_names(env, &value)?;
         names.push((name.to_owned(), local));
@@ -337,7 +339,9 @@ impl Checker {
         match core {
             ECore::Var(local) => {
                 let (name, _, scheme) = env.locals.iter().rev().find(|(_, id, _)| id == local)?;
-                if self.uni.zonk(&scheme.ty) != Ty::Nat || !scheme.params.is_empty() || env.lookup(name)?.0 != *local { return None }
+                let ty = self.uni.zonk(&scheme.ty);
+                let carrier = self.refine_view(&ty).and_then(|r| r.base).unwrap_or(ty);
+                if carrier != Ty::Nat || !scheme.params.is_empty() || env.lookup(name)?.0 != *local { return None }
                 Some(ITerm::Var(name.clone()))
             }
             ECore::ConstBig { nat: true, digits } => Some(ITerm::Num(digits.clone())),

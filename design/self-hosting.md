@@ -1,12 +1,19 @@
 # Self-hosting
 
+The development Rust compiler now retains checked byte-length equations for
+strict aliases whose actual carrier is refined Nat, including Size. It preserves
+lexical value identities and actual primitive/body authority. All four whole
+guarded-let, primitive-length, safe-byte and refinement targets pass, including
+three new positive and five negative source cases. The c774 producer is unchanged.
+See [the Native alias result](../bootstrap/native-length-alias-results.json).
+
 Checked dependent arguments now keep their actual strict witness bindings in
 scope through application, with the original function evaluated first. Hoisting
 a witnessed value out of let generalization adjusts only that value's inference
 depth; unrelated value scopes and type skolems retain their escape checks.
 All seven focused source cases, independent Core checks, and the whole indices
-and guarded-call regressions pass. The separate refinement-constructor and
-correctly named dependent-function regressions remain under validation.
+and guarded-call regressions pass. The whole refinement-constructor regression
+also passes; the correctly named dependent-function regression remains queued.
 
 Text.Json now binds its actual cursor offset and buffer before the existing
 byte-access guards. The complete module passes source checking; all nine JSON

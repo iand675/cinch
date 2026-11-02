@@ -1,0 +1,147 @@
+{
+  "status": "all four whole focused targets passed",
+  "source_sha256": "24aa6bdee6aa0fc393cbc0357f9c8d1531681ea8fe53259513cbff6ca2b62082",
+  "implementation_files": {
+    "compiler/src/check_total.rs": "6f9864c2d027a42600e2f01a26cc01b8c31cb954711696338b6427a41bf40c8b",
+    "compiler/tests/proof_guarded_lets.rs": "694a2a7aa7c7cff8c2cc83d4d8d46a049ba1598e78b432add5db839c7ef37ec3"
+  },
+  "bug": "Strict byte-length aliases were rejected because equation retention and lexical numeric readings required exact Ty::Nat. bytes-len returns a refined Nat carrier (Size), so a guard on its actual alias could not establish a byte access bound.",
+  "before_evidence": {
+    "directory": "/tmp/cinch-interface-splice-probes-2",
+    "current_rust_result": 1,
+    "pinned_c774_result": 1,
+    "example": "let size = bytes-len hay in if lo <= hi && hi <= size then ... copy-bytes-into out hay 0 0 lo ...",
+    "original_unaliased_guard_accepted": true
+  },
+  "repair": "Inspect the actual checked refinement base in both equation retention and local numeric readings. Only Nat carriers are admitted. Keep monomorphic schemes, original lexical LocalIds, actual primitive/selected-body reconstruction, and original evidence snapshots.",
+  "new_regressions": {
+    "positive_source_cases": 3,
+    "negative_source_cases": 5,
+    "coverage": [
+      "refined byte length alias",
+      "alias chain",
+      "complete byte splice with retained suffix and replacement width",
+      "different buffer",
+      "shadowed buffer",
+      "shadowed numeric value",
+      "off-by-one bound",
+      "opaque length provider"
+    ]
+  },
+  "whole_results": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-native-length-alias-validation-1/cargo",
+        "--test",
+        "proof_guarded_lets",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-02T20:28:43.751996+00:00",
+      "name": "proof_guarded_lets",
+      "pid": 62061,
+      "started": "2026-11-02T20:27:28.364914+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-native-length-alias-validation-1/cargo",
+        "--test",
+        "primitive_length_identity",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-02T20:28:59.687214+00:00",
+      "name": "primitive_length_identity",
+      "pid": 65295,
+      "started": "2026-11-02T20:28:43.752808+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-native-length-alias-validation-1/cargo",
+        "--test",
+        "safe_bytes",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-02T20:29:22.180492+00:00",
+      "name": "safe_bytes",
+      "pid": 66560,
+      "started": "2026-11-02T20:28:59.688315+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-native-length-alias-validation-1/cargo",
+        "--test",
+        "refinements",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-02T20:29:52.465407+00:00",
+      "name": "refinements",
+      "pid": 69248,
+      "started": "2026-11-02T20:29:22.181536+00:00",
+      "status": "passed"
+    }
+  ],
+  "whole_test_counts_passed_failed_ignored": {
+    "proof_guarded_lets": [
+      [
+        7,
+        0,
+        0
+      ]
+    ],
+    "primitive_length_identity": [
+      [
+        9,
+        0,
+        0
+      ]
+    ],
+    "safe_bytes": [
+      [
+        9,
+        0,
+        0
+      ]
+    ],
+    "refinements": [
+      [
+        18,
+        0,
+        0
+      ]
+    ]
+  },
+  "pinned_seed": "c774 remains unchanged; this is a development Rust fix, not a producer promotion",
+  "complete_suite_scope": "The running complete Native-assisted matrix predates this fix. These four targets do not establish a complete current-source or self-built frontend pass.",
+  "self_built_frontend_suite": false,
+  "bootstrap_achieved": false
+}

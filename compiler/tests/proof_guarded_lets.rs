@@ -38,6 +38,26 @@ fn lexical_provenance_does_not_unfold_opaque_measure_facts() {
 }
 
 #[test]
+fn refined_nat_length_aliases_keep_the_actual_buffer_equation() {
+    check("first :: Bytes -> Nat\n  first bytes = let size = bytes-len bytes in if size > 0 then bytes-get bytes 0 else 0").unwrap();
+    check("first :: Bytes -> Nat\n  first bytes = let size = bytes-len bytes in let alias = size in if alias > 0 then bytes-get bytes 0 else 0").unwrap();
+    check("splice :: Bytes -> Nat -> Nat -> Bytes -> Bytes\n  splice hay lo hi repl =\n    let size = bytes-len hay in\n    if lo <= hi && hi <= size then\n      let suffix = size - hi in\n      let width = bytes-len repl in\n      let out = bytes-new (suffix + lo + width) in\n      let u = copy-bytes-into out hay 0 0 lo in\n      let v = copy-bytes-into out repl lo 0 width in\n      let w = copy-bytes-into out hay (lo + width) hi suffix in\n      out\n    else hay").unwrap();
+}
+
+#[test]
+fn refined_nat_alias_equations_cannot_change_buffer_identity_or_bounds() {
+    for body in [
+        "bad :: Bytes -> Bytes -> Nat\n  bad bytes other = let size = bytes-len other in if size > 0 then bytes-get bytes 0 else 0",
+        "bad :: Bytes -> Bytes -> Nat\n  bad bytes other = let size = bytes-len bytes in let bytes = other in if size > 0 then bytes-get bytes 0 else 0",
+        "bad :: Bytes -> Nat\n  bad bytes = let size = bytes-len bytes in let size = (1 :: Nat) in if size > 0 then bytes-get bytes 0 else 0",
+        "bad :: Bytes -> Nat\n  bad bytes = let size = bytes-len bytes in if size > 0 then bytes-get bytes size else 0",
+        "bad :: Bytes -> (Bytes -> Nat) -> Nat\n  bad bytes length = let size = length bytes in if size > 0 then bytes-get bytes 0 else 0",
+    ] {
+        assert!(check(body).is_err(), "forged refined Nat alias equation accepted: {body}");
+    }
+}
+
+#[test]
 fn byte_offset_equations_retain_actual_observation_and_arithmetic_bodies() {
     assert!(check("offset :: using (extra + bytes-len x <= bytes-len out) => (extra :: Nat) -> (x :: Bytes) -> (out :: Bytes) -> refined (r + extra + bytes-len x == bytes-len out) Nat\n  offset extra x out = bytes-len out - (extra + bytes-len x)").is_ok(), "byte offset result equation");
     assert!(check("offset :: using (extra + bytes-len x <= bytes-len out) => (extra :: Nat) -> (x :: Bytes) -> (out :: Bytes) -> refined (r + extra + bytes-len x == bytes-len out + 1) Nat\n  offset extra x out = bytes-len out - (extra + bytes-len x)").is_err(), "wrong byte offset result equation");
