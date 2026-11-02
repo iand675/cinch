@@ -50,3 +50,13 @@ Each gadget changes a quantity its section is about and animates only when the r
 | Element count and run | SIMD | How elements split into four-lane loads and a scalar tail |
 | Body / contract | Incremental builds | Which dependents rebuild; affected nodes pulse once |
 | Run an upgrade | Hot reload | Steps through prepare, coordinate, activate, retire |
+
+## Copy-editing pass (2026-11-02)
+
+The user asked for a pass using the copy-editing skill's seven sweeps (clarity, voice, so what, prove it, specificity, emotion, zero risk) and its AI-tell check, with the page written for Cinch 1.0. Rules that came out of it:
+
+- Each section says what the reader gets in their own work: validate once at the edge, generate code from a schema and have a generator bug fail the build, ship a fix without a restart, keep existing C and Rust libraries.
+- Examples come from ordinary services (average order value, a payment captured twice, an order shipped or refunded, log lines), not from type theory.
+- Each call to action answers the likely hesitation next to it: platforms and no Haskell required in the hero; chapter 1 from an empty directory and proofs waiting until chapter 14 at the close.
+- Avoid repeated two-fragment "X. Y." headlines, "keeps A, not B" contrasts, and insider terms (dispatch epoch, codata, version-coexistence protocol) in body copy.
+- Do not invent proof. Adoption, testimonials, benchmark numbers, and licence terms stay off the page until real ones exist.

@@ -89,7 +89,7 @@
 .manifesto h2 span { color: #a64b27; }.manifesto-copy { max-width: 480px; }
 .manifesto-copy > p:first-child { font-size: clamp(1.15rem,1.7vw,1.5rem); line-height: 1.5; letter-spacing: -.02em; }
 .manifesto-copy > p:nth-child(2) { margin-top: 1.4rem; font-size: .92rem; line-height: 1.85; color: #70634e; }
-.manifesto-copy .text-link { margin-top: 1.7rem; }
+.manifesto-copy .text-link { margin-top: 1.7rem; }.manifesto-copy > p + p + p { margin-top: 1rem; font-size: .92rem; line-height: 1.85; color: #70634e; }.manifesto-copy code { font: .9em 'IBM Plex Mono',monospace; color: #8a4c28; }.hero-note { margin-top: 1.4rem !important; max-width: 400px; color: #8f8d7e; font-size: .78rem; line-height: 1.7; }.closing-note { margin: -2rem 0 0 !important; padding-bottom: 1rem; max-width: 520px; font-size: .9rem; line-height: 1.7; color: #3b2a19; }
 .proof-section { padding: 2.5rem 4.5% 5rem; background: #252a21; color: #eee6d5; }
 .proof-section .section-index { color: #aaa58b; }
 .proof-grid { display: grid; grid-template-columns: 1.1fr 1fr; gap: 7%; align-items: center; padding-top: 2.5rem; }
