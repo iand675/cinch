@@ -3047,6 +3047,8 @@ pub struct LitFold {
     pub kind: String,
     /// Whether the construction folded to a constant value.
     pub folded: bool,
+    /// Checked result type retained while reifying constructor constants.
+    result_ty: Ty,
 }
 
 /// How a build treats compile-time I/O (modules specification section 10).
@@ -4851,7 +4853,8 @@ impl Checker {
         match e {
             ECore::LitFold { idx, body } => {
                 let idx = *idx;
-                match if fold { self.fold_constant(body) } else { None } {
+                let result_ty = self.uni.zonk(&self.literal_folds[idx].result_ty);
+                match if fold { self.fold_constant(body, &result_ty) } else { None } {
                     Some(k) => {
                         self.literal_folds[idx].folded = true;
                         self.literal_folds[idx].unit = unit.to_string();
@@ -4934,7 +4937,7 @@ impl Checker {
     /// it is stage-known and evaluates to a constant value. Anything
     /// else (free runtime values, code the evaluator cannot run, a value
     /// with no constant form) keeps the runtime class call.
-    fn fold_constant(&mut self, body: &ECore) -> Option<ECore> {
+    fn fold_constant(&mut self, body: &ECore, ty: &Ty) -> Option<ECore> {
         let mut free = Vec::new();
         free_locals(body, &mut Vec::new(), &mut free);
         if !free.is_empty() || fold_blocked(body) {
@@ -4950,7 +4953,42 @@ impl Checker {
         // would without the fold.
         let v = self.eval_core(&mut cx, &core, &mut frame).ok()?;
         let string_ctor = self.string_ctor_id().0;
-        reify_value(&v, &string_ctor)
+        self.reify_constant(&v, ty, &string_ctor)
+    }
+
+    /// Preserve constructor instantiations when folding a collection. A
+    /// type-erased constructor defaults its fields to Raw, which leaks
+    /// bignums and objects that the list or map owns.
+    fn reify_constant(&self, value: &crate::core::Value, ty: &Ty, string_ctor: &str) -> Option<ECore> {
+        // A generalized literal can still carry an unsolved original
+        // metavariable. Preserve its typed runtime construction instead
+        // of letting an unknown constructor argument default to Raw.
+        if !self.uni.free_metas(ty).is_empty() { return None; }
+        let crate::core::Value::Adt { ctor, fields, .. } = value else {
+            return reify_value(value, string_ctor);
+        };
+        if ctor == string_ctor { return reify_value(value, string_ctor); }
+        let (args, field_types) = match self.uni.zonk(ty) {
+            Ty::Tuple(types) => (types.clone(), types),
+            Ty::Adt(name, args) => {
+                let info = self.lookup_type(&[&name]).ok()?;
+                let cname = ctor.rsplit('.').next()?;
+                let defining = self.ctor_of_type(&info, cname).ok()?;
+                if format!("{}.{}", defining.module, defining.name) != *ctor { return None; }
+                let parts = self.ctor_parts(&defining, &args).ok()?;
+                if !parts.local_idx.is_empty() { return None; }
+                let inst = args.iter().zip(&info.param_kinds).filter_map(|(a, kind)|
+                    matches!(kind, ParamKind::Type | ParamKind::Con(_)).then(|| a.clone())).collect();
+                (inst, parts.fields.into_iter().filter_map(|(_, ty, erased)| (!erased).then_some(ty)).collect())
+            }
+            _ => return None,
+        };
+        if fields.len() != field_types.len() { return None; }
+        let mut out = ECore::Ctor(GlobalId(ctor.clone()), args);
+        for (field, ty) in fields.iter().zip(field_types) {
+            out = app_spine(out, vec![self.reify_constant(field, &ty, string_ctor)?]);
+        }
+        Some(out)
     }
 
     /// An index term as runtime code (core specification section 3:

@@ -1,0 +1,41 @@
+{
+  "actual_stages": "fresh actual stagechain required for this producer; precedingf88 sixsmokespass,stage2exit4with1454diagnostics firstText.Parse.line-text-at projection",
+  "archive_patch_reproduces_tested_sources": true,
+  "bootstrap_achieved": false,
+  "coverage": [
+    "object list heads with nested string and bignum fields",
+    "direct small and bignum tagged integer list heads",
+    "leaked=0 and RC-debug execution",
+    "generalized unresolved result falls back to typed runtime construction"
+  ],
+  "current_full_suite": "188+5 running on preceding8ea856a source epoch; not a complete suite pass for this new Native/producer checkpoint",
+  "fix": "reify constant collections through checked result, constructor and runtime field types; preserve concrete constructor class vectors; refuse unresolved generalized result types",
+  "interface_schema": 8,
+  "modern_native_source_sha256": "151fe9522bda4f522c0b7230a7054e1bd1bf3b23d945ec33cbefef09e68d5621",
+  "modern_source_sha256": "3699ffd334cec42d8bed63491dec9be4db4cb7dfea5a0613b5c9c61ba7092d60",
+  "modern_tests": {
+    "folded_ownership": 2,
+    "ownership": 21,
+    "surface": 17,
+    "total": 182,
+    "units": 142
+  },
+  "patch_sha256": "f0349db101a6a7034a9b93e85922bf90deece3341586e20a53dc40d1f84282c3",
+  "producer_scope": "previous f88 producer plus only the collection ownership repairs; excludes later syntax/tactic prototypes and staged ABI6 arrays",
+  "producer_source_sha256": "d04131978b309b2a20cdf074690518d3b8d4abec4b1018bc83ff770a6920f2f1",
+  "producer_tests": {
+    "folded_ownership": 2,
+    "ownership": 20,
+    "surface": 16,
+    "total": 180,
+    "units": 142
+  },
+  "runtime_abi": 5,
+  "seed_source_sha256": "b16efd1d2213cf15505fa8a4b55ad3c71fd2f85635bfecaaf75c955193e041a5",
+  "self_built_frontend_suite": false,
+  "status": "passed two independently validated Native source epochs",
+  "upstream_commits": [
+    "444697570c772a7b480636f0ff90bff858839219",
+    "dfc5350704eef3bc4a75ac25c395d6b845b4837a"
+  ]
+}

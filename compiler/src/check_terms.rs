@@ -433,6 +433,7 @@ impl Checker {
             site: format!("{}:{}", span.line, span.col),
             kind: if map { "map" } else { "list" }.to_string(),
             folded: false,
+            result_ty: result.clone(),
         });
         Ok((
             ECore::LitFold {
@@ -511,6 +512,7 @@ impl Checker {
             site: format!("{}:{}", span.line, span.col),
             kind: "range".to_string(),
             folded: false,
+            result_ty: result.clone(),
         });
         Ok((
             ECore::LitFold {

@@ -2,6 +2,16 @@
 
 ## Current verification boundary
 
+Rust now retains the checked collection type when reifying constant lists and
+their constructors. Counted object and tagged bignum heads keep their actual
+class vectors; unresolved generalized result types retain typed runtime
+construction. Both leak-debug regressions pass, including direct small/bignum
+integer heads. The modern Native compiler passes182 focused checks. Separately,
+the previous f88 producer with only this repair passes180 checks; archive plus
+patch reproduces those exact sources as the intentionally pinned b16efd1 seed.
+ABI5/schema8 remain unchanged, and ABI6 arrays remain isolated. A new stage
+chain is required for this producer. See [the ownership report](../bootstrap/native-fold-ownership-results.json).
+
 The complete Text.Lex source now passes the independently compiled Cinch
 checker. It reaches only the emitter's explicit runtime-layout refusals.
 Attribute-name validation binds its string length once; attribute trimming
