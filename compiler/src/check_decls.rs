@@ -6587,7 +6587,7 @@ impl Checker {
             );
             self.current_logical = None;
             self.cur_tparams = tparams;
-            return self.finish_fn(id.clone(), param_ids, body, None, None, true, meta);
+            return self.finish_fn(id.clone(), param_ids, body, None, None, true, meta, None);
         }
         self.pending_refs.clear();
         self.current_logical = None;
@@ -6601,7 +6601,8 @@ impl Checker {
             );
         }
         self.cur_tparams = tparams;
-        self.finish_fn(id.clone(), param_ids, body, None, None, false, meta)
+        let total_result = self.total_sort(&self.uni.zonk(&rest), &mut Vec::new());
+        self.finish_fn(id.clone(), param_ids, body, None, None, false, meta, total_result)
     }
 
     /// Structural termination for the logical fragment (core
@@ -6768,6 +6769,7 @@ impl Checker {
         ctor: Option<(usize, usize)>,
         erased: bool,
         meta: crate::core::FnMeta,
+        total_result: Option<crate::total::Sort>,
     ) -> Result<()> {
         let sol = self.solve_wants()?;
         // Evidence invalidation over mutable state: regions unify during
@@ -6806,6 +6808,9 @@ impl Checker {
                 self.fold_pass(core, &mid, true);
             }
             self.fold_pass(&mut body, &id.0.clone(), true);
+        }
+        if !erased && prim.is_none() && ctor.is_none() && meta.pure && !meta.prim_body {
+            if let Some(result) = total_result { self.remember_total_body(&id, &param_ids, result, &body); }
         }
         let mut hoisted = Vec::new();
         hoist_lambdas(&mut body, &id.0, &mut self.lam_counter, &mut hoisted);
@@ -9314,8 +9319,10 @@ impl Checker {
             });
             main_exit = Some(exit_id);
         }
+        let total_bodies = self.checked_total_bodies();
         let (plans, foreigns) = self.build_abi_maps();
         Ok(Program {
+            total_bodies,
             fns: self.fns,
             instances: self.instance_defs,
             main: main_exit,

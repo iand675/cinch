@@ -6110,6 +6110,7 @@ mod tests {
     fn main_prog(mut fns: Vec<FnDef>, body: Core) -> Program {
         fns.push(thunk("program.main", body));
         Program {
+            total_bodies: crate::total::CheckedGraph::empty(),
             rewrites: Vec::new(),
             fns,
             instances: vec![],

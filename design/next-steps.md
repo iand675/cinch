@@ -1,5 +1,32 @@
 # Next steps (as of 2026-11-02)
 
+The next imported-contract foundation now carries actual closed total bodies.
+Native records checked first-order bodies and follows the selected dictionary
+field to its real method and fixed primitive operations. An independently
+compiled Cinch checker validates scope, sorts, arities, closure and acyclicity.
+It derives finite result bounds from checked literal leaves, lets and subcalls:
+the actual `Data.String.utf8-encode-width` body has bounds `1..4`, while changing
+an ordinary helper's body changes its bounds. Unknown values remain unknown.
+Cached callers retain current semantic dependencies and lose authority when a
+callee becomes cyclic or unavailable. Closed-root projection excludes unrelated
+bodies while retaining the complete dependency closure.
+
+The compiled Cinch target, seven Native body regressions, 140 compiler units,
+whole incremental target and two interface targets pass. The complete new
+172+5 Native-assisted matrix and fresh stage chain are running. The frozen
+validation snapshot is `bc9fed0a468ac0137b9e4881dfe42fc09c50f2267fd2bf0874f44a834751bc1d`. Exact evidence and limits are in
+[the total-body report](../bootstrap/total-body-checkpoint-results.json).
+
+This standalone version-1 body format is not yet admitted by `.cinchif` schema7.
+The type/Core total-call bridge, declaration/refinement and package association,
+and actual-body authority for numeric methods remain to be connected. No new
+imported measure header has been cleared by this work. The pinned stage0 is
+unchanged and does not contain the new development Native producer. Later stages
+must receive only checked base-library contracts, never Native-produced compiler
+implementation bodies. Full self-hosting, typed runtime lowering and the
+self-built frontend suite remain unfinished.
+
+## Previous source-decision checkpoint (614bed9)
 Source `decide` now elaborates checked numeric and NonZero predicates into
 retained Core decisions. Logical operators follow the parser's short-circuit
 conditionals. Expected propositions are used only when the independent kernel

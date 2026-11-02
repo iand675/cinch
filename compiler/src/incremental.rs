@@ -585,6 +585,7 @@ fn path_ref(kind: RefKind, segments: &[ast::Name], span: crate::lexer::Span) -> 
 /// One module's cached checked state (user and prelude modules alike).
 #[derive(Clone, Debug, Default)]
 struct ModuleState {
+    total_bodies: Vec<crate::total::Definition>,
     imports: Vec<String>,
     source_hash: String,
     iface: Option<Iface>,
@@ -773,6 +774,7 @@ struct Layouts {
 /// A checked run's raw global lists (pre-optimization).
 #[derive(Clone, Debug, Default)]
 struct RunLists {
+    total_bodies: crate::total::CheckedGraph,
     fns: Vec<FnDef>,
     instances: Vec<InstanceDef>,
     laws: Vec<LawRow>,
@@ -788,6 +790,10 @@ fn since_ms(t: std::time::Instant) -> f64 {
 }
 
 impl Session {
+    pub fn total_bodies(&mut self) -> Result<crate::total::CheckedGraph> {
+        Ok(self.merged_program()?.total_bodies)
+    }
+
     /// Open the project at `entry` and run a full cold build.
     pub fn open(entry: &Path) -> Result<(Session, SessionReport)> {
         let root = entry
@@ -1280,6 +1286,12 @@ impl Session {
                 None => loose.push(f.clone()),
             }
         }
+        let mut totals_by: HashMap<String, Vec<crate::total::Definition>> = HashMap::new();
+        for definition in program.total_bodies.definitions() {
+            if let Some(owner) = owner_module(&definition.identity, &all).or_else(|| slice.last().cloned()) {
+                totals_by.entry(owner).or_default().push(definition.clone());
+            }
+        }
         let mut inst_by: HashMap<String, Vec<InstanceDef>> = HashMap::new();
         for i in &program.instances {
             if let Some(m) = owner_module(&i.id.0, &all) {
@@ -1369,6 +1381,7 @@ impl Session {
             st.source_hash = hashes.get(m).cloned().unwrap_or_default();
             st.iface = Some(iface.clone());
             st.fns = fresh_fns;
+            st.total_bodies = totals_by.remove(m).unwrap_or_default();
             st.instances = inst_by.remove(m).unwrap_or_default();
             st.laws = laws_by.remove(m).unwrap_or_default();
             st.rewrites = rew_by.remove(m).unwrap_or_default();
@@ -1392,6 +1405,7 @@ impl Session {
         // The run's raw lists: a full run is its own canonical order.
         let full = slice_set.len() == self.order.len();
         self.run = Some(RunLists {
+            total_bodies: program.total_bodies.clone(),
             fns: program.fns.clone(),
             instances: program.instances.clone(),
             laws: program.laws.clone(),
@@ -1542,6 +1556,7 @@ impl Session {
             if run.full {
                 let main_exit = self.main_exit.clone().map(crate::core::GlobalId);
                 return Ok(Program {
+                    total_bodies: run.total_bodies,
                     fns: run.fns,
                     instances: run.instances,
                     main: main_exit,
@@ -1588,7 +1603,9 @@ impl Session {
             .map(|p| format!("{}.{}", p.module, p.name))
             .collect();
         self.layouts.prims = segment_ids(&prim_ids, &self.all_modules);
+        let total_bodies = crate::total::CheckedGraph::closed_subset(self.states.values().flat_map(|s| s.total_bodies.clone()).collect());
         Ok(Program {
+            total_bodies,
             fns,
             instances,
             main: main_exit,

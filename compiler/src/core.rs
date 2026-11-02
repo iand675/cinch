@@ -2835,6 +2835,9 @@ pub struct InstanceDef {
 
 #[derive(Clone, Debug)]
 pub struct Program {
+    /// Typed, acyclic primitive body descriptions captured from actual checked
+    /// definitions. Not admitted by schema-7 interfaces.
+    pub total_bodies: crate::total::CheckedGraph,
     pub fns: Vec<FnDef>,
     pub instances: Vec<InstanceDef>,
     /// The synthesized exit adapter for `main :: Int`, when the entry module
@@ -6784,6 +6787,7 @@ mod tests {
             });
         }
         let mut program = Program {
+            total_bodies: crate::total::CheckedGraph::empty(),
             fns, instances: vec![], main: None, rewrites: vec![],
             plans: Default::default(), foreigns: Default::default(),
             prims: vec![], laws: vec![],

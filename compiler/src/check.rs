@@ -2672,6 +2672,7 @@ struct Checker {
     /// Captured while checking each source signature, before nominal
     /// definition identities disappear from the legacy `Ty` spelling.
     interface_source_schemes: HashMap<(String, String), DefinitionScheme>,
+    interface_total_bodies: std::collections::BTreeMap<String, crate::total::PendingDefinition>,
     /// Each module's foreign declarations, for its interface.
     module_foreign: Vec<(String, crate::interface::ForeignExport)>,
     /// Real foreign binding contracts by unit name (foreign function
@@ -3212,6 +3213,7 @@ impl Checker {
             module_fixities: Vec::new(),
             interface_binders: HashMap::new(),
             interface_source_schemes: HashMap::new(),
+            interface_total_bodies: std::collections::BTreeMap::new(),
             module_foreign: Vec::new(),
             foreign_plans: Vec::new(),
             pending_foreign: Vec::new(),
@@ -9380,3 +9382,4 @@ fn shifted_meta(meta: &crate::core::FnMeta, k: usize) -> crate::core::FnMeta {
 include!("check_terms.rs");
 include!("check_decls.rs");
 include!("check_interface.rs");
+include!("check_total.rs");

@@ -22,6 +22,7 @@ pub mod repr;
 pub mod specialize;
 pub mod store;
 pub mod types;
+pub mod total;
 
 use std::fmt;
 
