@@ -1,5 +1,29 @@
 # Next steps (as of 2026-11-02)
 
+The independent Cinch checker now selects imported closed conditional
+implementations using the actual checked class head and dictionary slot.
+Lexical dictionaries retain priority. Calls target the real private function,
+retain complete dependent preconditions and discharge them at the actual
+arguments; no unrestricted dictionary or body equation is manufactured.
+Defining nominal/refinement/private measure closure remains available without
+granting source aliases.
+
+All19 runtime-fed source cases and40 independent Core checks pass, together
+with seven whole regressions: dictionary resolution, source instances,
+inference, effects, function preconditions, refinement constructors and the
+pipeline. The current182+5 matrix is running. The seed remains c12617b at
+ABI5/schema8. Definition-owned fixities remain enforced.
+
+The preceding14case consumer passes all six fresh stage0/1 smokes. Actual
+stage2 still exits4: Text.Builder's byte-copy precondition needs the actual
+selected subtraction result equation. Later coverage/type/row diagnostics
+follow a prior Store error; no stage2 compiler, fixed point or self-built suite
+pass is claimed. Actual numeric body authority, handlers, full proof/usage/
+totality and typed runtime lowering remain required. See
+[the conditional consumer report](../bootstrap/conditional-method-consumer-results.json).
+
+## Previous schema regression checkpoint
+
 The remaining stale schema7 assertion in the private-refinement facade
 test now uses the compiler's schema constant. The whole target passes with
 all structural and source-visibility assertions retained. The previous180+5

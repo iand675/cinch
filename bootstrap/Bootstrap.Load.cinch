@@ -265,15 +265,29 @@ module Bootstrap.Load where
     JArrEnd -> True
     other -> False
 
-  instance-methods-valid :: Json -> List Nat -> List String -> Bool
-  instance-methods-valid rows slots names = case rows of
+  conditional-slot :: Nat -> Json -> Option String
+  conditional-slot slot rows = case rows of
+    JArr (JStr identity) rest -> if slot == 0 then Some identity else conditional-slot (slot - 1) rest
+    other -> None
+  conditional-contract-valid :: Nat -> Json -> Json -> Bool
+  conditional-contract-valid slot methods row = case field "checked" row of
+    JNull -> True
+    checked -> let head = field "head" checked in let implementation = field "implementation" checked in
+      (case field "schema" checked of JNum 1 -> True; other -> False)
+      && (case (field "resolved" head, field "resolved" implementation) of (JNull, other) -> False; (other, JNull) -> False; other -> True)
+      && resolved-entry-valid head && resolved-entry-valid implementation
+      && measure-bodies-valid (resolved-measures head) && measure-bodies-valid (resolved-measures implementation)
+      && (case (conditional-slot slot methods, field "identity" implementation) of (Some actual, JStr identity) -> same actual identity && string-length identity > 0; other -> False)
+  instance-methods-valid :: Json -> Json -> List Nat -> List String -> Bool
+  instance-methods-valid rows methods slots names = case rows of
     JArr row rest ->
       let slot = number (field "slot" row) in
       let name = text (field "name" row) in
       nat-p (field "slot" row) && not (member-slot slot slots)
       && string-length name > 0 && not (member name names)
       && string-length (text (field "scheme" row)) > 0
-      && instance-methods-valid rest (Cons slot slots) (Cons name names)
+      && conditional-contract-valid slot methods row
+      && instance-methods-valid rest methods (Cons slot slots) (Cons name names)
     JArrEnd -> True
     other -> False
   member-slot :: Nat -> List Nat -> Bool
@@ -286,7 +300,7 @@ module Bootstrap.Load where
       && string-length (text (field "class" row)) > 0 && string-length (text (field "target" row)) > 0
       && strings-p (field "ctx" row) && strings-p (field "methods" row)
       && (case field "implicit" row of JBool value -> True; other -> False)
-      && resolved-entry-valid row && measure-bodies-valid (resolved-measures row) && instance-methods-valid (field "method_contracts" row) Nil Nil
+      && resolved-entry-valid row && measure-bodies-valid (resolved-measures row) && instance-methods-valid (field "method_contracts" row) (field "methods" row) Nil Nil
       && (case field "method_contracts" row of JArrEnd -> True; other -> (case field "resolved" row of JNull -> True; other -> False))
       && instances-valid rest (Cons identity seen)
     JArrEnd -> True
@@ -472,11 +486,20 @@ module Bootstrap.Load where
   method-nominals rows = case rows of
     JArr row rest -> exported-nominals (field "methods" row) <> method-nominals rest
     other -> Nil
+  conditional-method-nominals :: Json -> List Json
+  conditional-method-nominals rows = case rows of
+    JArr row rest -> let checked = field "checked" row in
+      json-rows (resolved-nominals (field "head" checked)) <> json-rows (resolved-nominals (field "implementation" checked)) <> conditional-method-nominals rest
+    other -> Nil
+  conditional-instance-nominals :: Json -> List Json
+  conditional-instance-nominals rows = case rows of
+    JArr row rest -> conditional-method-nominals (field "method_contracts" row) <> conditional-instance-nominals rest
+    other -> Nil
   interface-nominals :: LoadedInterface -> List Json
   interface-nominals i = let exports = field "exports" (loaded-contract i) in
     exported-nominals (field "values" exports) <> constructor-nominals (field "types" exports)
       <> method-nominals (field "signatures" exports)
-      <> exported-nominals (field "instances" exports)
+      <> exported-nominals (field "instances" exports) <> conditional-instance-nominals (field "instances" exports)
   dependency-names :: List (String, String) -> List String
   dependency-names refs = case refs of Nil -> Nil; Cons (name, hash) rest -> Cons name (dependency-names rest)
   reachable-modules :: List String -> List LoadedInterface -> List String -> List String
@@ -563,7 +586,7 @@ module Bootstrap.Load where
   interface-body-declarations :: LoadedInterface -> List Json
   interface-body-declarations i = let exports = field "exports" (loaded-contract i) in
     value-body-declarations (field "values" exports) <> signature-body-declarations (field "signatures" exports)
-      <> value-body-declarations (field "instances" exports)
+      <> value-body-declarations (field "instances" exports) <> conditional-instance-body-declarations (field "instances" exports)
   prefix-chars :: List Char -> List Char -> Bool
   prefix-chars first second = case (first, second) of
     (Nil, other) -> True
@@ -640,3 +663,14 @@ module Bootstrap.Load where
   missing-dependency remaining loaded = case remaining of
     Nil -> False
     Cons i rest -> missing-ref (loaded-imports i) loaded || missing-dependency rest loaded
+
+
+  conditional-body-declarations :: Json -> List Json
+  conditional-body-declarations rows = case rows of
+    JArr row rest -> let checked = field "checked" row in
+      json-rows (resolved-measures (field "head" checked)) <> json-rows (resolved-measures (field "implementation" checked)) <> conditional-body-declarations rest
+    other -> Nil
+  conditional-instance-body-declarations :: Json -> List Json
+  conditional-instance-body-declarations rows = case rows of
+    JArr row rest -> conditional-body-declarations (field "method_contracts" row) <> conditional-instance-body-declarations rest
+    other -> Nil

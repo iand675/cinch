@@ -53,6 +53,7 @@ module Bootstrap.Infer where
     MkCheckedBinding :: String -> Scheme -> String -> CheckedBinding
     MkBodyBinding :: BodyBinding -> CheckedBinding
     MkMethodBinding :: String -> Scheme -> String -> Nat -> CheckedBinding
+    MkConditionalBinding :: String -> String -> Nat -> String -> UType -> Scheme -> CheckedBinding
     MkGivenBinding :: String -> UType -> String -> CheckedBinding
     MkLocalBinding :: String -> Scheme -> Nat -> Nat -> CheckedBinding
     -- A strict, monomorphic let whose checked RHS has a total index form.
@@ -63,11 +64,11 @@ module Bootstrap.Infer where
     MkErasedBinding :: String -> UType -> Nat -> CheckedBinding
     MkSyntaxBinding :: String -> CheckedBinding
   checked-name :: CheckedBinding -> String
-  checked-name b = case b of MkBodyBinding binding -> binding-name binding; MkCheckedBinding name sc role -> name; MkMethodBinding name sc owner slot -> name; MkGivenBinding name ty symbol -> name; MkLocalBinding name sc id level -> name; MkValueBinding name sc id level value -> name; MkIntrinsicBinding name sc symbol -> name; MkProofBinding fact -> ""; MkErasedBinding name predicate id -> name; MkSyntaxBinding name -> name
+  checked-name b = case b of MkBodyBinding binding -> binding-name binding; MkCheckedBinding name sc role -> name; MkMethodBinding name sc owner slot -> name; MkConditionalBinding name owner slot dictionary head sc -> name; MkGivenBinding name ty symbol -> name; MkLocalBinding name sc id level -> name; MkValueBinding name sc id level value -> name; MkIntrinsicBinding name sc symbol -> name; MkProofBinding fact -> ""; MkErasedBinding name predicate id -> name; MkSyntaxBinding name -> name
   checked-scheme :: CheckedBinding -> Scheme
-  checked-scheme b = case b of MkBodyBinding binding -> binding-scheme binding; MkCheckedBinding name sc role -> sc; MkMethodBinding name sc owner slot -> sc; MkGivenBinding name ty symbol -> mono ty; MkLocalBinding name sc id level -> sc; MkValueBinding name sc id level value -> sc; MkIntrinsicBinding name sc symbol -> sc; MkProofBinding fact -> mono UError; MkErasedBinding name predicate id -> mono predicate; MkSyntaxBinding name -> mono UError
+  checked-scheme b = case b of MkBodyBinding binding -> binding-scheme binding; MkCheckedBinding name sc role -> sc; MkMethodBinding name sc owner slot -> sc; MkConditionalBinding name owner slot dictionary head sc -> sc; MkGivenBinding name ty symbol -> mono ty; MkLocalBinding name sc id level -> sc; MkValueBinding name sc id level value -> sc; MkIntrinsicBinding name sc symbol -> sc; MkProofBinding fact -> mono UError; MkErasedBinding name predicate id -> mono predicate; MkSyntaxBinding name -> mono UError
   checked-role :: CheckedBinding -> String
-  checked-role b = case b of MkBodyBinding binding -> binding-role binding; MkCheckedBinding name sc role -> role; MkMethodBinding name sc owner slot -> "method"; MkGivenBinding name ty symbol -> "dictionary"; MkLocalBinding name sc id level -> "local"; MkValueBinding name sc id level value -> "local"; MkIntrinsicBinding name sc symbol -> "intrinsic"; MkProofBinding fact -> "proof"; MkErasedBinding name predicate id -> "erased-proof"; MkSyntaxBinding name -> "builtin-syntax"
+  checked-role b = case b of MkBodyBinding binding -> binding-role binding; MkCheckedBinding name sc role -> role; MkMethodBinding name sc owner slot -> "method"; MkConditionalBinding name owner slot dictionary head sc -> "external"; MkGivenBinding name ty symbol -> "dictionary"; MkLocalBinding name sc id level -> "local"; MkValueBinding name sc id level value -> "local"; MkIntrinsicBinding name sc symbol -> "intrinsic"; MkProofBinding fact -> "proof"; MkErasedBinding name predicate id -> "erased-proof"; MkSyntaxBinding name -> "builtin-syntax"
   checked-body-binding :: CheckedBinding -> Option BodyBinding
   checked-body-binding binding = case binding of MkBodyBinding body -> Some body; other -> None
   data Elaboration where
@@ -936,7 +937,9 @@ module Bootstrap.Infer where
     other -> (seen, st)
   check-instance-refinements :: Span -> Json -> List (String, String) -> Store -> (List (String, String), Store)
   check-instance-refinements sp rows seen st = case rows of
-    JArr row rest -> case check-refinement-rows sp (resolved-nominals row) seen st of (more, checked) -> check-instance-refinements sp rest more checked
+    JArr row rest -> case check-refinement-rows sp (resolved-nominals row) seen st of
+      (more, checked) -> case check-conditional-refinements sp (field "method_contracts" row) more checked of
+        (all, done) -> check-instance-refinements sp rest all done
     other -> (seen, st)
   check-type-refinements :: Span -> Json -> List (String, String) -> Store -> (List (String, String), Store)
   check-type-refinements sp rows seen st = case rows of
@@ -1163,6 +1166,8 @@ module Bootstrap.Infer where
               JStr native -> (case collect-total-metadata sp name native metadata classes with-private checked of
                 (more, done) -> collect-body-contracts rest classes more done)
               other -> (kinds, add-error sp "total body has no actual exported symbol" checked))))
+    Cons (DInterface sp name hash metadata) rest -> case collect-conditional-instance-measures sp (field "instances" (field "exports" metadata)) classes kinds st of
+      (more, done) -> collect-body-contracts rest classes more done
     Cons other rest -> collect-body-contracts rest classes kinds st
   observation-bindings :: List ByteObservation -> List CheckedBinding
   observation-bindings observations = case observations of
@@ -1926,12 +1931,10 @@ module Bootstrap.Infer where
     UProofFun predicate effects result -> case erased-argument sp env arg predicate st of
       (witness, checked) -> discharge-call classes sp env (CErasedApply sp result effects fun witness) checked
     UPi id name domain effects result -> case check classes kinds families env locals arg domain st of
-      (value, checked) -> if pi-dependent (normalize checked (core-type fun)) then
-        (apply-dependent classes sp env fun value checked)
-        else discharge-call classes sp env (applied-core sp result effects fun value) checked
+      (value, checked) -> apply-runtime-argument classes sp env fun value checked
     other -> case arrow-parts sp (core-type fun) st of
       (a, row, b, sf) -> case check classes kinds families env locals arg a sf of
-        (value, checked) -> discharge-call classes sp env (applied-core sp b (normalize checked row) fun value) checked
+        (value, checked) -> apply-runtime-argument classes sp env fun value checked
   erased-argument :: Span -> List CheckedBinding -> Expr -> UType -> Store -> (CoreTerm, Store)
   erased-argument sp env syntax expected st = case syntax of
     EVar at name -> (case lookup-binding name env of
@@ -2295,6 +2298,7 @@ module Bootstrap.Infer where
     MkBodyBinding binding -> b
     MkCheckedBinding n sc role -> MkCheckedBinding n (map-scheme-types (normalize st) sc) role
     MkMethodBinding n sc owner slot -> MkMethodBinding n (map-scheme-types (normalize st) sc) owner slot
+    MkConditionalBinding n owner slot dictionary head sc -> MkConditionalBinding n owner slot dictionary (normalize st head) (map-scheme-types (normalize st) sc)
     MkGivenBinding n ty symbol -> MkGivenBinding n (normalize st ty) symbol
     MkLocalBinding n sc id level -> MkLocalBinding n (map-scheme-types (normalize st) sc) id level
     MkValueBinding n sc id level value -> MkValueBinding n (map-scheme-types (normalize st) sc) id level (normalize st value)
@@ -2311,6 +2315,7 @@ module Bootstrap.Infer where
       MkBodyBinding binding -> add-global (GlobalBody (GlobalValue (binding-name binding) (binding-role binding) (binding-scheme binding)) binding) globals
       MkCheckedBinding name sc role -> add-global (GlobalValue name role sc) globals
       MkMethodBinding name sc owner slot -> add-global (GlobalMethod name owner slot sc) globals
+      MkConditionalBinding name owner slot dictionary head sc -> add-global (GlobalValue name "external" sc) globals
       MkIntrinsicBinding name sc symbol -> add-global (GlobalValue symbol "intrinsic" sc) globals
       other -> globals)
   field-globals :: List CoreDictionaryField -> List CoreGlobal -> List CoreGlobal
@@ -2454,8 +2459,9 @@ module Bootstrap.Infer where
     let aliases-checked = validate-refinements nominal-kinds (context-aliases nominal-kinds) sk in
     let (kinds, body-store) = collect-body-contracts ds classes nominal-kinds aliases-checked in
     let (values, sv) = register rows classes kinds ds (context-body-bindings kinds <> builtins) body-store in
-    let (env, si) = register-implicit-instances classes kinds ds values sv in
-    let se = check-instance-coherence (env-instances env) si in
+    let (ordinary-env, si) = register-implicit-instances classes kinds ds values sv in
+    let (env, conditional-store) = register-conditional-instances rows classes kinds ds ordinary-env si in
+    let se = check-instance-coherence (env-instances env <> conditional-heads env Nil) conditional-store in
     let families = Cons ("Bool", ["True", "False"]) (Cons ("b.Dec", ["b.Yes", "b.No"]) (families-of ds <> imported-families ds)) in
     let (effects, sx) = case store-errors se of Nil -> checked-effects kinds env ds se; other -> (Nil, se) in
     let (descriptions, instances, sm) = case store-errors sx of Nil -> checked-source-instances rows classes kinds families env ds Nil sx; other -> (Nil, Nil, sx) in
@@ -2642,6 +2648,7 @@ module Bootstrap.Infer where
         CRefine source ty evidence body -> materialize-dependent classes sp env fun value st
         CRefineProof source ty witness body -> materialize-dependent classes sp env fun value st
         CErasedApply source ty row callee witness -> materialize-dependent classes sp env fun value st
+        CDischarge source ty evidence body -> materialize-dependent classes sp env fun value st
         other -> (CError sp, checked)
   materialize-dependent :: List (String, Kind) -> Span -> List CheckedBinding -> CoreTerm -> CoreTerm -> Store -> (CoreTerm, Store)
   materialize-dependent classes sp env fun value st = case fresh-id st of
@@ -2663,13 +2670,24 @@ module Bootstrap.Infer where
               (call, done) -> let result = core-type call in
                 (CLet sp result function-id function-name function-scheme fun (CLet sp result value-id value-name value-scheme value call), done)
 
+  collect-contract-nominals :: Span -> Json -> TypeContext -> Store -> (TypeContext, Store)
+  collect-contract-nominals sp row kinds st = case resolved-text row of
+    None -> (kinds, st)
+    Some text -> if resolved-entry-valid row then collect-nominal-rows sp (resolved-nominals row) kinds st
+      else (kinds, add-error sp "invalid resolved declaration nominal contract" st)
+  collect-conditional-nominals :: Span -> Json -> TypeContext -> Store -> (TypeContext, Store)
+  collect-conditional-nominals sp rows kinds st = case rows of
+    JArr row rest -> let checked = field "checked" row in
+      case collect-contract-nominals sp (field "head" checked) kinds st of
+        (head, sh) -> case collect-contract-nominals sp (field "implementation" checked) head sh of
+          (actual, sa) -> collect-conditional-nominals sp rest actual sa
+    JArrEnd -> (kinds, st)
+    other -> (kinds, st)
   collect-instance-nominals :: Span -> Json -> TypeContext -> Store -> (TypeContext, Store)
   collect-instance-nominals sp rows kinds st = case rows of
-    JArr row rest -> case resolved-text row of
-      None -> collect-instance-nominals sp rest kinds st
-      Some text -> if resolved-entry-valid row then
-        (case collect-nominal-rows sp (resolved-nominals row) kinds st of (more, checked) -> collect-instance-nominals sp rest more checked)
-        else (kinds, add-error sp "invalid implicit instance nominal contract" st)
+    JArr row rest -> case collect-contract-nominals sp row kinds st of
+      (ordinary, checked) -> case collect-conditional-nominals sp (field "method_contracts" row) ordinary checked of
+        (all, done) -> collect-instance-nominals sp rest all done
     JArrEnd -> (kinds, st)
     other -> (kinds, add-error sp "invalid instance contract array" st)
   env-instances :: List CheckedBinding -> List (String, Scheme)
@@ -2695,3 +2713,141 @@ module Bootstrap.Infer where
     Cons (DInterface sp name hash metadata) rest -> case register-instance-rows classes kinds sp (field "instances" (field "exports" metadata)) env st of
       (more, checked) -> register-implicit-instances classes kinds rest more checked
     Cons other rest -> register-implicit-instances classes kinds rest env st
+
+
+  -- A conditional instance supplies individual callable declarations. It is
+  -- never added to env-instances: generic dictionaries remain unavailable.
+  conditional-heads :: List CheckedBinding -> List String -> List (String, Scheme)
+  conditional-heads env seen = case env of
+    Nil -> Nil
+    Cons (MkConditionalBinding name owner slot dictionary head sc) rest -> let key = dictionary in
+      if has key seen then conditional-heads rest seen else Cons (name, mono head) (conditional-heads rest (Cons key seen))
+    Cons other rest -> conditional-heads rest seen
+  conditional-member :: Nat -> List CoreClassMethod -> Option CoreClassMethod
+  conditional-member slot methods = case methods of Nil -> None; Cons member rest -> if slot == class-method-slot member then Some member else conditional-member slot rest
+  conditional-erasure :: UType -> UType
+  conditional-erasure ty = case ty of
+    URequire predicates result -> conditional-erasure result
+    UFun domain result -> UFun domain (conditional-erasure result)
+    UFunEff domain row result -> UFunEff domain row (conditional-erasure result)
+    UPi id name domain row result -> let output = conditional-erasure result in
+      if contains-meta id (type-free-bound output) then UPi id name domain row output else function-type domain row output
+    other -> ty
+  conditional-precondition :: UType -> Bool
+  conditional-precondition ty = case ty of
+    URequire (UArg first rest) result -> True
+    UFun domain result -> conditional-precondition result
+    UFunEff domain row result -> conditional-precondition result
+    UPi id name domain row result -> conditional-precondition result
+    other -> False
+  closed-conditional-scheme :: Scheme -> Bool
+  closed-conditional-scheme sc = contract-scheme-closed sc && (case (scheme-params sc, scheme-requirements sc) of (Nil, Nil) -> True; other -> False)
+  register-conditional-methods :: List Json -> List (String, Kind) -> TypeContext -> Span -> String -> Json -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-conditional-methods descriptions classes kinds sp dictionary methods env st = case methods of
+    JArr row rest -> case field "checked" row of
+      JNull -> register-conditional-methods descriptions classes kinds sp dictionary rest env st
+      checked -> case (field "slot" row, field "identity" (field "implementation" checked)) of
+        (JNum number, JStr native) -> if number < 0 then (env, add-error sp "conditional method slot is negative" st) else
+          let slot = nat-from-int number in let name = interface-global native in
+          let (head, sh) = imported-scheme sp classes kinds (TUnmodeled sp "conditional head") (field "head" checked) st in
+          -- The legacy class field is display text. Only the checked head
+          -- carries the declaring class's actual canonical identity.
+          let owner = case root-name (scheme-body head) of Some canonical -> canonical; None -> "" in
+          let (actual, sa) = imported-scheme sp classes kinds (TUnmodeled sp "conditional implementation") (field "implementation" checked) sh in
+          (case typed-class sp owner descriptions classes kinds sa of
+            (Some description, sd) -> (case conditional-member slot (class-methods description) of
+              Some member -> (case specialize-method description head member of
+                Some expected -> if closed-conditional-scheme head && closed-conditional-scheme actual && closed-conditional-scheme expected
+                  && (case root-name (scheme-body head) of Some actual-owner -> same owner actual-owner; None -> False)
+                  && conditional-precondition (scheme-body actual)
+                  && scheme-equivalent expected (mono (conditional-erasure (scheme-body actual))) then
+                    (case lookup-binding name env of
+                      None -> register-conditional-methods descriptions classes kinds sp dictionary rest (Cons (MkConditionalBinding name owner slot dictionary (scheme-body head) actual) env) sd
+                      Some prior -> (env, add-error sp "duplicate conditional implementation identity" sd))
+                  else (env, add-error sp "conditional implementation disagrees with its actual class member" sd)
+                None -> (env, add-error sp "conditional implementation has no checked class specialization" sd))
+              None -> (env, add-error sp "conditional implementation has no actual defining method slot" sd))
+            (None, failed) -> (env, failed))
+        other -> (env, add-error sp "invalid checked conditional method declaration" st)
+    JArrEnd -> (env, st)
+    other -> (env, add-error sp "invalid conditional method array" st)
+  register-conditional-rows :: List Json -> List (String, Kind) -> TypeContext -> Span -> Json -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-conditional-rows descriptions classes kinds sp rows env st = case rows of
+    JArr row rest -> case (field "implicit" row, field "class" row, field "id" row) of
+      (JBool True, JStr owner, JStr dictionary) -> (case register-conditional-methods descriptions classes kinds sp dictionary (field "method_contracts" row) env st of
+        (more, done) -> register-conditional-rows descriptions classes kinds sp rest more done)
+      other -> register-conditional-rows descriptions classes kinds sp rest env st
+    JArrEnd -> (env, st)
+    other -> (env, add-error sp "invalid conditional instance rows" st)
+  register-conditional-instances :: List Json -> List (String, Kind) -> TypeContext -> List Decl -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-conditional-instances descriptions classes kinds ds env st = case ds of
+    Nil -> (env, st)
+    Cons (DInterface sp name hash metadata) rest -> (case register-conditional-rows descriptions classes kinds sp (field "instances" (field "exports" metadata)) env st of
+      (more, done) -> register-conditional-instances descriptions classes kinds rest more done)
+    Cons other rest -> register-conditional-instances descriptions classes kinds rest env st
+
+
+  -- Ordinary lexical/implicit dictionaries are tried first. A conditional
+  -- fallback redirects only a fully known defining class/slot to its checked
+  -- private implementation. Its complete URequire type remains on the call.
+  conditional-function :: Span -> String -> Nat -> UType -> UType -> List CheckedBinding -> Store -> (Option CoreTerm, Store)
+  conditional-function sp owner slot wanted member env st = case env of
+    Nil -> (None, st)
+    Cons (MkConditionalBinding name actual-owner actual-slot dictionary head sc) rest ->
+      if same owner actual-owner && slot == actual-slot then
+        let trial = unify sp wanted head st in
+        if list-length (store-errors trial) == list-length (store-errors st)
+          && scheme-equivalent (mono (normalize trial member)) (mono (conditional-erasure (scheme-body sc))) then
+          (Some (CUse sp (scheme-body sc) name "external" Nil), trial)
+        else conditional-function sp owner slot wanted member rest st
+      else conditional-function sp owner slot wanted member rest st
+    Cons other rest -> conditional-function sp owner slot wanted member rest st
+  conditional-prefix :: List (String, Kind) -> Span -> List CheckedBinding -> CoreTerm -> Store -> (Option CoreTerm, Store)
+  conditional-prefix classes sp env term st = case term of
+    CMethod source ty name owner slot actuals evidence ->
+      let (ordinary, trial) = resolve-ready-term classes (env-instances env) (env-givens env) term st in
+      if list-length (store-errors trial) == list-length (store-errors st) then (Some ordinary, trial)
+      else (case evidence of
+        Cons (CENeeded at wanted candidates) rest -> if list-length (free-metas st wanted) == 0 then conditional-function sp owner slot (normalize st wanted) (normalize st ty) env st else (None, st)
+        other -> (None, st))
+    CApply source ty function argument -> (case conditional-prefix classes sp env function st of
+      (Some callee, checked) -> (case apply-checked-runtime classes sp env callee argument checked of (out, done) -> (Some out, done))
+      (None, checked) -> (None, checked))
+    CApplyEff source ty row function argument -> (case conditional-prefix classes sp env function st of
+      (Some callee, checked) -> (case apply-checked-runtime classes sp env callee argument checked of (out, done) -> (Some out, done))
+      (None, checked) -> (None, checked))
+    other -> (None, st)
+  apply-runtime-argument :: List (String, Kind) -> Span -> List CheckedBinding -> CoreTerm -> CoreTerm -> Store -> (CoreTerm, Store)
+  apply-runtime-argument classes sp env fun value st = case store-errors st of
+    Nil -> (case conditional-prefix classes sp env fun st of
+      (Some callee, checked) -> apply-checked-runtime classes sp env callee value checked
+      (None, checked) -> apply-checked-runtime classes sp env fun value checked)
+    other -> (CError sp, st)
+  apply-checked-runtime :: List (String, Kind) -> Span -> List CheckedBinding -> CoreTerm -> CoreTerm -> Store -> (CoreTerm, Store)
+  apply-checked-runtime classes sp env fun value st = case normalize st (core-type fun) of
+    UPi id name domain effects result -> let checked = unify sp domain (core-type value) st in
+      if pi-dependent (normalize checked (core-type fun)) then apply-dependent classes sp env fun value checked
+      else discharge-call classes sp env (applied-core sp result effects fun value) checked
+    other -> case arrow-parts sp (core-type fun) st of
+      (domain, row, result, shaped) -> discharge-call classes sp env (applied-core sp result (normalize shaped row) fun value) (unify sp domain (core-type value) shaped)
+
+
+  check-conditional-refinements :: Span -> Json -> List (String, String) -> Store -> (List (String, String), Store)
+  check-conditional-refinements sp rows seen st = case rows of
+    JArr row rest -> let checked = field "checked" row in
+      case check-refinement-rows sp (resolved-nominals (field "head" checked)) seen st of
+        (head, sh) -> case check-refinement-rows sp (resolved-nominals (field "implementation" checked)) head sh of
+          (actual, sa) -> check-conditional-refinements sp rest actual sa
+    other -> (seen, st)
+  collect-conditional-measures :: Span -> Json -> List (String, Kind) -> TypeContext -> Store -> (TypeContext, Store)
+  collect-conditional-measures sp rows classes kinds st = case rows of
+    JArr row rest -> let checked = field "checked" row in
+      case collect-private-measures sp (resolved-measures (field "head" checked)) classes kinds st of
+        (head, sh) -> case collect-private-measures sp (resolved-measures (field "implementation" checked)) classes head sh of
+          (actual, sa) -> collect-conditional-measures sp rest classes actual sa
+    other -> (kinds, st)
+  collect-conditional-instance-measures :: Span -> Json -> List (String, Kind) -> TypeContext -> Store -> (TypeContext, Store)
+  collect-conditional-instance-measures sp rows classes kinds st = case rows of
+    JArr row rest -> case collect-conditional-measures sp (field "method_contracts" row) classes kinds st of
+      (more, done) -> collect-conditional-instance-measures sp rest classes more done
+    other -> (kinds, st)
