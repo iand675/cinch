@@ -349,15 +349,24 @@ impl Checker {
             ECore::App(function, arguments) => {
                 let mut groups = vec![arguments.as_slice()]; let mut head = &**function;
                 while let ECore::App(function, arguments) = head { groups.push(arguments.as_slice()); head = function; }
-                let mut values = Vec::new();
-                for group in groups.into_iter().rev() { for argument in group { values.push(self.checked_nat_reading(env, argument, depth + 1)?); } }
+                let arguments = groups.into_iter().rev().flatten().collect::<Vec<_>>();
                 let primitive = match head {
                     ECore::Prim(op) => Some(*op),
                     ECore::Global(id, actuals) if actuals.is_empty() => self.fns.iter().find(|f| f.id == *id).and_then(|f| f.prim),
                     _ => None,
                 };
-                if primitive == Some(PrimOp::Nat(NatOp::Sub)) && values.len() == 2 {
-                    return Some(ITerm::Bin(IdxOp::Sub, Box::new(values[0].clone()), Box::new(values[1].clone())))
+                if primitive == Some(PrimOp::Bytes(BytesOp::Len)) && arguments.len() == 1 {
+                    let ECore::Var(local) = arguments[0] else { return None };
+                    let (name, _, scheme) = env.locals.iter().rev().find(|(_, id, _)| id == local)?;
+                    let ty = self.uni.zonk(&scheme.ty);
+                    let carrier = self.refine_view(&ty).and_then(|r| r.base).unwrap_or(ty);
+                    if carrier != Ty::Bytes || !scheme.params.is_empty() || env.lookup(name)?.0 != *local { return None }
+                    return Some(ITerm::app_fn(BYTE_LENGTH_INDEX, vec![ITerm::Var(name.clone())]))
+                }
+                let values = arguments.into_iter().map(|argument| self.checked_nat_reading(env, argument, depth + 1)).collect::<Option<Vec<_>>>()?;
+                if let Some(operation) = primitive { return Self::checked_nat_primitive_reading(operation, &values) }
+                if let ECore::Global(identity, actuals) = head {
+                    return if actuals.is_empty() { self.checked_nat_function_reading(identity, &values, depth + 1) } else { None }
                 }
                 let ECore::DictProj(dictionary, slot, _, _) = head else { return None };
                 let ECore::Hole(want) = &**dictionary else { return None };
@@ -377,7 +386,9 @@ impl Checker {
                 let instance = selected?;
                 let definition = self.instance_defs.iter().find(|d| d.id == instance.base_id && d.tparams == 0 && d.subdict_count == 0)?;
                 let implementation = definition.methods.get(*slot)?;
-                let scheme = &instance.method_contracts.iter().find(|(index, _, _)| index == slot)?.2;
+                let Some((_, _, scheme)) = instance.method_contracts.iter().find(|(index, _, _)| index == slot) else {
+                    return self.checked_nat_function_reading(implementation, &values, depth + 1)
+                };
                 let body = self.guarded_nat_body(implementation, scheme)?;
                 if body.parameters as usize != values.len() { return None }
                 fn instantiate(expression: &crate::interface::GuardedNatExpr, values: &[ITerm]) -> Option<ITerm> {
@@ -392,4 +403,51 @@ impl Checker {
             _ => None,
         }
     }
+    fn checked_nat_primitive_reading(operation: PrimOp, values: &[ITerm]) -> Option<ITerm> {
+        let [a, b] = values else { return None };
+        let operation = match operation { PrimOp::Nat(NatOp::Add) => IdxOp::Add, PrimOp::Nat(NatOp::Sub) => IdxOp::Sub, PrimOp::Nat(NatOp::Mul) => IdxOp::Mul, _ => return None };
+        Some(ITerm::Bin(operation, Box::new(a.clone()), Box::new(b.clone())))
+    }
+    fn checked_nat_function_reading(&self, identity: &GlobalId, values: &[ITerm], depth: usize) -> Option<ITerm> {
+        if depth > 64 { return None }
+        if let Some(function) = self.fns.iter().find(|f| f.id == *identity) {
+            if let Some(operation) = function.prim {
+                if function.params.len() != values.len() { return None }
+                return Self::checked_nat_primitive_reading(operation, values)
+            }
+        }
+        let definition = self.interface_total_bodies.get(&identity.0)?;
+        if definition.result != crate::total::Sort::Nat || definition.parameters.len() != values.len() || definition.parameters.iter().any(|s| *s != crate::total::Sort::Nat) { return None }
+        self.checked_nat_pending_reading(&definition.body, values, depth + 1)
+    }
+    fn checked_nat_pending_reading(&self, body: &crate::total::PendingExpr, values: &[ITerm], depth: usize) -> Option<ITerm> {
+        use crate::total::{PendingExpr as P, Op, Sort};
+        if depth > 64 { return None }
+        Some(match body {
+            P::Local(slot) => values.get(*slot)?.clone(),
+            P::Number(Sort::Nat, number) => ITerm::Num(number.clone()),
+            P::Primitive(operation, arguments) => {
+                let operation = match operation { Op::NatAdd => PrimOp::Nat(NatOp::Add), Op::NatMul => PrimOp::Nat(NatOp::Mul), _ => return None };
+                let arguments = arguments.iter().map(|argument| self.checked_nat_pending_reading(argument, values, depth + 1)).collect::<Option<Vec<_>>>()?;
+                Self::checked_nat_primitive_reading(operation, &arguments)?
+            }
+            P::Call(identity, arguments) => {
+                let arguments = arguments.iter().map(|argument| self.checked_nat_pending_reading(argument, values, depth + 1)).collect::<Option<Vec<_>>>()?;
+                self.checked_nat_function_reading(&GlobalId(identity.clone()), &arguments, depth + 1)?
+            }
+            P::Selected { dictionary, slot, arguments } => {
+                let definition = self.instance_defs.iter().find(|d| d.id.0 == *dictionary && d.tparams == 0 && d.subdict_count == 0)?;
+                let implementation = definition.methods.get(*slot)?;
+                let arguments = arguments.iter().map(|argument| self.checked_nat_pending_reading(argument, values, depth + 1)).collect::<Option<Vec<_>>>()?;
+                self.checked_nat_function_reading(implementation, &arguments, depth + 1)?
+            }
+            P::Let(value, body) => {
+                let value = self.checked_nat_pending_reading(value, values, depth + 1)?;
+                let mut nested = values.to_vec(); nested.push(value);
+                self.checked_nat_pending_reading(body, &nested, depth + 1)?
+            }
+            _ => return None,
+        })
+    }
+
 }

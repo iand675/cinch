@@ -1,0 +1,35 @@
+{
+  "bootstrap_achieved": false,
+  "cinch_followup": "35source-case target with the matching curried-call scope repair is running privately; no new Cinch pass claimed",
+  "fix": "strict Nat let readings retain actual typed byte-length observations and inspect actual selected checked arithmetic bodies; no source operator-name rule",
+  "full_suite": "preceding742187+5sweep running; c126182+5baseline passed; not a full current-seed pass",
+  "native_guarded_let_tests": 5,
+  "native_units": 142,
+  "patch_sha256": "26df44e49ca78bf6b463c1a3c66e194aa865ac1f4c70cbe2604293c16fb8c5a7",
+  "seed_archive_and_patch_verified": true,
+  "seed_source_sha256": "f88d6a49cd8fed562f3639165310c2caef228797de2127a9edd0bc8e5502b2a0",
+  "source_sha256": "95daa9c2802ff3a365cffcdc674511be96a26b519783b9dcd612699d5aaf6a97",
+  "stages": "preceding742source passes6smokes;actualstage2failswith1713diagnostics,firstText.Builder.copyprecondition;noIR/compiler",
+  "status": "passed Rust byte-let checkpoint",
+  "verified": [
+    "byte offset result and copy bounds through explicit strict lets",
+    "refined and ordinary byte buffer inputs",
+    "wrong byte equations, wrong offsets and missing guards refused",
+    "function-expression lets preserve caller argument scope; wrong argument types remain refused",
+    "existing changed-body, alias, shadowing, unknown dictionary and opaque-measure regressions pass"
+  ],
+  "whole_native_targets": [
+    "interface_conditional_methods",
+    "interface_class_contracts",
+    "interface_guarded_bodies",
+    "proof_guarded_lets",
+    "proof_value_identity",
+    "refinements",
+    "evidence_invalidation",
+    "case_evidence",
+    "incremental",
+    "linear_facts",
+    "params",
+    "total_bodies"
+  ]
+}

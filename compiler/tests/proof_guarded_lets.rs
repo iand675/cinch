@@ -36,3 +36,17 @@ fn a_changed_selected_body_changes_the_retained_equation() {
 fn lexical_provenance_does_not_unfold_opaque_measure_facts() {
     check("previous-length :: String -> Nat\n  previous-length name = if string-length name == 0 then 0 else string-length name - 1").unwrap();
 }
+
+#[test]
+fn byte_offset_equations_retain_actual_observation_and_arithmetic_bodies() {
+    assert!(check("offset :: using (extra + bytes-len x <= bytes-len out) => (extra :: Nat) -> (x :: Bytes) -> (out :: Bytes) -> refined (r + extra + bytes-len x == bytes-len out) Nat\n  offset extra x out = bytes-len out - (extra + bytes-len x)").is_ok(), "byte offset result equation");
+    assert!(check("offset :: using (extra + bytes-len x <= bytes-len out) => (extra :: Nat) -> (x :: Bytes) -> (out :: Bytes) -> refined (r + extra + bytes-len x == bytes-len out + 1) Nat\n  offset extra x out = bytes-len out - (extra + bytes-len x)").is_err(), "wrong byte offset result equation");
+    assert!(check("copy :: using (extra + bytes-len x <= bytes-len out) => (extra :: Nat) -> (x :: Bytes) -> (out :: Bytes) -> Unit\n  copy extra x out = copy-bytes-into out x (bytes-len out - (extra + bytes-len x)) 0 (bytes-len x)").is_ok(), "raw byte copy inline");
+    assert!(check("copy :: using (extra + bytes-len x <= bytes-len out) => (extra :: Nat) -> (x :: Bytes) -> (out :: Bytes) -> Unit\n  copy extra x out = let offset = bytes-len out - (extra + bytes-len x) in copy-bytes-into out x offset 0 (bytes-len x)").is_ok(), "raw byte copy strict offset");
+    assert!(check("copy :: (extra :: Nat) -> (x :: Bytes) -> refined (extra + bytes-len x <= bytes-len out) Bytes -> Unit\n  copy extra x out = copy-bytes-into out x (bytes-len out - (extra + bytes-len x)) 0 (bytes-len x)").is_ok(), "refined byte copy inline");
+    assert!(check("copy :: (extra :: Nat) -> (x :: Bytes) -> refined (extra + bytes-len x <= bytes-len out) Bytes -> Unit\n  copy extra x out = let offset = bytes-len out - (extra + bytes-len x) in copy-bytes-into out x offset 0 (bytes-len x)").is_ok(), "refined byte copy strict offset");
+    assert!(check("bad :: (extra :: Nat) -> (x :: Bytes) -> (out :: Bytes) -> Unit\n  bad extra x out = copy-bytes-into out x (bytes-len out - (extra + bytes-len x)) 0 (bytes-len x)").is_err(), "byte copy missing guard");
+    assert!(check("copy :: using (extra + bytes-len x <= bytes-len out) => (extra :: Nat) -> (x :: Bytes) -> (out :: Bytes) -> Unit\n  copy extra x out = let offset = bytes-len out - (extra + bytes-len x) + 1 in copy-bytes-into out x offset 0 (bytes-len x)").is_err(), "byte copy wrong offset");
+    assert!(check("flag-result :: Bool -> Int\n  flag-result value = if value then 1 else 0\n  use-flag :: Bool -> Int\n  use-flag value = (let value = 0 in flag-result) value").is_ok(), "function let cannot capture argument");
+    assert!(check("flag-result :: Bool -> Int\n  flag-result value = if value then 1 else 0\n  bad :: Int -> Int\n  bad value = (let value = True in flag-result) value").is_err(), "function let cannot repair wrong argument");
+}

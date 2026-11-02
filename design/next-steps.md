@@ -1,5 +1,23 @@
 # Next steps (as of 2026-11-02)
 
+Rust now retains byte-offset equations through strict Nat lets by inspecting
+the actual typed byte-length operation and selected checked arithmetic bodies.
+Wrong offsets, missing guards, changed bodies and unknown providers remain
+refused. All142 Native units and12 whole regressions pass, including the five
+expanded guarded-let tests. The f88d6a4 seed intentionally reproduces those
+exact sources; archive plus patch is verified. ABI5/schema8 remain unchanged.
+See [the Rust byte-let report](../bootstrap/native-byte-let-results.json).
+
+The preceding742 stage run passes all six smokes but actualstage2 exits4
+with1713 body diagnostics, first at Text.Builder's inline byte-copy guard;
+it produces noIR/compiler. Runtime probes accept the same byte equation and
+an explicit let in Cinch, locating the remaining gap in later applications
+escaping the internal dependent-argument let scopes. A private scope repair
+and35-source-case target are under validation. The ongoing187+5 suite is
+scoped to742, and the completed182+5 baseline to c126. Genuine self-hosting
+remains incomplete.
+
+
 Cinch now uses checked conditional Nat bodies to retain actual result
 equations. Body admission rechecks totality under the complete callable
 preconditions. Core independently associates each equation with the actual
