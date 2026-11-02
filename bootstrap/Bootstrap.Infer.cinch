@@ -57,12 +57,13 @@ module Bootstrap.Infer where
     MkIntrinsicBinding :: String -> Scheme -> String -> CheckedBinding
     MkProofBinding :: Proposition -> CheckedBinding
     MkErasedBinding :: String -> UType -> Nat -> CheckedBinding
+    MkSyntaxBinding :: String -> CheckedBinding
   checked-name :: CheckedBinding -> String
-  checked-name b = case b of MkCheckedBinding name sc role -> name; MkMethodBinding name sc owner slot -> name; MkGivenBinding name ty symbol -> name; MkLocalBinding name sc id level -> name; MkValueBinding name sc id level value -> name; MkIntrinsicBinding name sc symbol -> name; MkProofBinding fact -> ""; MkErasedBinding name predicate id -> name
+  checked-name b = case b of MkCheckedBinding name sc role -> name; MkMethodBinding name sc owner slot -> name; MkGivenBinding name ty symbol -> name; MkLocalBinding name sc id level -> name; MkValueBinding name sc id level value -> name; MkIntrinsicBinding name sc symbol -> name; MkProofBinding fact -> ""; MkErasedBinding name predicate id -> name; MkSyntaxBinding name -> name
   checked-scheme :: CheckedBinding -> Scheme
-  checked-scheme b = case b of MkCheckedBinding name sc role -> sc; MkMethodBinding name sc owner slot -> sc; MkGivenBinding name ty symbol -> mono ty; MkLocalBinding name sc id level -> sc; MkValueBinding name sc id level value -> sc; MkIntrinsicBinding name sc symbol -> sc; MkProofBinding fact -> mono UError; MkErasedBinding name predicate id -> mono predicate
+  checked-scheme b = case b of MkCheckedBinding name sc role -> sc; MkMethodBinding name sc owner slot -> sc; MkGivenBinding name ty symbol -> mono ty; MkLocalBinding name sc id level -> sc; MkValueBinding name sc id level value -> sc; MkIntrinsicBinding name sc symbol -> sc; MkProofBinding fact -> mono UError; MkErasedBinding name predicate id -> mono predicate; MkSyntaxBinding name -> mono UError
   checked-role :: CheckedBinding -> String
-  checked-role b = case b of MkCheckedBinding name sc role -> role; MkMethodBinding name sc owner slot -> "method"; MkGivenBinding name ty symbol -> "dictionary"; MkLocalBinding name sc id level -> "local"; MkValueBinding name sc id level value -> "local"; MkIntrinsicBinding name sc symbol -> "intrinsic"; MkProofBinding fact -> "proof"; MkErasedBinding name predicate id -> "erased-proof"
+  checked-role b = case b of MkCheckedBinding name sc role -> role; MkMethodBinding name sc owner slot -> "method"; MkGivenBinding name ty symbol -> "dictionary"; MkLocalBinding name sc id level -> "local"; MkValueBinding name sc id level value -> "local"; MkIntrinsicBinding name sc symbol -> "intrinsic"; MkProofBinding fact -> "proof"; MkErasedBinding name predicate id -> "erased-proof"; MkSyntaxBinding name -> "builtin-syntax"
   data Elaboration where
     MkElaboration :: List Diagnostic -> List CheckedBinding -> List Json -> List CoreDefinition -> List CoreData -> List CoreEffect -> CoreClassContext -> List CoreInstance -> Elaboration
   elaboration-errors :: Elaboration -> List Diagnostic
@@ -134,7 +135,7 @@ module Bootstrap.Infer where
       DRefine s name params binder predicate -> True
       DEffect s name params ops -> True
       DInstance s flag name params head-type members -> True
-      DExternal s name category None metadata -> same category "builtin-constructor" || (same category "type" && (case field "kind" metadata of JStr variety -> same variety "refinement"; other -> False))
+      DExternal s name category None metadata -> (same category "builtin-constructor" || same category "builtin-syntax") || (same category "type" && (case field "kind" metadata of JStr variety -> same variety "refinement"; other -> False))
       DData s name (Cons p ps) ctors -> True
       DData s name Nil ctors -> ctor-needs ctors
       DForeign s direction abi symbol name ty -> True
@@ -567,6 +568,14 @@ module Bootstrap.Infer where
           other -> case reify-argument sp env body st of
             (value, checked) -> checked-typed-source-index sp (UIndexForget value) (unify sp carrier domain checked)
       other -> bad sp "refinement projection needs an actual refined operand" st
+    CProved source ty evidence (CPrimitive at output operation (CArgument a first (CArgument b second (CArgumentsEnd end)))) ->
+      if same operation "-" && same-type (normalize st ty) (primitive-type "Nat") && same-type ty output then
+        (case scoped-prove-subtraction (proof-context env st) (proof-facts env) (map-term-types (normalize st) first) (map-term-types (normalize st) second) of
+          Some checked -> case reify-argument sp env first st of
+            (left, sl) -> case reify-argument sp env second sl of
+              (right, sr) -> checked-typed-source-index sp (UIndexMath "-" left right) sr
+          None -> bad sp "index subtraction needs actual scoped ordering evidence" st)
+      else bad sp "certified index operation has no checked total semantics" st
     CLocal source ty id display actuals -> case find-local-id id env of
       Some (MkLocalBinding name sc key level) -> reify-local-index sp sc level actuals ty (IRigid id display level) st
       Some (MkValueBinding name sc key level value) -> if level > store-level st then bad sp "local index escapes its binding scope" st
@@ -611,7 +620,7 @@ module Bootstrap.Infer where
       other -> bad sp "local index requires unresolved dictionary evidence" st
 
   let-binding :: Span -> List CheckedBinding -> String -> Scheme -> Nat -> Nat -> CoreTerm -> Store -> (CheckedBinding, Store)
-  let-binding sp env name sc id level value st = case (scheme-params sc, scheme-requirements sc) of
+  let-binding sp env name sc id level value st = if not (stable-index-source value) then (MkLocalBinding name sc id level, st) else case (scheme-params sc, scheme-requirements sc) of
     (Nil, Nil) -> case reify-argument sp env value st of
       (index, checked) -> case (store-errors checked, index-of-type index) of
         (Nil, witness) -> if typed-index-admissible index then (MkValueBinding name sc id level index, checked) else (MkLocalBinding name sc id level, st)
@@ -1086,7 +1095,8 @@ module Bootstrap.Infer where
   register-external :: Span -> String -> String -> TypeExpr -> Json -> List Json -> List (String, Kind) -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   register-external sp name category ty metadata rows classes kinds env st =
     if same category "builtin" then register-kernel sp name metadata classes kinds env st
-    else if same category "builtin-constructor" then register-decision-constructor sp name metadata env st
+    else if same category "builtin-syntax" then register-decision-syntax sp name metadata env (check-kernel-cache sp name category ty classes kinds st)
+    else if same category "builtin-constructor" then register-decision-constructor sp name metadata env (check-kernel-cache sp name category ty classes kinds st)
     else if same category "method" then
       case (field "class" metadata, field "slot" metadata, resolved-text metadata) of
         (JStr identity, JNum slot, Some text) -> if slot < 0 then (env, add-error sp "negative method dictionary slot" st)
@@ -1199,6 +1209,7 @@ module Bootstrap.Infer where
       DExternal s name category None metadata -> if same category "builtin" then
         (case register-kernel s name metadata classes kinds env st of (e, se) -> register rows classes kinds rest e se)
         else if same category "builtin-constructor" then (case register-decision-constructor s name metadata env st of (e, se) -> register rows classes kinds rest e se)
+        else if same category "builtin-syntax" then (case register-decision-syntax s name metadata env st of (e, se) -> register rows classes kinds rest e se)
         else if same category "type" || same category "signature" || same category "instance" then register rows classes kinds rest env st
         else register rows classes kinds rest env (add-error s (unsupported-import category name) st)
       DSource s name metadata -> register rows classes kinds rest env st
@@ -1246,6 +1257,34 @@ module Bootstrap.Infer where
       && scheme-arity sc == 1 && scheme-runtime-arity sc == 0 then add-binding sp name sc "constructor" env st
       else (env, add-error sp "decision constructor disagrees with the kernel proof/erasure contract" st)
     other -> (env, add-error sp "unknown kernel decision constructor" st)
+  kernel-syntax-metadata :: String -> List Decl -> Option Json
+  kernel-syntax-metadata name declarations = case declarations of
+    Nil -> None
+    Cons (DExternal sp symbol category syntax metadata) rest -> if same name symbol && same category "builtin-syntax" then Some metadata else kernel-syntax-metadata name rest
+    Cons other rest -> kernel-syntax-metadata name rest
+  register-decision-syntax :: Span -> String -> Json -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-decision-syntax sp name metadata env st = if not (same name "b.decide") then (env, add-error sp "unknown kernel predicate syntax" st) else
+    case kernel-syntax-metadata name builtin-declarations of
+      Some trusted -> if same-kernel-fields ["name", "operation", "runtime_abi", "first_class", "predicate_kind", "scheme"] metadata trusted then
+        (case lookup-binding name env of None -> (Cons (MkSyntaxBinding name) env, st); Some prior -> (env, add-error sp "duplicate kernel predicate syntax" st))
+        else (env, add-error sp "decide syntax disagrees with the kernel predicate contract" st)
+      None -> (env, add-error sp "missing kernel predicate syntax contract" st)
+  checked-kernel-cache :: Span -> TypeExpr -> Scheme -> List (String, Kind) -> TypeContext -> Store -> Store
+  checked-kernel-cache sp syntax expected classes kinds st = case make-scheme False classes kinds Nil syntax st of
+    (actual, checked) -> if scheme-equivalent actual expected then checked else add-error sp "cached kernel type disagrees with its owned contract" checked
+  check-kernel-cache :: Span -> String -> String -> TypeExpr -> List (String, Kind) -> TypeContext -> Store -> Store
+  check-kernel-cache sp name category syntax classes kinds st = if same category "builtin-constructor" then
+    (case decision-constructor-scheme name of
+      Some expected -> checked-kernel-cache sp syntax expected classes kinds st
+      None -> add-error sp "unknown cached kernel constructor type" st)
+    else case kernel-syntax-metadata name builtin-declarations of
+      Some metadata -> (case field "scheme" metadata of
+        JStr text -> (case parse-scheme name (string-to-bytes text) of
+          Parsed ty Nil -> (case make-scheme False classes kinds Nil ty st of
+            (expected, prepared) -> checked-kernel-cache sp syntax expected classes kinds prepared)
+          other -> add-error sp "invalid owned kernel syntax type" st)
+        other -> add-error sp "missing owned kernel syntax type" st)
+      None -> add-error sp "unknown cached kernel syntax type" st
   register-kernel :: Span -> String -> Json -> List (String, Kind) -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   register-kernel sp name metadata classes kinds env st =
     if not (has name ["b.newIO", "b.ioWrite", "b.ioSleep", "b.pollCancel"]) then (env, add-error sp (unsupported-import "builtin" name) st)
@@ -1299,6 +1338,7 @@ module Bootstrap.Infer where
         let actuals = actual-types pairs in
         case b of
           MkErasedBinding name predicate id -> (CProofRef sp predicate id name, ss)
+          MkSyntaxBinding symbol -> term-error sp "decide consumes predicate syntax and is not a first-class function" ss
           MkMethodBinding method sc owner slot -> (CMethod sp ty name owner slot actuals evidence, ss)
           MkGivenBinding source dict symbol -> (CUse sp ty symbol "dictionary" actuals, ss)
           MkLocalBinding source sc id level -> case requirements of
@@ -1369,6 +1409,106 @@ module Bootstrap.Infer where
     Nil -> Nil
     Cons q rest -> case mapped-local (quant-id q) pairs of Some ty -> Cons (quant-name q, ty) (opened-locals rest pairs); None -> opened-locals rest pairs
 
+  decision-syntax-head :: List CheckedBinding -> Expr -> Bool
+  decision-syntax-head env expression = case expression of
+    EVar sp name -> (case lookup-binding name env of Some (MkSyntaxBinding symbol) -> same symbol "b.decide"; other -> False)
+    other -> False
+  decision-boolean :: Span -> Bool -> CoreTerm
+  decision-boolean sp value = CPrimitive sp (primitive-type "Bool") (if value then "decision-true" else "decision-false") (CArgumentsEnd sp)
+  decision-hint :: List CheckedBinding -> Expr -> Option UType
+  decision-hint env expression = case expression of
+    EVar sp name -> (case lookup-binding name env of Some binding -> let carrier = predicate-base-carrier (scheme-body (checked-scheme binding)) in if integer-carrier carrier then Some carrier else None; None -> None)
+    EAnn sp value (TName at name) -> if primitive name && integer-carrier (primitive-type name) then Some (primitive-type name) else decision-hint env value
+    EBin sp operation left right -> (case decision-hint env left of Some carrier -> Some carrier; None -> decision-hint env right)
+    ENeg sp input -> decision-hint env input
+    EApp sp (EVar at name) input -> (case lookup-binding name env of
+      Some (MkIntrinsicBinding display sc symbol) -> if same symbol "cinch.runtime.bytesLen" then Some (primitive-type "Nat") else None
+      other -> None)
+    other -> None
+  decision-carrier :: List CheckedBinding -> Expr -> Expr -> UType
+  decision-carrier env first second = case decision-hint env first of Some carrier -> carrier; None -> (case decision-hint env second of Some carrier -> carrier; None -> primitive-type "Int")
+  decision-value :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> UType -> Expr -> Store -> (CoreTerm, Store)
+  decision-value classes kinds families env locals carrier syntax st = case syntax of
+    ELitInt sp text -> checked-literal sp carrier text st
+    ENeg sp (ELitInt at text) -> checked-literal sp carrier (string-concat "-" text) st
+    ENeg sp input -> if not (same-type carrier (primitive-type "Int")) then term-error sp "decision negation needs mathematical Int semantics" st else
+      (case decision-value classes kinds families env locals carrier input st of (value, done) -> (CPrimitive sp carrier "negate" (CArgument sp value (CArgumentsEnd sp)), done))
+    EBin sp operation first second -> if not (has operation ["+", "-", "*"] && math-carrier carrier) then term-error sp "decision arithmetic needs checked mathematical semantics" st else
+      (case decision-value classes kinds families env locals carrier first st of
+        (left, sl) -> case decision-value classes kinds families env locals carrier second sl of
+          (right, sr) -> let body = CPrimitive sp carrier operation (CArgument sp left (CArgument sp right (CArgumentsEnd sp))) in
+            if same operation "-" && same-type carrier (primitive-type "Nat") then
+              (case scoped-prove-subtraction (proof-context env sr) (proof-facts env) (map-term-types (normalize sr) left) (map-term-types (normalize sr) right) of
+                Some certificate -> (CProved sp carrier certificate body, sr)
+                None -> term-error sp "decision Nat subtraction needs checked ordering evidence" sr)
+            else (body, sr))
+    EAnn sp value annotation -> (case convert False kinds (value-locals env locals) annotation st of
+      (actual, checked) -> decision-value classes kinds families env locals carrier value (unify sp carrier actual (expect-type sp actual checked)))
+    EVar sp name -> (case lookup-binding name env of
+      Some (MkLocalBinding display sc id level) -> decision-local sp name carrier env st
+      Some (MkValueBinding display sc id level index) -> decision-local sp name carrier env st
+      other -> term-error sp "decision operands need actual scoped numeric values" st)
+    EApp sp (EVar at name) input -> if not (byte-length-binding name kinds) then term-error sp "decision calls need checked pure total body authority" st else
+      (case infer classes kinds families env locals syntax st of
+        (value, checked) -> let projected = project-comparison sp value checked in (projected, unify sp carrier (core-type projected) checked))
+    other -> term-error (expr-span syntax) "decision operands need checked pure total reification" st
+  decision-local :: Span -> String -> UType -> List CheckedBinding -> Store -> (CoreTerm, Store)
+  decision-local sp name carrier env st = case lookup-value sp name env st of
+    (value, checked) -> let projected = project-comparison sp value checked in
+      (projected, if integer-carrier (normalize checked (core-type projected)) then unify sp carrier (core-type projected) checked else add-error sp "decision operand is not a numeric runtime value" checked)
+  decision-index :: Span -> List CheckedBinding -> UType -> CoreTerm -> Store -> (UType, Store)
+  decision-index sp env carrier value st = case reify-argument sp env (map-term-types (normalize st) value) st of
+    (index, checked) -> predicate-index-value sp (if same-type carrier (primitive-type "Nat") then primitive-type "Nat" else primitive-type "Int") index checked
+  decision-failure :: Span -> String -> Store -> (UType, CoreTerm, Store)
+  decision-failure sp message st = (UError, CError sp, add-error sp message st)
+  decision-predicate :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> Store -> (UType, CoreTerm, Store)
+  decision-predicate classes kinds families env locals syntax st = case syntax of
+    ECon sp name (EArgsEnd end) -> if same name "True" || same name "False" then (UPropLit (same name "True"), decision-boolean sp (same name "True"), st) else decision-failure sp "predicate needs an executable checked decision procedure" st
+    ECon sp name (EArg at input (EArgsEnd end)) -> if same name "NonZero" || same name "Not" then decision-unary classes kinds families env locals sp name input st else decision-failure sp "unknown executable predicate former" st
+    EApp sp (ECon at name (EArgsEnd end)) input -> decision-unary classes kinds families env locals sp name input st
+    EApp sp (EVar at name) input -> if same name "Not" then decision-unary classes kinds families env locals sp name input st else decision-failure sp "predicate calls need checked decision authority" st
+    EIf sp first second (ECon at name (EArgsEnd end)) -> if same name "False" then decision-predicate classes kinds families env locals (EBin sp "&&" first second) st
+      else (case second of
+        ECon yes literal (EArgsEnd done) -> if same literal "True" then decision-predicate classes kinds families env locals (EBin sp "||" first (ECon at name (EArgsEnd end))) st else decision-failure sp "conditional predicate needs checked logical form" st
+        other -> decision-failure sp "conditional predicate needs checked logical form" st)
+    EIf sp first (ECon at name (EArgsEnd end)) third -> if same name "True" then decision-predicate classes kinds families env locals (EBin sp "||" first third) st else decision-failure sp "conditional predicate needs checked logical form" st
+    EBin sp operation first second -> if same operation "&&" || same operation "||" then
+      (case decision-predicate classes kinds families env locals first st of
+        (left, test, checked) -> case decision-predicate classes kinds families (proof-branch env test (same operation "&&") checked) locals second checked of
+          (right, other, done) -> if same operation "&&" then (UPropAnd left right, CIf sp (primitive-type "Bool") test other (decision-boolean sp False), done)
+            else (UPropOr left right, CIf sp (primitive-type "Bool") test (decision-boolean sp True) other, done))
+      else if has operation ["<", "<=", ">", ">=", "==", "/="] then
+        (let carrier = decision-carrier env first second in
+         case decision-value classes kinds families env locals carrier first st of
+           (left, sl) -> case decision-value classes kinds families env locals carrier second sl of
+             (right, sr) -> case decision-index sp env carrier left sr of
+               (x, sx) -> case decision-index sp env carrier right sx of
+                 (y, done) -> (UCompare operation x y, CPrimitive sp (primitive-type "Bool") operation (CArgument sp left (CArgument sp right (CArgumentsEnd sp))), done))
+      else decision-failure sp "predicate operator has no checked decision semantics" st
+    other -> decision-failure (expr-span syntax) "predicate needs an executable checked decision procedure" st
+  decision-unary :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> String -> Expr -> Store -> (UType, CoreTerm, Store)
+  decision-unary classes kinds families env locals sp name input st =
+    if same name "Not" then (case decision-predicate classes kinds families env locals input st of
+      (predicate, condition, done) -> (UPropNot predicate, CIf sp (primitive-type "Bool") condition (decision-boolean sp False) (decision-boolean sp True), done))
+    else if same name "NonZero" then
+      (let carrier = decision-carrier env input input in
+       case decision-value classes kinds families env locals carrier input st of
+         (value, checked) -> case decision-index sp env carrier value checked of
+           (index, done) -> (UPropNonZero index, CPrimitive sp (primitive-type "Bool") "/=" (CArgument sp value (CArgument sp (CInt sp carrier "0") (CArgumentsEnd sp))), done))
+    else decision-failure sp "unknown executable predicate former" st
+  infer-decision :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Store -> (CoreTerm, Store)
+  infer-decision classes kinds families env locals sp syntax st = case decision-predicate classes kinds families env locals syntax st of
+    (predicate, condition, checked) -> let p = normalize checked predicate in let test = map-term-types (normalize checked) condition in let ty = decision-type p in
+      if scoped-decision-valid (proof-context env checked) (proof-facts env) ty p test then (CDecision sp ty p test, checked)
+      else term-error sp "decision test does not establish its scoped predicate" checked
+
+  infer-decision-expected :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> UType -> Store -> (CoreTerm, Store)
+  infer-decision-expected classes kinds families env locals sp syntax expected st = case infer-decision classes kinds families env locals sp syntax st of
+    (term, checked) -> case (normalize checked expected, term) of
+      (UApp (UCon name kind) predicate, CDecision at ty inferred condition) -> if same name "b.Dec" && scoped-decision-valid (proof-context env checked) (proof-facts env) (normalize checked expected) predicate condition then
+        (CDecision sp (normalize checked expected) predicate condition, checked) else (term, checked)
+      other -> (term, checked)
+
   infer :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> Store -> (CoreTerm, Store)
   infer classes kinds families env locals expr st = case expr of
     EVar s name -> case lookup-value s name env st of (term, checked) -> discharge-call classes s env term checked
@@ -1377,8 +1517,9 @@ module Bootstrap.Infer where
     ELitStr s text -> (CString s (literal-type kinds "String") text, st)
     ELitChar s text -> (CChar s (primitive-type "Char") text, st)
     EUnit s -> (CUnit s (primitive-type "Unit"), st)
-    EApp s f x -> case infer classes kinds families env locals f st of
-      (fun, sf) -> apply-argument classes kinds families env locals s fun x sf
+    EApp s f x -> if decision-syntax-head env f then infer-decision classes kinds families env locals s x st else
+      (case infer classes kinds families env locals f st of
+        (fun, sf) -> apply-argument classes kinds families env locals s fun x sf)
     ELam s ps body -> case infer-lambda classes kinds families env locals ps body (duplicate-names s (patterns-names ps) Nil st) of
       (term, ss) -> (term, ensure-coverage s families env (take-types (list-length ps) (domains (normalize ss (core-type term)))) [ps] ss)
     ELet s bindings body -> infer-let classes kinds families env locals s bindings body st
@@ -1451,10 +1592,11 @@ module Bootstrap.Infer where
       (applied, checked) -> apply-spine classes kinds families env locals applied rest checked
   infer-expected :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> UType -> Store -> (CoreTerm, Store)
   infer-expected classes kinds families env locals expr expected st = case expr of
-    EApp sp function argument -> case application-spine expr Nil of
-      (head, args) -> case infer classes kinds families env locals head st of
-        (fun, opened) -> apply-spine classes kinds families env locals fun args
-          (hint-application-result sp (core-type fun) args expected opened)
+    EApp sp function argument -> if decision-syntax-head env function then infer-decision-expected classes kinds families env locals sp argument expected st else
+      (case application-spine expr Nil of
+        (head, args) -> case infer classes kinds families env locals head st of
+          (fun, opened) -> apply-spine classes kinds families env locals fun args
+            (hint-application-result sp (core-type fun) args expected opened))
     other -> infer classes kinds families env locals expr st
   comparison-predicate :: UType -> Bool
   comparison-predicate predicate = case predicate of UCompare op a b -> True; UPropNonZero value -> valid-type predicate; UPropAnd a b -> comparison-predicate a && comparison-predicate b; other -> False
@@ -1971,6 +2113,7 @@ module Bootstrap.Infer where
     MkIntrinsicBinding n sc symbol -> MkIntrinsicBinding n (map-scheme-types (normalize st) sc) symbol
     MkProofBinding fact -> MkProofBinding fact
     MkErasedBinding name predicate id -> MkErasedBinding name (normalize st predicate) id
+    MkSyntaxBinding name -> b
   finish-bindings :: Store -> List CheckedBinding -> List CheckedBinding
   finish-bindings st env = case env of Nil -> Nil; Cons b rest -> Cons (finish-binding st b) (finish-bindings st rest)
   global-bindings :: List CheckedBinding -> List CoreGlobal -> List CoreGlobal

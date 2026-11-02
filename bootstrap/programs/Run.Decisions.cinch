@@ -5,6 +5,7 @@ module Main where
   import Bootstrap.Global
   import Bootstrap.Typing
   import Bootstrap.Proof
+  import Bootstrap.Nominal (interface-global)
   import Text.Lex (Span)
   import Data.Path (path-from-string)
   import Effect.Fs (fs-read)
@@ -53,6 +54,19 @@ module Main where
         typing-definition-closed context out
           && (case scoped-prove-refinement (proof-pattern no-pattern gamma) Nil result value of None -> True; Some fabricated -> False)
       other -> False
+  opaque-method-alias :: Nat -> Bool -> Bool
+  opaque-method-alias nonce claim-arithmetic =
+    let x = nonce + 1 in let alias = nonce + 2 in
+    let owner = interface-global "Algebra.Arithmetic.Add" in
+    let instance-type = UApp (UCon owner (KFun KType KType)) int in
+    let dictionary = CEInstance sp instance-type "custom-add-with-unknown-body" Nil (CEArgumentsEnd sp) in
+    let method = CMethod sp (UFun int (UFun int int)) (interface-global "Algebra.Arithmetic.Add.+") owner 0 [int] [dictionary] in
+    let value = CLocal sp int x "x" Nil in
+    let call = CApply sp int (CApply sp (UFun int int) method value) zero in
+    let gamma = scope-let (make-proof-scope [(x, int)] Nil) Nil alias (mono int) call in
+    let index = if claim-arithmetic then UIndexMath "+" (UIndex int (IRigid x "x" 0)) (UIndex int (IInteger 0)) else UIndex int (IRigid alias "result" 0) in
+    let predicate = positive index in
+    scoped-decision-valid gamma Nil (decision-type predicate) predicate (comparison ">=" (CLocal sp int alias "result" Nil) zero)
   checks :: Nat -> List Bool
   checks nonce =
     let x = nonce + 1 in let value = CLocal sp int x "x" Nil in
@@ -63,6 +77,12 @@ module Main where
     let other = CLocal sp int (x + 1) "x" Nil in
     let generic = UBound nonce "p" KProp in
     [ check predicate test
+    , not (opaque-method-alias nonce True)
+    , opaque-method-alias nonce False
+    , let alias = x + 7 in let scope = scope-let gamma Nil alias (mono int) value in
+        scoped-decision-valid scope Nil (decision-type predicate) predicate (comparison ">=" (CLocal sp int alias "alias" Nil) zero)
+    , let alias = x + 7 in let scope = scope-let gamma Nil alias (mono int) zero in
+        not (scoped-decision-valid scope Nil (decision-type predicate) predicate (comparison ">=" (CLocal sp int alias "alias" Nil) zero))
     , not (check predicate (comparison "<" value zero))
     , not (check predicate (comparison ">=" other zero))
     , not (scoped-decision-valid (make-proof-scope Nil Nil) Nil (decision-type predicate) predicate test)

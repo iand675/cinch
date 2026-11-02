@@ -17,7 +17,7 @@ module Bootstrap.Core where
   export CArgument, CArgumentsEnd, CAlternative, CAlternativesEnd, CError
   export CApplyEff, CWith, core-effects
   export CProofRef, CErasedApply, scope-erased, scoped-proof-reference
-  export CDecision, decision-type, decision-constructor-scheme, scoped-decision-valid
+  export CDecision, decision-type, decision-constructor-scheme, scoped-decision-valid, stable-index-source
   export CRefine, CForget, prove-refinement, CRequire, CDischarge, core-predicates, prove-predicates, required-body, CProved, core-condition, core-let-fact, prove-subtraction, numeric-method-operation
   export ProofScope, make-proof-scope, scoped-prove-refinement, scoped-prove-predicates, scoped-core-predicates, scoped-core-condition, scoped-core-let-fact, scoped-prove-subtraction
   export CoreClause, MkCoreClause, CoreDefinition, MkCoreDefinition
@@ -869,10 +869,25 @@ module Bootstrap.Core where
       Some value -> if scope-index-valid declared value then Some value else None
       None -> Some (UIndex ty (IRigid id name 0))
     None -> None
+  -- Class identity and a method slot do not establish the selected body's
+  -- numeric semantics. Such a strict RHS still binds a fresh runtime value;
+  -- it cannot become a definitional arithmetic alias without body authority.
+  stable-index-source :: CoreTerm -> Bool
+  stable-index-source term = case term of
+    CLocal sp ty id name Nil -> True
+    CInt sp ty text -> True
+    CRefine sp ty certificate body -> stable-index-source body
+    CForget sp ty body -> stable-index-source body
+    CProved sp ty certificate body -> stable-index-source body
+    CPrimitive sp ty operation (CArgument a first (CArgument b second (CArgumentsEnd end))) ->
+      (string-compare operation "+" == 0 || string-compare operation "-" == 0 || string-compare operation "*" == 0) && stable-index-source first && stable-index-source second
+    CPrimitive sp ty operation (CArgument a input (CArgumentsEnd end)) -> string-compare operation "negate" == 0 && stable-index-source input
+    CApply sp ty (CUse at function symbol role Nil) input -> byte-length-function ty function symbol role && stable-index-source input
+    other -> False
   scope-let :: ProofScope -> List Proposition -> Nat -> Scheme -> CoreTerm -> ProofScope
   scope-let scope facts id scheme rhs = let bound = scope-local id (scheme-body scheme) scope in
     case (scheme-params scheme, scheme-requirements scheme) of
-      (Nil, Nil) -> if not (contract-equal (scheme-body scheme) (core-type rhs)) then bound else case actual-index scope facts rhs of
+      (Nil, Nil) -> if not (stable-index-source rhs && contract-equal (scheme-body scheme) (core-type rhs)) then bound else case actual-index scope facts rhs of
         Some value -> if scope-index-valid (scheme-body scheme) value then
           (case bound of MkProofScope types values proofs -> MkProofScope types (Cons (id, value) values) proofs) else bound
         None -> bound
@@ -920,6 +935,10 @@ module Bootstrap.Core where
     CApply sp ty (CUse at function symbol role Nil) (CLocal arg carrier id name Nil) -> byte-length-function ty function symbol role
       && (case proof-local id gamma of Some declared -> contract-equal carrier declared; None -> False)
     other -> False
+  decision-index-reading :: ProofScope -> List Proposition -> CoreTerm -> Option Arithmetic
+  decision-index-reading gamma facts term = case actual-index gamma facts term of
+    Some value -> (case typed-index-arithmetic gamma value of Some reading -> Some reading; None -> typed-index-arithmetic gamma (UIndexPromote value))
+    None -> None
   decision-predicate-test :: ProofScope -> List Proposition -> UType -> CoreTerm -> Bool
   decision-predicate-test gamma facts predicate condition = case predicate of
     UPropLit value -> decision-constant value condition
@@ -928,7 +947,9 @@ module Bootstrap.Core where
     UPropOr first second -> (case condition of CIf sp ty test yes no -> decision-predicate-test gamma facts first test && decision-constant True yes && decision-predicate-test gamma (branch-facts gamma facts test False) second no; other -> False)
     other -> (case condition of
       CPrimitive sp ty operation (CArgument a first (CArgument b second (CArgumentsEnd end))) -> decision-operand gamma facts first && decision-operand gamma facts second
-        && (case (core-predicate gamma predicate, scoped-core-condition gamma facts condition) of (Some expected, Some actual) -> proposition-equal expected actual; other -> False)
+        && (case (core-predicate gamma predicate, comparison-name operation, decision-index-reading gamma facts first, decision-index-reading gamma facts second) of
+          (Some expected, Some relation, Some left, Some right) -> proposition-equal expected (PCompare relation left right)
+          other -> False)
       other -> False)
   scoped-decision-valid :: ProofScope -> List Proposition -> UType -> UType -> CoreTerm -> Bool
   scoped-decision-valid gamma facts ty predicate condition = valid-type predicate && kind-equal (type-kind predicate) KProp && valid-type ty
@@ -1058,6 +1079,7 @@ module Bootstrap.Core where
     else if string-compare op ">=" == 0 then Some AtLeast else if string-compare op ">" == 0 then Some Greater else None
   scoped-core-condition :: ProofScope -> List Proposition -> CoreTerm -> Option Proposition
   scoped-core-condition gamma facts term = if not (bool-type (core-type term)) then None else case term of
+    CPrimitive sp ty operation (CArgumentsEnd end) -> if string-compare operation "decision-true" == 0 then Some PTruth else if string-compare operation "decision-false" == 0 then Some PFalsehood else None
     CPrimitive s ty op (CArgument a first (CArgument b second (CArgumentsEnd end))) ->
       if same-integer-carrier (core-type first) (core-type second) then
         (case (comparison-name op, core-arithmetic gamma facts first, core-arithmetic gamma facts second) of
@@ -1097,7 +1119,7 @@ module Bootstrap.Core where
     other -> False)
   scoped-core-let-fact :: ProofScope -> List Proposition -> Nat -> Scheme -> CoreTerm -> Option Proposition
   scoped-core-let-fact gamma facts id sc rhs = case (scheme-params sc, scheme-requirements sc) of
-    (Nil, Nil) -> if not (contract-equal (scheme-body sc) (core-type rhs)) then None
+    (Nil, Nil) -> if not (stable-index-source rhs && contract-equal (scheme-body sc) (core-type rhs)) then None
       else let carrier = numeric-carrier-view (scheme-body sc) in
         if same-number-sort carrier carrier then
           (let value = if is-refinement (core-type rhs) then CForget (Span 0 0 1 1) carrier rhs else rhs in
@@ -1383,6 +1405,9 @@ module Bootstrap.Core where
     CApply s ty (CApply partial function method first) second -> case numeric-method-operation method first second of
       Some op -> if proof-term gamma facts first && proof-term gamma facts second then actual-math-index gamma facts op first second else None
       None -> None
+    CProved s ty evidence body -> if certified-operation gamma facts ty evidence body then (case body of
+      CPrimitive at output operation (CArgument a first (CArgument b second (CArgumentsEnd end))) -> actual-math-index gamma facts operation first second
+      other -> None) else None
     CInt s ty text -> case decimal-value text of Some n -> if integer-literal-valid ty n then Some (UIndex ty (IInteger n)) else None; None -> None
     CLocal s ty id name Nil -> scope-index gamma id name ty
     other -> case core-arithmetic gamma facts term of

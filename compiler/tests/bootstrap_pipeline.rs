@@ -267,7 +267,7 @@ fn refused_source(dir: &Path, exe: &Path) {
         ("effect-declaration-lowering", "module Main where\n  effect Event where\n    poke :: Int ->{Event} Int\n  main :: Int\n  main = 0\n", 5, "is not in the fragment"),
         ("effect-call-lowering", "module Main where\n  effect Event where\n    poke :: Int ->{Event} Int\n  invoke :: Int ->{Event} Int\n  invoke x = poke x\n  main :: Int\n  main = 0\n", 5, "is not in the fragment"),
         ("effect-contract", "module Main where\n  effect Event where\n    poke :: Int ->{Event} Int\n  main :: Int\n  main = handle poke 1 with (handler Event where\n    return x -> x\n    poke n resume k -> k n)\n", 4, "expression needs effect, dictionary or dependent elaboration"),
-        ("decision-contract", "module Main where\n  main :: Int\n  main = case decide (1 > 0) of\n    Yes evidence -> 0\n    No contrary -> 1\n", 4, "builtin syntax needs dependent predicate elaboration"),
+        ("decision-contract", "module Main where\n  main :: Int\n  main = case decide (1 > 0) of\n    Yes evidence -> 0\n    No contrary -> 1\n", 5, "the emitter cannot lower this case"),
         ("polymorphic-lowering", "module Main where\n  identity :: forall a. a -> a\n  identity x = x\n  main :: Int\n  main = if identity True then identity 0 else 1\n", 5, "a forall the fragment does not lower"),
         ("polymorphic-body", "module Main where\n  wrong :: forall a. a -> a\n  wrong x = 1\n  main :: Int\n  main = 0\n", 4, "type mismatch"),
         ("named-pi-lowering", "module Main where\n  keep :: (n :: Int) -> Int\n  keep actual = actual\n  main :: Int\n  main = keep 0\n", 5, "a type without a fragment representation"),

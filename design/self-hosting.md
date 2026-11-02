@@ -1,5 +1,32 @@
 # Next steps (as of 2026-11-02)
 
+Source `decide` now elaborates checked numeric and NonZero predicates into
+retained Core decisions. Logical operators follow the parser's short-circuit
+conditionals. Expected propositions are used only when the independent kernel
+validates the executable test against the actual scoped values. Ordinary local
+or module definitions named `decide` retain their normal bindings; the kernel
+syntax is not a first-class callable value.
+
+Strict-let aliases preserve checked primitive/value identity. A selected class
+method's name and slot cannot make its result a mathematical alias: without
+checked body authority that result remains a fresh runtime value. The source
+and Core decision targets pass, including wrong identities, negative evidence,
+logical ambiguity, large integers, metadata/type-cache corruption and unknown
+method-body aliases. Broader focused regressions and a fresh stage attempt are
+still unfinished. The complete new170+5 suite has not run. The prior169+5
+constructor matrix is still running and cannot establish this new code.
+The installed164+5 snapshot remains the last complete baseline.
+
+Self-hosting remains incomplete. Ordinary total-measure contracts, actual
+primitive/instance-body authority, complete proof/usage/totality checking,
+handlers and typed shared-runtime lowering remain required. No new stage2/3
+fixed point or full self-built frontend suite has passed. The Native seed,
+ABI5/schema7 and definition-owned fixities are unchanged.
+[The source decision report](../bootstrap/source-decision-checkpoint-results.json)
+records exact inputs, current results and limitations.
+
+## Previous decision-constructor checkpoint (fbd7318)
+
 Source `Yes` and `No` now use kernel-owned proof-arrow schemes. Their metadata
 must retain the defining family, Prop parameter, ABI, tag, source arity, zero
 runtime arity and erased field. Applications pass scoped evidence; patterns bind

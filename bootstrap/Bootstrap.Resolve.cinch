@@ -436,6 +436,30 @@ module Bootstrap.Resolve where
           (others, tail-errors) -> (EAlt s renamed rhs others, errors <> more <> tail-errors)
     other -> (alts, fail (expr-span alts) "malformed case alternative spine")
 
+  builtin-decision-use :: List Binding -> List String -> Expr -> Bool
+  builtin-decision-use visible locals expression = case expression of
+    EVar sp name -> not (has-name name locals) && (case lookup-binding name visible of Some binding -> same (binding-symbol binding) "b.decide"; None -> False)
+    other -> False
+  -- Predicate operators denote logical operations here. Ordinary applications
+  -- retain their declaration-owned bindings and cannot become decision authority.
+  rename-decision-syntax :: List Binding -> List String -> Expr -> (Expr, List Diagnostic)
+  rename-decision-syntax visible locals syntax = case syntax of
+    ECon sp name arguments -> if same name "NonZero" || same name "Not" || same name "True" || same name "False" then
+      (case rename-decision-syntax visible locals arguments of (args, errors) -> (ECon sp name args, errors)) else rename-expr visible locals syntax
+    EApp sp (ECon at name (EArgsEnd end)) input -> if same name "NonZero" || same name "Not" then
+      (case rename-decision-syntax visible locals input of (argument, errors) -> (EApp sp (ECon at name (EArgsEnd end)) argument, errors)) else rename-expr visible locals syntax
+    EApp sp (EVar at name) input -> if same name "Not" then (case rename-decision-syntax visible locals input of (argument, errors) -> (EApp sp (EVar at name) argument, errors)) else rename-expr visible locals syntax
+    EBin sp operation first second -> if has-name operation ["+", "-", "*", "<", "<=", ">", ">=", "==", "/=", "&&", "||"] then
+      (case rename-decision-syntax visible locals first of (left, errors) -> case rename-decision-syntax visible locals second of (right, more) -> (EBin sp operation left right, errors <> more)) else rename-expr visible locals syntax
+    EIf sp condition yes no -> (case rename-decision-syntax visible locals condition of
+      (test, errors) -> case rename-decision-syntax visible locals yes of
+        (positive, more) -> case rename-decision-syntax visible locals no of
+          (negative, others) -> (EIf sp test positive negative, errors <> more <> others))
+    ENeg sp input -> (case rename-decision-syntax visible locals input of (value, errors) -> (ENeg sp value, errors))
+    EAnn sp input annotation -> (case rename-decision-syntax visible locals input of (value, errors) -> (EAnn sp value (rename-type visible locals annotation), errors))
+    EArg sp first rest -> (case rename-decision-syntax visible locals first of (value, errors) -> case rename-decision-syntax visible locals rest of (more, others) -> (EArg sp value more, errors <> others))
+    EArgsEnd sp -> (syntax, Nil)
+    other -> rename-expr visible locals syntax
   rename-expr :: List Binding -> List String -> Expr -> (Expr, List Diagnostic)
   rename-expr visible locals e = case e of
     EVar s name -> case resolve-use s False visible locals name of
@@ -452,9 +476,11 @@ module Bootstrap.Resolve where
       (renamed, errors) -> (ETuple s renamed, errors)
     EList s args -> case rename-expr visible locals args of
       (renamed, errors) -> (EList s renamed, errors)
-    EApp s f a -> case rename-expr visible locals f of
-      (head, errors) -> case rename-expr visible locals a of
-        (arg, more) -> (EApp s head arg, errors <> more)
+    EApp s f a -> if builtin-decision-use visible locals f then
+      (case rename-expr visible locals f of (head, errors) -> case rename-decision-syntax visible locals a of (argument, more) -> (EApp s head argument, errors <> more))
+      else (case rename-expr visible locals f of
+        (head, errors) -> case rename-expr visible locals a of
+          (arg, more) -> (EApp s head arg, errors <> more))
     EBin s op a b -> case rename-expr visible locals a of
       (left, errors) -> case rename-expr visible locals b of
         (right, more) ->
