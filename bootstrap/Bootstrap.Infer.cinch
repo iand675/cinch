@@ -1500,8 +1500,8 @@ module Bootstrap.Infer where
   proof-facts :: List CheckedBinding -> List Proposition
   proof-facts env = case env of Nil -> Nil; Cons (MkProofBinding fact) rest -> Cons fact (proof-facts rest); Cons b rest -> proof-facts rest
   proof-branch :: List CheckedBinding -> CoreTerm -> Bool -> Store -> List CheckedBinding
-  proof-branch env condition positive st = case scoped-core-condition (proof-context env st) (proof-facts env) (map-term-types (normalize st) condition) of
-    Some fact -> Cons (MkProofBinding (if positive then fact else PNegate fact)) env
+  proof-branch env condition positive st = case scoped-core-branch (proof-context env st) (proof-facts env) (map-term-types (normalize st) condition) positive of
+    Some fact -> Cons (MkProofBinding fact) env
     None -> env
   proof-let-env :: List CheckedBinding -> CheckedBinding -> Nat -> Scheme -> CoreTerm -> Store -> List CheckedBinding
   proof-let-env env binding id sc value st = case scoped-core-let-fact (proof-context env st) (proof-facts env) id (map-scheme-types (normalize st) sc) (map-term-types (normalize st) value) of

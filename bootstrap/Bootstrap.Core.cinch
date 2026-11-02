@@ -26,7 +26,7 @@ module Bootstrap.Core where
   export CRefineProof, scoped-refinement-proof
   export CRefine, CForget, prove-refinement, CRequire, CDischarge, core-predicates, prove-predicates, required-body, CProved, core-condition, core-let-fact, prove-subtraction, numeric-method-operation
   export scope-guarded-bodies, with-guarded-bindings, scoped-guarded-call-index, core-definition-contracts-closed, seal-definition-with-contracts
-  export ProofScope, make-proof-scope, scoped-prove-refinement, scoped-prove-predicates, scoped-core-predicates, scoped-core-condition, scoped-core-let-fact, scoped-prove-subtraction
+  export ProofScope, make-proof-scope, scoped-prove-refinement, scoped-prove-predicates, scoped-core-predicates, scoped-core-condition, scoped-core-branch, scoped-core-let-fact, scoped-prove-subtraction
   export scoped-total-call-index, scope-bodies, with-body-bindings, core-definition-bodies-closed, seal-definition-with-bodies
   export CoreClause, MkCoreClause, CoreDefinition, MkCoreDefinition
   export core-type, core-name, core-scheme, core-clauses, core-openings, core-private-types
@@ -1332,9 +1332,26 @@ module Bootstrap.Core where
         other -> None
       None -> None
     other -> None
+  -- Exact condition readings may be negated. A partial reading supplies
+  -- only the implication for the branch actually taken: a true p && q
+  -- implies p, and a false p || q implies not p, even when q is opaque.
+  -- Never negate that weaker implication to describe the other branch.
+  scoped-core-branch :: ProofScope -> List Proposition -> CoreTerm -> Bool -> Option Proposition
+  scoped-core-branch gamma facts condition positive = if not (bool-type (core-type condition)) then None else
+    case scoped-core-condition gamma facts condition of
+      Some p -> Some (if positive then p else PNegate p)
+      None -> case condition of
+        CIf sp ty test yes no -> if positive then
+          (case scoped-core-condition gamma facts no of
+            Some PFalsehood -> scoped-core-branch gamma facts test True
+            other -> None)
+          else (case scoped-core-condition gamma facts yes of
+            Some PTruth -> scoped-core-branch gamma facts test False
+            other -> None)
+        other -> None
   branch-facts :: ProofScope -> List Proposition -> CoreTerm -> Bool -> List Proposition
-  branch-facts gamma facts condition positive = case scoped-core-condition gamma facts condition of
-    Some p -> Cons (if positive then p else PNegate p) facts
+  branch-facts gamma facts condition positive = case scoped-core-branch gamma facts condition positive of
+    Some p -> Cons p facts
     None -> facts
   subtraction-goal :: ProofScope -> List Proposition -> CoreTerm -> CoreTerm -> Option Proposition
   subtraction-goal gamma facts first second = if nat-type (core-type first) && nat-type (core-type second) then

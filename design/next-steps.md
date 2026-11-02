@@ -1,5 +1,21 @@
 # Next steps (as of 2026-11-02)
 
+Boolean branch facts now preserve valid one-way implications when an opaque
+right operand prevents an exact condition reading. A true conjunction retains
+its left guard; a false disjunction retains the negative left guard. The wrong
+converses remain rejected. Source elaboration, independent Core typing and
+proof/certificate checking share the polarity-aware rule. All three focused
+targets pass, including six source cases and existing Core checks; the larger
+guarded-call and source-effect regressions are still running.
+
+The combined driver/checker candidate passes all six stage0/1 smokes. Actual
+stage2 clears Bootstrap.Guarded, then exits4 with446 diagnostics, first at
+Bootstrap.Infer.check-imported-value's inline arity sum passed to nat-to-int.
+Most later errors may be cascades. No stage2 IR or compiler exists yet. See
+[the Boolean branch checkpoint](../bootstrap/boolean-branch-results.json).
+
+## Previous driver and resolver checkpoints
+
 The Cinch driver now has explicit check-only and compile-only modes. Checking
 stops before emission and clears stale diagnostics; compilation links without
 running its output. The original compile/link/run interface is preserved. The

@@ -141,7 +141,7 @@ module Bootstrap.Typing where
       None -> None
     other -> None
   branch-facts :: ProofScope -> List Proposition -> CoreTerm -> Bool -> List Proposition
-  branch-facts gamma facts condition positive = case scoped-core-condition gamma facts condition of Some p -> Cons (if positive then p else PNegate p) facts; None -> facts
+  branch-facts gamma facts condition positive = case scoped-core-branch gamma facts condition positive of Some p -> Cons p facts; None -> facts
   lookup-local :: Nat -> List (Nat, Scheme) -> Option Scheme
   lookup-local id locals = case locals of Nil -> None; Cons (key, sc) rest -> if key == id then Some sc else lookup-local id rest
   application-result :: TypingContext -> TypeScope -> ProofScope -> List Proposition -> UType -> CoreTerm -> Option (UType, UType)
