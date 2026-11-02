@@ -1385,6 +1385,8 @@ enum ValueKind {
     /// proof and never becomes runtime code (core specification
     /// section 3).
     ProofCtor,
+    /// Experimental, goal-directed proof elaboration. Never a runtime value.
+    ProofSearch,
     /// A `stage` definition: compile-time code (staging, P9). It may only
     /// be referenced from compile-time code.
     StageFn,

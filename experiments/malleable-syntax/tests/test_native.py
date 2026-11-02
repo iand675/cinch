@@ -35,6 +35,9 @@ class NativeProofsOfConcept(unittest.TestCase):
             'ChoreographyForge': 'unknown constructor Checkout.MkCheckoutBuyerP1',
             'TensorADShape': 'index mismatch',
             'TensorPrivate': 'not exported',
+            'TacticsMissing': 'could not prove',
+            'TacticsShadow': 'could not prove',
+            'TacticsStale': 'stale evidence',
         }
         self.assertEqual(set(reasons), {p.stem for p in (HERE / 'examples/negative').glob('*.cinch')},
                          'Every rejection fixture must be checked for its intended reason')

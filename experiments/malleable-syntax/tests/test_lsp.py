@@ -113,6 +113,29 @@ class NativeLspTests(unittest.TestCase):
                               for d in m['params']['diagnostics'] if d.get('severity') == 1], reopened)
         finally: self.open(self.source)
 
+    def test_09_tactic_failure_reports_real_goal_at_original_notation(self):
+        source = '''module Main where
+  import syntax "../syntax/by.syntax.json" as by
+  bad :: (i :: Nat) -> (n :: Nat) -> Fin n
+  bad i n = Fin i (by!{ linear })
+  main :: Int
+  main = 0
+'''
+        try:
+            notifications = self.open(source)
+            errors = [d for m in notifications if m.get('method') == 'textDocument/publishDiagnostics'
+                      and m['params']['uri'] == self.uri for d in m['params']['diagnostics']
+                      if d.get('severity') == 1]
+            self.assertTrue(errors, notifications)
+            self.assertIn('could not prove `i < n`', errors[0]['message'])
+            start = errors[0]['range']['start']
+            self.assertEqual(start['line'], 3)
+            line = source.splitlines()[3]
+            self.assertGreaterEqual(start['character'], line.index('by!'))
+            self.assertLess(start['character'], line.index('}') + 1)
+        finally:
+            self.open(self.source)
+
     def test_08_library_first_open_and_close_preserve_one_module_identity(self):
         bridge = Bridge()
         try:

@@ -27,7 +27,8 @@ def main():
     files = list(HERE.glob('*.py')) + list((HERE / 'tests').glob('*.py'))
     files += list((HERE / 'syntax').glob('*.json')) + list((HERE / 'libraries').glob('*.cinch'))
     files += list((HERE / 'examples').rglob('*.cinch'))
-    files += [ROOT / p for p in ['compiler/src/check.rs', 'compiler/src/check_terms.rs',
+    files += [ROOT / p for p in ['compiler/src/check.rs', 'compiler/src/check_terms.rs', 'compiler/src/check_decls.rs',
+        'compiler/src/types.rs', 'compiler/tests/goal_tactics.rs',
         'compiler/src/lsp.rs', 'tooling/tree-sitter-cinch/grammar.js',
         'tooling/tree-sitter-cinch/src/scanner.c', 'tooling/editors/zed/languages/cinch/highlights.scm']]
     report = {'version': 1, 'time_utc': datetime.now(timezone.utc).isoformat(),

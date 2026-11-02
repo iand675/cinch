@@ -38,8 +38,10 @@ Continue particularly with:
    typed Cinch libraries, including matrix multiplication, transpose, sum,
    shape refusals, rectangular/empty axes and independent finite differences.
    The general checked elaboration/context extension interface remains open.
-3. Goal-aware proof automation through a checked extension interface. The
-   current `by` grammar merely exposes `refl`/exact evidence.
+3. Goal-aware proof automation now has a native experimental hook and `by`
+   notation for assumption lookup, checked arithmetic search and ordered
+   fallback. See TACTICS.md. The general reflected goal/context interface for
+   arbitrary library-written strategies remains open.
 4. Resource-aware audio blocks/scheduling and bounded callback behavior. The
    current single-frame pipeline verifies channel composition only.
 5. Live reactive UI/event behavior and syntax-aware completion in unfinished
@@ -94,6 +96,29 @@ claims need whole-source tests rather than isolated grammar checks.
   budgets and live reactive UI. Broader syntax-object hygiene and native
   interface/replay identity are still unresolved; this checkpoint does not
   complete the original goal.
+
+## Goal-aware tactic checkpoint (2026-11-02)
+
+- `Proof.search` runs a validated finite plan at native proposition-checking
+  time, using the actual expected goal and native scoped evidence snapshot.
+  `by` exposes assumption lookup, arithmetic certificate search and ordered
+  fallback; arbitrary library-written strategies still need a reflection API.
+- Native assumption matching preserves free variable identity. Both strategies
+  record evidence dependencies for the existing mutable-state invalidation
+  checker. Missing facts, rebound indices, stale evidence, malformed plans,
+  phase escapes and changed arithmetic certificates are covered by regressions.
+- The native regression run passed 43 tests: dependent (14), evidence
+  invalidation (12), goal tactics (9) and linear facts (8).
+- The final aggregate run passed all 39 tests, covering thirteen native
+  programs, twenty-one intended refusals and fourteen syntax descriptors.
+  Recorded source hashes were checked against the final sources. The native
+  LSP reports a failed tactic's actual goal at the original notation.
+- A base Tree-sitter gap surfaced: inline semicolon-separated case alternatives
+  accepted by the compiler fail editor parsing. The example uses supported
+  multiline layout; broader grammar parity remains open. See TACTICS.md.
+- The broad experiment remains unfinished: reflected tactic APIs, audio
+  budgets, live reactive UI, syntax-object hygiene and native extension identity
+  remain open.
 
 No PR, push, merge or installation into the user's editors is authorized or has
 been performed. Local edits, local commits and continued experiments are

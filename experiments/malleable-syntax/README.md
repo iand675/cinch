@@ -10,12 +10,17 @@ The [second pass](SECOND_PASS.md) adds projected, branching participant APIs and
 shape-checked reverse-mode tensor differentiation, along with syntax expansion
 inside imported source libraries.
 
+The [tactic pass](TACTICS.md) adds goal-directed assumption and arithmetic
+search, driven by the native checker's expected proposition and scoped facts.
+
 ## Run it
 
 From the worktree root:
 
 ```sh
-cargo build --manifest-path compiler/Cargo.toml
+cd compiler
+cargo build
+cd ..
 python3 experiments/malleable-syntax/poc.py run experiments/malleable-syntax/examples/Html.cinch
 python3 experiments/malleable-syntax/poc.py expand experiments/malleable-syntax/examples/Html.cinch
 python3 experiments/malleable-syntax/poc.py explain experiments/malleable-syntax/examples/Html.cinch
@@ -73,6 +78,7 @@ rejected by the Cinch checker for its intended reason.
 | `Query.cinch` | Generated schema record and typed list query | Projection of an absent field | Captured external schema and a database backend |
 | `Tasks.cinch` | Actual structured spawn with delayed body and joined task | Dropping a task handle | Richer task blocks and cancellation notation |
 | `Proof.cinch` | Kernel-checked reflexivity/exact notation | False arithmetic equality | A goal/context API for programmable tactics |
+| `Tactics.cinch` | Goal-directed assumption lookup, arithmetic certificates and ordered fallback | Missing facts, shadowed indices and stale mutable evidence | A reflected goal/context API for arbitrary library-written tactics |
 | `Format.cinch` | Generated packet type, parser, writer, length checks and checksum | Invalid byte-width constant; native malformed-input cases | Composable field formats, borrowed views, round-trip evidence |
 | `Protocol.cinch` | Generated linear endpoint states and transitions | Sending in the wrong state | Multiparty choreography, projection, branches and transport |
 | `Choreography.cinch` | Projected participant APIs, approved/declined conversations, private constructors and affine local transport | Wrong states, branches, wire types, replay and endpoint forgery | Nested choices, richer payloads and runtime session identity |

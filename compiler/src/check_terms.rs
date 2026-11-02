@@ -3961,6 +3961,9 @@ impl Checker {
                 } else {
                     self.resolve_var(p, p.span())?
                 };
+                if matches!(v.kind, ValueKind::ProofSearch) {
+                    return self.search_proof(env, args, prop, *span);
+                }
                 // `congr F e`: the lifting function is an explicit index
                 // term (e.g. `\ys -> Cons (f (g x)) ys`) and the evidence
                 // argument follows it. The one-argument form `congr e`
@@ -4108,6 +4111,58 @@ impl Checker {
                 "a proof term is `refl`, `congr [f] e`, a `case` on the induction variable, or the name of evidence",
             )),
         }
+    }
+
+    /// Experimental plan executor. It sees the checker's actual goal and
+    /// shadow-safe evidence snapshot, never text guessed by a syntax macro.
+    /// Failed alternatives do not unify metas or record evidence uses.
+    fn search_proof(
+        &mut self,
+        env: &Env,
+        args: &[ast::Term],
+        prop: &PTerm,
+        span: ast::Span,
+    ) -> Result<ECore> {
+        let [ast::Term::Str(plan, _)] = args else {
+            return Err(Error::at(span, "Proof.search expects one literal tactic plan"));
+        };
+        if plan.len() > 128 {
+            return Err(Error::at(span, "tactic plan exceeds 128 bytes"));
+        }
+        let steps: Vec<_> = plan.split_whitespace().collect();
+        if steps.is_empty() || steps.len() > 8
+            || steps.iter().any(|s| !matches!(*s, "assumption" | "linear"))
+        {
+            return Err(Error::at(span, "tactic plan needs 1–8 steps: assumption or linear"));
+        }
+        let goal = self.reduce_prop(prop);
+        let evidence = self.evidence_in(env);
+        for step in steps {
+            let used = match step {
+                "assumption" => evidence.items.iter().rposition(|(_, q, _, _)| {
+                    // These are free local indices, not refinement
+                    // binders: never match up to renaming (i < n is not
+                    // evidence for n < i, or for j < n).
+                    self.reduce_prop(q).eq(&goal)
+                }).map(|i| vec![i]),
+                // `linear_discharge` searches for certificates; the trusted
+                // `check_linear_proof` rechecks them before it returns. Only
+                // facts actually cited by those certificates count as uses.
+                "linear" => self.linear_discharge(&evidence, prop),
+                _ => unreachable!("plan validated above"),
+            };
+            if let Some(used) = used {
+                let items: Vec<_> = used.iter().map(|i| &evidence.items[*i]).collect();
+                self.note_ev_used(&items, span);
+                return Ok(ECore::Unit);
+            }
+        }
+        let facts = evidence.items.iter().map(|(name, q, _, _)| format!("{name}: {q}"))
+            .chain(evidence.refined.iter().map(ToString::to_string))
+            .collect::<Vec<_>>().join("; ");
+        Err(Error::at(span, format!(
+            "tactic plan `{plan}` could not prove `{prop}`; scoped facts: [{facts}]"
+        )))
     }
 
     /// Proof-goal matching with named-helper reduction: the proof layer
@@ -5623,6 +5678,9 @@ impl Checker {
                     ),
                 ));
             }
+            ValueKind::ProofSearch => {
+                return Err(Error::at(span, "Proof.search needs an expected proposition; it cannot be inferred or used at runtime"));
+            }
             ValueKind::ProofCtor => {
                 // Evidence constructors are erased: they are checked as
                 // proof terms and vanish at runtime (core specification
@@ -5765,7 +5823,7 @@ impl Checker {
                     ),
                 ))
             }
-            ValueKind::BoolLit(_) | ValueKind::EffectOp { .. } | ValueKind::ProofCtor => {
+            ValueKind::BoolLit(_) | ValueKind::EffectOp { .. } | ValueKind::ProofCtor | ValueKind::ProofSearch => {
                 unreachable!()
             }
         };
@@ -10041,7 +10099,8 @@ impl Checker {
             | ValueKind::BoolLit(_)
             | ValueKind::EffectOp { .. }
             | ValueKind::Law
-            | ValueKind::ProofCtor => {
+            | ValueKind::ProofCtor
+            | ValueKind::ProofSearch => {
                 return Err(Error::at(span, "this value takes no capability supplies"))
             }
         };

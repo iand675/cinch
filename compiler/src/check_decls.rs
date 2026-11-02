@@ -2049,6 +2049,15 @@ impl Checker {
         };
         self.add_value(congr, ast::Span { line: 0, col: 0 })
             .expect("builtin");
+        // A bounded plan interpreted only where an expected proposition
+        // exists. The placeholder scheme must never be instantiated as
+        // evidence: value inference rejects this kind.
+        self.qualified.insert(("Proof".into(), "search".into()), ValueInfo {
+            module: "<builtin>".into(),
+            name: "proof-search".into(),
+            scheme: Scheme::mono(Ty::Unit),
+            kind: ValueKind::ProofSearch,
+        });
     }
 
     fn add_value(&mut self, v: ValueInfo, span: ast::Span) -> Result<()> {

@@ -10,10 +10,19 @@
           "of": {
             "choice": [
               {
+                "ref": "fallback"
+              },
+              {
                 "ref": "reflexivity"
               },
               {
                 "ref": "exact"
+              },
+              {
+                "ref": "assumption"
+              },
+              {
+                "ref": "linear"
               }
             ]
           }
@@ -37,7 +46,25 @@
         }
       ],
       "emit": "${term}"
+    },
+    "fallback": {
+      "pattern": [
+        "assumption",
+        "or",
+        "linear"
+      ],
+      "emit": "${@search} \"assumption linear\""
+    },
+    "assumption": {
+      "pattern": "assumption",
+      "emit": "${@search} \"assumption\""
+    },
+    "linear": {
+      "pattern": "linear",
+      "emit": "${@search} \"linear\""
     }
   },
-  "helpers": {}
+  "helpers": {
+    "search": "Proof.search"
+  }
 }
