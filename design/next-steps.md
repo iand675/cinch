@@ -1,5 +1,16 @@
 # Next steps (as of 2026-11-02)
 
+
+Checked refined runtime results now retain their full contracts when used as
+dependent arguments. The original function and value are each bound once;
+only the bound value is projected, preserving effects and call obligations.
+All three focused targets pass, including49 source cases and40 Core checks.
+Fresh stage0/1 pass all six smokes. Actual stage2 clears Text.Parse.line-text-at
+and exits4 with1422 diagnostics, first at the handler in run-parser-with.
+Handler elaboration, complete correctness checks, typed runtime lowering and
+the stage2/3 fixed point remain required. The188+5 complete baseline below
+belongs to an earlier source snapshot. See [the scoped result](../bootstrap/refined-argument-results.json).
+
 ## Current verification boundary
 
 The complete188 integration targets and five general gates now pass on the

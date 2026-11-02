@@ -2670,9 +2670,18 @@ module Bootstrap.Infer where
         CRefineProof source ty witness body -> materialize-dependent classes sp env fun value st
         CErasedApply source ty row callee witness -> materialize-dependent classes sp env fun value st
         CDischarge source ty evidence body -> materialize-dependent classes sp env fun value st
+        -- The carrier projection retains a checked runtime result, even
+        -- when that result has no executable symbolic body contract. Keep
+        -- its original refinement on the strict binding, then project only
+        -- the actual local passed to the dependent function.
+        CForget source carrier body -> if comparison-refinement (normalize st (core-type body)) then
+          materialize-dependent-view classes sp env fun body (Some carrier) st
+          else (CError sp, checked)
         other -> (CError sp, checked)
   materialize-dependent :: List (String, Kind) -> Span -> List CheckedBinding -> CoreTerm -> CoreTerm -> Store -> (CoreTerm, Store)
-  materialize-dependent classes sp env fun value st = case fresh-id st of
+  materialize-dependent classes sp env fun value st = materialize-dependent-view classes sp env fun value None st
+  materialize-dependent-view :: List (String, Kind) -> Span -> List CheckedBinding -> CoreTerm -> CoreTerm -> Option UType -> Store -> (CoreTerm, Store)
+  materialize-dependent-view classes sp env fun value projection st = case fresh-id st of
     (function-id, sf) -> case fresh-id sf of
       (value-id, sv) ->
         let function-scheme = mono (core-type fun) in
@@ -2683,7 +2692,8 @@ module Bootstrap.Infer where
         let functions = Cons (MkLocalBinding function-name function-scheme function-id level) env in
         let binding = MkLocalBinding value-name value-scheme value-id level in
         let bound = proof-let-env functions binding value-id value-scheme value sv in
-        let actual = CLocal sp (core-type value) value-id value-name Nil in
+        let local = CLocal sp (core-type value) value-id value-name Nil in
+        let actual = case projection of None -> local; Some carrier -> CForget sp carrier local in
         let callee = CLocal sp (core-type fun) function-id function-name Nil in
         case reify-argument sp bound actual sv of
           (index, si) -> case open-pi sp (core-type fun) index si of

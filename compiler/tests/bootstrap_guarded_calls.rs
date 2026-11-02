@@ -33,6 +33,18 @@ fn compiled_cinch_uses_actual_guarded_bodies_for_dependent_bounds() {
     rows.sort();
     std::fs::write(dir.join("interfaces.json"), format!("{{\"schema\":1,\"interfaces\":[{}]}}", rows.join(","))).unwrap();
     let cases = vec![
+        ("pure-refined-result", "import Data.Bytes\n  accept-end :: using (j <= bytes-len b) => (b :: Bytes) -> (j :: Nat) -> Bytes\n  accept-end b j = b\n  end :: (b :: Bytes) -> refined (p <= bytes-len b) Nat\n  end b = bytes-len b\n  slice :: Bytes -> Bytes\n  slice b = accept-end b (end b)".to_string(), true),
+        ("guarded-refined-result", "import Data.Bytes\n  accept-end :: using (j <= bytes-len b) => (b :: Bytes) -> (j :: Nat) -> Bytes\n  accept-end b j = b\n  end :: using (i <= bytes-len b) => (b :: Bytes) -> (i :: Nat) -> refined (p <= bytes-len b) Nat\n  end b i = i\n  slice :: Bytes -> Nat -> Bytes\n  slice b i = if i <= bytes-len b then accept-end b (end b i) else b".to_string(), true),
+        ("missing-original-guard", "import Data.Bytes\n  accept-end :: using (j <= bytes-len b) => (b :: Bytes) -> (j :: Nat) -> Bytes\n  accept-end b j = b\n  end :: using (i <= bytes-len b) => (b :: Bytes) -> (i :: Nat) -> refined (p <= bytes-len b) Nat\n  end b i = i\n  slice :: Bytes -> Nat -> Bytes\n  slice b i = accept-end b (end b i)".to_string(), false),
+        ("wrong-result-contract", "import Data.Bytes\n  accept-end :: using (j <= bytes-len b) => (b :: Bytes) -> (j :: Nat) -> Bytes\n  accept-end b j = b\n  end :: (b :: Bytes) -> refined (p <= bytes-len b) Nat\n  end b = bytes-len b + 1\n  slice :: Bytes -> Bytes\n  slice b = accept-end b (end b)".to_string(), false),
+        ("effectful-refined-result", "import Data.Bytes\n  accept-end :: using (j <= bytes-len b) => (b :: Bytes) -> (j :: Nat) -> Bytes\n  accept-end b j = b\n  slice :: forall r. ((source :: Bytes) -> Unit ->{IO r} refined (p <= bytes-len source) Nat) -> (b :: Bytes) -> Unit ->{IO r} Bytes\n  slice provider b u = accept-end b (provider b u)".to_string(), true),
+        ("cannot-erase-effects", "import Data.Bytes\n  accept-end :: using (j <= bytes-len b) => (b :: Bytes) -> (j :: Nat) -> Bytes\n  accept-end b j = b\n  slice :: forall r. ((source :: Bytes) -> Unit ->{IO r} refined (p <= bytes-len source) Nat) -> (b :: Bytes) -> Unit -> Bytes\n  slice provider b u = accept-end b (provider b u)".to_string(), false),
+        ("bound-effectful-reference", "import Data.Bytes\n  accept-end :: using (j <= bytes-len b) => (b :: Bytes) -> (j :: Nat) -> Bytes\n  accept-end b j = b\n  slice :: forall r. ((source :: Bytes) -> Unit ->{IO r} refined (p <= bytes-len source) Nat) -> (b :: Bytes) -> Unit ->{IO r} Bytes\n  slice provider b u = let value = provider b u in accept-end b value".to_string(), true),
+        ("bound-effect-erasure", "import Data.Bytes\n  accept-end :: using (j <= bytes-len b) => (b :: Bytes) -> (j :: Nat) -> Bytes\n  accept-end b j = b\n  slice :: forall r. ((source :: Bytes) -> Unit ->{IO r} refined (p <= bytes-len source) Nat) -> (b :: Bytes) -> Unit -> Bytes\n  slice provider b u = let value = provider b u in accept-end b value".to_string(), false),
+        ("refined-buffer-result", "import Data.Bytes\n  make :: (size :: Nat) -> refined (size <= bytes-len out) Bytes\n  make size = bytes-new size\n  read :: Nat -> Nat\n  read n = bytes-get (make (n + 1)) n".to_string(), true),
+        ("refined-buffer-too-short", "import Data.Bytes\n  make :: (size :: Nat) -> refined (size <= bytes-len out) Bytes\n  make size = bytes-new size\n  read :: Nat -> Nat\n  read n = bytes-get (make (n)) n".to_string(), false),
+        ("separate-refined-effects", "require-same :: using (x == y) => (x :: Nat) -> (y :: Nat) -> Nat\n  require-same x y = x\n  use :: forall r. (Unit ->{IO r} refined (p <= 1) Nat) -> Unit ->{IO r} Nat\n  use next u = require-same (next u) (next u)".to_string(), false),
+        ("same-bound-refined-effect", "require-same :: using (x == y) => (x :: Nat) -> (y :: Nat) -> Nat\n  require-same x y = x\n  use :: forall r. (Unit ->{IO r} refined (p <= 1) Nat) -> Unit ->{IO r} Nat\n  use next u = let value = next u in require-same value value".to_string(), true),
         ("character buffer keeps hypothesis-only width bounds", "import Data.Char\n  import Data.String\n  chars-bytes-from :: (pos :: Nat) -> List Char -> refined (pos <= bytes-len out) Bytes\n  chars-bytes-from pos cs = case cs of\n    Nil -> bytes-new pos\n    Cons c rest ->\n      let cp = char-code c in\n      let out = chars-bytes-from (pos + utf8-encode-width cp) rest in\n      let u = utf8-encode-into out pos cp in\n      out".to_string(), true),
         ("character buffer cannot invent width space", "import Data.Char\n  import Data.String\n  chars-bytes-from :: (pos :: Nat) -> List Char -> refined (pos <= bytes-len out) Bytes\n  chars-bytes-from pos cs = case cs of\n    Nil -> bytes-new pos\n    Cons c rest ->\n      let cp = char-code c in\n      let out = chars-bytes-from pos rest in\n      let u = utf8-encode-into out pos cp in\n      out".to_string(), false),
         ("byte offset result equation", "offset :: using (extra + bytes-len x <= bytes-len out) => (extra :: Nat) -> (x :: Bytes) -> (out :: Bytes) -> refined (r + extra + bytes-len x == bytes-len out) Nat\n  offset extra x out = bytes-len out - (extra + bytes-len x)".to_string(), true),
@@ -70,7 +82,16 @@ fn compiled_cinch_uses_actual_guarded_bodies_for_dependent_bounds() {
     let mut oracle_errors = Vec::new();
     for (name, body, accepted) in cases {
         let source = format!("module Main where\n  {body}\n  main :: Int\n  main = 0\n");
-        let actual = cinch::driver::check_sources(&source, "native-guarded-call-oracle.cinch");
+        // Native currently requires an explicit value binding for the
+        // higher-order effectful result. Use that equivalent reference;
+        // the Cinch input below remains the inline call and must preserve
+        // its effects while materializing the checked result once.
+        let oracle_source = if name == "effectful-refined-result" || name == "cannot-erase-effects" {
+            let reference = source.replace("accept-end b (provider b u)", "let value = provider b u in accept-end b value");
+            assert_ne!(reference, source);
+            reference
+        } else { source.clone() };
+        let actual = cinch::driver::check_sources(&oracle_source, "native-guarded-call-oracle.cinch");
         if actual.is_ok() != accepted { oracle_errors.push(format!("{name}: {}", actual.err().map_or("accepted".into(), |e| e.message))); }
         let element = "";
         requests.push(format!("{{\"name\":{},\"source\":{},\"element\":{},\"wanted\":{}}}", quote(name), quote(&source), quote(element), if accepted { 0 } else { 4 }));
