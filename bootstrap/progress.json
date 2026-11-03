@@ -1,5 +1,5 @@
 {
-  "activity": "All 127 ordinary target groups pass. Bootstrap-specific groups: 23 of 81 passed, 2 running and 0 failed. Runtime171, tooling41 and syntax/editor39 pass on this same source. Fresh final-source stages built and smoke-tested: 4 of4; combined gate passed. Additional Stage3 coverage: ordinary: 0 of 8 passed, 0 running, 1 failed (stopped-after-failure); mixed: 0 of 4 passed, 0 running, 0 failed (running). Self-built portable bootstrap suite: 1 of 79 groups passed, 1 running, 0 failed; state running.",
+  "activity": "All 127 ordinary target groups pass. Bootstrap-specific groups: 23 of 81 passed, 3 running and 0 failed. Runtime171, tooling41 and syntax/editor39 pass on this same source. Fresh final-source stages built and smoke-tested: 4 of4; combined gate passed. Additional Stage3 coverage: ordinary: 0 of 8 passed, 0 running, 1 failed (stopped-after-failure); mixed: 0 of 4 passed, 0 running, 0 failed (running). Self-built portable bootstrap suite: 1 of 79 groups passed, 1 running, 0 failed; state running.",
   "blockers": [
     {
       "title": "Validate the additional Stage3 repairs",
@@ -45,7 +45,7 @@
     },
     {
       "title": "Live final-source compiler sweep",
-      "detail": "150 of 208 complete target groups passed; 2 running and 0 failed. Every group includes ignored tests. Source snapshot c6260e01; code matches the published repairs.",
+      "detail": "150 of 208 complete target groups passed; 3 running and 0 failed. Every group includes ignored tests. Source snapshot c6260e01; code matches the published repairs.",
       "state": "running"
     },
     {
@@ -228,5 +228,5 @@
   ],
   "status": "Ordinary or mixed Stage3 verification needs investigation",
   "summary": "The repaired compiler bootstraps and passes exact final-Stage3 behavior checks. The full 208-group Native-backed sweep and all 79 portable bootstrap groups through Stage3 are tracked separately. Native library fixture preparation is explicit; selected compiler failures never fall back.",
-  "updatedAt": "2026-11-03T22:50:35.820630+00:00"
+  "updatedAt": "2026-11-03T22:51:58.804287+00:00"
 }
