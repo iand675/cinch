@@ -30,8 +30,12 @@ at an argument-count subtraction precondition in `external-call-unit` (211
 diagnostics include cascades). No Stage2 IR or executable was produced. The
 boundary regression targets for globals, nominal identities, source instances
 and typing all passed on the preceding candidate. An explicit positive-bound
-rewrite is under full-source and fresh-stage validation; it is not yet a verified
-repair. Canonical compiler interface output, remaining runtime forms, actual
+rewrite now passes the full compiler frontend with the actual preceding Cinch
+compiler. Runtime emission stops at 29 missing function variants, four missing
+dictionary variants and two decimal conversion intrinsics. These are extracted
+from real retained-Core requests; the next candidate builds that finite library
+root set and adds the matching runtime calls. Fresh stage-chain and linked-object
+checks are in progress. No Stage2 executable is established. Canonical compiler interface output, remaining runtime forms, actual
 provider demands, complete current suites/correctness and the Stage2/Stage3 fixed
 point remain required. The [progress dashboard](https://cinch-bootstrap-status.ian92821.chatgpt.site)
 reads the committed [status checkpoint](../bootstrap/progress.json); update that

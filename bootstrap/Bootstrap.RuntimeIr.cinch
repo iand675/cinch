@@ -667,7 +667,8 @@ module Bootstrap.RuntimeIr where
   external-call-unit definitions locals w sp unit sc givens args =
         let evidence-count = list-length (scheme-requirements sc) in
         let native-count = list-length (unit-params unit) in
-        if list-length givens /= evidence-count || native-count < evidence-count then unsupported w sp "external function context disagrees with its checked scheme" else
+        if list-length givens /= evidence-count then unsupported w sp "external function context disagrees with its checked scheme" else
+        if evidence-count <= native-count then
         (case external-shape (native-count - evidence-count) (scheme-body sc) Nil of
           Some (params, result-type) -> (case (class-vector (writer-context w) (requirement-types (scheme-requirements sc) <> params), word-class (writer-context w) result-type, unit-result unit) of
             (Some expected, Some result, Some actual-result) -> if not (same-classes expected (unit-params unit)) || result /= actual-result then unsupported w sp "external function word ABI disagrees with its checked scheme" else
@@ -682,6 +683,7 @@ module Bootstrap.RuntimeIr where
                   (called, value) -> apply-terms definitions locals called value (drop-terms (list-length params) args))
             other -> unsupported w sp "external function lacks concrete checked word representations")
           None -> unsupported w sp "external unit arity exceeds its checked function telescope")
+        else unsupported w sp "external function context disagrees with its checked scheme"
   function-call :: List CoreDefinition -> List Local -> Writer -> Span -> CoreDefinition -> List Nat -> List String -> List CoreTerm -> (Writer, String)
   function-call definitions locals w sp d classes givens args = case definition-context d classes w of
     Some context -> let parameters = definition-parameters d in

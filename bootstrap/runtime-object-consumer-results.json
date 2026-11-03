@@ -5,7 +5,7 @@
     "bootstrap/Bootstrap.Object.cinch": "7368a8ec0719eb1d9671e0047cd922c56f39cada62d8e7f0918fb6c745903858",
     "bootstrap/Bootstrap.Pipeline.cinch": "658ceac7b3151afd030bb05f9c63ed6c233e4e14284aab4f04fdcbf14f47e4c4",
     "bootstrap/Bootstrap.RuntimeAbi.cinch": "a7f25347ef8b5be6baf048cd3339a913e15623d2717961d272e22a7ff34cddd1",
-    "bootstrap/Bootstrap.RuntimeIr.cinch": "e53654c73f1da882a273cbbb04bbc400d5b4fed7b5ce3b9dc876116b7eefcc48",
+    "bootstrap/Bootstrap.RuntimeIr.cinch": "051493078775364471fe2a687cbb4ce30f460a3b581dbe1699c6d0c854792a67",
     "bootstrap/library-object-roots.json": "5c87ca22f38939e53526bdfa8c4d36fbb61382f63d80eab4d5ae6d4170d766d9",
     "bootstrap/library-provider.lock.json": "7a4117e0996e7a76688aa4a8f541fa1aa8b87f60d6d7911fa1ed9de8baf2d289",
     "bootstrap/programs/Run.Pipeline.cinch": "b3b44dabd6ea30fe43835af39bd56134ec56704cb0b1ba031f956b5d016225ec",
@@ -50,6 +50,24 @@
       "status": "failed"
     },
     "tooling_checks": 35
+  },
+  "explicit_subtraction_bound": {
+    "builder": "genuine Stage1 candidate11",
+    "compiler_bundle_sha256": "e711a8854564c459ee7efc14034ff7b3250562aa4b5cdb42c1a9a52af9635d52",
+    "exit_code": 5,
+    "frontend_diagnostics": 0,
+    "missing_dictionary_roots": 4,
+    "missing_runtime_intrinsics": [
+      "cinch.runtime.textF64FromDecimal",
+      "cinch.runtime.textF64ToDecimal"
+    ],
+    "missing_unit_roots": 29,
+    "runtime_diagnostic_lines": 1568,
+    "runtime_ir_source_sha256": "051493078775364471fe2a687cbb4ce30f460a3b581dbe1699c6d0c854792a67",
+    "small_probe_scope": "Scalar and list-count probes accept both old and new guards; they do not reproduce the complete-source failure. Unsafe reversed-bound subtraction is refused.",
+    "stage2_executable": false,
+    "stage2_ir_bytes": 0,
+    "status": "full-source-frontend-passed-runtime-emission-refused"
   },
   "library_producer": {
     "description": "Library-only Native producer with checked object manifests, explicit representation roots and canonical method families. Never compiles Bootstrap implementation modules. The independent stage0 compiler pin is unchanged.",
