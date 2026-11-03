@@ -1,12 +1,12 @@
 {
   "schema": 1,
-  "updatedAt": "2026-11-03T16:09:14.408204+00:00",
+  "updatedAt": "2026-11-03T16:15:16.933739+00:00",
   "estimate": 90,
   "estimateNote": "Rough engineering estimate. Remaining compiler bugs can change it; this is not a measured test pass rate.",
   "status": "Compiler code reaches a fixed point",
   "summary": "Stage3 rebuilt successfully. Its compiler IR and executable exactly match Stage2, and both compilers pass all three smoke checks. Real compiler interfaces and complete current-source testing remain.",
-  "activity": "Published a checked interface writer with independent Native and actual Cinch consumer validation. The pinned seed builds all43 compiler modules and emits their contracts. Remaining interface categories and staged CLI integration are unfinished; full-suite failure corrections are being checked.",
-  "commit": "0f2f64b7cfa70fedfa4b86ca90b75e71f3f59314",
+  "activity": "The self-built Stage3 exposed a direct checked-index reification refusal in the writer. A reduced two-program probe reproduces it and accepts an explicit strict local; the writer now names that arity value, with its full self-built retry queued. Corrected pipeline and parser gates are also queued.",
+  "commit": "0ecd7d3baaaa7658a5acca6477cd9a8c2fa3cc44",
   "stages": [
     {
       "name": "Stage 0",
@@ -101,7 +101,7 @@
     },
     {
       "title": "Full baseline suite running",
-      "detail": "Candidate23: 57 /205 target groups passed; 3 running; 2 failed. The failures concern stale parser and pipeline expectations. Their corrections have focused evidence; complete corrected-source verification remains.",
+      "detail": "Candidate23: 60 /205 target groups passed; 3 running; 2 failed. Parser and pipeline corrections have focused evidence; their full reruns and complete final-source verification remain.",
       "state": "running"
     },
     {
@@ -144,7 +144,7 @@
     {
       "title": "Write actual compiler interfaces",
       "detail": "The checked writer handles ordinary data and values, including privacy and dependency hashes. Remaining signature, instance, foreign-assumption, refinement, record and effect cases must be completed, then the writer must be connected to the staged compiler CLI.",
-      "technical": "The published compiler source exactly matches a successful pinned-seed build of all43 modules. Its interfaces are an authority oracle, not a substitute for Cinch-produced Stage2/Stage3 interface equivalence."
+      "technical": "Full writer Stage3 emission first refuses a direct computed arity as an unchecked value index. An explicit local passes the isolated probe; full retry is queued. Remaining contract categories and staged CLI integration are still required."
     },
     {
       "title": "Finish full verification and repair its failures",
