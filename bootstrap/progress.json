@@ -1,11 +1,11 @@
 {
   "schema": 1,
-  "updatedAt": "2026-11-03T14:12:54.489384+00:00",
+  "updatedAt": "2026-11-03T14:30:07.904644+00:00",
   "estimate": 90,
   "estimateNote": "Rough engineering estimate. Remaining compiler bugs can change it; this is not a measured test pass rate.",
   "status": "Compiler code reaches a fixed point",
   "summary": "Stage3 rebuilt successfully. Its compiler IR and executable exactly match Stage2, and both compilers pass all three smoke checks. Real compiler interfaces and complete current-source testing remain.",
-  "activity": "Stage3 passes all smoke checks and exactly matches Stage2 code. The self-built Stage2 also compiles a changed compiler that exhibits the intended changed behavior. Remaining work is real compiler-interface output and the complete current-source suite.",
+  "activity": "Stage2/Stage3 code equality, all smoke checks, and Stage2 changed-source behavior are verified. Disk recovery restored about15GiB; the current-source suite runs on three bounded workers using exact compiled test binaries.",
   "commit": "27d11d6387b971054a811818b4321191c80dccc9",
   "stages": [
     {
@@ -85,8 +85,8 @@
       "state": "passed"
     },
     {
-      "title": "Full current-source suite prepared",
-      "detail": "Candidate23: all204 Rust test runners compile. Two exact-binary regression groups already pass; 203 groups await execution after disk recovery. Total205 includes documentation tests.",
+      "title": "Full current-source suite running",
+      "detail": "Candidate23: 10 /205 whole target gates passed; 3 running; 0 failed. All204 Rust runners compiled; documentation is the additional gate.",
       "state": "running"
     },
     {
@@ -133,7 +133,7 @@
     },
     {
       "title": "Complete current-source tests",
-      "detail": "All Rust test runners compile. The full run is prepared and will continue after enough disk headroom is restored.",
+      "detail": "All Rust test runners compile. The full run is active with three bounded workers after verified cache archival restored disk headroom.",
       "technical": "Candidate23 uses three bounded workers and a single shared exact-snapshot test build. Historical source20 passes remain separate."
     }
   ],
