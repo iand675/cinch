@@ -1,11 +1,11 @@
 {
   "schema": 1,
-  "updatedAt": "2026-11-03T13:44:28.082551+00:00",
-  "estimate": 85,
+  "updatedAt": "2026-11-03T13:59:15.777254+00:00",
+  "estimate": 90,
   "estimateNote": "Rough engineering estimate. Remaining compiler bugs can change it; this is not a measured test pass rate.",
-  "status": "Stage 2 works; building Stage 3",
-  "summary": "Cinch has built a runnable Stage2 compiler. That compiler passes valid-program, precedence and invalid-program smoke checks. It is now rebuilding the full compiler for Stage3.",
-  "activity": "Stage2 emitted 19.4MB of LLVM IR, linked successfully and passed all three smoke checks. Stage3 and current-source full-suite verification are running. Compiler-interface output remains unfinished.",
+  "status": "Compiler code reaches a fixed point",
+  "summary": "Stage3 rebuilt successfully. Its compiler IR and executable exactly match Stage2, and both compilers pass all three smoke checks. Real compiler interfaces and complete current-source testing remain.",
+  "activity": "Checking changed-source behavior through the self-built Stage2. All204 Rust runners compile; the full suite is prepared and will resume with three workers after verified archival restores disk headroom.",
   "commit": "27d11d6387b971054a811818b4321191c80dccc9",
   "stages": [
     {
@@ -28,12 +28,17 @@
     },
     {
       "name": "Stage 3",
-      "state": "pending",
-      "label": "Building",
-      "description": "Stage2 is rebuilding the full compiler. Stable IR and real compiler interfaces are still required."
+      "state": "passed",
+      "label": "Code matches",
+      "description": "Built by Stage2; passes smoke checks. Compiler IR and binary exactly match Stage2. Interface verification is still required."
     }
   ],
   "checks": [
+    {
+      "title": "Stage2 and Stage3 compiler code matches exactly",
+      "detail": "Candidate23: identical LLVM IR and executable SHA256; Stage3 also passes valid-program, precedence and invalid-source smoke checks. This does not establish the compiler-interface fixed point.",
+      "state": "passed"
+    },
     {
       "title": "Stage2 built and smoke-tested",
       "detail": "Candidate23 produces real compiler IR and an executable. The executable starts and compiles/runs valid programs, respects precedence and gives the expected invalid-source refusal.",
@@ -75,8 +80,8 @@
       "state": "passed"
     },
     {
-      "title": "Full Native sweep running",
-      "detail": "Candidate23 is compiling all Rust test runners once, then executing with three bounded workers. All14 checker regressions and the proof target already pass on this exact source; prior candidate20 results are preserved separately.",
+      "title": "Full current-source suite prepared",
+      "detail": "Candidate23: all204 Rust test runners compile. Two exact-binary regression groups already pass; 203 groups await execution after disk recovery. Total205 includes documentation tests.",
       "state": "running"
     },
     {
@@ -117,22 +122,26 @@
   ],
   "blockers": [
     {
-      "title": "Finish Stage3 and compare the rebuild",
-      "detail": "Stage2 is now compiling the complete compiler source again. Stage3 must run and produce the same compiler IR.",
-      "technical": "Actual Stage2 built_by_stage1, typed-ir-objects, verified startup and all3smokes. Stage3 is running; no fixed-point result yet."
+      "title": "Write actual compiler interfaces",
+      "detail": "The Cinch compiler still needs complete checked interface output for its own modules. Interface equivalence is required in addition to the matching compiler code.",
+      "technical": "Source pipeline currently emits IR/diagnostics. No empty or name-only files will count; the interface completeness gate also needs stronger validation."
     },
     {
-      "title": "Emit actual compiler interfaces",
-      "detail": "The Cinch compiler still needs to write complete checked interfaces for its own modules. Empty or name-only files cannot establish the required contract.",
-      "technical": "Current compiler pipeline emits IR/diagnostics. The interface writer remains missing; the completeness gate also needs stronger structural/authority checks."
+      "title": "Complete current-source tests",
+      "detail": "All Rust test runners compile. The full run is prepared and will continue after enough disk headroom is restored.",
+      "technical": "Candidate23 uses three bounded workers and a single shared exact-snapshot test build. Historical source20 passes remain separate."
     },
     {
-      "title": "Finish the current-source full suite",
-      "detail": "The full suite is being moved to the repaired compiler snapshot. All current test targets must run successfully.",
-      "technical": "Candidate23 compiles Rust runners once for shared-cache bounded execution. Earlier-snapshot passes do not establish complete current-source coverage."
+      "title": "Verify changed-source behavior",
+      "detail": "Stage2 is compiling a modified compiler, which must then exhibit the changed behavior.",
+      "technical": "The changed-source check is being strengthened to use actual self-built Stage2 as its builder. Verification is running."
     }
   ],
   "milestones": [
+    {
+      "title": "Compiler-code fixed point verified",
+      "detail": "Stage2 builds Stage3 with byte-for-byte identical compiler IR and executable. Both pass all smoke cases; complete interface and suite verification remain."
+    },
     {
       "title": "Cinch-built compiler runs its smoke programs",
       "detail": "Stage2 emits actual program code, runs valid cases and refuses invalid source. Its full Stage3 rebuild is underway."
