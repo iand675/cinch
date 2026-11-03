@@ -10,8 +10,8 @@
       "detail": "3 of 4 stages are built and smoke-tested. Matching compiler IR and canonical interfaces, actual API consumption and changed-source rebuilding must all pass on this snapshot."
     },
     {
-      "title": "Repeat test-runner execution through the latest compiler",
-      "detail": "Queued behind the stage chain in the fifth lane. Both original runner programs must produce exact reports and zero leaks with a 32M heap. Earlier successful results remain scoped to their compiler."
+      "title": "Finish external acceptance through exact final Stage3",
+      "detail": "Queued after the complete stage chain. Exact final Stage3 must pass both original test-runner programs with exact reports and 32M zero leaks, seven fixity/facade probes, and portable class behavior. Earlier results remain scoped to their executable."
     }
   ],
   "checks": [
@@ -205,5 +205,5 @@
   ],
   "status": "Final-source verification running",
   "summary": "The fresh frozen-source Stage2 and Stage3 reach the full compiler/interface fixed point. Stage3 consumes its emitted compiler APIs, and Stage2 rebuilds changed compiler source correctly. Later fixity and Rust name-resolution repairs still need matching verification.",
-  "updatedAt": "2026-11-03T20:29:25.285133+00:00"
+  "updatedAt": "2026-11-03T20:32:53.802641+00:00"
 }
