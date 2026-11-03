@@ -1,4 +1,20 @@
 {
+  "additional_interoperability": [
+    {
+      "compiler_exit": 0,
+      "compiler_output": "",
+      "executable_exit": 0,
+      "name": "imported",
+      "output": ""
+    },
+    {
+      "compiler_exit": 0,
+      "compiler_output": "",
+      "executable_exit": 0,
+      "name": "instance",
+      "output": ""
+    }
+  ],
   "bootstrap_achieved": false,
   "case_results": [
     "lambda-argument: exit199; cinch-leak: live=0 immortal=0 leaked=0",

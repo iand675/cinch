@@ -22,6 +22,9 @@ module Bootstrap.RuntimeIr where
     LayoutPlan :: Nat -> List (Nat, Nat) -> List (String, Nat) -> List (Nat, Nat) -> LayoutPlan
   data Demand where
     Demand :: String -> List Nat -> Demand
+    ConstructorDemand :: String -> List Nat -> Demand
+    LambdaDemand :: String -> List (Nat, Nat) -> List (Nat, Nat) -> List CorePattern -> CoreTerm -> Demand
+    StubDemand :: String -> List Nat -> Demand
   -- Bound scheme ids and opened rigid ids are separate namespaces.
   -- A worker is shared by all actual types with the same class vector.
   data RuntimeContext where
@@ -39,6 +42,8 @@ module Bootstrap.RuntimeIr where
   same a b = string-compare a b == 0
   line :: Writer -> String -> Writer
   line w text = case w of Writer next globals code errors layouts datas -> Writer next globals (builder-add-line text code) errors layouts datas
+  emit-lines :: Writer -> List String -> Writer
+  emit-lines w texts = case texts of Nil -> w; Cons first rest -> emit-lines (line w first) rest
   global :: Writer -> String -> Writer
   global w text = case w of Writer next globals code errors layouts datas -> Writer next (builder-add-line text globals) code errors layouts datas
   fresh :: Writer -> String -> (Writer, String)
@@ -74,6 +79,7 @@ module Bootstrap.RuntimeIr where
     RuntimeContext datas bounds rigids pending done -> case base ty of
       UBound id name KType -> representation id bounds
       URigid id name level KType -> representation id rigids
+      UFun domain result -> Some 1
       UTuple fields -> if field-types context fields 0 then Some 1 else None
       other -> case type-head ty of
         UCon name kind -> case data-declaration name datas of Some d -> Some 1; None -> None
@@ -113,12 +119,20 @@ module Bootstrap.RuntimeIr where
     Writer next globals code errors layouts (RuntimeContext datas old-bound old-rigid pending done) ->
       Writer next globals code errors layouts (RuntimeContext datas bounds rigids pending done)
   demand-seen :: String -> List Demand -> Bool
-  demand-seen key demands = case demands of Nil -> False; Cons (Demand name classes) rest -> same key (specialized-name name classes) || demand-seen key rest
-  demand-worker :: String -> List Nat -> Writer -> Writer
-  demand-worker name classes w = case w of
+  demand-seen key demands = case demands of Nil -> False; Cons first rest -> same key (demand-key first) || demand-seen key rest
+  demand-key :: Demand -> String
+  demand-key demand = case demand of
+    Demand name classes -> specialized-name name classes
+    ConstructorDemand name classes -> specialized-name name classes
+    LambdaDemand name bounds rigids parameters body -> name
+    StubDemand name classes -> cat [name, ".app"]
+  request-demand :: Demand -> Writer -> Writer
+  request-demand demand w = case w of
     Writer next globals code errors layouts (RuntimeContext datas bounds rigids pending done) ->
-      if demand-seen (specialized-name name classes) (pending <> done) then w else
-        Writer next globals code errors layouts (RuntimeContext datas bounds rigids (Cons (Demand name classes) pending) done)
+      if demand-seen (demand-key demand) (pending <> done) then w else
+        Writer next globals code errors layouts (RuntimeContext datas bounds rigids (Cons demand pending) done)
+  demand-worker :: String -> List Nat -> Writer -> Writer
+  demand-worker name classes w = request-demand (Demand name classes) w
   runtime-number :: UType -> String
   runtime-number ty = if named ty "Nat" then "nat" else "int"
   count-op :: Bool -> UType -> String -> Writer -> Writer
@@ -280,7 +294,10 @@ module Bootstrap.RuntimeIr where
       else direct-call definitions locals w sp name actuals Nil
     CApply sp ty f x -> case head term of
       CUse at function name role actuals -> direct-call definitions locals w sp name actuals (arguments term Nil)
-      other -> unsupported w sp "indirect or polymorphic application needs closure lowering"
+      other -> case expression definitions locals w f of
+        (callee, function) -> case expression definitions locals callee x of
+          (ready, value) -> apply-one ready function value
+    CLambda sp ty pattern body -> lambda definitions locals w sp pattern body
     CLet sp ty id name sc rhs body -> if (case scheme-params sc of Nil -> True; other -> False) && scheme-supported (writer-context w) sc && word-type (writer-context w) (scheme-body sc) then
       (case expression definitions locals w rhs of
         (bound, value) -> case expression definitions (Cons (Local id (scheme-body sc) value) locals) bound body of
@@ -303,25 +320,211 @@ module Bootstrap.RuntimeIr where
     Nil -> (w, Nil)
     Cons term rest -> case expression definitions locals w term of
       (first, value) -> case expressions definitions locals first rest of (done, values) -> (done, Cons value values)
+  -- A shape entry includes the three raw ABI prefix words and every
+  -- parameter class. The allocation itself holds only the filled prefix.
+  class-bits :: List Nat -> Nat -> Nat
+  class-bits classes factor = case classes of Nil -> 0; Cons first rest -> first * factor + class-bits rest (factor * 4)
+  request-shape :: Span -> List Nat -> Writer -> (Writer, Nat)
+  request-shape sp classes w = case w of
+    Writer next globals code errors (LayoutPlan groups tuples names cells) context ->
+      let packed = 3 + list-length classes + class-bits classes 274877906944 in
+      case known-layout packed tuples of
+        Some id -> (w, id)
+        None -> if list-length classes > 13 || groups >= 1022 then
+          (refuse w sp "closure shape needs an extended runtime descriptor", 0)
+          else let id = 64 * (groups + 1) in
+            (Writer next globals code errors (LayoutPlan (groups + 1) (Cons (id, packed) tuples) names (Cons (id, packed) cells)) context, id)
+  closure :: Span -> String -> List Nat -> List String -> Writer -> (Writer, String)
+  closure sp name classes values w = case request-shape sp classes (request-demand (StubDemand name classes) w) of
+    (planned, descriptor) ->
+      let (one, pointer) = fresh planned "%ptr" in
+      let allocated = line one (cat ["  ", pointer, " = call ptr @cinch_alloc_shaped(i64 ", nat-to-string (8 * (3 + list-length values)), ", i64 2, i64 ", nat-to-string descriptor, ")"]) in
+      let prefix = [cat ["ptrtoint (ptr ", symbol (cat [name, ".app"]), " to i64)"], nat-to-string (list-length classes), nat-to-string (list-length values)] in
+      let (done, word) = fresh (store-fields allocated pointer 0 (prefix <> values)) "%v" in
+      (line done (cat ["  ", word, " = ptrtoint ptr ", pointer, " to i64"]), word)
+  apply-one :: Writer -> String -> String -> (Writer, String)
+  apply-one w function value =
+    let (one, argv) = fresh w "%ptr" in
+    let (two, result) = fresh one "%v" in
+    let stored = line (line two (cat ["  ", argv, " = alloca i64"])) (cat ["  store i64 ", value, ", ptr ", argv]) in
+    (line stored (cat ["  ", result, " = call i64 @__apply(i64 ", function, ", i64 1, ptr ", argv, ")"]), result)
+  apply-terms :: List CoreDefinition -> List Local -> Writer -> String -> List CoreTerm -> (Writer, String)
+  apply-terms definitions locals w function terms = case terms of
+    Nil -> (w, function)
+    Cons first rest -> case expression definitions locals w first of
+      (ready, value) -> case apply-one ready function value of
+        (applied, result) -> apply-terms definitions locals applied result rest
+  take-terms :: Nat -> List CoreTerm -> List CoreTerm
+  take-terms count terms = if count == 0 then Nil else case terms of Nil -> Nil; Cons first rest -> Cons first (take-terms (count - 1) rest)
+  drop-terms :: Nat -> List CoreTerm -> List CoreTerm
+  drop-terms count terms = if count == 0 then terms else case terms of Nil -> Nil; Cons first rest -> drop-terms (count - 1) rest
+  definition-parameters :: CoreDefinition -> List CorePattern
+  definition-parameters d = case core-clauses d of Nil -> Nil; Cons (MkCoreClause sp parameters body) rest -> parameters
+  pattern-types :: List CorePattern -> List UType
+  pattern-types patterns = case patterns of Nil -> Nil; Cons first rest -> Cons (pattern-type first) (pattern-types rest)
+  definition-context :: CoreDefinition -> List Nat -> Writer -> Option RuntimeContext
+  definition-context d classes w = case class-bindings (scheme-params (core-scheme d)) classes of
+    None -> None
+    Some bounds -> case rigid-bindings (core-openings d) bounds of
+      None -> None
+      Some rigids -> Some (RuntimeContext (writer-data w) bounds rigids Nil Nil)
+  constructor-context :: CoreData -> List Nat -> Writer -> Option RuntimeContext
+  constructor-context d classes w = case class-bindings (core-data-params d) classes of
+    None -> None
+    Some bounds -> Some (RuntimeContext (writer-data w) bounds Nil Nil Nil)
   direct-call :: List CoreDefinition -> List Local -> Writer -> Span -> String -> List UType -> List CoreTerm -> (Writer, String)
   direct-call definitions locals w sp name actuals args = case class-vector (writer-context w) actuals of
     None -> unsupported w sp "call type arguments need checked runtime representation classes"
     Some classes -> case constructor name (writer-data w) of
       Some (owner, tag, c) -> case data-declaration owner (writer-data w) of
-        Some d -> if list-length args == list-length (core-constructor-fields c) then
-          (case request-data sp d classes w of
-            (planned, descriptor) -> case expressions definitions locals planned args of
-              (ready, values) -> allocate ready (descriptor + tag) values)
-          else unsupported w sp "partial constructor needs closure lowering"
+        Some d -> case constructor-context d classes w of
+          None -> unsupported w sp "constructor parameters need first-order representation classes"
+          Some context -> if list-length args == list-length (core-constructor-fields c) then
+            (case request-data sp d classes w of
+              (planned, descriptor) -> case expressions definitions locals planned args of
+                (ready, values) -> allocate ready (descriptor + tag) values)
+            else if list-length args < list-length (core-constructor-fields c) then
+              (case class-vector context (core-constructor-fields c) of
+                Some parameters -> case expressions definitions locals (request-demand (ConstructorDemand name classes) w) args of
+                  (ready, values) -> closure sp (specialized-name name classes) parameters values ready
+                None -> unsupported w sp "constructor fields need known closure parameter representations")
+            else unsupported w sp "constructor application exceeds its checked arity"
         None -> unsupported w sp "constructor has no defining runtime declaration"
       None -> case definition name definitions of
-        Some d -> case class-bindings (scheme-params (core-scheme d)) classes of
-          Some bounds -> if arity (scheme-body (core-scheme d)) == list-length args then
-            (case expressions definitions locals (demand-worker name classes w) args of
-              (ready, values) -> call ready (symbol (specialized-name name classes)) values)
-            else unsupported w sp "partial or overapplied call needs closure lowering"
+        Some d -> case definition-context d classes w of
+          Some context -> let parameters = definition-parameters d in
+            let count = list-length parameters in
+            if list-length args < count then
+              (case class-vector context (pattern-types parameters) of
+                Some parameter-classes -> case expressions definitions locals (demand-worker name classes w) args of
+                  (ready, values) -> closure sp (specialized-name name classes) parameter-classes values ready
+                None -> unsupported w sp "function parameters need known closure representations")
+              else case expressions definitions locals (demand-worker name classes w) (take-terms count args) of
+                (ready, values) -> case call ready (symbol (specialized-name name classes)) values of
+                  (called, result) -> apply-terms definitions locals called result (drop-terms count args)
           None -> unsupported w sp "function parameters need first-order representation classes"
         None -> unsupported w sp (cat ["external runtime implementation is unavailable: ", name])
+  pattern-binds :: Nat -> CorePattern -> Bool
+  pattern-binds id pattern = case pattern of
+    CPVar sp ty key name -> id == key
+    CPAs sp ty key name inner -> id == key || pattern-binds id inner
+    CPTuple sp ty fields -> pattern-binds id fields
+    CPConstructor sp ty name actuals sc fields -> pattern-binds id fields
+    CPField sp first rest -> pattern-binds id first || pattern-binds id rest
+    other -> False
+  term-uses :: Nat -> CoreTerm -> Bool
+  term-uses id term = case term of
+    CLocal sp ty key name actuals -> id == key
+    CApply sp ty first second -> term-uses id first || term-uses id second
+    CLambda sp ty pattern body -> not (pattern-binds id pattern) && term-uses id body
+    CLet sp ty key name sc rhs body -> term-uses id rhs || (id /= key && term-uses id body)
+    CIf sp ty test yes no -> term-uses id test || term-uses id yes || term-uses id no
+    CCase sp ty value alternatives -> term-uses id value || term-uses id alternatives
+    CTuple sp ty fields -> term-uses id fields
+    CPrimitive sp ty op args -> term-uses id args
+    CProved sp ty evidence body -> term-uses id body
+    CRefine sp ty evidence body -> term-uses id body
+    CForget sp ty body -> term-uses id body
+    CRequire sp ty body -> term-uses id body
+    CDischarge sp ty evidence body -> term-uses id body
+    CGuard sp ty guard body -> term-uses id guard || term-uses id body
+    CArgument sp first rest -> term-uses id first || term-uses id rest
+    CAlternative sp pattern body rest -> (not (pattern-binds id pattern) && term-uses id body) || term-uses id rest
+    other -> False
+  captures :: CorePattern -> CoreTerm -> List Local -> List Local
+  captures parameter body locals = case locals of
+    Nil -> Nil
+    Cons (Local id ty value) rest -> if not (pattern-binds id parameter) && term-uses id body then Cons (Local id ty value) (captures parameter body rest) else captures parameter body rest
+    Cons (Borrowed id ty value) rest -> if not (pattern-binds id parameter) && term-uses id body then Cons (Local id ty value) (captures parameter body rest) else captures parameter body rest
+    Cons (Discard ty value) rest -> captures parameter body rest
+  capture-patterns :: List Local -> List CorePattern
+  capture-patterns locals = case locals of
+    Nil -> Nil
+    Cons (Local id ty value) rest -> Cons (CPVar (Span 0 0 1 1) ty id "#capture") (capture-patterns rest)
+    other -> Nil
+  capture-values :: List Local -> Writer -> (Writer, List String)
+  capture-values locals w = case locals of
+    Nil -> (w, Nil)
+    Cons (Local id ty value) rest -> case capture-values rest (count-op True ty value w) of
+      (done, values) -> (done, Cons value values)
+    other -> (refuse w (Span 0 0 1 1) "malformed closure capture list", Nil)
+  lambda :: List CoreDefinition -> List Local -> Writer -> Span -> CorePattern -> CoreTerm -> (Writer, String)
+  lambda definitions locals w sp parameter body =
+    let saved = captures parameter body locals in
+    let parameters = capture-patterns saved <> [parameter] in
+    case class-vector (writer-context w) (pattern-types parameters) of
+      None -> unsupported w sp "lambda parameters need known runtime representations"
+      Some classes -> let (named, name) = fresh w ".lambda" in
+        (case writer-context named of
+          RuntimeContext datas bounds rigids pending done ->
+            let planned = request-demand (LambdaDemand name bounds rigids parameters body) named in
+            case capture-values saved planned of
+              (ready, values) -> closure sp name classes values ready)
+  -- App stubs consume the closure and argv. Saved fields are duplicated
+  -- before the original closure is dropped; argv fields transfer directly.
+  load-word :: Writer -> String -> String -> (Writer, String)
+  load-word w pointer index =
+    let (one, slot) = fresh w "%ptr" in
+    let (two, value) = fresh one "%v" in
+    (line (line two (cat ["  ", slot, " = getelementptr i64, ptr ", pointer, ", i64 ", index])) (cat ["  ", value, " = load i64, ptr ", slot]), value)
+  saved-dups :: List Nat -> Nat -> String -> String -> Writer -> Writer
+  saved-dups classes index filled merged w = case classes of
+    Nil -> w
+    Cons first rest -> if first == 0 then saved-dups rest (index + 1) filled merged w else
+      let (one, condition) = fresh w "%v" in
+      let (two, duplicate) = fresh one "saveddup" in
+      let (three, next) = fresh two "savednext" in
+      let started = line (line (line three (cat ["  ", condition, " = icmp ult i64 ", nat-to-string index, ", ", filled])) (cat ["  br i1 ", condition, ", label %", duplicate, ", label %", next])) (cat [duplicate, ":"]) in
+      case load-word started merged (nat-to-string index) of
+        (loaded, word) -> saved-dups rest (index + 1) filled merged (line (line (line loaded (cat ["  call void @cinch_dup(i64 ", word, ")"])) (cat ["  br label %", next])) (cat [next, ":"]))
+  load-arguments :: Nat -> Nat -> String -> Writer -> (Writer, List String)
+  load-arguments count index merged w = if count == 0 then (w, Nil) else case load-word w merged (nat-to-string index) of
+    (loaded, word) -> case load-arguments (count - 1) (index + 1) merged loaded of (done, words) -> (done, Cons word words)
+  app-stub :: String -> List Nat -> Writer -> Writer
+  app-stub name classes w = case request-shape (Span 0 0 1 1) classes w of
+    (planned, descriptor) ->
+      let header = line (line planned (cat ["define i64 ", symbol (cat [name, ".app"]), "(ptr %self, i64 %argc, ptr %argv) {"])) "entry:" in
+      let (loaded, filled) = load-word header "%self" "2" in
+      let (one, total) = fresh loaded "%v" in
+      let (two, saved) = fresh one "%ptr" in
+      let (three, merged) = fresh two "%ptr" in
+      let (four, saved-bytes) = fresh three "%v" in
+      let (five, argument-bytes) = fresh four "%v" in
+      let (six, incoming) = fresh five "%ptr" in
+      let copied0 = line six (cat ["  ", total, " = add i64 ", filled, ", %argc"]) in
+      let copied1 = line copied0 (cat ["  ", saved, " = getelementptr i64, ptr %self, i64 3"]) in
+      let copied2 = line copied1 (cat ["  ", merged, " = alloca i64, i64 ", total]) in
+      let copied3 = line copied2 (cat ["  ", saved-bytes, " = mul i64 ", filled, ", 8"]) in
+      let copied4 = line copied3 (cat ["  ", argument-bytes, " = mul i64 %argc, 8"]) in
+      let copied5 = line copied4 (cat ["  call ptr @memcpy(ptr ", merged, ", ptr ", saved, ", i64 ", saved-bytes, ")"]) in
+      let copied6 = line copied5 (cat ["  ", incoming, " = getelementptr i64, ptr ", merged, ", i64 ", filled]) in
+      let copied = line copied6 (cat ["  call ptr @memcpy(ptr ", incoming, ", ptr %argv, i64 ", argument-bytes, ")"]) in
+      let (seven, self-word) = fresh (saved-dups classes 0 filled merged copied) "%v" in
+      let released = line (line seven (cat ["  ", self-word, " = ptrtoint ptr %self to i64"])) (cat ["  call void @cinch_drop(i64 ", self-word, ")"]) in
+      let (eight, full) = fresh released "%v" in
+      let (nine, partial-label) = fresh eight "partial" in
+      let (ten, full-label) = fresh nine "saturated" in
+      let split = line (line (line ten (cat ["  ", full, " = icmp uge i64 ", total, ", ", nat-to-string (list-length classes)])) (cat ["  br i1 ", full, ", label %", full-label, ", label %", partial-label])) (cat [partial-label, ":"]) in
+      let (eleven, words) = fresh split "%v" in
+      let (twelve, bytes) = fresh eleven "%v" in
+      let (thirteen, pointer) = fresh twelve "%ptr" in
+      let allocated = line (line (line thirteen (cat ["  ", words, " = add i64 ", total, ", 3"])) (cat ["  ", bytes, " = mul i64 ", words, ", 8"])) (cat ["  ", pointer, " = call ptr @cinch_alloc_shaped(i64 ", bytes, ", i64 2, i64 ", nat-to-string descriptor, ")"]) in
+      let prefix = [cat ["ptrtoint (ptr ", symbol (cat [name, ".app"]), " to i64)"], nat-to-string (list-length classes), total] in
+      let (fourteen, destination) = fresh (store-fields allocated pointer 0 prefix) "%ptr" in
+      let (fifteen, merged-bytes) = fresh fourteen "%v" in
+      let (sixteen, closure-word) = fresh fifteen "%v" in
+      let partial-returned = line (line (line (line (line sixteen (cat ["  ", destination, " = getelementptr i64, ptr ", pointer, ", i64 3"])) (cat ["  ", merged-bytes, " = mul i64 ", total, ", 8"])) (cat ["  call ptr @memcpy(ptr ", destination, ", ptr ", merged, ", i64 ", merged-bytes, ")"])) (cat ["  ", closure-word, " = ptrtoint ptr ", pointer, " to i64"])) (cat ["  ret i64 ", closure-word]) in
+      case load-arguments (list-length classes) 0 merged (line partial-returned (cat [full-label, ":"])) of
+        (arguments-ready, args) -> case call arguments-ready (symbol name) args of
+          (called, result) ->
+            let (seventeen, excess) = fresh called "%v" in
+            let (eighteen, more) = fresh seventeen "%v" in
+            let (nineteen, over-label) = fresh eighteen "overapplied" in
+            let (twenty, return-label) = fresh nineteen "appreturn" in
+            let saturated = line (line (line (line (line twenty (cat ["  ", excess, " = sub i64 ", total, ", ", nat-to-string (list-length classes)])) (cat ["  ", more, " = icmp ne i64 ", excess, ", 0"])) (cat ["  br i1 ", more, ", label %", over-label, ", label %", return-label])) (cat [return-label, ":"])) (cat ["  ret i64 ", result]) in
+            let (twenty-one, tail) = fresh (line saturated (cat [over-label, ":"])) "%ptr" in
+            let (twenty-two, out) = fresh twenty-one "%v" in
+            line (line (line (line twenty-two (cat ["  ", tail, " = getelementptr i64, ptr ", merged, ", i64 ", nat-to-string (list-length classes)])) (cat ["  ", out, " = call i64 @__apply(i64 ", result, ", i64 ", excess, ", ptr ", tail, ")"])) (cat ["  ret i64 ", out])) "}"
   term-fields :: CoreTerm -> Option (List CoreTerm)
   term-fields fields = case fields of
     CArgumentsEnd sp -> Some Nil
@@ -523,23 +726,56 @@ module Bootstrap.RuntimeIr where
               let started = line (line scoped (cat ["define i64 ", symbol (specialized-name name classes), "(", join (parameter-words patterns 0), ") {"])) "entry:" in
               line (worker-clauses definitions (parameter-roots patterns 0) clauses started) "}"
             Nil -> refuse scoped sp "runtime definition has no checked equations"
+  value-parameters :: Nat -> Nat -> List String
+  value-parameters count index = if count == 0 then Nil else Cons (cat ["%arg", nat-to-string index]) (value-parameters (count - 1) (index + 1))
+  constructor-worker :: String -> List Nat -> Writer -> Writer
+  constructor-worker name classes w = case constructor name (writer-data w) of
+    Some (owner, tag, c) -> case data-declaration owner (writer-data w) of
+      Some d -> case constructor-context d classes w of
+        Some context -> case context of
+          RuntimeContext datas bounds rigids pending done ->
+            let scoped = with-representations bounds rigids w in
+            case request-data (Span 0 0 1 1) d classes scoped of
+              (planned, descriptor) ->
+                let count = list-length (core-constructor-fields c) in
+                let values = value-parameters count 0 in
+                let started = line (line planned (cat ["define i64 ", symbol (specialized-name name classes), "(", join (argument-words values), ") {"])) "entry:" in
+                case allocate started (descriptor + tag) values of
+                  (allocated, result) -> line (line allocated (cat ["  ret i64 ", result])) "}"
+        None -> refuse w (Span 0 0 1 1) "constructor worker needs representation specialization"
+      None -> refuse w (Span 0 0 1 1) "constructor worker has no defining data"
+    None -> refuse w (Span 0 0 1 1) "constructor worker has no checked constructor"
+  lambda-worker :: List CoreDefinition -> String -> List (Nat, Nat) -> List (Nat, Nat) -> List CorePattern -> CoreTerm -> Writer -> Writer
+  lambda-worker definitions name bounds rigids parameters body w =
+    let scoped = with-representations bounds rigids w in
+    if not (word-type (writer-context scoped) (core-type body)) then refuse scoped (Span 0 0 1 1) "lambda result needs a checked runtime representation" else
+      let started = line (line scoped (cat ["define i64 ", symbol name, "(", join (parameter-words parameters 0), ") {"])) "entry:" in
+      line (worker-clauses definitions (parameter-roots parameters 0) [MkCoreClause (Span 0 0 1 1) parameters body] started) "}"
   workers :: List CoreDefinition -> Writer -> Writer
   workers definitions w = case w of
     Writer next globals code errors layouts (RuntimeContext datas bounds rigids pending done) -> case pending of
       Nil -> w
-      Cons (Demand name classes) rest ->
-        let claimed = Writer next globals code errors layouts (RuntimeContext datas Nil Nil rest (Cons (Demand name classes) done)) in
-        case definition name definitions of
-          Some d -> workers definitions (worker definitions classes claimed d)
-          None -> workers definitions (refuse claimed (Span 0 0 1 1) "demanded runtime definition is absent")
+      Cons demand rest ->
+        let claimed = Writer next globals code errors layouts (RuntimeContext datas Nil Nil rest (Cons demand done)) in
+        case demand of
+          Demand name classes -> case definition name definitions of
+            Some d -> workers definitions (worker definitions classes claimed d)
+            None -> workers definitions (refuse claimed (Span 0 0 1 1) "demanded runtime definition is absent")
+          ConstructorDemand name classes -> workers definitions (constructor-worker name classes claimed)
+          LambdaDemand name saved-bound saved-rigid parameters body -> workers definitions (lambda-worker definitions name saved-bound saved-rigid parameters body claimed)
+          StubDemand name classes -> workers definitions (app-stub name classes claimed)
   declarations :: String
   declarations = cat [
-    "declare ptr @cinch_alloc_ctor(i64, i64)\ndeclare void @cinch_layouts_register(ptr, i64)\n",
+    "declare ptr @cinch_alloc_ctor(i64, i64)\ndeclare ptr @cinch_alloc_shaped(i64, i64, i64)\ndeclare ptr @memcpy(ptr, ptr, i64)\ndeclare void @cinch_layouts_register(ptr, i64)\n",
     "declare void @cinch_dup(i64)\ndeclare void @cinch_drop(i64)\ndeclare void @cinch_reclaim_enable()\ndeclare i64 @cinch_exit_check(i64)\n",
     "declare i64 @cinch_argv_init(i64, ptr)\ndeclare i64 @cinch_run_main(ptr)\n",
     "declare i64 @cinch_int_from_decimal(ptr, i64)\ndeclare i64 @cinch_nat_from_decimal(ptr, i64)\ndeclare i64 @cinch_int_to_i64(i64)\n",
     "declare i64 @cinch_int_add(i64, i64)\ndeclare i64 @cinch_int_sub(i64, i64)\ndeclare i64 @cinch_int_mul(i64, i64)\ndeclare i64 @cinch_int_neg(i64)\ndeclare i64 @cinch_int_cmp(i64, i64)\n",
     "declare i64 @cinch_nat_add(i64, i64)\ndeclare i64 @cinch_nat_sub(i64, i64)\ndeclare i64 @cinch_nat_mul(i64, i64)\ndeclare i64 @cinch_nat_cmp(i64, i64)\n"]
+  apply-entry :: String
+  apply-entry = cat ["define i64 @__apply(i64 %closure, i64 %argc, ptr %argv) {\nentry:\n",
+    "  %self = inttoptr i64 %closure to ptr\n  %code = load i64, ptr %self\n  %function = inttoptr i64 %code to ptr\n",
+    "  %result = call i64 %function(ptr %self, i64 %argc, ptr %argv)\n  ret i64 %result\n}\n"]
   entry :: String
   entry = cat ["define i64 @cinch.typed.exit() {\nentry:\n  %result = call i64 ", symbol "main", "()\n",
     "  %exit = call i64 @cinch_int_to_i64(i64 %result)\n  call void @cinch_drop(i64 %result)\n  ret i64 %exit\n}\n",
@@ -559,5 +795,5 @@ module Bootstrap.RuntimeIr where
           Some d -> if named (scheme-body (core-scheme d)) "Int" && arity (scheme-body (core-scheme d)) == 0 then ready else refuse ready (Span 0 0 1 1) "runtime entry must be main :: Int"
           None -> refuse ready (Span 0 0 1 1) "runtime entry has no main definition") in
     case workers definitions (demand-worker "main" Nil started) of
-      Writer next globals code Nil layouts datas -> Ok (cat [declarations, builder-run globals, layout-table layouts, builder-run code, entry])
+      Writer next globals code Nil layouts datas -> Ok (cat [declarations, builder-run globals, layout-table layouts, apply-entry, builder-run code, entry])
       Writer next globals code errors layouts datas -> Err errors

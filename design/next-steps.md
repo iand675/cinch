@@ -1,5 +1,17 @@
 # Next steps (as of 2026-11-03)
 
+The typed backend now lowers real ABI5 closures, lexical captures, partial
+functions/constructors, indirect calls and overapplication. All51 executable
+programs pass with zero leaks, including generic captures and higher-order
+recursive mapping. The real CLI and a C probe verify actual closure headers,
+field maps, shared partial copies and bulk application. Cinch accepts the entire
+25-module backend source closure with zero diagnostics. All27 tooling and six
+fresh stage0/1 checks pass; the genuine full Stage2 attempt is running.
+Erased/dependent parameters, IO/effects, dictionaries, executable base code,
+extended layouts and complete correctness/current-suite/fixed-point gates remain
+required. See [the closure checkpoint](../bootstrap/runtime-closure-results.json).
+
+## Native checker checkpoint
 The development Rust checker now accepts equations returning functions and
 structural lambda patterns through ordinary result checking and the existing
 exhaustive pattern compiler. All18 new executable examples report zero leaks;
