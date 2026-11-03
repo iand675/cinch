@@ -1,0 +1,85 @@
+{
+  "schema": 1,
+  "updatedAt": "2026-11-03T10:30:34.762215+00:00",
+  "estimate": 80,
+  "estimateNote": "Rough engineering estimate. Remaining compiler bugs can change it; this is not a measured test pass rate.",
+  "status": "Fixing a Stage 2 blocker",
+  "summary": "Stage 1 builds. It is checking the compiler source for Stage 2, but a natural-number proof obligation currently stops that build.",
+  "activity": "Publishing the progress dashboard. The latest boundary suite has finished successfully; next compiler step is the subtraction-guard reproduction.",
+  "commit": "843d9c3dd8eea2d0e19176de21b827a691eab3da",
+  "stages": [
+    {
+      "name": "Stage 0",
+      "state": "passed",
+      "label": "Verified",
+      "description": "Pinned seed compiler and matching library provider."
+    },
+    {
+      "name": "Stage 1",
+      "state": "passed",
+      "label": "Built",
+      "description": "Cinch compiler built from the pinned seed."
+    },
+    {
+      "name": "Stage 2",
+      "state": "blocked",
+      "label": "Blocked",
+      "description": "Stage 1 must compile the full Cinch compiler. No Stage 2 executable yet."
+    },
+    {
+      "name": "Stage 3",
+      "state": "pending",
+      "label": "Waiting",
+      "description": "Rebuild with Stage 2 and verify a stable result."
+    }
+  ],
+  "checks": [
+    {
+      "title": "96 programs executed",
+      "detail": "82 runtime cases and 14 linked-object cases passed on candidate 10. No leaks reported in the linked-object cases.",
+      "state": "passed"
+    },
+    {
+      "title": "35 tooling checks passed",
+      "detail": "Passed on candidate 11, the latest compiler candidate.",
+      "state": "passed"
+    },
+    {
+      "title": "Rust test targets compile",
+      "detail": "All Rust test targets checked successfully on candidate 10. This does not mean every test has run.",
+      "state": "passed"
+    },
+    {
+      "title": "Boundary suite passed",
+      "detail": "Global identity, nominal identity, source instances, and typing checks all passed on candidate 10.",
+      "state": "passed"
+    }
+  ],
+  "blockers": [
+    {
+      "title": "Prove a subtraction is safe",
+      "detail": "The Cinch checker cannot establish that the native argument count is large enough before subtracting dictionary arguments in external-call-unit. Next: express that bound directly, validate a small reproduction, then retry Stage 2.",
+      "technical": "Candidate 11: bootstrap.check:16879:46 \u2014 function precondition is not established at this call. 211 diagnostics include cascades; they are not 211 separate features."
+    },
+    {
+      "title": "Finish the bootstrap verification",
+      "detail": "After Stage 2 compiles, link and run it, build Stage 3, compare the results, and finish the complete test run. Further blockers may appear.",
+      "technical": "No Stage 2 IR or executable was produced by candidate 11. No fixed-point claim."
+    }
+  ],
+  "milestones": [
+    {
+      "title": "Checked library objects are consumed",
+      "detail": "Published object admission, runtime linkage, pinned dependencies, and returned-function fixes."
+    },
+    {
+      "title": "Runtime ABI configuration fixed",
+      "detail": "A small reproduction now passes; Stage 2 moved beyond its earlier configuration error."
+    },
+    {
+      "title": "Next proof obligation isolated",
+      "detail": "The latest real bootstrap attempt identifies the subtraction guard as the first failure."
+    }
+  ],
+  "dashboardUrl": "https://cinch-bootstrap-status.ian92821.chatgpt.site"
+}
