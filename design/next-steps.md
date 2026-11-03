@@ -61,7 +61,7 @@ explicit binding. The checker now retains the runtime local whenever its
 reified mathematical index has a different value kind, matching Core's existing
 scope validation. All12 Native-reference and compiled-Cinch argument-scope cases
 pass, including nested/direct/bound positives and unsafe-subtraction/upper-bound
-negatives. A fresh Stage1 builds with the repair; its full Stage2 retry is running.
+negatives. A fresh Stage1 builds with the repair. All five actual Stage1 arithmetic probes pass. The full Stage2 retry now first refuses the explicitly guarded newline byte write in the revised builder; small byte-write probes are isolating the lost evidence. No Stage2 IR or executable was produced.
 The complete current Native test sweep continues. No Stage2 executable or compiler-interface fixed
 point is established. Canonical compiler interface output, remaining runtime forms, actual
 provider demands, complete current suites/correctness and the Stage2/Stage3 fixed

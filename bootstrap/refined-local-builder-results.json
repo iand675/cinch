@@ -29,7 +29,7 @@
   },
   "stage_chain": {
     "stage1": "built",
-    "stage2": "running; no executable claimed"
+    "stage2": "failed frontend: bytes-set guarded newline write; compiler exit4; no IR/executable"
   },
   "published_files": {
     "bootstrap/Bootstrap.Infer.cinch": "35393a32ae6b9747243d2f6e63561cf9b657d5db9b5fc4d68a44a420f661b146",

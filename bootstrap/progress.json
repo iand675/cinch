@@ -1,11 +1,11 @@
 {
   "schema": 1,
-  "updatedAt": "2026-11-03T13:00:33.396762+00:00",
+  "updatedAt": "2026-11-03T13:10:29.005942+00:00",
   "estimate": 80,
   "estimateNote": "Rough engineering estimate. Remaining compiler bugs can change it; this is not a measured test pass rate.",
-  "status": "Verifying the full compiler retry",
-  "summary": "The refined-local checker repair passes all 12 regression cases. Fresh Stage 1 builds; the complete compiler retry is running. Stage 2 has no verified executable yet.",
-  "activity": "All five additional actual Stage 1 arithmetic probes pass, including both unsafe refusals. Broader runtime IR and real CLI regressions now run on candidate 21 while the full compiler retry continues.",
+  "status": "Investigating a byte-write proof failure",
+  "summary": "The refined-local arithmetic repair passes the real Stage 1 probes. The full compiler now stops at a guarded newline byte-write precondition in the text builder; no Stage 2 executable yet.",
+  "activity": "Candidate21 built Stage1 and finished the full retry with a frontend refusal at bytes-set. Small byte-write probes are running; broader runtime and Native suites continue.",
   "commit": "e6919b0bb6a9899f8067a4d29b6fe8772779bf6e",
   "stages": [
     {
@@ -22,9 +22,9 @@
     },
     {
       "name": "Stage 2",
-      "state": "pending",
-      "label": "Verifying",
-      "description": "The fresh Stage 1 compiler is processing the complete compiler source with the repaired checker and builder."
+      "state": "blocked",
+      "label": "Blocked",
+      "description": "The full frontend refuses a guarded byte-write precondition in the revised builder. No Stage 2 IR or executable."
     },
     {
       "name": "Stage 3",
@@ -71,7 +71,7 @@
     },
     {
       "title": "Full Native sweep running",
-      "detail": "Candidate 20: 15 / 205 whole test groups passed; 2 running; 0 failed. Candidate 21 separately passes the subsequent checker repair regression.",
+      "detail": "Candidate20: 18 / 205 whole test groups passed; 2 running; 0 failed. Candidate21 separately passes all12 checker regressions and all5 actualStage1 arithmetic probes.",
       "state": "running"
     },
     {
@@ -102,9 +102,9 @@
   ],
   "blockers": [
     {
-      "title": "Confirm the repair in the full compiler",
-      "detail": "The isolated checker regression passes. The complete compiler source is now being processed to check for further frontend or runtime-emission failures.",
-      "technical": "Candidate21 Stage1 built. Full Stage2 attempt is running; no Stage2 executable or full-frontend success claimed yet."
+      "title": "Retain the byte-write bounds proof",
+      "detail": "The nested arithmetic mismatch is cleared. The next first failure is a byte write guarded by an explicit index bound; a small probe set is isolating which context loses that evidence.",
+      "technical": "Candidate21 Stage1 built; Stage2 compiler exit4. First diagnostic compiler.cinch:20463:31, bytes-set out last 10. Later diagnostics include cascades."
     },
     {
       "title": "Verify the full compiler stack repair",
