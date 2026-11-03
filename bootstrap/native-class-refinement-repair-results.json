@@ -1,0 +1,97 @@
+{
+  "status": "scoped-repair-passed",
+  "scope": "Declaring-class identity and compile-time callable dictionary-self evaluation; not a complete final-source suite",
+  "full_baseline": {
+    "target_groups": 205,
+    "passed": 201,
+    "failed": [
+      "bootstrap_parse",
+      "bootstrap_pipeline",
+      "lattice",
+      "refinements"
+    ]
+  },
+  "repair_validation": {
+    "source_sha256": "5f80624b58e2f90bff2baa7de182e9d9cb23862bdf940b5805e3d4d3f119a6f2",
+    "target_results": [
+      {
+        "status": "ok",
+        "passed": 147,
+        "failed": 0
+      },
+      {
+        "status": "ok",
+        "passed": 6,
+        "failed": 0
+      },
+      {
+        "status": "ok",
+        "passed": 2,
+        "failed": 0
+      },
+      {
+        "status": "ok",
+        "passed": 1,
+        "failed": 0
+      },
+      {
+        "status": "ok",
+        "passed": 17,
+        "failed": 0
+      },
+      {
+        "status": "ok",
+        "passed": 12,
+        "failed": 0
+      },
+      {
+        "status": "ok",
+        "passed": 3,
+        "failed": 0
+      },
+      {
+        "status": "FAILED",
+        "passed": 6,
+        "failed": 1
+      },
+      {
+        "status": "ok",
+        "passed": 18,
+        "failed": 0
+      },
+      {
+        "status": "ok",
+        "passed": 3,
+        "failed": 0
+      },
+      {
+        "status": "ok",
+        "passed": 23,
+        "failed": 0
+      }
+    ],
+    "recorded_exception": "params expected bare Stepper; actual canonical defining identity is Api.Stepper",
+    "golden_correction": {
+      "exit_code": 0,
+      "source_sha256": "3c114429a54ff8e05889e020205de98cae338c51ee7ee72977222f4118e0b3f2",
+      "source_unchanged": true,
+      "status": "passed"
+    },
+    "golden_tests": 7,
+    "checker_sources_identical_between_runs": true
+  },
+  "invariants": [
+    "Lexical signature names remain separate from semantic declaring-class identities",
+    "Legacy prelude identities apply only to actual embedded declaration sites",
+    "Callable dictionary self-projections evaluate actual checked method factories",
+    "Strict-value dictionary environments retain an explicit unsupported refusal",
+    "Runtime dictionary layout and independent proof checking are unchanged"
+  ],
+  "files": {
+    "compiler/src/check.rs": "6a82fe7e14f1ce24e7c6236e189a60482a12399cfb7e04bcabb1558b3c4cf740",
+    "compiler/src/check_decls.rs": "935a058e6242e43587e9498dafbcf64167b1306646635bd499fe7066cab1f852",
+    "compiler/src/check_terms.rs": "7334b4fdb63c657136a8bb34938654628ecbc0d6553bb575d95cbe2e905acf90",
+    "compiler/tests/class_identity.rs": "5040f0d4c1654f73bda2f22050116b52e913e5c8af9220f499943739d22ec864",
+    "compiler/tests/params.rs": "f7c6f5b42d25efe5757388619f9f6947b7cdee5610f71beb77f459ffa600a35c"
+  }
+}

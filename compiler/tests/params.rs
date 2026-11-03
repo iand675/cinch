@@ -249,7 +249,7 @@ fn parameter_identity_is_recorded_and_instantiation_is_representation() {
     let tally_text =
         std::fs::read_to_string(with_units.join("build/Tally.cinchif")).expect("Tally iface");
     let tally = cinch::interface::Iface::from_json(&tally_text).expect("parse Tally iface");
-    assert_eq!(tally.params, vec!["S :: Stepper".to_string()], "{tally_text}");
+    assert_eq!(tally.params, vec!["S :: Api.Stepper".to_string()], "{tally_text}");
     let main_text =
         std::fs::read_to_string(with_units.join("build/Main.cinchif")).expect("Main iface");
     let main = cinch::interface::Iface::from_json(&main_text).expect("parse Main iface");

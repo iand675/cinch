@@ -2138,7 +2138,7 @@ impl Checker {
         for (i, a) in args.iter().enumerate() {
             tys.push(self.conv_kind(a, vars, sig.param_kinds.get(i))?);
         }
-        Ok((sig.name, tys))
+        Ok((self.signature_key(&sig.module, &sig.name), tys))
     }
 
     fn collect_module(
@@ -3918,7 +3918,7 @@ impl Checker {
                         let mut ctx = vec![(
                             "dict".to_string(),
                             ClassApp {
-                                class: sig.name.text.clone(),
+                                class: self.signature_key(&module, &sig.name.text),
                                 args: params.iter().map(|p| Ty::Param(p.clone())).collect(),
                             },
                         )];
@@ -4143,6 +4143,8 @@ impl Checker {
                     self.qualified_types
                         .insert((module.clone(), sig.name.text.clone()), tk);
                     self.sigs.entry(sig.name.text.clone()).or_default().push(info.clone());
+                    self.class_sigs.entry(self.signature_key(&module, &sig.name.text))
+                        .or_default().push(info.clone());
                     self.qualified_sigs.insert((module.clone(), sig.name.text.clone()), info.clone());
                     for ((name, source), contract) in sig.methods.iter().zip(method_contracts) {
                         if let Some(mut contract) = contract {
@@ -4830,9 +4832,9 @@ impl Checker {
         let params: Vec<String> = inst.params.iter().map(|p| p.text.clone()).collect();
         let (class, args) = self.class_app_of(&inst.target, &params)?;
         let sig = self
-            .sigs
+            .class_sigs
             .get(&class)
-            .and_then(|ss| ss.iter().find(|s| self.def_in_scope(&s.module, &s.name)))
+            .and_then(|ss| ss.first())
             .cloned()
             .ok_or_else(|| Error::plain(format!("unknown signature {class}")))?;
 
@@ -7645,9 +7647,9 @@ impl Checker {
             return Ok(());
         }
         let Some(sig) = self
-            .sigs
+            .class_sigs
             .get(&ob.class)
-            .and_then(|ss| ss.iter().find(|s| self.def_in_scope(&s.module, &s.name)))
+            .and_then(|ss| ss.first())
             .cloned()
         else {
             self.law_rows
@@ -7808,9 +7810,9 @@ impl Checker {
             return Ok(());
         }
         let sig = self
-            .sigs
+            .class_sigs
             .get(&ob.class)
-            .and_then(|ss| ss.iter().find(|s| self.def_in_scope(&s.module, &s.name)))
+            .and_then(|ss| ss.first())
             .cloned();
         let Some(sig) = sig else {
             bail(
@@ -8307,13 +8309,11 @@ impl Checker {
         if depth > 4 {
             return Ok(None);
         }
-        let sigs = match self.sigs.get(&ob.class) {
+        let sigs = match self.class_sigs.get(&ob.class) {
             Some(ss) => ss,
             None => return Ok(None),
         };
-        let sig = match sigs
-            .iter()
-            .find(|s| self.def_in_scope(&s.module, &s.name))
+        let sig = match sigs.first()
         {
             Some(s) => s.clone(),
             None => return Ok(None),
@@ -15340,7 +15340,7 @@ impl Checker {
             for item in &ctx {
                 if let InstCtx::Oblig(PropOblig::Preserves { method, .. }) = item {
                     let known = self
-                        .sigs
+                        .class_sigs
                         .get(&class)
                         .map(|ss| {
                             ss.iter().any(|s| {
@@ -15366,7 +15366,7 @@ impl Checker {
             let mut method_obligs: Vec<(usize, String, Vec<PTerm>)> = Vec::new();
             let mut method_contracts = Vec::new();
             for (mname, mty) in &inst.method_sigs {
-                let midx = self.sigs.get(&class).and_then(|ss| {
+                let midx = self.class_sigs.get(&class).and_then(|ss| {
                     ss.iter().find_map(|s| s.methods.iter().position(|(m, _)| *m == mname.text))
                 });
                 let Some(midx) = midx else {
@@ -16288,6 +16288,24 @@ fn check_program_multi_full_impl(
     };
     let prelude_name = facade.name.text.clone();
     let mut c = Checker::new();
+    let mut embedded_signatures: HashMap<String, Vec<String>> = HashMap::new();
+    for module in prelude {
+        for declaration in &module.decls {
+            let mut declaration = declaration;
+            while let ast::Decl::Attributed { inner, .. } = declaration {
+                declaration = inner;
+            }
+            if let ast::Decl::Signature(signature) = declaration {
+                embedded_signatures.entry(signature.name.text.clone()).or_default()
+                    .push(module.name.text.clone());
+            }
+        }
+    }
+    for (name, owners) in embedded_signatures {
+        if let [owner] = owners.as_slice() {
+            c.legacy_class_sites.insert((owner.clone(), name));
+        }
+    }
     c.install_builtins();
     c.allow_eval = profile.allow_eval;
     c.usize_bits = profile.word_size;
@@ -18932,6 +18950,55 @@ impl Checker {
         Ok(())
     }
 
+    fn eval_dictionary_projection(
+        &mut self,
+        cx: &mut StageCx,
+        dictionary: &crate::core::Core,
+        slot: usize,
+        frame: &mut Vec<Value>,
+    ) -> Result<Value> {
+        use crate::core::Core;
+        if let Core::InstDict(symbol, arguments, _) = dictionary {
+            if let Some(identity) = symbol.0.strip_suffix("#self") {
+                // Runtime lowering turns a callable self projection into
+                // this exact instance's method over its captured context.
+                // Interpret that same operation instead of searching for
+                // a fictitious instance whose name ends in `#self`.
+                if cx.def_module != identity && !cx.def_module.starts_with(&format!("{identity}.")) {
+                    return Err(Error::plain("dictionary self projection has no actual declaring instance"));
+                }
+                let (module, name) = identity.rsplit_once('.').unwrap_or(("", identity));
+                self.ensure_instance(cx, module, name)?;
+                let definition = self.instance_defs.iter().find(|instance| instance.id.0 == identity)
+                    .cloned().ok_or_else(|| Error::plain("dictionary self projection has no checked instance"))?;
+                for method in &definition.methods {
+                    let function = self.fns.iter().find(|function| function.id == *method)
+                        .ok_or_else(|| Error::plain("dictionary self projection has no checked method"))?;
+                    if function.params.len() <= definition.subdict_count {
+                        return Err(Error::plain("compile-time dictionary self with strict value fields needs its initialized value environment"));
+                    }
+                }
+                let method = definition.methods.get(slot).cloned()
+                    .ok_or_else(|| Error::plain("dictionary self slot is absent from the actual instance"))?;
+                self.ensure_fn(cx, &method.0)?;
+                let arity = cx.fns.get(&method.0).unwrap().params.len();
+                let mut captured = Vec::new();
+                for argument in arguments {
+                    captured.push(self.eval_core(cx, argument, frame)?);
+                }
+                if captured.len() != definition.subdict_count {
+                    return Err(Error::plain("dictionary self context differs from the checked instance"));
+                }
+                return Ok(Value::Clos { fn_id: method, env: Vec::new(), args: captured, arity });
+            }
+        }
+        match self.eval_core(cx, dictionary, frame)? {
+            Value::Dict { methods } => methods.get(slot).cloned()
+                .ok_or_else(|| Error::plain("internal error: dictionary projection out of range")),
+            other => Err(Error::plain(format!("internal error: dictionary projection from {}", value_kind_name(&other)))),
+        }
+    }
+
     /// Evaluate one core expression in `frame` (locals by id).
     fn eval_core(
         &mut self,
@@ -18992,17 +19059,7 @@ impl Checker {
                 let v = Value::PrimFn { op: *op, args: Vec::new() };
                 self.deref_value(cx, v)?
             }
-            Core::DictProj(d, i, ..) => match self.eval_core(cx, d, frame)? {
-                Value::Dict { methods } => methods.get(*i).cloned().ok_or_else(|| {
-                    Error::plain("internal error: dictionary projection out of range")
-                })?,
-                other => {
-                    return Err(Error::plain(format!(
-                        "internal error: dictionary projection from {}",
-                        value_kind_name(&other)
-                    )))
-                }
-            },
+            Core::DictProj(d, i, ..) => self.eval_dictionary_projection(cx, d, *i, frame)?,
             Core::Proj(d, i) => match self.eval_core(cx, d, frame)? {
                 Value::Adt { fields, .. } => fields.get(i.slot).cloned().ok_or_else(|| {
                     Error::plain("internal error: record projection out of range")

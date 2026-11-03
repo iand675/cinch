@@ -9999,9 +9999,9 @@ impl Checker {
                 continue;
             }
             let Some(sig) = self
-                .sigs
+                .class_sigs
                 .get(&c.class)
-                .and_then(|ss| ss.iter().find(|s| self.def_in_scope(&s.module, &s.name)))
+                .and_then(|ss| ss.first())
             else {
                 continue;
             };
@@ -10066,7 +10066,7 @@ impl Checker {
     ) -> Result<(LocalId, ECore, Option<String>)> {
         let z = self.uni.zonk(&ty);
         if let Ty::Adt(class, args) = &z {
-            if class != "Io" && self.sigs.get(class).is_some_and(|sigs| sigs.iter().any(|sig| sig.params.len() == args.len())) {
+            if class != "Io" && self.class_sigs.get(class).is_some_and(|sigs| sigs.iter().any(|sig| sig.params.len() == args.len())) {
                 let local = self.fresh_local();
                 self.bind_local(env, &name.text, local, Scheme::mono(z.clone()), Some(Mult::Many), span)?;
                 env.dicts.push((local, ClassApp { class: class.clone(), args: args.clone() }));

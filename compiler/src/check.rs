@@ -2515,6 +2515,12 @@ struct Checker {
     types: HashMap<String, Vec<TypeKind>>,
     qualified_types: HashMap<(String, String), TypeKind>,
     sigs: HashMap<String, Vec<SigInfo>>,
+    /// Semantic dictionary families use the declaring signature identity.
+    /// The bare-name registry above is only for lexical name lookup.
+    class_sigs: HashMap<String, Vec<SigInfo>>,
+    /// Stable legacy keys belong to the actual embedded declarations,
+    /// never to arbitrary new declarations in a replaced module.
+    legacy_class_sites: HashSet<(String, String)>,
     qualified_sigs: HashMap<(String, String), SigInfo>,
     /// `(module, class, method)` to the hash of the default's generic
     /// elaboration: the interface records it, so an instance that inlined
@@ -3185,6 +3191,8 @@ impl Checker {
             types: HashMap::new(),
             qualified_types: HashMap::new(),
             sigs: HashMap::new(),
+            class_sigs: HashMap::new(),
+            legacy_class_sites: HashSet::new(),
             qualified_sigs: HashMap::new(),
             default_ids: HashMap::new(),
             instances: HashMap::new(),
@@ -4499,7 +4507,8 @@ impl Checker {
     fn share_safe(&self, t: &Ty, dicts: &[(LocalId, ClassApp)]) -> bool {
         match t {
             Ty::Adt(name, args)
-                if self.lookup_type(&[name]).is_err() && self.sigs.contains_key(name) =>
+                if self.class_sigs.contains_key(name)
+                    && (name.contains('.') || self.lookup_type(&[name]).is_err()) =>
             {
                 args.iter().all(|a| self.share_safe(a, dicts))
             }
@@ -5474,6 +5483,36 @@ impl Checker {
         }
     }
 
+    fn signature_key(&self, module: &str, name: &str) -> String {
+        // Embedded families keep the compiler-known keys used by primitive
+        // operators and collection literals. A source replacement of such a
+        // family keeps that same definition site. Other modules cannot join
+        // a family merely by reusing its spelling.
+        if module == "<builtin>" || self.legacy_class_sites.contains(&(module.to_string(), name.to_string()))
+        {
+            name.to_string()
+        } else {
+            format!("{module}.{name}")
+        }
+    }
+
+    fn type_key(&self, info: &TypeKind) -> String {
+        if self.qualified_sigs.contains_key(&(info.module.clone(), info.name.clone())) {
+            self.signature_key(&info.module, &info.name)
+        } else {
+            info.name.clone()
+        }
+    }
+
+    fn lookup_type_key(&self, name: &str) -> Result<TypeKind> {
+        if let Some(signature) = self.class_sigs.get(name).and_then(|rows| rows.first()) {
+            if let Some(kind) = self.qualified_types.get(&(signature.module.clone(), signature.name.clone())) {
+                return Ok(kind.clone());
+            }
+        }
+        self.lookup_type(&[name])
+    }
+
     fn resolve_var(&self, p: &ast::VarPath, span: ast::Span) -> Result<ValueInfo> {
         // The registered name is the unit's real name: a qualified
         // spelling (`U32.wrappingAdd`) is an alias over it, and code
@@ -5642,7 +5681,7 @@ impl Checker {
         for (i, a) in c.args.iter().enumerate() {
             args.push(self.conv_kind(a, vars, sig.param_kinds.get(i))?);
         }
-        let mut app = ClassApp { class: sig.name.clone(), args };
+        let mut app = ClassApp { class: self.signature_key(&sig.module, &sig.name), args };
         if is_capability_class(&app.class) {
             // A capability's argument is a runtime identity (decision D21).
             for (a, src) in app.args.iter_mut().zip(&c.args) {
@@ -5755,7 +5794,7 @@ impl Checker {
                 ParamKind::Type
             }
             Ty::Adt(name, args) => {
-                let info = self.lookup_type(&[name])?;
+                let info = self.lookup_type_key(name)?;
                 if args.len() > info.arity {
                     return Err(Error::at(
                         span,
@@ -5793,7 +5832,7 @@ impl Checker {
                         span,
                         format!(
                             "type {name} must be fully applied (expects {} arguments)",
-                            self.lookup_type(&[name])?.arity
+                            self.lookup_type_key(name)?.arity
                         ),
                     ));
                 }
@@ -7209,7 +7248,7 @@ impl Checker {
                         })?;
                         // Full application is enforced by `conv_type`; here a
                         // bare constructor may still collect arguments.
-                        Ok(Ty::Adt(info.name, Vec::new()))
+                        Ok(Ty::Adt(self.type_key(&info), Vec::new()))
                     }
                     _ => {
                         let info = self.lookup_type(&parts).map_err(|_| {
@@ -7217,7 +7256,7 @@ impl Checker {
                         })?;
                         // Full application is enforced by `conv_type`; here a
                         // bare constructor may still collect arguments.
-                        Ok(Ty::Adt(info.name, Vec::new()))
+                        Ok(Ty::Adt(self.type_key(&info), Vec::new()))
                     }
                 }
             }
@@ -9191,9 +9230,9 @@ impl Checker {
         span: ast::Span,
     ) -> Result<()> {
         let Some(sig) = self
-            .sigs
+            .class_sigs
             .get(&wanted.class)
-            .and_then(|ss| ss.iter().find(|s| self.def_in_scope(&s.module, &s.name)))
+            .and_then(|ss| ss.first())
             .cloned()
         else {
             return Ok(());

@@ -104,6 +104,23 @@ expose compile-time evaluation of runtime dictionary-self markers; its Rust repa
 is being validated alongside a distinct declaring-class identity correction.
 These scoped repairs do not substitute for a complete final-source test run.
 
+## Rust declaring-class and refinement evaluation repair
+
+Semantic class selection now uses the declaring signature identity separately
+from lexical names. Distinct `A.Foo` and `B.Foo` families select their own
+instances, and evidence for one cannot satisfy the other. Legacy keys remain
+limited to actual embedded prelude declaration sites.
+
+Compile-time evaluation now interprets a callable dictionary-self projection
+through the actual checked instance method and captured context. It no longer
+looks for a fictitious instance ending in `#self`. Strict-value dictionary
+environments retain their explicit unsupported boundary. All17 lattice and18
+refinement tests pass, including the three baseline false accepts. The wider
+repair run passes238 tests and records one obsolete parameter-name expectation;
+all seven parameter tests pass with its defining identity corrected to
+`Api.Stepper`. This is scoped evidence, not a complete final-source sweep.
+See [repair results](../bootstrap/native-class-refinement-repair-results.json).
+
 ## Earlier checkpoints
 
 The entries below retain the evidence and limitations of their named snapshots;
