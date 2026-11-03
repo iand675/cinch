@@ -37,9 +37,55 @@
   },
   "constructor_literal_repair": "keep unresolved KType carrier pending until constructor result determines it; existing literal carrier/range checks still reject Bool and I8 overflow",
   "genuine_stage2": {
+    "bootstrap_achieved": false,
+    "compiler_executable_exists": false,
     "compiler_executable_verified": false,
-    "evidence_directory": "/tmp/cinch-runtime-adts-stages-1",
-    "status": "running at this checkpoint"
+    "diagnostic_categories": {
+      "constructor needs polymorphic, dependent or extended runtime lowering": 189,
+      "constructor pattern needs a specialized runtime representation": 613,
+      "declarations need shared runtime layout and dictionary lowering": 1,
+      "definition needs polymorphic, dictionary or unsupported runtime lowering": 2309,
+      "external runtime implementation is unavailable": 104,
+      "indirect or polymorphic application needs closure lowering": 273,
+      "parameterized data needs runtime representation specialization": 6,
+      "partial or polymorphic constructor needs runtime lowering": 171,
+      "partial, overapplied or polymorphic call needs runtime lowering": 409,
+      "pattern needs typed runtime match lowering": 253,
+      "polymorphic or aggregate let needs runtime lowering": 8,
+      "reference operation needs a checked runtime representation": 253,
+      "runtime entry must be main :": 1,
+      "runtime local is absent from its lexical scope": 452,
+      "tuple fields need an extended or polymorphic runtime layout": 8
+    },
+    "diagnostics": 5050,
+    "exit_code": 5,
+    "first_diagnostics": [
+      "bootstrap.runtime-ir:18660:3: definition needs polymorphic, dictionary or unsupported runtime lowering: m.77_97_105_110_.114_117_110_45_99_108_105_",
+      "bootstrap.runtime-ir:18657:3: definition needs polymorphic, dictionary or unsupported runtime lowering: main",
+      "bootstrap.runtime-ir:18652:3: definition needs polymorphic, dictionary or unsupported runtime lowering: m.77_97_105_110_.114_117_110_45_115_111_117_114_99_101_",
+      "bootstrap.runtime-ir:18640:3: definition needs polymorphic, dictionary or unsupported runtime lowering: m.77_97_105_110_.114_117_110_45_115_101_108_101_99_116_101_100_",
+      "bootstrap.runtime-ir:18624:3: definition needs polymorphic, dictionary or unsupported runtime lowering: m.77_97_105_110_.114_117_110_45_111_112_116_105_111_110_115_",
+      "bootstrap.runtime-ir:18621:3: definition needs polymorphic, dictionary or unsupported runtime lowering: m.77_97_105_110_.114_117_110_45_119_111_114_100_115_",
+      "bootstrap.runtime-ir:14589:3: definition needs polymorphic, dictionary or unsupported runtime lowering: m.66_111_111_116_115_116_114_97_112_46_80_105_112_101_108_105_110_101_.119_114_105_116_101_45_109_111_100_117_108_101_",
+      "bootstrap.runtime-ir:14576:3: definition needs polymorphic, dictionary or unsupported runtime lowering: m.66_111_111_116_115_116_114_97_112_46_80_105_112_101_108_105_110_101_.119_114_105_116_101_45_114_117_110_116_105_109_101_45_109_111_100_117_108_101_"
+    ],
+    "frontend_diagnostics": 0,
+    "inputs": {
+      "builder_sha256": "355fa7f0e1eaeef96ba584bffadeaefcd1ca718e0dda12220e49e16f52170e42",
+      "built_by_stage": 1,
+      "frontend_mode": "typed-ir",
+      "host": {
+        "machine": "arm64",
+        "system": "Darwin"
+      },
+      "interface_set_sha256": "3c49fc92686d42556befcf4480f32c35dc8bc79b6eeec7410db6b750144a20f6",
+      "protocol": 3,
+      "runtime_archive_sha256": "2eb45cd5aa6da0a45677f4f49b6b118652806a050c7dc7365101f88dd6dadcab",
+      "source_sha256": "871802072a94045ae32fa6310775740dee763314da421a184a1affe8f88614f1"
+    },
+    "runtime_ir_bytes": 0,
+    "source_sha256": "d1e3c18860df8a87dbda9c232473202c07e22f2e9cb56c2d645adef3564a0018",
+    "status": "typed emission refused full compiler"
   },
   "implementation_paths": [
     "bootstrap/Bootstrap.Infer.cinch",

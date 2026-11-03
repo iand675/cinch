@@ -6,8 +6,10 @@ programs pass with zero leaks; a C probe checks actual constructor tags and alia
 The complete inference, emission CLI and pipeline targets pass, as do27 tooling
 checks, six fresh stage0/1 smokes and the updated compiler checking its full source
 with zero diagnostics. Constructor literals now wait for their enclosing type
-before carrier/range validation. A genuine Stage2 attempt is running. Polymorphic
-representation specialization, closures, dictionaries, effects, executable base ABI,
+before carrier/range validation. The genuine Stage2 attempt exits5 with zero
+frontend diagnostics and5050 named runtime refusals; its IR is empty and no compiler
+is built. The refusal count includes cascades and is not a count of missing features.
+Polymorphic representation specialization, closures, dictionaries, effects, executable base ABI,
 complete correctness/current-suite gates and the Stage2/3 fixed point remain
 required. See [the ADT checkpoint](../bootstrap/runtime-adt-results.json).
 
