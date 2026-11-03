@@ -93,9 +93,9 @@ The actual rebuilt compiler emits and starts successfully, then passes all seven
 CLI probes. Direct, renamed and separately compiled uses inherit precedence;
 identical and changed importer declarations are both refused. Independent schema,
 ABI and dependency-chain validation passes for the three actual artifacts.
-The initial complete writer/parser/resolver/fixity run passes, as do the expanded
-writer and parser tests. The expanded resolver, complete suite27 and matching
-fresh chain remain required. See [before/after evidence](../bootstrap/reexport-fixity-results.json).
+Both complete initial and expanded writer/parser/resolver/fixity runs pass.
+The complete suite27 and matching fresh stage chain are now running and
+remain required. See [before/after evidence](../bootstrap/reexport-fixity-results.json).
 
 ## Checked interface type printing
 

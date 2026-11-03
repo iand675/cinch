@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "status": "passed",
-  "scope": "Actual self-built compiler and seven CLI behavior checks; first complete writer/parser/resolver/fixity run and expanded writer/parser run pass. The expanded resolver run, final full suite and matching complete stage chain are still running or queued.",
+  "scope": "Actual self-built compiler and seven CLI behavior probes, independent actual contract validation, and complete initial plus expanded focused Native regressions pass. Complete final suite27 and matching fresh stage chain are running; they remain required.",
   "before": [
     {
       "diagnostic": "",
@@ -113,7 +113,7 @@
     "source_unchanged": true,
     "status": "passed"
   },
-  "expanded_native_writer_and_parser": "passed; expanded resolver still running at checkpoint",
+  "expanded_native_writer_and_parser": "Complete expanded writer, parser, resolver and Rust interface-fixity targets all pass",
   "independent_contract_validation": "A/B/Facade schema, ABI5 and exact dependency chain pass",
   "files": {
     "bootstrap/Bootstrap.Parse.cinch": "c9cb574264e6efecb967692cc81ba9a62cb17d77658da62ca97ae2df53626460",
@@ -126,5 +126,33 @@
     "A": "7cdd6f8ca5dea2db1ba8f8882091e697bc46f15d4695a3ccd3833e2b2ccadf87",
     "B": "4d3489f0302a62aa807bb1920d66adee0fdfdffb96b20b851c6290559ab69c3a",
     "Facade": "bb77a5b2348c5aec957e5dec096fc60fdab9c5d6b51c08bdb6cd9a3a4436c443"
-  }
+  },
+  "expanded_focused_validation": {
+    "exit_code": 0,
+    "source_sha256": "0e302a996f36f6279abeefbf8da8efac862a59b118a8e2dce801ccaa3b9e2823",
+    "source_unchanged": true,
+    "status": "passed"
+  },
+  "expanded_targets": [
+    {
+      "name": "bootstrap_export_interfaces",
+      "passed": 1,
+      "seconds": 376.33
+    },
+    {
+      "name": "bootstrap_parse",
+      "passed": 1,
+      "seconds": 65.76
+    },
+    {
+      "name": "bootstrap_resolve",
+      "passed": 1,
+      "seconds": 377.45
+    },
+    {
+      "name": "fixity_interfaces",
+      "passed": 2,
+      "seconds": 5.04
+    }
+  ]
 }

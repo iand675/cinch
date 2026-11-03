@@ -1,23 +1,23 @@
 {
-  "activity": "Final suite27: all 207 test runners compile (208 groups including docs). Its 171 runtime, 41 tooling and 39 syntax/editor tests pass. All seven actual repaired Cinch fixity probes and both portable class build/run cases pass. Expanded writer and parser checks pass; the running resolver gate is the final prerequisite for full-suite execution and the matching new stage chain.",
+  "activity": "All focused repairs pass. Suite27 has 5 of 208 groups passed, 3 running and 0 failed so far. All 171 runtime, 41 tooling and 39 syntax/editor checks pass on that exact source. Its fresh pinned Stage0/1/2/3 chain is running; source compiler identity e85a5d0 matches the actual rebuilt compiler that passed the seven fixity probes.",
   "blockers": [
     {
-      "detail": "The actual rebuilt Cinch compiler passes all seven direct, renamed, separate-facade and forbidden importer-redeclaration probes. The complete expanded writer and parser targets pass. The resolver target is still running; its successful exit releases the final whole-suite and stage runs.",
-      "technical": "First repair source SHA256 5e8484ccfe7be2782134269a17d250df5d82c92f3aa6d1a151f97d5c07e7814f. Only defining modules may declare fixities; reexports carry admitted metadata.",
-      "title": "Finish the expanded resolver verification"
-    },
-    {
-      "detail": "The complete combined chain passed on the frozen snapshot, including its interfaces, actual entry consumer and changed-source behavior. Repeat this gate after the fixity and Rust name-resolution repairs are verified.",
+      "detail": "The fresh final-source Stage0/1/2/3 chain is now running after every focused repair gate passed. It must reproduce matching compiler IR and all 43 canonical interfaces, actual interface consumption, and changed-source behavior. The earlier complete chain remains verified only for its older snapshot.",
       "technical": "Frozen source 6c6644d69b3b32aa04992f6793de634278c07fe717bce59d1d0dc05d24cd3b69. Compiler implementation code is built by Cinch after Stage1.",
       "title": "Repeat the verified bootstrap on the final repairs"
     },
     {
-      "detail": "The older sweep retains 133 passing groups and one compression failure, now repaired in a separate complete target run. Its pending work will be superseded by suite27, which captures the runtime artifact-discovery repair too. The two waiting suite26/stage2 wrappers were stopped before test or stage execution; no active target was interrupted.",
+      "detail": "Suite27 is executing every one of its 208 compiler target groups with up to four shared workers; 5 have passed and 0 failed so far. Its runtime/tooling/editor gates already pass. The old sweep keeps its historical compression failure and 133 passing groups; its queued work has been superseded without interrupting active checks.",
       "technical": "The run uses bounded shared workers; handing off slots waits for active checks to finish. Completed and failed historical results are preserved.",
       "title": "Get the complete final-source suite green"
     }
   ],
   "checks": [
+    {
+      "title": "Complete expanded fixity regression passes",
+      "detail": "Writer, parser, resolver and both Rust interface-fixity cases all pass on the expanded snapshot. All seven actual rebuilt Cinch probes pass too, including separate renamed forwarding and refusal of identical/changed importer declarations.",
+      "state": "passed"
+    },
     {
       "title": "All final-source auxiliary gates pass",
       "detail": "On the exact suite27 snapshot: all 171 runtime tests, 41 tooling checks and 39 compiler/LSP/Tree-sitter tests pass, with no ignored or skipped tests. The complete compiler matrix is compiled and awaits the last focused resolver gate.",
@@ -191,7 +191,7 @@
       "state": "passed"
     }
   ],
-  "status": "Final-source auxiliary gates green; complete runs queued",
+  "status": "All focused repairs pass; final full verification running",
   "summary": "The fresh frozen-source Stage2 and Stage3 reach the full compiler/interface fixed point. Stage3 consumes its emitted compiler APIs, and Stage2 rebuilds changed compiler source correctly. Later fixity and Rust name-resolution repairs still need matching verification.",
-  "updatedAt": "2026-11-03T19:49:53.257189+00:00"
+  "updatedAt": "2026-11-03T19:51:24.642283+00:00"
 }
