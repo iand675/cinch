@@ -49,7 +49,7 @@ fn source_instances_build_checked_dictionaries_from_defining_class_interfaces() 
         ("Facade.cinch", "module Facade where\n  import A (Echo, echo, PairOps as Pair, z-first, a-last, Mapper, make-one, Tick, tick, Value, value)\n  export Echo, echo, Pair, z-first, a-last, Mapper, make-one, Tick, tick, Value, value\n"),
         ("Main.cinch", "module Main where\n  import Facade\n  main :: Int\n  main = 0\n"),
     ]);
-    common::check(&producer, "Main.cinch").expect("produce actual defining class contracts");
+    common::check_library_fixture_native(&producer, "Main.cinch").expect("produce actual defining class contracts");
     let dir = common::project("source_instance_consumer", &[
         ("Bootstrap.Check.cinch", include_str!("../../bootstrap/Bootstrap.Check.cinch")),
         ("Bootstrap.Resolve.cinch", include_str!("../../bootstrap/Bootstrap.Resolve.cinch")),

@@ -1,0 +1,78 @@
+{
+  "exit_code": 0,
+  "scope": "Selected frontend no-fallback plumbing plus explicit Native library fixture generation and rejection of Bootstrap implementation fixtures. No Cinch implementation source changes.",
+  "source_sha256": "3444e097b8a6f8043cb8b819aa9c6147bc14e623b59f0c03f450ea8a541fad8e",
+  "source_unchanged": true,
+  "status": "passed",
+  "tests_passed": 4,
+  "test_log_sha256": "30e7a35bac739b8a620faa6682e8cb44fd759de871303deae3f31194b0d30b70",
+  "modified_files": [
+    {
+      "path": "compiler/tests/common/mod.rs",
+      "sha256": "74c6ce658700cfb7ed8d59927976f7968a3ecb18f5a22196c4283b345362486a"
+    },
+    {
+      "path": "compiler/tests/bootstrap_abstract_nonzero_methods.rs",
+      "sha256": "898e52403b8a5546ebb50c9dd15ad1e01ecbf0515b066021afba8e4e06b75f69"
+    },
+    {
+      "path": "compiler/tests/bootstrap_anonymous_contracts.rs",
+      "sha256": "2db541d49180c862b296ef30b50300bf7465e22b1e117dc9de41a3763e4503c4"
+    },
+    {
+      "path": "compiler/tests/bootstrap_byte_observations.rs",
+      "sha256": "1da70a93d6995e7aba51f575f1d2eb6da1bf571e408b9e90f76c082811364c87"
+    },
+    {
+      "path": "compiler/tests/bootstrap_external_frontend.rs",
+      "sha256": "d94a8930b2ac50a9b02616a63e5456bc39c2f7415858f43763511ebc15e47021"
+    },
+    {
+      "path": "compiler/tests/bootstrap_imported_nonzero.rs",
+      "sha256": "a57fba9f4899570226bf2011cc64ae6333b1100ab511966f8f8e0d20b29c2fda"
+    },
+    {
+      "path": "compiler/tests/bootstrap_imported_preconditions.rs",
+      "sha256": "e36f5dc461225ad32da46eed2eb273fb9ce3eeabca4152ad404392f97fe807d8"
+    },
+    {
+      "path": "compiler/tests/bootstrap_interface.rs",
+      "sha256": "add409e6ec81f9aea1e1a40953179a50b3729ec214cdeed6537641541a030915"
+    },
+    {
+      "path": "compiler/tests/bootstrap_load.rs",
+      "sha256": "a668504efb738901a5ad4ad9247e637d7869ae2bb02bf519b839746282892e1f"
+    },
+    {
+      "path": "compiler/tests/bootstrap_manifest.rs",
+      "sha256": "b9a8b9279e12bb51a6fe134d857e0fc2dd6faf58beabd699c0c122048020e45c"
+    },
+    {
+      "path": "compiler/tests/bootstrap_named_refinements.rs",
+      "sha256": "f16e5b6dc7829341f27b060f14c84a991d1861d8a9ba1883c96f80973a368324"
+    },
+    {
+      "path": "compiler/tests/bootstrap_nominals.rs",
+      "sha256": "c3844c23f9cf2d3fa41cd81f23cb55b1faa664a5076a3ddd70d0d133720d4f3f"
+    },
+    {
+      "path": "compiler/tests/bootstrap_nonzero_source.rs",
+      "sha256": "0d075683f04ef0e1426912964fa1339ca1f6b8e8e7e8a9fd4a94e9c3845c14c3"
+    },
+    {
+      "path": "compiler/tests/bootstrap_pipeline.rs",
+      "sha256": "e2727cee40ca5df5a6bba3b65b1589944a72734b83148c8d8100dd3d25310dc5"
+    },
+    {
+      "path": "compiler/tests/bootstrap_refinement_closure.rs",
+      "sha256": "aab934de9bd16005bbec5f41e449d3b1a72156aa7b7e70ed9f53a9510c2353be"
+    },
+    {
+      "path": "compiler/tests/bootstrap_source_instances.rs",
+      "sha256": "557b0399bebf353244a16421563aa6c3922f4ef51561dc0f7e16fd05555687fb"
+    }
+  ],
+  "implementation_changed": false,
+  "compiler_source_sha256": "e85a5d0ad1875429759da1619b9c60cf86c72e5d6213f1d3dac2430ebd9fd9dd",
+  "remaining": "Complete Native208, portable bootstrap79, ordinary portable behavior coverage and source/artifact/acceptance audit remain open. Four harness tests alone do not establish full compiler parity."
+}

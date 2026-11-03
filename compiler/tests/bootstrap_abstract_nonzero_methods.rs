@@ -27,7 +27,7 @@ fn real_div_and_rem_contracts_keep_abstract_carriers_until_specialization() {
     let producer = common::project("abstract_nonzero_producer", &[
         ("Main.cinch", "module Main where\n  import Algebra.Arithmetic\n  import Data.Nat\n  main :: Int\n  main = 0\n"),
     ]);
-    common::check(&producer, "Main.cinch").expect("produce actual generic arithmetic contracts");
+    common::check_library_fixture_native(&producer, "Main.cinch").expect("produce actual generic arithmetic contracts");
     let arithmetic = Iface::from_json(&std::fs::read_to_string(producer.join("build/Algebra.Arithmetic.cinchif")).unwrap()).unwrap();
     for name in ["Div", "Rem"] {
         let signature = arithmetic.exports.signatures.iter().find(|s| s.name == name).unwrap();

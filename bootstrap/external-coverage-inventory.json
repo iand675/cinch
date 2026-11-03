@@ -1,0 +1,1231 @@
+{
+  "status": "open",
+  "updated_at": "2026-11-03T21:43:04.934699+00:00",
+  "requirement": "design/self-hosting.md Acceptance 5: external compiler behavior tests exercise the self-built frontend too",
+  "source": "/tmp/cinch-explicit-fixture-harness-validation-1/source/compiler",
+  "source_snapshot": "3444e097b8a6f8043cb8b819aa9c6147bc14e623b59f0c03f450ea8a541fad8e",
+  "selected_harness_targets": 100,
+  "bootstrap_targets": 79,
+  "ordinary_targets": 21,
+  "scope": "This is a source-call inventory, not proof of execution or a classification of Native API fixture tests. All ordinary targets require explicit classification; portable behavior paths need final Stage3 execution. The existing 79-group queue alone cannot close acceptance.",
+  "rows": [
+    {
+      "target": "alloc_accounting",
+      "bootstrap": false,
+      "calls": [
+        {
+          "line": 50,
+          "operation": "build"
+        }
+      ],
+      "classification": "portable program build/run or source refusal; requires exact final Stage3 target execution"
+    },
+    {
+      "target": "argv",
+      "bootstrap": false,
+      "calls": [
+        {
+          "line": 93,
+          "operation": "build"
+        }
+      ],
+      "classification": "portable program build/run or source refusal; requires exact final Stage3 target execution"
+    },
+    {
+      "target": "arrays",
+      "bootstrap": false,
+      "calls": [
+        {
+          "line": 15,
+          "operation": "build"
+        },
+        {
+          "line": 60,
+          "operation": "drive"
+        },
+        {
+          "line": 179,
+          "operation": "check"
+        },
+        {
+          "line": 227,
+          "operation": "check"
+        },
+        {
+          "line": 246,
+          "operation": "run"
+        },
+        {
+          "line": 290,
+          "operation": "check"
+        }
+      ],
+      "classification": "Mixed: ABI6 Native array functionality and object metadata; explicit self-hosted intrinsic-refusal behavior must also run through Stage3. Positive array lowering is outside the pinned ABI5 chain, per design/arrays.md.",
+      "design_boundary": "design/arrays.md:125-157; bootstrap/README.md:413-417. Preserve explicit unsupported-intrinsic refusals and ABI version isolation."
+    },
+    {
+      "target": "bootstrap_abstract_nonzero_methods",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 47,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_abstract_nonzero_types",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 11,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_anonymous_contracts",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 46,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_argument_scopes",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 63,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_body_bindings",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 20,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_boolean_branches",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 55,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_buffer_aliases",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 13,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_byte_observations",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 10,
+          "operation": "build"
+        },
+        {
+          "line": 29,
+          "operation": "build"
+        },
+        {
+          "line": 92,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_check",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 96,
+          "operation": "run"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_checked_program",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 20,
+          "operation": "build"
+        },
+        {
+          "line": 35,
+          "operation": "check"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_collections",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 86,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_conditional_methods",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 92,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_contract",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 92,
+          "operation": "run"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_core",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 19,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_decisions",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 15,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_driver",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 81,
+          "operation": "build"
+        },
+        {
+          "line": 134,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_effect_types",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 14,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_effects",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 17,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_eval",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 75,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_export_interfaces",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 17,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_export_types",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 13,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_function_preconditions",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 12,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_globals",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 13,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_guarded_arithmetic",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 12,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_guarded_association",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 22,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_guarded_bodies",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 17,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_guarded_calls",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 131,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_handler_core",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 15,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_imported_nonzero",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 61,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_imported_preconditions",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 45,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_indices",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 20,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_infer",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 17,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_instance_resolution",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 11,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_interface",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 429,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_intrinsics",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 12,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_ir",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 86,
+          "operation": "run"
+        },
+        {
+          "line": 190,
+          "operation": "run"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_ladder",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 70,
+          "operation": "run"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_lexer",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 295,
+          "operation": "build"
+        },
+        {
+          "line": 363,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_load",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 163,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_machine_values",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 10,
+          "operation": "build"
+        },
+        {
+          "line": 28,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_manifest",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 235,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_measure_contracts",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 110,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_module_scopes",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 34,
+          "operation": "run"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_named_refinements",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 24,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_nominals",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 117,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_nonzero_source",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 24,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_nonzero_types",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 11,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_parse",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 316,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_pi",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 32,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_pipeline",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 70,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_proof",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 19,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_proof_arrows",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 15,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_proof_terms",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 15,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_proposition_types",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 13,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_refinement_closure",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 40,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_refinement_constructors",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 71,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_refinement_core",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 13,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_refinement_types",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 13,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_resolve",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 19,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_runtime_emit",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 19,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_runtime_ir",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 88,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_runtime_objects",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 78,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_source_constructors",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 17,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_source_decisions",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 17,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_source_effects",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 13,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_source_handlers",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 17,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_source_instances",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 11,
+          "operation": "build"
+        },
+        {
+          "line": 73,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_source_pi",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 16,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_source_proofs",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 12,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_source_refinements",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 16,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_test_runner",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 47,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_total",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 11,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_total_indices",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 17,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_total_semantics",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 24,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_type_syntax",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 32,
+          "operation": "run"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_typed_indices",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 11,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_typing",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 15,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_value_indices",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 32,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "bootstrap_value_kinds",
+      "bootstrap": true,
+      "calls": [
+        {
+          "line": 32,
+          "operation": "build"
+        }
+      ],
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+    },
+    {
+      "target": "canonical_artifacts",
+      "bootstrap": false,
+      "calls": [
+        {
+          "line": 101,
+          "operation": "check"
+        },
+        {
+          "line": 150,
+          "operation": "run"
+        }
+      ],
+      "classification": "mixed Native artifact API assertions and portable consumer behavior; requires per-case review before final acceptance"
+    },
+    {
+      "target": "case_evidence",
+      "bootstrap": false,
+      "calls": [
+        {
+          "line": 521,
+          "operation": "build"
+        },
+        {
+          "line": 530,
+          "operation": "build"
+        }
+      ],
+      "classification": "portable program build/run or source refusal; requires exact final Stage3 target execution"
+    },
+    {
+      "target": "class_identity",
+      "bootstrap": false,
+      "calls": [
+        {
+          "line": 13,
+          "operation": "run"
+        },
+        {
+          "line": 35,
+          "operation": "run"
+        }
+      ],
+      "classification": "portable program build/run or source refusal; requires exact final Stage3 target execution"
+    },
+    {
+      "target": "exhaustion",
+      "bootstrap": false,
+      "calls": [
+        {
+          "line": 19,
+          "operation": "build"
+        }
+      ],
+      "classification": "portable program build/run or source refusal; requires exact final Stage3 target execution"
+    },
+    {
+      "target": "folded_literal_ownership",
+      "bootstrap": false,
+      "calls": [
+        {
+          "line": 17,
+          "operation": "build"
+        },
+        {
+          "line": 31,
+          "operation": "build"
+        }
+      ],
+      "classification": "portable program build/run or source refusal; requires exact final Stage3 target execution"
+    },
+    {
+      "target": "interface_anonymous_contracts",
+      "bootstrap": false,
+      "calls": [
+        {
+          "line": 11,
+          "operation": "check"
+        }
+      ],
+      "classification": "Native interface-producer/serialization API assertions; separately require writer acceptance coverage, not portable executable evidence"
+    },
+    {
+      "target": "interface_byte_observations",
+      "bootstrap": false,
+      "calls": [
+        {
+          "line": 32,
+          "operation": "check"
+        },
+        {
+          "line": 66,
+          "operation": "build"
+        }
+      ],
+      "classification": "mixed Native artifact API assertions and portable consumer behavior; requires per-case review before final acceptance"
+    },
+    {
+      "target": "interface_class_contracts",
+      "bootstrap": false,
+      "calls": [
+        {
+          "line": 46,
+          "operation": "check"
+        }
+      ],
+      "classification": "Native interface-producer/serialization API assertions; separately require writer acceptance coverage, not portable executable evidence"
+    },
+    {
+      "target": "interface_kinds",
+      "bootstrap": false,
+      "calls": [
+        {
+          "line": 29,
+          "operation": "check"
+        }
+      ],
+      "classification": "Native interface-producer/serialization API assertions; separately require writer acceptance coverage, not portable executable evidence"
+    },
+    {
+      "target": "interface_machine_contracts",
+      "bootstrap": false,
+      "calls": [
+        {
+          "line": 38,
+          "operation": "check"
+        },
+        {
+          "line": 83,
+          "operation": "build"
+        }
+      ],
+      "classification": "mixed Native artifact API assertions and portable consumer behavior; requires per-case review before final acceptance"
+    },
+    {
+      "target": "interface_nominals",
+      "bootstrap": false,
+      "calls": [
+        {
+          "line": 14,
+          "operation": "check"
+        }
+      ],
+      "classification": "Native interface-producer/serialization API assertions; separately require writer acceptance coverage, not portable executable evidence"
+    },
+    {
+      "target": "interface_preconditions",
+      "bootstrap": false,
+      "calls": [
+        {
+          "line": 30,
+          "operation": "check"
+        }
+      ],
+      "classification": "Native interface-producer/serialization API assertions; separately require writer acceptance coverage, not portable executable evidence"
+    },
+    {
+      "target": "interface_prelude_overrides",
+      "bootstrap": false,
+      "calls": [
+        {
+          "line": 34,
+          "operation": "check"
+        }
+      ],
+      "classification": "Native interface-producer/serialization API assertions; separately require writer acceptance coverage, not portable executable evidence"
+    },
+    {
+      "target": "interface_refinement_closure",
+      "bootstrap": false,
+      "calls": [
+        {
+          "line": 12,
+          "operation": "check"
+        }
+      ],
+      "classification": "Native interface-producer/serialization API assertions; separately require writer acceptance coverage, not portable executable evidence"
+    },
+    {
+      "target": "interface_refinements",
+      "bootstrap": false,
+      "calls": [
+        {
+          "line": 17,
+          "operation": "build"
+        }
+      ],
+      "classification": "Native interface-producer/serialization API assertions; separately require writer acceptance coverage, not portable executable evidence"
+    },
+    {
+      "target": "interface_region_effects",
+      "bootstrap": false,
+      "calls": [
+        {
+          "line": 25,
+          "operation": "check"
+        }
+      ],
+      "classification": "Native interface-producer/serialization API assertions; separately require writer acceptance coverage, not portable executable evidence"
+    },
+    {
+      "target": "lib_hashmap_real",
+      "bootstrap": false,
+      "calls": [
+        {
+          "line": 89,
+          "operation": "run"
+        },
+        {
+          "line": 111,
+          "operation": "build"
+        }
+      ],
+      "classification": "portable program build/run or source refusal; requires exact final Stage3 target execution"
+    },
+    {
+      "target": "primitive_length_identity",
+      "bootstrap": false,
+      "calls": [
+        {
+          "line": 14,
+          "operation": "run"
+        },
+        {
+          "line": 32,
+          "operation": "run"
+        },
+        {
+          "line": 47,
+          "operation": "run"
+        },
+        {
+          "line": 66,
+          "operation": "check"
+        },
+        {
+          "line": 76,
+          "operation": "check"
+        },
+        {
+          "line": 87,
+          "operation": "check"
+        },
+        {
+          "line": 98,
+          "operation": "check"
+        },
+        {
+          "line": 118,
+          "operation": "check"
+        },
+        {
+          "line": 127,
+          "operation": "check"
+        },
+        {
+          "line": 128,
+          "operation": "check"
+        }
+      ],
+      "classification": "portable program build/run or source refusal; requires exact final Stage3 target execution"
+    }
+  ],
+  "classification_status": "Initial source review only. Mixed targets require per-case mapping; no target is marked externally verified by this inventory."
+}

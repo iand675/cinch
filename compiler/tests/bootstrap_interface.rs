@@ -298,7 +298,7 @@ fn compiled_artifact() -> (Vec<u8>, Expect) {
             ("Main.cinch", MAIN_SRC),
         ],
     );
-    common::check(&dir, "Main.cinch").expect("the sample project must check");
+    common::check_library_fixture_native(&dir, "Main.cinch").expect("the sample project must check");
     let artifact = std::fs::read(dir.join("build/Lib.cinchif")).expect("the driver wrote an interface");
     common::cleanup(&dir);
 

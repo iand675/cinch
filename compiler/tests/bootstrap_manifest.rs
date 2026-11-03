@@ -197,7 +197,7 @@ fn fixture(tag: &str) -> (Vec<(String, Vec<u8>)>, PathBuf, PathBuf, PathBuf, Pat
         &format!("manifest_src_{tag}"),
         &[("Lib.cinch", LIB_SRC), ("Main.cinch", APP_SRC)],
     );
-    common::check(&src_dir, "Main.cinch").expect("the manifest project must check");
+    common::check_library_fixture_native(&src_dir, "Main.cinch").expect("the manifest project must check");
     let artifacts = read_artifacts(&src_dir);
     assert!(
         artifacts.len() > 2,

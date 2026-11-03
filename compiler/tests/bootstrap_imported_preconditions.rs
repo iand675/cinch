@@ -17,7 +17,7 @@ fn imported_conditions_use_actual_caller_arguments() {
         ("Facade.cinch", "module Facade where\n  import A (pred as previous, difference, Gate, keep-with)\n  export previous, difference, Gate, keep-with\n"),
         ("Main.cinch", "module Main where\n  import Facade\n  main :: Int\n  main = 0\n"),
     ]);
-    common::check(&source, "Main.cinch").expect("emit portable preconditions");
+    common::check_library_fixture_native(&source, "Main.cinch").expect("emit portable preconditions");
     let dir = common::project("condition_consumer", &[
         ("Bootstrap.Ast.cinch", include_str!("../../bootstrap/Bootstrap.Ast.cinch")),
         ("Bootstrap.Report.cinch", include_str!("../../bootstrap/Bootstrap.Report.cinch")),

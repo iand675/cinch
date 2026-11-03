@@ -260,7 +260,7 @@ fn checked_interfaces(dir: &Path, exe: &Path) {
         ("Facade.cinch", "module Facade where\n  import Lib (answer as result, increment, (<+>) as (<*>))\n  export result, increment, (<*>)\n"),
         ("Main.cinch", "module Main where\n  import Facade\n  main :: Int\n  main = result\n"),
     ]);
-    common::check(&source, "Main.cinch").expect("produce real checked contracts");
+    common::check_library_fixture_native(&source, "Main.cinch").expect("produce real checked contracts");
     let mut rows = Vec::new();
     for entry in std::fs::read_dir(source.join("build")).unwrap() {
         let path = entry.unwrap().path();

@@ -70,7 +70,7 @@ fn imported_observation_identity_survives_a_renamed_facade() {
         ("Facade.cinch","module Facade where\n  import A (extent as measure)\n  import Data.Bytes (bytes-len as bounded-measure)\n  export measure, bounded-measure\n"),
         ("Main.cinch","module Main where\n  import Facade\n  main :: Int\n  main = 0\n"),
     ]);
-    common::check(&producer,"Main.cinch").expect("emit real primitive/facade interfaces");
+    common::check_library_fixture_native(&producer,"Main.cinch").expect("emit real primitive/facade interfaces");
     let dir=common::project("imported_byte_observations",&[
         ("Bootstrap.Check.cinch",include_str!("../../bootstrap/Bootstrap.Check.cinch")),
         ("Bootstrap.Resolve.cinch",include_str!("../../bootstrap/Bootstrap.Resolve.cinch")),

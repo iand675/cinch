@@ -27,7 +27,7 @@ fn private_refinements_keep_checked_bounds_without_exporting_names() {
         ("Facade.cinch", "module Facade where\n  import A (bounded as one, widen as wide, positive as pos)\n  export one, wide, pos\n"),
         ("Main.cinch", "module Main where\n  import Facade\n  main :: Int\n  main = 0\n"),
     ]);
-    common::check(&source, "Main.cinch").expect("produce native private contracts");
+    common::check_library_fixture_native(&source, "Main.cinch").expect("produce native private contracts");
     let dir = common::project("refinement_closure_consumer", &[
         ("Bootstrap.Check.cinch", include_str!("../../bootstrap/Bootstrap.Check.cinch")),
         ("Bootstrap.Resolve.cinch", include_str!("../../bootstrap/Bootstrap.Resolve.cinch")),

@@ -38,7 +38,7 @@ fn the_loader_checks_emitted_interfaces_and_dependency_identities() {
         ("Facade.cinch", "module Facade where\n  import Lib (secret-api as use, reveal as show-one)\n  export use, show-one\n"),
         ("Main.cinch", "module Main where\n  import Lib\n  import Facade\n  main :: Int\n  main = answer\n"),
     ]);
-    common::check(&source, "Main.cinch").expect("compile the contract fixture");
+    common::check_library_fixture_native(&source, "Main.cinch").expect("compile the contract fixture");
     let dir = common::project("load", &[
         ("Bootstrap.Ast.cinch", include_str!("../../bootstrap/Bootstrap.Ast.cinch")),
         ("Bootstrap.Report.cinch", include_str!("../../bootstrap/Bootstrap.Report.cinch")),

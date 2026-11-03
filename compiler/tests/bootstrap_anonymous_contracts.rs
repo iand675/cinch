@@ -8,7 +8,7 @@ fn producer() -> std::path::PathBuf {
         ("A.cinch", DEFINITION), ("Facade.cinch", FACADE),
         ("Main.cinch", "module Main where\n  import Facade\n  import Data.Bytes\n  main :: Int\n  main = 0\n"),
     ]);
-    common::check(&dir, "Main.cinch").expect("check real anonymous refinement definitions");
+    common::check_library_fixture_native(&dir, "Main.cinch").expect("check real anonymous refinement definitions");
     dir
 }
 fn quote(value: &str) -> String {

@@ -17,7 +17,7 @@ fn imported_structural_nonzero_uses_checked_argument_identity() {
         ("Facade.cinch", "module Facade where\n  import A (pred as previous, difference, Gate, keep-with, need as require-value, need-int, both, scalar as require-scalar, reflected as require-buffer)\n  import Data.Bytes (bytes-len as measure)\n  export previous, difference, Gate, keep-with, require-value, need-int, both, require-scalar, require-buffer, measure\n"),
         ("Main.cinch", "module Main where\n  import Facade\n  main :: Int\n  main = 0\n"),
     ]);
-    common::check(&source, "Main.cinch").expect("emit portable preconditions");
+    common::check_library_fixture_native(&source, "Main.cinch").expect("emit portable preconditions");
     let read = |name: &str| Iface::from_json(&std::fs::read_to_string(source.join(format!("build/{name}.cinchif"))).unwrap()).unwrap();
     let a = read("A");
     let facade = read("Facade");

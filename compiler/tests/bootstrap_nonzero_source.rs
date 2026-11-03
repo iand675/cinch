@@ -93,7 +93,7 @@ fn structural_nonzero_source_preserves_value_identity_and_contracts() {
         ("Facade.cinch", "module Facade where\n  import Bounds (Positive as Pos, Window, NonZero as Nz)\n  export Pos, Window, Nz\n"),
         ("Main.cinch", "module Main where\n  import Facade\n  main :: Int\n  main = 0\n"),
     ]);
-    common::check(&producer, "Main.cinch").expect("emit checked defining refinement contracts");
+    common::check_library_fixture_native(&producer, "Main.cinch").expect("emit checked defining refinement contracts");
     let mut rows = Vec::new();
     for file in std::fs::read_dir(producer.join("build")).unwrap() {
         let path = file.unwrap().path();

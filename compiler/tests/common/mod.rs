@@ -136,6 +136,10 @@ pub fn drive(mode: Mode, dir: &Path, entry: &str, out: Option<PathBuf>) -> Resul
     if let Some(frontend) = external_frontend::configured()? {
         return external_frontend::drive(&frontend, mode, dir, entry, out);
     }
+    drive_native(mode, dir, entry, out)
+}
+
+fn drive_native(mode: Mode, dir: &Path, entry: &str, out: Option<PathBuf>) -> Result<i32, String> {
     let path = dir.join(entry);
     let handle = std::thread::Builder::new()
         .stack_size(64 * 1024 * 1024)
@@ -158,6 +162,27 @@ pub fn run(dir: &Path, entry: &str) -> i32 {
 /// Type-check `entry` only.
 pub fn check(dir: &Path, entry: &str) -> Result<(), String> {
     drive(Mode::Check, dir, entry, None).map(|_| ())
+}
+
+/// Produce Native library contracts used as input to a Cinch consumer test.
+/// This is an explicit fixture producer, independent of the selected frontend;
+/// a selected compiler's failure never reaches this path as a fallback.
+pub fn check_library_fixture_native(dir: &Path, entry: &str) -> Result<(), String> {
+    drive_native(Mode::Check, dir, entry, None)?;
+    let artifacts = std::fs::read_dir(dir.join("build")).map_err(|e| e.to_string())?;
+    let mut count = 0;
+    for artifact in artifacts {
+        let path = artifact.map_err(|e| e.to_string())?.path();
+        if path.extension().is_some_and(|extension| extension == "cinchif") {
+            let module = path.file_stem().and_then(|name| name.to_str()).unwrap_or("");
+            if module == "Bootstrap" || module.starts_with("Bootstrap.") {
+                return Err(format!("Native library fixture contains compiler implementation module {module}"));
+            }
+            count += 1;
+        }
+    }
+    if count == 0 { return Err("Native library fixture produced no checked interfaces".into()); }
+    Ok(())
 }
 
 /// Build `entry` into an executable named `out` inside the project.

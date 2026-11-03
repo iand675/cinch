@@ -17,7 +17,7 @@ fn imported_nominals_are_checked_with_defining_identities_in_cinch() {
         ("Facade.cinch", "module Facade where\n  import A (Token as Label, Mk as Make, keep as use, secret-api as opaque-use, Box as Container, Boxed as Pack, Partial as Visible, Open)\n  export Label, Make, use, opaque-use, Container, Pack, Visible, Open\n"),
         ("Main.cinch", "module Main where\n  import Facade\n  import B as Other\n  main :: Int\n  main = 0\n"),
     ]);
-    common::check(&source, "Main.cinch").expect("emit nominal contracts");
+    common::check_library_fixture_native(&source, "Main.cinch").expect("emit nominal contracts");
     let dir = common::project("nominal_consumer", &[
         ("Bootstrap.Ast.cinch", include_str!("../../bootstrap/Bootstrap.Ast.cinch")),
         ("Bootstrap.Report.cinch", include_str!("../../bootstrap/Bootstrap.Report.cinch")),

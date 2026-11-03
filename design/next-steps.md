@@ -41,6 +41,24 @@ reads the committed [status checkpoint](../bootstrap/progress.json). It follows
 active verification results and publishes meaningful count, stage and failure
 changes. Its estimated percentage is not a measured test pass rate.
 
+## Self-built test coverage in progress
+
+The portable harness now names Native library fixture production explicitly in
+14 bootstrap targets. Check/build/run calls still select the configured Cinch
+frontend and never fall back after a selected compiler failure. The fixture
+helper rejects compiler implementation interfaces. All four harness checks pass;
+see [the scoped result](../bootstrap/explicit-native-fixture-harness-results.json).
+The complete79-group bootstrap run through final Stage3 is queued separately
+from the complete208-group Native run.
+
+The [external coverage inventory](../bootstrap/external-coverage-inventory.json)
+also finds21 ordinary harness targets. Native interface serialization tests,
+portable program behavior and mixed targets need explicit classification and
+execution evidence. Eight ordinary portable targets are queued through final
+Stage3; mixed consumer coverage and the final audit remain open. The pinned ABI5
+bootstrap retains the array refusal boundary specified in [the array design](arrays.md).
+This inventory is an open audit, not a passing result.
+
 ## Earlier combined bootstrap checkpoint
 
 The fresh pinned Stage0/1/2/3 chain on frozen source

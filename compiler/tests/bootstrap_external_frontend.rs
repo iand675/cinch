@@ -74,3 +74,26 @@ fn selected_frontend_failures_and_non_base_interfaces_never_fall_back() {
     assert!(!dir.join("selected-was-invoked").exists());
     common::cleanup(&dir);
 }
+
+#[test]
+fn explicit_native_library_fixture_produces_checked_interfaces() {
+    let dir = common::project("explicit_native_library_fixture", &[
+        ("Library.cinch", "module Library where\n  value :: Int\n  value = 37\n"),
+        ("Main.cinch", "module Main where\n  import Library\n  main :: Int\n  main = Library.value\n"),
+    ]);
+    common::check_library_fixture_native(&dir, "Main.cinch").unwrap();
+    assert!(dir.join("build/Library.cinchif").is_file());
+    assert!(dir.join("build/Main.cinchif").is_file());
+    common::cleanup(&dir);
+}
+
+#[test]
+fn native_library_fixture_cannot_supply_bootstrap_implementation_interfaces() {
+    let dir = common::project("forbidden_native_compiler_fixture", &[
+        ("Bootstrap.Forbidden.cinch", "module Bootstrap.Forbidden where\n  value :: Int\n  value = 37\n"),
+        ("Main.cinch", "module Main where\n  import Bootstrap.Forbidden\n  main :: Int\n  main = Forbidden.value\n"),
+    ]);
+    let error = common::check_library_fixture_native(&dir, "Main.cinch").unwrap_err();
+    assert!(error.contains("compiler implementation module Bootstrap.Forbidden"), "{error}");
+    common::cleanup(&dir);
+}
