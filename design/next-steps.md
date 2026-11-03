@@ -25,10 +25,17 @@ The first integrated full-source attempt stopped at the generated ABI module's
 dependent conversion of a global constant, before runtime emission. The
 configuration generator now emits matching Nat and Int literals from one
 validated value; the focused actual Cinch frontend changes from exit4 to0.
-The complete corrected stage attempt and remaining constructor/type regression
-targets are still running. This establishes neither a Stage2 executable nor a
-Stage3 fixed point. Canonical compiler interface output, remaining runtime forms,
-actual provider demands and complete current suites/correctness remain required.
+The corrected full-source attempt clears that configuration error, then stops
+at an argument-count subtraction precondition in `external-call-unit` (211
+diagnostics include cascades). No Stage2 IR or executable was produced. The
+boundary regression targets for globals, nominal identities, source instances
+and typing all passed on the preceding candidate. An explicit positive-bound
+rewrite is under full-source and fresh-stage validation; it is not yet a verified
+repair. Canonical compiler interface output, remaining runtime forms, actual
+provider demands, complete current suites/correctness and the Stage2/Stage3 fixed
+point remain required. The [progress dashboard](https://cinch-bootstrap-status.ian92821.chatgpt.site)
+reads the committed [status checkpoint](../bootstrap/progress.json); update that
+checkpoint as stages, blockers and verified results change.
 See [the consumer evidence](../bootstrap/runtime-object-consumer-results.json)
 and [the linkage protocol](runtime-object-linkage.md).
 

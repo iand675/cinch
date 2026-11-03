@@ -34,8 +34,20 @@
     "reason": "Avoid dependent global-value reification in generated ABI configuration; emit exact Nat and Int literals from one validated selection.",
     "source_sha256": "23411a31a2f8140e5d4d60737098b59c958fc0d16d685a987a74c2ea29b5cc35",
     "stage_chain": {
-      "pid": 47572,
-      "status": "running"
+      "diagnostic_lines": 211,
+      "exit_code": 1,
+      "first_diagnostics": [
+        "bootstrap.check:16879:46: function precondition is not established at this call",
+        "bootstrap.check:16879:10: non-exhaustive patterns",
+        "bootstrap.check:16884:18: non-exhaustive patterns",
+        "bootstrap.check:16886:18: non-exhaustive patterns",
+        "bootstrap.check:16887:44: non-exhaustive patterns",
+        "bootstrap.check:16888:21: non-exhaustive patterns"
+      ],
+      "meaning": "Runtime ABI configuration error cleared. The next actual full-source failure is an argument-count subtraction precondition in external-call-unit. Later diagnostics may cascade.",
+      "source_unchanged": true,
+      "stage2_executable": false,
+      "status": "failed"
     },
     "tooling_checks": 35
   },
@@ -59,7 +71,7 @@
     "Stage2/Stage3 fixed point, changed-source behavior and complete current Native/self-built/correctness gates"
   ],
   "seed_changed": false,
-  "status": "validation-in-progress",
+  "status": "checkpoint-bootstrap-incomplete",
   "validation10": {
     "all_test_targets": {
       "exit_code": 0,
@@ -67,26 +79,10 @@
       "status": "passed"
     },
     "boundaries": {
-      "command": [
-        "cargo",
-        "test",
-        "--target-dir",
-        "/tmp/cinch-object-consumer-validation-10/cargo",
-        "--test",
-        "bootstrap_nominals",
-        "--test",
-        "bootstrap_globals",
-        "--test",
-        "bootstrap_typing",
-        "--test",
-        "bootstrap_source_instances",
-        "--",
-        "--include-ignored",
-        "--nocapture",
-        "--test-threads=1"
-      ],
-      "pid": 14989,
-      "status": "running"
+      "exit_code": 0,
+      "source_sha256": "a43bfa1ca352df5fc9bc4f468eb976c8bb812e19e6c254ffd7056f13d478ea3c",
+      "source_unchanged": true,
+      "status": "passed"
     },
     "live_runtime_abi": 6,
     "object_programs": [
