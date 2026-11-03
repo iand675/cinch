@@ -1,12 +1,21 @@
 {
-  "activity": "All 127 ordinary target groups pass. Bootstrap-specific groups: 16 of 81 passed, 5 running and 0 failed. Runtime171, tooling41 and syntax/editor39 pass on this same source. Fresh final-source stages built and smoke-tested: 4 of4; combined gate passed.",
+  "activity": "All 127 ordinary target groups pass. Bootstrap-specific groups: 16 of 81 passed, 5 running and 0 failed. Runtime171, tooling41 and syntax/editor39 pass on this same source. Fresh final-source stages built and smoke-tested: 4 of4; combined gate passed. Self-built portable bootstrap suite: 0 of 79 groups passed, 0 running, 0 failed; state waiting-compile-slot.",
   "blockers": [
     {
       "title": "Finish every final-source compiler test",
       "detail": "143 of 208 groups have passed. A partial sweep does not establish the full suite. All final-source runtime, tooling and editor gates are already green."
+    },
+    {
+      "title": "Finish all portable bootstrap groups through Cinch",
+      "detail": "0 of 79 groups pass. This suite verifies the existing bootstrap programs through the exact self-built Stage3 compiler. Fixture preparation remains an explicit Native library stage; it does not replace or rescue a selected compiler invocation."
     }
   ],
   "checks": [
+    {
+      "title": "Complete portable bootstrap suite through final Stage3",
+      "detail": "0 of 79 existing portable target groups passed, 0 running and 0 failed. The fixture-harness candidate makes 14 Native library producers explicit; the actual compiler source check/build/run path selects final Stage3 and never falls back. All four harness checks and the complete initial type-syntax control pass.",
+      "state": "running"
+    },
     {
       "title": "Exact final Stage3 external acceptance passed",
       "detail": "Both original test-runner programs produce exact reports and zero leaks at 32M through the final compiler. All seven fixity/facade probes pass, including refusal of identical/changed importer declarations. Portable class builds return 37 and 43; the separate wrong-evidence case is a Native API check.",
@@ -206,6 +215,6 @@
     }
   ],
   "status": "Bootstrap passed; final full-suite verification running",
-  "summary": "The fresh repaired-source compiler bootstraps completely: matching Stage2/Stage3 code and 43 interfaces, actual API consumption and changed-source behavior. Exact final Stage3 also passes its test-runner, fixity/facade and portable class checks. The complete bootstrap-specific test sweep remains.",
-  "updatedAt": "2026-11-03T21:28:36.813013+00:00"
+  "summary": "The repaired compiler bootstraps and passes exact final-Stage3 behavior checks. The full 208-group Native-backed sweep and all 79 portable bootstrap groups through Stage3 are tracked separately. Native library fixture preparation is explicit; selected compiler failures never fall back.",
+  "updatedAt": "2026-11-03T21:36:51.658442+00:00"
 }
