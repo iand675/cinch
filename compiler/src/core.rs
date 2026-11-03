@@ -897,6 +897,8 @@ impl ConcOp {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum PrimOp {
+    /// Immutable typed arrays, specialized by element representation.
+    Array { op: crate::arrays::ArrayOp, classes: [Class; 2], packed: Option<Scalar> },
     /// Mathematical `Nat` operations on opaque runtime words
     /// (`cinch.runtime.nat*`; runtime ABI, `cinch_nat_*`).
     Nat(NatOp),
@@ -1015,6 +1017,7 @@ impl PrimOp {
             other => other,
         };
         match self {
+            Array { op, classes, packed } => Array { op, classes, packed: packed.map(s) },
             Bound { ty, max } => Bound { ty: s(ty), max },
             Arith { ty, op, mode } => Arith { ty: s(ty), op, mode },
             Neg { ty, mode } => Neg { ty: s(ty), mode },
@@ -1038,7 +1041,18 @@ impl PrimOp {
 
     /// The intrinsic symbol names recognised on `foreign import ccall`.
     pub fn from_symbol(sym: &str) -> Option<PrimOp> {
-        use PrimOp::*;
+        if let Some(name) = sym.strip_prefix("cinch.runtime.") {
+            for op in crate::arrays::ArrayOp::ALL {
+                if name == op.name() {
+                    return Some(Self::Array { op, classes: [Class::Param(0), Class::Param(1)], packed: None });
+                }
+            }
+            for scalar in Scalar::ALL {
+                if name == format!("arrayFromList{}", scalar.name()) {
+                    return Some(Self::Array { op: crate::arrays::ArrayOp::FromList, classes: [Class::Raw; 2], packed: Some(scalar) });
+                }
+            }
+        }
         if let Some(name) = sym.strip_prefix("cinch.runtime.") {
             return Some(match name {
                 "natAdd" => Nat(NatOp::Add),
@@ -1109,6 +1123,7 @@ impl PrimOp {
                 _ => return None,
             });
         }
+        use PrimOp::*;
         let name = sym.strip_prefix("cinch.prim.")?;
         Some(match name {
             "eqBool" => EqBool,
@@ -1137,6 +1152,7 @@ impl PrimOp {
     pub fn symbol(self) -> String {
         use PrimOp::*;
         let n = match self {
+            Array { op, packed, .. } => return format!("cinch.runtime.{}{}", op.name(), packed.map(|s| s.name()).unwrap_or("")),
             Nat(op) => return format!("cinch.runtime.nat{}", op.name()),
             Int(op) => return format!("cinch.runtime.int{}", op.name()),
             Bytes(op) => return format!("cinch.runtime.bytes{}", op.name()),
@@ -1210,6 +1226,7 @@ impl PrimOp {
     pub fn arity(self) -> usize {
         use PrimOp::*;
         match self {
+            Array { op, packed, .. } => op.sig(packed).0.len(),
             Bound { .. } => 0,
             Nat(NatOp::FromI64 | NatOp::ToI64)
             | Int(IntOp::FromI64 | IntOp::ToI64 | IntOp::Neg | IntOp::FromNat | IntOp::ToNat)
@@ -1236,6 +1253,7 @@ impl PrimOp {
     pub fn returns_option(self) -> bool {
         use PrimOp::*;
         match self {
+            Array { op, .. } => op.returns_option(),
             CheckedDiv { .. } | CheckedRem { .. } | U32ToChar => true,
             Arith { mode: ArithMode::Checked, .. } => true,
             Neg { mode: ArithMode::Checked, .. } => true,
@@ -1266,6 +1284,7 @@ impl PrimOp {
         // success payload otherwise.
         let res = |t: Ty| Ty::Adt("Result".to_string(), vec![i64t.clone(), t]);
         match self {
+            Array { op, packed, .. } => op.sig(packed),
             Nat(NatOp::Add | NatOp::Sub | NatOp::Mul | NatOp::Div | NatOp::Rem) => {
                 (vec![Ty::Nat, Ty::Nat], Ty::Nat)
             }

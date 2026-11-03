@@ -1,0 +1,67 @@
+-- Load checked interfaces once, then process runtime-fed source inputs.
+-- Batch mode writes an independent status, diagnostic and IR for every input.
+-- This kernel fixture imports no operators: arithmetic uses parse-program's
+-- kernel syntax. The actual CLI tests use checked interface fixity headers.
+module Main where
+  import Bootstrap.Check (check-and-retain)
+  import Bootstrap.RuntimeIr (emit-runtime-program-with-object)
+  import Bootstrap.Object (RuntimeObject, parse-runtime-object)
+  import Bootstrap.Parse (parse-program)
+  import Bootstrap.Inputs (read-interfaces)
+  import Bootstrap.Load (LoadedInterface)
+  import Bootstrap.Resolve (resolve-program-with)
+  import Bootstrap.Report (render-diagnostics)
+  import Text.Parse (ParseOutcome, Parsed, Failed)
+  import Text.Show (nat-to-string, int-to-string)
+  import Algebra.Semigroup
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read, fs-write)
+
+  compile :: List LoadedInterface -> RuntimeObject -> Bytes -> (Int, String, String)
+  compile interfaces provider bytes = case parse-program "input.source" bytes of
+    Failed errors -> (3, "", "parse failed")
+    Parsed program Nil -> case resolve-program-with program interfaces of
+      (resolved, Nil) -> case check-and-retain resolved of
+        Err errors -> (4, "", render-diagnostics errors)
+        Ok checked -> case emit-runtime-program-with-object checked (Some provider) of
+          Err errors -> (5, "", render-diagnostics errors)
+          Ok ir -> (0, ir, "")
+      (resolved, errors) -> (4, "", render-diagnostics errors)
+    Parsed program errors -> (3, "", "parse produced recovery errors")
+  store :: forall r. using (io :: Io r) => String -> (Int, String, String) ->{IO r} Int
+  store prefix result = case result of
+    (status, ir, diagnostics) -> case fs-write (path-from-string (prefix <> ".ll")) (string-to-bytes ir) of
+      Err error -> 6
+      Ok _ -> case fs-write (path-from-string (prefix <> ".diagnostics")) (string-to-bytes diagnostics) of
+        Err error -> 6
+        Ok _ -> case fs-write (path-from-string (prefix <> ".status")) (string-to-bytes (int-to-string status)) of
+          Err error -> 6
+          Ok _ -> 0
+  batch :: forall r. using (io :: Io r) => List LoadedInterface -> RuntimeObject -> Nat ->{IO r} Int
+  batch interfaces provider count = if count == 0 then 0 else
+    let index = count - 1 in
+    let suffix = nat-to-string index in
+    case fs-read (path-from-string ("input-" <> suffix <> ".source")) of
+      Err error -> 2
+      Ok bytes -> case store ("output-" <> suffix) (compile interfaces provider bytes) of
+        0 -> batch interfaces provider index
+        code -> code
+  run :: forall r. using (io :: Io r) => List LoadedInterface -> RuntimeObject ->{IO r, Diverge} Int
+  run interfaces provider = case fs-read (path-from-string "batch.count") of
+    Ok counter -> batch interfaces provider (bytes-len counter)
+    Err absent -> case fs-read (path-from-string "input.source") of
+      Err error -> 2
+      Ok bytes -> let result = compile interfaces provider bytes in
+        case store "output" result of
+          0 -> case result of (status, ir, diagnostics) -> status
+          code -> code
+  main :: Unit ->{IO r, Diverge} Int
+  main u = with (io = newIO ()) in case read-interfaces "interfaces.json" of
+    Err message -> case fs-write (path-from-string "admission.diagnostics") (string-to-bytes message) of Ok unit -> 8; Err error -> 9
+    Ok interfaces -> case (fs-read (path-from-string "provider.o"), fs-read (path-from-string "provider.abi.json"), fs-read (path-from-string "target.txt")) of
+      (Ok code, Ok metadata, Ok target-bytes) -> case string-from-bytes target-bytes of
+        None -> 8
+        Some expected-triple -> case parse-runtime-object expected-triple interfaces code metadata of
+          Err message -> case fs-write (path-from-string "admission.diagnostics") (string-to-bytes message) of Ok unit -> 8; Err error -> 9
+          Ok provider -> run interfaces provider
+      other -> 8

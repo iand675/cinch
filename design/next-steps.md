@@ -1,5 +1,76 @@
 # Next steps (as of 2026-11-03)
 
+## Checked library consumption and reproducible stage dependencies
+Cinch now consumes a checked library object with its exact layout prefix,
+function representation variants and declaring-class method slot families.
+Value and instance exports supply separate source authority; physical inventory
+alone grants neither private names nor missing generic variants. Fourteen linked
+programs pass with zero reported leaks, covering direct and partial calls,
+returned functions, heap integers, Native-produced strings, IO arguments,
+polymorphic methods and UTF-8/empty String, Char and U64 literal/pattern behavior.
+Wrong artifacts, ABIs, targets, field maps and private imports are refused.
+The existing82 backend programs, real CLI and every Rust test-target compile
+check pass on the live ABI6 implementation.
+
+The stage driver now creates a separately pinned library-only producer and
+matching runtime, records artifact/interface hashes, invokes the preceding
+Cinch compiler with `--objects`, and links that compiler's IR with the checked
+bundle. Its closure excludes compiler implementation modules. Prepared ABI5
+stages remain separate from live ABI6 artifacts; the stage0 pin is unchanged.
+Missing concrete dependency variants are reported as explicit producer roots.
+The fixed-point gate requires actual compiler interfaces, preventing base-library
+contracts from standing in for compiler output.
+
+The first integrated full-source attempt stopped at the generated ABI module's
+dependent conversion of a global constant, before runtime emission. The
+configuration generator now emits matching Nat and Int literals from one
+validated value; the focused actual Cinch frontend changes from exit4 to0.
+The corrected full-source attempt clears that configuration error, then stops
+at an argument-count subtraction precondition in `external-call-unit` (211
+diagnostics include cascades). No Stage2 IR or executable was produced. The
+boundary regression targets for globals, nominal identities, source instances
+and typing all passed on the preceding candidate. An explicit positive-bound
+rewrite now passes the full compiler frontend with the actual preceding Cinch
+compiler. Runtime emission stops at 29 missing function variants, four missing
+dictionary variants and two decimal conversion intrinsics. These are extracted
+from real retained-Core requests; the next candidate builds that finite library
+root set and adds the matching runtime calls. The complete 17-program linked-object target now passes with zero reported
+leaks, including decimal roundtrip, negative zero and first-class calls. The fresh
+stage chain confirms the full frontend pass, then the old library producer
+rejects a public intrinsic alias as an unknown root. Native and the separate ABI5
+producer now retain callable monomorphic intrinsic entries under their defining
+source names; focused physical ABI regressions pass on both versions. The Stage0
+pin is unchanged. The new full candidate validates that producer and conditional
+implementation calls through the actual declaring instance/slot. All225 broader Native checks, all Rust test-target compilation and35 tooling
+checks pass. The repaired library producer builds and admits the full requested
+bundle. Conditional calls now retain their defining instance/class/slot authority;
+19 linked programs execute with zero leaks, and isolated physical-only metadata
+probes refuse wrong method, owner, context and unsafe subtraction. The original
+negative test mutated an embedded interface as well, causing an earlier valid
+admission refusal; the corrected whole target is rerunning.
+
+The complete candidate19 reaches runtime emission, then exits73 with stack
+exhaustion before writing IR. Candidate20 passes all five builder regressions,
+including65,536 newline chunks on a2MiB stack; its whole linked-object target
+passes all19 programs with zero leaks and the corrected negative checks. Its
+fragment-checker fixture also passes: an empty signature declaration is accepted,
+matching current checking. The full candidate20 attempt builds Stage1 but rejects
+valid nested bounded arithmetic in the revised builder before emission. A minimal
+reproduction distinguishes the rejected nested expression from an accepted
+explicit binding. The checker now retains the runtime local whenever its
+reified mathematical index has a different value kind, matching Core's existing
+scope validation. All12 Native-reference and compiled-Cinch argument-scope cases
+pass, including nested/direct/bound positives and unsafe-subtraction/upper-bound
+negatives. A fresh Stage1 builds with the repair. All five actual Stage1 arithmetic probes pass. The full Stage2 retry then refused the explicitly guarded newline byte write in the revised builder. A reduced reproduction shows that adding a valid outer bound makes general arithmetic elimination exhaust its budget before using the directly known inner bound. Search now tries an exact lexical hypothesis first, producing the same independently rechecked Farkas certificate; the proof checker and search budgets are unchanged. The crowded-context regression fails before the repair and passes afterward, including missing/strict-bound and certificate-forgery refusals. Fresh Stage1 accepts both the reduced context and complete builder module while refusing an end-index write. Its next full Stage2 retry succeeds:19.4MB of LLVM IR links into a runnable compiler. Stage2 passes the valid fib, precedence and invalid-source smoke cases. Stage3 also builds and passes all three smokes; its compiler IR and executable are byte-for-byte identical to Stage2. The self-built Stage2 compiles a changed compiler whose executable exhibits the changed diagnostic behavior. The compiler-code fixed point is established; actual self-produced compiler interfaces and their canonical fixed point are still missing. The full current-source suite has compiled all204 Rust test runners and is prepared for bounded execution after disk recovery.
+The complete current Native test sweep continues. No Stage2 executable or compiler-interface fixed
+point is established. Canonical compiler interface output, remaining runtime forms, actual
+provider demands, complete current suites/correctness and the Stage2/Stage3 fixed
+point remain required. The [progress dashboard](https://cinch-bootstrap-status.ian92821.chatgpt.site)
+reads the committed [status checkpoint](../bootstrap/progress.json); update that
+checkpoint as stages, blockers and verified results change.
+See [the consumer evidence](../bootstrap/runtime-object-consumer-results.json)
+and [the linkage protocol](runtime-object-linkage.md).
+
 ## Imported class authority and demanded library variants
 Cinch retains checked imported class kinds and method descriptions even when a
 module declares no instance. Kinds come from the defining parameter contracts;

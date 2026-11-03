@@ -52,7 +52,6 @@ bootstrap.check:4:8: unmodeled type: (a, b) -> Int
 unmodeled-pattern:
 bootstrap.check:10:5: unmodeled pattern: Pz | Ps q
 class:
-bootstrap.check:4:3: class declarations are not supported in this rung
 instance:
 bootstrap.check:4:3: source instance needs a closed saturated signature target
 fixity:
@@ -95,15 +94,15 @@ fn the_fragment_checker_accepts_fib_and_names_every_refusal() {
         ],
     );
     let code = common::run(&dir, "Main.cinch");
-    common::cleanup(&dir);
     let report = std::fs::read_to_string(path).unwrap_or_else(|e| {
         panic!("the rung's program wrote no {REPORT_FILE}: {e} (exit code {code})")
     });
-    let _ = std::fs::remove_file(path);
     assert_eq!(
         code, 0,
         "rung 3 driver exited {code}: that is the 1-based number of the first case whose \
-         diagnostics differ from the text pinned for it in bootstrap/programs/Run.Check.cinch"
+         diagnostics differ from the text pinned for it in bootstrap/programs/Run.Check.cinch.\n{report}"
     );
     assert_eq!(report, EXPECTED_REPORT, "the rung's report");
+    let _ = std::fs::remove_file(path);
+    common::cleanup(&dir);
 }

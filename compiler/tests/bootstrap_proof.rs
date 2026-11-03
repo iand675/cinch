@@ -130,6 +130,29 @@ fn arithmetic_search_requires_independently_rechecked_evidence() {
             4,
         ),
     ];
+    // An exact lexical hypothesis must remain usable when unrelated facts
+    // exceed the bounded arithmetic elimination budget. Citations still
+    // refer to the original context, including a conjunct at a large index.
+    let mut crowded: Vec<String> = (0..300)
+        .map(|i| bound(&format!(r#"["var","unrelated-{i}"]"#), seven))
+        .collect();
+    let unrelated = crowded.clone();
+    crowded.push(format!(r#"["and",["le",{y},{eight}],{dx}]"#));
+    packets.push((
+        "crowded context retains direct bound",
+        format!(r#"{{"mode":"search","facts":[{}],"goal":{dx}}}"#, crowded.join(",")),
+        0,
+    ));
+    packets.push((
+        "crowded context does not invent a strict bound",
+        format!(r#"{{"mode":"search","facts":[{}],"goal":["lt",{x},{seven}]}}"#, crowded.join(",")),
+        4,
+    ));
+    packets.push((
+        "crowded context does not invent a missing bound",
+        format!(r#"{{"mode":"search","facts":[{}],"goal":{dx}}}"#, unrelated.join(",")),
+        4,
+    ));
     let huge = r#"["int",340282366920938463463374607431768211456]"#;
     let huge_bound = bound(x, huge);
     packets.push((

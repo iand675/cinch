@@ -300,7 +300,7 @@ pub unsafe fn payload_bytes(p: *const u8, h: u64) -> Option<(usize, bool)> {
 pub struct Scan {
     words: usize,
     kind: u8,
-    /// The table entry of a shaped block (0 otherwise).
+    /// A shaped block's table entry, an array's element format, or zero.
     entry: u64,
     /// A wide entry's extension words.
     ext: &'static [u64],
@@ -321,7 +321,8 @@ impl Scan {
             let Some((bytes, _)) = (unsafe { payload_bytes(p, h) }) else {
                 crate::abi::panic_exit(b"compiler bug: block header corrupt");
             };
-            return Scan { words: bytes / 8, kind: k, entry: 0, ext: &[] };
+            let entry = if k == KIND_ARRAY { unsafe { p.cast::<u64>().read() } } else { 0 };
+            return Scan { words: bytes / 8, kind: k, entry, ext: &[] };
         }
         let Some(entry) = (unsafe { shape_entry(p, h) }) else {
             crate::abi::panic_exit(b"compiler bug: shaped block with no registered layout");
@@ -357,7 +358,9 @@ impl Scan {
     /// An invalid code is a compiler bug and traps.
     pub fn code(&self, slot: usize) -> u64 {
         let slot = slot as u64;
-        let code = if !kind_has_shape(self.kind) {
+        let code = if self.kind == KIND_ARRAY {
+            if slot >= 2 && self.entry <= SCAN_TOBJ { self.entry } else { SCAN_RAW }
+        } else if !kind_has_shape(self.kind) {
             fixed_scan_code(self.kind, slot)
         } else if self.ext.is_empty() {
             scan_code_at(layout_entry_map(self.entry), slot)

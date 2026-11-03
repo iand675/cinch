@@ -4,12 +4,13 @@
 module Bootstrap.Builtin where
 
   import Bootstrap.Ast (Decl, DExternal)
+  import Bootstrap.RuntimeAbi (runtime-abi-int)
   import Data.Json
   import Text.Lex (Span)
 
   export builtin-bindings, builtin-declarations, intrinsic-contract
 
-  -- Runtime ABI 5's pure runtime intrinsics. The returned scheme is checked
+  -- The selected runtime ABI's pure intrinsics. The returned scheme is checked
   -- against the declaration, not taken on trust from foreign source text.
   -- The extern is retained separately from the language-level identity.
   intrinsic-contract :: String -> Option (String, String)
@@ -42,7 +43,7 @@ module Bootstrap.Builtin where
       (JObj "symbol" (JStr (string-concat "<builtin>." name))
         (JObj "operation" (JStr operation)
           (JObj "arity" (JNum 1)
-            (JObj "runtime_abi" (JNum 5)
+            (JObj "runtime_abi" (JNum runtime-abi-int)
               (JObj "fresh_region" (JBool fresh)
                 (JObj "scheme" (JStr scheme) JObjEnd)))))))
 
@@ -52,7 +53,7 @@ module Bootstrap.Builtin where
   decision-rule = DExternal (Span 0 0 1 1) "b.decide" "builtin-syntax" None
     (JObj "name" (JStr "decide")
       (JObj "operation" (JStr "Decide")
-        (JObj "runtime_abi" (JNum 5)
+        (JObj "runtime_abi" (JNum runtime-abi-int)
           (JObj "first_class" (JBool False)
             (JObj "predicate_kind" (JStr "Prop")
               (JObj "scheme" (JStr "forall (p :: Prop). Dec p") JObjEnd))))))
@@ -65,7 +66,7 @@ module Bootstrap.Builtin where
     (JObj "name" (JStr name)
       (JObj "family" (JStr "Dec")
         (JObj "parameter_kind" (JStr "Prop")
-          (JObj "runtime_abi" (JNum 5)
+          (JObj "runtime_abi" (JNum runtime-abi-int)
             (JObj "tag" (JNum tag)
               (JObj "arity" (JNum 1)
                 (JObj "runtime_arity" (JNum 0)

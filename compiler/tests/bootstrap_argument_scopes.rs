@@ -33,6 +33,13 @@ fn compiled_cinch_keeps_argument_witness_scopes_and_effects() {
     rows.sort();
     std::fs::write(dir.join("interfaces.json"), format!("{{\"schema\":1,\"interfaces\":[{}]}}", rows.join(","))).unwrap();
     let cases = vec![
+        ("builder write retains an exact branch bound among related facts", "probe :: Bytes -> Bytes -> Nat -> Unit\n  probe out x remaining = if remaining <= bytes-len out then let count = bytes-len x in if count + 1 <= remaining then let start = remaining - (count + 1) in if start + count <= bytes-len out && 0 + count <= bytes-len x then if 1 <= remaining then let last = remaining - 1 in if last < bytes-len out then let written = bytes-copy-range out x start 0 count in let newline = bytes-set out last 10 in () else () else () else () else () else ()", true),
+        ("byte write still rejects the end index", "probe :: Bytes -> Nat -> Unit\n  probe out index = if index <= bytes-len out then let written = bytes-set out index 10 in () else ()", false),
+        ("bounded byte length in nested guarded subtraction", "probe :: Nat -> Bytes -> Nat\n  probe remaining bytes = let count = bytes-len bytes in if count + 1 <= remaining then remaining - (count + 1) else 0", true),
+        ("bounded byte length with explicit sum binding", "probe :: Nat -> Bytes -> Nat\n  probe remaining bytes = let count = bytes-len bytes in let width = count + 1 in if width <= remaining then remaining - width else 0", true),
+        ("bounded byte length in direct guarded subtraction", "probe :: Nat -> Bytes -> Nat\n  probe remaining bytes = let count = bytes-len bytes in if count <= remaining then remaining - count else 0", true),
+        ("bounded byte length does not prove reversed subtraction", "probe :: Nat -> Bytes -> Nat\n  probe remaining bytes = let count = bytes-len bytes in if count + 1 <= remaining then count - (remaining + 1) else 0", false),
+        ("sum does not retain byte length upper bound", "need :: InRange 0 9223372036854775807 Nat -> Nat\n  need n = n\n  probe :: Bytes -> Nat\n  probe bytes = let count = bytes-len bytes in need (count + 1)", false),
         ("nested remainder witnesses", "import Data.Nat (nat-rem, nat-div)\n  need :: using (n < 16) => (n :: Nat) -> Nat\n  need n = n\n  probe :: Nat -> Nat\n  probe n = need (nat-rem n 16)", true),
         ("explicit remainder binding", "import Data.Nat (nat-rem, nat-div)\n  need :: using (n < 16) => (n :: Nat) -> Nat\n  need n = n\n  probe :: Nat -> Nat\n  probe n = let remainder = nat-rem n 16 in need remainder", true),
         ("wrong remainder bound", "import Data.Nat (nat-rem, nat-div)\n  need :: using (n < 16) => (n :: Nat) -> Nat\n  need n = n\n  probe :: Nat -> Nat\n  probe n = need (nat-rem n 32)", false),

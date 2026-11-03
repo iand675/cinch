@@ -1,0 +1,115 @@
+{
+  "schema": 1,
+  "status": "passed",
+  "scope": "Native Array, Tensor and Columnar integration on main; Cinch array lowering remains unsupported",
+  "base_commit": "ca573be15f441e16240fdaede1d5f6c1773fe4c4",
+  "source_commit": "406ffc1ea8800c319029662dfb056e8ddd499e68",
+  "runtime_abi": 6,
+  "interface_schema": 8,
+  "source_sha256": "07b36277ec92eb149f1d22ff1fa0ccf697f752dc99f115d3bde440f128732bfd",
+  "source_file_count": 540,
+  "source_hash_definition": "SHA256 sorted tracked source paths UTF8 + NUL + bytes + NUL; compiler/src, compiler/runtime/src, compiler/prelude, compiler/tests, bootstrap/**/*.cinch, tooling/bootstrap.py and tooling/tests/test_bootstrap.py; includes new RuntimeAbi module",
+  "tested_source_unchanged": true,
+  "checks": [
+    {
+      "target": "native-object-producer",
+      "passed": 5,
+      "failed": 0,
+      "ignored": 0,
+      "exit": 0,
+      "log": "/tmp/cinch-array-main-validation-1/native-object-producer.log",
+      "seconds": 31.21
+    },
+    {
+      "target": "array-integration",
+      "passed": 65,
+      "failed": 0,
+      "ignored": 0,
+      "exit": 0,
+      "log": "/tmp/cinch-array-main-validation-1/array-integration.log",
+      "seconds": 189.64
+    },
+    {
+      "target": "bootstrap-abi",
+      "passed": 8,
+      "failed": 0,
+      "ignored": 0,
+      "exit": 0,
+      "log": "/tmp/cinch-array-main-validation-1/bootstrap-abi.log",
+      "seconds": 2880.27
+    },
+    {
+      "target": "complete runtime unit suite, including loopback listeners",
+      "passed": 119,
+      "failed": 0,
+      "ignored": 0,
+      "exit": 0,
+      "log": "/tmp/cinch-array-main-validation-1/runtime.log",
+      "seconds": 6.92
+    },
+    {
+      "target": "complete tooling suite",
+      "passed": 28,
+      "failed": 0,
+      "exit": 0,
+      "command": "python3 -m unittest discover -s tooling/tests -v",
+      "evidence": "Recorded tool execution: Ran28 tests, OK"
+    },
+    {
+      "target": "pinned Stage0/Stage1 smoke checks",
+      "passed": 6,
+      "failed": 0,
+      "exit": 0,
+      "evidence": "/tmp/cinch-array-main-stage-check-1/result.json"
+    },
+    {
+      "target": "pinned ABI5 interface admission and mixed ABI rejection",
+      "passed": 2,
+      "failed": 0,
+      "exit": 0,
+      "evidence": "/tmp/cinch-array-main-stage-check-1/result.json"
+    }
+  ],
+  "total_passed": 233,
+  "pinned_bootstrap": {
+    "bootstrap_achieved": false,
+    "builder_sha256": "e339950b7f6f34e25848ba45547ad99648e061df6f1e99e34801369d82aa0198",
+    "compiler_sha256": "bc8bf65e148382deeebffc7ef507cec82ac7260480434fec1a9ee871f59558ac",
+    "interface_checks": [
+      {
+        "diagnostics": "",
+        "exit": 0,
+        "name": "abi5-admitted"
+      },
+      {
+        "diagnostics": "bootstrap.interfaces: Algebra.Arithmetic: interface runtime ABI mismatch",
+        "exit": 7,
+        "name": "mixed-abi-refused"
+      }
+    ],
+    "interface_count": 55,
+    "live_runtime_abi": 6,
+    "prepared_runtime_abi": 5,
+    "prepared_source_sha256": "6c2b25a5a44019849dc329595078c8f995294a78042ad34db8128df086aed1cf",
+    "seed_source_sha256": "c77484d26d293178f2a37efde10da2e1c15155e2dc825715a8d4ca8f30fd98a0",
+    "smoke_evidence": "Initial shared-slot runner passed all6 smokes; follow-up only corrects the diagnostic suffix lookup and rechecks admission",
+    "smoke_passed": 6,
+    "stage_source_manifest_includes_abi": true,
+    "status": "passed"
+  },
+  "seed_lock_and_patch_unchanged": true,
+  "historical_bootstrap_reports_unchanged": true,
+  "syntax_experiment_sources_unchanged": true,
+  "complete_current_compiler_suite": false,
+  "bootstrap_achieved": false,
+  "environment": {
+    "cargo_jobs": 1,
+    "test_threads": 1,
+    "codegen_units": 1,
+    "test_opt_level": 1,
+    "test_debug": 0,
+    "debug_assertions": true,
+    "cinch_heap_limit": "2G",
+    "worker_policy": "Native/runtime serial in reserved fifth lane; pinned Stage0/1 independently in fixed shared slot1; global maximum5 heavy jobs"
+  }
+}

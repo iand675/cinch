@@ -1,0 +1,41 @@
+{
+  "candidate": 20,
+  "source_sha256": "7c77a40b81d6b330e93b11993a03581d9a7ded29595a76ef79bbd80525d64754",
+  "source_unchanged": true,
+  "bootstrap_achieved": false,
+  "gates": [
+    {
+      "name": "bootstrap_check",
+      "status": "passed",
+      "test_count": 1,
+      "duration_seconds": 244.23
+    },
+    {
+      "name": "bootstrap_runtime_objects",
+      "status": "passed",
+      "test_count": 1,
+      "programs_executed": 19,
+      "all_programs_zero_leaks": true,
+      "negative_admission_and_authority_checks": "passed",
+      "duration_seconds": 1165.25
+    },
+    {
+      "name": "lib_builder",
+      "status": "passed",
+      "test_count": 5,
+      "duration_seconds": 24.29
+    }
+  ],
+  "stage2": {
+    "status": "failed",
+    "compiler_exit_code": 4,
+    "first_failure": "bounded byte-length arithmetic in nested guarded subtraction",
+    "ir_produced": false,
+    "executable_produced": false
+  },
+  "published_source_files": {
+    "bootstrap/programs/Run.Check.cinch": "039a292d4636bcccb0342c5130f8cdf9af00a0e84b80c378b6ee6c946ae09d56",
+    "compiler/tests/bootstrap_check.rs": "142119100e2205c58ecff465306775faa28d9fc8318f931e7c7dd0dae916dcaa"
+  },
+  "note": "Builder rewrite verified by Native checks but not published in this fixture-only checkpoint; current Cinch checker repair is still under validation."
+}

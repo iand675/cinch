@@ -1,0 +1,81 @@
+{
+  "candidate": 21,
+  "source_sha256": "4a79222a27c956d20aa7b8e933d1e2491d7c4cc530d5803eaeed0f251bc22acc",
+  "source_unchanged": true,
+  "bootstrap_achieved": false,
+  "repair": "Only substitute a reified local index at the actual declared value kind; otherwise keep the runtime local and checked RHS equality. This matches independent Core scope validation.",
+  "checker_gate": {
+    "target": "bootstrap_argument_scopes",
+    "status": "passed",
+    "duration_seconds": 568.18,
+    "cases": 12,
+    "native_reference_and_compiled_cinch": "passed",
+    "new_positive_cases": [
+      "nested guarded byte-length subtraction",
+      "explicit sum binding",
+      "direct guarded byte-length subtraction"
+    ],
+    "new_negative_cases": [
+      "reversed subtraction",
+      "sum retaining original upper bound"
+    ]
+  },
+  "builder_gate": {
+    "candidate": 20,
+    "target": "lib_builder",
+    "status": "passed",
+    "tests": 5,
+    "stress_case": "65536 BLine chunks, 2 MiB stack, 64 MiB heap, zero reported leaks"
+  },
+  "stage_chain": {
+    "stage1": "built",
+    "stage2": "failed frontend: bytes-set guarded newline write; compiler exit4; no IR/executable"
+  },
+  "published_files": {
+    "bootstrap/Bootstrap.Infer.cinch": "35393a32ae6b9747243d2f6e63561cf9b657d5db9b5fc4d68a44a420f661b146",
+    "compiler/tests/bootstrap_argument_scopes.rs": "0eb86968b895f508928a50ea643375ba990eb6b9f470d15190cc7e60ad0e6250",
+    "compiler/prelude/Text/Builder.cinch": "c089e433293b637862387c71967e800c5cb57f4f7011724ee4d21b18c5ece24b",
+    "compiler/tests/lib_builder.rs": "073d097822d72f4307a0ffb4d3cf09d8dfce76bc70945c95861f789995e3558d"
+  },
+  "actual_seed_built_stage1_probes": {
+    "status": "passed",
+    "cases": [
+      {
+        "case": "nested",
+        "diagnostics": "",
+        "exit_code": 0,
+        "status": "passed",
+        "wanted": 0
+      },
+      {
+        "case": "bound",
+        "diagnostics": "",
+        "exit_code": 0,
+        "status": "passed",
+        "wanted": 0
+      },
+      {
+        "case": "direct",
+        "diagnostics": "",
+        "exit_code": 0,
+        "status": "passed",
+        "wanted": 0
+      },
+      {
+        "case": "reversed",
+        "diagnostics": "bootstrap.check:6:101: function precondition is not established at this call\n",
+        "exit_code": 4,
+        "status": "passed",
+        "wanted": 4
+      },
+      {
+        "case": "upper",
+        "diagnostics": "bootstrap.check:6:67: refinement predicate is not established for this value\n",
+        "exit_code": 4,
+        "status": "passed",
+        "wanted": 4
+      }
+    ],
+    "note": "Actual Stage1 pipeline with exact ABI5 base interface manifest; no Native implementation fallback."
+  }
+}

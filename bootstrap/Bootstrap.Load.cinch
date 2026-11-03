@@ -4,6 +4,7 @@
 module Bootstrap.Load where
 
   import Bootstrap.Ast (TypeExpr)
+  import Bootstrap.RuntimeAbi (runtime-abi)
   import Bootstrap.Total
   import Bootstrap.Interface (iface-parse, iface-schema-version, fnv-source-hash)
   import Bootstrap.Parse (parse-scheme)
@@ -414,7 +415,7 @@ module Bootstrap.Load where
     Some doc ->
       if not (same expected-name (text (field "module" doc))) then Err "interface module name mismatch"
       else if not (nat-p (field "schema" doc)) || number (field "schema" doc) /= iface-schema-version then Err "unsupported interface schema"
-      else if not (nat-p (field "runtime_abi" doc)) || number (field "runtime_abi" doc) /= 5 then Err "interface runtime ABI mismatch"
+      else if not (nat-p (field "runtime_abi" doc)) || number (field "runtime_abi" doc) /= runtime-abi then Err "interface runtime ABI mismatch"
       else if not (envelope-valid doc) then Err "malformed interface contract envelope"
       else let hash = fnv-source-hash (canonical-bytes (contract-projection doc)) in
         if not (same hash expected-hash) then Err "interface contract identity mismatch"

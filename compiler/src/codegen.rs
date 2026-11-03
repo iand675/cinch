@@ -66,6 +66,9 @@
 //! temporaries are `alloca` slots in the entry block, so `clang`'s later
 //! optimisation passes can promote them.
 
+#[path = "arrays_codegen.rs"]
+mod arrays_codegen;
+
 use crate::core::{
     AbiClass, AbiParam, ArithMode, ArithOp, BitOp, BitScanOp, BytesOp, CAlt, CBranch, Class, CmpOp,
     ConcOp, ConvMode, Core, CPat, CtorLayout, FClassOp, FieldAccess, FieldShape, FloatBinOp,
@@ -216,6 +219,27 @@ fn emit_module(profile: &crate::core::TargetProfile, program: &Program, object: 
         "declare i64 @cinch_int_neg(i64)",
         "declare i64 @cinch_int_cmp(i64, i64)",
         "declare i64 @cinch_int_from_decimal(ptr, i64)",
+        "declare i64 @cinch_array_from_list(i64, i64)",
+        "declare i64 @cinch_array_replicate(i64, i64, i64)",
+        "declare i64 @cinch_array_len(i64)",
+        "declare i64 @cinch_array_has(i64, i64)",
+        "declare i64 @cinch_array_get(i64, i64)",
+        "declare i64 @cinch_array_set(i64, i64, i64)",
+        "declare i64 @cinch_array_slice(i64, i64, i64)",
+        "declare i64 @cinch_array_append(i64, i64)",
+        "declare i64 @cinch_tensor_reshape(i64, i64)",
+        "declare i64 @cinch_tensor_shape(i64)",
+        "declare i64 @cinch_tensor_data(i64)",
+        "declare i64 @cinch_tensor_index(i64, i64)",
+        "declare i64 @cinch_tensor_get(i64, i64)",
+        "declare i64 @cinch_tensor_set(i64, i64, i64)",
+        "declare i64 @cinch_columnar_column(i64)",
+        "declare i64 @cinch_columnar_zip(i64, i64, i64)",
+        "declare i64 @cinch_columnar_rows(i64)",
+        "declare i64 @cinch_columnar_columns(i64)",
+        "declare i64 @cinch_columnar_get(i64, i64)",
+        "declare i64 @cinch_columnar_child(i64, i64)",
+        "declare i64 @cinch_columnar_array(i64)",
         "declare i64 @cinch_bytes_new(i64)",
         // A `Nat` as a length or read count: bignums clamp to `i64::MAX`,
         // so a request no allocation can hold is the heap `Exhausted` exit.
@@ -1174,6 +1198,10 @@ fn sig_class(t: &crate::types::Ty) -> Class {
 fn prim_param_classes(op: PrimOp) -> Vec<Class> {
     use ConcOp::*;
     match op {
+        PrimOp::Array { op, classes, packed } => {
+            let params = op.params(packed);
+            op.sig(packed).0.iter().map(|t| crate::repr::repr_of(t, &params, &SigTypes, &mut |_| {}).subst(&classes)).collect()
+        }
         PrimOp::Delay | PrimOp::Force | PrimOp::Demand | PrimOp::Eval => vec![Class::Obj],
         PrimOp::Conc(WithScope | Spawn | IoWrite) => vec![Class::Raw, Class::Obj],
         PrimOp::Conc(IoRead | IoSleep) => vec![Class::Raw, Class::TObj],
@@ -1207,6 +1235,9 @@ fn prim_consumes(op: PrimOp, i: usize) -> bool {
 /// for `Option t`, `[e, t]` for `Result e t` (the `Err` then the `Ok`
 /// payload), empty otherwise. Runtime input (`IoRead`) is `Option Bytes`.
 fn prim_payload_classes(op: PrimOp) -> Vec<Class> {
+    if let PrimOp::Array { op, classes, .. } = op {
+        return if op.returns_option() { vec![op.result_class(classes)] } else { vec![] };
+    }
     if op == PrimOp::Conc(ConcOp::IoRead) {
         return vec![Class::Obj];
     }
@@ -3066,6 +3097,7 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
     let op = op.resolve_widths(cx.usize_bits);
     use PrimOp::*;
     match op {
+        Array { op: array_op, classes, packed } => arrays_codegen::emit(b, reg, name, op, array_op, classes, packed),
         Nat(n) => {
             // Boxed bignum words in and out (runtime ABI): `natCmp`
             // returns the raw -1/0/1 immediate.
@@ -6413,10 +6445,12 @@ int main(void) {{
             let text = std::fs::read_to_string(out.with_extension("abi.json")).unwrap();
             let manifest = parse_json(&text).unwrap();
             let m = manifest.as_object().unwrap();
+            assert_eq!(m["runtime_abi"].as_num().unwrap(), crate::interface::RUNTIME_ABI_VERSION as u64);
             let mut ifaces = Vec::new();
             for row in m["interfaces"].as_array().unwrap() {
                 let row = row.as_object().unwrap();
                 let iface = crate::interface::Iface::from_json(&row["interface"].to_canonical_string()).unwrap();
+                assert_eq!(iface.runtime_abi, crate::interface::RUNTIME_ABI_VERSION);
                 assert_eq!(iface.module, row["module"].as_str().unwrap());
                 assert_eq!(iface.iface_hash(), row["iface_hash"].as_str().unwrap());
                 ifaces.push(iface);

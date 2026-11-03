@@ -13,6 +13,36 @@ import bootstrap
 
 
 class BootstrapContract(unittest.TestCase):
+    def test_base_interfaces_cannot_stand_in_for_compiler_fixed_point_contracts(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            files = {"Main.cinch": b"source", "Bootstrap.Check.cinch": b"source"}
+            bootstrap.write_json(root / "Data.Core.cinchif", {"module": "Data.Core"})
+            with self.assertRaisesRegex(bootstrap.BootstrapError, "missing actual compiler interfaces"):
+                bootstrap.require_compiler_interfaces(root, files)
+            for name in ["Main", "Bootstrap.Check"]:
+                bootstrap.write_json(root / (name + ".cinchif"), {"module": name})
+            bootstrap.require_compiler_interfaces(root, files)
+            bootstrap.write_json(root / "extra.cinchif", {"module": "Bootstrap.Check"})
+            with self.assertRaisesRegex(bootstrap.BootstrapError, "duplicate canonical compiler interface"):
+                bootstrap.require_compiler_interfaces(root, files)
+    def test_runtime_abi_preparation_is_exact_and_part_of_source_identity(self):
+        live = (bootstrap.ROOT / "bootstrap/Bootstrap.RuntimeAbi.cinch").read_bytes()
+        self.assertEqual(live, bootstrap.runtime_abi_source(6))
+        pinned = bootstrap.collect_compiler_sources()
+        self.assertEqual(pinned["Bootstrap.RuntimeAbi.cinch"], bootstrap.runtime_abi_source(5))
+        self.assertIn(b"runtime-abi = 5", bootstrap.bundle(pinned))
+        self.assertIn(b"runtime-abi-int = 5", pinned["Bootstrap.RuntimeAbi.cinch"])
+        self.assertIn(b"runtime-abi-int = 6", live)
+        native = {**pinned, "Bootstrap.RuntimeAbi.cinch": live}
+        self.assertNotEqual(bootstrap.source_hash(pinned), bootstrap.source_hash(native))
+        for invalid in (None, True, "5", 0, 4, 7):
+            with self.assertRaises(bootstrap.BootstrapError):
+                bootstrap.runtime_abi_source(invalid)
+        with patch.object(bootstrap, "seed_inputs", return_value=({"runtime_abi": 7}, b"")):
+            with self.assertRaises(bootstrap.BootstrapError):
+                bootstrap.collect_compiler_sources()
+
     def test_stage_commands_keep_build_and_test_workers_serial(self):
         with patch.dict(os.environ, {"CARGO_BUILD_JOBS": "32", "RUST_TEST_THREADS": "32"}, clear=True):
             env = bootstrap.environment()
@@ -148,6 +178,19 @@ class BootstrapContract(unittest.TestCase):
         runtime.write_bytes(b"pinned runtime identity")
         return builder, runtime, {"Main.cinch": b"source supplied only to Cinch"}
 
+    def provider_fixture(self, runtime):
+        library = runtime.parent / "library.o"
+        metadata = runtime.parent / "library.abi.json"
+        if not library.exists():
+            library.write_bytes(b"verified library-only object")
+            metadata.write_bytes(b"verified library-only metadata")
+        return {"runtime": runtime, "object": library,
+                "interfaces": {"schema": 1, "interfaces": []},
+                "configuration": {"schema": 1, "target": "test-host", "object": str(library),
+                                  "metadata": str(metadata), "object_sha256": bootstrap.file_hash(library),
+                                  "metadata_sha256": bootstrap.file_hash(metadata)},
+                "identity": {"producer_sha256": "verified library producer", "runtime_abi": 5}}
+
     def test_typed_self_build_uses_only_cinch_then_links_and_checks_the_compiler_entry(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -160,12 +203,13 @@ class BootstrapContract(unittest.TestCase):
                 log.write_text("observed selected command")
                 if args[0] == builder:
                     self.assertEqual(args[1:3], ["--emit-ir", "--interfaces"])
-                    self.assertEqual(len(args), 6)
+                    self.assertEqual(len(args), 8)
+                    self.assertEqual(args[4:6], ["--objects", directory / "objects.json"])
                     Path(args[-1]).write_text("typed IR")
                     return 0
                 if str(args[0]) == "selected-clang":
                     self.assertTrue(append)
-                    self.assertEqual(args[1:3], [directory / "compiler.ll", runtime])
+                    self.assertEqual(args[1:4], [directory / "compiler.ll", runtime.parent / "library.o", runtime])
                     exe = directory / "cinch"
                     exe.write_bytes(b"linked compiler")
                     exe.chmod(0o755)
@@ -174,21 +218,26 @@ class BootstrapContract(unittest.TestCase):
                 self.assertTrue(append)
                 return 1
 
-            with patch.object(bootstrap, "runtime_archive", return_value=runtime), \
-                    patch.object(bootstrap, "base_interface_manifest", return_value={"schema": 1, "interfaces": []}), \
+            with patch.object(bootstrap, "runtime_provider", side_effect=lambda: self.provider_fixture(runtime)), \
                     patch.dict(os.environ, {"CINCH_CLANG": "selected-clang"}), \
                     patch.object(bootstrap, "run", side_effect=command):
                 bootstrap.build_self(builder, files, directory, 1)
                 self.assertEqual(len(calls), 3)
                 self.assertEqual((directory / "link-report.txt").read_text(), "clang-exit: 0\nartifact-exit: 1\n")
                 inputs = bootstrap.read_json(directory / "stage.json")["inputs"]
-                self.assertEqual(inputs["frontend_mode"], "typed-ir")
+                self.assertEqual(inputs["frontend_mode"], "typed-ir-objects")
                 self.assertEqual(inputs["runtime_archive_sha256"], bootstrap.file_hash(runtime))
                 bootstrap.build_self(builder, files, directory, 1)
                 self.assertEqual(len(calls), 3, "identical frozen inputs should reuse the verified compiler")
                 runtime.write_bytes(b"different runtime object")
                 bootstrap.build_self(builder, files, directory, 1)
                 self.assertEqual(len(calls), 6, "a changed runtime object must invalidate the cached compiler")
+                (root / "library.o").write_bytes(b"different native library object")
+                bootstrap.build_self(builder, files, directory, 1)
+                self.assertEqual(len(calls), 9, "changed dependency code must invalidate the cached compiler")
+                (directory / "objects.json").write_text("corrupted stage configuration")
+                bootstrap.build_self(builder, files, directory, 1)
+                self.assertEqual(len(calls), 12, "a changed admission configuration must invalidate the cache")
 
     def test_typed_refusal_never_calls_a_linker_or_falls_back_to_native(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -203,8 +252,7 @@ class BootstrapContract(unittest.TestCase):
                 (directory / "compiler.ll.diagnostics").write_text("bootstrap.runtime-ir:1:1: unavailable layout")
                 return 5
 
-            with patch.object(bootstrap, "runtime_archive", return_value=runtime), \
-                    patch.object(bootstrap, "base_interface_manifest", return_value={"schema": 1, "interfaces": []}), \
+            with patch.object(bootstrap, "runtime_provider", side_effect=lambda: self.provider_fixture(runtime)), \
                     patch.object(bootstrap, "run", side_effect=refused) as run:
                 with self.assertRaisesRegex(bootstrap.BootstrapError, "unavailable layout"):
                     bootstrap.build_self(builder, files, directory, 1)
@@ -227,8 +275,7 @@ class BootstrapContract(unittest.TestCase):
                 log.write_text("linker rejected the runtime archive")
                 return 19
 
-            with patch.object(bootstrap, "runtime_archive", return_value=runtime), \
-                    patch.object(bootstrap, "base_interface_manifest", return_value={"schema": 1, "interfaces": []}), \
+            with patch.object(bootstrap, "runtime_provider", side_effect=lambda: self.provider_fixture(runtime)), \
                     patch.object(bootstrap, "run", side_effect=command) as run:
                 with self.assertRaisesRegex(bootstrap.BootstrapError, "linker rejected"):
                     bootstrap.build_self(builder, files, directory, 1)
@@ -247,8 +294,7 @@ class BootstrapContract(unittest.TestCase):
                     (directory / "compiler.ll").write_text("typed IR")
                 return 0
 
-            with patch.object(bootstrap, "runtime_archive", return_value=runtime), \
-                    patch.object(bootstrap, "base_interface_manifest", return_value={"schema": 1, "interfaces": []}), \
+            with patch.object(bootstrap, "runtime_provider", side_effect=lambda: self.provider_fixture(runtime)), \
                     patch.object(bootstrap, "run", side_effect=command) as run:
                 with self.assertRaisesRegex(bootstrap.BootstrapError, "without a runnable compiler"):
                     bootstrap.build_self(builder, files, directory, 1)
@@ -281,9 +327,11 @@ class BootstrapContract(unittest.TestCase):
             files = {"Bootstrap.Check.cinch": b'  rung = "bootstrap.check"\n'}
             with patch.object(bootstrap, "BUILD", directory), \
                     patch.object(bootstrap, "compiler_sources", return_value=files), \
-                    patch.object(bootstrap, "build_self", return_value=compiler):
+                    patch.object(bootstrap, "build_self", return_value=compiler) as build:
                 with self.assertRaisesRegex(bootstrap.BootstrapError, "changed diagnostic behavior"):
                     bootstrap.check_changed_source()
+                self.assertEqual(build.call_args.args[0], directory / "stage2" / "cinch")
+                self.assertEqual(build.call_args.args[3], 2)
             self.assertFalse((product / "probe" / "checked.json").exists())
 
 

@@ -1,0 +1,187 @@
+{
+  "schema": 1,
+  "updatedAt": "2026-11-03T14:30:07.904644+00:00",
+  "estimate": 90,
+  "estimateNote": "Rough engineering estimate. Remaining compiler bugs can change it; this is not a measured test pass rate.",
+  "status": "Compiler code reaches a fixed point",
+  "summary": "Stage3 rebuilt successfully. Its compiler IR and executable exactly match Stage2, and both compilers pass all three smoke checks. Real compiler interfaces and complete current-source testing remain.",
+  "activity": "Stage2/Stage3 code equality, all smoke checks, and Stage2 changed-source behavior are verified. Disk recovery restored about15GiB; the current-source suite runs on three bounded workers using exact compiled test binaries.",
+  "commit": "27d11d6387b971054a811818b4321191c80dccc9",
+  "stages": [
+    {
+      "name": "Stage 0",
+      "state": "passed",
+      "label": "Verified",
+      "description": "Pinned seed compiler and matching library provider."
+    },
+    {
+      "name": "Stage 1",
+      "state": "passed",
+      "label": "Built",
+      "description": "Cinch compiler built from the pinned seed."
+    },
+    {
+      "name": "Stage 2",
+      "state": "passed",
+      "label": "Smoke-tested",
+      "description": "Built by Cinch; starts and passes valid-program, precedence and invalid-source checks."
+    },
+    {
+      "name": "Stage 3",
+      "state": "passed",
+      "label": "Code matches",
+      "description": "Built by Stage2; passes smoke checks. Compiler IR and binary exactly match Stage2. Interface verification is still required."
+    }
+  ],
+  "checks": [
+    {
+      "title": "Self-built compiler rebuilds changed source correctly",
+      "detail": "Stage2 compiles a modified compiler; that executable produces the changed diagnostic label and correctly refuses the invalid probe. The verification driver now explicitly uses Stage2 for this gate.",
+      "state": "passed"
+    },
+    {
+      "title": "Stage2 and Stage3 compiler code matches exactly",
+      "detail": "Candidate23: identical LLVM IR and executable SHA256; Stage3 also passes valid-program, precedence and invalid-source smoke checks. This does not establish the compiler-interface fixed point.",
+      "state": "passed"
+    },
+    {
+      "title": "Stage2 built and smoke-tested",
+      "detail": "Candidate23 produces real compiler IR and an executable. The executable starts and compiles/runs valid programs, respects precedence and gives the expected invalid-source refusal.",
+      "state": "passed"
+    },
+    {
+      "title": "100 programs executed",
+      "detail": "82 runtime cases on candidate 10 and 18 linked-object cases on candidate 14. The linked cases, including the direct intrinsic export, all report zero leaks; the whole object target passed.",
+      "state": "passed"
+    },
+    {
+      "title": "35 tooling checks passed",
+      "detail": "Passed on candidate 18 with the updated library pin and explicit object roots.",
+      "state": "passed"
+    },
+    {
+      "title": "Every Rust test target compiles",
+      "detail": "The complete test-target compile check passes on candidate 18. Executing every test is still in progress.",
+      "state": "passed"
+    },
+    {
+      "title": "Boundary suite passed",
+      "detail": "Global identity, nominal identity, source instances, and typing checks all passed on candidate 10.",
+      "state": "passed"
+    },
+    {
+      "title": "Fresh stage frontend passed",
+      "detail": "Candidate 12 built Stage 1 and passed the complete Stage 2 frontend. Runtime emission still refused the missing dependencies; the extracted root list matches the earlier probe.",
+      "state": "passed"
+    },
+    {
+      "title": "Intrinsic exports checked on ABI5 and ABI6",
+      "detail": "Both producers now emit the requested public alias with exact parameter/result word classes. End-to-end and broader regressions are still running.",
+      "state": "passed"
+    },
+    {
+      "title": "225 broader Rust checks passed",
+      "detail": "Candidate 17: unit, arrays, FFI, intrinsic-object, module, ownership and reclamation groups all passed. This is a scoped regression run, not the complete current suite.",
+      "state": "passed"
+    },
+    {
+      "title": "Full current-source suite running",
+      "detail": "Candidate23: 10 /205 whole target gates passed; 3 running; 0 failed. All204 Rust runners compiled; documentation is the additional gate.",
+      "state": "running"
+    },
+    {
+      "title": "Guarded implementation checks pass",
+      "detail": "Candidate 20 passes the complete linked-object target: 19 programs report zero leaks, with malformed authority and unsafe calls refused.",
+      "state": "passed"
+    },
+    {
+      "title": "Fragment-checker regression corrected",
+      "detail": "Candidate20 passes the complete pinned report: empty signature declarations are accepted. The old fixture expected the earlier unsupported-class diagnostic.",
+      "state": "passed"
+    },
+    {
+      "title": "All five builder checks passed",
+      "detail": "Candidate 20 passes exact text, string-concatenation oracle, chunk counts, scale, and 65,536 newline chunks on a 2 MiB stack.",
+      "state": "passed"
+    },
+    {
+      "title": "All 12 arithmetic and argument-scope cases pass",
+      "detail": "Candidate 21: Native reference and the compiled Cinch checker accept nested, explicit-binding and direct guarded subtraction, while refusing reversed subtraction and an unjustified upper bound.",
+      "state": "passed"
+    },
+    {
+      "title": "Actual Stage 1 arithmetic probes pass",
+      "detail": "Candidate21 seed-built Stage1: nested, explicitly bound and direct guarded subtraction pass; reversed subtraction and unjustified upper bounds are refused. All five outcomes match expectations.",
+      "state": "passed"
+    },
+    {
+      "title": "Runtime and real CLI regressions pass",
+      "detail": "Candidate21 passes the complete runtime IR and real CLI targets, including exact numeric values, owned-word reclamation, dictionary ABI and tags/aliases.",
+      "state": "passed"
+    },
+    {
+      "title": "Direct proof reuse and complete builder checks pass",
+      "detail": "Candidate23 passes the entire proof certificate regression. Its fresh Stage1 accepts the reduced outer-guard case and complete builder, while refusing an out-of-bounds write.",
+      "state": "passed"
+    }
+  ],
+  "blockers": [
+    {
+      "title": "Write actual compiler interfaces",
+      "detail": "The Cinch compiler still needs complete checked interface output for its own modules. Interface equivalence is required in addition to the matching compiler code.",
+      "technical": "Source pipeline currently emits IR/diagnostics. No empty or name-only files will count; the interface completeness gate also needs stronger validation."
+    },
+    {
+      "title": "Complete current-source tests",
+      "detail": "All Rust test runners compile. The full run is active with three bounded workers after verified cache archival restored disk headroom.",
+      "technical": "Candidate23 uses three bounded workers and a single shared exact-snapshot test build. Historical source20 passes remain separate."
+    }
+  ],
+  "milestones": [
+    {
+      "title": "Compiler-code fixed point verified",
+      "detail": "Stage2 builds Stage3 with byte-for-byte identical compiler IR and executable. Both pass all smoke cases; complete interface and suite verification remain."
+    },
+    {
+      "title": "Cinch-built compiler runs its smoke programs",
+      "detail": "Stage2 emits actual program code, runs valid cases and refuses invalid source. Its full Stage3 rebuild is underway."
+    },
+    {
+      "title": "Refined-local checker repair passes",
+      "detail": "All 12 argument-scope cases pass against both Native and actual compiled Cinch checking. The tested repair and builder are pushed to main."
+    },
+    {
+      "title": "Small-stack builder reproduction passes",
+      "detail": "65,536 chunks: old builder exits73 on a2MiB stack; revised builder exits0 on the same stack. Full compiler retry still pending."
+    },
+    {
+      "title": "Conditional implementation linkage works",
+      "detail": "The guarded call executes with zero leaks, while wrong declaring class, method and context are refused. Full compiler emission is now limited by a stack failure."
+    },
+    {
+      "title": "Requested library bundle built and admitted",
+      "detail": "The repaired ABI5 producer builds the actual 29 function and four dictionary root set. Remaining emitter refusals are the same conditional subtraction lookup."
+    },
+    {
+      "title": "Decimal runtime and intrinsic exports repaired",
+      "detail": "17 linked programs pass the full object target; focused public intrinsic export regressions pass on ABI5 and ABI6."
+    },
+    {
+      "title": "Subtraction blocker cleared in the full source",
+      "detail": "An explicit positive bound clears the frontend and exposes concrete runtime dependency requests."
+    },
+    {
+      "title": "Checked library objects are consumed",
+      "detail": "Published object admission, runtime linkage, pinned dependencies, and returned-function fixes."
+    },
+    {
+      "title": "Runtime ABI configuration fixed",
+      "detail": "A small reproduction now passes; Stage 2 moved beyond its earlier configuration error."
+    },
+    {
+      "title": "Next proof obligation isolated",
+      "detail": "The latest real bootstrap attempt identifies the subtraction guard as the first failure."
+    }
+  ],
+  "dashboardUrl": "https://cinch-bootstrap-status.ian92821.chatgpt.site"
+}

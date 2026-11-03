@@ -167,7 +167,7 @@ struct Cx<'a> {
 impl<'a> Cx<'a> {
     fn generic(&self, id: &str) -> Option<&'a FnDef> {
         let f = *self.fns.get(id)?;
-        let body = f.prim.is_none() && f.ctor.is_none() && !f.meta.prim_body;
+        let body = (f.prim.is_none() || matches!(f.prim, Some(crate::core::PrimOp::Array { .. }))) && f.ctor.is_none() && !f.meta.prim_body;
         (body && f.repr.tparams > 0 && !self.pinned.contains(id)).then_some(f)
     }
 
@@ -460,6 +460,9 @@ fn specialize_with_roots(program: &Program, report: &mut OptReport, roots: &[Obj
                 copy.repr.params = crate::repr::subst_all(&copy.repr.params, v);
                 copy.repr.result = copy.repr.result.map(|c| c.subst(v));
                 copy.repr.tparams = 0;
+                if let Some(crate::core::PrimOp::Array { classes, .. }) = &mut copy.prim {
+                    *classes = [v.first().copied().unwrap_or(Class::Raw), v.get(1).copied().unwrap_or(Class::Raw)];
+                }
                 out.fns.push(copy);
                 report.versions.push(spec_name(&f.id.0, v));
             }

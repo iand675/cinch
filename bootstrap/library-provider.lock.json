@@ -1,0 +1,7 @@
+{
+  "description": "Library-only Native producer with checked object manifests, explicit representation roots and canonical method families. Never compiles Bootstrap implementation modules. The independent stage0 compiler pin is unchanged.",
+  "revision": "261ba1603be65f3e207f3665daa7f78119873d0c",
+  "runtime_abi": 5,
+  "schema": 1,
+  "source_sha256": "5a15a8d7c496ecc63c3b88879abbe88f8d0d61eef8469ef31285b0571430cdd0"
+}
