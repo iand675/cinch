@@ -1,11 +1,11 @@
 {
   "schema": 1,
-  "updatedAt": "2026-11-03T13:59:15.777254+00:00",
+  "updatedAt": "2026-11-03T14:12:54.489384+00:00",
   "estimate": 90,
   "estimateNote": "Rough engineering estimate. Remaining compiler bugs can change it; this is not a measured test pass rate.",
   "status": "Compiler code reaches a fixed point",
   "summary": "Stage3 rebuilt successfully. Its compiler IR and executable exactly match Stage2, and both compilers pass all three smoke checks. Real compiler interfaces and complete current-source testing remain.",
-  "activity": "Checking changed-source behavior through the self-built Stage2. All204 Rust runners compile; the full suite is prepared and will resume with three workers after verified archival restores disk headroom.",
+  "activity": "Stage3 passes all smoke checks and exactly matches Stage2 code. The self-built Stage2 also compiles a changed compiler that exhibits the intended changed behavior. Remaining work is real compiler-interface output and the complete current-source suite.",
   "commit": "27d11d6387b971054a811818b4321191c80dccc9",
   "stages": [
     {
@@ -34,6 +34,11 @@
     }
   ],
   "checks": [
+    {
+      "title": "Self-built compiler rebuilds changed source correctly",
+      "detail": "Stage2 compiles a modified compiler; that executable produces the changed diagnostic label and correctly refuses the invalid probe. The verification driver now explicitly uses Stage2 for this gate.",
+      "state": "passed"
+    },
     {
       "title": "Stage2 and Stage3 compiler code matches exactly",
       "detail": "Candidate23: identical LLVM IR and executable SHA256; Stage3 also passes valid-program, precedence and invalid-source smoke checks. This does not establish the compiler-interface fixed point.",
@@ -130,11 +135,6 @@
       "title": "Complete current-source tests",
       "detail": "All Rust test runners compile. The full run is prepared and will continue after enough disk headroom is restored.",
       "technical": "Candidate23 uses three bounded workers and a single shared exact-snapshot test build. Historical source20 passes remain separate."
-    },
-    {
-      "title": "Verify changed-source behavior",
-      "detail": "Stage2 is compiling a modified compiler, which must then exhibit the changed behavior.",
-      "technical": "The changed-source check is being strengthened to use actual self-built Stage2 as its builder. Verification is running."
     }
   ],
   "milestones": [

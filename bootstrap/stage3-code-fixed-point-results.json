@@ -123,7 +123,7 @@
   ],
   "remaining": [
     "actual checked compiler interfaces and their canonical fixed point",
-    "changed-source behavior via self-built Stage2",
     "complete current-source suite"
-  ]
+  ],
+  "changed_source_behavior_via_stage2": "passed"
 }

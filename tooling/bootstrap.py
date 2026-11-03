@@ -446,7 +446,7 @@ def check_changed_source() -> None:
         raise BootstrapError("update the changed-source probe for Bootstrap.Check's diagnostic label")
     files[name] = files[name].replace(marker, changed_marker)
     directory = BUILD / "changed-source" / "stage2"
-    compiler = build_self(BUILD / "stage1" / "cinch", files, directory, 1)
+    compiler = build_self(BUILD / "stage2" / "cinch", files, directory, 2)
     case = directory / "probe"
     case.mkdir(exist_ok=True)
     evidence = case / "checked.json"

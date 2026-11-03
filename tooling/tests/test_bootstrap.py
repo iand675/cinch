@@ -327,9 +327,11 @@ class BootstrapContract(unittest.TestCase):
             files = {"Bootstrap.Check.cinch": b'  rung = "bootstrap.check"\n'}
             with patch.object(bootstrap, "BUILD", directory), \
                     patch.object(bootstrap, "compiler_sources", return_value=files), \
-                    patch.object(bootstrap, "build_self", return_value=compiler):
+                    patch.object(bootstrap, "build_self", return_value=compiler) as build:
                 with self.assertRaisesRegex(bootstrap.BootstrapError, "changed diagnostic behavior"):
                     bootstrap.check_changed_source()
+                self.assertEqual(build.call_args.args[0], directory / "stage2" / "cinch")
+                self.assertEqual(build.call_args.args[3], 2)
             self.assertFalse((product / "probe" / "checked.json").exists())
 
 
