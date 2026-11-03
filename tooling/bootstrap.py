@@ -226,6 +226,17 @@ def collect_compiler_sources() -> dict[str, bytes]:
     for module in TOOLKIT:
         files[f"Text.{module}.cinch"] = (ROOT / "compiler" / "prelude" / "Text" / f"{module}.cinch").read_bytes()
     files["Main.cinch"] = (ROOT / "bootstrap" / "programs" / "Run.Pipeline.cinch").read_bytes()
+    # Every bundled compiler module participates in the source compilation.
+    # Make the seed-built stage check that same complete closure, including
+    # modules that the CLI does not call, and publish their real interfaces.
+    # Qualified aliases keep their source exports out of the CLI's scope.
+    header = b"module Main where\n"
+    if files["Main.cinch"].count(header) != 1:
+        raise BootstrapError("the compiler entry must have one Main module header")
+    modules = sorted(name[:-6] for name in files if name.endswith(".cinch") and name != "Main.cinch")
+    imports = "".join(f"  import {name} as CompilerSource{i}\n"
+                      for i, name in enumerate(modules)).encode()
+    files["Main.cinch"] = files["Main.cinch"].replace(header, header + imports, 1)
     return files
 
 

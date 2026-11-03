@@ -1,0 +1,42 @@
+{
+  "status": "scoped checks passed; full bootstrap remains incomplete",
+  "compiler_source_sha256": "eadcec3cf90050acb78e6210a14b14a9bf1066dfb641b58af902529b8701dc41",
+  "seed_stage_complete_module_closure": {
+    "status": "passed",
+    "expected_module_count": 43,
+    "emitted_interface_count": 98,
+    "missing_modules": [],
+    "builder_sha256": "b96ee1febc4d3e93bdc32b4cb70401a957502daab5f7a6c3d3677f6ff95b2108"
+  },
+  "native_writer_target": {
+    "status": "passed",
+    "elapsed_seconds": 369.94,
+    "snapshot_sha256": "923d699ae576b3f0005eb06be3b50cd5af85fcadc4689f8a259526b34552d725",
+    "checks": [
+      "independent Native schema8 parse and canonical byte roundtrip",
+      "Native dependency hash chain",
+      "actual Cinch interface-set validation and client checking",
+      "public reexports accepted",
+      "private constructor import refused",
+      "importer fixity override refused",
+      "public generic constructor tags and fields",
+      "private fixity omitted from export table"
+    ]
+  },
+  "parser_corpus": {
+    "status": "passed",
+    "scope": "corrected expected table exactly matches all actual snapshot2 measured corpus results; the old Rust binary failure remains recorded",
+    "module_count": 109,
+    "new_exporter_modules": {
+      "Bootstrap.Export": 0,
+      "Bootstrap.ExportNominal": 0,
+      "Bootstrap.ExportType": 0
+    }
+  },
+  "scope_limitations": [
+    "Complete writer supports ordinary checked data and values; signatures, instances, foreign assumptions, refinements, records and effects still produce explicit refusals.",
+    "Interface writer is not yet wired into the staged compiler CLI.",
+    "The combined v2 test command exits101 because its pre-correction parser table omitted Object and RuntimeIr; the corrected table matches all109 measured corpus entries.",
+    "Self-built Stage3 validation of the complete writer is running; full new-source testing remains required."
+  ]
+}

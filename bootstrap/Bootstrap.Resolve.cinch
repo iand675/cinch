@@ -664,7 +664,7 @@ module Bootstrap.Resolve where
           let declarations = builtin-declarations <> scoped-decls done in
           let source-surfaces = source-scopes modules done in
           case materialize-externals (declaration-references declarations <> export-references source-surfaces) declarations Nil of
-            (body, errors) -> (MkProgram sp (Cons (MkModule sp "Main" (decl-spine sp (source-contexts modules source-surfaces <> body))) Nil), errors)
+            (body, errors) -> (MkProgram sp (Cons (MkModule sp "Main" (decl-spine sp (source-contexts modules source-surfaces (case lookup-scoped "Prelude" done of Some prelude -> True; None -> False) <> body))) Nil), errors)
         (done, errors) -> (p, errors)
       errors -> (p, errors)
 
@@ -675,8 +675,8 @@ module Bootstrap.Resolve where
 
   -- The fragment backend uses one aggregate, but checked interface output
   -- must still know each source module's public aliases and declarations.
-  source-contexts :: List Module -> List Scoped -> List Decl
-  source-contexts modules scopes = case scopes of
+  source-contexts :: List Module -> List Scoped -> Bool -> List Decl
+  source-contexts modules scopes prelude = case scopes of
     Nil -> Nil
     Cons (MkScoped name surface body) rest ->
       let at = source-span name modules in
@@ -687,7 +687,40 @@ module Bootstrap.Resolve where
           (JObj "source_start" (JNum (nat-to-int begin))
             (JObj "source_end" (JNum (nat-to-int finish))
               (JObj "exports" (surface-json surface)
-                (JObj "declarations" (symbols-json body) JObjEnd)))))) (source-contexts modules rest)
+                (JObj "declarations" (symbols-json body)
+                  (JObj "imports" (strings-json (module-imports name modules prelude))
+                    (JObj "fixities" (module-fixities name modules) JObjEnd)))))))) (source-contexts modules rest prelude)
+
+  -- Retain consumed imports and definition-owned fixities before scope
+  -- elaboration drops the source declarations. Interface production must
+  -- not reconstruct either from globally visible names.
+  module-declarations :: String -> List Module -> List Decl
+  module-declarations name modules = case modules of
+    Nil -> Nil
+    Cons m rest -> if same name (module-name m) then module-decls m else module-declarations name rest
+  declared-imports :: List Decl -> List String -> List String
+  declared-imports declarations seen = case declarations of
+    Nil -> reverse seen
+    Cons (DImport sp name mods alias members arguments) rest -> declared-imports rest (if has-name name seen then seen else Cons name seen)
+    Cons other rest -> declared-imports rest seen
+  module-imports :: String -> List Module -> Bool -> List String
+  module-imports name modules prelude = declared-imports (module-declarations name modules)
+    (if prelude && not (same name "Prelude") then ["Prelude"] else Nil)
+  strings-json :: List String -> Json
+  strings-json values = case values of Nil -> JArrEnd; Cons first rest -> JArr (JStr first) (strings-json rest)
+  fixity-rows :: String -> Nat -> List String -> Json -> Json
+  fixity-rows association precedence names tail = case names of
+    Nil -> tail
+    Cons name rest -> JArr (JObj "op" (JStr name)
+      (JObj "assoc" (JStr (if same association "infixl" then "left" else if same association "infixr" then "right" else "none"))
+        (JObj "prec" (JNum (nat-to-int precedence)) JObjEnd))) (fixity-rows association precedence rest tail)
+  declaration-fixities :: List Decl -> Json
+  declaration-fixities declarations = case declarations of
+    Nil -> JArrEnd
+    Cons (DFixity sp association precedence names) rest -> fixity-rows association precedence names (declaration-fixities rest)
+    Cons other rest -> declaration-fixities rest
+  module-fixities :: String -> List Module -> Json
+  module-fixities name modules = declaration-fixities (module-declarations name modules)
 
   source-span :: String -> List Module -> Span
   source-span name modules = case modules of

@@ -49,6 +49,31 @@ pass the focused Native regression. This is a prerequisite, not complete interfa
 production; the full writer remains under development. See
 [checked type export evidence](../bootstrap/checked-type-export-results.json).
 
+## Checked interface writer and complete seed closure
+
+`Bootstrap.Export` produces canonical schema8 documents for ordinary checked
+data and values, preserving source reexports, private defining nominal identities,
+public constructor tags and fields, consumed dependency hashes and definition-owned
+fixities. Native independently parses the documents, roundtrips their canonical
+bytes and verifies their dependency chain. A real Cinch consumer accepts the public
+reexports and refuses hidden constructor imports and importer fixity overrides.
+This writer is not yet connected to the staged compiler CLI. Its explicit refusals
+for signatures, instances, foreign assumptions, defining refinements, records and
+effects must be completed before it can export the entire compiler.
+
+The compiler entry now imports every bundled module through a qualified alias.
+The pinned seed actually builds this complete43-module source closure and emits
+all43 compiler interfaces, including unused modules. The source identity in
+[writer evidence](../bootstrap/checked-interface-writer-results.json) matches this
+compiler checkpoint exactly. The source-only compiler still has to emit its own
+complete contracts; seed-produced contracts cannot substitute for that gate.
+
+The baseline full run exposed stale parser and pipeline test expectations. The
+updated parser table exactly matches all109 measured corpus entries, including
+zero unmodeled nodes in the new exporter modules. Four actual pipeline probes
+confirm that parse, check, emit and manifest refusals truncate stale IR. The full
+pipeline target recheck remains in progress; historical failures remain recorded.
+
 ## Earlier checkpoints
 
 The entries below retain the evidence and limitations of their named snapshots;

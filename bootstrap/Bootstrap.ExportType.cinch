@@ -10,6 +10,7 @@ module Bootstrap.ExportType where
   import Text.Show (nat-to-string, int-to-string)
 
   export export-global, export-type, export-scheme, export-kind
+  export export-parameters, export-constructor-fields
 
   join :: List (Result String String) -> Result String String
   join parts = case parts of
@@ -64,6 +65,33 @@ module Bootstrap.ExportType where
     KValue value -> case value-carrier kind of Some carrier -> type-in scope carrier; None -> Err "invalid checked value kind"
   export-kind :: Kind -> Result String String
   export-kind kind = kind-in Nil kind
+  export-parameters :: List Quant -> Result String (List (String, String, Bool))
+  export-parameters quants = parameter-rows Nil quants
+  parameter-rows :: List (Nat, String) -> List Quant -> Result String (List (String, String, Bool))
+  parameter-rows scope quants = case quants of
+    Nil -> Ok Nil
+    Cons q rest -> let name = fresh-name "q" (list-length scope) in
+      case (kind-in scope (quant-kind q), parameter-rows (Cons (quant-id q, name) scope) rest) of
+        (Ok kind, Ok more) -> Ok (Cons (name, kind, quant-implicit q) more)
+        (Err error, other) -> Err error
+        (other, Err error) -> Err error
+  export-constructor-fields :: Scheme -> Result String (List String)
+  export-constructor-fields scheme = case quantifiers Nil (scheme-params scheme) of
+    Err error -> Err error
+    Ok (prefix, scope) -> constructor-field-rows scope (scheme-body scheme)
+  constructor-field-rows :: List (Nat, String) -> UType -> Result String (List String)
+  constructor-field-rows scope ty = case ty of
+    UFun domain result -> prepend-field (type-in scope domain) (constructor-field-rows scope result)
+    UPi id name domain row result -> prepend-field (type-in scope domain)
+      (constructor-field-rows (Cons (id, fresh-name "p" (list-length scope)) scope) result)
+    UProofFun predicate row result -> Err "proof constructor fields require explicit erased metadata"
+    URequire predicates result -> Err "constrained constructor fields require checked proof metadata"
+    other -> Ok Nil
+  prepend-field :: Result String String -> Result String (List String) -> Result String (List String)
+  prepend-field first rest = case (first, rest) of
+    (Ok value, Ok more) -> Ok (Cons value more)
+    (Err error, other) -> Err error
+    (other, Err error) -> Err error
   index-in :: List (Nat, String) -> IndexTerm -> Result String String
   index-in scope index = case index of
     IInteger n -> Ok (int-to-string n)

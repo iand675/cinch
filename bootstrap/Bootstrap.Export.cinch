@@ -1,0 +1,211 @@
+-- Checked schema8 interface production. Every public spelling is matched
+-- against a retained checked binding or defining data declaration.
+module Bootstrap.Export where
+  import Algebra.Semigroup
+  import Bootstrap.Check (CheckedProgram, checked-elaboration, checked-surface)
+  import Bootstrap.Ast (Program, Module, Decl, module-decls, program-modules, DClass, DInstance, DForeign, DRefine, DRecord, DEffect)
+  import Bootstrap.Infer (Elaboration, elaboration-bindings, elaboration-data, elaboration-contexts, CheckedBinding, checked-name, checked-scheme, checked-role)
+  import Bootstrap.Core (CoreData, CoreConstructor, core-data-name, core-data-params, core-data-constructors, core-constructor-name, core-constructor-scheme)
+  import Bootstrap.Type
+  import Bootstrap.ExportType
+  import Bootstrap.ExportNominal
+  import Bootstrap.Load (LoadedInterface, loaded-module, loaded-hash)
+  import Bootstrap.Interface (fnv-source-hash)
+  import Bootstrap.RuntimeAbi (runtime-abi-int)
+  import Data.Json
+  import Data.Nat (nat-from-int)
+  import Text.Json (canonical-bytes)
+  import Text.Lex (bytes-slice)
+
+  export export-interfaces
+  same :: String -> String -> Bool
+  same a b = string-compare a b == 0
+  field :: String -> Json -> Json
+  field name doc = case doc of JObj key value rest -> if same name key then value else field name rest; other -> JNull
+  text :: Json -> String
+  text doc = case doc of JStr value -> value; other -> ""
+  strings :: List String -> Json
+  strings values = case values of Nil -> JArrEnd; Cons first rest -> JArr (JStr first) (strings rest)
+  bools :: List String -> Json
+  bools values = case values of Nil -> JArrEnd; Cons first rest -> JArr (JBool False) (bools rest)
+  set-field :: String -> Json -> Json -> Json
+  set-field key value doc = case doc of
+    JObj name old rest -> if same key name then JObj name value rest else JObj name old (set-field key value rest)
+    other -> JObj key value JObjEnd
+  find-binding :: String -> List CheckedBinding -> Option CheckedBinding
+  find-binding name rows = case rows of Nil -> None; Cons row rest -> if same name (checked-name row) then Some row else find-binding name rest
+  find-data :: String -> List CoreData -> Option CoreData
+  find-data name rows = case rows of Nil -> None; Cons row rest -> if same name (core-data-name row) then Some row else find-data name rest
+  public-name :: String -> Json -> Option String
+  public-name symbol rows = case rows of
+    JArr row rest -> if same symbol (text (field "symbol" row)) then Some (text (field "name" row)) else public-name symbol rest
+    other -> None
+  insert-row :: String -> Json -> Json -> Json
+  insert-row key row rows = case rows of
+    JArr first rest -> if string-compare (text (field key row)) (text (field key first)) < 0 then JArr row rows else JArr first (insert-row key row rest)
+    other -> JArr row JArrEnd
+  sort-rows :: String -> Json -> Json
+  sort-rows key rows = case rows of JArr row rest -> insert-row key row (sort-rows key rest); other -> JArrEnd
+  append :: Json -> Json -> Json
+  append first second = case first of JArr row rest -> JArr row (append rest second); other -> second
+  resolved-scheme :: Elaboration -> List LoadedInterface -> Scheme -> Result String Json
+  resolved-scheme typed interfaces scheme = case (export-scheme scheme, scheme-nominals scheme (elaboration-data typed) interfaces) of
+    (Ok spelling, Ok nominals) -> Ok (JObj "scheme" (JStr spelling) (JObj "nominals" nominals (JObj "measures" JArrEnd JObjEnd)))
+    (Err error, other) -> Err error
+    (other, Err error) -> Err error
+  value-row :: Elaboration -> List LoadedInterface -> String -> String -> CheckedBinding -> Result String Json
+  value-row typed interfaces name symbol binding =
+    if same (checked-role binding) "function" || same (checked-role binding) "value" then
+      let scheme = checked-scheme binding in
+      case (export-global symbol, resolved-scheme typed interfaces scheme) of
+        (Ok identity, Ok resolved) -> Ok (JObj "name" (JStr name)
+          (JObj "symbol" (JStr identity) (JObj "scheme" (field "scheme" resolved)
+            (JObj "resolved" resolved (JObj "arity" (JNum (nat-to-int (scheme-runtime-arity scheme + list-length (scheme-requirements scheme))))
+              (JObj "total_body" JNull JObjEnd))))))
+        (Err error, other) -> Err error
+        (other, Err error) -> Err error
+    else Err (string-concat "unsupported checked value export category: " (checked-role binding))
+  constructor-row :: Elaboration -> List LoadedInterface -> String -> Nat -> CoreConstructor -> Result String Json
+  constructor-row typed interfaces name tag constructor = let scheme = core-constructor-scheme constructor in
+    case (export-global (core-constructor-name constructor), export-constructor-fields scheme, resolved-scheme typed interfaces scheme) of
+      (Ok identity, Ok fields, Ok resolved) -> Ok (JObj "name" (JStr name)
+        (JObj "symbol" (JStr identity) (JObj "tag" (JNum (nat-to-int tag))
+          (JObj "scheme" (field "scheme" resolved) (JObj "resolved" resolved
+            (JObj "fields" (strings fields) (JObj "erased" (bools fields) JObjEnd)))))))
+      (Err error, other, more) -> Err error
+      (other, Err error, more) -> Err error
+      (other, more, Err error) -> Err error
+  constructor-rows :: Elaboration -> List LoadedInterface -> Json -> Nat -> List CoreConstructor -> Result String Json
+  constructor-rows typed interfaces surface tag constructors = case constructors of
+    Nil -> Ok JArrEnd
+    Cons first rest -> case public-name (core-constructor-name first) surface of
+      None -> constructor-rows typed interfaces surface (tag + 1) rest
+      Some name -> case (constructor-row typed interfaces name tag first, constructor-rows typed interfaces surface (tag + 1) rest) of
+        (Ok row, Ok more) -> Ok (JArr row more)
+        (Err error, other) -> Err error
+        (other, Err error) -> Err error
+  type-row :: Elaboration -> List LoadedInterface -> Json -> String -> CoreData -> Result String Json
+  type-row typed interfaces surface name declaration = case (data-nominal declaration,
+    constructor-rows typed interfaces surface 0 (core-data-constructors declaration)) of
+      (Ok nominal, Ok constructors) -> Ok (JObj "name" (JStr name)
+        (JObj "identity" (field "identity" nominal) (JObj "kind" (field "kind" nominal)
+          (JObj "params" (field "params" nominal) (JObj "parameters" (field "parameters" nominal)
+            (JObj "ctors" constructors (JObj "fields" JArrEnd (JObj "refinement" JNull JObjEnd))))))))
+      (Err error, other) -> Err error
+      (other, Err error) -> Err error
+  constructor-present :: String -> List CoreData -> Bool
+  constructor-present symbol declarations = case declarations of
+    Nil -> False
+    Cons declaration rest -> constructors-have symbol (core-data-constructors declaration) || constructor-present symbol rest
+  constructors-have :: String -> List CoreConstructor -> Bool
+  constructors-have symbol constructors = case constructors of Nil -> False; Cons constructor rest -> same symbol (core-constructor-name constructor) || constructors-have symbol rest
+  -- A constructor is recorded only in its defining type's public table.
+  -- Hidden constructors still occur in private nominal identity closures.
+  exports :: Elaboration -> List LoadedInterface -> Json -> Json -> Result String (Json, Json)
+  exports typed interfaces surface rows = case rows of
+    JArr row rest -> let name = text (field "name" row) in let symbol = text (field "symbol" row) in
+      case exports typed interfaces surface rest of
+        Err error -> Err error
+        Ok (values, types) -> case find-data symbol (elaboration-data typed) of
+          Some declaration -> case type-row typed interfaces surface name declaration of
+            Err error -> Err error
+            Ok actual -> Ok (values, insert-row "name" actual types)
+          None -> if constructor-present symbol (elaboration-data typed) then Ok (values, types)
+            else case find-binding symbol (elaboration-bindings typed) of
+              None -> Err (string-concat "export has no retained checked declaration: " name)
+              Some binding -> case value-row typed interfaces name symbol binding of
+                Err error -> Err error
+                Ok actual -> Ok (insert-row "name" actual values, types)
+    JArrEnd -> Ok (JArrEnd, JArrEnd)
+    other -> Err "module has no retained public export table"
+  symbols :: Json -> Json
+  symbols values = case values of
+    JArr row rest -> JArr (JStr (string-concat-all [text (field "name" row), "=", text (field "symbol" row)])) (symbols rest)
+    other -> JArrEnd
+  layouts :: Json -> Json
+  layouts types = case types of
+    JArr row rest -> JArr (JObj "type" (field "name" row) (JObj "size" (JNum 8)
+      (JObj "align" (JNum 8) (JObj "fields" JArrEnd (JObj "repr" (JStr "uniform-word") JObjEnd))))) (layouts rest)
+    other -> JArrEnd
+  public-spelling :: String -> Json -> Bool
+  public-spelling name surface = case surface of
+    JArr row rest -> same name (text (field "name" row)) || public-spelling name rest
+    other -> False
+  public-fixities :: Json -> Json -> Json
+  public-fixities surface rows = case rows of
+    JArr row rest -> if public-spelling (text (field "op" row)) surface then JArr row (public-fixities surface rest) else public-fixities surface rest
+    other -> JArrEnd
+  lookup-hash :: String -> List (String, String) -> List LoadedInterface -> Result String String
+  lookup-hash name produced interfaces = case produced of
+    Cons (owner, hash) rest -> if same name owner then Ok hash else lookup-hash name rest interfaces
+    Nil -> case interfaces of
+      Nil -> Err (string-concat "no checked dependency interface identity: " name)
+      Cons first rest -> if same name (loaded-module first) then Ok (loaded-hash first) else lookup-hash name Nil rest
+  imports :: Json -> List (String, String) -> List LoadedInterface -> Result String Json
+  imports names produced interfaces = case names of
+    JArr (JStr name) rest -> case (lookup-hash name produced interfaces, imports rest produced interfaces) of
+      (Ok hash, Ok more) -> Ok (insert-row "module" (JObj "module" (JStr name) (JObj "iface_hash" (JStr hash) JObjEnd)) more)
+      (Err error, other) -> Err error
+      (other, Err error) -> Err error
+    JArrEnd -> Ok JArrEnd
+    other -> Err "module has no retained dependency list"
+  empty-assumptions :: Json
+  empty-assumptions = JObj "primitives" JArrEnd (JObj "foreign" JArrEnd (JObj "declared" JArrEnd JObjEnd))
+  document :: Json -> String -> Json -> Json -> Json -> Json
+  document context source-hash dependencies values types =
+    JObj "schema" (JNum 8) (JObj "runtime_abi" (JNum runtime-abi-int)
+      (JObj "language" (JStr "draft-0.2+amendments") (JObj "compiler" (JStr "cinch-self-hosted")
+        (JObj "module" (field "module" context) (JObj "source_hash" (JStr source-hash)
+          (JObj "imports" dependencies (JObj "params" JArrEnd
+            (JObj "exports" (JObj "values" values (JObj "types" types (JObj "signatures" JArrEnd
+              (JObj "instances" JArrEnd (JObj "foreign" JArrEnd (JObj "fixities" (sort-rows "op" (public-fixities (field "exports" context) (field "fixities" context))) JObjEnd))))))
+              (JObj "abi" (JObj "convention" (JStr "uniform-word, curried apply stub")
+                (JObj "symbols" (symbols values) (JObj "layouts" (layouts types) JObjEnd)))
+                (JObj "assumptions" empty-assumptions (JObj "assertions" JArrEnd
+                  (JObj "contracts" JArrEnd (JObj "must_use" JArrEnd (JObj "laws" JArrEnd
+                    (JObj "upgrades" JArrEnd (JObj "units" JArrEnd JObjEnd))))))))))))))))
+  source-hash :: Bytes -> Json -> Result String String
+  source-hash source context = case (field "source_start" context, field "source_end" context) of
+    (JNum begin, JNum end) -> if begin >= 0 && end >= begin then
+      (let lo = nat-from-int begin in let hi = nat-from-int end in
+        if hi <= bytes-len source then Ok (fnv-source-hash (bytes-slice source lo hi)) else Err "module source span leaves input bytes")
+      else Err "invalid module source span"
+    other -> Err "module source span is missing"
+  interface-hash :: Json -> String
+  interface-hash doc = fnv-source-hash (canonical-bytes (set-field "units" JArrEnd
+    (set-field "compiler" (JStr "") (set-field "source_hash" (JStr "") doc))))
+  export-loop :: Elaboration -> List LoadedInterface -> Bytes -> List (String, String) -> List Json -> Result String (List (String, Json))
+  export-loop typed interfaces source produced contexts = case contexts of
+    Nil -> Ok Nil
+    Cons context rest -> case field "module" context of
+      JStr name -> case (exports typed interfaces (field "exports" context) (field "exports" context),
+        imports (field "imports" context) produced interfaces, source-hash source context) of
+          (Ok (values, types), Ok dependencies, Ok hash) ->
+            let doc = document context hash dependencies values types in
+            case export-loop typed interfaces source (Cons (name, interface-hash doc) produced) rest of
+              Err error -> Err error
+              Ok more -> Ok (Cons (name, doc) more)
+          (Err error, other, more) -> Err (string-concat-all [name, ": ", error])
+          (other, Err error, more) -> Err (string-concat-all [name, ": ", error])
+          (other, more, Err error) -> Err (string-concat-all [name, ": ", error])
+      other -> export-loop typed interfaces source produced rest
+  export-interfaces :: CheckedProgram -> List LoadedInterface -> Bytes -> Result String (List (String, Json))
+  export-interfaces checked interfaces source = let typed = checked-elaboration checked in
+    case unsupported-modules (program-modules (checked-surface checked)) of
+      Some message -> Err message
+      None -> export-loop typed interfaces source Nil (elaboration-contexts typed)
+  unsupported-modules :: List Module -> Option String
+  unsupported-modules modules = case modules of
+    Nil -> None
+    Cons first rest -> case unsupported-declarations (module-decls first) of Some message -> Some message; None -> unsupported-modules rest
+  unsupported-declarations :: List Decl -> Option String
+  unsupported-declarations declarations = case declarations of
+    Nil -> None
+    Cons declaration rest -> case declaration of
+      DClass sp name parameters members -> Some "signature interface production is incomplete"
+      DInstance sp automatic name parameters head members -> Some "instance interface production is incomplete"
+      DForeign sp direction abi symbol name syntax -> Some "foreign assumption interface production is incomplete"
+      DRefine sp name parameters binder predicate -> Some "defining refinement interface production is incomplete"
+      DRecord sp name parameters fields -> Some "record interface production is incomplete"
+      DEffect sp name parameters operations -> Some "effect interface production is incomplete"
+      other -> unsupported-declarations rest

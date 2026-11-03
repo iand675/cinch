@@ -13,6 +13,17 @@ import bootstrap
 
 
 class BootstrapContract(unittest.TestCase):
+    def test_seed_stage_imports_every_bundled_compiler_module(self):
+        files = bootstrap.collect_compiler_sources()
+        entry = files["Main.cinch"].decode()
+        modules = sorted(name[:-6] for name in files if name.endswith(".cinch") and name != "Main.cinch")
+        for index, module in enumerate(modules):
+            self.assertEqual(entry.count(f"  import {module} as CompilerSource{index}\n"), 1)
+        original = (bootstrap.ROOT / "bootstrap/programs/Run.Pipeline.cinch").read_text()
+        without_imports = "".join(line for line in entry.splitlines(keepends=True)
+                                  if not line.startswith("  import ") or " as CompilerSource" not in line)
+        self.assertEqual(without_imports, original)
+
     def test_base_interfaces_cannot_stand_in_for_compiler_fixed_point_contracts(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

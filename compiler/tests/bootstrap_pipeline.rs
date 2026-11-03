@@ -267,7 +267,7 @@ fn checked_interfaces(dir: &Path, exe: &Path) {
         if expected != 0 {
             let diagnostic = common::read_output(dir, &format!("{name}.ll.diagnostics"));
             assert!(diagnostic.contains(message), "{name}: {diagnostic}");
-            assert!(!dir.join(format!("{name}.ll")).exists());
+            assert!(std::fs::read(dir.join(format!("{name}.ll"))).unwrap().is_empty(), "refused source retained usable IR");
             assert!(!dir.join(format!("{name}.bin")).exists());
         }
     }
@@ -282,7 +282,7 @@ fn checked_interfaces(dir: &Path, exe: &Path) {
         .iter().map(|s| s.to_string()).collect::<Vec<_>>();
     assert_eq!(run_built(exe, dir, &args).0, Some(7));
     assert!(common::read_output(dir, "invalid.ll.diagnostics").contains("unsupported interface manifest schema"));
-    assert!(!dir.join("invalid.ll").exists());
+    assert!(std::fs::read(dir.join("invalid.ll")).unwrap().is_empty());
     common::cleanup(&source);
 }
 
@@ -318,6 +318,8 @@ fn refused_source(dir: &Path, exe: &Path) {
     .map(|s| dir.join(s).display().to_string())
     .collect();
 
+    // Refusal truncates the requested output, invalidating an earlier build.
+    std::fs::write(dir.join("broken.ll"), "stale IR from an earlier successful build").unwrap();
     let (code, stderr) = run_built(exe, dir, &words);
     assert_eq!(
         code,
@@ -330,8 +332,8 @@ fn refused_source(dir: &Path, exe: &Path) {
         "the refusal wrote no diagnostics:\n{refusal}"
     );
     assert!(
-        !dir.join("broken.ll").exists(),
-        "a refused source must not leave an IR module behind"
+        std::fs::read(dir.join("broken.ll")).unwrap().is_empty(),
+        "a refused source must clear earlier IR"
     );
     assert!(
         !dir.join("broken.bin").exists(),
@@ -370,7 +372,7 @@ fn refused_source(dir: &Path, exe: &Path) {
         assert_eq!(code, Some(expected), "{name}: {stderr}");
         let diagnostic = common::read_output(dir, &format!("{name}.ll.diagnostics"));
         assert!(diagnostic.contains(message), "{name}: {diagnostic}");
-        assert!(!dir.join(format!("{name}.ll")).exists());
+        assert!(std::fs::read(dir.join(format!("{name}.ll"))).unwrap().is_empty(), "refused source retained usable IR");
         assert!(!dir.join(format!("{name}.bin")).exists());
     }
 }

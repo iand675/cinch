@@ -1,0 +1,35 @@
+{
+  "compiler_sha256": "b2db18df83047a00ee38476d14cb6c4de3f6583b45d72aa3edf41d43897741e6",
+  "rows": [
+    {
+      "exit_code": 4,
+      "expected": 4,
+      "name": "check",
+      "stale_ir_cleared": true,
+      "status": "passed"
+    },
+    {
+      "exit_code": 3,
+      "expected": 3,
+      "name": "parse",
+      "stale_ir_cleared": true,
+      "status": "passed"
+    },
+    {
+      "exit_code": 5,
+      "expected": 5,
+      "name": "emit",
+      "stale_ir_cleared": true,
+      "status": "passed"
+    },
+    {
+      "exit_code": 7,
+      "expected": 7,
+      "name": "manifest",
+      "stale_ir_cleared": true,
+      "status": "passed"
+    }
+  ],
+  "source_scope": "exact frozen candidate23 pipeline executable produced by its full-suite test",
+  "status": "passed"
+}

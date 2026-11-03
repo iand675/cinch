@@ -1,0 +1,60 @@
+module Main where
+  import Bootstrap.Parse (parse-program, parse-program-with)
+  import Bootstrap.Resolve (resolve-program, resolve-program-with)
+  import Bootstrap.Contracts (interface-headers)
+  import Bootstrap.Load (LoadedInterface, load-interface-set)
+  import Bootstrap.Interface (iface-hash)
+  import Bootstrap.Check (check-and-retain)
+  import Bootstrap.Export (export-interfaces)
+  import Bootstrap.Report (render-diagnostics)
+  import Data.Json
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-write)
+  import Text.Json (canonical-json, canonical-bytes)
+  import Text.Parse (ParseOutcome, Parsed, Failed, render-bundle)
+
+  source :: String
+  source = "module A where\n  export Token, wrap, unwrap, (<+>), Parcel, Empty, Loaded\n  data Token where\n    Hidden :: Nat -> Token\n  data Parcel a where\n    Empty :: Parcel a\n    Loaded :: a -> Parcel a\n  infixr 4 <^>\n  (<^>) :: Nat -> Nat -> Nat\n  (<^>) a b = a\n  wrap :: Nat -> Token\n  wrap n = Hidden n\n  unwrap :: Token -> Nat\n  unwrap token = case token of Hidden n -> n\n  infixl 6 <+>\n  (<+>) :: Nat -> Nat -> Nat\n  (<+>) a b = a + b\nmodule B where\n  import A\n  export Token, wrap\nmodule Main where\n  import B\n  main :: Int\n  main = 0\n"
+  documents :: List (String, Json) -> String
+  documents rows = case rows of Nil -> ""; Cons (name, doc) rest -> string-concat-all [canonical-json doc, "\n", documents rest]
+  artifacts :: List (String, Json) -> Result String (List (String, String, Bytes))
+  artifacts rows = case rows of
+    Nil -> Ok Nil
+    Cons (name, doc) rest -> let bytes = canonical-bytes doc in case (iface-hash bytes doc, artifacts rest) of
+      (Some hash, Ok more) -> Ok (Cons (name, hash, bytes) more)
+      (None, other) -> Err "cannot compute actual emitted interface hash"
+      (other, Err error) -> Err error
+  check-client :: List LoadedInterface -> String -> Result String Unit
+  check-client interfaces input = case parse-program-with "interface-client" (string-to-bytes input) (interface-headers interfaces) of
+    Failed bundle -> Err (render-bundle bundle)
+    Parsed program Nil -> case resolve-program-with program interfaces of
+      (resolved, Nil) -> case check-and-retain resolved of Err errors -> Err (render-diagnostics errors); Ok checked -> Ok ()
+      (resolved, errors) -> Err (render-diagnostics errors)
+    other -> Err "recovering parse in interface client"
+  validate-clients :: List (String, Json) -> Result String Unit
+  validate-clients rows = case artifacts rows of
+    Err error -> Err error
+    Ok bytes -> case load-interface-set bytes of
+      Err error -> Err error
+      Ok interfaces -> case check-client interfaces "module Consumer where\n  import B\n  use :: Nat -> Token\n  use n = wrap n\n" of
+        Err error -> Err error
+        Ok done -> case check-client interfaces "module Intruder where\n  import B (Hidden)\n  use :: Int\n  use = 0\n" of
+          Ok done -> Err "private constructor became importable"
+          Err hidden -> case check-client interfaces "module Override where\n  import A\n  infixr 8 <+>\n  use :: Nat\n  use = 1 <+> 2\n" of
+            Ok done -> Err "importing module overrode the defining fixity"
+            Err override -> Ok ()
+  checked-export :: String -> Result String String
+  checked-export input = case parse-program "export-fixture" (string-to-bytes input) of
+    Failed bundle -> Err (render-bundle bundle)
+    Parsed program Nil -> case resolve-program program of
+      (resolved, Nil) -> case check-and-retain resolved of
+        Err errors -> Err (render-diagnostics errors)
+        Ok checked -> case export-interfaces checked Nil (string-to-bytes input) of
+          Err error -> Err error
+          Ok rows -> case validate-clients rows of Err error -> Err error; Ok done -> Ok (documents rows)
+      (resolved, errors) -> Err (render-diagnostics errors)
+    other -> Err "recovering parse in interface fixture"
+  main :: Unit ->{IO r} Int
+  main u = with (io = newIO ()) in case checked-export source of
+    Err error -> case fs-write (path-from-string "export-error.txt") (string-to-bytes error) of Ok done -> 1; Err failed -> 2
+    Ok doc -> case fs-write (path-from-string "exported-interfaces.jsonl") (string-to-bytes doc) of Ok done -> 0; Err failed -> 2

@@ -1,0 +1,131 @@
+-- Definition-owned private type facts for checked interface output.
+-- These rows grant neither constructor names nor field access to a client.
+module Bootstrap.ExportNominal where
+  import Algebra.Semigroup
+  import Bootstrap.Type
+  import Bootstrap.Core (CoreData, CoreConstructor, core-data-name, core-data-params, core-data-constructors, core-constructor-name)
+  import Bootstrap.ExportType (export-global, export-parameters)
+  import Bootstrap.Load (LoadedInterface, loaded-contract)
+  import Bootstrap.Nominal (kernel-type-name)
+  import Data.Json
+
+  export scheme-nominals, data-nominal, parameter-json, parameter-names
+
+  same :: String -> String -> Bool
+  same a b = string-compare a b == 0
+  field :: String -> Json -> Json
+  field name doc = case doc of JObj key value rest -> if same name key then value else field name rest; other -> JNull
+  present :: String -> Json -> Bool
+  present name doc = case doc of JObj key value rest -> same name key || present name rest; other -> False
+  parameter-json :: List (String, String, Bool) -> Json
+  parameter-json rows = case rows of
+    Nil -> JArrEnd
+    Cons (name, kind, automatic) rest -> JArr (JObj "name" (JStr name)
+      (JObj "kind" (JStr kind) (JObj "implicit" (JBool automatic) JObjEnd))) (parameter-json rest)
+  parameter-names :: List (String, String, Bool) -> Json
+  parameter-names rows = case rows of Nil -> JArrEnd; Cons (name, kind, automatic) rest -> JArr (JStr name) (parameter-names rest)
+  constructor-names :: List CoreConstructor -> Result String Json
+  constructor-names rows = case rows of
+    Nil -> Ok JArrEnd
+    Cons first rest -> case (export-global (core-constructor-name first), constructor-names rest) of
+      (Ok name, Ok more) -> Ok (JArr (JStr name) more)
+      (Err error, other) -> Err error
+      (other, Err error) -> Err error
+  data-nominal :: CoreData -> Result String Json
+  data-nominal declaration = case (export-global (core-data-name declaration), export-parameters (core-data-params declaration), constructor-names (core-data-constructors declaration)) of
+    (Ok name, Ok parameters, Ok constructors) -> Ok (JObj "identity" (JStr name)
+      (JObj "kind" (JStr "data") (JObj "parameters" (parameter-json parameters)
+        (JObj "params" (parameter-names parameters) (JObj "constructors" constructors
+          (JObj "refinement" JNull JObjEnd))))))
+    (Err error, other, more) -> Err error
+    (other, Err error, more) -> Err error
+    (other, more, Err error) -> Err error
+
+  -- Traverse checked syntax, never a search over pretty-printed names.
+  combine :: Result String (List String) -> Result String (List String) -> Result String (List String)
+  combine first second = case (first, second) of
+    (Ok a, Ok b) -> Ok (a <> b)
+    (Err error, other) -> Err error
+    (other, Err error) -> Err error
+  kind-references :: Kind -> Result String (List String)
+  kind-references kind = case kind of
+    KFun a b -> combine (kind-references a) (kind-references b)
+    KValue tree -> case value-carrier kind of Some carrier -> type-references carrier; None -> Err "invalid checked value kind"
+    other -> Ok Nil
+  quant-references :: List Quant -> Result String (List String)
+  quant-references quants = case quants of Nil -> Ok Nil; Cons q rest -> combine (kind-references (quant-kind q)) (quant-references rest)
+  requirement-references :: List Requirement -> Result String (List String)
+  requirement-references requirements = case requirements of Nil -> Ok Nil; Cons r rest -> combine (type-references (requirement-type r)) (requirement-references rest)
+  type-references :: UType -> Result String (List String)
+  type-references ty = case ty of
+    UCon raw kind -> case export-global raw of
+      Err error -> Err error
+      Ok name -> if kernel-type-name name || same name "Io" || same name "IO" || same name "Dec" then kind-references kind
+        else combine (Ok [name]) (kind-references kind)
+    UBound id name kind -> kind-references kind
+    URigid id name level kind -> kind-references kind
+    UApp f x -> combine (type-references f) (type-references x)
+    UFun a b -> combine (type-references a) (type-references b)
+    UFunEff a row b -> combine (type-references a) (combine (type-references row) (type-references b))
+    UPi id name a row b -> combine (type-references a) (combine (type-references row) (type-references b))
+    URequire predicates body -> combine (type-references predicates) (type-references body)
+    URefine id name carrier predicate -> combine (type-references carrier) (type-references predicate)
+    UIndex carrier index -> type-references carrier
+    UIndexForget value -> type-references value
+    UIndexPromote value -> type-references value
+    UIndexByteLength value -> type-references value
+    UIndexCall function args -> Err "exported total calls need defining measure contracts"
+    UIndexMath op a b -> combine (type-references a) (type-references b)
+    UCompare relation a b -> combine (type-references a) (type-references b)
+    UPropAnd a b -> combine (type-references a) (type-references b)
+    UPropOr a b -> combine (type-references a) (type-references b)
+    UPropNot value -> type-references value
+    UPropNonZero value -> type-references value
+    URow labels -> type-references labels
+    URowJoin a b -> combine (type-references a) (type-references b)
+    UTuple fields -> type-references fields
+    UArg first rest -> combine (type-references first) (type-references rest)
+    UEnd -> Ok Nil
+    UPropLit value -> Ok Nil
+    other -> Err "nominal export contains unsupported checked syntax"
+  insert :: String -> List String -> List String
+  insert name names = case names of
+    Nil -> [name]
+    Cons first rest -> let order = string-compare name first in
+      if order == 0 then names else if order < 0 then Cons name names else Cons first (insert name rest)
+  sorted :: List String -> List String -> List String
+  sorted names result = case names of Nil -> result; Cons name rest -> sorted rest (insert name result)
+
+  -- Imported carriers may be abstract in Core. Their complete defining
+  -- constructor identity table comes from the already validated artifact,
+  -- including the private nominal closure of its exported contracts.
+  imported-in :: String -> Json -> Option Json
+  imported-in name doc = case doc of
+    JObj key value rest -> if (case field "identity" doc of JStr identity -> same name identity; other -> False)
+        && present "constructors" doc && present "parameters" doc then Some doc
+      else (case imported-in name value of Some row -> Some row; None -> imported-in name rest)
+    JArr value rest -> (case imported-in name value of Some row -> Some row; None -> imported-in name rest)
+    other -> None
+  imported-nominal :: String -> List LoadedInterface -> Option Json
+  imported-nominal name interfaces = case interfaces of
+    Nil -> None
+    Cons first rest -> case imported-in name (loaded-contract first) of Some row -> Some row; None -> imported-nominal name rest
+  source-nominal :: String -> List CoreData -> Result String Json
+  source-nominal name datas = case datas of
+    Nil -> Err (string-concat "missing defining nominal contract: " name)
+    Cons declaration rest -> case export-global (core-data-name declaration) of
+      Ok identity -> if same identity name then data-nominal declaration else source-nominal name rest
+      Err error -> Err error
+  nominal-rows :: List String -> List CoreData -> List LoadedInterface -> Result String Json
+  nominal-rows names datas interfaces = case names of
+    Nil -> Ok JArrEnd
+    Cons name rest -> let actual = case imported-nominal name interfaces of Some row -> Ok row; None -> source-nominal name datas in
+      case (actual, nominal-rows rest datas interfaces) of
+        (Ok row, Ok more) -> Ok (JArr row more)
+        (Err error, other) -> Err error
+        (other, Err error) -> Err error
+  scheme-nominals :: Scheme -> List CoreData -> List LoadedInterface -> Result String Json
+  scheme-nominals scheme datas interfaces = case combine (quant-references (scheme-params scheme))
+    (combine (requirement-references (scheme-requirements scheme)) (type-references (scheme-body scheme))) of
+      Err error -> Err error
+      Ok names -> nominal-rows (sorted names Nil) datas interfaces
