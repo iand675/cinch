@@ -1651,6 +1651,12 @@ impl Checker {
                 }
             }
             idx_params.extend(local_idx.iter().cloned());
+            // Constructor applications carry Scheme.params only. Erased
+            // index binders must not shift a type parameter's class slot.
+            let repr_fields: Vec<Class> = field_tys.iter().zip(&field_erased)
+                .filter(|(_, erased)| !**erased)
+                .map(|(ty, _)| crate::repr::repr_of(ty, &type_params, self, &mut |_| {})).collect();
+            let repr_tparams = type_params.len();
             let mut ty = Ty::Adt(name.to_string(), res_args.clone());
             for (b, t) in fields.iter().rev() {
                 let rest = ty;
@@ -1702,9 +1708,15 @@ impl Checker {
                 ctor: Some((tag, runtime_arity)),
                 hints: crate::core::FnHints::default(),
                 meta: crate::core::FnMeta::default(),
-                // The index family's constructors carry index words and
-                // the family's own blocks (`Nat` indices, `Vec` spines).
-                repr: crate::core::UnitRepr { data: Some(format!("<builtin>.{name}")), ..Default::default() },
+                // Indexed families use the same checked field maps as
+                // source data. In particular Vec's element can own a heap
+                // block; treating it as Raw silently loses its reference.
+                repr: crate::core::UnitRepr {
+                    tparams: repr_tparams,
+                    params: repr_fields.clone(), fields: repr_fields,
+                    result: Some(Class::Obj), data: Some(format!("<builtin>.{name}")),
+                    ..Default::default()
+                },
             });
             ctor_names.push((cname, tag));
         }
@@ -4669,16 +4681,16 @@ impl Checker {
                     .cloned()
                     .unwrap();
                 let (runtime_arity, fields) = match &v.kind {
-                    ValueKind::Ctor { runtime_arity, field_tys, field_erased, ty_params, .. } => {
+                    ValueKind::Ctor { runtime_arity, field_tys, field_erased, .. } => {
                         // Each runtime field's class over the data type's own
                         // parameters (`Cons` is `[Param(0), Obj]`).
                         let fields: Vec<Class> = field_tys
                             .iter()
                             .zip(field_erased)
                             .filter(|(_, e)| !**e)
-                            .map(|(t, _)| crate::repr::repr_of(t, ty_params, self, &mut |_| {}))
+                            .map(|(t, _)| crate::repr::repr_of(t, &v.scheme.params, self, &mut |_| {}))
                             .collect();
-                        (*runtime_arity, (fields, ty_params.len()))
+                        (*runtime_arity, (fields, v.scheme.params.len()))
                     }
                     _ => unreachable!(),
                 };

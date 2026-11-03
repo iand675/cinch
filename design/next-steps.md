@@ -1,5 +1,25 @@
 # Next steps (as of 2026-11-03)
 
+## Executable library object producer and indexed ownership repair
+The Rust compiler now emits closed library dependency objects with canonical
+physical manifests, checked interface closures and explicit closure accessors.
+Objects have no process entry or independent layout registration. A linked
+consumer installs the exact recorded table prefix and appends its own layouts;
+actual Raw/Obj/TObj fields, escaped method closures, dictionaries, private String
+wrappers and heap integers in indexed data cross this boundary with zero leaks.
+Extended pointer-map words and invalid object boundaries are checked separately.
+The object probe caught missing built-in constructor maps and a Rust indexed-data
+bug: erased numeric indices shifted the element's representation slot. Both
+built-in and source constructors now use their actual scheme type-parameter order.
+All146 unit,14 dependent,10 incremental,12 module,21 ownership,18 reclamation
+and3 representation checks pass (224 total), and the real emit-object CLI passes.
+This is the producer boundary. Cinch manifest consumption, shared layout seeding,
+checked external calls/variants and class method families remain to be integrated.
+No Stage2 compiler or Stage3 fixed point is established. The seed is unchanged.
+See [the object linkage contract](runtime-object-linkage.md) and
+[the executable object evidence](../bootstrap/runtime-object-results.json).
+
+
 ## Source signatures and polymorphic dictionary methods
 Cinch now checks source-declared signature kinds, method schemes, self evidence,
 module exports and declaration-order slots. The resolved method node retains its

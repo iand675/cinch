@@ -7,12 +7,13 @@ cinch: bootstrap compiler for the safe language design
 usage:
   cinch check <file.cinch> [--rebuild]         typecheck only
   cinch emit-ir <file.cinch> [-o <out.ll>] [--rebuild]
+  cinch emit-object <library.cinch> [-o <out.o>] [--rebuild]
   cinch build <file.cinch> [-o <out>] [--rebuild]
   cinch run <file.cinch> [args...] [--rebuild] compile and run; exit code is the program's
   cinch lsp                        run the language server over stdio
 
 flags:
-  -o <path>   the output path (emit-ir and build)
+  -o <path>   the output path (emit-ir, emit-object and build)
   --rebuild   recompute a package-store entry that fails verification
               instead of failing the compile with the reason
   --          everything after it is a program argument (run), so an
@@ -28,6 +29,7 @@ fn main() {
     let (mode, rest): (Mode, &[String]) = match args.first().map(|s| s.as_str()) {
         Some("check") => (Mode::Check, &args[1..]),
         Some("emit-ir") => (Mode::EmitIr, &args[1..]),
+        Some("emit-object") => (Mode::EmitObject, &args[1..]),
         Some("build") => (Mode::Build, &args[1..]),
         Some("run") => (Mode::Run, &args[1..]),
         Some("lsp") => {

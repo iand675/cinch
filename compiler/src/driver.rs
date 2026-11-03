@@ -17,6 +17,7 @@ pub mod incremental;
 pub enum Mode {
     Check,
     EmitIr,
+    EmitObject,
     Build,
     Run,
 }
@@ -1798,9 +1799,12 @@ pub fn driver_with_profile_opts(
     // section 4): driving duplicates and discards subterms, which would
     // unbalance inserted count operations.
     let program = crate::rc::insert(program, profile)?;
+    if mode == Mode::EmitObject {
+        return write_object(profile, &program, &ifaces, path, out);
+    }
     let ir = codegen::emit_for(profile, &program)?;
     match mode {
-        Mode::Check => unreachable!(),
+        Mode::Check | Mode::EmitObject => unreachable!(),
         Mode::EmitIr => {
             match out {
                 Some(out) => {
@@ -1840,6 +1844,45 @@ pub fn driver_with_profile_opts(
             Ok(status.code().unwrap_or(1))
         }
     }
+}
+
+/// Emit a closed library dependency object. Its physical manifest records the
+/// complete checked interface closure; source exports still come only from
+/// those interfaces. The final executable supplies apply and one layout table.
+fn write_object(profile: &crate::core::TargetProfile, program: &crate::core::Program,
+                ifaces: &[crate::interface::Iface], path: &Path, out: Option<&Path>) -> Result<i32> {
+    use crate::interface::{JsonValue as J, parse_json};
+    let object = codegen::emit_object_for(profile, program)?;
+    let out = out.map(Path::to_path_buf).unwrap_or_else(|| path.with_extension("o"));
+    let ir_path = out.with_extension("ll");
+    let abi_path = out.with_extension("abi.json");
+    if out == ir_path || out == abi_path {
+        return Err(Error::plain("emit-object output must differ from its .ll and .abi.json companions"));
+    }
+    // A failed rebuild must not leave an old manifest advertising new code.
+    if abi_path.exists() {
+        std::fs::remove_file(&abi_path).map_err(|e| Error::plain(format!("{}: {e}", abi_path.display())))?;
+    }
+    std::fs::write(&ir_path, &object.ir).map_err(|e| Error::plain(format!("{}: {e}", ir_path.display())))?;
+    let output = std::process::Command::new(clang()).arg("-c").arg(&ir_path).arg("-o").arg(&out)
+        .output().map_err(|e| Error::plain(format!("compile library object: {e}")))?;
+    if !output.status.success() {
+        return Err(Error::plain(format!("compile library object failed:\n{}", String::from_utf8_lossy(&output.stderr))));
+    }
+    let mut abi = parse_json(&object.abi).map_err(|e| Error::plain(e.to_string()))?;
+    let J::Obj(ref mut fields) = abi else { unreachable!() };
+    let interfaces = ifaces.iter().map(|iface| {
+        Ok(J::obj([
+            ("module", iface.module.as_str().into()),
+            ("iface_hash", iface.iface_hash().into()),
+            ("interface", parse_json(&iface.to_json()).map_err(|e| Error::plain(e.to_string()))?),
+        ]))
+    }).collect::<Result<Vec<_>>>()?;
+    fields.insert("interfaces".into(), J::Arr(interfaces));
+    let bytes = std::fs::read(&out).map_err(|e| Error::plain(format!("{}: {e}", out.display())))?;
+    fields.insert("object_content_hash".into(), crate::interface::content_hash_bytes(&bytes).into());
+    std::fs::write(&abi_path, abi.to_canonical_string()).map_err(|e| Error::plain(format!("{}: {e}", abi_path.display())))?;
+    Ok(0)
 }
 
 /// Compile and run a source string; used by tests. Returns the exit code.
