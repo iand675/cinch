@@ -1,12 +1,12 @@
 {
   "schema": 1,
-  "updatedAt": "2026-11-03T12:37:09.539807+00:00",
+  "updatedAt": "2026-11-03T12:46:14.834731+00:00",
   "estimate": 80,
   "estimateNote": "Rough engineering estimate. Remaining compiler bugs can change it; this is not a measured test pass rate.",
   "status": "Fixing bounded arithmetic checking",
   "summary": "The fresh Stage 1 compiler builds. The next stage currently rejects valid nested arithmetic on a bounded byte length; a minimal reproduction isolates the checker bug.",
-  "activity": "All 19 linked-object programs and all five builder tests passed on candidate 20. The complete Native suite continues while the checker bug is investigated.",
-  "commit": "3487990c236000aa55bdf1ad104524416870262d",
+  "activity": "Candidate 21 tests a checker repair that keeps refined runtime values distinct from mathematical aliases. Its positive and negative Native reference cases agree with expectations; the actual Cinch checker and fresh stage chain are running.",
+  "commit": "f69ebdbda2aa1f84c35c3447c2a04e96db61fd55",
   "stages": [
     {
       "name": "Stage 0",
@@ -71,7 +71,7 @@
     },
     {
       "title": "Full Native sweep running",
-      "detail": "Candidate 20: 9 / 205 target gates passed; 2 running; 0 failed. Counts describe whole test targets, not individual tests.",
+      "detail": "Candidate 20: 14 / 205 whole target gates passed; 2 running; 0 failed. Candidate 21 separately checks the subsequent Cinch checker repair.",
       "state": "running"
     },
     {
