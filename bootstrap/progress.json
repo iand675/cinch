@@ -1,11 +1,11 @@
 {
   "schema": 1,
-  "updatedAt": "2026-11-03T13:10:29.005942+00:00",
+  "updatedAt": "2026-11-03T13:24:24.700945+00:00",
   "estimate": 80,
   "estimateNote": "Rough engineering estimate. Remaining compiler bugs can change it; this is not a measured test pass rate.",
-  "status": "Investigating a byte-write proof failure",
+  "status": "Verifying direct proof reuse",
   "summary": "The refined-local arithmetic repair passes the real Stage 1 probes. The full compiler now stops at a guarded newline byte-write precondition in the text builder; no Stage 2 executable yet.",
-  "activity": "Candidate21 built Stage1 and finished the full retry with a frontend refusal at bytes-set. Small byte-write probes are running; broader runtime and Native suites continue.",
+  "activity": "The proof-budget reproduction fails before the repair and passes afterward, with the independent certificate checker unchanged. Candidate23 is building Stage1 and checking the full builder context. Candidate21 runtime IR and real CLI regressions both passed.",
   "commit": "e6919b0bb6a9899f8067a4d29b6fe8772779bf6e",
   "stages": [
     {
@@ -71,7 +71,7 @@
     },
     {
       "title": "Full Native sweep running",
-      "detail": "Candidate20: 18 / 205 whole test groups passed; 2 running; 0 failed. Candidate21 separately passes all12 checker regressions and all5 actualStage1 arithmetic probes.",
+      "detail": "Candidate20: 31 /205 whole test groups passed; 2 running; 0 failed. Subsequent checker/proof repairs have separate candidate21/23 regression gates.",
       "state": "running"
     },
     {
@@ -98,12 +98,17 @@
       "title": "Actual Stage 1 arithmetic probes pass",
       "detail": "Candidate21 seed-built Stage1: nested, explicitly bound and direct guarded subtraction pass; reversed subtraction and unjustified upper bounds are refused. All five outcomes match expectations.",
       "state": "passed"
+    },
+    {
+      "title": "Runtime and real CLI regressions pass",
+      "detail": "Candidate21 passes the complete runtime IR and real CLI targets, including exact numeric values, owned-word reclamation, dictionary ABI and tags/aliases.",
+      "state": "passed"
     }
   ],
   "blockers": [
     {
       "title": "Retain the byte-write bounds proof",
-      "detail": "The nested arithmetic mismatch is cleared. The next first failure is a byte write guarded by an explicit index bound; a small probe set is isolating which context loses that evidence.",
+      "detail": "An extra valid outer guard exposes proof-search budget exhaustion. The repair tries a directly known hypothesis first and still emits an independently checked certificate. Its proof regression passes; the complete builder and stage verification are running.",
       "technical": "Candidate21 Stage1 built; Stage2 compiler exit4. First diagnostic compiler.cinch:20463:31, bytes-set out last 10. Later diagnostics include cascades."
     },
     {
