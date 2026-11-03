@@ -317,6 +317,21 @@ module Bootstrap.Proof where
     Cons (reference, p) rest -> case atom-row p of
       Some row -> Cons (MkSearchRow row [(1, reference)]) (rows-from rest)
       None -> rows-from rest
+  -- Use a matching lexical fact before unrelated rows consume the bounded
+  -- elimination budget. The small refutation retains the original citation;
+  -- check-proof still reconstructs it against the complete actual context.
+  assumed-refutation :: List (Citation, Proposition) -> Proposition -> Option Certificate
+  assumed-refutation references goal = assumed-normal-refutation references (normal True goal) goal
+  assumed-normal-refutation :: List (Citation, Proposition) -> Proposition -> Proposition -> Option Certificate
+  assumed-normal-refutation references wanted goal = case references of
+    Nil -> None
+    Cons (reference, fact) rest -> if proposition-equal fact wanted then
+      (case fourier 64 256 (rows-from (Cons (reference, fact)
+        (reference-conjuncts (NegatedGoal 0) (conjuncts (normal False goal))))) of
+        Some certificate -> Some certificate
+        None -> assumed-normal-refutation rest wanted goal)
+      else assumed-normal-refutation rest wanted goal
+
   already-split :: Proposition -> List Proposition -> Bool
   already-split p seen = case seen of Nil -> False; Cons q rest -> proposition-equal p q || already-split p rest
   find-split :: List (Citation, Proposition) -> List Proposition -> Option (Citation, Proposition, Proposition)
@@ -342,7 +357,9 @@ module Bootstrap.Proof where
     PBoth a b -> case search hypotheses a of
       Some left -> case search hypotheses b of Some right -> Some (Conjunction left right); None -> None
       None -> None
-    other -> case refute 8 hypotheses goal Nil Nil of Some certificate -> Some (Refutation certificate); None -> None
+    other -> case assumed-refutation (hypothesis-references 0 hypotheses) goal of
+      Some certificate -> Some (Refutation certificate)
+      None -> case refute 8 hypotheses goal Nil Nil of Some certificate -> Some (Refutation certificate); None -> None
   prove :: List Proposition -> Proposition -> Option Proof
   prove hypotheses goal = if not (valid-hypotheses hypotheses && valid-proposition goal) then None else case search hypotheses goal of
     Some evidence -> if check-proof hypotheses goal evidence then Some evidence else None

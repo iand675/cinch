@@ -1,0 +1,63 @@
+{
+  "candidate": 23,
+  "source_sha256": "d8f0195f76af2128dfbfbaeb862347501e9e45155d84fb91ea354e93e1d67597",
+  "bootstrap_achieved": false,
+  "repair": "Search an exactly matching normalized lexical fact before bounded general elimination. Use the existing Farkas certificate and actual original hypothesis/conjunct citation; independent check-proof is unchanged.",
+  "before": {
+    "exit_code": 101,
+    "source_sha256": "7d7b9f6793fe7fe5ce75ff4b457d371156f7f643f617f6b71640b036bc3d4279",
+    "source_unchanged": true,
+    "status": "reproduced"
+  },
+  "proof_regression": {
+    "command": [
+      "cargo",
+      "test",
+      "--target-dir",
+      "/tmp/cinch-object-consumer-validation-23/cargo",
+      "--test",
+      "bootstrap_proof",
+      "--",
+      "--include-ignored",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit_code": 0,
+    "finished": "2026-11-03T13:23:27.999791+00:00",
+    "name": "bootstrap_proof",
+    "source_unchanged": true,
+    "started": "2026-11-03T13:22:19.945452+00:00",
+    "status": "passed"
+  },
+  "actual_stage1_probes": [
+    {
+      "diagnostics": "",
+      "exit_code": 0,
+      "name": "outer-guard",
+      "status": "passed",
+      "wanted": 0
+    },
+    {
+      "diagnostics": "",
+      "exit_code": 0,
+      "name": "whole-builder",
+      "status": "passed",
+      "wanted": 0
+    },
+    {
+      "diagnostics": "bootstrap.check:4:64: function precondition is not established at this call\n",
+      "exit_code": 4,
+      "name": "invalid-end-index",
+      "status": "passed",
+      "wanted": 4
+    }
+  ],
+  "argument_scope_gate": "14-case Native-reference/compiled-Cinch target running; not claimed passed yet",
+  "full_stage2": "running after all actual Stage1 probes passed; no IR/executable claimed",
+  "published_files": {
+    "bootstrap/Bootstrap.Proof.cinch": "d8cc2e3b314dccd4314245ee56efe1ecc763346df1d7ab51d3ad55f61a65fb2b",
+    "compiler/tests/bootstrap_proof.rs": "7e4d07a1189ed9e9d15b5fdcab896d18b566f115f623f9490e74e73797958b55",
+    "compiler/tests/bootstrap_argument_scopes.rs": "7b3b64be01cef7ed0b612014a4f77eeb79805833da91e17a3159e94384bec113"
+  },
+  "test_setup_note": "Initial candidate23 test attempt was rejected by the checkout-cache guard before executing compiler code. The authoritative proof regression uses a dedicated candidate23 Cargo cache."
+}
