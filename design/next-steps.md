@@ -50,12 +50,16 @@ negative test mutated an embedded interface as well, causing an earlier valid
 admission refusal; the corrected whole target is rerunning.
 
 The complete candidate19 reaches runtime emission, then exits73 with stack
-exhaustion before writing IR. A65,536-piece builder reproduces stack exhaustion
-on a2MiB stack; a private tail-recursive sizing/copying rewrite passes the same
-case. Its full stage-chain and builder regressions are in progress. A complete
-remaining Native target sweep is also running; it found a stale empty-signature
-refusal expectation in the older fragment fixture, whose correction is being
-verified. No Stage2 executable or compiler-interface fixed point is established. Canonical compiler interface output, remaining runtime forms, actual
+exhaustion before writing IR. Candidate20 passes all five builder regressions,
+including65,536 newline chunks on a2MiB stack; its whole linked-object target
+passes all19 programs with zero leaks and the corrected negative checks. Its
+fragment-checker fixture also passes: an empty signature declaration is accepted,
+matching current checking. The full candidate20 attempt builds Stage1 but rejects
+valid nested bounded arithmetic in the revised builder before emission. A minimal
+reproduction distinguishes the rejected nested expression from an accepted
+explicit binding; its checker repair is under validation. The complete current
+Native test sweep continues. No Stage2 executable or compiler-interface fixed
+point is established. Canonical compiler interface output, remaining runtime forms, actual
 provider demands, complete current suites/correctness and the Stage2/Stage3 fixed
 point remain required. The [progress dashboard](https://cinch-bootstrap-status.ian92821.chatgpt.site)
 reads the committed [status checkpoint](../bootstrap/progress.json); update that
