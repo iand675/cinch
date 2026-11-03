@@ -1,11 +1,11 @@
 {
   "schema": 1,
-  "updatedAt": "2026-11-03T13:31:17.180813+00:00",
-  "estimate": 80,
+  "updatedAt": "2026-11-03T13:44:28.082551+00:00",
+  "estimate": 85,
   "estimateNote": "Rough engineering estimate. Remaining compiler bugs can change it; this is not a measured test pass rate.",
-  "status": "Retrying full compiler emission",
-  "summary": "The proof-search repair passes the crowded-context regression and the actual Stage1 checks for the complete builder. The unsafe write remains refused. The full compiler retry is running; no Stage2 executable yet.",
-  "activity": "Published the direct-hypothesis repair. Candidate23 passes its proof regression and all three actual Stage1 builder probes; the 14-case checker regression and full stage chain continue.",
+  "status": "Stage 2 works; building Stage 3",
+  "summary": "Cinch has built a runnable Stage2 compiler. That compiler passes valid-program, precedence and invalid-program smoke checks. It is now rebuilding the full compiler for Stage3.",
+  "activity": "Stage2 emitted 19.4MB of LLVM IR, linked successfully and passed all three smoke checks. Stage3 and current-source full-suite verification are running. Compiler-interface output remains unfinished.",
   "commit": "27d11d6387b971054a811818b4321191c80dccc9",
   "stages": [
     {
@@ -22,18 +22,23 @@
     },
     {
       "name": "Stage 2",
-      "state": "pending",
-      "label": "Verifying",
-      "description": "The full compiler is being retried after the complete builder checks passed through fresh Stage1."
+      "state": "passed",
+      "label": "Smoke-tested",
+      "description": "Built by Cinch; starts and passes valid-program, precedence and invalid-source checks."
     },
     {
       "name": "Stage 3",
       "state": "pending",
-      "label": "Waiting",
-      "description": "Rebuild with Stage 2 and verify a stable result."
+      "label": "Building",
+      "description": "Stage2 is rebuilding the full compiler. Stable IR and real compiler interfaces are still required."
     }
   ],
   "checks": [
+    {
+      "title": "Stage2 built and smoke-tested",
+      "detail": "Candidate23 produces real compiler IR and an executable. The executable starts and compiles/runs valid programs, respects precedence and gives the expected invalid-source refusal.",
+      "state": "passed"
+    },
     {
       "title": "100 programs executed",
       "detail": "82 runtime cases on candidate 10 and 18 linked-object cases on candidate 14. The linked cases, including the direct intrinsic export, all report zero leaks; the whole object target passed.",
@@ -71,7 +76,7 @@
     },
     {
       "title": "Full Native sweep running",
-      "detail": "Candidate20: 32 /205 whole test groups passed; 2 running; 0 failed. Subsequent checker/proof repairs have separate candidate21/23 gates.",
+      "detail": "Candidate23 is compiling all Rust test runners once, then executing with three bounded workers. All14 checker regressions and the proof target already pass on this exact source; prior candidate20 results are preserved separately.",
       "state": "running"
     },
     {
@@ -112,22 +117,26 @@
   ],
   "blockers": [
     {
-      "title": "Finish the full compiler retry",
-      "detail": "The reduced bound failure and complete builder module now check successfully. The full source must finish checking and emission to show what remains.",
-      "technical": "Candidate23 Stage1 built; outer guard and whole builder exit0; unsafe end-index write exit4. The full Stage2 attempt is running."
+      "title": "Finish Stage3 and compare the rebuild",
+      "detail": "Stage2 is now compiling the complete compiler source again. Stage3 must run and produce the same compiler IR.",
+      "technical": "Actual Stage2 built_by_stage1, typed-ir-objects, verified startup and all3smokes. Stage3 is running; no fixed-point result yet."
     },
     {
-      "title": "Verify the full compiler stack repair",
-      "detail": "The builder stress regression passes. The full compiler must get past checking before its large emission can validate the stack repair.",
-      "technical": "Earlier candidate19 exhausted the stack during runtime emission. Candidate20 stops earlier in frontend checking."
+      "title": "Emit actual compiler interfaces",
+      "detail": "The Cinch compiler still needs to write complete checked interfaces for its own modules. Empty or name-only files cannot establish the required contract.",
+      "technical": "Current compiler pipeline emits IR/diagnostics. The interface writer remains missing; the completeness gate also needs stronger structural/authority checks."
     },
     {
-      "title": "Finish real compiler interfaces and bootstrap verification",
-      "detail": "Emit actual checked compiler interfaces, link and run Stage 2, rebuild Stage 3, compare results, and finish the complete tests.",
-      "technical": "The source compiler still needs the required interface writer. No fixed-point claim."
+      "title": "Finish the current-source full suite",
+      "detail": "The full suite is being moved to the repaired compiler snapshot. All current test targets must run successfully.",
+      "technical": "Candidate23 compiles Rust runners once for shared-cache bounded execution. Earlier-snapshot passes do not establish complete current-source coverage."
     }
   ],
   "milestones": [
+    {
+      "title": "Cinch-built compiler runs its smoke programs",
+      "detail": "Stage2 emits actual program code, runs valid cases and refuses invalid source. Its full Stage3 rebuild is underway."
+    },
     {
       "title": "Refined-local checker repair passes",
       "detail": "All 12 argument-scope cases pass against both Native and actual compiled Cinch checking. The tested repair and builder are pushed to main."
