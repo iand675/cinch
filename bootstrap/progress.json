@@ -1,5 +1,5 @@
 {
-  "activity": "All 127 ordinary target groups pass. Bootstrap-specific groups: 4 of 81 passed, 3 running and 0 failed. Runtime171, tooling41 and syntax/editor39 pass on this same source. Fresh final-source stages built and smoke-tested: 4 of4; combined gate passed.",
+  "activity": "All 127 ordinary target groups pass. Bootstrap-specific groups: 4 of 81 passed, 4 running and 0 failed. Runtime171, tooling41 and syntax/editor39 pass on this same source. Fresh final-source stages built and smoke-tested: 4 of4; combined gate passed.",
   "blockers": [
     {
       "title": "Finish every final-source compiler test",
@@ -7,6 +7,11 @@
     }
   ],
   "checks": [
+    {
+      "title": "Exact final Stage3 external acceptance passed",
+      "detail": "Both original test-runner programs produce exact reports and zero leaks at 32M through the final compiler. All seven fixity/facade probes pass, including refusal of identical/changed importer declarations. Portable class builds return 37 and 43; the separate wrong-evidence case is a Native API check.",
+      "state": "passed"
+    },
     {
       "title": "Final repaired-source bootstrap fully passed",
       "detail": "Fresh four-stage chain on the exact suite27 snapshot: all smokes, byte-identical compiler IR/executables, all 43 canonical interfaces, actual entry consumption and changed-source executable behavior pass. This includes the latest fixity and Rust repairs.",
@@ -19,7 +24,7 @@
     },
     {
       "title": "Live final-source compiler sweep",
-      "detail": "131 of 208 complete target groups passed; 3 running and 0 failed. Every group includes ignored tests. Source snapshot c6260e01; code matches the published repairs.",
+      "detail": "131 of 208 complete target groups passed; 4 running and 0 failed. Every group includes ignored tests. Source snapshot c6260e01; code matches the published repairs.",
       "state": "running"
     },
     {
@@ -201,6 +206,6 @@
     }
   ],
   "status": "Bootstrap passed; final full-suite verification running",
-  "summary": "The fresh repaired-source Stage0/1/2/3 chain passes. Stage2 and Stage3 match in compiler IR, executable and all 43 interfaces; Stage3 consumes its emitted APIs, and Stage2 rebuilds changed source with changed behavior. Full tests and exact final-executable acceptance remain.",
-  "updatedAt": "2026-11-03T20:52:13.268956+00:00"
+  "summary": "The fresh repaired-source compiler bootstraps completely: matching Stage2/Stage3 code and 43 interfaces, actual API consumption and changed-source behavior. Exact final Stage3 also passes its test-runner, fixity/facade and portable class checks. The complete bootstrap-specific test sweep remains.",
+  "updatedAt": "2026-11-03T21:00:33.763758+00:00"
 }
