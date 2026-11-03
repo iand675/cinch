@@ -1,11 +1,11 @@
 {
   "schema": 1,
-  "updatedAt": "2026-11-03T12:57:16.447992+00:00",
+  "updatedAt": "2026-11-03T13:00:33.396762+00:00",
   "estimate": 80,
   "estimateNote": "Rough engineering estimate. Remaining compiler bugs can change it; this is not a measured test pass rate.",
   "status": "Verifying the full compiler retry",
   "summary": "The refined-local checker repair passes all 12 regression cases. Fresh Stage 1 builds; the complete compiler retry is running. Stage 2 has no verified executable yet.",
-  "activity": "Published the tested checker repair and small-stack text builder. The full-source retry, additional actual Stage 1 probes, and complete Native test sweep continue.",
+  "activity": "All five additional actual Stage 1 arithmetic probes pass, including both unsafe refusals. Broader runtime IR and real CLI regressions now run on candidate 21 while the full compiler retry continues.",
   "commit": "e6919b0bb6a9899f8067a4d29b6fe8772779bf6e",
   "stages": [
     {
@@ -92,6 +92,11 @@
     {
       "title": "All 12 arithmetic and argument-scope cases pass",
       "detail": "Candidate 21: Native reference and the compiled Cinch checker accept nested, explicit-binding and direct guarded subtraction, while refusing reversed subtraction and an unjustified upper bound.",
+      "state": "passed"
+    },
+    {
+      "title": "Actual Stage 1 arithmetic probes pass",
+      "detail": "Candidate21 seed-built Stage1: nested, explicitly bound and direct guarded subtraction pass; reversed subtraction and unjustified upper bounds are refused. All five outcomes match expectations.",
       "state": "passed"
     }
   ],

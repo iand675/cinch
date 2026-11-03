@@ -36,5 +36,46 @@
     "compiler/tests/bootstrap_argument_scopes.rs": "0eb86968b895f508928a50ea643375ba990eb6b9f470d15190cc7e60ad0e6250",
     "compiler/prelude/Text/Builder.cinch": "c089e433293b637862387c71967e800c5cb57f4f7011724ee4d21b18c5ece24b",
     "compiler/tests/lib_builder.rs": "073d097822d72f4307a0ffb4d3cf09d8dfce76bc70945c95861f789995e3558d"
+  },
+  "actual_seed_built_stage1_probes": {
+    "status": "passed",
+    "cases": [
+      {
+        "case": "nested",
+        "diagnostics": "",
+        "exit_code": 0,
+        "status": "passed",
+        "wanted": 0
+      },
+      {
+        "case": "bound",
+        "diagnostics": "",
+        "exit_code": 0,
+        "status": "passed",
+        "wanted": 0
+      },
+      {
+        "case": "direct",
+        "diagnostics": "",
+        "exit_code": 0,
+        "status": "passed",
+        "wanted": 0
+      },
+      {
+        "case": "reversed",
+        "diagnostics": "bootstrap.check:6:101: function precondition is not established at this call\n",
+        "exit_code": 4,
+        "status": "passed",
+        "wanted": 4
+      },
+      {
+        "case": "upper",
+        "diagnostics": "bootstrap.check:6:67: refinement predicate is not established for this value\n",
+        "exit_code": 4,
+        "status": "passed",
+        "wanted": 4
+      }
+    ],
+    "note": "Actual Stage1 pipeline with exact ABI5 base interface manifest; no Native implementation fallback."
   }
 }
