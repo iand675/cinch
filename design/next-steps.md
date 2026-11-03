@@ -47,8 +47,8 @@ compiles and runs its exporter. Independent Native readback accepts the ordinary
 polymorphic, dependent, refined and nominal examples; the region/effect example
 matches Native's own resolved interface production. Unsolved, escaped and malformed
 identities and independent unresolved effect tails are refused. All12 report rows
-pass the focused Native regression. This is a prerequisite, not complete interface
-production; the full writer remains under development. See
+pass the focused Native regression. This feeds the checked writer below;
+unsupported contract forms retain explicit refusals. See
 [checked type export evidence](../bootstrap/checked-type-export-results.json).
 
 ## Checked interface writer and complete seed closure
@@ -67,14 +67,16 @@ The compiler entry now imports every bundled module through a qualified alias.
 The pinned seed actually builds this complete43-module source closure and emits
 all43 compiler interfaces, including unused modules. The source identity in
 [writer evidence](../bootstrap/checked-interface-writer-results.json) matches this
-checked snapshot exactly. The source-only compiler still has to emit its own
-complete contracts; seed-produced contracts cannot substitute for that gate.
+checked snapshot exactly. The later actual self-built compiler also emits all43
+contracts; its complete readback and entry-consumer results are recorded below.
+Seed-produced contracts do not substitute for self-produced compiler contracts.
 
 The baseline full run exposed stale parser and pipeline test expectations. The
 updated parser table exactly matches all109 measured corpus entries, including
 zero unmodeled nodes in the new exporter modules. Four actual pipeline probes
-confirm that parse, check, emit and manifest refusals truncate stale IR. The full
-pipeline target recheck remains in progress; historical failures remain recorded.
+confirm that parse, check, emit and manifest refusals truncate stale IR. The corrected complete
+pipeline and parser targets pass on their named repair snapshots; historical
+failures remain recorded. Final-source coverage belongs to the fresh full sweep.
 
 ## Source contracts reach the compiler CLI
 
@@ -95,16 +97,16 @@ remain explicit refusals. See
 Module spans previously covered only the six-byte `module` keyword, making every
 produced source hash identical. Spans now cover the complete module body; independent
 FNV comparisons against the actual module slices pass. The full compiler contract
-probe now reaches a concrete missing intrinsic-effect classification (`Diverge`);
-that repair is under validation. Contextual/guarded instances, source refinements
-and records are not claimed complete.
+probe exposed a missing intrinsic-effect classification (`Diverge`), now repaired
+and covered by the complete writer regression. Contextual/guarded instances,
+source refinements and records are not claimed complete.
 
 The full candidate23 sweep finished with201 target groups passing and4 failing:
 parser coverage, pipeline refusal output, lattice transfers and refinements. The
 first two corrected whole targets pass on fresh snapshots. The latter failures
-expose compile-time evaluation of runtime dictionary-self markers; its Rust repair
-is being validated alongside a distinct declaring-class identity correction.
-These scoped repairs do not substitute for a complete final-source test run.
+exposed compile-time evaluation of runtime dictionary-self markers; that Rust
+repair and the declaring-class identity correction now pass their scoped checks.
+These repairs do not substitute for a complete final-source test run.
 
 ## Rust declaring-class and refinement evaluation repair
 
@@ -142,9 +144,10 @@ The final gate now checks canonical schema-shaped contracts, declaration and ABI
 boundaries and the exact dependency hash chain. All41 tooling checks and55 real
 base contracts pass. It also requires the self-built compiler to check its entry
 using its emitted APIs with compiler-module bodies absent. That actual consumer
-probe exposes missing private nominal kind facts when completing public
-constructor layouts (`Text.Lex.Span`); this repair and the final compiler/interface
-fixed point remain required. See
+probe exposed missing private nominal kind facts when completing public
+constructor layouts (`Text.Lex.Span`). That repair now passes the actual rebuilt
+consumer and the complete focused regression below; the fresh compiler/interface
+fixed point remains required. See
 [production evidence](../bootstrap/compiler-interface-production-results.json).
 
 ## Real entry consumption and private field kinds
