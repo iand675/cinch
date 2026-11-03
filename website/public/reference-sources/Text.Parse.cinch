@@ -1,0 +1,619 @@
+-- Text.Parse: parser combinators over the lexed token stream.
+--
+-- Module scheme (design/base-library.md): `Text.*` is text processing
+-- over String/Bytes. This module is the combinator half of the P30
+-- parsing toolkit (`Text.Lex` is the tokenization half): parsers over
+-- the located, laid-out token stream, each parser able to report
+-- source spans for what it consumed, with TYPED errors (the `Parse`
+-- effect's payload) and megaparsec-style error bundles.
+--
+-- The vocabulary follows megaparsec's shape where the bootstrap
+-- allows it:
+--
+--   * `Parser a` is a state function with the consumed/empty success
+--     and failure distinction, so `or-else` backtracks exactly when
+--     megaparsec's `<|>` does and `attempt-p` is the explicit escape;
+--   * errors are `ParseError` values: `EUnexpected` (a trivial error:
+--     the offending item plus the expected set) and `EFail` (a fancy
+--     message), each carrying the source span;
+--   * `ParseErrorBundle` carries the source name and text with every
+--     error (the hard failure first, then the recovered ones) and
+--     renders megaparsec-style with the source line and a caret;
+--   * `with-recovery-p` is megaparsec's `withRecovery`: a recovery
+--     handler runs on failure, its recovered error is retained in the
+--     bundle, and the parse continues from the recovered value.
+--
+-- Typed Parse-effect errors with recovery handlers. `effect Parse` is
+-- the typed error channel (`parse-fail` aborts with a `ParseError`,
+-- `parse-note` records one and resumes). The recovery handlers are
+-- `handler Parse where` clause sets, and `run-parser` /
+-- `run-parser-with` are the worked ones: the runner's failing branch
+-- performs `parse-fail` in its own handled expression and the
+-- recovery handler turns the typed error into the outcome's
+-- megaparsec-style bundle, with `run-parser-with` taking the recovery
+-- handler as an ordinary function on the error value. User code gets
+-- the same shape for its own inline failing computations (`handle
+-- ... with (handler Parse where ...)`).
+--
+-- Named refusals (unproductions this module deliberately does not
+-- implement; each is a named boundary, never a silent gap):
+--   per-call effect dispatch (compiler/CONFORMANCE.md D23): the
+--     bootstrap dispatches `Parse` operations only from the handled
+--     computation's own expression, so a COMBINATOR's internal
+--     failure cannot surface through a caller's `handle`; combinators
+--     therefore thread typed errors in their replies and only the
+--     runners above perform the effect. When the bootstrap grows
+--     per-call dispatch, the combinator failures can move onto the
+--     effect without changing `ParseError`;
+--   multi-shot recovery: a recovery handler's value is computed once
+--     (the bootstrap's one-shot resumption discipline), matching
+--     megaparsec's `withRecovery` contract;
+--   incremental lexing: `run-parser` lexes and lays out the whole
+--     source first (`Text.Lex`), so a lex failure is one bundle error,
+--     not a resumable stream.
+module Text.Parse where
+
+  import Text.Lex
+  import Data.Bool
+  import Data.Bytes
+  import Data.Char
+  import Data.List
+  import Data.Nat
+  import Data.Option
+  import Data.String
+  import Text.Scan
+  import Text.Show
+
+  export ErrorItem, ITok, ILabel, IEnd
+  export ParseError, EUnexpected, EFail, error-span, error-messages
+  export ParseErrorBundle, Bundle, bundle-name, bundle-source, bundle-errors
+  export render-bundle, render-item
+  export PState, pstate-tokens, pstate-count, pstate-last, pstate-soft
+  export Reply, ROk, RErr
+  export Parser, MkParser, run-parser-fn
+  export parse-pure, parse-bind, parse-fmap, attempt-p, or-else, label-p
+  export token-p, expect-tok, expect-word, expect-punct, expect-op
+  export satisfy-var, satisfy-con, satisfy-int, satisfy-float, satisfy-str
+  export satisfy-char, expect-eof, fail-p, look-ahead-p, not-followed-by-p
+  export many-p, some-p, sep-by-p, optional-p, between-p, choice-p
+  export spanned-p, with-recovery-p
+  export parse-fail, parse-note
+  export ParseOutcome, Parsed, Failed
+  export run-parser, run-parser-with
+
+
+  -- ---------------------------------------------------------------------------
+  -- Errors and megaparsec-style error bundles.
+  -- ---------------------------------------------------------------------------
+
+  -- The item vocabulary of megaparsec's `ErrorItem`: a concrete
+  -- token, a named label, or the end of input.
+  data ErrorItem where
+    ITok :: Token -> ErrorItem
+    ILabel :: String -> ErrorItem
+    IEnd :: ErrorItem
+
+  -- A typed parse error: megaparsec's trivial error (the offending
+  -- item and the expected set) or its fancy `MessageFail`, each with
+  -- the source span the error stands at.
+  data ParseError where
+    EUnexpected :: Span -> Option ErrorItem -> List ErrorItem -> ParseError
+    EFail :: Span -> String -> ParseError
+
+  error-span :: ParseError -> Span
+  error-span e = case e of
+    EUnexpected s u xs -> s
+    EFail s m -> s
+
+  -- The expected-item set (empty for `EFail`): the `expecting` line of
+  -- the rendered bundle.
+  error-messages :: ParseError -> List ErrorItem
+  error-messages e = case e of
+    EUnexpected s u xs -> xs
+    EFail s m -> Nil
+
+  -- The bundle: the source name and text every error's positions
+  -- index into, and the errors themselves (the hard failure first,
+  -- then the recovered ones in occurrence order).
+  data ParseErrorBundle where
+    Bundle :: String -> Bytes -> List ParseError -> ParseErrorBundle
+
+  bundle-name :: ParseErrorBundle -> String
+  bundle-name b = case b of
+    Bundle n s es -> n
+
+  bundle-source :: ParseErrorBundle -> Bytes
+  bundle-source b = case b of
+    Bundle n s es -> s
+
+  bundle-errors :: ParseErrorBundle -> List ParseError
+  bundle-errors b = case b of
+    Bundle n s es -> es
+
+  render-item :: ErrorItem -> String
+  render-item it = case it of
+    ITok t -> token-describe t
+    ILabel s -> s
+    IEnd -> "end of input"
+
+  -- A token's spelling for error lines (no position).
+  token-describe :: Token -> String
+  token-describe t = case t of
+    TEOF -> "end of input"
+    TVar s -> s
+    TCon s -> s
+    TOp s -> s
+    TInt s -> s
+    TFloat s -> s
+    TStr b -> case string-from-bytes b of Some s -> s; None -> empty-string
+    TChar n -> case char-from-code n of
+      None -> empty-string
+      Some c -> char-string c
+    TWord s -> s
+    TPunct s -> s
+    TAttr s -> s
+    TPrimFrag s -> s
+    TTickName s -> s
+    TTickType s -> s
+
+  join-items :: List ErrorItem -> String
+  join-items xs = string-join ", " (map render-item xs)
+
+  -- The source line containing a byte offset: its start offset and
+  -- its text (without the line ending). The offset is inside the
+  -- source or at its end.
+  line-start-at :: using (i <= bytes-len b) => (b :: Bytes) -> (i :: Nat) -> Nat
+  line-start-at b i =
+    if i == 0 then 0
+    else if nat-cmp (bytes-get b (i - 1)) 10 == 0 then i
+    else line-start-at b (i - 1)
+
+  line-end-at :: using (i <= bytes-len b) => (b :: Bytes) -> (i :: Nat) -> refined (r <= bytes-len b) Nat
+  line-end-at b i =
+    if i < bytes-len b then
+      if nat-cmp (bytes-get b i) 10 == 0 then i
+      else line-end-at b (i + 1)
+    else bytes-len b
+
+  -- The text of the line holding offset `i`. A span past the end of the
+  -- source names no line, so it shows as an empty source line under the
+  -- header rather than reading out of range.
+  line-text-at :: Bytes -> Nat -> String
+  line-text-at b i =
+    if i <= bytes-len b then
+      case string-from-bytes (bytes-slice b (line-start-at b i) (line-end-at b i)) of
+        Some s -> s
+        None -> empty-string
+    else empty-string
+
+  -- Megaparsec's rendered error: the position header, the source line
+  -- with a caret under the offending column, then the `unexpected`
+  -- and `expecting` lines.
+  render-error :: String -> Bytes -> ParseError -> String
+  render-error name b e = case e of
+    EFail s m ->
+      string-concat (header name s)
+        (string-concat m ("\n"))
+    EUnexpected s u xs ->
+      let ln = span-line s in
+      let col = span-col s in
+      let gutter = nat-to-string ln in
+      let pad = string-repeat (nat-digit-count ln) " " in
+      let caret = string-concat pad
+            (string-concat (" | ")
+              (string-concat (string-repeat (if col == 0 then 0 else col - 1) " ") ("^"))) in
+      let body = string-concat ("  |\n")
+            (string-concat gutter
+              (string-concat (" | ")
+                (string-concat (line-text-at b (span-start s))
+                  (string-concat ("\n")
+                    (string-concat caret ("\n")))))) in
+      let unexp = string-concat ("unexpected: ")
+            (string-concat (case u of
+                None -> "nothing"
+                Some it -> render-item it)
+              ("\n")) in
+      let exp-line = case xs of
+            Nil -> empty-string
+            _ -> string-concat
+              ("expecting: ")
+              (string-concat (join-items xs) ("\n")) in
+      string-concat (header name s)
+        (string-concat body (string-concat unexp exp-line))
+
+  header :: String -> Span -> String
+  header name s =
+    string-concat name
+      (string-concat (":")
+        (string-concat (nat-to-string (span-line s))
+          (string-concat (":")
+            (string-concat (nat-to-string (span-col s))
+              (string-concat (":") ("\n"))))))
+
+  -- The bundle's rendering: every error, megaparsec-style, in order.
+  render-bundle :: ParseErrorBundle -> String
+  render-bundle b = case b of
+    Bundle name src es -> render-errors name src es
+
+  render-errors :: String -> Bytes -> List ParseError -> String
+  render-errors name src es = case es of
+    Nil -> empty-string
+    Cons e rest -> case rest of
+      Nil -> render-error name src e
+      _ -> string-concat (render-error name src e)
+            (string-concat ("\n") (render-errors name src rest))
+
+  -- Merging two errors at the same position unions their expected
+  -- sets (megaparsec's `TrivialError` semigroup); the later position
+  -- wins otherwise.
+  merge-item-list :: List ErrorItem -> List ErrorItem -> List ErrorItem
+  merge-item-list xs ys = case xs of
+    Nil -> ys
+    Cons z zs -> Cons z (merge-item-list zs ys)
+
+  merge-error :: ParseError -> ParseError -> ParseError
+  merge-error a b = case a of
+    EFail s m -> a
+    EUnexpected s1 u1 x1 -> case b of
+      EFail s2 m -> b
+      EUnexpected s2 u2 x2 ->
+        if lt-i64 (nat-cmp (span-start s1) (span-start s2)) 0 then b
+        else if lt-i64 (nat-cmp (span-start s2) (span-start s1)) 0 then a
+        else EUnexpected s1 u1 (merge-item-list x1 x2)
+
+  -- ---------------------------------------------------------------------------
+  -- The Parse effect: typed errors with recovery handlers.
+  -- ---------------------------------------------------------------------------
+
+  -- The typed error channel: `parse-fail` aborts with a `ParseError`,
+  -- `parse-note` records one and resumes (the soft-error path).
+  effect Parse where
+    parse-fail :: forall a. ParseError ->{Parse} a
+    parse-note :: ParseError ->{Parse} Unit
+
+  -- ---------------------------------------------------------------------------
+  -- Parser state, replies, the parser type.
+  -- ---------------------------------------------------------------------------
+
+  -- Parser state: the remaining located tokens, how many tokens were
+  -- consumed (the span combinator's exactness), the span of the last
+  -- consumed token, and the recovered (soft) errors so far.
+  data PState where
+    PState :: List LToken -> Nat -> Span -> List ParseError -> PState
+
+  pstate-tokens :: PState -> List LToken
+  pstate-tokens s = case s of
+    PState t n l f -> t
+
+  pstate-count :: PState -> Nat
+  pstate-count s = case s of
+    PState t n l f -> n
+
+  pstate-last :: PState -> Span
+  pstate-last s = case s of
+    PState t n l f -> l
+
+  pstate-soft :: PState -> List ParseError
+  pstate-soft s = case s of
+    PState t n l f -> f
+
+  -- A reply: megaparsec's consumed/empty success and failure
+  -- distinction. `ROk` carries the expected-set hint for merging;
+  -- `RErr` carries the error and the recovered errors so far.
+  data Reply a where
+    ROk :: Bool -> a -> PState -> List ErrorItem -> Reply a
+    RErr :: Bool -> ParseError -> List ParseError -> Reply a
+
+  -- A parser: a function from state to reply (megaparsec's `ParsecT`
+  -- spine specialized to the pure token stream).
+  data Parser a where
+    MkParser :: (PState -> Reply a) -> Parser a
+
+  run-parser-fn :: forall a. Parser a -> PState -> Reply a
+  run-parser-fn p s = case p of
+    MkParser f -> f s
+
+  -- ---------------------------------------------------------------------------
+  -- The combinator core.
+  -- ---------------------------------------------------------------------------
+
+  parse-pure :: forall a. a -> Parser a
+  parse-pure x = MkParser (\s -> ROk False x s Nil)
+
+  -- Sequencing (megaparsec's `>>=`): consumed flags combine, and the
+  -- expected hints merge only when the second parser consumed
+  -- nothing.
+  parse-bind :: forall a b. Parser a -> (a -> Parser b) -> Parser b
+  parse-bind p k = MkParser (\s0 ->
+    case run-parser-fn p s0 of
+      RErr c e soft -> RErr c e soft
+      ROk c1 x s1 exp1 -> case run-parser-fn (k x) s1 of
+        RErr c2 e soft -> RErr (c1 || c2) e soft
+        ROk c2 y s2 exp2 ->
+          ROk (c1 || c2) y s2 (if c2 then exp2 else merge-item-list exp1 exp2))
+
+  parse-fmap :: forall a b. (a -> b) -> Parser a -> Parser b
+  parse-fmap f p = parse-bind p (\x -> parse-pure (f x))
+
+  -- Backtracking (megaparsec's `try`): a failure becomes an
+  -- empty-failure so `or-else` may try the alternative.
+  attempt-p :: forall a. Parser a -> Parser a
+  attempt-p p = MkParser (\s0 ->
+    case run-parser-fn p s0 of
+      RErr c e soft -> RErr False e soft
+      ok -> ok)
+
+  -- Choice (megaparsec's `<|>`): the right parser runs only when the
+  -- left failed without consuming; two empty failures merge.
+  or-else :: forall a. Parser a -> Parser a -> Parser a
+  or-else p q = MkParser (\s0 ->
+    case run-parser-fn p s0 of
+      ROk c x s1 e -> ROk c x s1 e
+      RErr True e soft -> RErr True e soft
+      RErr False e soft -> case run-parser-fn q s0 of
+        RErr False e2 soft2 -> RErr False (merge-error e e2) soft2
+        other -> other)
+
+  choice-p :: forall a. List (Parser a) -> Parser a
+  choice-p ps = case ps of
+    Nil -> fail-p ("no alternative")
+    Cons p rest -> case rest of
+      Nil -> p
+      _ -> or-else p (choice-p rest)
+
+  -- Naming a parser's expectation (megaparsec's `label`): an
+  -- empty-failure's expected set becomes the label.
+  label-p :: forall a. String -> Parser a -> Parser a
+  label-p l p = MkParser (\s0 ->
+    case run-parser-fn p s0 of
+      ROk c x s1 e -> if c then ROk c x s1 e else ROk c x s1 (Cons (ILabel l) Nil)
+      RErr False e soft -> RErr False (relabel e l) soft
+      other -> other)
+
+  relabel :: ParseError -> String -> ParseError
+  relabel e l = case e of
+    EFail s m -> e
+    EUnexpected s u xs -> EUnexpected s u (Cons (ILabel l) Nil)
+
+  -- The token matcher primitive: consume the head token when the
+  -- predicate decodes it, otherwise an empty failure carrying the
+  -- offending item and the expected set.
+  token-p :: forall a. (Token -> Option a) -> List ErrorItem -> Parser a
+  token-p f expected = MkParser (\s0 -> case s0 of
+    PState toks n last soft -> case toks of
+      Nil -> RErr False
+        (EUnexpected (zero-at last) (Some IEnd) expected)
+        soft
+      Cons lt rest -> case f (lt-token lt) of
+        None -> RErr False
+          (EUnexpected (lt-span lt) (Some (ITok (lt-token lt))) expected)
+          soft
+        Some x -> ROk True x
+          (PState rest (n + 1) (lt-span lt) soft)
+          Nil)
+
+  zero-at :: Span -> Span
+  zero-at s = case s of
+    Span a b l c -> Span b b l c
+
+  expect-tok :: Token -> Parser Token
+  expect-tok t = token-p (\k -> if eq-token k t then Some t else None) (Cons (ITok t) Nil)
+
+  expect-word :: String -> Parser String
+  expect-word w = token-p (\k -> case k of
+    TWord s -> if string-compare s w == 0 then Some s else None
+    _ -> None) (Cons (ITok (TWord w)) Nil)
+
+  expect-punct :: String -> Parser String
+  expect-punct w = token-p (\k -> case k of
+    TPunct s -> if string-compare s w == 0 then Some s else None
+    _ -> None) (Cons (ITok (TPunct w)) Nil)
+
+  expect-op :: String -> Parser String
+  expect-op w = token-p (\k -> case k of
+    TOp s -> if string-compare s w == 0 then Some s else None
+    _ -> None) (Cons (ITok (TOp w)) Nil)
+
+  satisfy-var :: Parser String
+  satisfy-var = token-p (\k -> case k of
+    TVar s -> Some s
+    _ -> None) (Cons (ILabel ("name")) Nil)
+
+  satisfy-con :: Parser String
+  satisfy-con = token-p (\k -> case k of
+    TCon s -> Some s
+    _ -> None) (Cons (ILabel ("constructor")) Nil)
+
+  satisfy-int :: Parser String
+  satisfy-int = token-p (\k -> case k of
+    TInt s -> Some s
+    _ -> None) (Cons (ILabel ("integer")) Nil)
+
+  satisfy-float :: Parser String
+  satisfy-float = token-p (\k -> case k of
+    TFloat s -> Some s
+    _ -> None) (Cons (ILabel ("float")) Nil)
+
+  satisfy-str :: Parser Bytes
+  satisfy-str = token-p (\k -> case k of
+    TStr b -> Some b
+    _ -> None) (Cons (ILabel ("string")) Nil)
+
+  satisfy-char :: Parser Nat
+  satisfy-char = token-p (\k -> case k of
+    TChar n -> Some n
+    _ -> None) (Cons (ILabel ("character")) Nil)
+
+  -- The end-of-input guard (megaparsec's `eof`): succeeds WITHOUT
+  -- consuming when the input is at end (the stream is empty or headed
+  -- by the lex pass's `TEOF` marker), and fails empty otherwise. A
+  -- guard, never a consumer: it is idempotent (running it twice
+  -- succeeds twice) and stands alone in a user parser even though
+  -- `run-parser-pure` appends its own whole-input `expect-eof` (the
+  -- API finding recorded at D307: the old token-consuming form ran
+  -- twice under the runner and the second run failed).
+  expect-eof :: Parser Unit
+  expect-eof = MkParser (\s0 -> case s0 of
+    PState toks n last soft -> case toks of
+      Nil -> ROk False () s0 Nil
+      Cons lt rest -> case lt-token lt of
+        TEOF -> ROk False () s0 Nil
+        _ -> RErr False
+          (EUnexpected (lt-span lt) (Some (ITok (lt-token lt))) (Cons IEnd Nil))
+          soft)
+
+  -- The explicit failure (megaparsec's `fail`): a fancy error at the
+  -- current position.
+  fail-p :: forall a. String -> Parser a
+  fail-p msg = MkParser (\s0 -> case s0 of
+    PState toks n last soft -> RErr False (EFail (zero-at last) msg) soft)
+
+  -- Look-ahead: parse without consuming.
+  look-ahead-p :: forall a. Parser a -> Parser a
+  look-ahead-p p = MkParser (\s0 -> case run-parser-fn p s0 of
+    RErr c e soft -> RErr False e soft
+    ROk c x s1 e -> ROk False x s0 e)
+
+  -- megaparsec's `notFollowedBy`: succeed (consuming nothing) only
+  -- when the parser fails.
+  not-followed-by-p :: forall a. Parser a -> Parser Unit
+  not-followed-by-p p = MkParser (\s0 -> case run-parser-fn p s0 of
+    ROk c x s1 e -> RErr False
+      (EUnexpected (head-span s0) (Some IEnd) Nil)
+      (pstate-soft s0)
+    RErr c e soft -> ROk False () s0 Nil)
+
+  head-span :: PState -> Span
+  head-span s = case pstate-tokens s of
+    Nil -> pstate-last s
+    Cons lt rest -> lt-span lt
+
+  -- Repetition and separators. `many-p` never fails; both stop at the
+  -- first empty-failure and propagate consumed failures.
+  many-p :: forall a. Parser a -> Parser (List a)
+  many-p p = MkParser (\s0 -> many-run p s0 Nil)
+
+  many-run :: forall a. Parser a -> PState -> List a -> Reply (List a)
+  many-run p s0 acc = case run-parser-fn p s0 of
+    RErr False e soft -> ROk False (reverse acc) s0 Nil
+    RErr True e soft -> RErr True e soft
+    ROk c x s1 e ->
+      if c then many-run p s1 (Cons x acc)
+      else ROk False (reverse acc) s0 Nil
+
+  some-p :: forall a. Parser a -> Parser (List a)
+  some-p p = parse-bind p (\x -> parse-fmap (\xs -> Cons x xs) (many-p p))
+
+  sep-by-p :: forall a s. Parser a -> Parser s -> Parser (List a)
+  sep-by-p p sep = or-else (sep-by1-p p sep) (parse-pure Nil)
+
+  sep-by1-p :: forall a s. Parser a -> Parser s -> Parser (List a)
+  sep-by1-p p sep = parse-bind p (\x ->
+    parse-fmap (\xs -> Cons x xs) (many-p (parse-bind sep (\_ -> p))))
+
+  optional-p :: forall a. Parser a -> Parser (Option a)
+  optional-p p = or-else (parse-fmap (\x -> Some x) p) (parse-pure None)
+
+  between-p :: forall a open close. Parser open -> Parser close -> Parser a -> Parser a
+  between-p open close p = parse-bind open (\_ ->
+    parse-bind p (\x -> parse-fmap (\_ -> x) close))
+
+  -- Source spans (the toolkit's span story): the consumed tokens'
+  -- span, from the first consumed token's start to the last
+  -- consumed token's end; a parse that consumes nothing reports a
+  -- zero-width span at the current token.
+  spanned-p :: forall a. Parser a -> Parser (Span, a)
+  spanned-p p = MkParser (\s0 -> case run-parser-fn p s0 of
+    RErr c e soft -> RErr c e soft
+    ROk c x s1 e -> ROk c (span-of-run s0 s1, x) s1 e)
+
+  span-of-run :: PState -> PState -> Span
+  span-of-run s0 s1 =
+    let hs = head-span s0 in
+    if nat-cmp (pstate-count s0) (pstate-count s1) == 0 then
+      case hs of
+        Span a b l c -> Span a a l c
+    else
+      case pstate-last s1 of
+        Span a2 b2 l2 c2 -> case hs of
+          Span a b l c -> Span a b2 l c
+
+  -- Parser-level recovery (megaparsec's `withRecovery`): on failure
+  -- the recovery handler runs at the failed parser's start state and
+  -- may consume input to resynchronize; its success keeps the
+  -- recovered error in the bundle's soft list and the parse
+  -- continues. If the recovery handler fails too, the original error
+  -- stands (the handler is tried once: one-shot recovery).
+  with-recovery-p :: forall a. (ParseError -> Parser a) -> Parser a -> Parser a
+  with-recovery-p rec p = MkParser (\s0 -> case run-parser-fn p s0 of
+    ROk c x s1 e -> ROk c x s1 e
+    RErr c e soft -> case run-parser-fn (rec e) s0 of
+      ROk c2 x s2 e2 ->
+        ROk (c || c2) x (record-soft s2 e) e2
+      RErr c2 e2 soft2 -> RErr (c || c2) e soft2)
+
+  record-soft :: PState -> ParseError -> PState
+  record-soft s e = case s of
+    PState t n l f -> PState t n l (append-errs f (Cons e Nil))
+
+  append-errs :: List ParseError -> List ParseError -> List ParseError
+  append-errs xs ys = case xs of
+    Nil -> ys
+    Cons z zs -> Cons z (append-errs zs ys)
+
+  -- ---------------------------------------------------------------------------
+  -- Runners: typed Parse-effect errors with recovery handlers.
+  -- ---------------------------------------------------------------------------
+
+  -- The parse outcome: the value with its recovered errors, or the
+  -- megaparsec-style bundle of the hard failure plus recovered ones.
+  data ParseOutcome a where
+    Parsed :: a -> List ParseError -> ParseOutcome a
+    Failed :: ParseErrorBundle -> ParseOutcome a
+
+  -- The pure run: lex and lay out (`Text.Lex`), parse, require the
+  -- end of input. A lex failure is one bundle error.
+  run-parser-pure :: forall a. String -> Bytes -> Parser a -> ParseOutcome a
+  run-parser-pure name src p = case lex-source src of
+    LexedFail sp k -> Failed (Bundle name src (Cons (EFail sp (lex-error-message k)) Nil))
+    LexedTokens toks ->
+      let s0 = PState toks 0 (Span 0 0 1 1) Nil in
+      case run-parser-fn (parse-bind p (\x -> parse-fmap (\_ -> x) expect-eof)) s0 of
+        RErr c e soft -> Failed (Bundle name src (append-errs (Cons e Nil) soft))
+        ROk c x s1 e -> Parsed x (pstate-soft s1)
+
+  -- The recovery handler as an ordinary function on the typed error
+  -- (the megaparsec-style bundle's final shape is the handler's
+  -- choice). The failing path performs `parse-fail` in the handled
+  -- computation's own expression and the `handler Parse where` clause
+  -- set recovers the typed error into the bundle: typed Parse-effect
+  -- errors with recovery handlers, within the bootstrap's lexical
+  -- dispatch (named refusal above, decision D23). The hard error
+  -- passes through `recover`; the recovered errors of the run stay in
+  -- the bundle.
+  run-parser-with :: forall a. String -> Bytes -> (ParseError -> ParseError) -> Parser a -> ParseOutcome a
+  run-parser-with name src recover p =
+    case run-parser-pure name src p of
+      Parsed x soft -> Parsed x soft
+      Failed b ->
+        handle parse-fail (first-error b) with
+          (handler Parse where
+            return o -> o
+            parse-fail e resume k -> Failed (Bundle name src (Cons (recover e) (bundle-rest b)))
+            parse-note e resume k -> k ())
+
+  first-error :: ParseErrorBundle -> ParseError
+  first-error b = case bundle-errors b of
+    Cons e rest -> e
+    Nil -> EFail (Span 0 0 1 1) ("empty bundle")
+
+  -- The errors after the hard one (the recovered ones).
+  bundle-rest :: ParseErrorBundle -> List ParseError
+  bundle-rest b = case bundle-errors b of
+    Cons e rest -> rest
+    Nil -> Nil
+
+  -- The runner with the identity recovery handler: the bundle carries
+  -- the typed errors exactly as the parser reported them.
+  run-parser :: forall a. String -> Bytes -> Parser a -> ParseOutcome a
+  run-parser name src p = run-parser-with name src (\e -> e) p

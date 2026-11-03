@@ -1,0 +1,31 @@
+{
+  "notoserif": [
+    {
+      "tag": "wght",
+      "min": 100.0,
+      "default": 400.0,
+      "max": 900.0
+    },
+    {
+      "tag": "wdth",
+      "min": 62.5,
+      "default": 100.0,
+      "max": 100.0
+    }
+  ],
+  "doto": [
+    {
+      "tag": "ROND",
+      "min": 0.0,
+      "default": 0.0,
+      "max": 100.0
+    },
+    {
+      "tag": "wght",
+      "min": 100.0,
+      "default": 900.0,
+      "max": 900.0
+    }
+  ],
+  "momotrustdisplay": []
+}

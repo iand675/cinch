@@ -1,0 +1,14 @@
+-- Data.FromMap: the map-literal construction class.
+--
+-- `{k => v}` desugars to `from-map` over a `List (k, v)` of pairs at
+-- the expected type's `FromMap m k v` instance; unconstrained it
+-- defaults to `Map` (surface grammar local amendments section 10).
+-- Instances live with their type (Data.Map, Data.HashMap).
+module Data.FromMap where
+
+  import Data.List
+  export FromMap, from-map
+
+
+  signature FromMap m k v where
+    from-map :: List (k, v) -> m

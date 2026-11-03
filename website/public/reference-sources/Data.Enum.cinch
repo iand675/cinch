@@ -1,0 +1,55 @@
+-- Data.Enum: the enumeration class behind the range literals.
+--
+-- `[e1..e2]` desugars to `from-list (enum-from-to e1 e2)` and
+-- `[e1, e2 .. e3]` to `from-list (enum-from-then-to e1 e2 e3)` at the
+-- expected type's `FromList c e` instance (the collection-literal
+-- machinery of the surface grammar local amendments, section 10): the
+-- container comes from the expected type, the enumeration steps through
+-- this class, and a stage-known construction folds to a constant value
+-- at compile time like every collection literal.
+--
+-- Module scheme (design/base-library.md): the class and the range
+-- builders live here; instances live with their type (Data.Int,
+-- Data.Nat). The enumeration codes are consecutive (`to-enum`/
+-- `from-enum` are mutually inverse and neighbors differ by one), so the
+-- range builders walk codes. A bounded instance answers `None` past
+-- its edges (`pred` of its least value, `to-enum` of a code outside
+-- the type), so no method faults (design/no-faults.md section 3); a
+-- range stops where its codes leave the type.
+module Data.Enum where
+
+  import Data.Core (Option, Some, None)
+  import Data.List
+  import Algebra.Arithmetic
+  import Relation.Eq
+  import Relation.Ord
+
+  export Enum, succ, pred, to-enum, from-enum, enum-from-to, enum-from-then-to
+
+
+  signature Enum a where
+    succ :: a -> a
+    pred :: a -> Option a
+    to-enum :: Int -> Option a
+    from-enum :: a -> Int
+
+  -- The codes behind a range: step from `n` to `stop` by `step`,
+  -- `to-enum` at each code. A zero step is the empty sequence (it never
+  -- progresses), and a step away from `stop` is empty too.
+  enum-codes :: forall a. using (e :: Enum a) => Int -> Int -> Int -> List a
+  enum-codes step stop n =
+    if step == 0 then Nil
+    else if (if step > 0 then n > stop else n < stop) then Nil
+    else case to-enum n of
+      Some x -> Cons x (enum-codes step stop (n + step))
+      None -> Nil
+
+  -- `[lo..hi]`'s builder: the codes from `lo` to `hi` inclusive, step
+  -- one.
+  enum-from-to :: forall a. using (e :: Enum a) => a -> a -> List a
+  enum-from-to lo hi = enum-codes 1 (from-enum hi) (from-enum lo)
+
+  -- `[lo, next .. hi]`'s builder: the codes from `lo` toward `hi`
+  -- inclusive, step `next - lo`.
+  enum-from-then-to :: forall a. using (e :: Enum a) => a -> a -> a -> List a
+  enum-from-then-to lo next hi = enum-codes (from-enum next - from-enum lo) (from-enum hi) (from-enum lo)

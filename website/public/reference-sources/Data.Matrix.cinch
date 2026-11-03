@@ -1,0 +1,400 @@
+-- Data.Matrix: dense `F64` matrices, dimensions checked at every
+-- operation.
+--
+-- The Ruby `Matrix` family (design/stdlib-parity-ruby.md, the P38
+-- numeric port: "Matrix as a concrete type with explicit operations,
+-- the P2 discipline: types and operations, no numeric tower") as a
+-- dense row-major `F64` matrix over `Data.List`: a value is rows of
+-- `F64` cells, `rows`/`cols` are the dimensions, and every
+-- shape-sensitive operation checks the dimensions and reports a NAMED
+-- error rather than producing a wrong-shaped result. The shape
+-- invariant (every row exactly `cols` long) is enforced at
+-- construction (`matrix`), so it holds for every value the type
+-- carries; the constructor stays module-private so nothing can build a
+-- ragged one (decision D143's surface rule).
+--
+-- The laws the surface must satisfy (the Ruby behaviours pinned in the
+-- parity note, asserted consumer-side in
+-- compiler/tests/lib_matrix.rs): `identity n * m == m` for an
+-- n-column m, `(a * b).transpose == b.transpose * a.transpose`,
+-- `determinant (identity n) == 1`, and a singular matrix has
+-- determinant 0 within a documented tolerance.
+--
+-- Module scheme (design/base-library.md): `Data.*` is the concrete
+-- types, and this module is the type's home; `Text.*` owns conversion
+-- to `String`, so `to-string` is a plain function here (there is no
+-- `Show F64`: `Data.Machine` gives `F64` no Eq/Ord and no text
+-- instance, decision D6/D106's dash-style names used throughout).
+--
+-- THE DETERMINANT ALGORITHM: cofactor expansion along the first row
+-- (`det A = sum over j of (-1)^j * A[0][j] * det(minor(A, 0, j))`).
+-- It is correct and short but FACTORIAL: O(n!) multiplications, each
+-- minor rebuild costing O(n^2). It is deliberately adequate for the
+-- small matrices this slice is verified on; an LU/QR family would
+-- replace it and is refused below.
+--
+-- Named refusals (boundaries this module deliberately does not cross):
+--   sparse matrices: the representation is dense (a full `List` of
+--     `List F64`); a sparse family is a different type, not a mode of
+--     this one;
+--   decompositions (LU, QR, Cholesky) and `inverse`: none are shipped;
+--     the determinant uses cofactor expansion and no operation needs a
+--     factorization;
+--   integer or rational matrices: the cell type is `F64` only (an
+--     `Int`/`Rational` matrix is a different carrier, the parity
+--     note's `Rational` family, not a parameter of this one);
+--   `Matrix#/` and `Matrix#**`: not ported (division needs the refused
+--     inverse; the general power needs exponentiation by squaring over
+--     a decomposition).
+module Data.Matrix where
+
+  import Data.Bool
+  import Data.List
+  import Data.Machine
+  import Data.Option
+  import Data.Result
+  import Data.String
+
+  export Matrix, matrix, rows, cols, at, add, sub, scale, mul, mul-vector, transpose, identity, determinant, equals, equals-within, to-string
+  export MatrixError, RaggedRows, DimensionMismatch, VectorMismatch, IndexOutOfRange, NotSquare
+
+
+  -- The dense matrix: the dimensions and the row-major rows. The
+  -- constructor is module-private (the ragged invariant lives at
+  -- `matrix`, so no other value can exist ragged).
+  data Matrix where
+    MkMatrix :: Nat -> Nat -> List (List F64) -> Matrix
+
+  -- The named errors; every shape violation is one of these, never a
+  -- wrong-shaped result.
+  data MatrixError where
+    -- (row index, expected width, found width): a row of a ragged
+    -- `matrix` call, found at construction.
+    RaggedRows :: Nat -> Nat -> Nat -> MatrixError
+    -- (rows a, cols a, rows b, cols b): two matrices whose shapes do
+    -- not fit the operation (`add`/`sub` need equal shapes, `mul`
+    -- needs `cols a == rows b`).
+    DimensionMismatch :: Nat -> Nat -> Nat -> Nat -> MatrixError
+    -- (cols a, vector length): `mul-vector` needs `cols a` equal to
+    -- the vector length.
+    VectorMismatch :: Nat -> Nat -> MatrixError
+    -- (row, col, rows, cols): an `at` index outside the matrix.
+    IndexOutOfRange :: Nat -> Nat -> Nat -> Nat -> MatrixError
+    -- (rows, cols): `determinant` of a non-square matrix.
+    NotSquare :: Nat -> Nat -> MatrixError
+
+
+  rows :: Matrix -> Nat
+  rows m = case m of
+    MkMatrix r c xss -> r
+
+  cols :: Matrix -> Nat
+  cols m = case m of
+    MkMatrix r c xss -> c
+
+  matrix-rows :: Matrix -> List (List F64)
+  matrix-rows m = case m of
+    MkMatrix r c xss -> xss
+
+
+  zero-f64 :: F64
+  zero-f64 = i64-to-f64 0
+
+  one-f64 :: F64
+  one-f64 = i64-to-f64 1
+
+
+  -- Delete the element at index `j` (the minor rebuild drops column
+  -- `j` from every row). Not `Data.List`'s `drop`: `drop j` removes the
+  -- first `j` elements, this keeps the element before `j` and removes
+  -- `j` itself, so it stays local.
+  drop-at :: forall a. Nat -> List a -> List a
+  drop-at j xs = case xs of
+    Nil -> Nil
+    Cons y ys -> if j == 0 then ys else Cons y (drop-at (j - 1) ys)
+
+  -- The row-major transposition trio (the first cell of every row, the
+  -- tail of every row, and the transpose itself). Generic over the
+  -- element like the `Data.List` plumbing, but the base layer states
+  -- no `transpose`/`head`/`tail` of its own, so they live here until a
+  -- shared home exists.
+  map-head :: forall a. List (List a) -> List a
+  map-head xss = case xss of
+    Nil -> Nil
+    Cons r rs -> case r of
+      Nil -> Nil
+      Cons x xs -> Cons x (map-head rs)
+
+  map-tail :: forall a. List (List a) -> List (List a)
+  map-tail xss = case xss of
+    Nil -> Nil
+    Cons r rs -> case r of
+      Nil -> Nil
+      Cons x xs -> Cons xs (map-tail rs)
+
+  transpose-rows :: forall a. List (List a) -> List (List a)
+  transpose-rows xss = case xss of
+    Nil -> Nil
+    Cons r rs -> case r of
+      Nil -> Nil
+      Cons x xs -> Cons (map-head xss) (transpose-rows (map-tail xss))
+
+  row-of :: Nat -> List (List F64) -> List F64
+  row-of i xss = case xss of
+    Nil -> Nil
+    Cons r rs -> if i == 0 then r else row-of (i - 1) rs
+
+  element-of :: Nat -> List F64 -> F64
+  element-of j row = case row of
+    Nil -> zero-f64
+    Cons x xs -> if j == 0 then x else element-of (j - 1) xs
+
+  first-float :: List F64 -> F64
+  first-float row = case row of
+    Nil -> zero-f64
+    Cons x xs -> x
+
+
+  -- Construct a matrix from its rows: the first row fixes the width
+  -- and every later row must match it. Ragged input is refused here,
+  -- before any value exists, so `at`/`rows`/`cols` never see a ragged
+  -- matrix. An empty row list is the 0x0 matrix.
+  matrix :: List (List F64) -> Result MatrixError Matrix
+  matrix xss = case xss of
+    Nil -> Ok (MkMatrix 0 0 Nil)
+    Cons first rest -> case check-widths (list-length first) 1 rest of
+      Some e -> Err e
+      None -> Ok (MkMatrix (1 + list-length rest) (list-length first) xss)
+
+  check-widths :: Nat -> Nat -> List (List F64) -> Option MatrixError
+  check-widths w idx xss = case xss of
+    Nil -> None
+    Cons r rs ->
+      if list-length r == w then check-widths w (idx + 1) rs
+      else Some (RaggedRows idx w (list-length r))
+
+
+  -- The cell, or a named `IndexOutOfRange`. Both indices are
+  -- zero-based; the guard makes `row-of`/`element-of` total so their
+  -- fallback is never observed.
+  at :: Matrix -> Nat -> Nat -> Result MatrixError F64
+  at m i j =
+    if i < rows m then
+      if j < cols m then Ok (element-of j (row-of i (matrix-rows m)))
+      else Err (IndexOutOfRange i j (rows m) (cols m))
+    else Err (IndexOutOfRange i j (rows m) (cols m))
+
+
+  same-shape :: Matrix -> Matrix -> Bool
+  same-shape a b = rows a == rows b && cols a == cols b
+
+  zip-with-row :: (F64 -> F64 -> F64) -> List F64 -> List F64 -> List F64
+  zip-with-row f xs ys = case xs of
+    Nil -> Nil
+    Cons x xr -> case ys of
+      Nil -> Nil
+      Cons y yr -> Cons (f x y) (zip-with-row f xr yr)
+
+  zip-with-rows :: (F64 -> F64 -> F64) -> List (List F64) -> List (List F64) -> List (List F64)
+  zip-with-rows f xss yss = case xss of
+    Nil -> Nil
+    Cons r rs -> case yss of
+      Nil -> Nil
+      Cons s ss -> Cons (zip-with-row f r s) (zip-with-rows f rs ss)
+
+  add :: Matrix -> Matrix -> Result MatrixError Matrix
+  add a b =
+    if same-shape a b then
+      Ok (MkMatrix (rows a) (cols a) (zip-with-rows add-f64 (matrix-rows a) (matrix-rows b)))
+    else Err (DimensionMismatch (rows a) (cols a) (rows b) (cols b))
+
+  sub :: Matrix -> Matrix -> Result MatrixError Matrix
+  sub a b =
+    if same-shape a b then
+      Ok (MkMatrix (rows a) (cols a) (zip-with-rows sub-f64 (matrix-rows a) (matrix-rows b)))
+    else Err (DimensionMismatch (rows a) (cols a) (rows b) (cols b))
+
+  scale :: F64 -> Matrix -> Matrix
+  scale k m =
+    MkMatrix (rows m) (cols m) (map (\row -> map (\x -> mul-f64 k x) row) (matrix-rows m))
+
+
+  dot :: List F64 -> List F64 -> F64
+  dot xs ys = case xs of
+    Nil -> zero-f64
+    Cons x xr -> case ys of
+      Nil -> zero-f64
+      Cons y yr -> add-f64 (mul-f64 x y) (dot xr yr)
+
+  row-times-cols :: List F64 -> List (List F64) -> List F64
+  row-times-cols row colss = case colss of
+    Nil -> Nil
+    Cons c cs -> Cons (dot row c) (row-times-cols row cs)
+
+  mul-rows :: List (List F64) -> List (List F64) -> List (List F64)
+  mul-rows arows bcols = case arows of
+    Nil -> Nil
+    Cons r rs -> Cons (row-times-cols r bcols) (mul-rows rs bcols)
+
+  mul :: Matrix -> Matrix -> Result MatrixError Matrix
+  mul a b =
+    if cols a == rows b then
+      Ok (MkMatrix (rows a) (cols b) (mul-rows (matrix-rows a) (transpose-rows (matrix-rows b))))
+    else Err (DimensionMismatch (rows a) (cols a) (rows b) (cols b))
+
+  row-times-vector :: List (List F64) -> List F64 -> List F64
+  row-times-vector arows v = case arows of
+    Nil -> Nil
+    Cons r rs -> Cons (dot r v) (row-times-vector rs v)
+
+  mul-vector :: Matrix -> List F64 -> Result MatrixError (List F64)
+  mul-vector m v =
+    if cols m == list-length v then Ok (row-times-vector (matrix-rows m) v)
+    else Err (VectorMismatch (cols m) (list-length v))
+
+
+  transpose :: Matrix -> Matrix
+  transpose m = MkMatrix (cols m) (rows m) (transpose-rows (matrix-rows m))
+
+
+  identity :: Nat -> Matrix
+  identity n = MkMatrix n n (identity-rows n 0)
+
+  identity-rows :: Nat -> Nat -> List (List F64)
+  identity-rows n i = if i >= n then Nil else Cons (identity-row n i 0) (identity-rows n (i + 1))
+
+  identity-row :: Nat -> Nat -> Nat -> List F64
+  identity-row n i j =
+    if j >= n then Nil
+    else Cons (if i == j then one-f64 else zero-f64) (identity-row n i (j + 1))
+
+
+  -- Cofactor expansion along the first row (see the header: O(n!) time,
+  -- each minor rebuild O(n^2)). A non-square matrix is refused before
+  -- any expansion.
+  determinant :: Matrix -> Result MatrixError F64
+  determinant m =
+    if rows m == cols m then Ok (det-rows (matrix-rows m))
+    else Err (NotSquare (rows m) (cols m))
+
+  det-rows :: List (List F64) -> F64
+  det-rows xss = case xss of
+    Nil -> one-f64
+    Cons r Nil -> first-float r
+    Cons r rest -> cofactor-sum r rest 0 one-f64 zero-f64
+
+  cofactor-sum :: List F64 -> List (List F64) -> Nat -> F64 -> F64 -> F64
+  cofactor-sum row rest j sign acc = case row of
+    Nil -> acc
+    Cons a more ->
+      cofactor-sum more rest (j + 1) (neg-f64 sign)
+        (add-f64 acc (mul-f64 sign (mul-f64 a (det-rows (minor rest j)))))
+
+  minor :: List (List F64) -> Nat -> List (List F64)
+  minor xss j = map (\row -> drop-at j row) xss
+
+
+  -- Exact elementwise equality (via `feq-f64`: `F64` carries no `Eq`
+  -- instance, so equality is a function, not `==`).
+  rows-equal :: List (List F64) -> List (List F64) -> Bool
+  rows-equal xss yss = case xss of
+    Nil -> case yss of
+      Nil -> True
+      Cons s ss -> False
+    Cons r rs -> case yss of
+      Nil -> False
+      Cons s ss -> row-equal r s && rows-equal rs ss
+
+  row-equal :: List F64 -> List F64 -> Bool
+  row-equal xs ys = case xs of
+    Nil -> case ys of
+      Nil -> True
+      Cons y yr -> False
+    Cons x xr -> case ys of
+      Nil -> False
+      Cons y yr -> feq-f64 x y && row-equal xr yr
+
+  equals :: Matrix -> Matrix -> Bool
+  equals a b = same-shape a b && rows-equal (matrix-rows a) (matrix-rows b)
+
+  -- Equality within an absolute tolerance (the documented `equals-within
+  -- tol`: `abs (x - y) <= tol` cell by cell), for the determinant laws
+  -- that hold only up to floating-point error.
+  rows-close :: F64 -> List (List F64) -> List (List F64) -> Bool
+  rows-close tol xss yss = case xss of
+    Nil -> case yss of
+      Nil -> True
+      Cons s ss -> False
+    Cons r rs -> case yss of
+      Nil -> False
+      Cons s ss -> row-close tol r s && rows-close tol rs ss
+
+  row-close :: F64 -> List F64 -> List F64 -> Bool
+  row-close tol xs ys = case xs of
+    Nil -> case ys of
+      Nil -> True
+      Cons y yr -> False
+    Cons x xr -> case ys of
+      Nil -> False
+      Cons y yr -> close-enough tol x y && row-close tol xr yr
+
+  close-enough :: F64 -> F64 -> F64 -> Bool
+  close-enough tol x y = fle-f64 (abs-f64 (sub-f64 x y)) tol
+
+  equals-within :: F64 -> Matrix -> Matrix -> Bool
+  equals-within tol a b = same-shape a b && rows-close tol (matrix-rows a) (matrix-rows b)
+
+
+  -- Aligned columns: every cell rendered by `f64-to-decimal` (the
+  -- shortest round-trip scientific text), each column padded on the
+  -- left to its widest cell, cells separated by one space, rows by
+  -- newlines.
+  -- `string-from-bytes` validates UTF-8 (`Some`/`None`); the decimal
+  -- text is always valid, so the `None` arm is unreachable (an empty
+  -- cell rather than a crash).
+  render-float :: F64 -> String
+  render-float x = case string-from-bytes (f64-to-decimal x) of
+    Some s -> s
+    None -> empty-string
+
+  pad-column :: Nat -> String -> String
+  pad-column w s = if string-length s >= w then s else string-concat (string-repeat (w - string-length s) " ") s
+
+  column-max :: List String -> Nat
+  column-max xs = case xs of
+    Nil -> 0
+    Cons s ss ->
+      let rest = column-max ss in
+      if string-length s > rest then string-length s else rest
+
+  column-widths :: List (List String) -> List Nat
+  column-widths cells = case cells of
+    Nil -> Nil
+    Cons r rs -> case r of
+      Nil -> Nil
+      Cons x xs -> Cons (column-max (map-head cells)) (column-widths (map-tail cells))
+
+  pad-cells :: List Nat -> List String -> List String
+  pad-cells ws cells = case cells of
+    Nil -> Nil
+    Cons s ss -> case ws of
+      Nil -> Cons s (pad-cells Nil ss)
+      Cons w w2 -> Cons (pad-column w s) (pad-cells w2 ss)
+
+  -- The strings separated by `sep`, flattened once (`string-concat-all`
+  -- is one buffer; nesting `string-concat` would re-copy the rest of the
+  -- rendering at every row and cell).
+  join-with :: String -> List String -> String
+  join-with sep xs = string-concat-all (sep-pieces sep xs)
+
+  sep-pieces :: String -> List String -> List String
+  sep-pieces sep xs = case xs of
+    Nil -> Nil
+    Cons s Nil -> Cons s Nil
+    Cons s ss -> Cons s (Cons sep (sep-pieces sep ss))
+
+  to-string :: Matrix -> String
+  to-string m =
+    let cells = map (\row -> map render-float row) (matrix-rows m) in
+    let ws = column-widths cells in
+    join-with "\n" (map (\row -> join-with " " (pad-cells ws row)) cells)

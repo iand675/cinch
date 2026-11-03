@@ -1,0 +1,408 @@
+-- Text.Csv: RFC 4180 comma-separated text in, rows of fields out, and
+-- back out again.
+--
+-- Module scheme (design/base-library.md): `Text.*` is conversion to and
+-- from String/Bytes, so the Ruby `CSV` family (PORT in
+-- design/stdlib-parity-ruby.md, the P37 serialization-breadth slice)
+-- lands here as a text codec in the shape of `Text.Json`: a scanner over
+-- the source plus a total printer, carrying the P30 toolkit's error
+-- vocabulary (`Text.Lex`'s `Span`, `Text.Parse`'s `ParseError` and its
+-- megaparsec-style rendering) so a CSV failure renders exactly as a
+-- grammar failure does. A row is `List String`; a document is
+-- `List (List String)`. The identifiers are dash style per D106.
+--
+-- WHY THE LEXED TOKEN STREAM IS NOT THE INPUT (reported): in CSV the
+-- structure lives inside the tokens, not between them. A quoted field
+-- may contain the delimiter, the row terminator and doubled quotation
+-- marks, so `Text.Lex` would have to be taught the CSV rules before it
+-- could tokenize one row (and its escape vocabulary is the wrong one for
+-- a data file). The scanner here reads the source scalars directly and
+-- keeps every rule of the dialect explicit, the same choice `Text.Json`
+-- makes and for the same reason.
+--
+-- THE DIALECT (the whole of it): RFC 4180 with the row terminator
+-- relaxed to LF or CRLF (RFC 4180 writes CRLF; the bare LF spelling is
+-- accepted and `csv-print` writes LF, matching Ruby's default
+-- `row_sep`). Fields are separated by one comma (44) and records by a
+-- row terminator. A field may be quoted with quotation marks (34);
+-- inside a quoted field a quotation mark stands for itself when
+-- doubled, and the delimiter, CR and LF are literal scalars and are
+-- never normalized (so `csv-parse` of `csv-print` is exact, unlike
+-- Ruby's universal-newline translation of CRLF inside a quoted field).
+-- Outside a quoted field only the delimiter, the terminator and the
+-- quotation mark are special. An empty field is legal anywhere. Empty
+-- text is a document with no rows; one terminator trailing the last row
+-- does not open a further row, while a terminator between two rows does
+-- (so "a\n\n" is the two rows `[a]` and `[""]`). A header is just the
+-- first row: `csv-parse-with-headers` keys the remaining rows by it.
+--
+-- THE LAWS (what the tests hold this module to):
+--   round trip: `csv-parse (csv-print rows)` is `Ok rows` for every
+--     document whose rows each have at least one field;
+--   canonical fixed point: `csv-print` emits minimal quoting and LF
+--     terminators, so once printed a document is already canonical:
+--     `csv-print (rows-of (csv-parse (csv-print rows)))` is
+--     `csv-print rows` (print, parse and print again is the same text);
+--   total printing: every `List (List String)` prints, with no error
+--     case.
+--
+-- NAMED REFUSALS (each is a `CsvError` variant or a rule of the dialect
+-- above, never a silent gap):
+--   `col_sep` (Ruby's delimiter option): the delimiter is the comma and
+--     is fixed; no other delimiter parses, so there is no "wrong
+--     delimiter" error to report;
+--   `converters` (Ruby's coercion of field text to Integer, Float,
+--     Date, ...): a field is `String` and nothing else; typing fields is
+--     the consumer's `Text.Codec` step (A6), not the scanner's;
+--   encoding handling: the input is a `String`, so it is already decoded
+--     scalars and there is no malformed-byte case to report. Ruby's
+--     transcoding has no counterpart here, a leading U+FEFF is field
+--     text rather than a byte-order mark (the module does not strip it),
+--     and a CRLF inside a quoted field stays CRLF;
+--   `liberal_parsing`: a quotation mark in an unquoted field
+--     (`CsvStrayQuote`) and text after a closing quotation mark
+--     (`CsvTextAfterQuote`) are refused, as Ruby's default is;
+--   a lone CR (`CsvBareCarriageReturn`): the terminator is LF or CRLF;
+--   ragged header keying (`CsvRowArity`): every row
+--     `csv-parse-with-headers` keys must have the header's field count
+--     (Ruby pads the short row with nil, which invents data);
+--   an unterminated quoted field (`CsvUnterminatedQuote`), reported at
+--     the quotation mark that opened it.
+--
+-- A zero-field row is outside the dialect, not a bug: RFC 4180's
+-- `record = field *(COMMA field)` has no such production, and an empty
+-- data row is one empty field. So the round-trip law above is stated
+-- over rows with at least one field; `csv-print` of a zero-field row is
+-- still total (it prints the terminator alone, which reads back as one
+-- empty field).
+module Text.Csv where
+
+  import Text.Lex (Span, span-start, span-line, span-col)
+  import Text.Parse (ParseError, EFail, Bundle, render-bundle)
+  import Text.Show (int-to-string)
+  import Data.Bool
+  import Data.Char (char-code, eq-char)
+  import Data.List (List, Nil, Cons, map, length, reverse)
+  import Data.Option (Option, None, Some)
+  import Data.Result (Result, Ok, Err)
+  import Data.String (String, empty-string, pack, string-concat, string-concat-all, string-to-bytes, unpack, utf8-encode-width)
+
+  export CsvError, CsvUnterminatedQuote, CsvStrayQuote, CsvTextAfterQuote
+  export CsvBareCarriageReturn, CsvRowArity
+  export csv-error-span, csv-error-message, csv-error-to-parse-error, render-csv-error
+  export csv-parse, csv-parse-with-headers, csv-print
+
+
+  -- ---------------------------------------------------------------------------
+  -- The error vocabulary: one named variant per refusal, each carrying
+  -- the `Span` it stands at, plus the bridge into `Text.Parse`'s
+  -- vocabulary so `render-bundle` renders it (the `Text.Json` shape).
+  -- ---------------------------------------------------------------------------
+
+  data CsvError where
+    CsvUnterminatedQuote :: Span -> CsvError
+    CsvStrayQuote :: Span -> CsvError
+    CsvTextAfterQuote :: Span -> CsvError
+    CsvBareCarriageReturn :: Span -> CsvError
+    CsvRowArity :: Span -> Int -> Int -> CsvError
+
+  csv-error-span :: CsvError -> Span
+  csv-error-span e = case e of
+    CsvUnterminatedQuote s -> s
+    CsvStrayQuote s -> s
+    CsvTextAfterQuote s -> s
+    CsvBareCarriageReturn s -> s
+    CsvRowArity s expected actual -> s
+
+  -- The diagnostic line for a variant: what was refused, and (for the
+  -- arity case) both counts, since the row alone does not say which
+  -- side moved.
+  csv-error-message :: CsvError -> String
+  csv-error-message e = case e of
+    CsvUnterminatedQuote s -> "unterminated quoted field"
+    CsvStrayQuote s -> "a quotation mark inside an unquoted field must open the field"
+    CsvTextAfterQuote s -> "only a comma, a row terminator or the end of input may follow a closing quotation mark"
+    CsvBareCarriageReturn s -> "a carriage return must be followed by a line feed"
+    CsvRowArity s expected actual ->
+      string-concat "the header has "
+        (string-concat (int-to-string expected)
+          (string-concat " fields; this row has " (string-concat (int-to-string actual) " fields")))
+
+  -- Every variant is a fancy error at its own span (nothing is an
+  -- `EUnexpected`: the scanner's refusals are statements about the
+  -- dialect, not a missing token).
+  csv-error-to-parse-error :: CsvError -> ParseError
+  csv-error-to-parse-error e = EFail (csv-error-span e) (csv-error-message e)
+
+  -- The megaparsec-style rendering: the error against the source it
+  -- came from (`Text.Parse.render-bundle`), the shape a grammar failure
+  -- renders in.
+  render-csv-error :: String -> String -> CsvError -> String
+  render-csv-error name src e =
+    render-bundle (Bundle name (string-to-bytes src) (Cons (csv-error-to-parse-error e) Nil))
+
+
+  -- ---------------------------------------------------------------------------
+  -- The cursor and the field-stop tag.
+  -- ---------------------------------------------------------------------------
+
+  -- The cursor: the scalars not yet consumed, the byte offset of the
+  -- head scalar, and its position as line and character column. The
+  -- offset and position ride along so a span costs nothing to produce
+  -- (the `Text.Json` state shape, over scalars instead of bytes: the
+  -- input is a `String`, so decoding is already done and a `Char` is
+  -- what the scanner compares).
+  data Scan where
+    Scan :: List Char -> Nat -> Nat -> Nat -> Scan
+
+  -- The scalar the field ended at, before consuming it: the row loop
+  -- dispatches on this rather than re-peeking, so no branch of the row
+  -- loop is unreachable.
+  data FieldStop where
+    StopComma :: FieldStop
+    StopLf :: FieldStop
+    StopCr :: FieldStop
+    StopEof :: FieldStop
+
+  scan-start :: String -> Scan
+  scan-start text = Scan (unpack text) 0 1 1
+
+  scan-char :: Scan -> Option Char
+  scan-char s = case s of
+    Scan cs off l c -> case cs of
+      Nil -> None
+      Cons ch rest -> Some ch
+
+  scan-offset :: Scan -> Nat
+  scan-offset s = case s of
+    Scan cs off l c -> off
+
+  scan-span :: Scan -> Span
+  scan-span s = case s of
+    Scan cs off l c -> Span off off l c
+
+  -- One scalar's width in UTF-8, so the byte offset a span reports
+  -- stays exact for non-ASCII text.
+  char-width :: Char -> Nat
+  char-width ch = utf8-encode-width (char-code ch)
+
+  -- Step past the head, advancing line and column with it. Every call
+  -- site has just read the head with `scan-char`; the `Nil` arm is the
+  -- identity, which only keeps the function total.
+  scan-take :: Scan -> Scan
+  scan-take s = case s of
+    Scan cs off l c -> case cs of
+      Nil -> s
+      Cons ch rest ->
+        if eq-char ch '\n' then Scan rest (off + char-width ch) (l + 1) 1
+        else Scan rest (off + char-width ch) l (c + 1)
+
+
+  -- ---------------------------------------------------------------------------
+  -- Documents: rows with their spans (the span is the arity
+  -- diagnostic's position).
+  -- ---------------------------------------------------------------------------
+
+  data CsvRow where
+    MkRow :: Span -> List String -> CsvRow
+
+  row-fields :: CsvRow -> List String
+  row-fields r = case r of
+    MkRow s fs -> fs
+
+  row-span :: CsvRow -> Span
+  row-span r = case r of
+    MkRow s fs -> s
+
+  csv-parse :: String -> Result CsvError (List (List String))
+  csv-parse text = case scan-rows (scan-start text) of
+    Err e -> Err e
+    Ok rows -> Ok (map row-fields rows)
+
+  -- The header is the first row; every later row is keyed by it as
+  -- (name, field) pairs in header order. A document with no rows has no
+  -- header and no keyed rows.
+  csv-parse-with-headers :: String -> Result CsvError (List String, List (List (String, String)))
+  csv-parse-with-headers text = case scan-rows (scan-start text) of
+    Err e -> Err e
+    Ok rows -> case rows of
+      Nil -> Ok (Nil :: List String, Nil :: List (List (String, String)))
+      Cons first rest -> case key-rows (row-fields first) rest Nil of
+        Err e -> Err e
+        Ok keyed -> Ok (row-fields first, keyed)
+
+  scan-rows :: Scan -> Result CsvError (List CsvRow)
+  scan-rows s = case scan-char s of
+    None -> Ok Nil
+    Some ch -> case scan-row s of
+      Err e -> Err e
+      Ok pair -> case pair of
+        (row, s1) -> case scan-char s1 of
+          None -> Ok (Cons row Nil)
+          Some ch2 -> case scan-rows s1 of
+            Err e -> Err e
+            Ok rest -> Ok (Cons row rest)
+
+  -- One row and the cursor after its terminator. The terminator belongs
+  -- to the row it ends, and the row's span starts where the row does.
+  scan-row :: Scan -> Result CsvError (CsvRow, Scan)
+  scan-row s0 =
+    let start = scan-span s0 in
+    case scan-field s0 of
+      Err e -> Err e
+      Ok f -> case f of
+        (first, stop, s1) -> scan-row-rest start stop s1 (Cons first Nil)
+
+  scan-row-rest :: Span -> FieldStop -> Scan -> List String -> Result CsvError (CsvRow, Scan)
+  scan-row-rest start stop s acc = case stop of
+    StopComma -> case scan-field (scan-take s) of
+      Err e -> Err e
+      Ok f -> case f of
+        (field, stop2, s2) -> scan-row-rest start stop2 s2 (Cons field acc)
+    StopLf -> Ok (MkRow (row-ended start (scan-take s)) (reverse acc), scan-take s)
+    StopCr -> case scan-crlf s of
+      Err e -> Err e
+      Ok s2 -> Ok (MkRow (row-ended start s2) (reverse acc), s2)
+    StopEof -> Ok (MkRow (row-ended start s) (reverse acc), s)
+
+  -- The LF after a CR: the CRLF terminator, refused when the LF is
+  -- absent (the terminator is LF or CRLF, never a bare CR).
+  scan-crlf :: Scan -> Result CsvError Scan
+  scan-crlf s = case scan-char (scan-take s) of
+    None -> Err (CsvBareCarriageReturn (scan-span s))
+    Some ch -> if eq-char ch '\n' then Ok (scan-take (scan-take s))
+      else Err (CsvBareCarriageReturn (scan-span s))
+
+  -- The row's span: from the row's start position to the cursor after
+  -- its terminator.
+  row-ended :: Span -> Scan -> Span
+  row-ended start end = Span (span-start start) (scan-offset end) (span-line start) (span-col start)
+
+  -- Key one row against the header; `None` when the counts differ (the
+  -- caller reports the arity at the row's span).
+  key-rows :: List String -> List CsvRow -> List (List (String, String)) -> Result CsvError (List (List (String, String)))
+  key-rows headers rows acc = case rows of
+    Nil -> Ok (reverse acc)
+    Cons r rest -> case key-row headers (row-fields r) of
+      None -> Err (CsvRowArity (row-span r) (length headers) (length (row-fields r)))
+      Some keyed -> key-rows headers rest (Cons keyed acc)
+
+  key-row :: List String -> List String -> Option (List (String, String))
+  key-row headers fields = case headers of
+    Nil -> case fields of
+      Nil -> Some Nil
+      Cons f fs -> None
+    Cons h hs -> case fields of
+      Nil -> None
+      Cons f fs -> case key-row hs fs of
+        None -> None
+        Some rest -> Some (Cons (h, f) rest)
+
+
+  -- ---------------------------------------------------------------------------
+  -- Fields. The scalars of a field are accumulated in reverse and packed
+  -- once at the end.
+  -- ---------------------------------------------------------------------------
+
+  -- The quoted/bare split is on the first scalar: a quotation mark opens
+  -- a quoted field, anything else (the end of input, hence an empty
+  -- field, included) is a bare one.
+  scan-field :: Scan -> Result CsvError (String, FieldStop, Scan)
+  scan-field s0 = case scan-char s0 of
+    None -> Ok (empty-string, StopEof, s0)
+    Some ch -> if eq-char ch '"' then scan-quoted s0 (scan-take s0) Nil
+      else scan-bare s0 Nil
+
+  -- A quoted field: every scalar is literal except a quotation mark,
+  -- which either closes the field or, doubled, stands for one quotation
+  -- mark. The opening mark's span is where an unterminated field is
+  -- reported.
+  scan-quoted :: Scan -> Scan -> List Char -> Result CsvError (String, FieldStop, Scan)
+  scan-quoted origin s acc = case scan-char s of
+    None -> Err (CsvUnterminatedQuote (scan-span origin))
+    Some ch -> if eq-char ch '"' then
+        case scan-char (scan-take s) of
+          Some ch2 -> if eq-char ch2 '"' then scan-quoted origin (scan-take (scan-take s)) (Cons '"' acc)
+            else close-quoted (scan-take s) acc
+          None -> close-quoted (scan-take s) acc
+      else scan-quoted origin (scan-take s) (Cons ch acc)
+
+  -- After the closing quotation mark: the delimiter, a terminator or the
+  -- end of input, and nothing else.
+  close-quoted :: Scan -> List Char -> Result CsvError (String, FieldStop, Scan)
+  close-quoted after acc = case scan-char after of
+    None -> Ok (finish-field acc, StopEof, after)
+    Some ch ->
+      if eq-char ch ',' then Ok (finish-field acc, StopComma, after)
+      else if eq-char ch '\n' then Ok (finish-field acc, StopLf, after)
+      else if eq-char ch '\r' then Ok (finish-field acc, StopCr, after)
+      else Err (CsvTextAfterQuote (scan-span after))
+
+  -- A bare field: scalars up to the delimiter, a terminator or the end
+  -- of input; a quotation mark here is refused rather than taken as
+  -- text (Ruby's default refusal).
+  scan-bare :: Scan -> List Char -> Result CsvError (String, FieldStop, Scan)
+  scan-bare s acc = case scan-char s of
+    None -> Ok (finish-field acc, StopEof, s)
+    Some ch ->
+      if eq-char ch ',' then Ok (finish-field acc, StopComma, s)
+      else if eq-char ch '\n' then Ok (finish-field acc, StopLf, s)
+      else if eq-char ch '\r' then Ok (finish-field acc, StopCr, s)
+      else if eq-char ch '"' then Err (CsvStrayQuote (scan-span s))
+      else scan-bare (scan-take s) (Cons ch acc)
+
+  finish-field :: List Char -> String
+  finish-field acc = pack (reverse acc)
+
+
+  -- ---------------------------------------------------------------------------
+  -- Printing (total): fields joined by the comma, rows by LF, and a
+  -- field quoted exactly when it must be.
+  -- ---------------------------------------------------------------------------
+
+  -- The document's pieces are collected and flattened once: nesting
+  -- `string-concat` would re-copy the rest of the document at every row
+  -- and field.
+  csv-print :: List (List String) -> String
+  csv-print rows = string-concat-all (row-pieces rows)
+
+  row-pieces :: List (List String) -> List String
+  row-pieces rows = case rows of
+    Nil -> Nil
+    Cons r rest -> field-pieces r (row-pieces rest)
+
+  -- One row's fields, comma separated and closed by LF, before `after`.
+  field-pieces :: List String -> List String -> List String
+  field-pieces fields after = case fields of
+    Nil -> Cons "\n" after
+    Cons f rest -> case rest of
+      Nil -> Cons (print-field f) (Cons "\n" after)
+      _ -> Cons (print-field f) (Cons "," (field-pieces rest after))
+
+  print-field :: String -> String
+  print-field f = case quoted-form (unpack f) of
+    None -> f
+    Some quoted -> quoted
+
+  -- The field's quoted text when it needs quoting, `None` when it can
+  -- stand bare. `walk-chars` decides and builds in one pass: a
+  -- quotation mark is doubled in the accumulator and forces quoting,
+  -- while the delimiter, CR and LF force quoting without being altered.
+  quoted-form :: List Char -> Option String
+  quoted-form cs = case walk-chars cs False Nil of
+    (needs, acc) ->
+      if needs then Some (string-concat "\"" (string-concat (pack (reverse acc)) "\""))
+      else None
+
+  walk-chars :: List Char -> Bool -> List Char -> (Bool, List Char)
+  walk-chars cs needs acc = case cs of
+    Nil -> (needs, acc)
+    Cons c rest ->
+      if eq-char c '"' then walk-chars rest True (Cons c (Cons c acc))
+      else if bare-hazard c then walk-chars rest True (Cons c acc)
+      else walk-chars rest needs (Cons c acc)
+
+  -- The scalars that force a field into quotation marks (the quotation
+  -- mark itself is handled by `walk-chars`, which doubles it).
+  bare-hazard :: Char -> Bool
+  bare-hazard c = eq-char c ',' || eq-char c '\n' || eq-char c '\r'

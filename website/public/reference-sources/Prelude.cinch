@@ -1,0 +1,104 @@
+-- Prelude: the curated re-export facade (decision D107's export
+-- machinery, D143's surface rule, D146's re-export forms).
+--
+-- The prelude is no longer one big module: every type, class and
+-- function family lives in its scheme home (design/base-library.md:
+-- `Category.*`, `Algebra.*`, `Relation.*`, `Data.*`, `Function.*`,
+-- `Text.*`, `Effect.*`), and this module is the implicit base layer
+-- every program sees. Its surface is EXACTLY the names the old
+-- single-module prelude declared (the compatibility rule is absolute:
+-- every program that checked before the split checks unchanged), by
+-- `export module X` re-exports of the homes' own curated surfaces and
+-- `export A.b` items for the `Text.Show` conversions. Curation
+-- trimming is deliberately NOT done here; a trim proposal is a
+-- separate step. One addition is deliberate: `Data.Sym`'s `intern` and
+-- `sym-name` (interned symbols, primitive types specification section
+-- 9) extend the surface, since that specification puts both in the
+-- prelude.
+--
+-- The negative space is real: a name this list does not name is
+-- unreachable through `Prelude` (reach it with an explicit `import`
+-- of its home). That covers the new base-library families
+-- (Algebra.Group, Algebra.Semiring, Data.Set, Data.Hash,
+-- Data.HashMap, Text.Show's class, Text.Codec) and every home's
+-- private helpers.
+--
+-- `Prelude.Generated` is the WIT adapter vocabulary module: the
+-- generated vocabulary types (WebAssembly and WASI specification
+-- section 3) are declared there and re-exported here, so they stay
+-- part of the implicit surface exactly as when they appended to the
+-- old single module.
+--
+-- The operator table (decision D90's order) is inherited through these
+-- exports from the defining homes. Only an operator's declaring module
+-- may declare its fixity; this facade carries those facts without
+-- redeclaring them (user direction, 2026-10-30).
+module Prelude where
+
+  import Data.Option
+  import Data.Result
+  import Data.List
+  import Data.Enum
+  import Data.Ordering
+  import Data.Nat
+  import Data.Int
+  import Data.Char
+  import Data.Bool
+  import Data.Machine
+  import Data.Bytes
+  import Data.Map
+  import Data.Json
+  import Data.String
+  import Data.FromList
+  import Data.FromMap
+  import Relation.Eq
+  import Relation.Ord
+  import Algebra.Arithmetic
+  import Algebra.Bits
+  import Function.Combinators
+  import Effect.Sequencing
+  import Effect.Concurrent
+  import Effect.Io
+  import Data.Producer
+  import Data.Target
+  import Text.Show
+  import Data.Sym
+  import Prelude.Generated
+
+
+  -- Operator fixities are inherited from their defining modules, with
+  -- the exported bindings. The facade does not redeclare them.
+
+  export module Data.Option
+  export module Data.Result
+  export module Data.List
+  export module Data.Enum
+  export module Data.Ordering
+  export module Data.Nat
+  export module Data.Int
+  export module Data.Char
+  export module Data.Bool
+  export module Data.Machine
+  export module Data.Bytes
+  export module Data.Map
+  export module Data.Json
+  export module Data.String
+  export module Data.FromList
+  export module Data.FromMap
+  export module Relation.Eq
+  export module Relation.Ord
+  export module Algebra.Arithmetic
+  export module Algebra.Bits
+  export module Function.Combinators
+  export module Effect.Sequencing
+  export module Effect.Concurrent
+  export module Effect.Io
+  export module Data.Producer
+  export module Data.Target
+  export module Data.Sym
+  export module Prelude.Generated
+
+  -- The `Text.Show` surface is curated per name: the old surface's
+  -- formatting family, NOT the new `Show` class (that one is reached
+  -- with `import Text.Show`).
+  export char-string, nat-digits-into, pow10, nat-digit-count, nat-to-string, int-to-string

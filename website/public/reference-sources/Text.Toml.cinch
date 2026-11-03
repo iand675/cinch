@@ -1,0 +1,1357 @@
+-- Text.Toml: TOML 1.0 text to `Json` values and back, as a subset.
+--
+-- Module scheme (design/base-library.md): `Text.*` is conversion to and
+-- from String/Bytes. This is the TOML half of the serialization family
+-- curated in design/stdlib-parity-ruby.md (the P37 serialization-breadth
+-- phase, alongside the P31 JSON family). It maps TOML onto the SAME
+-- value family JSON uses (`Data.Json`'s `Json`, decision D148) so the
+-- family stays one vocabulary: TOML strings are `JStr`, integers
+-- `JNum`, floats `JFloat`, booleans `JBool`, arrays the `JArr` spine,
+-- and every table (standard, dotted, inline, and each array-of-tables
+-- element) the `JObj` spine. A document is one `JObj`.
+--
+-- THE LAW SHAPE (parse and print are inverse on emission-order
+-- documents): `toml-parse (toml-print v) == Ok v` for a document already
+-- written in emission order (below). Printing is a total function of the
+-- value alone (every branch is deterministic; the only failure is a
+-- value TOML or the `Json` shape cannot carry, named below), so two
+-- prints of one value are byte identical.
+--
+-- EMISSION ORDER (the determinism, stated): within one table the
+-- entries of the value's `JObj` spine are emitted in three groups, each
+-- preserving the spine order it came from:
+--   1. scalar and plain-array values, as `key = value` lines;
+--   2. sub-tables, as a `[dotted.key]` header then that table's own
+--      entries, recursively;
+--   3. arrays whose elements are all tables, as one `[[dotted.key]]`
+--      header block per element.
+-- Header paths are absolute from the document root. Parsing a printed
+-- document rebuilds exactly this spine order (values first, then
+-- sub-tables, then arrays of tables), which is why the round-trip law
+-- above is stated for emission-order documents; a document whose keys
+-- sit in another order prints and re-parses to the same value with its
+-- keys reordered into emission order.
+--
+-- IN SCOPE (the forms this subset parses and prints): bare, quoted and
+-- dotted keys; standard tables (`[a.b]`) and arrays of tables
+-- (`[[a]]`); basic and literal strings with their escapes and both
+-- multi-line forms; decimal integers with underscores and a sign, plus
+-- the hexadecimal (`0x`), octal (`0o`) and binary (`0b`) forms;
+-- floating-point values with a fraction or exponent and `inf`/`nan`;
+-- booleans; arrays (nested, with trailing commas, newlines and
+-- comments); inline tables; and `#` comments.
+--
+-- Named refusals (unproductions this subset deliberately does not
+-- implement; each is a named boundary, never a silent gap):
+--   offset and local date-times and local times (the four date-time
+--     lexical forms of TOML 1.0): refused with `TomlDateTime`. Carrying
+--     them would need the civil-time slice's `Date`/`Time` types (the
+--     `Json` shape has no date cell) plus TOML's own lexical validation
+--     (month lengths, leap years, offset ranges) and a decision about
+--     which cell of the value family holds them;
+--   `JNull`: TOML 1.0 has no null, so printing refuses it
+--     (`TomlNotRepresentable`); parsing never produces it;
+--   a non-table document root: printing refuses every root that is not a
+--     `JObj`/`JObjEnd` (`TomlNotRepresentable`), since a TOML document
+--     is a table;
+--   newlines inside an inline table: TOML 1.0 keeps inline tables on one
+--     line (the 1.1 relaxation is not adopted), so the parser refuses a
+--     newline before `}` as a syntax error;
+--   mixed or heterogeneous arrays are accepted (TOML 1.0 permits them)
+--     but are printed inline, never as arrays of tables, because only an
+--     all-table array has a `[[...]]` spelling.
+--
+-- Decision records: this module is the TOML analogue of D148's JSON
+-- family over the same `Json` shape, and it follows D88's runtime
+-- `String` and D106's kebab-case surface.
+module Text.Toml where
+
+  import Data.Json
+  import Data.String
+  import Data.Bytes
+  import Data.Nat
+  import Data.Int
+  import Data.Char
+  import Data.List
+  import Data.Option
+  import Data.Result
+  import Data.Bool
+  import Data.Machine
+  import Text.Scan
+  import Text.Show
+
+  import Algebra.Semigroup
+
+
+  export TomlError, TomlSyntax, TomlDuplicateKey, TomlDateTime, TomlNotRepresentable
+  export toml-parse, toml-print
+
+
+  -- ---------------------------------------------------------------------------
+  -- The named errors.
+  -- ---------------------------------------------------------------------------
+
+  -- A lexical or grammatical failure: the source line it stands at plus
+  -- a human message.
+  -- A key (or a table header) that names something already defined.
+  -- An out-of-scope date-time or time value (the line it started on).
+  -- A value TOML cannot spell: `JNull`, or a non-table document root,
+  -- with the reason.
+  data TomlError where
+    TomlSyntax :: Nat -> String -> TomlError
+    TomlDuplicateKey :: String -> TomlError
+    TomlDateTime :: Nat -> TomlError
+    TomlNotRepresentable :: String -> TomlError
+
+
+  -- ---------------------------------------------------------------------------
+  -- Integer helpers over the fixed-width results of `nat-cmp`.
+  -- ---------------------------------------------------------------------------
+
+  nat-eq :: Nat -> Nat -> Bool
+  nat-eq a b = eq-i64 (nat-cmp a b) 0
+
+  nat-lt :: Nat -> Nat -> Bool
+  nat-lt a b = lt-i64 (nat-cmp a b) 0
+
+  nat-le :: Nat -> Nat -> Bool
+  nat-le a b = le-i64 (nat-cmp a b) 0
+
+  nat-ge :: Nat -> Nat -> Bool
+  nat-ge a b = ge-i64 (nat-cmp a b) 0
+
+  and-then :: forall e a b. Result e a -> (a -> Result e b) -> Result e b
+  and-then r k = case r of
+    Err e -> Err e
+    Ok x -> k x
+
+
+  -- ---------------------------------------------------------------------------
+  -- List plumbing. The shared helpers of Data.List carry the generic
+  -- shapes: `is-empty` for the emptiness test, `reverse` for reversal,
+  -- `<>` for append and `replicate` for the repeated prepend. Only the
+  -- `Json` spine construction is this module's own.
+  -- ---------------------------------------------------------------------------
+
+  -- A `Json` array from a list of values (the `JArr` spine).
+  build-arr :: List Json -> Json
+  build-arr xs = case xs of
+    Nil -> JArrEnd
+    Cons y ys -> JArr y (build-arr ys)
+
+
+  -- ---------------------------------------------------------------------------
+  -- Character-class predicates over raw UTF-8 bytes.
+  -- ---------------------------------------------------------------------------
+
+  is-digit-b :: Nat -> Bool
+  is-digit-b c = nat-ge c 48 && nat-lt c 58
+
+  is-hex-b :: Nat -> Bool
+  is-hex-b c =
+    is-digit-b c
+      || (nat-ge c 65 && nat-lt c 71)
+      || (nat-ge c 97 && nat-lt c 103)
+
+  hex-val :: Nat -> Nat
+  hex-val c =
+    -- `c - 48`, `c - 55`, `c - 87` for a digit, an upper and a lower
+    -- letter, written as the low nibble plus nine for a letter: the same
+    -- number on every byte `is-hex-b` admits.
+    c % 16 + 9 * (c / 64)
+
+  is-hex-alpha :: Nat -> Bool
+  is-hex-alpha c = (nat-ge c 65 && nat-lt c 71) || (nat-ge c 97 && nat-lt c 103)
+
+  is-bare-key-char :: Nat -> Bool
+  is-bare-key-char c =
+    is-digit-b c
+      || (nat-ge c 65 && nat-lt c 91)
+      || (nat-ge c 97 && nat-lt c 123)
+      || nat-eq c 95
+      || nat-eq c 45
+
+  is-space-tab :: Nat -> Bool
+  is-space-tab c = nat-eq c 32 || nat-eq c 9
+
+
+  -- ---------------------------------------------------------------------------
+  -- Parser state and the small parser monad (the character stream).
+  -- ---------------------------------------------------------------------------
+
+  -- The cursor: the source bytes, the byte offset, and the 1-based line
+  -- (advanced at LF, for error reporting).
+  data St where
+    St :: Bytes -> Nat -> Nat -> St
+
+  st-src :: St -> Bytes
+  st-src s = case s of
+    St b off ln -> b
+
+  st-off :: St -> Nat
+  st-off s = case s of
+    St b off ln -> off
+
+  st-line :: St -> Nat
+  st-line s = case s of
+    St b off ln -> ln
+
+  -- One byte at the cursor, or `None` at end of input.
+  peek-b :: St -> Option Nat
+  peek-b s =
+    if st-off s >= bytes-len (st-src s) then None
+    else Some (bytes-get (st-src s) (st-off s))
+
+  -- One byte at `k` bytes ahead (lookahead without consuming).
+  byte-at :: St -> Nat -> Option Nat
+  byte-at s k =
+    if st-off s + k >= bytes-len (st-src s) then None
+    else Some (bytes-get (st-src s) (st-off s + k))
+
+  is-byte :: St -> Nat -> Nat -> Bool
+  is-byte s k v = case byte-at s k of
+    Some c -> nat-eq c v
+    None -> False
+
+  advance1 :: St -> St
+  advance1 s = case s of
+    St b off ln ->
+      if off >= bytes-len b then s
+      else
+        if nat-eq (bytes-get b off) 10 then St b (off + 1) (ln + 1)
+        else St b (off + 1) ln
+
+  advance-n :: St -> Nat -> St
+  advance-n s k = if k == 0 then s else advance-n (advance1 s) (k - 1)
+
+  -- UTF-8 decoding at the cursor (the reference decoder in
+  -- `Data.String`).
+  utf8-decode :: St -> Option (Char, Nat)
+  utf8-decode s = utf8-at (st-src s) (st-off s)
+
+  -- A parser: a function from cursor to a value or a named error.
+  -- Recursive parsers wrap in `MkP` so their references sit under a
+  -- lambda (the D302 top-level value discipline).
+  data P a where
+    MkP :: (St -> Result TomlError (a, St)) -> P a
+
+  p-run :: forall a. P a -> St -> Result TomlError (a, St)
+  p-run p s = case p of
+    MkP f -> f s
+
+  p-pure :: forall a. a -> P a
+  p-pure x = MkP (\s -> Ok (x, s))
+
+  p-bind :: forall a b. P a -> (a -> P b) -> P b
+  p-bind p k = MkP (\s -> case p-run p s of
+    Err e -> Err e
+    Ok (x, s1) -> p-run (k x) s1)
+
+  p-map :: forall a b. (a -> b) -> P a -> P b
+  p-map f p = p-bind p (\x -> p-pure (f x))
+
+  p-err :: forall a. String -> P a
+  p-err msg = MkP (\s -> Err (TomlSyntax (st-line s) msg))
+
+  p-peek :: P (Option Nat)
+  p-peek = MkP (\s -> Ok (peek-b s, s))
+
+  p-consume :: P Unit
+  p-consume = MkP (\s -> case peek-b s of
+    Some c -> Ok ((), advance1 s)
+    None -> Err (TomlSyntax (st-line s) "unexpected end of input"))
+
+  p-skip-spaces :: P Unit
+  p-skip-spaces = MkP (\s -> Ok ((), skip-spaces s))
+
+  -- Consume an exact byte string (`true`, `inf`, ...) with a boundary
+  -- check so `infinity` is not read as `inf` plus `inity`.
+  p-word :: String -> P Unit
+  p-word txt = p-bind (p-word-at (string-to-bytes txt) 0) (\_ ->
+    MkP (\s -> case peek-b s of
+      Some c -> if is-bare-key-char c then Err (TomlSyntax (st-line s) "unexpected characters after a keyword")
+        else Ok ((), s)
+      None -> Ok ((), s)))
+
+  p-word-at :: Bytes -> Nat -> P Unit
+  p-word-at b i =
+    if nat-ge i (bytes-len b) then p-pure ()
+    else p-bind p-consume (\_ -> p-word-at b (i + 1))
+
+
+  -- ---------------------------------------------------------------------------
+  -- Whitespace, comments, and line structure.
+  -- ---------------------------------------------------------------------------
+
+  skip-spaces :: St -> St
+  skip-spaces s = case peek-b s of
+    Some c -> if is-space-tab c then skip-spaces (advance1 s) else s
+    None -> s
+
+  -- A `#` comment runs to (but not through) the newline.
+  skip-comment :: St -> St
+  skip-comment s = case peek-b s of
+    Some c -> if nat-eq c 10 then s else skip-comment (advance1 s)
+    None -> s
+
+  -- Trailing spaces and a trailing comment on one line.
+  skip-line-trailing :: St -> St
+  skip-line-trailing s =
+    let s1 = skip-spaces s in
+    case peek-b s1 of
+      Some c -> if nat-eq c 35 then skip-comment s1 else s1
+      None -> s1
+
+  -- Whitespace, newlines and comments inside an array.
+  skip-array-ws :: St -> St
+  skip-array-ws s =
+    let s1 = skip-spaces s in
+    case peek-b s1 of
+      Some c -> if nat-eq c 10 then skip-array-ws (advance1 s1)
+        else if nat-eq c 13 then skip-array-ws (advance1 s1)
+        else if nat-eq c 35 then skip-array-ws (skip-comment s1)
+        else s1
+      None -> s1
+
+  -- Whitespace (including newlines) after a line-ending backslash.
+  skip-ml-ws :: St -> St
+  skip-ml-ws s = case peek-b s of
+    Some c -> if is-space-tab c || nat-eq c 10 || nat-eq c 13 then skip-ml-ws (advance1 s) else s
+    None -> s
+
+
+  -- ---------------------------------------------------------------------------
+  -- Keys: bare, basic-string, literal-string, dotted.
+  -- ---------------------------------------------------------------------------
+
+  scan-bare-key :: St -> St -> List (InRange 0 255 Nat) -> Result TomlError (String, St)
+  scan-bare-key start s acc = case peek-b s of
+    -- `c` is a byte the cursor read, so the `nat-rem` leaves it unchanged.
+    Some c -> if is-bare-key-char c then scan-bare-key start (advance1 s) (Cons (nat-rem c 256) acc)
+      else finish-bare-key start s acc
+    None -> finish-bare-key start s acc
+
+  finish-bare-key :: St -> St -> List (InRange 0 255 Nat) -> Result TomlError (String, St)
+  finish-bare-key start s acc =
+    if is-empty acc then Err (TomlSyntax (st-line start) "expected a key")
+    else Ok (bytes-to-string (bytes-from-list (reverse acc)), s)
+
+  bytes-to-string :: Bytes -> String
+  bytes-to-string b = case string-from-bytes b of
+    Some s -> s
+    None -> empty-string
+
+  p-simple-key :: P String
+  p-simple-key = p-bind p-peek (\m -> case m of
+    Some c ->
+      if nat-eq c 34 then p-basic-string
+      else if nat-eq c 39 then p-literal-string
+      else if is-bare-key-char c then p-bare-key
+      else p-err "expected a key"
+    None -> p-err "expected a key")
+
+  p-bare-key :: P String
+  p-bare-key = MkP (\s -> scan-bare-key s s Nil)
+
+  p-dotted-key :: P (List String)
+  p-dotted-key = p-bind p-simple-key (\k -> p-key-rest (Cons k Nil))
+
+  p-key-rest :: List String -> P (List String)
+  p-key-rest acc = p-bind p-skip-spaces (\_ -> p-bind p-peek (\m -> case m of
+    Some c -> if nat-eq c 46 then p-bind p-consume (\_ ->
+        p-bind p-skip-spaces (\_ -> p-bind p-simple-key (\k -> p-key-rest (Cons k acc))))
+      else p-pure (reverse acc)
+    None -> p-pure (reverse acc)))
+
+
+  -- ---------------------------------------------------------------------------
+  -- Strings: basic, literal, and their multi-line forms.
+  -- ---------------------------------------------------------------------------
+
+  p-basic-string :: P String
+  p-basic-string = MkP (\s -> scan-basic-start s)
+
+  -- The opening `"` is at the cursor; three quotes open a multi-line
+  -- basic string, otherwise a single-line one.
+  scan-basic-start :: St -> Result TomlError (String, St)
+  scan-basic-start s =
+    if is-byte s 1 34 && is-byte s 2 34 then scan-ml-basic (advance-n s 3)
+    else scan-basic-body (advance1 s) Nil
+
+  scan-basic-body :: St -> List Char -> Result TomlError (String, St)
+  scan-basic-body s acc = case peek-b s of
+    Some c ->
+      if nat-eq c 34 then Ok (pack (reverse acc), advance1 s)
+      else if nat-eq c 92 then scan-basic-escape (advance1 s) acc
+      else if nat-eq c 10 then Err (TomlSyntax (st-line s) "newline in a single-line string")
+      else if nat-eq c 13 then Err (TomlSyntax (st-line s) "newline in a single-line string")
+      else if nat-lt c 32 && nat_eq_false c 9 then Err (TomlSyntax (st-line s) "control character in a string")
+      else case utf8-decode s of
+        None -> Err (TomlSyntax (st-line s) "invalid UTF-8 in a string")
+        Some p -> case p of
+          (ch, w) -> scan-basic-body (advance-n s w) (Cons ch acc)
+    None -> Err (TomlSyntax (st-line s) "unterminated string")
+
+  -- `nat-eq` negated (kept local so the condition reads at a glance).
+  nat_eq_false :: Nat -> Nat -> Bool
+  nat_eq_false a b = not (nat-eq a b)
+
+  scan-basic-escape :: St -> List Char -> Result TomlError (String, St)
+  scan-basic-escape s acc = case peek-b s of
+    Some c ->
+      if nat-eq c 34 then scan-basic-body (advance1 s) (Cons '"' acc)
+      else if nat-eq c 92 then scan-basic-body (advance1 s) (Cons '\\' acc)
+      else if nat-eq c 98 then scan-basic-body (advance1 s) (Cons '\u{8}' acc)
+      else if nat-eq c 116 then scan-basic-body (advance1 s) (Cons '\t' acc)
+      else if nat-eq c 110 then scan-basic-body (advance1 s) (Cons '\n' acc)
+      else if nat-eq c 102 then scan-basic-body (advance1 s) (Cons '\u{C}' acc)
+      else if nat-eq c 114 then scan-basic-body (advance1 s) (Cons '\r' acc)
+      else if nat-eq c 117 then scan-hex-into 4 (advance1 s) acc
+      else if nat-eq c 85 then scan-hex-into 8 (advance1 s) acc
+      else Err (TomlSyntax (st-line s) "unknown escape in a string")
+    None -> Err (TomlSyntax (st-line s) "unterminated escape")
+
+  scan-hex-into :: Nat -> St -> List Char -> Result TomlError (String, St)
+  scan-hex-into n s acc = case scan-hex-scalar s n of
+    Err e -> Err e
+    Ok r -> case r of
+      (ch, s1) -> scan-basic-body s1 (Cons ch acc)
+
+  -- The scalar value of an `n`-hex-digit escape (`\uXXXX`, `\UXXXXXXXX`).
+  scan-hex-scalar :: St -> Nat -> Result TomlError (Char, St)
+  scan-hex-scalar s n = case scan-hex-digits s n 0 of
+    Err e -> Err e
+    Ok r -> case r of
+      (cp, s1) -> case char-from-code cp of
+        None -> Err (TomlSyntax (st-line s1) "escape is not a Unicode scalar value")
+        Some ch -> Ok (ch, s1)
+
+  scan-hex-digits :: St -> Nat -> Nat -> Result TomlError (Nat, St)
+  scan-hex-digits s n acc =
+    if n == 0 then Ok (acc, s)
+    else case peek-b s of
+      Some c -> if is-hex-b c then scan-hex-digits (advance1 s) (n - 1) (acc * 16 + hex-val c)
+        else Err (TomlSyntax (st-line s) "expected a hex digit in an escape")
+      None -> Err (TomlSyntax (st-line s) "expected a hex digit in an escape")
+
+  -- Multi-line basic strings: an immediate newline is trimmed, raw
+  -- newlines are content (CR is dropped so CRLF normalizes to LF), and
+  -- a backslash before a newline trims following whitespace.
+  scan-ml-basic :: St -> Result TomlError (String, St)
+  scan-ml-basic s0 = scan-ml-basic-body (skip-first-newline s0) Nil
+
+  skip-first-newline :: St -> St
+  skip-first-newline s = case peek-b s of
+    Some c -> if nat-eq c 10 then advance1 s else if nat-eq c 13 then skip-first-newline (advance1 s) else s
+    None -> s
+
+  scan-ml-basic-body :: St -> List Char -> Result TomlError (String, St)
+  scan-ml-basic-body s acc = case peek-b s of
+    Some c ->
+      if nat-eq c 34 then scan-ml-quotes s acc
+      else if nat-eq c 92 then scan-ml-escape (advance1 s) acc
+      else if nat-eq c 10 then scan-ml-basic-body (advance1 s) (Cons '\n' acc)
+      else if nat-eq c 13 then scan-ml-basic-body (advance1 s) acc
+      else if nat-lt c 32 && nat_eq_false c 9 then Err (TomlSyntax (st-line s) "control character in a string")
+      else case utf8-decode s of
+        None -> Err (TomlSyntax (st-line s) "invalid UTF-8 in a string")
+        Some p -> case p of
+          (ch, w) -> scan-ml-basic-body (advance-n s w) (Cons ch acc)
+    None -> Err (TomlSyntax (st-line s) "unterminated multi-line string")
+
+  -- A run of quotes: three or more close the string (up to two of them
+  -- trailing content), one or two are content.
+  scan-ml-quotes :: St -> List Char -> Result TomlError (String, St)
+  scan-ml-quotes s acc =
+    let r = count-quotes s 0 in
+    case r of
+      (q, s1) ->
+        if q >= 3 then
+          if nat-le q 5 then Ok (pack (reverse (replicate (q - 3) '"' <> acc)), s1)
+          else Err (TomlSyntax (st-line s) "too many quotation marks at the end of a multi-line string")
+        else scan-ml-basic-body s1 (replicate q '"' <> acc)
+
+  count-quotes :: St -> Nat -> (Nat, St)
+  count-quotes s n = case peek-b s of
+    Some c -> if nat-eq c 34 then count-quotes (advance1 s) (n + 1) else (n, s)
+    None -> (n, s)
+
+  scan-ml-escape :: St -> List Char -> Result TomlError (String, St)
+  scan-ml-escape s acc = case peek-b s of
+    Some c ->
+      if nat-eq c 10 then scan-ml-basic-body (skip-ml-ws (advance1 s)) acc
+      else if nat-eq c 13 then scan-ml-basic-body (skip-ml-ws (advance1 s)) acc
+      else if nat-eq c 34 then scan-ml-basic-body (advance1 s) (Cons '"' acc)
+      else if nat-eq c 92 then scan-ml-basic-body (advance1 s) (Cons '\\' acc)
+      else if nat-eq c 98 then scan-ml-basic-body (advance1 s) (Cons '\u{8}' acc)
+      else if nat-eq c 116 then scan-ml-basic-body (advance1 s) (Cons '\t' acc)
+      else if nat-eq c 110 then scan-ml-basic-body (advance1 s) (Cons '\n' acc)
+      else if nat-eq c 102 then scan-ml-basic-body (advance1 s) (Cons '\u{C}' acc)
+      else if nat-eq c 114 then scan-ml-basic-body (advance1 s) (Cons '\r' acc)
+      else if nat-eq c 117 then scan-ml-hex-into 4 (advance1 s) acc
+      else if nat-eq c 85 then scan-ml-hex-into 8 (advance1 s) acc
+      else Err (TomlSyntax (st-line s) "unknown escape in a string")
+    None -> Err (TomlSyntax (st-line s) "unterminated escape")
+
+  scan-ml-hex-into :: Nat -> St -> List Char -> Result TomlError (String, St)
+  scan-ml-hex-into n s acc = case scan-hex-scalar s n of
+    Err e -> Err e
+    Ok r -> case r of
+      (ch, s1) -> scan-ml-basic-body s1 (Cons ch acc)
+
+  -- Literal strings: no escapes, so their content is verbatim.
+  p-literal-string :: P String
+  p-literal-string = MkP (\s -> scan-literal-start s)
+
+  scan-literal-start :: St -> Result TomlError (String, St)
+  scan-literal-start s =
+    if is-byte s 1 39 && is-byte s 2 39 then scan-ml-literal (skip-first-newline (advance-n s 3)) Nil
+    else scan-literal-body (advance1 s) Nil
+
+  scan-literal-body :: St -> List Char -> Result TomlError (String, St)
+  scan-literal-body s acc = case peek-b s of
+    Some c ->
+      if nat-eq c 39 then Ok (pack (reverse acc), advance1 s)
+      else if nat-eq c 10 then Err (TomlSyntax (st-line s) "newline in a single-line string")
+      else if nat-eq c 13 then Err (TomlSyntax (st-line s) "newline in a single-line string")
+      else if nat-lt c 32 && nat_eq_false c 9 then Err (TomlSyntax (st-line s) "control character in a string")
+      else case utf8-decode s of
+        None -> Err (TomlSyntax (st-line s) "invalid UTF-8 in a string")
+        Some p -> case p of
+          (ch, w) -> scan-literal-body (advance-n s w) (Cons ch acc)
+    None -> Err (TomlSyntax (st-line s) "unterminated string")
+
+  scan-ml-literal :: St -> List Char -> Result TomlError (String, St)
+  scan-ml-literal s acc = case peek-b s of
+    Some c ->
+      if nat-eq c 39 then
+        let r = count-single-quotes s 0 in
+        case r of
+          (q, s1) ->
+            if q >= 3 then
+              if nat-le q 5 then Ok (pack (reverse (replicate (q - 3) (case char-from-code 39 of Some x -> x; None -> '"') <> acc)), s1)
+              else Err (TomlSyntax (st-line s) "too many quotation marks at the end of a multi-line string")
+            else scan-ml-literal s1 (replicate q (case char-from-code 39 of Some x -> x; None -> '"') <> acc)
+      else if nat-eq c 10 then scan-ml-literal (advance1 s) (Cons '\n' acc)
+      else if nat-eq c 13 then scan-ml-literal (advance1 s) acc
+      else if nat-lt c 32 && nat_eq_false c 9 then Err (TomlSyntax (st-line s) "control character in a string")
+      else case utf8-decode s of
+        None -> Err (TomlSyntax (st-line s) "invalid UTF-8 in a string")
+        Some p -> case p of
+          (ch, w) -> scan-ml-literal (advance-n s w) (Cons ch acc)
+    None -> Err (TomlSyntax (st-line s) "unterminated multi-line string")
+
+  count-single-quotes :: St -> Nat -> (Nat, St)
+  count-single-quotes s n = case peek-b s of
+    Some c -> if nat-eq c 39 then count-single-quotes (advance1 s) (n + 1) else (n, s)
+    None -> (n, s)
+
+
+  -- ---------------------------------------------------------------------------
+  -- The tree the parser builds, and path insertion. Each entry keeps the
+  -- order it appeared in, so a printed-and-reparsed document matches the
+  -- emission order (the law shape above).
+  -- ---------------------------------------------------------------------------
+
+  -- The tree the parser builds: a table is a spine of `NEntry` nodes ended
+  -- by `NEntryEnd`; an array of tables is a spine of `NList` nodes ended
+  -- by `NListEnd`; a scalar, plain array or inline table is `NVal`. The
+  -- shape mirrors the `Json` family's spines (`JObj`/`JArr`), so no named
+  -- product type is needed (the checker registers a data type only after
+  -- its own declaration) and every entry keeps the order it appeared in.
+  data Node where
+    NVal :: Json -> Node
+    NEntry :: String -> Node -> Node -> Node
+    NEntryEnd :: Node
+    NList :: Node -> Node -> Node
+    NListEnd :: Node
+
+  -- A path segment: a key, or an array-of-tables element index.
+  data Seg where
+    SKey :: String -> Seg
+    SIdx :: Nat -> Seg
+
+  fresh-container :: List Seg -> Result TomlError Node
+  fresh-container segs = case segs of
+    Nil -> Err (TomlSyntax 0 "internal: empty container path")
+    Cons sg rest -> case sg of
+      SKey _ -> Ok NEntryEnd
+      SIdx _ -> Ok NListEnd
+
+  -- Insert `value` at `segs`, creating intermediate tables; a value or
+  -- table already at the final key is a duplicate.
+  set-at :: List Seg -> Node -> Node -> Result TomlError Node
+  set-at segs value container = case segs of
+    Nil -> Ok value
+    Cons sg rest -> case sg of
+      SKey k -> set-in-table k rest value container
+      SIdx i -> set-in-list i rest value container
+
+  set-in-table :: String -> List Seg -> Node -> Node -> Result TomlError Node
+  set-in-table k segs value container = case container of
+    NEntry _ _ _ -> set-in-entries k segs value container
+    NEntryEnd -> set-empty-slot k segs value
+    _ -> Err (TomlDuplicateKey k)
+
+  set-in-entries :: String -> List Seg -> Node -> Node -> Result TomlError Node
+  set-in-entries k segs value node = case node of
+    NEntry k2 child tail ->
+      if string-compare k2 k == 0 then
+        if is-empty segs then Err (TomlDuplicateKey k)
+        else case child of
+          NVal _ -> Err (TomlDuplicateKey k)
+          _ -> and-then (set-at segs value child) (\c2 -> Ok (NEntry k2 c2 tail))
+      else and-then (set-in-entries k segs value tail) (\t2 -> Ok (NEntry k2 child t2))
+    NEntryEnd -> set-empty-slot k segs value
+    _ -> Err (TomlDuplicateKey k)
+
+  set-empty-slot :: String -> List Seg -> Node -> Result TomlError Node
+  set-empty-slot k segs value = case segs of
+    Nil -> Ok (NEntry k value NEntryEnd)
+    _ -> case fresh-container segs of
+      Err e -> Err e
+      Ok c -> and-then (set-at segs value c) (\c2 -> Ok (NEntry k c2 NEntryEnd))
+
+  set-in-list :: Nat -> List Seg -> Node -> Node -> Result TomlError Node
+  set-in-list i segs value container = case container of
+    NList _ _ -> set-list-at i segs value container
+    _ -> Err (TomlDuplicateKey "array")
+
+  set-list-at :: Nat -> List Seg -> Node -> Node -> Result TomlError Node
+  set-list-at i segs value node = case node of
+    NList h tail ->
+      if i == 0 then and-then (set-at segs value h) (\h2 -> Ok (NList h2 tail))
+      else and-then (set-list-at (i - 1) segs value tail) (\t2 -> Ok (NList h t2))
+    NListEnd -> Err (TomlDuplicateKey "array index")
+    _ -> Err (TomlDuplicateKey "array")
+
+  -- Ensure `segs` names a table (creating the path if absent); an
+  -- existing non-table there is a duplicate.
+  ensure-table :: List Seg -> Node -> Result TomlError Node
+  ensure-table segs container = case segs of
+    Nil -> Ok container
+    Cons sg rest -> case sg of
+      SKey k -> ensure-in-table k rest container
+      SIdx i -> ensure-in-list i rest container
+
+  ensure-in-table :: String -> List Seg -> Node -> Result TomlError Node
+  ensure-in-table k segs container = case container of
+    NEntry _ _ _ -> ensure-entries k segs container
+    NEntryEnd -> ensure-empty k segs
+    _ -> Err (TomlDuplicateKey k)
+
+  ensure-entries :: String -> List Seg -> Node -> Result TomlError Node
+  ensure-entries k segs node = case node of
+    NEntry k2 child tail ->
+      if string-compare k2 k == 0 then
+        if is-empty segs then
+          case child of
+            NEntry _ _ _ -> Ok (NEntry k2 child tail)
+            NEntryEnd -> Ok (NEntry k2 child tail)
+            _ -> Err (TomlDuplicateKey k)
+        else case child of
+          NVal _ -> Err (TomlDuplicateKey k)
+          NList _ _ -> Err (TomlDuplicateKey k)
+          NListEnd -> Err (TomlDuplicateKey k)
+          _ -> and-then (ensure-table segs child) (\c2 -> Ok (NEntry k2 c2 tail))
+      else and-then (ensure-entries k segs tail) (\t2 -> Ok (NEntry k2 child t2))
+    NEntryEnd -> ensure-empty k segs
+    _ -> Err (TomlDuplicateKey k)
+
+  ensure-empty :: String -> List Seg -> Result TomlError Node
+  ensure-empty k segs = case segs of
+    Nil -> Ok (NEntry k NEntryEnd NEntryEnd)
+    _ -> case fresh-container segs of
+      Err e -> Err e
+      Ok c -> and-then (ensure-table segs c) (\c2 -> Ok (NEntry k c2 NEntryEnd))
+
+  ensure-in-list :: Nat -> List Seg -> Node -> Result TomlError Node
+  ensure-in-list i segs container = case container of
+    NList _ _ -> ensure-list-at i segs container
+    _ -> Err (TomlDuplicateKey "array")
+
+  ensure-list-at :: Nat -> List Seg -> Node -> Result TomlError Node
+  ensure-list-at i segs node = case node of
+    NList h tail ->
+      if i == 0 then and-then (ensure-table segs h) (\h2 -> Ok (NList h2 tail))
+      else and-then (ensure-list-at (i - 1) segs tail) (\t2 -> Ok (NList h t2))
+    NListEnd -> Err (TomlDuplicateKey "array index")
+    _ -> Err (TomlDuplicateKey "array")
+
+  aot-count :: Node -> Nat
+  aot-count node = case node of
+    NList _ tail -> 1 + aot-count tail
+    NListEnd -> 0
+    _ -> 0
+
+  aot-append :: Node -> Node -> Node
+  aot-append node el = case node of
+    NList h tail -> NList h (aot-append tail el)
+    NListEnd -> NList el NListEnd
+    _ -> NList el NListEnd
+
+  -- Append one fresh empty table at an array of tables, returning the
+  -- new root and the element's index.
+  append-elt :: List Seg -> Node -> Result TomlError (Node, Nat)
+  append-elt segs container = case segs of
+    Nil -> Err (TomlSyntax 0 "internal: empty container path")
+    Cons sg rest -> case sg of
+      SKey k -> append-in-table k rest container
+      SIdx i -> append-in-list i rest container
+
+  append-in-table :: String -> List Seg -> Node -> Result TomlError (Node, Nat)
+  append-in-table k segs container = case container of
+    NEntry _ _ _ -> append-entries k segs container
+    NEntryEnd -> append-empty k segs
+    _ -> Err (TomlDuplicateKey k)
+
+  append-entries :: String -> List Seg -> Node -> Result TomlError (Node, Nat)
+  append-entries k segs node = case node of
+    NEntry k2 child tail ->
+      if string-compare k2 k == 0 then
+        if is-empty segs then
+          case child of
+            NList _ _ -> Ok (NEntry k2 (aot-append child NEntryEnd) tail, aot-count child)
+            NListEnd -> Ok (NEntry k2 (NList NEntryEnd NListEnd) tail, 0)
+            _ -> Err (TomlDuplicateKey k)
+        else case child of
+          NVal _ -> Err (TomlDuplicateKey k)
+          _ -> and-then (append-elt segs child) (\r -> case r of
+            (c2, i) -> Ok (NEntry k2 c2 tail, i))
+      else and-then (append-entries k segs tail) (\r -> case r of
+        (t2, i) -> Ok (NEntry k2 child t2, i))
+    NEntryEnd -> append-empty k segs
+    _ -> Err (TomlDuplicateKey k)
+
+  append-empty :: String -> List Seg -> Result TomlError (Node, Nat)
+  append-empty k segs = case segs of
+    Nil -> Ok (NEntry k (NList NEntryEnd NListEnd) NEntryEnd, 0)
+    _ -> case fresh-container segs of
+      Err e -> Err e
+      Ok c -> and-then (append-elt segs c) (\r -> case r of
+        (c2, i) -> Ok (NEntry k c2 NEntryEnd, i))
+
+  append-in-list :: Nat -> List Seg -> Node -> Result TomlError (Node, Nat)
+  append-in-list i segs container = case container of
+    NList _ _ -> append-list-at i segs container
+    _ -> Err (TomlDuplicateKey "array")
+
+  append-list-at :: Nat -> List Seg -> Node -> Result TomlError (Node, Nat)
+  append-list-at i segs node = case node of
+    NList h tail ->
+      if i == 0 then and-then (append-elt segs h) (\r -> case r of
+          (h2, j) -> Ok (NList h2 tail, j))
+      else and-then (append-list-at (i - 1) segs tail) (\r -> case r of
+          (t2, j) -> Ok (NList h t2, j))
+    NListEnd -> Err (TomlDuplicateKey "array index")
+    _ -> Err (TomlDuplicateKey "array")
+
+  node-to-json :: Node -> Json
+  node-to-json n = case n of
+    NVal j -> j
+    NEntry _ _ _ -> entries-to-json n
+    NEntryEnd -> JObjEnd
+    NList _ _ -> aot-to-json n
+    NListEnd -> JArrEnd
+
+  entries-to-json :: Node -> Json
+  entries-to-json n = case n of
+    NEntry k v tail -> JObj k (node-to-json v) (entries-to-json tail)
+    NEntryEnd -> JObjEnd
+    _ -> JObjEnd
+
+  aot-to-json :: Node -> Json
+  aot-to-json n = case n of
+    NList h tail -> JArr (node-to-json h) (aot-to-json tail)
+    NListEnd -> JArrEnd
+    _ -> JArrEnd
+
+
+  -- ---------------------------------------------------------------------------
+  -- Values: numbers, booleans, arrays, inline tables.
+  -- ---------------------------------------------------------------------------
+
+  p-value :: P Json
+  p-value = p-bind p-peek (\m -> case m of
+    None -> p-err "expected a value"
+    Some c ->
+      if nat-eq c 34 then p-map JStr p-basic-string
+      else if nat-eq c 39 then p-map JStr p-literal-string
+      else if nat-eq c 91 then p-array
+      else if nat-eq c 123 then p-inline-table
+      else if nat-eq c 116 then p-bind (p-word "true") (\_ -> p-pure (JBool True))
+      else if nat-eq c 102 then p-bind (p-word "false") (\_ -> p-pure (JBool False))
+      else if is-digit-b c || nat-eq c 43 || nat-eq c 45 || nat-eq c 105 || nat-eq c 110 then p-number
+      else p-err "expected a value")
+
+  p-array :: P Json
+  p-array = MkP (\s -> scan-array (advance1 s))
+
+  p-inline-table :: P Json
+  p-inline-table = MkP (\s -> scan-inline-table (advance1 s))
+
+  p-number :: P Json
+  p-number = MkP (\s -> number-scan s)
+
+  -- The four date-time lexical forms all begin with four digits and a
+  -- dash, or two digits and a colon; both are out of scope (header).
+  looks-like-datetime :: St -> Bool
+  looks-like-datetime s =
+    (digits-until s 4 && is-byte s 4 45) || (digits-until s 2 && is-byte s 2 58)
+
+  digits-until :: St -> Nat -> Bool
+  digits-until s n = digits-until-from s n 0
+
+  digits-until-from :: St -> Nat -> Nat -> Bool
+  digits-until-from s n i =
+    if nat-eq i n then True
+    else case byte-at s i of
+      Some c -> is-digit-b c && digits-until-from s n (i + 1)
+      None -> False
+
+  number-scan :: St -> Result TomlError (Json, St)
+  number-scan s =
+    if looks-like-datetime s then Err (TomlDateTime (st-line s))
+    else number-start s
+
+  number-start :: St -> Result TomlError (Json, St)
+  number-start s = case peek-b s of
+    Some c -> if nat-eq c 43 then number-int (advance1 s) 1
+      else if nat-eq c 45 then number-int (advance1 s) 2
+      else number-int s 0
+    None -> Err (TomlSyntax (st-line s) "expected a number")
+
+  number-int :: St -> Nat -> Result TomlError (Json, St)
+  number-int s sg = case peek-b s of
+    Some c -> if nat-eq c 48 then number-zero s sg
+      else if is-digit-b c then number-frac s sg
+      else if nat-eq c 105 then number-word s sg "inf"
+      else if nat-eq c 110 then number-word s sg "nan"
+      else Err (TomlSyntax (st-line s) "expected a number")
+    None -> Err (TomlSyntax (st-line s) "expected a number")
+
+  number-zero :: St -> Nat -> Result TomlError (Json, St)
+  number-zero s sg =
+    let s1 = advance1 s in
+    let s2 = advance1 s1 in
+    case peek-b s1 of
+      Some c -> if nat-eq c 120 then number-radix s2 sg 16
+        else if nat-eq c 111 then number-radix s2 sg 8
+        else if nat-eq c 98 then number-radix s2 sg 2
+        else if is-digit-b c then Err (TomlSyntax (st-line s1) "leading zero in a decimal integer")
+        else number-maybe-frac s1 sg (Cons 48 Nil)
+      None -> number-maybe-frac s1 sg (Cons 48 Nil)
+
+  -- Decimal integers: collect the digit run, then an optional fraction
+  -- and exponent.
+  number-frac :: St -> Nat -> Result TomlError (Json, St)
+  number-frac s sg = case collect-digits s Nil 0 False of
+    Err e -> Err e
+    Ok r -> case r of
+      (ids, s1) -> number-maybe-frac s1 sg ids
+
+  number-maybe-frac :: St -> Nat -> List Nat -> Result TomlError (Json, St)
+  number-maybe-frac s sg ids = case peek-b s of
+    Some c -> if nat-eq c 46 then
+        (case collect-digits (advance1 s) Nil 0 False of
+          Err e -> Err e
+          Ok r -> case r of
+            (fds, s1) -> if is-empty fds then Err (TomlSyntax (st-line s1) "expected digits after the decimal point")
+              else number-maybe-exp s1 sg ids fds True)
+      else number-maybe-exp s sg ids Nil False
+    None -> number-maybe-exp s sg ids Nil False
+
+  number-maybe-exp :: St -> Nat -> List Nat -> List Nat -> Bool -> Result TomlError (Json, St)
+  number-maybe-exp s sg ids fds isfrac = case peek-b s of
+    Some c -> if nat-eq c 101 || nat-eq c 69 then
+        (let s1 = advance1 s in
+         case sign-of s1 of
+           (esg, s2) -> case collect-digits s2 Nil 0 False of
+             Err e -> Err e
+             Ok r -> case r of
+               (eds, s3) -> if is-empty eds then Err (TomlSyntax (st-line s2) "expected digits in the exponent")
+                 else number-done s3 sg ids fds True esg eds)
+      else number-done s sg ids fds isfrac 0 Nil
+    None -> number-done s sg ids fds isfrac 0 Nil
+
+  sign-of :: St -> (Nat, St)
+  sign-of s = case peek-b s of
+    Some c -> if nat-eq c 43 then (1, advance1 s) else if nat-eq c 45 then (2, advance1 s) else (0, s)
+    None -> (0, s)
+
+  number-done :: St -> Nat -> List Nat -> List Nat -> Bool -> Nat -> List Nat -> Result TomlError (Json, St)
+  number-done s sg ids fds isfloat esg eds =
+    if isfloat then Ok (JFloat (f64-from-decimal (bytes-from-list (float-codes sg ids fds esg eds))), s)
+    else Ok (JNum (int-from-digits sg ids), s)
+
+  -- A digit run (no underscores kept): underscores must sit between
+  -- digits, so a leading or trailing one is a syntax error.
+  collect-digits :: St -> List Nat -> Nat -> Bool -> Result TomlError (List Nat, St)
+  collect-digits s acc count prev = case peek-b s of
+    Some c -> if is-digit-b c then collect-digits (advance1 s) (Cons c acc) (count + 1) True
+      else if nat-eq c 95 then
+        (if prev then collect-digits (advance1 s) acc count False
+         else Err (TomlSyntax (st-line s) "misplaced underscore in a number"))
+      else finish-digits s acc count prev
+    None -> finish-digits s acc count prev
+
+  finish-digits :: St -> List Nat -> Nat -> Bool -> Result TomlError (List Nat, St)
+  finish-digits s acc count prev =
+    if prev then Ok (acc, s)
+    else if nat-eq count 0 then Ok (Nil, s)
+    else Err (TomlSyntax (st-line s) "trailing underscore in a number")
+
+  -- Radix integers (hex/octal/binary): digits with underscores, no
+  -- sign, at least one digit.
+  number-radix :: St -> Nat -> Nat -> Result TomlError (Json, St)
+  number-radix s sg base =
+    if nat_eq_false sg 0 then Err (TomlSyntax (st-line s) "a sign is not allowed on a non-decimal integer")
+    else case collect-radix base s Nil 0 False of
+      Err e -> Err e
+      Ok r -> case r of
+        (ds, s1) -> if is-empty ds then Err (TomlSyntax (st-line s) "expected digits after the base prefix")
+          else Ok (JNum (radix-to-int base (reverse ds) (int-from-i64 0)), s1)
+
+  collect-radix :: Nat -> St -> List Nat -> Nat -> Bool -> Result TomlError (List Nat, St)
+  collect-radix base s acc count prev = case peek-b s of
+    Some c -> case radix-digit base c of
+      Some v -> collect-radix base (advance1 s) (Cons v acc) (count + 1) True
+      None -> if nat-eq c 95 then
+          (if prev then collect-radix base (advance1 s) acc count False
+           else Err (TomlSyntax (st-line s) "misplaced underscore in a number"))
+        else finish-radix s acc count prev
+    None -> finish-radix s acc count prev
+
+  finish-radix :: St -> List Nat -> Nat -> Bool -> Result TomlError (List Nat, St)
+  finish-radix s acc count prev =
+    if prev then Ok (acc, s)
+    else if nat-eq count 0 then Ok (Nil, s)
+    else Err (TomlSyntax (st-line s) "trailing underscore in a number")
+
+  radix-digit :: Nat -> Nat -> Option Nat
+  radix-digit base c =
+    if c >= 48 && c < 58 then
+      (let v = c - 48 in if nat-lt v base then Some v else None)
+    else if nat-eq base 16 && is-hex-alpha c then Some (hex-val c)
+    else None
+
+  radix-to-int :: Nat -> List Nat -> Int -> Int
+  radix-to-int base ds acc = case ds of
+    Nil -> acc
+    Cons d rest -> radix-to-int base rest (int-add (int-mul acc (nat-to-int base)) (nat-to-int d))
+
+  int-from-digits :: Nat -> List Nat -> Int
+  int-from-digits sg ids =
+    let mag = digits-to-int (reverse ids) (int-from-i64 0) in
+    if nat-eq sg 2 then int-neg mag else mag
+
+  digits-to-int :: List Nat -> Int -> Int
+  digits-to-int ds acc = case ds of
+    Nil -> acc
+    Cons c rest -> digits-to-int rest (int-add (int-mul acc (int-from-i64 10)) (int-sub (nat-to-int c) (int-from-i64 48)))
+
+  -- The cleaned decimal spelling for the runtime conversion: sign,
+  -- integer digits, optional `.` fraction, optional exponent.
+  float-codes :: Nat -> List Nat -> List Nat -> Nat -> List Nat -> List (InRange 0 255 Nat)
+  float-codes sg ids fds esg eds =
+    (sign-code sg)
+      <> ((digit-bytes (reverse ids))
+        <> ((if is-empty fds then Nil else Cons 46 (digit-bytes (reverse fds)))
+          <> (if is-empty eds then Nil else Cons 101 ((sign-code esg) <> (digit-bytes (reverse eds))))))
+
+  sign-code :: Nat -> List (InRange 0 255 Nat)
+  sign-code sg = if nat-eq sg 2 then Cons 45 Nil else Nil
+
+  -- Collected digit codes as bytes: each is an ASCII digit the cursor
+  -- read, so the `nat-rem` leaves it unchanged.
+  digit-bytes :: List Nat -> List (InRange 0 255 Nat)
+  digit-bytes ds = case ds of
+    Nil -> Nil
+    Cons d rest -> Cons (nat-rem d 256) (digit-bytes rest)
+
+  -- `inf`/`nan` (with an optional sign) become the runtime float the
+  -- decimal conversion stands for (`str::parse` accepts these).
+  number-word :: St -> Nat -> String -> Result TomlError (Json, St)
+  number-word s sg word = case consume-word s (string-to-bytes word) 0 of
+    Err e -> Err e
+    Ok s1 ->
+      if word-boundary-ok s1 then Ok (JFloat (f64-from-decimal (word-spelling word sg)), s1)
+      else Err (TomlSyntax (st-line s1) "unexpected characters after a number")
+
+  word-boundary-ok :: St -> Bool
+  word-boundary-ok s = case peek-b s of
+    Some c -> not (is-bare-key-char c)
+    None -> True
+
+  word-spelling :: String -> Nat -> Bytes
+  word-spelling word sg =
+    if nat-eq sg 2 then string-to-bytes (string-concat "-" word)
+    else string-to-bytes word
+
+  consume-word :: St -> Bytes -> Nat -> Result TomlError St
+  consume-word s b i =
+    if i >= bytes-len b then Ok s
+    else case peek-b s of
+      Some c -> if nat-eq c (bytes-get b i) then consume-word (advance1 s) b (i + 1)
+        else Err (TomlSyntax (st-line s) "unexpected keyword")
+      None -> Err (TomlSyntax (st-line s) "unexpected end of input")
+
+  -- Arrays: values separated by commas, with trailing whitespace,
+  -- newlines and comments allowed around them, and a trailing comma.
+  scan-array :: St -> Result TomlError (Json, St)
+  scan-array s0 =
+    let s = skip-array-ws s0 in
+    case peek-b s of
+      Some c -> if nat-eq c 93 then Ok (JArrEnd, advance1 s) else scan-array-items s Nil
+      None -> Err (TomlSyntax (st-line s) "unterminated array")
+
+  scan-array-items :: St -> List Json -> Result TomlError (Json, St)
+  scan-array-items s acc =
+    let s0 = skip-array-ws s in
+    case peek-b s0 of
+      Some c -> if nat-eq c 93 then Ok (build-arr (reverse acc), advance1 s0)
+        else scan-array-value s0 acc
+      None -> Err (TomlSyntax (st-line s0) "unterminated array")
+
+  scan-array-value :: St -> List Json -> Result TomlError (Json, St)
+  scan-array-value s acc = case p-run p-value s of
+    Err e -> Err e
+    Ok r -> case r of
+      (v, s1) ->
+        let s2 = skip-array-ws s1 in
+        case peek-b s2 of
+          Some c -> if nat-eq c 93 then Ok (build-arr (reverse (Cons v acc)), advance1 s2)
+            else if nat-eq c 44 then scan-array-items (advance1 s2) (Cons v acc)
+            else Err (TomlSyntax (st-line s2) "expected , or ] in an array")
+          None -> Err (TomlSyntax (st-line s2) "unterminated array")
+
+  -- Inline tables: `{ key = value, ... }`, no newlines, no trailing
+  -- comma, keys unique (built through the same tree as the document).
+  scan-inline-table :: St -> Result TomlError (Json, St)
+  scan-inline-table s0 =
+    let s = skip-spaces s0 in
+    case peek-b s of
+      Some c -> if nat-eq c 125 then Ok (JObjEnd, advance1 s) else scan-inline-entries s NEntryEnd
+      None -> Err (TomlSyntax (st-line s) "unterminated inline table")
+
+  scan-inline-entries :: St -> Node -> Result TomlError (Json, St)
+  scan-inline-entries s node = case p-run p-dotted-key s of
+    Err e -> Err e
+    Ok r -> case r of
+      (keys, s1) ->
+        let s2 = skip-spaces s1 in
+        case peek-b s2 of
+          Some c -> if nat-eq c 61 then
+              (let s3 = skip-spaces (advance1 s2) in
+               case p-run p-value s3 of
+                 Err e -> Err e
+                 Ok rv -> case rv of
+                   (v, s4) -> and-then (set-at (map SKey keys) (NVal v) node) (\node2 ->
+                     let s5 = skip-spaces s4 in
+                     case peek-b s5 of
+                       Some d -> if nat-eq d 125 then Ok (node-to-json node2, advance1 s5)
+                         else if nat-eq d 44 then scan-inline-entries (skip-spaces (advance1 s5)) node2
+                         else Err (TomlSyntax (st-line s5) "expected , or } in an inline table")
+                       None -> Err (TomlSyntax (st-line s5) "unterminated inline table")))
+            else Err (TomlSyntax (st-line s2) "expected = in an inline table")
+          None -> Err (TomlSyntax (st-line s2) "unterminated inline table")
+
+
+  -- ---------------------------------------------------------------------------
+  -- The document: top-level key-values, `[table]` and `[[array of
+  -- tables]]` headers, line by line.
+  -- ---------------------------------------------------------------------------
+
+  parse-doc :: List Seg -> Node -> St -> Result TomlError (Node, St)
+  parse-doc cur root s0 =
+    let s = skip-line-trailing s0 in
+    case peek-b s of
+      None -> Ok (root, s)
+      Some c -> if nat-eq c 10 then parse-doc cur root (advance1 s)
+        else if nat-eq c 13 then parse-doc cur root (advance1 s)
+        else if nat-eq c 91 then parse-header root s
+        else parse-keyval cur root s
+
+  parse-header :: Node -> St -> Result TomlError (Node, St)
+  parse-header root s =
+    if is-byte s 1 91 then parse-array-header root (advance-n s 2)
+    else parse-std-header root (advance1 s)
+
+  parse-std-header :: Node -> St -> Result TomlError (Node, St)
+  parse-std-header root s = case p-run p-dotted-key (skip-spaces s) of
+    Err e -> Err e
+    Ok r -> case r of
+      (keys, s1) ->
+        let s2 = skip-spaces s1 in
+        case peek-b s2 of
+          Some c -> if nat-eq c 93 then
+              (let s3 = skip-line-trailing (advance1 s2) in
+               let path = map SKey keys in
+               and-then (ensure-table path root) (\root2 -> parse-doc path root2 s3))
+            else Err (TomlSyntax (st-line s2) "expected ] after a table header")
+          None -> Err (TomlSyntax (st-line s2) "unterminated table header")
+
+  parse-array-header :: Node -> St -> Result TomlError (Node, St)
+  parse-array-header root s = case p-run p-dotted-key (skip-spaces s) of
+    Err e -> Err e
+    Ok r -> case r of
+      (keys, s1) ->
+        let s2 = skip-spaces s1 in
+        case peek-b s2 of
+          Some c -> if nat-eq c 93 && is-byte s2 1 93 then
+              (let s3 = skip-line-trailing (advance-n s2 2) in
+               let path = map SKey keys in
+               and-then (append-elt path root) (\r2 -> case r2 of
+                 (root2, i) -> parse-doc (path <> Cons (SIdx i) Nil) root2 s3))
+            else Err (TomlSyntax (st-line s2) "expected ]] after an array-of-tables header")
+          None -> Err (TomlSyntax (st-line s2) "unterminated table header")
+
+  parse-keyval :: List Seg -> Node -> St -> Result TomlError (Node, St)
+  parse-keyval cur root s = case p-run p-dotted-key s of
+    Err e -> Err e
+    Ok r -> case r of
+      (keys, s1) ->
+        let s2 = skip-spaces s1 in
+        case peek-b s2 of
+          Some c -> if nat-eq c 61 then
+              (let s3 = skip-spaces (advance1 s2) in
+               case p-run p-value s3 of
+                 Err e -> Err e
+                 Ok rv -> case rv of
+                   (v, s4) ->
+                     let s5 = skip-line-trailing s4 in
+                     let path = cur <> map SKey keys in
+                     and-then (set-at path (NVal v) root) (\root2 -> parse-doc cur root2 s5))
+            else Err (TomlSyntax (st-line s2) "expected = after a key")
+          None -> Err (TomlSyntax (st-line s2) "unterminated key-value")
+
+  toml-parse :: String -> Result TomlError Json
+  toml-parse src = case parse-doc Nil NEntryEnd (St (string-to-bytes src) 0 1) of
+    Err e -> Err e
+    Ok r -> case r of
+      (root, s) -> Ok (node-to-json root)
+
+
+  -- ---------------------------------------------------------------------------
+  -- Printing (total, deterministic; emission order stated in the
+  -- header).
+  -- ---------------------------------------------------------------------------
+
+  toml-print :: Json -> Result TomlError String
+  toml-print v = case v of
+    JObj _ _ _ -> and-then (emit-entries Nil v) (\ls -> Ok (join-lines ls))
+    JObjEnd -> Ok empty-string
+    _ -> Err (TomlNotRepresentable "the document root must be a table")
+
+  join-lines :: List String -> String
+  join-lines ls = string-join "\n" ls
+
+  emit-entries :: List String -> Json -> Result TomlError (List String)
+  emit-entries path v = case v of
+    JObj _ _ _ -> emit-entries-of path (entries-of v)
+    JObjEnd -> Ok Nil
+    _ -> Err (TomlNotRepresentable "a table header must name a table")
+
+  emit-entries-of :: List String -> List (String, Json) -> Result TomlError (List String)
+  emit-entries-of path es =
+    and-then (emit-values (filter-values es)) (\l1 ->
+      and-then (emit-tables path (filter-tables es)) (\l2 ->
+        and-then (emit-aots path (filter-aots es)) (\l3 ->
+          Ok (l1 <> (l2 <> l3)))))
+
+  entries-of :: Json -> List (String, Json)
+  entries-of t = case t of
+    JObj k v rest -> Cons (k, v) (entries-of rest)
+    JObjEnd -> Nil
+    _ -> Nil
+
+  is-table :: Json -> Bool
+  is-table v = case v of
+    JObj _ _ _ -> True
+    JObjEnd -> True
+    _ -> False
+
+  is-aot :: Json -> Bool
+  is-aot v = case v of
+    JArr h t -> arr-all-tables h t
+    _ -> False
+
+  arr-all-tables :: Json -> Json -> Bool
+  arr-all-tables h t =
+    if is-table h then
+      (case t of
+        JArr h2 t2 -> arr-all-tables h2 t2
+        JArrEnd -> True
+        _ -> False)
+    else False
+
+  filter-values :: List (String, Json) -> List (String, Json)
+  filter-values es = case es of
+    Nil -> Nil
+    Cons e rest -> case e of
+      (k, v) -> if is-table v || is-aot v then filter-values rest
+        else Cons (k, v) (filter-values rest)
+
+  filter-tables :: List (String, Json) -> List (String, Json)
+  filter-tables es = case es of
+    Nil -> Nil
+    Cons e rest -> case e of
+      (k, v) -> if is-table v then Cons (k, v) (filter-tables rest) else filter-tables rest
+
+  filter-aots :: List (String, Json) -> List (String, Json)
+  filter-aots es = case es of
+    Nil -> Nil
+    Cons e rest -> case e of
+      (k, v) -> if is-aot v then Cons (k, v) (filter-aots rest) else filter-aots rest
+
+  emit-values :: List (String, Json) -> Result TomlError (List String)
+  emit-values es = case es of
+    Nil -> Ok Nil
+    Cons e rest -> case e of
+      (k, v) -> and-then (inline-value v) (\s ->
+        and-then (emit-values rest) (\ls ->
+          Ok (Cons (string-concat (enc-key k) (string-concat " = " s)) ls)))
+
+  header-line :: String -> String -> List String -> String
+  header-line open close path = string-concat open (string-concat (enc-path path) close)
+
+  emit-tables :: List String -> List (String, Json) -> Result TomlError (List String)
+  emit-tables path es = case es of
+    Nil -> Ok Nil
+    Cons e rest -> case e of
+      (k, v) ->
+        let p2 = path <> Cons k Nil in
+        and-then (emit-entries p2 v) (\body ->
+          and-then (emit-tables path rest) (\more ->
+            Ok (Cons (header-line "[" "]" p2) (body <> more))))
+
+  emit-aots :: List String -> List (String, Json) -> Result TomlError (List String)
+  emit-aots path es = case es of
+    Nil -> Ok Nil
+    Cons e rest -> case e of
+      (k, v) ->
+        let p2 = path <> Cons k Nil in
+        and-then (emit-aot-elements p2 (arr-elements v)) (\block ->
+          and-then (emit-aots path rest) (\more -> Ok (block <> more)))
+
+  emit-aot-elements :: List String -> List Json -> Result TomlError (List String)
+  emit-aot-elements p es = case es of
+    Nil -> Ok Nil
+    Cons el rest -> and-then (emit-entries p el) (\body ->
+      and-then (emit-aot-elements p rest) (\more ->
+        Ok (Cons (header-line "[[" "]]" p) (body <> more))))
+
+  arr-elements :: Json -> List Json
+  arr-elements v = case v of
+    JArr h t -> Cons h (arr-elements t)
+    JArrEnd -> Nil
+    other -> Cons other Nil
+
+  inline-value :: Json -> Result TomlError String
+  inline-value v = case v of
+    JNull -> Err (TomlNotRepresentable "null has no TOML spelling")
+    JBool b -> Ok (if b then "true" else "false")
+    JNum n -> Ok (int-to-string n)
+    JFloat f -> Ok (write-float f)
+    JStr s -> Ok (write-basic-string s)
+    JArr h t -> inline-array h t
+    JArrEnd -> Ok "[]"
+    JObj _ _ _ -> inline-table v
+    JObjEnd -> Ok "{}"
+
+  inline-array :: Json -> Json -> Result TomlError String
+  inline-array h t = and-then (inline-value h) (\sh ->
+    and-then (inline-array-rest t) (\sr -> Ok (string-concat "[" (string-concat sh sr))))
+
+  inline-array-rest :: Json -> Result TomlError String
+  inline-array-rest t = case t of
+    JArr h t2 -> and-then (inline-value h) (\sh ->
+      and-then (inline-array-rest t2) (\sr -> Ok (string-concat ", " (string-concat sh sr))))
+    JArrEnd -> Ok "]"
+    other -> and-then (inline-value other) (\s -> Ok (string-concat ", " (string-concat s "]")))
+
+  inline-table :: Json -> Result TomlError String
+  inline-table v = and-then (inline-entries (entries-of v)) (\body ->
+    Ok (string-concat "{" (string-concat body "}")))
+
+  inline-entries :: List (String, Json) -> Result TomlError String
+  inline-entries es = case es of
+    Nil -> Ok empty-string
+    Cons e rest -> case e of
+      (k, v) -> and-then (inline-value v) (\s ->
+        and-then (inline-more rest) (\sr ->
+          Ok (string-concat " " (string-concat (enc-key k) (string-concat " = " (string-concat s sr))))))
+
+  inline-more :: List (String, Json) -> Result TomlError String
+  inline-more es = case es of
+    Nil -> Ok " "
+    Cons e rest -> case e of
+      (k, v) -> and-then (inline-value v) (\s ->
+        and-then (inline-more rest) (\sr ->
+          Ok (string-concat ", " (string-concat (enc-key k) (string-concat " = " (string-concat s sr))))))
+
+  write-float :: F64 -> String
+  write-float f =
+    if is-na-nf64 f then "nan"
+    else if is-infinite-f64 f then (if sign-bit-f64 f then "-inf" else "inf")
+    else case string-from-bytes (f64-to-decimal f) of
+      Some s -> s
+      None -> empty-string
+
+  -- Bare keys keep their spelling; everything else is a quoted
+  -- basic-string key.
+  enc-key :: String -> String
+  enc-key k =
+    if is-empty (unpack k) then write-basic-string k
+    else if all-bare-chars (unpack k) then k
+    else write-basic-string k
+
+  all-bare-chars :: List Char -> Bool
+  all-bare-chars cs = case cs of
+    Nil -> True
+    Cons c rest -> if is-bare-key-char (char-code c) then all-bare-chars rest else False
+
+  enc-path :: List String -> String
+  enc-path ks = case ks of
+    Nil -> empty-string
+    Cons k rest -> case rest of
+      Nil -> enc-key k
+      _ -> string-concat (enc-key k) (string-concat "." (enc-path rest))
+
+  write-basic-string :: String -> String
+  write-basic-string s = string-concat "\"" (string-concat (write-chars (unpack s)) "\"")
+
+  write-chars :: List Char -> String
+  write-chars cs = case cs of
+    Nil -> empty-string
+    Cons c rest -> string-concat (write-char c) (write-chars rest)
+
+  write-char :: Char -> String
+  write-char c =
+    let cp = char-code c in
+    if nat-eq cp 34 then "\\\""
+    else if nat-eq cp 92 then "\\\\"
+    else if nat-eq cp 8 then "\\b"
+    else if nat-eq cp 9 then "\\t"
+    else if nat-eq cp 10 then "\\n"
+    else if nat-eq cp 12 then "\\f"
+    else if nat-eq cp 13 then "\\r"
+    else if nat-lt cp 32 || nat-eq cp 127 then string-concat "\\u" (hex4 cp)
+    else char-string c
+
+  hex4 :: Nat -> String
+  hex4 cp =
+    string-concat (hex-digit (nat-div cp 4096))
+      (string-concat (hex-digit (nat-rem (nat-div cp 256) 16))
+        (string-concat (hex-digit (nat-rem (nat-div cp 16) 16))
+          (hex-digit (nat-rem cp 16))))
+
+  hex-digit :: Nat -> String
+  hex-digit n =
+    if nat-lt n 10 then nat-to-string n
+    else if nat-eq n 10 then "a"
+    else if nat-eq n 11 then "b"
+    else if nat-eq n 12 then "c"
+    else if nat-eq n 13 then "d"
+    else if nat-eq n 14 then "e"
+    else "f"

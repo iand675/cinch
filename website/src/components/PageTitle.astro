@@ -1,7 +1,9 @@
 ---
 import Default from '@astrojs/starlight/components/PageTitle.astro';
 
-const { data } = Astro.locals.starlightRoute.entry;
+const { data, id } = Astro.locals.starlightRoute.entry;
+const isReaderGuide = id === 'documentation' || /^(learn|reference|library)\//.test(id);
+const section = id.startsWith('learn/') ? 'Language tutorial' : id.startsWith('reference/') ? 'Compiler user’s guide' : id.startsWith('library/') ? 'Library reference' : isReaderGuide ? 'Documentation' : 'Design archive';
 const { source, exported, added } = data as {
   source?: string;
   exported?: string;
@@ -22,7 +24,10 @@ const exportedText =
     : exported;
 ---
 
+<div class="doc-title-rail" aria-hidden="true"><span></span><i></i><span></span></div>
+<div class="doc-eyebrow"><a href="/documentation/">CINCH</a><span>/</span><span>{section}</span><span class="doc-draft">{isReaderGuide ? 'RUST COMPILER' : 'DESIGN ARCHIVE'}</span></div>
 <Default><slot /></Default>
+{!isReaderGuide && <p class="doc-archive-note">This page belongs to the original design archive. For current Rust compiler behaviour, read the <a href="/documentation/">documentation</a> and <a href="/reference/16-support-and-roadmap/">support matrix</a>. Planned behaviour is marked Coming soon in the reader guides.</p>}
 
 {
   source && (

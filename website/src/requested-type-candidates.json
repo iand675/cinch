@@ -1,0 +1,5 @@
+{
+  "notoserif": {"name":"Noto Serif","defaults":{"wght":500,"wdth":100},"note":"A sturdy serif with a large character set. This preview starts at Medium, with full width, for a more readable headline and smaller section titles.","source":"https://fonts.google.com/specimen/Noto+Serif"},
+  "doto": {"name":"Doto","defaults":{"ROND":100,"wght":900},"note":"A dot-matrix display face. This preview uses its heaviest weight so the letter shapes remain visible in the smaller headings.","source":"https://fonts.google.com/specimen/Doto"},
+  "momotrustdisplay": {"name":"Momo Trust Display","defaults":{},"note":"Rounded display lettering with a substantial Regular cut. This family has one static weight; the preview uses the supplied font without synthetic bolding.","source":"https://fonts.google.com/specimen/Momo+Trust+Display"}
+}

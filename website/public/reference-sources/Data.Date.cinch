@@ -1,0 +1,389 @@
+-- Data.Date: the proleptic Gregorian calendar date.
+--
+-- A `Date` is a calendar date in the proleptic Gregorian calendar: a
+-- year (`Int`, so the years before 1 are representable and the year 0
+-- is ISO 8601's astronomical year 0), a month (1..=12) and a day of
+-- month (1..=that month's length that year). The representation
+-- constructor is not exported (D143's surface rule is what makes the
+-- omission bind): `date` is the only way in, and it refuses a month
+-- outside 1..=12 and a day outside the month's own length, so an
+-- invalid date cannot exist. Arithmetic preserves the invariant by
+-- construction: days move on the epoch-day line
+-- (`to-epoch-days`/`from-epoch-days`), never field by field.
+--
+-- Design law shape. A year is a leap year exactly when it is divisible
+-- by 4 and not by 100 unless also by 400 (`is-leap-year`), and that one
+-- predicate fixes every month length (`days-in-month`). On top of it:
+-- the epoch-day conversions invert on the whole line, so
+-- `to-epoch-days` is a bijection with `from-epoch-days` and 1970-01-01
+-- is 0 by construction; `add-days` and `sub-days` undo each other and
+-- `diff-days` measures their difference (`diff-days d (add-days n d)`
+-- is n, and adding m then n days is adding m + n); `cmp` is a total
+-- order whose sign is `diff-days`'s; `day-of-year` is 1 on January 1
+-- and the year's length on December 31; `day-of-week` is
+-- `to-epoch-days` read modulo 7 with 1970-01-01 (a Thursday) at 4,
+-- which is Ruby's `wday` convention (0 is Sunday); and ISO 8601
+-- `to-string`/`from-string` round trip. The checks are
+-- compiler/tests/lib_civil_time.rs.
+--
+-- NAMED REFUSALS (boundaries this module deliberately does not
+-- cross):
+--   - timezones and UTC offsets: a `Date` is a calendar value, not an
+--     instant, and carries no zone; no offset and no tz database exist
+--     in this slice (Data.Time's conversions are UTC-explicit, and its
+--     wall-nanosecond line is the only instant surface here).
+--   - locale-aware formatting, and month or weekday names: the
+--     bootstrap carries no locale or name data, so the ISO 8601
+--     `YYYY-MM-DD` rendering is the only one.
+--   - the Julian calendar and the Gregorian reform: the proleptic
+--     Gregorian calendar is extended before 1582 by definition, and no
+--     reform cutover is modelled (a date before it is read and written
+--     proleptically).
+--   - a day count wider than `I64`: `add-days`/`sub-days` take `Nat`
+--     counts and convert through `nat-to-int`, the machine-width step
+--     every `Nat`-to-`Int` conversion in the prelude takes (a count
+--     above `I64`'s range faults in the runtime conversion).
+--
+-- Home (design/base-library.md): `Data.*` holds the concrete types, so
+-- the `Eq`/`Ord` instances live with `Date` here. Ported item: Ruby's
+-- `Date` (design/stdlib-parity-ruby.md, P38 "Time: civil
+-- `Date`/`Time`/`DateTime` (calendars, formatting, parsing) atop the
+-- P34 `Clock` capability").
+module Data.Date where
+
+  import Data.Nat
+  import Data.Int
+  import Data.List
+  import Data.Option
+  import Data.Result
+  import Data.Ordering
+  import Data.Bytes
+  import Data.String
+  import Data.Char
+  import Data.Machine
+  import Relation.Eq
+  import Relation.Ord
+  import Text.Show
+
+  export Date, date, year, month, day, days-in-month, is-leap-year
+  export day-of-year, day-of-week
+  export add-days, sub-days, diff-days, cmp
+  export to-epoch-days, from-epoch-days
+  export to-string, from-string
+  export DateParseError, NotADate, InvalidDate
+
+
+  -- The calendar date: year, month, day of month. Not exported (the
+  -- validity invariant above; `date` is the only constructor).
+  data Date where
+    Date :: Int -> Nat -> Nat -> Date
+
+  -- The literal reader's errors, one per refusal: the text is not a
+  -- date at all (`[-]dddd-MM-DD`), or the fields name no date. A parse
+  -- never yields a partially trusted value, so there is no third case.
+  data DateParseError where
+    NotADate :: DateParseError
+    InvalidDate :: DateParseError
+
+  -- -----------------------------------------------------------------
+  -- Construction and observation.
+  -- -----------------------------------------------------------------
+
+  -- The only constructor: month 1..=12, day 1..=that month's length.
+  -- `None` is the refusal for every other field combination, so an
+  -- out-of-range `Date` has no representation.
+  date :: Int -> Nat -> Nat -> Option Date
+  date y m d =
+    if m == 0 then None
+    else if m > 12 then None
+    else if d == 0 then None
+    else if d > days-in-month y m then None
+    else Some (Date y m d)
+
+  year :: Date -> Int
+  year x = case x of
+    Date y _ _ -> y
+
+  month :: Date -> Nat
+  month x = case x of
+    Date _ m _ -> m
+
+  day :: Date -> Nat
+  day x = case x of
+    Date _ _ d -> d
+
+  -- The Gregorian leap rule, total over `Int` (the proleptic calendar
+  -- defines it for every year, including year 0 and the negative
+  -- ones). Ruby's `Date.gregorian_leap?` is the same predicate.
+  is-leap-year :: Int -> Bool
+  is-leap-year y =
+    if int-rem y 4 == 0 then
+      if int-rem y 100 == 0 then int-rem y 400 == 0 else True
+    else False
+
+  -- The month's length in `y`: 31, 30, 29 or 28. A month outside
+  -- 1..=12 is 0 (out of the calendar; `date` refuses it before this
+  -- is consulted with one).
+  days-in-month :: Int -> Nat -> Nat
+  days-in-month y m =
+    if m == 1 then 31
+    else if m == 3 then 31
+    else if m == 5 then 31
+    else if m == 7 then 31
+    else if m == 8 then 31
+    else if m == 10 then 31
+    else if m == 12 then 31
+    else if m == 4 then 30
+    else if m == 6 then 30
+    else if m == 9 then 30
+    else if m == 11 then 30
+    else if m == 2 then (if is-leap-year y then 29 else 28)
+    else 0
+
+  -- -----------------------------------------------------------------
+  -- The epoch-day line (1970-01-01 is day 0) and the calendar
+  -- arithmetic on it.
+  -- -----------------------------------------------------------------
+
+  -- The day number of `d` counted from 1970-01-01 (negative before it).
+  -- This is the shifted-era decomposition (days-from-civil), which is
+  -- exactly the calendar's month term plus the year term; the era and
+  -- year-of-era steps use FLOORED division so the decomposition stays
+  -- at a non-negative remainder for the negative years too.
+  to-epoch-days :: Date -> Int
+  to-epoch-days x =
+    let y = year x in
+    let m = month x in
+    let yy = if m <= 2 then int-sub y 1 else y in
+    let era = int-floor-div yy 400 in
+    let yoe = int-sub yy (int-mul era 400) in
+    let mp = if m > 2 then nat-sub m 3 else nat-add m 9 in
+    let doy = int-add (int-div (int-add (int-mul 153 (nat-to-int mp)) 2) 5) (int-sub (nat-to-int (day x)) 1) in
+    let doe = int-add (int-mul yoe 365) (int-sub (int-div yoe 4) (int-div yoe 100)) in
+    int-sub (int-add (int-mul era 146097) (int-add doe doy)) 719468
+
+  -- The inverse: every `Int` is a day, so the result is total. The
+  -- fields come out of the decomposition already in range (the
+  -- construction is the proof), so the private constructor is used
+  -- directly rather than routing through `date`'s `Option`.
+  from-epoch-days :: Int -> Date
+  from-epoch-days z =
+    let zp = int-add z 719468 in
+    let era = int-floor-div zp 146097 in
+    let doe = int-sub zp (int-mul era 146097) in
+    let yoe-base = int-add (int-sub doe (int-div doe 1460)) (int-sub (int-div doe 36524) (int-div doe 146096)) in
+    let yoe = int-div yoe-base 365 in
+    let doy = int-sub doe (int-sub (int-add (int-mul 365 yoe) (int-div yoe 4)) (int-div yoe 100)) in
+    let mp = int-div (int-add (int-mul 5 doy) 2) 153 in
+    let dd = int-add (int-sub doy (int-div (int-add (int-mul 153 mp) 2) 5)) 1 in
+    let m = if mp < 10 then int-add mp 3 else int-sub mp 9 in
+    let y = if m <= 2 then int-add (int-add yoe (int-mul era 400)) 1 else int-add yoe (int-mul era 400) in
+    Date y (civil-field m) (civil-field dd)
+
+  -- `n` days later (crossing month and year boundaries by construction).
+  add-days :: Nat -> Date -> Date
+  add-days n x = from-epoch-days (int-add (to-epoch-days x) (nat-to-int n))
+
+  -- `n` days earlier.
+  sub-days :: Nat -> Date -> Date
+  sub-days n x = from-epoch-days (int-sub (to-epoch-days x) (nat-to-int n))
+
+  -- The days elapsed from the first argument to the second: `diff-days
+  -- start finish`, negative when `finish` precedes `start`. The exact
+  -- inverse of `add-days`/`sub-days` in both directions.
+  diff-days :: Date -> Date -> Int
+  diff-days start finish = int-sub (to-epoch-days finish) (to-epoch-days start)
+
+  cmp :: Date -> Date -> Ordering
+  cmp a b =
+    let c = int-cmp (to-epoch-days a) (to-epoch-days b) in
+    if c < 0 then LT else if c == 0 then EQ else GT
+
+  -- 1 on January 1, the year's length on December 31.
+  day-of-year :: Date -> Nat
+  day-of-year x =
+    let jan1 = Date (year x) 1 1 in
+    civil-field (int-add (diff-days jan1 x) 1)
+
+  -- The weekday, 0 for Sunday through 6 for Saturday (Ruby's `wday`).
+  -- 1970-01-01 (day 0) is a Thursday, hence the +4; the modulo is
+  -- floored so the pre-epoch days land in range too.
+  day-of-week :: Date -> Nat
+  day-of-week x = int-mod-nat (int-add (to-epoch-days x) 4) 7
+
+  -- -----------------------------------------------------------------
+  -- ISO 8601 rendering and reading.
+  -- -----------------------------------------------------------------
+
+  -- `[-]YYYY-MM-DD`, the year zero padded to four digits (a wider year
+  -- prints in full, a negative one carries the astronomical sign and
+  -- its magnitude). The only rendering, per the refusals above.
+  -- `|y|` as a `Nat`. A named function so each branch checks against
+  -- the declared `Nat` (in a `let`, the `if` would take the first
+  -- branch's refined type and the other branch could not meet it).
+  int-magnitude :: Int -> Nat
+  int-magnitude y = if y < 0 then nat-from-int (0 - y) else nat-from-int y
+
+  to-string :: Date -> String
+  to-string x =
+    let y = year x in
+    let mag = int-magnitude y in
+    let ys = if mag < 10000 then digits-string 4 mag else nat-to-string mag in
+    let md = string-concat (digits-string 2 (month x)) (string-concat "-" (digits-string 2 (day x))) in
+    if y < 0 then string-concat "-" (string-concat ys (string-concat "-" md))
+    else string-concat ys (string-concat "-" md)
+
+  -- Strict ISO 8601: an optional `-`, at least four year digits, and
+  -- two-digit month and day separated by `-`, with nothing before or
+  -- after. `NotADate` is the shape refusal (`2024-2-9`, `junk`, a
+  -- trailing time part); `InvalidDate` is the fields refusal
+  -- (`2023-02-29`, month 13, day 0).
+  from-string :: String -> Result DateParseError Date
+  from-string s = from-chars (unpack s)
+
+  from-chars :: List Char -> Result DateParseError Date
+  from-chars cs = case cs of
+    Nil -> Err NotADate
+    Cons c rest -> if c == '-' then from-year True rest else from-year False cs
+
+  from-year :: Bool -> List Char -> Result DateParseError Date
+  from-year neg cs =
+    let ys = span-digits cs in
+    if list-length ys < 4 then Err NotADate
+    else case drop-digits cs of
+      Nil -> Err NotADate
+      Cons d rest | d == '-' -> from-month neg ys rest
+      _ -> Err NotADate
+
+  from-month :: Bool -> List Char -> List Char -> Result DateParseError Date
+  from-month neg ys cs = case cs of
+    Cons a (Cons b rest) -> case two-digits a b of
+      Some m -> from-day-sep neg ys m rest
+      None -> Err NotADate
+    _ -> Err NotADate
+
+  from-day-sep :: Bool -> List Char -> Nat -> List Char -> Result DateParseError Date
+  from-day-sep neg ys m cs = case cs of
+    Cons d rest | d == '-' -> from-day neg ys m rest
+    _ -> Err NotADate
+
+  from-day :: Bool -> List Char -> Nat -> List Char -> Result DateParseError Date
+  from-day neg ys m cs = case cs of
+    Cons a (Cons b Nil) -> case two-digits a b of
+      Some d -> build-date neg ys m d
+      None -> Err NotADate
+    _ -> Err NotADate
+
+  build-date :: Bool -> List Char -> Nat -> Nat -> Result DateParseError Date
+  build-date neg ys m d =
+    let mag = digits-value ys in
+    let y = if neg then int-neg (nat-to-int mag) else nat-to-int mag in
+    case date y m d of
+      None -> Err InvalidDate
+      Some x -> Ok x
+
+  -- -----------------------------------------------------------------
+  -- Instances (the class spellings of `cmp`; instances live with their
+  -- type per design/base-library.md).
+  -- -----------------------------------------------------------------
+
+  implicit instance Eq_Date :: Eq Date where
+    (==) a b = case cmp a b of
+      EQ -> True
+      LT -> False
+      GT -> False
+    (/=) a b = case cmp a b of
+      EQ -> False
+      LT -> True
+      GT -> True
+
+  implicit instance Ord_Date :: Ord Date where
+    (<) a b = case cmp a b of
+      LT -> True
+      EQ -> False
+      GT -> False
+    (<=) a b = case cmp a b of
+      GT -> False
+      LT -> True
+      EQ -> True
+    (>) a b = case cmp a b of
+      GT -> True
+      LT -> False
+      EQ -> False
+    (>=) a b = case cmp a b of
+      LT -> False
+      GT -> True
+      EQ -> True
+
+  -- -----------------------------------------------------------------
+  -- Private plumbing.
+  -- -----------------------------------------------------------------
+
+  -- Floored quotient (the decompositions above need it, and `int-div`
+  -- truncates toward zero; the floored remainder as a `Nat` is
+  -- `int-mod-nat`). The divisor is a `NonZero`, so each caller's
+  -- numeral divisor discharges at compile time.
+  int-floor-div :: Int -> NonZero Int -> Int
+  int-floor-div a b =
+    let q = int-div a b in
+    let r = int-rem a b in
+    if r < 0 then int-sub q 1 else q
+
+  -- A civil field (month, day, day of year) as a `Nat`. The civil
+  -- algorithm keeps every field positive for every day count (Howard
+  -- Hinnant's derivation: the floored era split makes the day of the
+  -- era non-negative, and month and day follow from it), but the
+  -- discharge cannot follow its divisions, so the impossible negative
+  -- arm is written out and reads 0. `Nat`/`Int` otherwise convert
+  -- through `nat-to-int`/`nat-from-int` (Data.Nat), of any size.
+  civil-field :: Int -> Nat
+  civil-field v = if v < 0 then 0 else nat-from-int v
+
+  -- `k` ASCII digits of `v`, zero padded. The caller bounds `v` below
+  -- `10^k` (a month or day field, a four-digit year magnitude): a wider
+  -- value would be truncated to its low `k` digits by the digit writer.
+  digits-string :: Nat -> Nat -> String
+  digits-string k v =
+    let b = bytes-new k in
+    let u = nat-digits-into b 0 v k in
+    case string-from-bytes b of
+      None -> empty-string
+      Some s -> s
+
+  -- The literal reader works over scalar values (`unpack`), the same
+  -- view `Text.Lex` and `Text.Scan` use; the digit test is
+  -- `Data.Char`'s `is-ascii-digit`.
+
+  -- The leading digit run of a prefix and everything after it.
+  span-digits :: List Char -> List Char
+  span-digits cs = case cs of
+    Nil -> Nil
+    Cons c rest -> if is-ascii-digit c then Cons c (span-digits rest) else Nil
+
+  drop-digits :: List Char -> List Char
+  drop-digits cs = case cs of
+    Nil -> Nil
+    Cons c rest -> if is-ascii-digit c then drop-digits rest else cs
+
+  -- The value of a digit run (empty is zero), most significant first.
+  digits-value :: List Char -> Nat
+  digits-value ds = digits-value-acc ds 0
+
+  -- The callers pass digit runs; `digit-value` reads each digit, and a
+  -- non-digit (which a run never holds) ends the run.
+  digits-value-acc :: List Char -> Nat -> Nat
+  digits-value-acc ds acc = case ds of
+    Nil -> acc
+    Cons c rest -> case digit-value c of
+      Some d -> digits-value-acc rest (nat-add (nat-mul acc 10) d)
+      None -> acc
+
+  -- The value of a two-digit field, or `None` when either character is
+  -- not an ASCII digit (`Data.Char`'s `digit-value` is the only digit
+  -- reader here, and the callers' guard has gone into the `case`).
+  two-digits :: Char -> Char -> Option Nat
+  two-digits a b = case digit-value a of
+    Some x -> case digit-value b of
+      Some y -> Some (nat-add (nat-mul x 10) y)
+      None -> None
+    None -> None

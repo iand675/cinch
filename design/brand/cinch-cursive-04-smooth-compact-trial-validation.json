@@ -1,0 +1,18 @@
+{
+  "status": "experimental - not an approved replacement",
+  "source": "cinch-approved-original.png",
+  "source_sha256": "49fbf8140186944b6a1cade3a8831c2a99e7908e919c9bf5ce8761897acb9a0a",
+  "svg": "cinch-cursive-04-smooth-compact-trial.svg",
+  "svg_bytes": 473602,
+  "svgz_bytes": 88647,
+  "under_500000_bytes": true,
+  "paths": 1005,
+  "linear_gradients": 794,
+  "radial_gradients": 197,
+  "embedded_images": 0,
+  "live_fonts": 0,
+  "renderer": "resvg 0.48.1",
+  "foreground_ssim_bottle_green": 0.8618608505181274,
+  "silhouette_iou": 0.9870556293801311,
+  "notes": "Original reference and all prior delivered SVGs preserved. Material boundaries and outer silhouette rebuilt with smooth cubic curves. Gradients use a softening filter; no bitmap is embedded. Independent 4x render supplied for edge inspection. The compact file has visibly simplified highlights and does not meet the earlier 95 percent fidelity aspiration. Do not substitute it for the approved source without visual review."
+}

@@ -1,0 +1,780 @@
+-- Text.Zlib: DEFLATE and its zlib wrapper (RFC 1951 under RFC 1950).
+--
+-- `inflate` is the complete decoder: stored blocks, fixed-Huffman
+-- blocks and dynamic Huffman blocks (the code-length alphabet's
+-- 16/17/18 repeat codes included), LZ77 back-references over the full
+-- length and distance tables, the header's CM/CINFO/FDICT/FCHECK
+-- fields, and the trailing Adler-32. `deflate` is the other direction
+-- only, and deliberately asymmetric: it is a STORED-BLOCK encoder
+-- (RFC 1951 3.2.4), so what it writes is a legal zlib stream that
+-- every decoder accepts, never a compressed one. Bit-exactness with
+-- any particular encoder was never the shape; `inflate (deflate x) ==
+-- x` is, and the other direction is pinned by handing the encoder's
+-- output to a real decoder (python's `zlib`, in
+-- compiler/tests/lib_zlib.rs).
+--
+-- THE DESIGN LAW SHAPE: decoding never guesses. Nothing here produces
+-- bytes it cannot justify, and every refusal names itself:
+--   `BadHeader`       the two header bytes do not describe a zlib
+--                     stream: CM other than 8, CINFO above 7 (a
+--                     window past 32K), FDICT set (no dictionary
+--                     support here), or the CMF/FLG pair not a
+--                     multiple of 31 (FCHECK);
+--   `BadChecksum`     the trailing Adler-32 does not match the decoded
+--                     bytes;
+--   `InvalidCode`     the stream's structure is not one DEFLATE
+--                     defines: the reserved block type (BTYPE 3), a
+--                     stored block whose NLEN is not LEN's complement,
+--                     a length or distance code past its alphabet, a
+--                     distance reaching back past the output's start,
+--                     a repeat code overrunning the two length
+--                     arrays, or a Huffman code no code matches;
+--   `TruncatedStream` the input ends before the stream does: a read
+--                     past the last byte, or fewer than four bytes
+--                     where the Adler-32 should be.
+--
+-- NAMED REFUSALS at the boundary (what this module deliberately does
+-- not do): no gzip and no raw-DEFLATE wrapper (`windowBits` picks them
+-- at a stream API; another wrapper is another decoder, not a flag), no
+-- preset dictionary (an FDICT stream refuses as `BadHeader`), no
+-- streaming or incremental API (inflate takes the whole stream and
+-- returns the whole result, and so does the encoder), no compression
+-- on the encode side (a fixed-Huffman encoder needs match finding,
+-- which is its own module's work), and no trailing-data check (bytes
+-- after the Adler-32 belong to no stream this module reads).
+--
+-- The window claimed is CINFO 7 in both directions: the decoder
+-- accepts the 32K maximum and the encoder declares exactly what it
+-- writes. `crc32` sits beside the wrapper's Adler-32 because the rest
+-- of the family wants it (gzip's container, PNG), not because zlib
+-- reads it; both are pinned to published vectors in
+-- compiler/tests/lib_zlib.rs.
+--
+-- The two spellings are the Ruby ones (`Zlib.adler32`, `Zlib.crc32`)
+-- and, here, also the only legal ones: a digit cannot continue an
+-- identifier across a dash (surface syntax local amendments section
+-- 8, so `x-1` is subtraction), which rules out `adler-32`. The
+-- neighbours resolve the same collision the same way by keeping the
+-- digits whole (`sha256-bytes` in Data.Bytes, `f64-to-decimal` in
+-- Data.Machine); the checksum names keep them whole too.
+--
+-- Module scheme (design/base-library.md): `Text.*` is text processing
+-- over String and Bytes, and a byte-stream codec is that family's;
+-- `Bytes` and `Nat` are `Data.*`'s. Ruby item ported: Zlib
+-- (design/stdlib-parity-ruby.md, P39), the inflate/deflate/adler32/
+-- crc32 surface, without the stream object.
+--
+-- Bit order (RFC 1951 3.1.1) is the one place a decoder can be subtly
+-- wrong, so it is stated once and relied on everywhere below: bits
+-- are consumed in stream order, the least significant bit of each
+-- byte first, and every numeric field (LEN, NLEN, HLIT/HDIST/HCLEN,
+-- the extra bits of a length or a distance) is packed least
+-- significant bit first, while a Huffman code is packed most
+-- significant bit first. The single reader below delivers stream
+-- order; the numeric fields accumulate little-endian (`bits-read`)
+-- and the codes accumulate high-bit-first (`huff-walk`).
+module Text.Zlib where
+
+  import Data.Nat
+  import Data.List
+  import Data.Option
+  import Data.Result
+  import Data.Bytes
+  import Data.Machine
+
+  import Algebra.Semigroup
+
+
+  export ZlibError, BadHeader, BadChecksum, InvalidCode, TruncatedStream
+  export inflate, deflate, adler32, crc32
+
+
+  -- ---------------------------------------------------------------------
+  -- Errors.
+  -- ---------------------------------------------------------------------
+
+  -- The named failure vocabulary (the header's four refusals). Every
+  -- one is a value, never a fault: a malformed stream is an outcome
+  -- the caller reads, and the whole result is discarded (no partial
+  -- bytes cross the boundary).
+  data ZlibError where
+    BadHeader :: ZlibError
+    BadChecksum :: ZlibError
+    InvalidCode :: ZlibError
+    TruncatedStream :: ZlibError
+
+  -- ---------------------------------------------------------------------
+  -- List plumbing. The decoder's positional access, reversal, slicing and
+  -- repeats are Data.List's (`nth`, `reverse`, `take`, `drop`,
+  -- `replicate`) and append is the `Semigroup`'s `<>`; nothing bespoke is
+  -- kept here.
+  -- ---------------------------------------------------------------------
+
+  -- ---------------------------------------------------------------------
+  -- Byte plumbing. Both directions copy into buffers this module owns;
+  -- no alias ever observes a half-written buffer, so the copies need
+  -- no ordering story.
+  -- ---------------------------------------------------------------------
+
+  -- One runtime `memmove` (`bytes-copy-range`, whose two range
+  -- obligations it carries); every caller copies between two distinct
+  -- buffers.
+  bytes-move :: using (at + n <= bytes-len dst, from + n <= bytes-len src) => (dst :: Bytes) -> (at :: Nat) -> (src :: Bytes) -> (from :: Nat) -> (n :: Nat) -> Unit
+  bytes-move dst at src from n = bytes-copy-range dst src at from n
+
+  -- Two bytes at `p` little-endian (a stored block's LEN/NLEN wire
+  -- order); the caller has checked that both bytes exist.
+  le16-at :: using (p + 1 < bytes-len src) => (src :: Bytes) -> (p :: Nat) -> Nat
+  le16-at src p = bytes-get src p + bytes-get src (p + 1) * 256
+
+  -- Four bytes at `p` big-endian (the Adler-32's wire order); fewer
+  -- than four is TruncatedStream.
+  be32-at :: Bytes -> Nat -> Result ZlibError Nat
+  be32-at src p = case p + 4 <= bytes-len src of
+    False -> Err TruncatedStream
+    True ->
+      let hi = (bytes-get src p * 256 + bytes-get src (p + 1)) * 256 + bytes-get src (p + 2) in
+      Ok (hi * 256 + bytes-get src (p + 3))
+
+  -- ---------------------------------------------------------------------
+  -- Checksums.
+  -- ---------------------------------------------------------------------
+
+  -- Adler-32 (RFC 1950 section 9) as a `Nat`: the low sum and the sum
+  -- of the low sums, each reduced modulo 65521 every step (the
+  -- slow-but-unconditionally-correct reduction; `inflate` compares
+  -- against the stream's four bytes as this same value, so the
+  -- comparison never wraps).
+  adler-nat :: Bytes -> Nat
+  adler-nat b = case adler-sums 1 0 b 0 of
+    (lo, hi) -> hi * 65536 + lo
+
+  -- The checksum's low 32 bits (both halves are below 65521, so the
+  -- residue is the value itself; it is the conversion's evidence).
+  adler32 :: Bytes -> U32
+  adler32 b = let w = nat-rem (adler-nat b) 4294967296 in wrapping-i64-to-u32 (nat-to-i64 w)
+
+  -- The running sums: `lo` is RFC 1950's `a` and `hi` its `b`, which
+  -- accumulates `a` AFTER `a` has taken the byte.
+  adler-sums :: Nat -> Nat -> Bytes -> Nat -> (Nat, Nat)
+  adler-sums lo hi b i = case i >= bytes-len b of
+    True -> (lo, hi)
+    False ->
+      let lo2 = nat-rem (lo + bytes-get b i) 65521 in
+      adler-sums lo2 (nat-rem (hi + lo2) 65521) b (i + 1)
+
+  -- CRC-32: the IEEE 802.3 polynomial reflected (0xEDB88320), seeded
+  -- all ones and finished inverted (the checksum gzip and PNG carry).
+  crc32 :: Bytes -> U32
+  crc32 b = bit-xor-u32 (crc-fold 0xFFFFFFFF b 0) 0xFFFFFFFF
+
+  crc-fold :: U32 -> Bytes -> Nat -> U32
+  crc-fold c b i = case i >= bytes-len b of
+    True -> c
+    False -> crc-fold (crc-byte c (bytes-get b i)) b (i + 1)
+
+  -- One byte: exclusive-or it into the low end, then eight shifts,
+  -- exclusive-oring the polynomial in whenever the bit shifted out was
+  -- set.
+  crc-byte :: U32 -> Nat -> U32
+  crc-byte c v = crc-bit (bit-xor-u32 c (byte-u32 v)) 8
+
+  crc-bit :: U32 -> Nat -> U32
+  crc-bit c n = case n == 0 of
+    True -> c
+    False -> case eq-u32 (bit-and-u32 c 1) 1 of
+      True -> crc-bit (bit-xor-u32 (wrapping-shr-u32 c 1) 0xEDB88320) (n - 1)
+      False -> crc-bit (wrapping-shr-u32 c 1) (n - 1)
+
+  -- A byte value (0..=255) as a `U32`.
+  byte-u32 :: Nat -> U32
+  byte-u32 v = let w = nat-rem v 4294967296 in wrapping-i64-to-u32 (nat-to-i64 w)
+
+  -- ---------------------------------------------------------------------
+  -- The bit reader.
+  -- ---------------------------------------------------------------------
+
+  -- The reader: the input, the index of the next byte to load, the
+  -- pending byte, and how many of its bits are unread. The pending
+  -- byte always sits at `index - 1` when it has unread bits, so the
+  -- next whole byte is `index` either way (see `bits-align`).
+  data Bits where
+    Bits :: Bytes -> Nat -> Nat -> Nat -> Bits
+
+  bits-src :: Bits -> Bytes
+  bits-src b = case b of
+    Bits src i cur n -> src
+
+  -- The reader positioned at the whole byte `i`: what a stored block
+  -- or the trailing checksum sees after a partial byte's bits are
+  -- padding.
+  bits-at :: Bytes -> Nat -> Bits
+  bits-at src i = Bits src i 0 0
+
+  -- The index of the next whole byte. A partially consumed byte has
+  -- unread bits that are padding at a block or stream end, and the
+  -- next byte is `index`; a fully consumed one leaves the same value.
+  bits-align :: Bits -> Nat
+  bits-align b = case b of
+    Bits src i cur n -> i
+
+  -- One bit, in stream order. A read past the last byte is
+  -- TruncatedStream (never a silent zero: a padded read would decode
+  -- a fabricated stream).
+  bit-read :: Bits -> Result ZlibError (Bits, Nat)
+  bit-read b = case b of
+    Bits src i cur n -> case n == 0 of
+      True -> load-bit b
+      False -> Ok (Bits src i (nat-div cur 2) (n - 1), nat-rem cur 2)
+
+  load-bit :: Bits -> Result ZlibError (Bits, Nat)
+  load-bit b = case b of
+    Bits src i cur n -> case i >= bytes-len src of
+      True -> Err TruncatedStream
+      False -> case bytes-get src i of
+        c -> Ok (Bits src (i + 1) (nat-div c 2) 7, nat-rem c 2)
+
+  -- `n` bits as a number, the FIRST bit read the least significant:
+  -- the packing of every numeric field (RFC 1951 3.1.1). The tail's
+  -- value occupies bits 1..n-1, hence `v + rest * 2`.
+  bits-read :: Bits -> Nat -> Result ZlibError (Bits, Nat)
+  bits-read b n = case n == 0 of
+    True -> Ok (b, 0)
+    False -> case bit-read b of
+      Err e -> Err e
+      Ok (b1, v) -> case bits-read b1 (n - 1) of
+        Err e -> Err e
+        Ok (b2, rest) -> Ok (b2, v + rest * 2)
+
+  -- ---------------------------------------------------------------------
+  -- Canonical Huffman tables (RFC 1951 3.2.2).
+  -- ---------------------------------------------------------------------
+
+  -- One code length: how many codes have it, the first such code, and
+  -- the symbols carrying it in code order.
+  data Level where
+    Level :: Nat -> Nat -> List Nat -> Level
+
+  -- A table is its fifteen levels, shortest code first. Decoding walks
+  -- them in order and tests each level's half-open code range: the
+  -- canonical assignment gives one length's codes consecutive slots in
+  -- symbol order, so the range test IS membership and the offset is
+  -- the symbol's position.
+  data Table where
+    Table :: List Level -> Table
+
+  table-build :: List Nat -> Table
+  table-build lens = Table (levels-from 1 0 lens)
+
+  -- Level `n` starts at `first` and the next length starts at
+  -- `(first + count) * 2`; lengths above 15 exist in no DEFLATE code.
+  levels-from :: Nat -> Nat -> List Nat -> List Level
+  levels-from n first lens = case n > 15 of
+    True -> Nil
+    False ->
+      let cnt = lens-count lens n in
+      Cons (Level cnt first (lens-symbols lens n 0)) (levels-from (n + 1) ((first + cnt) * 2) lens)
+
+  lens-count :: List Nat -> Nat -> Nat
+  lens-count lens n = case lens of
+    Nil -> 0
+    Cons x xs -> case x == n of
+      True -> 1 + lens-count xs n
+      False -> lens-count xs n
+
+  -- The symbol indices whose length is `n`, in rising order (which is
+  -- code order within the level).
+  lens-symbols :: List Nat -> Nat -> Nat -> List Nat
+  lens-symbols lens n i = case lens of
+    Nil -> Nil
+    Cons x xs -> case x == n of
+      True -> Cons i (lens-symbols xs n (i + 1))
+      False -> lens-symbols xs n (i + 1)
+
+  -- The symbol one code names. A code longer than the table, or one no
+  -- level's range covers, is InvalidCode (an incomplete code and a
+  -- code outside the alphabet are the same refusal: the stream named a
+  -- code this format does not define).
+  huff-decode :: Bits -> Table -> Result ZlibError (Bits, Nat)
+  huff-decode b t = case t of
+    Table levels -> huff-walk b levels 0
+
+  -- The code accumulates high bit first (RFC 1951 3.1.1: Huffman codes
+  -- are packed most significant bit first), one bit per level.
+  huff-walk :: Bits -> List Level -> Nat -> Result ZlibError (Bits, Nat)
+  huff-walk b levels code = case levels of
+    Nil -> Err InvalidCode
+    Cons lv rest -> case bit-read b of
+      Err e -> Err e
+      Ok (b1, bit) -> step-level b1 lv rest (code * 2 + bit)
+
+  step-level :: Bits -> Level -> List Level -> Nat -> Result ZlibError (Bits, Nat)
+  step-level b lv rest code = case lv of
+    Level cnt first syms -> case code < first + cnt of
+      -- A canonical code at this length is at least the level's first
+      -- code (the codes grow with length); one below it is no symbol.
+      True -> case checked-sub code first of
+        None -> Err InvalidCode
+        Some k -> case nth k syms of
+          None -> Err InvalidCode
+          Some sym -> Ok (b, sym)
+      False -> huff-walk b rest code
+
+  -- ---------------------------------------------------------------------
+  -- The length and distance code tables (RFC 1951 3.2.5).
+  -- ---------------------------------------------------------------------
+
+  len-base :: List Nat
+  len-base = [3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27, 31, 35, 43, 51, 59, 67, 83, 99, 115, 131, 163, 195, 227, 258]
+
+  len-extra :: List Nat
+  len-extra = [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 0]
+
+  dist-base :: List Nat
+  dist-base = [1, 2, 3, 4, 5, 7, 9, 13, 17, 25, 33, 49, 65, 97, 129, 193, 257, 385, 513, 769, 1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577]
+
+  dist-extra :: List Nat
+  dist-extra = [0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13]
+
+  -- The base length and extra-bit count of length code `c`: 257..285
+  -- name a length, 286 and 287 name none.
+  length-info :: Nat -> Option (Nat, Nat)
+  length-info c = case c < 257 of
+    True -> None
+    False -> case c > 285 of
+      True -> None
+      False -> pair-nth len-base len-extra (c - 257)
+
+  -- The base distance and extra-bit count of distance code `c`: 0..29
+  -- name a distance, 30 and 31 name none.
+  distance-info :: Nat -> Option (Nat, Nat)
+  distance-info c = case c > 29 of
+    True -> None
+    False -> pair-nth dist-base dist-extra c
+
+  pair-nth :: List Nat -> List Nat -> Nat -> Option (Nat, Nat)
+  pair-nth bs es k = case nth k bs of
+    None -> None
+    Some b -> case nth k es of
+      None -> None
+      Some e -> Some (b, e)
+
+  -- ---------------------------------------------------------------------
+  -- The growing output.
+  -- ---------------------------------------------------------------------
+
+  -- The buffer and how many bytes are written; the capacity is the
+  -- buffer's own length, so every write's bound is a fact over
+  -- `bytes-len` rather than a separate field the checker cannot connect
+  -- to it. The written count never passes the capacity: a fresh sink
+  -- writes nothing, a push into room advances by one below the length,
+  -- and a push into a full sink grows it first. The capacity doubles
+  -- when full, so a stream of n bytes costs O(log n) reallocations and
+  -- O(n) copying; the extra capacity is trimmed once at the end
+  -- (`out-bytes`).
+  data Sink where
+    Sink :: Bytes -> Nat -> Sink
+
+  out-new :: Nat -> Sink
+  out-new n = Sink (bytes-new n) 0
+
+  out-push :: Sink -> InRange 0 255 Nat -> Sink
+  out-push o v = case o of
+    Sink buf len -> case len < bytes-len buf of
+      True ->
+        let u = bytes-set buf len v in
+        Sink buf (len + 1)
+      False -> grow-push buf v
+
+  -- A push into a full sink: the written count never passes the
+  -- capacity (the `Sink` invariant above), so a sink with no room has
+  -- written exactly `bytes-len buf` bytes, and that is both how much
+  -- the doubled buffer takes over and where the new byte goes.
+  grow-push :: Bytes -> InRange 0 255 Nat -> Sink
+  grow-push buf v =
+    let cap2 = double-cap (bytes-len buf) in
+    let buf2 = bytes-new cap2 in
+    let u = bytes-move buf2 0 buf 0 (bytes-len buf) in
+    let w = bytes-set buf2 (bytes-len buf) v in
+    Sink buf2 (bytes-len buf + 1)
+
+  -- The doubled capacity, and 1 for a sink grown off nothing (a fresh
+  -- buffer always holds at least one more byte than the old one). The
+  -- zero arm spells 1 as `cap + 1`, the same number there, because the
+  -- result's refinement is read from the expression and a bare literal
+  -- cannot carry it.
+  double-cap :: (cap :: Nat) -> refined (cap < r) Nat
+  double-cap cap = if cap == 0 then cap + 1 else cap * 2
+
+  -- The written bytes as an exact buffer (the identity when the
+  -- capacity is already exact: by the `Sink` invariant, a count not
+  -- below the length is the length).
+  out-bytes :: Sink -> Bytes
+  out-bytes o = case o of
+    Sink buf len -> case len < bytes-len buf of
+      True -> out-slice buf len
+      False -> buf
+
+  out-slice :: using (len <= bytes-len buf) => (buf :: Bytes) -> (len :: Nat) -> Bytes
+  out-slice buf len =
+    let b2 = bytes-new len in
+    let u = bytes-move b2 0 buf 0 len in
+    b2
+
+  -- The byte `dist` positions back from the write head (the LZ77 copy
+  -- source); None reaches before the output's first byte, which is
+  -- InvalidCode. The second test names the read's bound: by the `Sink`
+  -- invariant it fails only for a distance of zero, which no distance
+  -- code decodes to (the smallest base is 1), so it refuses a copy with
+  -- no source byte rather than reading one past the written bytes.
+  out-back :: Sink -> Nat -> Option (InRange 0 255 Nat)
+  out-back o dist = case o of
+    Sink buf len ->
+      if dist <= len && len - dist < bytes-len buf then Some (bytes-get buf (len - dist))
+      else None
+
+  -- ---------------------------------------------------------------------
+  -- Decoding. The state is the reader and the sink; the block loop
+  -- runs to the final block, and only then is the checksum read.
+  -- ---------------------------------------------------------------------
+
+  data St where
+    St :: Bits -> Sink -> St
+
+  st-bits :: St -> Bits
+  st-bits s = case s of
+    St b o -> b
+
+  st-sink :: St -> Sink
+  st-sink s = case s of
+    St b o -> o
+
+  push-byte :: St -> InRange 0 255 Nat -> St
+  push-byte st v = St (st-bits st) (out-push (st-sink st) v)
+
+  -- The whole stream: header, blocks, trailing Adler-32.
+  inflate :: Bytes -> Result ZlibError Bytes
+  inflate src = case check-header src of
+    Err e -> Err e
+    Ok o -> case blocks (St (bits-at src 2) o) of
+      Err e -> Err e
+      Ok st -> check-adler (st-bits st) (st-sink st)
+
+  -- The header (RFC 1950 2.2): CM is DEFLATE, CINFO's window is at
+  -- most 32K, FDICT is clear, and CMF/FLG is a multiple of 31 (FCHECK,
+  -- which is what makes a non-zlib byte pair refuse rather than
+  -- decode).
+  check-header :: Bytes -> Result ZlibError Sink
+  check-header src = case bytes-len src >= 2 of
+    False -> Err TruncatedStream
+    True -> case header-ok (bytes-get src 0) (bytes-get src 1) of
+      False -> Err BadHeader
+      True -> Ok (out-new 1024)
+
+  header-ok :: Nat -> Nat -> Bool
+  header-ok cmf flg =
+    nat-rem cmf 16 == 8 && nat-rem (nat-div cmf 16) 16 <= 7 && nat-rem (nat-div flg 32) 2 == 0 && nat-rem (cmf * 256 + flg) 31 == 0
+
+  -- The trailing Adler-32 (four bytes big-endian) against the decoded
+  -- bytes; the reader is aligned to the byte boundary the checksum
+  -- starts on.
+  check-adler :: Bits -> Sink -> Result ZlibError Bytes
+  check-adler b o =
+    let got = out-bytes o in
+    case be32-at (bits-src b) (bits-align b) of
+      Err e -> Err e
+      Ok want -> case adler-nat got == want of
+        True -> Ok got
+        False -> Err BadChecksum
+
+  -- One block: BFINAL and BTYPE share three bits, then the block
+  -- itself. BTYPE 3 is reserved and refuses.
+  blocks :: St -> Result ZlibError St
+  blocks st = case bits-read (st-bits st) 3 of
+    Err e -> Err e
+    Ok (b1, hdr) -> block-at (St b1 (st-sink st)) hdr
+
+  block-at :: St -> Nat -> Result ZlibError St
+  block-at st hdr =
+    let final = nat-rem hdr 2 in
+    let btype = nat-rem (nat-div hdr 2) 4 in
+    if btype == 0 then stored-block st final
+    else if btype == 1 then huff-block st final fixed-lit-table fixed-dist-table
+    else if btype == 2 then dynamic-block st final
+    else Err InvalidCode
+
+  -- A stored block (RFC 1951 3.2.4): skip to the byte boundary, take
+  -- LEN and its complement NLEN, then LEN literal bytes.
+  stored-block :: St -> Nat -> Result ZlibError St
+  stored-block st final = stored-read (st-bits st) (st-sink st) final
+
+  stored-read :: Bits -> Sink -> Nat -> Result ZlibError St
+  stored-read b o final = case stored-length b of
+    Err e -> Err e
+    Ok (data-at, len) -> case stored-copy (bits-src b) o data-at len of
+      Err e -> Err e
+      Ok o2 -> next-block (St (bits-at (bits-src b) (data-at + len)) o2) final
+
+  -- LEN and NLEN at the next byte boundary: the index of the first
+  -- data byte and LEN. A pair that is not complementary is
+  -- InvalidCode; fewer than four bytes is TruncatedStream.
+  stored-length :: Bits -> Result ZlibError (Nat, Nat)
+  stored-length b =
+    let p = bits-align b in
+    let src = bits-src b in
+    case p + 4 <= bytes-len src of
+      False -> Err TruncatedStream
+      True ->
+        let len = le16-at src p in
+        let nlen = le16-at src (p + 2) in
+        case len + nlen == 65535 of
+          True -> Ok (p + 4, len)
+          False -> Err InvalidCode
+
+  -- The literal bytes, copied from the input straight to the output
+  -- (a stored block's bytes are already what the decoder owes).
+  stored-copy :: Bytes -> Sink -> Nat -> Nat -> Result ZlibError Sink
+  stored-copy src o at n = case n == 0 of
+    True -> Ok o
+    False -> case at >= bytes-len src of
+      True -> Err TruncatedStream
+      False -> stored-copy src (out-push o (bytes-get src at)) (at + 1) (n - 1)
+
+  -- The last block ends the stream; any other continues the block loop.
+  next-block :: St -> Nat -> Result ZlibError St
+  next-block st final = case final == 1 of
+    True -> Ok st
+    False -> blocks st
+
+  -- A Huffman block: symbols until the end-of-block code 256. Below
+  -- 256 a symbol is a literal byte; above it a length, which the
+  -- following distance symbol completes into a copy.
+  huff-block :: St -> Nat -> Table -> Table -> Result ZlibError St
+  huff-block st final ltab dtab = case huff-decode (st-bits st) ltab of
+    Err e -> Err e
+    Ok (b1, sym) -> huff-symbol (St b1 (st-sink st)) final ltab dtab sym
+
+  huff-symbol :: St -> Nat -> Table -> Table -> Nat -> Result ZlibError St
+  huff-symbol st final ltab dtab sym = case sym < 256 of
+    True -> huff-block (push-byte st sym) final ltab dtab
+    False -> case sym == 256 of
+      True -> next-block st final
+      False -> huff-match st final ltab dtab sym
+
+  -- A length/distance pair: the length's extra bits fix the length, the
+  -- distance symbol's extra bits fix the distance, and the copy runs
+  -- backwards from the write head over the distance.
+  huff-match :: St -> Nat -> Table -> Table -> Nat -> Result ZlibError St
+  huff-match st final ltab dtab sym = case length-info sym of
+    None -> Err InvalidCode
+    Some (base, extra) -> case bits-read (st-bits st) extra of
+      Err e -> Err e
+      Ok (b1, x) -> case huff-decode b1 dtab of
+        Err e -> Err e
+        Ok (b2, dsym) -> case distance-info dsym of
+          None -> Err InvalidCode
+          Some (dbase, dextra) -> case bits-read b2 dextra of
+            Err e -> Err e
+            Ok (b3, y) -> case match-copy (St b3 (st-sink st)) (base + x) (dbase + y) of
+              Err e -> Err e
+              Ok st2 -> huff-block st2 final ltab dtab
+
+  -- The copy: one byte at a time, so an overlapping match (a distance
+  -- shorter than the length) reads back bytes it has just written,
+  -- which is exactly what a run of one byte is.
+  match-copy :: St -> Nat -> Nat -> Result ZlibError St
+  match-copy st len dist = case len == 0 of
+    True -> Ok st
+    False -> case out-back (st-sink st) dist of
+      None -> Err InvalidCode
+      Some v -> match-copy (push-byte st v) (len - 1) dist
+
+  -- A dynamic block's two tables and the reader the lengths left.
+  data Tables where
+    Tables :: St -> Table -> Table -> Tables
+
+  -- A dynamic block (RFC 1951 3.2.7): the two alphabet counts and the
+  -- code-length count, the code-length alphabet's own lengths in their
+  -- transmitted order, then HLIT + HDIST lengths under that table with
+  -- the repeat codes expanded.
+  dynamic-block :: St -> Nat -> Result ZlibError St
+  dynamic-block st final = case dyn-tables st of
+    Err e -> Err e
+    Ok t -> case t of
+      Tables st1 ltab dtab -> huff-block st1 final ltab dtab
+
+  -- The code-length alphabet's transmission order (RFC 1951 3.2.7):
+  -- symbol 16 first, symbol 0 last.
+  cl-order :: List Nat
+  cl-order = [16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15]
+
+  dyn-tables :: St -> Result ZlibError Tables
+  dyn-tables st = case bits-read (st-bits st) 5 of
+    Err e -> Err e
+    Ok (b1, hlit0) ->
+      let hlit = hlit0 + 257 in
+      case bits-read b1 5 of
+        Err e -> Err e
+        Ok (b2, hdist0) ->
+          let hdist = hdist0 + 1 in
+          case bits-read b2 4 of
+            Err e -> Err e
+            Ok (b3, hclen0) ->
+              let hclen = hclen0 + 4 in
+              case cl-read b3 hclen Nil of
+                Err e -> Err e
+                Ok (b4, vals) ->
+                  let cltab = table-build (cl-slot-lens (cl-pairs cl-order vals)) in
+                  case lens-read b4 cltab (hlit + hdist) 0 None Nil of
+                    Err e -> Err e
+                    Ok (b5, lens) -> Ok (Tables (St b5 (st-sink st)) (table-build (take hlit lens)) (table-build (drop hlit lens)))
+
+  -- The code-length alphabet's own lengths: `n` three-bit values in
+  -- the transmitted order above; the symbols after them stay zero.
+  cl-read :: Bits -> Nat -> List Nat -> Result ZlibError (Bits, List Nat)
+  cl-read b n acc = case n == 0 of
+    True -> Ok (b, reverse acc)
+    False -> case bits-read b 3 of
+      Err e -> Err e
+      Ok (b1, v) -> cl-read b1 (n - 1) (Cons v acc)
+
+  cl-pairs :: List Nat -> List Nat -> List (Nat, Nat)
+  cl-pairs order vals = case order of
+    Nil -> Nil
+    Cons sym rest -> case vals of
+      Nil -> Nil
+      Cons v vs -> Cons (sym, v) (cl-pairs rest vs)
+
+  -- The nineteen slot lengths in symbol order (the untouched slots
+  -- zero), which is the order the table builder reads.
+  cl-slot-lens :: List (Nat, Nat) -> List Nat
+  cl-slot-lens pairs = cl-slots pairs 0 19
+
+  cl-slots :: List (Nat, Nat) -> Nat -> Nat -> List Nat
+  cl-slots pairs slot n = case slot == n of
+    True -> Nil
+    False -> Cons (pair-lookup pairs slot) (cl-slots pairs (slot + 1) n)
+
+  pair-lookup :: List (Nat, Nat) -> Nat -> Nat
+  pair-lookup pairs slot = case pairs of
+    Nil -> 0
+    Cons p rest -> case p of
+      (sym, v) -> case sym == slot of
+        True -> v
+        False -> pair-lookup rest slot
+
+  -- The HLIT + HDIST code lengths, the repeat codes expanded: 16
+  -- repeats the previous length 3..6 times, 17 repeats zero 3..10
+  -- times, 18 zero 11..138 times. Overrunning the two arrays, or a 16
+  -- with no previous length, is InvalidCode.
+  lens-read :: Bits -> Table -> Nat -> Nat -> Option Nat -> List Nat -> Result ZlibError (Bits, List Nat)
+  lens-read b cltab n k prev acc = case k == n of
+    True -> Ok (b, reverse acc)
+    False -> case huff-decode b cltab of
+      Err e -> Err e
+      Ok (b1, sym) -> case cl-expand b1 sym prev of
+        Err e -> Err e
+        Ok (b2, len, reps) -> case k + reps > n of
+          True -> Err InvalidCode
+          False -> lens-read b2 cltab n (k + reps) (Some len) (replicate reps len <> acc)
+
+  -- One code-length symbol expanded into the length it contributes and
+  -- how many times; `prev` is None until a literal length has been
+  -- read, which is what makes a leading 16 invalid.
+  cl-expand :: Bits -> Nat -> Option Nat -> Result ZlibError (Bits, Nat, Nat)
+  cl-expand b sym prev = case sym < 16 of
+    True -> Ok (b, sym, 1)
+    False -> case sym == 16 of
+      True -> repeat-prev b prev
+      False -> case sym == 17 of
+        True -> repeat-zero b 3 3
+        False -> repeat-zero b 7 11
+
+  repeat-prev :: Bits -> Option Nat -> Result ZlibError (Bits, Nat, Nat)
+  repeat-prev b prev = case prev of
+    None -> Err InvalidCode
+    Some p -> case bits-read b 2 of
+      Err e -> Err e
+      Ok (b1, x) -> Ok (b1, p, 3 + x)
+
+  -- 17 repeats zero 3..10 times (three extra bits) and 18 zero 11..138
+  -- times (seven), so the extra-bit count is a parameter too.
+  repeat-zero :: Bits -> Nat -> Nat -> Result ZlibError (Bits, Nat, Nat)
+  repeat-zero b extra low = case bits-read b extra of
+    Err e -> Err e
+    Ok (b1, x) -> Ok (b1, 0, low + x)
+
+  -- ---------------------------------------------------------------------
+  -- The fixed Huffman block's tables (RFC 1951 3.2.6): literals 0..143
+  -- are eight bits, 144..255 nine, 256..279 seven, 280..287 eight, and
+  -- every distance code five.
+  -- ---------------------------------------------------------------------
+
+  fixed-lit-lens :: List Nat
+  fixed-lit-lens = (replicate 144 8) <> ((replicate 112 9) <> ((replicate 24 7) <> (replicate 8 8)))
+
+  fixed-lit-table :: Table
+  fixed-lit-table = table-build fixed-lit-lens
+
+  fixed-dist-table :: Table
+  fixed-dist-table = table-build (replicate 32 5)
+
+  -- ---------------------------------------------------------------------
+  -- Encoding. Stored blocks only (see the header): the encoder's
+  -- obligation is a legal stream that round-trips, and its output is
+  -- exactly the stream a decoder would have produced had the input
+  -- arrived as a stored block already.
+  -- ---------------------------------------------------------------------
+
+  -- The zlib stream for `src`: header 0x78 0x01 (CM 8, CINFO 7,
+  -- FLEVEL 0, FDICT clear, FCHECK 1, the pair a multiple of 31), one
+  -- stored block per 65535-byte chunk with the last one final (one
+  -- empty final block for no bytes: a stream still needs one), and the
+  -- Adler-32 of `src` big-endian. The buffer is sized exactly, so
+  -- nothing is copied twice.
+  deflate :: Bytes -> Bytes
+  deflate src =
+    let out = write-blocks 2 src 0 (adler-nat src) in
+    let u = bytes-set out 0 120 in
+    let v = bytes-set out 1 1 in
+    out
+
+  -- The stream from the stored block for `src[from..]` on, written at
+  -- `at`: a header byte carrying BFINAL and BTYPE 00, LEN little-endian,
+  -- LEN's complement, then the literals, and after the final block the
+  -- Adler-32. The buffer is made by the final block, once the whole
+  -- length is known (`at` plus that block plus the checksum), and the
+  -- earlier blocks write into it on the way back; the result's
+  -- refinement is the room every write proves (this block's five
+  -- header bytes at least), so no size is computed apart from the
+  -- writes. A block is final exactly when what is left fits in one
+  -- (at most 65535 bytes).
+  write-blocks :: using (from <= bytes-len src) => (at :: Nat) -> (src :: Bytes) -> (from :: Nat) -> Nat -> refined (at + 5 <= bytes-len out) Bytes
+  write-blocks at src from adler =
+    if from + 65535 < bytes-len src then
+      let out = write-blocks (at + 65540) src (from + 65535) adler in
+      let u = bytes-set out at 0 in
+      let v = write-le16 out (at + 1) 65535 in
+      let w = write-le16 out (at + 3) 0 in
+      let x = bytes-move out (at + 5) src from 65535 in
+      out
+    else
+      let out = bytes-new (at + 5 + (bytes-len src - from) + 4) in
+      let u = bytes-set out at 1 in
+      let v = write-le16 out (at + 1) (bytes-len src - from) in
+      let w = write-le16 out (at + 3) (65535 - (bytes-len src - from)) in
+      let x = bytes-move out (at + 5) src from (bytes-len src - from) in
+      let y = write-be32 out (at + 5 + (bytes-len src - from)) adler in
+      out
+
+  write-le16 :: using (at + 1 < bytes-len out) => (out :: Bytes) -> (at :: Nat) -> Nat -> Unit
+  write-le16 out at v =
+    let u = bytes-set out at (nat-rem v 256) in
+    bytes-set out (at + 1) (nat-rem (nat-div v 256) 256)
+
+  write-be32 :: using (at + 3 < bytes-len out) => (out :: Bytes) -> (at :: Nat) -> Nat -> Unit
+  write-be32 out at v =
+    let u = bytes-set out at (nat-rem (nat-div v 16777216) 256) in
+    let w = bytes-set out (at + 1) (nat-rem (nat-div v 65536) 256) in
+    let x = bytes-set out (at + 2) (nat-rem (nat-div v 256) 256) in
+    bytes-set out (at + 3) (nat-rem v 256)

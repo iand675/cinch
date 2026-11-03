@@ -1,0 +1,15 @@
+---
+import Default from '@astrojs/starlight/components/MarkdownContent.astro';
+import TechnicalFigure from './TechnicalFigure.astro';
+const isVectorTutorial = Astro.locals.starlightRoute.entry.id === 'tutorials/01-values-and-dependent-types';
+// Insert the illustration after the nonempty-vector explanation while preserving
+// the Markdown source and its generated heading anchors. Fall back to the end
+// if the next section is renamed.
+const content = isVectorTutorial ? await Astro.slots.render('default') : '';
+const figurePosition = content.indexOf('<h2 id="return-a-runtime-witness"');
+---
+<Default>
+  {isVectorTutorial ? (
+    figurePosition >= 0 ? <><Fragment set:html={content.slice(0,figurePosition)} /><TechnicalFigure id="tutorial-vector-figure" /><Fragment set:html={content.slice(figurePosition)} /></> : <><Fragment set:html={content} /><TechnicalFigure id="tutorial-vector-figure" /></>
+  ) : <slot />}
+</Default>

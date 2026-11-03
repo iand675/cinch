@@ -1,0 +1,8 @@
+---
+import Default from '@astrojs/starlight/components/Sidebar.astro';
+import { project } from '../lib/project';
+---
+<div class="sidebar-intro"><span>CINCH DOCUMENTATION</span><i aria-hidden="true"></i></div>
+<nav class="sidebar-project-links" aria-label="Project resources"><a href="/downloads/">Downloads ↗</a><a href="/packages/">Packages ↗</a><a href={project.repository}>GitHub ↗</a></nav>
+<Default />
+<a class="sidebar-home" href="/">← Cinch home</a>

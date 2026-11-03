@@ -1,0 +1,43 @@
+-- Effect.Sequencing: the `do` sequencing providers (decision D22).
+--
+-- The same `do` spelling types differently per provider: direct
+-- sequencing is the default and a `using` binder with a provider head
+-- selects another. `pure` and `bind` are the provider's class methods
+-- (decision D2). `do` picks its provider lexically per definition:
+-- exactly one container per definition, no polymorphism. The
+-- Category.* classes abstract over containers for polymorphic code;
+-- the two mechanisms do not interact.
+--
+-- Module scheme (design/base-library.md): `Effect.*` is the effect
+-- system's vocabulary. The provider instances live with their
+-- container's type (Data.Option, Data.Result); the direct provider is
+-- the identity and its instance lives here with its class.
+module Effect.Sequencing where
+
+  import Data.Result
+  import Data.Option
+  export DirectSequencing, ResultSequencing, OptionSequencing, pure, bind
+
+
+  -- Sequencing providers for `do` notation (runtime capabilities,
+  -- effects and sequencing specification, "Unqualified do through
+  -- modules and typeclasses"; design section 5). The same `do` spelling
+  -- types differently per provider: direct sequencing is the default and
+  -- a `using` binder with a provider head selects another. `pure` and
+  -- `bind` are the provider's class methods (decision D2).
+
+  signature DirectSequencing where
+    pure :: forall a. a -> a
+    bind :: forall a b ef. a -> (a ->{ef} b) ->{ef} b
+
+  implicit instance SeqDirect :: DirectSequencing where
+    pure x = x
+    bind v k = k v
+
+  signature ResultSequencing e where
+    pure :: forall a. a -> Result e a
+    bind :: forall a b ef. Result e a -> (a ->{ef} Result e b) ->{ef} Result e b
+
+  signature OptionSequencing where
+    pure :: forall a. a -> Option a
+    bind :: forall a b ef. Option a -> (a ->{ef} Option b) ->{ef} Option b

@@ -1,0 +1,104 @@
+-- Algebra.Semigroup: associative binary combination on a carrier.
+--
+-- `Semigroup` is the value-level class of the base library scheme
+-- (design/base-library.md): one operator method `<>`, associative by
+-- law. This module declares the operator and owns its fixity. Consumers
+-- inherit the declaration through imports and cannot redeclare it.
+--
+-- Laws (asserted over sample values in compiler/tests/lib_algebra.rs):
+--   associativity: (x <> y) <> z == x <> (y <> z)
+-- A class constraint entails nothing (the standing no-superbundle
+-- rule): this module states no Monoid import and every function names
+-- exactly the constraints it uses.
+--
+-- Instance homes. The ownership rule is "instances live with their
+-- type; structural instances over functions and tuples live with the
+-- class module". The carriers that were parked here (List, Option,
+-- Ordering, String) got their instances at the prelude split: they
+-- live in the types' Data.* homes now. Function and tuple instances
+-- are structural and here permanently. The instance-carrying newtypes
+-- (Sum, Product, Dual, First, Last, Endo) are declared in
+-- Algebra.Monoid with both of their instances, because an instance
+-- lives with its type and a newtype's home is its class module.
+module Algebra.Semigroup where
+
+  infixr 6 <>
+
+  signature Semigroup a where
+    (<>) :: a -> a -> a
+    -- The class law (primitive operations and inline target IR
+    -- specification section 5): association. Instances are checked
+    -- against it sample-wise where the law machinery can decide it, and
+    -- `rewrite` justifications may cite it by identity
+    -- (`Semigroup.assoc`).
+    law assoc :: (x :: a) -> (y :: a) -> (z :: a) -> Eq ((x <> y) <> z) (x <> (y <> z))
+
+  -- Structural: pointwise combination of functions into a semigroup.
+  -- (t -> u) is a semigroup whenever the result is; the constraint is
+  -- stated, never entailed. The method is eta-expanded (`f <> g` at x
+  -- is `f x <> g x`) because the bootstrap checks equations against
+  -- every arrow of the substituted method type.
+  implicit instance Semigroup_Function t u :: using (sb :: Semigroup u) => Semigroup (t -> u) where
+    (<>) f g x = (<>) (f x) (g x)
+
+  -- Structural: tuples combine componentwise, each side under its own
+  -- constraint.
+  implicit instance Semigroup_Pair t u :: using (sa :: Semigroup t, sb :: Semigroup u) => Semigroup (t, u) where
+    (<>) x y = case x of
+      (x1, x2) -> case y of
+        (y1, y2) -> ((<>) x1 y1, (<>) x2 y2)
+
+  -- ------------------------------------------------------------------
+  -- The class-generic folds. These are free functions with a `using`
+  -- constraint, not new class methods (the scheme of `sum-list` and
+  -- `enum-from-to`): the class is the interface and reaching one of
+  -- these costs an explicit import of this module, since the facade
+  -- re-exports no class home.
+
+  -- `sconcat`: combine the whole list with `<>`, in order, or `None`
+  -- when there is nothing to combine. The carrier is `List a` and the
+  -- emptiness is reported as an `Option` (the prelude's partiality
+  -- convention). `NonEmpty` would be the more precise argument, but its
+  -- home (Data.NonEmpty) imports this module for `<>`, so naming it here
+  -- would be a cycle; the `Option` result is the version that lives in
+  -- this module.
+  --
+  -- The bracketing is balanced (rounds of `combine-pairs`), which the
+  -- associativity law makes equal to base's right fold `foldr1 (<>)`
+  -- with the same n - 1 combinations; for a `<>` that copies its
+  -- operands (String) the right fold re-copies the accumulated suffix at
+  -- every step, O(n^2) bytes, where the rounds copy O(n log n).
+  sconcat :: forall a. using (s :: Semigroup a) => List a -> Option a
+  sconcat xs = case xs of
+    Nil -> None
+    Cons y ys -> case ys of
+      Nil -> Some y
+      Cons _ _ -> sconcat (combine-pairs xs)
+
+  -- One round of a balanced combine: adjacent pairs combined in order,
+  -- an odd last value carried unchanged (shared with Algebra.Monoid's
+  -- `mconcat`).
+  combine-pairs :: forall a. using (sa :: Semigroup a) => List a -> List a
+  combine-pairs xs = case xs of
+    Nil -> Nil
+    Cons x rest -> case rest of
+      Nil -> Cons x Nil
+      Cons y more -> Cons ((<>) x y) (combine-pairs more)
+
+  -- `stimes n x`: `n` copies of `x` combined with `<>`. A `Nat` cannot
+  -- be negative, but it can be zero, and a bare `Semigroup` has no
+  -- identity to return; base's `stimes 0` is an error and the prelude
+  -- refuses faults, so `0` reads as one copy. That is the reading under
+  -- which the law `stimes (m + n) x == stimes m x <> stimes n x` is
+  -- stated for `m, n >= 1`. By repeated doubling (associativity makes
+  -- any bracketing of the n copies equal): O(log n) combinations, where
+  -- chaining one copy at a time costs n - 1 and, for a `<>` that copies
+  -- its operands, O(n^2) bytes.
+  stimes :: forall a. using (s :: Semigroup a) => Nat -> a -> a
+  stimes n x = case n == 0 of
+    True -> x
+    False -> if n == 1 then x else
+      let half = n / 2 in
+      let h = stimes half x in
+      let hh = (<>) h h in
+      if half + half == n then hh else (<>) hh x

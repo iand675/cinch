@@ -1,0 +1,81 @@
+-- Function.Combinators: combinators over plain functions.
+--
+-- Module scheme (design/base-library.md): `Function.*` is the kind of
+-- combinators over plain functions. The pair projections (`fst`,
+-- `snd`, `swap`, `curry`, `uncurry`) live here too: a tuple is a
+-- language-level type with no home module of its own, and these are
+-- function-level projections over a pair, the same kind of value as
+-- the combinators around them, not list operations.
+module Function.Combinators where
+
+  import Relation.Eq
+  import Algebra.Arithmetic
+
+  export identity, const, compose, flip, on, apply-to, apply-n-times, both
+  export fst, snd, swap, curry, uncurry
+
+
+  identity :: forall a. a -> a
+  identity x = x
+
+  const :: forall a b. a -> b -> a
+  const x y = x
+
+  -- `compose h g` applies `g` then `h` (the functor composition law's
+  -- named composition: a law equation states total function
+  -- applications, never a lambda; primitive operations and inline
+  -- target IR specification section 5).
+  compose :: forall a b c. (b -> c) -> (a -> b) -> a -> c
+  compose h g x = h (g x)
+
+  -- `flip f` swaps `f`'s two arguments, so `flip (-) x y` is `y - x`
+  -- and `flip const x y` is `y` (`Data.Function.flip`).
+  flip :: forall a b c. (a -> b -> c) -> b -> a -> c
+  flip f x y = f y x
+
+  -- `on g k` compares two values through `k`'s projections: `on (<)
+  -- fst` is the comparator on first components (the `Data.Function.on`
+  -- combinator, prefix here since the surface declares no `on`
+  -- fixity).
+  on :: forall a b c. (b -> b -> c) -> (a -> b) -> a -> a -> c
+  on g k x y = g (k x) (k y)
+
+  -- Reverse application: `apply-to x f` is `f x` (the `Data.Function.(&)`
+  -- pipe). The name is `apply-to`, not an operator: `&` is bitwise AND
+  -- (Algebra.Bits) and `|>` is not in the base fixity table, so an
+  -- operator spelling would either collide or need a new table entry.
+  apply-to :: forall a b. a -> (a -> b) -> b
+  apply-to x f = f x
+
+  -- `apply-n-times n f x` applies `f` to `x` `n` times: `f (f x)` at
+  -- `n` = 2 and `x` at `n` = 0. The count is a `Nat`, so the base case
+  -- is the zero test and the step decrements (the same `Nat` walk as
+  -- `Data.List`'s `take`).
+  apply-n-times :: forall a. Nat -> (a -> a) -> a -> a
+  apply-n-times n f x = case n == 0 of
+    True -> x
+    False -> apply-n-times (n - 1) f (f x)
+
+  -- `both f g x` is the pair of both projections of `x` (the fan-out
+  -- combinator, the `(&&&)` shape without the arrow machinery).
+  both :: forall a b c. (a -> b) -> (a -> c) -> a -> (b, c)
+  both f g x = (f x, g x)
+
+  fst :: forall a b. (a, b) -> a
+  fst p = case p of
+    (a, b) -> a
+
+  snd :: forall a b. (a, b) -> b
+  snd p = case p of
+    (a, b) -> b
+
+  swap :: forall a b. (a, b) -> (b, a)
+  swap p = case p of
+    (a, b) -> (b, a)
+
+  curry :: forall a b c. ((a, b) -> c) -> a -> b -> c
+  curry f x y = f (x, y)
+
+  uncurry :: forall a b c. (a -> b -> c) -> (a, b) -> c
+  uncurry f p = case p of
+    (a, b) -> f a b

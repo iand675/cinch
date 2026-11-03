@@ -1,0 +1,136 @@
+-- Effect.Log: the `Log r` signal vocabulary (the P32 observability
+-- rows): log levels, metric kinds, the `log`/`metric` effect
+-- operations, and the structured `Json` records they carry.
+--
+-- Module scheme (design/base-library.md): `Effect.*` is the effect
+-- system's vocabulary. The observability story is two families in the
+-- `Io r` mold (the runtime capabilities, effects and sequencing
+-- amendments, D21/D81): region-parameterized effect labels over the
+-- runtime identity `r`, so a signature quantifies `forall r.` and its
+-- body row carries `{Log r}` (here) and `{Trace r}` (Effect.Trace).
+-- The operations are ordinary functions performing their label; a
+-- handler interprets them (the P6 story), and the emitting evidence is
+-- the ordinary `Io r` capability the handler holds. Unhandled, the
+-- operations are just their effect rows and `main`'s boundary refuses
+-- them; that is the whole capability story.
+--
+-- THE RECORDS (reported): a `log`/`metric` payload is a structured
+-- `Json` record (`log-record`/`metric-record` build the shapes);
+-- fields are a `Json` object built with `fields`/`num`/`str`/`flag`/
+-- `arr` so a call site stays free of ceremony. The record shapes are
+-- the contract `Text.Otlp` exports over the wire (OTLP/JSON).
+module Effect.Log where
+
+  import Data.Json
+  import Data.List
+  export LogLevel, Debug, Info, Warn, Error, debug, info, warn, error, level-name
+  export MetricKind, Counter, Gauge, Histogram, counter, gauge, histogram, metric-kind-name
+  export log, metric
+  export no-fields, fields, num, str, flag, arr
+  export log-record, metric-record
+
+
+  -- The level of a log record. The lowercase values (`info` and
+  -- friends) are the DX spelling at a `log` call; the constructors
+  -- surface (D308) for handler clauses that match on them.
+  data LogLevel where
+    Debug :: LogLevel
+    Info :: LogLevel
+    Warn :: LogLevel
+    Error :: LogLevel
+
+  debug :: LogLevel
+  debug = Debug
+
+  info :: LogLevel
+  info = Info
+
+  warn :: LogLevel
+  warn = Warn
+
+  error :: LogLevel
+  error = Error
+
+  -- The level's text in a record (`"debug"`, `"info"`, `"warn"`,
+  -- `"error"`).
+  level-name :: LogLevel -> String
+  level-name lvl = case lvl of
+    Debug -> "debug"
+    Info -> "info"
+    Warn -> "warn"
+    Error -> "error"
+
+  -- The instrument family of a metric record: a counter accumulates
+  -- deltas, a gauge carries the latest reading, a histogram observes
+  -- values into buckets. The lowercase values are the DX spelling at a
+  -- `metric` call.
+  data MetricKind where
+    Counter :: MetricKind
+    Gauge :: MetricKind
+    Histogram :: MetricKind
+
+  counter :: MetricKind
+  counter = Counter
+
+  gauge :: MetricKind
+  gauge = Gauge
+
+  histogram :: MetricKind
+  histogram = Histogram
+
+  metric-kind-name :: MetricKind -> String
+  metric-kind-name k = case k of
+    Counter -> "counter"
+    Gauge -> "gauge"
+    Histogram -> "histogram"
+
+  -- The `Log r` family (the point signals: one record per event).
+  -- `log` records one leveled message with its fields; `metric`
+  -- records one measurement of `kind` at `name` with its fields.
+  effect Log (r :: Region) where
+    log :: LogLevel -> String -> Json ->{Log r} Unit
+    metric :: MetricKind -> String -> Int -> Json ->{Log r} Unit
+
+  -- The field payload of a record: a `Json` object. `no-fields` is the
+  -- empty payload; `fields` builds one from its pairs (the DX shape:
+  -- `fields [("port", num 8080), ("host", str "localhost")]`); `num`,
+  -- `str` and `flag` are the scalar spellings; `arr` is a `Json`
+  -- array.
+  no-fields :: Json
+  no-fields = JObjEnd
+
+  fields :: List (String, Json) -> Json
+  fields ps = case ps of
+    Nil -> JObjEnd
+    Cons p rest -> case p of
+      (k, v) -> JObj k v (fields rest)
+
+  num :: Int -> Json
+  num n = JNum n
+
+  str :: String -> Json
+  str s = JStr s
+
+  flag :: Bool -> Json
+  flag b = JBool b
+
+  arr :: List Json -> Json
+  arr xs = case xs of
+    Nil -> JArrEnd
+    Cons x rest -> JArr x (arr rest)
+
+  -- A log record: `{"level": ..., "message": ..., "fields": ...}`.
+  log-record :: LogLevel -> String -> Json -> Json
+  log-record lvl msg payload =
+    JObj "level" (JStr (level-name lvl))
+      (JObj "message" (JStr msg)
+        (JObj "fields" payload JObjEnd))
+
+  -- A metric record: `{"metric": ..., "name": ..., "value": ...,
+  -- "fields": ...}`.
+  metric-record :: MetricKind -> String -> Int -> Json -> Json
+  metric-record kind name value payload =
+    JObj "metric" (JStr (metric-kind-name kind))
+      (JObj "name" (JStr name)
+        (JObj "value" (JNum value)
+          (JObj "fields" payload JObjEnd)))

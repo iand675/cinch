@@ -1,0 +1,29 @@
+-- Data.Ordering: the three-way comparison result.
+--
+-- Module scheme (design/base-library.md): the type's home carries its
+-- instance family (the parked-instance deviation of D159 is over).
+module Data.Ordering where
+
+  import Algebra.Semigroup
+  import Algebra.Monoid
+
+  export Ordering, LT, EQ, GT
+
+
+  data Ordering where
+    LT :: Ordering
+    EQ :: Ordering
+    GT :: Ordering
+
+  -- Lexicographic composition of comparisons: `compare x y <> compare
+  -- y z` gives `compare x z` when the first is not EQ (moved from
+  -- Algebra.Semigroup at the prelude split).
+  implicit instance Semigroup_Ordering :: Semigroup Ordering where
+    (<>) x y = case x of
+      LT -> LT
+      EQ -> y
+      GT -> GT
+
+  -- `EQ` is the identity (moved from Algebra.Monoid).
+  implicit instance Monoid_Ordering :: Monoid Ordering where
+    mempty = EQ

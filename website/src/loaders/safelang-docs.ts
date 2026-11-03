@@ -9,16 +9,16 @@ const REPO_ROOT = path.dirname(SITE_ROOT);
 /**
  * Directories of the documentation set, relative to the repository root.
  * Every Markdown file in them becomes a page and the route is its path without
- * the extension; the overview is served at the site root.
+ * the extension; the overview is served at /overview/.
  */
-const DOC_DIRS = ['', 'specifications', 'tutorials', 'design', 'examples', 'context'];
+const DOC_DIRS = ['', 'learn', 'reference', 'library', 'specifications', 'tutorials', 'design', 'examples', 'context'];
 
 type PageSource = {
   /** Path used to resolve links between pages, relative to the repository root. */
   relPath: string;
   /** Absolute path of the Markdown file. */
   file: string;
-  /** Route id: the path without its extension, or `index` for the overview. */
+  /** Route id: the path without its extension, including `overview` for the design overview. */
   id: string;
 };
 
@@ -39,7 +39,7 @@ const FENCE_LANGUAGE_ALIASES: Record<string, string> = { ebnf: 'text' };
 
 /** Strip the site-absolute prefix of a link written for the raw Markdown files. */
 function routeFor(relPath: string): string {
-  return relPath === 'overview.md' ? '/' : `/${relPath.replace(/\.md$/, '')}/`;
+  return `/${relPath.replace(/\.md$/, '')}/`;
 }
 
 async function markdownFiles(root: string, relDir: string): Promise<string[]> {
@@ -56,12 +56,12 @@ async function collectSources(): Promise<PageSource[]> {
   for (const dir of DOC_DIRS) {
     for (const name of await markdownFiles(REPO_ROOT, dir)) {
       // The repository root also holds README.md; only the overview is a page.
-      if (dir === '' && name !== 'overview.md') continue;
+      if (dir === '' && !['overview.md', 'documentation.md'].includes(name)) continue;
       const relPath = dir === '' ? name : `${dir}/${name}`;
       sources.push({
         relPath,
         file: path.join(REPO_ROOT, relPath),
-        id: relPath === 'overview.md' ? 'index' : relPath.replace(/\.md$/, ''),
+        id: relPath.replace(/\.md$/, ''),
       });
     }
   }
@@ -194,6 +194,15 @@ export function safelangDocs(): Loader {
     async load({ store, logger, watcher, parseData, renderMarkdown, generateDigest }) {
       const sources = await collectSources();
       const knownPages = new Set(sources.map((source) => source.relPath));
+      // Rendered HTML contains Expressive Code's token colours and hashed asset
+      // URLs. A content-only digest would retain stale HTML after a theme/config
+      // change, even though the matching stylesheet is no longer emitted.
+      const renderingFiles = [
+        path.join(SITE_ROOT, 'astro.config.mjs'),
+        path.join(SITE_ROOT, 'src/themes/syntax.mjs'),
+        path.join(REPO_ROOT, 'tooling/editors/vscode/syntaxes/cinch.tmLanguage.json'),
+      ];
+      const renderDigest = generateDigest((await Promise.all(renderingFiles.map(file => readFile(file, 'utf8')))).join('\n'));
 
       for (const { relPath, file, id } of sources) {
         const raw = await readFile(file, 'utf8');
@@ -215,7 +224,7 @@ export function safelangDocs(): Loader {
           rendered,
           // The digest covers the data as well as the body: the content layer
           // skips entries whose digest is unchanged.
-          digest: generateDigest(JSON.stringify({ data, body: rewritten })),
+          digest: generateDigest(JSON.stringify({ data, body: rewritten, renderDigest })),
         });
 
         watcher?.add(file);

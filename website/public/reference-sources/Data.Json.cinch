@@ -1,0 +1,32 @@
+-- Data.Json: the `Json`-shaped value a file converter binds.
+--
+-- With no declared type a JSON file binds this shape; with a declared
+-- record type the converter decodes into it instead (surface grammar
+-- local amendments section 11). An array is a cons spine (`JArr item
+-- tail`, ended by `JArrEnd`) and an object entry is `JObj key value
+-- tail` (ended by `JObjEnd`): the positivity discipline allows only
+-- direct recursive occurrences, so the payloads stay inside the
+-- family.
+module Data.Json where
+
+  import Data.String
+  export Json, JNull, JBool, JNum, JFloat, JStr, JArr, JObj, JArrEnd, JObjEnd
+
+
+  -- The `Json`-shaped value a file converter binds for a JSON file with
+  -- no declared type (surface grammar local amendments section 11); with
+  -- a declared record type the converter decodes into it instead. An
+  -- array is a cons spine (`JArr item tail`, ended by `JArrEnd`) and an
+  -- object entry is `JObj key value tail` (ended by `JObjEnd`): the
+  -- positivity discipline allows only direct recursive occurrences, so
+  -- the payloads stay inside the family.
+  data Json where
+    JNull :: Json
+    JBool :: Bool -> Json
+    JNum :: Int -> Json
+    JFloat :: F64 -> Json
+    JStr :: String -> Json
+    JArr :: Json -> Json -> Json
+    JObj :: String -> Json -> Json -> Json
+    JArrEnd :: Json
+    JObjEnd :: Json

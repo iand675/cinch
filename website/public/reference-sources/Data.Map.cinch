@@ -1,0 +1,182 @@
+-- Data.Map: the ordered map.
+--
+-- An unbalanced binary search tree over `Ord k` (decision D105).
+-- `map-insert` keeps the left subtree strictly smaller and the right
+-- strictly greater, so a repeated key replaces the stored value in
+-- place.
+--
+-- Module scheme (design/base-library.md): the type's home carries its
+-- `FromMap` instance (map literals at `Map`).
+module Data.Map where
+
+  import Data.List
+  import Data.Option
+  import Relation.Ord
+  export Map, Tip, Bin, map-insert, map-lookup, map-from-pairs
+  export map-empty, map-delete, map-union, map-union-with, map-keys, map-values, map-to-list
+  export map-size, map-is-empty, map-map, map-filter, map-fold
+
+
+  -- The ordered map: an unbalanced binary search tree over `Ord k`
+  -- (decision D105). `map-insert` keeps the left subtree strictly
+  -- smaller and the right strictly greater, so a repeated key replaces
+  -- the stored value in place.
+  data Map k v where
+    Tip :: Map k v
+    Bin :: k -> v -> Map k v -> Map k v -> Map k v
+
+  map-insert :: forall k v. using (ord :: Ord k) => k -> v -> Map k v -> Map k v
+  map-insert k v m = case m of
+    Tip -> Bin k v Tip Tip
+    Bin k2 v2 l r ->
+      if k < k2 then Bin k2 v2 (map-insert k v l) r
+      else if k2 < k then Bin k2 v2 l (map-insert k v r)
+      else Bin k v l r
+
+  map-lookup :: forall k v. using (ord :: Ord k) => k -> Map k v -> Option v
+  map-lookup k m = case m of
+    Tip -> None
+    Bin k2 v2 l r ->
+      if k < k2 then map-lookup k l
+      else if k2 < k then map-lookup k r
+      else Some v2
+
+  map-from-pairs :: forall k v. using (ord :: Ord k) => List (k, v) -> Map k v
+  map-from-pairs kvs = case kvs of
+    Nil -> Tip
+    Cons p ps -> case p of
+      (a, b) -> map-insert a b (map-from-pairs ps)
+
+  -- The empty map, as a name (the family's other homes already spell
+  -- theirs `set-empty`/`hash-map-empty`; the bootstrap exposed `Tip`
+  -- only through the data declaration).
+  map-empty :: forall k v. Map k v
+  map-empty = Tip
+
+  -- Removal: the search descends as `map-lookup` does, and the found
+  -- node's subtrees rejoin through `map-glue`. An absent key rebuilds
+  -- the same tree, so no view can tell a delete of an absent key from
+  -- the identity.
+  map-delete :: forall k v. using (ord :: Ord k) => k -> Map k v -> Map k v
+  map-delete k m = case m of
+    Tip -> Tip
+    Bin k2 v2 l r ->
+      if k < k2 then Bin k2 v2 (map-delete k l) r
+      else if k2 < k then Bin k2 v2 l (map-delete k r)
+      else map-glue l r
+
+  -- Rejoin two trees where every key of the first is below every key
+  -- of the second (exactly the situation a deleted or filtered node
+  -- leaves). The right tree's smallest entry is raised towards the
+  -- root, nothing is compared, and no entry is dropped: this is the
+  -- rejoin, not a union.
+  map-glue :: forall k v. Map k v -> Map k v -> Map k v
+  map-glue l r = case r of
+    Tip -> l
+    Bin d v rl rr -> case rl of
+      Tip -> Bin d v l rr
+      Bin _ _ _ _ -> Bin d v (map-glue l rl) rr
+
+  -- The LEFT map's value wins a shared key (Data.Map's `union`): the
+  -- left map's entries are inserted into the right, and `map-insert`
+  -- replaces the stored value in place. Two n-entry maps cost
+  -- O(n log n).
+  map-union :: forall k v. using (ord :: Ord k) => Map k v -> Map k v -> Map k v
+  map-union a b = map-insert-all (map-to-list a) b
+
+  -- The union of `map-union` with a shared key combined instead of
+  -- chosen: `f` sees the LEFT value first and the right value second
+  -- (Data.Map's `unionWith`).
+  map-union-with :: forall k v. using (ord :: Ord k) => (v -> v -> v) -> Map k v -> Map k v -> Map k v
+  map-union-with f a b = map-combine-into f (map-to-list a) b
+
+  map-insert-all :: forall k v. using (ord :: Ord k) => List (k, v) -> Map k v -> Map k v
+  map-insert-all kvs m = case kvs of
+    Nil -> m
+    Cons p ps -> case p of
+      (k, v) -> map-insert-all ps (map-insert k v m)
+
+  map-combine-into :: forall k v. using (ord :: Ord k) => (v -> v -> v) -> List (k, v) -> Map k v -> Map k v
+  map-combine-into f kvs m = case kvs of
+    Nil -> m
+    Cons p ps -> case p of
+      (k, v) -> case map-lookup k m of
+        None -> map-combine-into f ps (map-insert k v m)
+        Some v2 -> map-combine-into f ps (map-insert k (f v v2) m)
+
+  -- The entries in ascending key order. The tree IS an ordered search
+  -- tree, so this order is observable and stable: the tests pin it
+  -- against a known construction, and a caller may rely on it.
+  map-to-list :: forall k v. Map k v -> List (k, v)
+  map-to-list m = map-to-list-into m Nil
+
+  map-to-list-into :: forall k v. Map k v -> List (k, v) -> List (k, v)
+  map-to-list-into m acc = case m of
+    Tip -> acc
+    Bin k v l r -> map-to-list-into l (Cons (k, v) (map-to-list-into r acc))
+
+  -- The keys in ascending order.
+  map-keys :: forall k v. Map k v -> List k
+  map-keys m = map-keys-into m Nil
+
+  map-keys-into :: forall k v. Map k v -> List k -> List k
+  map-keys-into m acc = case m of
+    Tip -> acc
+    Bin k _ l r -> map-keys-into l (Cons k (map-keys-into r acc))
+
+  -- The values in ascending KEY order (Data.Map's `elems`), never in
+  -- insertion order.
+  map-values :: forall k v. Map k v -> List v
+  map-values m = map-values-into m Nil
+
+  map-values-into :: forall k v. Map k v -> List v -> List v
+  map-values-into m acc = case m of
+    Tip -> acc
+    Bin _ v l r -> map-values-into l (Cons v (map-values-into r acc))
+
+  -- The entry count: the O(n) walk (the node carries no size, only the
+  -- key/value pair).
+  map-size :: forall k v. Map k v -> Nat
+  map-size m = case m of
+    Tip -> 0
+    Bin _ _ l r -> 1 + map-size l + map-size r
+
+  -- Named `map-is-empty` because the bare `is-empty` is the list's
+  -- (`List a -> Bool`) and this language has no overloading to share
+  -- one spelling across carriers; the module prefix is how the family
+  -- disambiguates. (`map-null` was the alternative; `null` is the
+  -- `Foldable` class method's name and would suggest that class.)
+  map-is-empty :: forall k v. Map k v -> Bool
+  map-is-empty m = case m of
+    Tip -> True
+    Bin _ _ _ _ -> False
+
+  -- Rewrite the values, leave the keys where they are. The shape is
+  -- preserved, so no `Ord` is needed (Data.Map's `map`).
+  map-map :: forall k v w. (v -> w) -> Map k v -> Map k w
+  map-map f m = case m of
+    Tip -> Tip
+    Bin k v l r -> Bin k (f v) (map-map f l) (map-map f r)
+
+  -- Keep the entries the predicate accepts; a dropped node's children
+  -- rejoin with `map-glue`, so no `Ord` is needed either (Data.Map's
+  -- `filterWithKey`). The predicate sees the KEY as well as the value:
+  -- the entry, not the bare value, is what this module lists.
+  map-filter :: forall k v. (k -> v -> Bool) -> Map k v -> Map k v
+  map-filter p m = case m of
+    Tip -> Tip
+    Bin k v l r ->
+      if p k v then Bin k v (map-filter p l) (map-filter p r)
+      else map-glue (map-filter p l) (map-filter p r)
+
+  -- A RIGHT fold in ascending key order (Data.Map's `foldrWithKey`).
+  -- The right direction is the one that agrees with the view: folding
+  -- with `Cons` rebuilds `map-to-list` exactly, and the empty map is
+  -- the identity. The accumulator's role is the right (second) value.
+  map-fold :: forall k v b. (k -> v -> b -> b) -> b -> Map k v -> b
+  map-fold f z m = case m of
+    Tip -> z
+    Bin k v l r -> map-fold f (f k v (map-fold f z r)) l
+
+  implicit instance FromMap_Map k v :: using (ord :: Ord k) => FromMap (Map k v) k v where
+    from-map kvs = map-from-pairs kvs

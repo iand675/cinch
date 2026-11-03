@@ -1,0 +1,34 @@
+<label class="theme-control">
+  <svg viewBox="0 0 20 20" width="17" height="17" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="7" stroke="currentColor"/><path d="M10 3a7 7 0 0 0 0 14Z" fill="currentColor"/></svg>
+  <span class="theme-control-label">Select theme</span>
+  <select aria-label="Select theme" data-theme-control>
+    <option value="light">Light</option>
+    <option value="dark">Dark</option>
+    <option value="auto" selected>System</option>
+  </select>
+</label>
+<script>
+  type Preference = 'light' | 'dark' | 'auto';
+  const parse = (value: unknown): Preference => value === 'light' || value === 'dark' ? value : 'auto';
+  const system = matchMedia('(prefers-color-scheme: light)');
+  const controls = document.querySelectorAll<HTMLSelectElement>('[data-theme-control]');
+  const read = (): Preference => {
+    try { return parse(localStorage.getItem('starlight-theme')); } catch { return 'auto'; }
+  };
+  let preference = read();
+  function apply() {
+    document.documentElement.dataset.theme = preference === 'auto' ? (system.matches ? 'light' : 'dark') : preference;
+    controls.forEach(control => { control.value = preference; });
+  }
+  controls.forEach(control => control.addEventListener('change', () => {
+    preference = parse(control.value);
+    try { localStorage.setItem('starlight-theme', preference === 'auto' ? '' : preference); } catch {}
+    apply();
+  }));
+  system.addEventListener('change', () => { if (preference === 'auto') apply(); });
+  window.addEventListener('storage', event => {
+    if (event.key === 'starlight-theme' || event.key === null) { preference = read(); apply(); }
+  });
+  window.addEventListener('pageshow', () => { preference = read(); apply(); });
+  apply();
+</script>

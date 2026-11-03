@@ -1,0 +1,61 @@
+-- Category.Monad: the monad class over type constructors.
+--
+-- Monad is `>>=` (infixl 1, decision D2's per-module fixity
+-- declarations) and `join`. There is NO `return` method (`return` is
+-- handler-clause syntax; decision D152): `pure` lives on
+-- Category.Applicative, and the monad laws state `pure` under an added
+-- `Applicative f` constraint (the bare-`pure` rule, decision D153).
+-- The import below is explicit because a class constraint entails
+-- nothing (the standing no-superbundle rule): `Monad` does not extend
+-- `Applicative`, and every function states the constraints it uses.
+--
+-- `do` notation and these classes (decision D22): `do` picks its
+-- provider lexically per definition; this class abstracts over
+-- containers. The two mechanisms do not interact.
+--
+-- Instance homes: the function instance is structural and lives here
+-- permanently; the List, Option and Result instances got theirs at
+-- the prelude split (Data.List/Data.Option/Data.Result).
+--
+-- The combinators below the class are the free functions `base`'s
+-- Control.Monad carries (`>=>`, `<=<`); each states its constraint and
+-- is reached with an explicit `import Category.Monad` (the facade
+-- re-exports no class home). The traversals that combine this class
+-- with a container live in Category.Traversable, which imports this
+-- module (the class homes collect in dependency order).
+module Category.Monad where
+
+  import Category.Applicative
+
+  signature Monad (f :: Type -> Type) where
+    (>>=) :: forall a b. f a -> (a -> f b) -> f b
+    join :: forall a. f (f a) -> f a
+
+  infixl 1 >>=
+  infixr 1 >=>, <=<
+
+  -- Structural: feed a function's result into the continuation.
+  implicit instance Monad_Function r :: Monad ((->) r) where
+    (>>=) fx k r = (k (fx r)) r
+    join ffx r = (ffx r) r
+
+  -- ------------------------------------------------------------------
+  -- Kleisli composition: two monadic steps composed into one, the
+  -- first step's result feeding the second (base's Control.Monad
+  -- operators, whose fixity is redeclared here per decision D2 so a
+  -- consumer importing this module parses them). Only `>>=` is used,
+  -- so `Monad` is the whole constraint. `join` is not redefined: the
+  -- class method is the whole of it.
+
+  -- Left to right: `f >=> g` is the sequenced pair, the order effects
+  -- run and results flow in.
+  (>=>) :: forall m a b c. using (mon :: Monad m) => (a -> m b) -> (b -> m c) -> a -> m c
+  (>=>) f g x = (>>=) (f x) g
+
+  -- Right to left: `g <=< f` is `f >=> g`, the direction that reads
+  -- like function composition. Eta-expanded to the signature's arity
+  -- (the bootstrap checks a definition against every arrow of its
+  -- signature, so a body that stops at the second arrow is read as arity
+  -- two against an arity-three signature).
+  (<=<) :: forall m a b c. using (mon :: Monad m) => (b -> m c) -> (a -> m b) -> a -> m c
+  (<=<) g f x = (>=>) f g x

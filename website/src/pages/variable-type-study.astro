@@ -1,0 +1,49 @@
+---
+import Brand from '../components/Brand.astro';
+import candidates from '../variable-type-candidates.json';
+import axes from '../variable-font-axes.json';
+import '../styles/custom.css';
+import '../styles/type-study-fonts.css';
+import '../styles/type-comparison.css';
+const labels: Record<string,string> = {wght:'Weight',opsz:'Optical size',wdth:'Width'};
+---
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width" /><meta name="robots" content="noindex,nofollow" /><title>Cinch — Variable alternatives to Domaine</title><link rel="icon" href="/favicon.svg" /></head>
+<body data-pagefind-ignore>
+<header><Brand /><a href="/domaine-alternatives/">← Earlier free options</a></header>
+<main><div class="intro"><p class="eyebrow">CINCH / VARIABLE TYPE STUDY</p><h1>Variable alternatives.</h1><p>Three more candidates, with the actual variable font files loaded. Adjust the controls, then open the full-page preview with those settings.</p><p class="trial-note">All three are SIL Open Font License families. Axis ranges below were read from the downloaded files. Russolo is the high-contrast sans candidate; Bodoni Moda and Playfair are serif alternatives. The selected site typeface is Momo Trust Display.</p><div class="jump-links"><a href="#reference">Domaine reference</a>{Object.entries(candidates).map(([id,c])=><a href={`#${id}`}>{c.name}</a>)}</div></div>
+<div class="comparisons">
+<section id="reference"><div class="choice-info"><span class="eyebrow">PAID REFERENCE</span><h2>Domaine Sans Display</h2><p class="cut">Regular · foundry-rendered specimen</p><p>The stroke contrast and proportions we are comparing against.</p><div class="choice-links"><a href="/?typepage=domaine" target="_blank">Full-page reference ↗</a></div></div><div class="sample"><div class="sample-top"><img src="/brand/cinch-wordmark.webp" width="1957" height="781" alt="Cinch" /><span>THE CINCH PROGRAMMING LANGUAGE</span></div><div class="mini-hero"><div class="mini-copy"><div class="paid-headline"><img src="/type-study/domaine-sans-display.jpg" width="1042" height="440" alt="Power, with proof. — Domaine Sans Display" /></div><p>Dependent types.<br />Explicit effects. Resource control.</p></div><img class="fox" src="/brand/cinch-fox.webp" width="1308" height="1186" alt="Cinch fox mascot" /></div><div class="sample-bottom">PAID REFERENCE / IMAGE</div></div></section>
+{Object.entries(candidates).map(([id,c])=><section id={id} data-variable-candidate={id}><div class="choice-info"><span class="eyebrow">FREE VARIABLE FONT</span><h2>{c.name}</h2><p class="cut">SIL OFL · {axes[id as keyof typeof axes].map(a=>`${a.tag} ${a.min}–${a.max}`).join(' / ')}</p><p>{c.note}</p><form class="axis-controls" aria-label={`${c.name} type controls`}>{axes[id as keyof typeof axes].map(a=><label><span>{labels[a.tag]} <output data-axis-value={a.tag}>{c.defaults[a.tag as keyof typeof c.defaults]}</output></span><input type="range" aria-label={`${c.name} ${labels[a.tag].toLowerCase()}`} name={a.tag} min={a.min} max={a.max} step={a.tag==='wdth' ? .5 : 1} value={c.defaults[a.tag as keyof typeof c.defaults]} /></label>)}<button type="reset">Reset</button></form><div class="choice-links"><a class="full-candidate" href={`/?freepage=${id}`} target="_blank">Preview full page ↗</a><a href={c.source} target="_blank" rel="noreferrer">Font and licence ↗</a></div></div><div class="sample"><div class="sample-top"><img src="/brand/cinch-wordmark.webp" width="1957" height="781" alt="Cinch" /><span>THE CINCH PROGRAMMING LANGUAGE</span></div><div class="mini-hero"><div class="mini-copy"><div class={`sample-headline type-${id}`} aria-label="Power, with proof.">Power,<br />with proof.</div><p>Dependent types.<br />Explicit effects. Resource control.</p></div><img class="fox" src="/brand/cinch-fox.webp" width="1308" height="1186" alt="Cinch fox mascot" /></div><div class="sample-bottom">LIVE VARIABLE FONT / FULL-PAGE PREVIEW PRESERVES THE SLIDER SETTINGS</div></div></section>)}
+</div><footer><p>Optical size adjusts the letterforms for different reading sizes.</p><a href="/">Return to Cinch ↗</a></footer></main>
+<script>
+  document.querySelectorAll<HTMLElement>('[data-variable-candidate]').forEach(section => {
+    const form = section.querySelector<HTMLFormElement>('form')!;
+    const sample = section.querySelector<HTMLElement>('.sample-headline')!;
+    const preview = section.querySelector<HTMLAnchorElement>('.full-candidate')!;
+    const update = () => {
+      const values = [...form.querySelectorAll<HTMLInputElement>('input')];
+      sample.style.setProperty('--candidate-axes', values.map(input => `"${input.name}" ${input.value}`).join(', '));
+      const target = new URL('/', location.origin);
+      target.searchParams.set('freepage', section.dataset.variableCandidate!);
+      values.forEach(input => {
+        section.querySelector<HTMLOutputElement>(`output[data-axis-value="${input.name}"]`)!.value = input.value;
+        target.searchParams.set(input.name, input.value);
+      });
+      preview.href = target.href;
+    };
+    form.addEventListener('input', update);
+    form.addEventListener('submit', e => e.preventDefault());
+    form.addEventListener('reset', () => requestAnimationFrame(update));
+    update();
+  });
+</script>
+<style>
+.axis-controls { border-top:1px solid #ffffff25; margin-top:1.3rem; padding-top:.7rem; }
+.axis-controls label { display:block; margin:.7rem 0; }
+.axis-controls label > span { display:flex; justify-content:space-between; font-size:.7rem; color:#c8bca8; }
+.axis-controls output { font-family:'IBM Plex Mono',monospace; font-size:.65rem; }
+.axis-controls input { width:100%; accent-color:#f78c47; margin:.5rem 0 0; }
+.axis-controls button { border:1px solid #ffffff35; background:transparent; color:#d4c3aa; padding:.4rem .6rem; font:inherit; font-size:.65rem; cursor:pointer; }
+</style>
+</body></html>

@@ -1,0 +1,26 @@
+---
+import PlatformLayout from '../../../../../layouts/PlatformLayout.astro';
+import PackageNavigation from '../../../../../components/catalogue/PackageNavigation.astro';
+import VersionSelect from '../../../../../components/catalogue/VersionSelect.astro';
+import ApiSignature from '../../../../../components/catalogue/ApiSignature.astro';
+import {packages,packageUrl,moduleUrl,symbolId,declarationsFor} from '../../../../../lib/catalogue';
+export function getStaticPaths(){return packages.flatMap(p=>p.versions.flatMap(version=>p.modules.map(m=>({params:{name:p.name,version,module:m.name},props:{package:p,version,module:m}}))));}
+const {package:p,version,module:m}=Astro.props;
+const declarations=declarationsFor(m,version);
+const groups=[{id:'types',title:'Types and classes',items:declarations.filter(d=>d.kind!=='function')},{id:'functions',title:'Functions and values',items:declarations.filter(d=>d.kind==='function')}].filter(g=>g.items.length);
+---
+<PlatformLayout title={`${m.name} · ${p.name} ${version}`} description={m.description} section="packages">
+  <div class="package-topbar"><div><a href="/packages/">Packages</a><span>/</span><a href={packageUrl(p,version)}>{p.name}</a><span>/</span><span>{m.name}</span></div><span class="sample-badge">SAMPLE API</span></div>
+  <div class="package-workspace api-workspace">
+    <PackageNavigation package={p} version={version} moduleName={m.name}/>
+    <article class="package-article api-article">
+      <header class="package-title"><div class="platform-eyebrow mono"><span>MODULE REFERENCE</span><VersionSelect package={p} version={version} module={m}/></div><h1>{m.name}</h1><p>{m.description}</p><div class="module-title-links"><a href={`${moduleUrl(p,m,version)}source/`}>Declaration source ↗</a><a href="#synopsis">Synopsis ↓</a></div></header>
+      {version!==p.version&&<aside class="older-version">Version {version}. <a href={moduleUrl(p,m)}>Read {p.version} →</a></aside>}
+      <section class="api-synopsis" id="synopsis"><div class="section-rule mono">SYNOPSIS</div><div class="synopsis-list">{declarations.map(d=><a href={`#${symbolId(d.name)}`}><code>{d.signature}</code></a>)}</div></section>
+      {m.imports.length>0&&<div class="module-imports"><span class="mono">IMPORTS</span>{m.imports.map(name=>{const owner=packages.find(pkg=>pkg.modules.some(mod=>mod.name===name));const module=owner?.modules.find(x=>x.name===name);return owner&&module?<a href={moduleUrl(owner,module,owner.name===p.name?version:owner.version)}>{name}</a>:<code>{name}</code>;})}</div>}
+      {groups.map(group=><section class="api-group" id={group.id}><h2>{group.title}</h2>{group.items.map(d=><article class="api-declaration" id={symbolId(d.name)}><div class="declaration-heading"><h3>{d.name}</h3><div><span class="mono">{d.kind}</span><a href={`#${symbolId(d.name)}`} aria-label={`Permalink to ${d.name}`}>§</a><a href={`${moduleUrl(p,m,version)}source/#${symbolId(d.name)}`}>Source ↗</a></div></div><pre class="signature-well"><ApiSignature text={d.signature} package={p} module={m} version={version}/></pre><p>{d.description}</p>{d.since&&<p class="since-note mono">Since {d.since}</p>}{d.constructors&&<div class="constructor-list"><h4 class="mono">CONSTRUCTORS</h4>{d.constructors.map(c=><div id={`ctor-${symbolId(c.name)}`}><pre><ApiSignature text={c.signature} package={p} module={m} version={version}/></pre><p>{c.description}</p></div>)}</div>}{d.example&&<div class="api-example"><h4 class="mono">EXAMPLE</h4><pre><code>{d.example}</code></pre></div>}</article>)}</section>)}
+      <aside class="preview-note compact"><span class="mono">SAMPLE API</span><p>This reference is a design fixture. Signatures and examples illustrate the documentation format and are not a compiler compatibility claim.</p></aside>
+    </article>
+    <aside class="declaration-index"><span class="mono">ON THIS PAGE</span><a href="#synopsis">Synopsis</a>{groups.map(g=><><a class="index-group" href={`#${g.id}`}>{g.title}</a>{g.items.map(d=><a href={`#${symbolId(d.name)}`}>{d.name}</a>)}</>)}</aside>
+  </div>
+</PlatformLayout>

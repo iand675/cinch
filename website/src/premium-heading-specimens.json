@@ -1,0 +1,230 @@
+{
+  "domaine": {
+    "functional": {
+      "canvasWidth": 1225,
+      "height": 137,
+      "size": 109,
+      "text": "Functional code.",
+      "width": 793
+    },
+    "contracts": {
+      "canvasWidth": 1225,
+      "height": 137,
+      "size": 109,
+      "text": "Explicit contracts.",
+      "width": 876
+    },
+    "first-element": {
+      "canvasWidth": 1185,
+      "height": 137,
+      "size": 109,
+      "text": "A first element",
+      "width": 724
+    },
+    "requires": {
+      "canvasWidth": 1225,
+      "height": 137,
+      "size": 109,
+      "text": "requires",
+      "width": 418
+    },
+    "nonempty": {
+      "canvasWidth": 1225,
+      "height": 137,
+      "size": 109,
+      "text": "a nonempty vector.",
+      "width": 930
+    },
+    "language": {
+      "canvasWidth": 1225,
+      "height": 137,
+      "size": 109,
+      "text": "What the language",
+      "width": 909
+    },
+    "tracks": {
+      "canvasWidth": 1225,
+      "height": 137,
+      "size": 109,
+      "text": "keeps track of.",
+      "width": 712
+    },
+    "read": {
+      "canvasWidth": 1225,
+      "height": 137,
+      "size": 109,
+      "text": "Read the",
+      "width": 445
+    },
+    "design": {
+      "canvasWidth": 1225,
+      "height": 137,
+      "size": 109,
+      "text": "language design.",
+      "width": 802
+    },
+    "tutorial": {
+      "canvasWidth": 1225,
+      "height": 137,
+      "size": 109,
+      "text": "first tutorial.",
+      "width": 618
+    },
+    "dependent": {
+      "canvasWidth": 1225,
+      "height": 137,
+      "size": 109,
+      "text": "Dependent types",
+      "width": 835
+    },
+    "ownership": {
+      "canvasWidth": 1225,
+      "height": 137,
+      "size": 109,
+      "text": "Ownership and effects",
+      "width": 1088
+    },
+    "upgrades": {
+      "canvasWidth": 1185,
+      "height": 137,
+      "size": 109,
+      "text": "Checked hot upgrades",
+      "width": 1096
+    },
+    "tutorials": {
+      "canvasWidth": 1145,
+      "height": 137,
+      "size": 109,
+      "text": "Tutorials",
+      "width": 440
+    },
+    "specifications": {
+      "canvasWidth": 1225,
+      "height": 137,
+      "size": 109,
+      "text": "Specifications",
+      "width": 680
+    },
+    "notes": {
+      "canvasWidth": 1225,
+      "height": 137,
+      "size": 109,
+      "text": "Design notes",
+      "width": 634
+    }
+  },
+  "founders": {
+    "functional": {
+      "canvasWidth": 1225,
+      "height": 129,
+      "size": 103,
+      "text": "Functional code.",
+      "width": 709
+    },
+    "contracts": {
+      "canvasWidth": 1225,
+      "height": 129,
+      "size": 103,
+      "text": "Explicit contracts.",
+      "width": 779
+    },
+    "first-element": {
+      "canvasWidth": 1225,
+      "height": 129,
+      "size": 103,
+      "text": "A first element",
+      "width": 633
+    },
+    "requires": {
+      "canvasWidth": 1225,
+      "height": 129,
+      "size": 103,
+      "text": "requires",
+      "width": 364
+    },
+    "nonempty": {
+      "canvasWidth": 1225,
+      "height": 129,
+      "size": 103,
+      "text": "a nonempty vector.",
+      "width": 826
+    },
+    "language": {
+      "canvasWidth": 1225,
+      "height": 129,
+      "size": 103,
+      "text": "What the language",
+      "width": 802
+    },
+    "tracks": {
+      "canvasWidth": 1225,
+      "height": 129,
+      "size": 103,
+      "text": "keeps track of.",
+      "width": 629
+    },
+    "read": {
+      "canvasWidth": 1225,
+      "height": 129,
+      "size": 103,
+      "text": "Read the",
+      "width": 391
+    },
+    "design": {
+      "canvasWidth": 1225,
+      "height": 129,
+      "size": 103,
+      "text": "language design.",
+      "width": 719
+    },
+    "tutorial": {
+      "canvasWidth": 1225,
+      "height": 129,
+      "size": 103,
+      "text": "first tutorial.",
+      "width": 529
+    },
+    "dependent": {
+      "canvasWidth": 1225,
+      "height": 129,
+      "size": 103,
+      "text": "Dependent types",
+      "width": 744
+    },
+    "ownership": {
+      "canvasWidth": 1225,
+      "height": 129,
+      "size": 103,
+      "text": "Ownership and effects",
+      "width": 967
+    },
+    "upgrades": {
+      "canvasWidth": 1225,
+      "height": 129,
+      "size": 103,
+      "text": "Checked hot upgrades",
+      "width": 974
+    },
+    "tutorials": {
+      "canvasWidth": 1225,
+      "height": 129,
+      "size": 103,
+      "text": "Tutorials",
+      "width": 390
+    },
+    "specifications": {
+      "canvasWidth": 1225,
+      "height": 129,
+      "size": 103,
+      "text": "Specifications",
+      "width": 617
+    },
+    "notes": {
+      "canvasWidth": 1225,
+      "height": 129,
+      "size": 103,
+      "text": "Design notes",
+      "width": 560
+    }
+  }
+}

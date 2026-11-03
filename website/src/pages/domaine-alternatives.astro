@@ -1,0 +1,24 @@
+---
+import Brand from '../components/Brand.astro';
+import '../styles/custom.css';
+import '../styles/type-study-fonts.css';
+import '../styles/type-comparison.css';
+const choices = [
+  {id:'domaine',name:'Domaine Sans Display',cut:'Regular · paid reference',paid:true,note:'The reference: fine hairlines, broad curves, and substantial vertical strokes. The free options below are compared against this exact headline.',source:'https://klim.co.nz/fonts/domaine-sans-display/'},
+  {id:'italiana',name:'Italiana',cut:'Regular · SIL Open Font License',note:'Fine hairlines and strong vertical contrast. Its narrower, lighter forms capture some of the delicate appearance of the Domaine reference.',source:'https://fonts.google.com/specimen/Italiana'},
+  {id:'belleza',name:'Belleza',cut:'Regular · SIL Open Font License',note:'A high-contrast humanist sans with classical proportions. It is closer to Domaine’s sans-serif construction, with heavier fine strokes and a less dramatic contrast.',source:'https://fonts.google.com/specimen/Belleza'},
+  {id:'anticdidone',name:'Antic Didone',cut:'Regular · SIL Open Font License',note:'Small, ornate serifs, a large x-height, and narrower forms. A softer alternative if Italiana feels too stark.',source:'https://fonts.google.com/specimen/Antic+Didone'},
+];
+---
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width" /><meta name="robots" content="noindex, nofollow" /><title>Cinch — Free alternatives to Domaine Sans</title><link rel="icon" href="/favicon.svg" /></head>
+<body data-pagefind-ignore>
+<header><Brand /><a href="/variable-type-study/">Variable candidates ↗</a></header>
+<main>
+<div class="intro"><p class="eyebrow">CINCH / DOMAINE ALTERNATIVES</p><h1>Three free alternatives.</h1><p>Domaine Sans Display is the reference. These candidates explore its stroke contrast, curves, and proportions. All three free fonts are rendered as live text, with full-page previews.</p><p class="trial-note">The reference uses the foundry-rendered image from the previous study. Each free font is self-hosted with its SIL Open Font License. The selected site typeface is Momo Trust Display.</p><div class="jump-links">{choices.map(c=><a href={`#${c.id}`}>{c.name}</a>)}</div></div>
+<div class="comparisons">{choices.map((c,i)=><section id={c.id} aria-labelledby={`${c.id}-title`}><div class="choice-info"><span class="eyebrow">{c.paid ? 'PAID REFERENCE' : `FREE OPTION 0${i}`}</span><h2 id={`${c.id}-title`}>{c.name}</h2><p class="cut">{c.cut}</p><p>{c.note}</p><div class="choice-links"><a href={c.paid ? '/?typepage=domaine' : `/?freepage=${c.id}`} target="_blank">Preview full page ↗</a><a href={c.source} target="_blank" rel="noreferrer">Font details ↗</a></div></div><div class="sample"><div class="sample-top"><img src="/brand/cinch-wordmark.webp" width="1957" height="781" alt="Cinch" /><span>THE CINCH PROGRAMMING LANGUAGE</span></div><div class="mini-hero"><div class="mini-copy">{c.paid ? <div class="paid-headline"><img src="/type-study/domaine-sans-display.jpg" width="1042" height="440" alt="Power, with proof. — Domaine Sans Display" /></div> : <div class={`sample-headline type-${c.id}`} aria-label="Power, with proof.">Power,<br />with proof.</div>}<p>Dependent types.<br />Explicit effects. Resource control.</p></div><img class="fox" src="/brand/cinch-fox.webp" width="1308" height="1186" alt="Cinch fox mascot" /></div><div class="sample-bottom">{c.paid ? 'FOUNDRY-RENDERED IMAGE / PAID REFERENCE' : 'FREE WEBFONT / LIVE TEXT'}</div></div></section>)}</div>
+<footer><p>Full-page previews apply each face to all display headings and keep the body text consistent.</p><a href="/">Return to Cinch ↗</a></footer>
+</main>
+</body>
+</html>

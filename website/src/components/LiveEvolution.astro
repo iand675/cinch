@@ -1,0 +1,45 @@
+---
+import CodeExcerpt from './CodeExcerpt.astro';
+import LifeReload from './LifeReload.astro';
+const migration=String.raw`spec related :: StateV1 -> StateV2 -> Prop
+spec related old next =
+  Eq old.value (next.base + next.delta)
+
+migrate :: StateV1 %1 -> StateV2
+migrate old =
+  StateV2 { base = old.value, delta = 0 }`;
+---
+<section class="evolution-section language-section" id="live-development" aria-labelledby="evolution-title">
+  <div class="tour-heading"><h2 id="evolution-title">Ship a fix<br />without a restart.</h2><p>The compiler tracks dependencies declaration by declaration, so a rebuild touches only what your edit affects. The same graph lets a running service load the new version of a module and keep its open connections and in-memory state.</p></div>
+  <div class="incremental-layout"><div class="incremental-copy"><h3>Rebuild only what<br />an edit affects.</h3><p>Each declaration has two hashes: one for its body and one for its interface. Editing a body leaves the interface alone, so most clients are untouched. Changing a type or an effect reaches every client that relies on it.</p><p>A client that inlined or specialized the code depends on the body too, so it is rebuilt either way. Compiled objects are stored by content hash and reused across builds.</p><a class="text-link" href="/design/incremental-recompilation/">How incremental compilation works <span>↗</span></a></div>
+    <LifeReload />
+  </div>
+  <div class="hot-reload-layout"><div><h3>Replace a running module<br />and keep its state.</h3><p>Here a counter changes from one stored value to a base plus a delta. The migration consumes the old state, and the <code>related</code> spec requires the new state to report the same count.</p><p>New calls go to the new version. Calls already in progress, closures, and callbacks keep running the old code until they finish.</p><a class="text-link" href="/tutorials/09-compatible-hot-upgrades/">A complete counter-upgrade walkthrough <span>↗</span></a></div><CodeExcerpt code={migration} label="COUNTER / STATE MIGRATION" caption="The relation preserves old.value = next.base + next.delta."/></div>
+  <div class="activation-controls"><button type="button" class="gadget-key" data-upgrade-run>Run an upgrade <span aria-hidden="true">▸</span></button><div class="activation-rail" aria-hidden="true"><i data-upgrade-rail></i></div><p class="mono" data-upgrade-status aria-live="polite">Version 1 is serving every call.</p></div>
+  <ol class="activation-sequence" data-upgrade-steps aria-label="Checked module activation sequence"><li><span class="mono">01 / PREPARE</span><h4>Check the update set.</h4><p>Check the new code, its compatibility check, and every module that has to change with it.</p></li><li><span class="mono">02 / COORDINATE</span><h4>Reach a valid boundary.</h4><p>Let in-flight calls drain, wait for a declared safe point, or run both versions side by side.</p></li><li><span class="mono">03 / ACTIVATE</span><h4>Transfer and publish.</h4><p>Migrate the state, hand over its resources, and route new calls to the new version.</p></li><li><span class="mono">04 / RETIRE</span><h4>Let old code finish.</h4><p>Unload the old version once nothing still refers to it.</p></li></ol>
+  <a class="text-link" href="/specifications/runtime-evolution-specification/">The runtime evolution protocol <span>↗</span></a>
+</section>
+<script>
+  const evolution=document.querySelector('#live-development');
+  // The activation protocol, one stage at a time.
+  const upgradeButton=evolution?.querySelector<HTMLButtonElement>('[data-upgrade-run]');
+  const steps=evolution?.querySelectorAll<HTMLElement>('[data-upgrade-steps] > li');
+  const rail=evolution?.querySelector<HTMLElement>('[data-upgrade-rail]');
+  const status=evolution?.querySelector('[data-upgrade-status]');
+  const messages=['Checking the update set: artifacts, compatibility evidence, and dependents.','Waiting for a valid boundary. Calls in progress keep running version 1.','State migrated and ownership moved. New calls go to version 2.','The last version 1 call has returned. Version 1 is unloaded.'];
+  const calm=()=>matchMedia('(prefers-reduced-motion: reduce)').matches;
+  upgradeButton?.addEventListener('click',async()=>{
+    if(!steps||!rail||!status)return;
+    upgradeButton.disabled=true;
+    steps.forEach(step=>step.classList.remove('is-active','is-done'));
+    for(let i=0;i<steps.length;i++){
+      steps[i].classList.add('is-active');
+      rail.style.width=`${((i+1)/steps.length)*100}%`;
+      status.textContent=messages[i];
+      await new Promise(resolve=>setTimeout(resolve,calm()?0:1100));
+      steps[i].classList.replace('is-active','is-done');
+    }
+    upgradeButton.disabled=false;
+    upgradeButton.firstChild!.textContent='Run it again ';
+  });
+</script>

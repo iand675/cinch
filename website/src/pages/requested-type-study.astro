@@ -1,0 +1,55 @@
+---
+import Brand from '../components/Brand.astro';
+import candidates from '../requested-type-candidates.json';
+import axes from '../requested-font-axes.json';
+import '../styles/custom.css';
+import '../styles/type-study-fonts.css';
+import '../styles/type-comparison.css';
+const labels: Record<string,string> = {wght:'Weight',opsz:'Optical size',wdth:'Width',ROND:'Roundness'};
+---
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width" /><meta name="robots" content="noindex,nofollow" /><title>Cinch — Noto Serif, Doto, Momo Trust Display</title><link rel="icon" href="/favicon.svg" /></head>
+<body data-pagefind-ignore>
+<header><Brand /><a href="/variable-type-study/">Earlier variable options ↗</a></header>
+<main><div class="intro"><p class="eyebrow">CINCH / REQUESTED TYPEFACES</p><h1>Noto Serif, Doto &amp; Momo</h1><p>The three faces you requested, applied to the same headline and artwork. Open each full-page render to compare its section headings and smaller titles.</p><p class="trial-note">Noto Serif and Doto are variable. Momo Trust Display is a single static Regular. All three are self-hosted SIL Open Font License fonts. Sliders carry through to the full-page previews.</p><div class="jump-links">{Object.entries(candidates).map(([id,c])=><a href={`#${id}`}>{c.name}</a>)}</div></div>
+<div class="comparisons">
+{Object.entries(candidates).map(([id,c])=><section id={id} data-variable-candidate={id}><div class="choice-info"><span class="eyebrow">{axes[id as keyof typeof axes].length ? 'VARIABLE FONT' : 'STATIC FONT'}</span><h2>{c.name}</h2><p class="cut">SIL OFL · {axes[id as keyof typeof axes].map(a=>`${a.tag} ${a.min}–${a.max}`).join(' / ') || 'Regular 400'}</p><p>{c.note}</p>{axes[id as keyof typeof axes].length > 0 && <form class="axis-controls" aria-label={`${c.name} type controls`}>{axes[id as keyof typeof axes].map(a=><label><span>{labels[a.tag]} <output data-axis-value={a.tag}>{(c.defaults as Record<string,number>)[a.tag]}</output></span><input type="range" aria-label={`${c.name} ${labels[a.tag].toLowerCase()}`} name={a.tag} min={a.min} max={a.max} step={a.tag==='wdth' ? .5 : 1} value={(c.defaults as Record<string,number>)[a.tag]} /></label>)}<button type="reset">Reset</button></form>}<div class="choice-links"><a class="full-candidate" href={`/?freepage=${id}`} target="_blank">Preview full page ↗</a><a href={c.source} target="_blank" rel="noreferrer">Font and licence ↗</a></div></div><div class="sample"><div class="sample-top"><img src="/brand/cinch-wordmark.webp" width="1957" height="781" alt="Cinch" /><span>THE CINCH PROGRAMMING LANGUAGE</span></div><div class="mini-hero"><div class="mini-copy"><div class={`sample-headline type-${id}`} aria-label="Power, with proof.">Power,<br />with proof.</div><p>Dependent types.<br />Explicit effects. Resource control.</p></div><img class="fox" src="/brand/cinch-fox.webp" width="1308" height="1186" alt="Cinch fox mascot" /></div><div class="sample-bottom">LIVE WEBFONT / FULL-PAGE PREVIEW</div></div></section>)}
+</div><footer><p>Body text stays in DM Sans so the display faces can be compared across the same layout.</p><a href="/">Return to Cinch ↗</a></footer></main>
+<script>
+  document.querySelectorAll<HTMLElement>('[data-variable-candidate]').forEach(section => {
+    const form = section.querySelector<HTMLFormElement>('form');
+    if (!form) return;
+    const sample = section.querySelector<HTMLElement>('.sample-headline')!;
+    const preview = section.querySelector<HTMLAnchorElement>('.full-candidate')!;
+    const update = () => {
+      const values = [...form.querySelectorAll<HTMLInputElement>('input')];
+      sample.style.setProperty('--candidate-axes', values.map(input => `"${input.name}" ${input.value}`).join(', '));
+      const target = new URL('/', location.origin);
+      target.searchParams.set('freepage', section.dataset.variableCandidate!);
+      values.forEach(input => {
+        section.querySelector<HTMLOutputElement>(`output[data-axis-value="${input.name}"]`)!.value = input.value;
+        target.searchParams.set(input.name, input.value);
+      });
+      preview.href = target.href;
+    };
+    form.addEventListener('input', update);
+    form.addEventListener('submit', e => e.preventDefault());
+    form.addEventListener('reset', () => requestAnimationFrame(update));
+    update();
+  });
+</script>
+<style>
+.axis-controls { border-top:1px solid #ffffff25; margin-top:1.3rem; padding-top:.7rem; }
+.axis-controls label { display:block; margin:.7rem 0; }
+.axis-controls label > span { display:flex; justify-content:space-between; font-size:.7rem; color:#c8bca8; }
+.axis-controls output { font-family:'IBM Plex Mono',monospace; font-size:.65rem; }
+.axis-controls input { width:100%; accent-color:#f78c47; margin:.5rem 0 0; }
+.axis-controls button { border:1px solid #ffffff35; background:transparent; color:#d4c3aa; padding:.4rem .6rem; font:inherit; font-size:.65rem; cursor:pointer; }
+</style>
+</body></html>
+
+<style>
+.sample-headline.type-doto { font-size:clamp(2.8rem,4.8vw,4.8rem); }
+.sample-headline.type-momotrustdisplay { font-size:clamp(2.8rem,5.4vw,5.4rem); }
+@media(max-width:900px) { .sample-headline.type-doto { font-size:clamp(2.8rem,8vw,4.8rem); } }
+</style>

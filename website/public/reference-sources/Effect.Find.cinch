@@ -1,0 +1,159 @@
+-- Effect.Find: the recursive directory walk (P40, the Ruby `Find`
+-- port named in design/stdlib-parity-ruby.md's OS-utilities sweep).
+--
+-- `find` enumerates a subtree depth-first in PRE-ORDER: the root is
+-- reported first, then each directory's entries in `fs-list`'s order
+-- (names ascending, the listing order decision D335 records, recorded
+-- in compiler/CONFORMANCE.md), a directory entered before its next
+-- sibling. That is Ruby's `Find.find` order, and the entry order is
+-- the contract: after a reported directory `d` and before the next
+-- sibling of `d`, every reported path lies beneath `d`.
+--
+-- The visitor is asked once per entry, in that same order, and answers
+-- with a `Step`:
+--   `Continue` descends into the entry when it is a directory;
+--   `Prune` keeps the entry and skips its contents (Ruby's
+--     `Find.prune`; on a non-directory it is a no-op);
+--   `Stop` ends the walk at that entry, which is the last one
+--     reported.
+--
+-- Laws:
+--   `find` reports every visited path exactly once, and reports the
+--     root first (a root that does not exist is `Err` with nothing
+--     reported);
+--   `Prune` at `p` removes exactly the descendants of `p` (when `p`
+--     names a directory) and moves no other entry;
+--   `Stop` at `p` makes the result the reported prefix ending at `p`;
+--   `find-files r` is the `FileIsFile` sublist of the walk that
+--     descends through everything and `find-dirs r` the
+--     `FileIsDirectory` one, so a filter changes what is reported,
+--     never what is visited.
+--
+-- Named refusals (boundaries this module deliberately does not
+-- cross):
+--   partial results: the first named `FsError` ends the walk and `Err`
+--     carries nothing collected (a truncated list would be
+--     indistinguishable from a complete one); a caller who wants the
+--     frontier reads `fs-list`/`fs-metadata` directly;
+--   error swallowing: there is no `ignore_error` flag (Ruby's default
+--     skips a directory it cannot read); a skip would make the result
+--     a claim about a tree the walk did not read;
+--   symlink cycles: nothing here detects them, and `fs-metadata`
+--     reports the target's kind (Effect.Fs's rule), so a directory
+--     symlink cycle walks until the OS refuses a path; the caller
+--     breaks it with `Prune`;
+--   effectful visitors: the visitor is a plain value
+--     (`Path -> Step`), so the walk's row is the filesystem's `{IO r}`
+--     alone; a caller whose visit acts collects the paths first and
+--     acts afterwards;
+--   a depth bound: the recursion follows the tree's shape, so its
+--     depth is the tree's.
+--
+-- Module scheme (design/base-library.md): `Effect.*` is the effect
+-- system's vocabulary, and `Effect.Fs` is the capability walked here.
+module Effect.Find where
+
+  import Data.List
+  import Data.Path
+  import Data.Result
+  import Effect.Fs
+
+  export Step, Continue, Prune, Stop
+  export find, find-files, find-dirs
+
+
+  -- What the visitor decides about the entry it is shown.
+  data Step where
+    Continue :: Step
+    Prune :: Step
+    Stop :: Step
+
+  -- The walk's own outcome: everything walked, cut short by the
+  -- visitor at its last reported entry, or ended by the filesystem.
+  data Walk where
+    Exhausted :: List Path -> Walk
+    Stopped :: List Path -> Walk
+    Broken :: FsError -> Walk
+
+  -- The visitor that never interferes: descend into everything.
+  continue :: Path -> Step
+  continue p = Continue
+
+  -- The report filters: every entry, files only, directories only.
+  keep-all :: FileKind -> Bool
+  keep-all k = True
+
+  keep-file :: FileKind -> Bool
+  keep-file k = case k of
+    FileIsFile -> True
+    _ -> False
+
+  keep-dir :: FileKind -> Bool
+  keep-dir k = case k of
+    FileIsDirectory -> True
+    _ -> False
+
+  -- The entry joins the accumulator when the filter keeps it (the
+  -- accumulator grows head-first, so `collect` reverses it once).
+  add-entry :: (FileKind -> Bool) -> FileKind -> Path -> List Path -> List Path
+  add-entry keep k p acc = case keep k of
+    True -> Cons p acc
+    False -> acc
+
+  -- Walk `p` and everything beneath it, pre-order, into the reversed
+  -- accumulator. One `fs-metadata` per entry: the kind decides whether
+  -- the walk descends and the filters read it, so no entry is stat'ed
+  -- twice. The metadata call is also the existence check, which is why
+  -- a missing root is an error before the visitor is asked.
+  walk :: forall r. using (io :: Io r) => (FileKind -> Bool) -> (Path -> Step) -> Path -> List Path ->{IO r} Walk
+  walk keep decide p acc = case fs-metadata p of
+    Err e -> Broken e
+    Ok m -> case file-meta-kind m of
+      k -> visit keep decide p k (add-entry keep k p acc)
+
+  visit :: forall r. using (io :: Io r) => (FileKind -> Bool) -> (Path -> Step) -> Path -> FileKind -> List Path ->{IO r} Walk
+  visit keep decide p k acc = case decide p of
+    Stop -> Stopped acc
+    Prune -> Exhausted acc
+    Continue -> case k of
+      FileIsDirectory -> case fs-list p of
+        Err e -> Broken e
+        Ok names -> walk-names keep decide p names acc
+      _ -> Exhausted acc
+
+  -- A directory's entries in `fs-list`'s order, depth-first: each
+  -- entry's whole subtree lands in the accumulator before the next
+  -- sibling starts.
+  walk-names :: forall r. using (io :: Io r) => (FileKind -> Bool) -> (Path -> Step) -> Path -> List String -> List Path ->{IO r} Walk
+  walk-names keep decide dir names acc = case names of
+    Nil -> Exhausted acc
+    Cons n rest -> case walk keep decide (path-join dir (path-from-string n)) acc of
+      Exhausted acc2 -> walk-names keep decide dir rest acc2
+      Stopped acc2 -> Stopped acc2
+      Broken e -> Broken e
+
+  -- Only a completed or a stopped walk has a result; a failure keeps
+  -- nothing (the header's partial-results refusal). The accumulator
+  -- grows head-first, so the result is one `reverse` here, never an
+  -- append per entry.
+  collect :: forall r. using (io :: Io r) => (FileKind -> Bool) -> (Path -> Step) -> Path ->{IO r} Result FsError (List Path)
+  collect keep decide root = case walk keep decide root Nil of
+    Exhausted acc -> Ok (reverse acc)
+    Stopped acc -> Ok (reverse acc)
+    Broken e -> Err e
+
+  -- The subtree beneath `root`, pre-order, reporting the paths the
+  -- visitor's decisions leave in the walk (see the header for the
+  -- order guarantee and the decisions).
+  find :: forall r. using (io :: Io r) => Path -> (Path -> Step) ->{IO r} Result FsError (List Path)
+  find root decide = collect keep-all decide root
+
+  -- Every file beneath `root` (the root itself only when it is one),
+  -- pre-order, descending through every directory.
+  find-files :: forall r. using (io :: Io r) => Path ->{IO r} Result FsError (List Path)
+  find-files root = collect keep-file continue root
+
+  -- Every directory beneath `root` (the root included when it is one),
+  -- pre-order.
+  find-dirs :: forall r. using (io :: Io r) => Path ->{IO r} Result FsError (List Path)
+  find-dirs root = collect keep-dir continue root

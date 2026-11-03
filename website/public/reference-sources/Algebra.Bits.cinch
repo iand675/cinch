@@ -1,0 +1,78 @@
+-- Algebra.Bits: the bit manipulation class.
+--
+-- The `Bits` class unifies the per-type primitive families so generic
+-- code can be written over machine integers (primitive types
+-- specification section 4). All methods are total: the bitwise
+-- operations are total, shifts reduce the count modulo the width (the
+-- wrapping family), and rotates are total. The checked shift family
+-- stays as the per-type `checkedShlX`/`checkedShrX` primitives.
+-- `test-bit`/`set-bit`/`clear-bit`/`complement-bit` follow the mask
+-- rule: bit position n means position n modulo the width, consistent
+-- with the shift rule. Instances live with their type (Data.Machine).
+--
+-- The traditional operator spellings below are wrappers over the
+-- class methods (decision D90), like the weight wrappers, never new
+-- compiler mechanisms. Bitwise NOT has no operator spelling because
+-- both candidate symbols are reserved punctuation (`!` and `~`); use
+-- `bit-not`.
+module Algebra.Bits where
+
+  infixl 7 <<, >>
+  infixl 6 &
+  infixl 5 ^
+  infixl 4 |
+
+  export Bits, bit-and, bit-or, bit-xor, bit-not, shift-left, shift-right, rotate-left, rotate-right, test-bit, set-bit, clear-bit, complement-bit, count-ones, leading-zeros, trailing-zeros, (&), (|), (^), (<<), (>>)
+
+
+  -- ---------------------------------------------------------------------------
+  -- Bit manipulation (primitive types specification section 4).
+  --
+  -- The `Bits` class unifies the per-type primitive families so generic
+  -- code can be written over machine integers. All methods are total,
+  -- following the specification: the bitwise operations are total,
+  -- shifts reduce the count modulo the width (the wrapping family), and
+  -- rotates are total. The checked shift family stays as the per-type
+  -- `checkedShlX`/`checkedShrX` primitives. `test-bit`/`set-bit`/
+  -- `clear-bit`/`complement-bit` are expressed through the mask rule: bit
+  -- position n means position n modulo the width, consistent with the
+  -- shift rule.
+
+  signature Bits a where
+    bit-and :: a -> a -> a
+    bit-or :: a -> a -> a
+    bit-xor :: a -> a -> a
+    bit-not :: a -> a
+    shift-left :: a -> U32 -> a
+    shift-right :: a -> U32 -> a
+    rotate-left :: a -> U32 -> a
+    rotate-right :: a -> U32 -> a
+    test-bit :: a -> U32 -> Bool
+    set-bit :: a -> U32 -> a
+    clear-bit :: a -> U32 -> a
+    complement-bit :: a -> U32 -> a
+    count-ones :: a -> U32
+    leading-zeros :: a -> U32
+    trailing-zeros :: a -> U32
+
+  -- Traditional bitwise operator spellings over the `Bits` class
+  -- (decision D90): wrappers like the weight wrappers, never new
+  -- compiler mechanisms. Bitwise NOT has no operator spelling because
+  -- both candidate symbols are reserved punctuation (`!` and `~`); use
+  -- `bit-not`. Machine integers deliberately get no arithmetic operator
+  -- instances (primitive types specification section 8): `%` and `/`
+  -- below cover the mathematical `Nat` and `Int` only.
+  (&) :: forall a. using (bits :: Bits a) => a -> a -> a
+  (&) x y = bit-and x y
+
+  (|) :: forall a. using (bits :: Bits a) => a -> a -> a
+  (|) x y = bit-or x y
+
+  (^) :: forall a. using (bits :: Bits a) => a -> a -> a
+  (^) x y = bit-xor x y
+
+  (<<) :: forall a. using (bits :: Bits a) => a -> U32 -> a
+  (<<) x n = shift-left x n
+
+  (>>) :: forall a. using (bits :: Bits a) => a -> U32 -> a
+  (>>) x n = shift-right x n

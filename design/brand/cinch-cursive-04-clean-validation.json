@@ -1,0 +1,27 @@
+{
+  "source": "cinch-cursive-04-balanced-flourishes.png",
+  "source_sha256": "b4ff187380b7666d9f22777eea7ec31f309c27de16ca672b96b4f6c3932b2334",
+  "svg": "cinch-cursive-04-clean.svg",
+  "render": "cinch-cursive-04-clean-render.png",
+  "comparison": "cinch-cursive-04-clean-comparison.png",
+  "svg_bytes": 2051842,
+  "compressed_svg_bytes": 366692,
+  "previous_svg_bytes": 17692856,
+  "size_reduction_percent": 88.40299158033051,
+  "vector_paths": 1687,
+  "gradients": 480,
+  "previous_paths": 68070,
+  "previous_gradients": 67100,
+  "foreground_ssim_by_background": {
+    "bottle_green": 0.9500147664611092,
+    "white": 0.9555254648710623,
+    "black": 0.9455750284960761
+  },
+  "silhouette_iou": 0.9930801780021716,
+  "ssim_method": "Channel-average SSIM over the union of source/render foreground pixels (alpha > 0.5), using uniform 7x7 local windows, C1=0.01^2, C2=0.03^2. Original pixel dimensions. This is a defined image-similarity check, not a guarantee of subjective equivalence.",
+  "renderer": "resvg 0.48.1",
+  "embedded_images": 0,
+  "live_fonts": 0,
+  "filters": 1,
+  "notes": "Original source image and prior faithful SVG preserved. Simplified connected shading regions, consolidated tiny solid-color details, fitted linear/radial gradients, and optimized markup. The file remains a detailed trace, with a 0.2px seam-correction effect; it is substantially lighter but is not a simple hand-drawn lettering master."
+}

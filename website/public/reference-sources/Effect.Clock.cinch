@@ -1,0 +1,127 @@
+-- Effect.Clock: the runtime clocks, durations and timeouts (P34).
+--
+-- The clock is a runtime capability in the `Io r` mold (decision D45's
+-- determinism rule): every reading requires the `Io r` capability and
+-- performs `IO r`, so nothing ambient exists and a program's build
+-- output cannot depend on when it compiles. Staging use is refused
+-- outright rather than recorded: a `stage` body's row is pure and the
+-- compile-time interpreter refuses foreign calls ("a foreign import
+-- cannot run at compile time"), so no clock reading can enter a build
+-- product (the env/capability precedent of example 05 records
+-- declared inputs; the clock records nothing because it cannot
+-- participate).
+--
+-- Durations are milliseconds (`Duration`), the unit the `Io r`
+-- suspension (`ioSleep`) takes. `timeout` runs a delayed computation
+-- under the P12 structured machinery and cancels it at the deadline:
+-- the computation is watched by a sibling task whose failure at the
+-- deadline cancels it (the `joinAllOrCancel` failure policy), and its
+-- result is discarded if cancellation was requested during the run.
+-- A value is returned only when the computation ran without observing
+-- a cancellation request; at the deadline either outcome is allowed.
+-- Cancellation is cooperative (concurrency specification section 4):
+-- the computation is not killed, it observes the request at its next
+-- suspension point.
+--
+-- Named refusals (boundaries this module deliberately does not
+-- cross):
+--   compile-time readings: see above (D45; there is no staging path);
+--   pre-epoch or far-future wall times: `cinch_clock_wall_ns` clamps
+--     to `0..=i64::MAX` nanoseconds (the Unix epoch to the year 2262);
+--   killing a timed-out computation: P12 cancellation is cooperative;
+--   a work row wider than `{IO r, Cancel r}`: the worked shape is the
+--     delayed computation (sleeps and observes cancellation); wider
+--     rows need the checker's row-variable unification to carry
+--     labels through a rigid tail, which it currently drops (see the
+--     report), so `timeout` states its worked row exactly.
+--
+-- Module scheme (design/base-library.md): `Effect.*` is the effect
+-- system's vocabulary.
+module Effect.Clock where
+
+  import Algebra.Arithmetic
+  import Data.Nat
+  import Data.Result
+
+  export Duration, duration-from-millis, duration-millis, monotonic-elapsed
+  export clock-monotonic-ns, clock-wall-ns
+  export Timeout, TimedOut, Finished, timeout
+
+
+  -- A length of time in milliseconds.
+  data Duration where
+    Duration :: Nat -> Duration
+
+  duration-from-millis :: Nat -> Duration
+  duration-from-millis ms = Duration ms
+
+  duration-millis :: Duration -> Nat
+  duration-millis d = case d of
+    Duration ms -> ms
+
+  -- The time between two monotonic readings (the first earlier):
+  -- milliseconds, truncated. A duration is never negative, so readings
+  -- passed in the other order measure zero.
+  monotonic-elapsed :: Nat -> Nat -> Duration
+  monotonic-elapsed t0 t1 = Duration (saturating-sub t1 t0 / 1000000)
+
+  -- The runtime clock words behind the capability (`compiler/runtime/
+  -- src/platform.rs`, the `cinch_clock_*` externs). Both readings are
+  -- clamped by the runtime to `0..=i64::MAX` (a duration since the
+  -- origin or the epoch, saturated; a wall clock before the epoch reads
+  -- 0), so their declared range is the runtime's own guarantee.
+  foreign import ccall "cinch_clock_monotonic_ns" raw-monotonic-ns :: forall r. Unit ->{IO r} InRange 0 9223372036854775807 I64
+  foreign import ccall "cinch_clock_wall_ns" raw-wall-ns :: forall r. Unit ->{IO r} InRange 0 9223372036854775807 I64
+
+  -- Nanoseconds since an arbitrary origin: non-decreasing across
+  -- calls (two readings never go backwards).
+  clock-monotonic-ns :: forall r. using (io :: Io r) => Unit ->{IO r} Nat
+  clock-monotonic-ns u = nat-from-i64 (raw-monotonic-ns u)
+
+  -- Nanoseconds since the Unix epoch (the clamped range above).
+  clock-wall-ns :: forall r. using (io :: Io r) => Unit ->{IO r} Nat
+  clock-wall-ns u = nat-from-i64 (raw-wall-ns u)
+
+  -- The outcome of a computation raced against its deadline: it
+  -- finished (`Finished x`), or the deadline fired first and cancelled
+  -- it (`TimedOut`).
+  data Timeout a where
+    TimedOut :: Timeout a
+    Finished :: a -> Timeout a
+
+  -- The computation under the deadline: it runs on a task of the
+  -- scope. Its value is delivered as the join's first failure (which
+  -- is what cancels the watchdog sibling); if cancellation was
+  -- observed during the run, the value is discarded and the timeout
+  -- is reported instead.
+  worker-body :: forall r a. using (io :: Io r) => (Unit ->{IO r, Cancel r} a) %1 -> Unit ->{IO r, Cancel r, Diverge} Result (Timeout a) Unit
+  worker-body work u = case work () of
+    x -> case pollCancel () of
+      True -> Err TimedOut
+      False -> Err (Finished x)
+
+  -- The watchdog: it sleeps out the deadline and fails with the
+  -- timeout, which cancels the sibling computation (the `joinAllOrCancel`
+  -- failure policy). A sibling that finished first has already
+  -- cancelled this task, so its early return is never observed as a
+  -- completion.
+  watchdog-body :: forall r a. using (io :: Io r) => Duration -> Unit ->{IO r, Cancel r} Result (Timeout a) Unit
+  watchdog-body d u = case ioSleep (duration-millis d) of
+    _ -> Err TimedOut
+
+  -- Both task bodies end in `Err`, so the join can only report the
+  -- first one observed: the computation's `Finished` or the watchdog's
+  -- `TimedOut`.
+  run-timeout :: forall r a. using (io :: Io r) => Duration -> (Unit ->{IO r, Cancel r} a) %1 ->{Async r, IO r, Cancel r, Diverge} Result (Timeout a) (Unit, Unit)
+  run-timeout d work = withScope $ \s -> do
+    h <- spawn s (\() -> worker-body work ())
+    h2 <- spawn s (\() -> watchdog-body d ())
+    joinAllOrCancel s h h2
+
+  -- Run `work` under the deadline `d`: `Finished` its value when it
+  -- ran first, `TimedOut` when the deadline fired first and cancelled
+  -- it (the worked shape and its boundary above).
+  timeout :: forall r a. using (io :: Io r) => Duration -> (Unit ->{IO r, Cancel r} a) %1 ->{Async r, IO r, Cancel r, Diverge} Timeout a
+  timeout d work = case run-timeout d work of
+    Ok _ -> TimedOut
+    Err o -> o

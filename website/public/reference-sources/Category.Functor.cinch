@@ -1,0 +1,51 @@
+-- Category.Functor: the functor class over type constructors.
+--
+-- The method is `map` (not `fmap`; decision D152's lisp-style naming),
+-- and `<$>` is its operator spelling (decision D2: operators are class
+-- methods with per-module fixity declarations, so `infixl 4 <$>`
+-- below is the declaration consumers import). Both methods have the
+-- same type; a lawful instance defines them identically.
+--
+-- Class shape: `Functor (f :: Type -> Type)` with the methods at the
+-- applied container `f a` (higher-kinded parameters, modules
+-- specification section 1).
+--
+-- `do` notation and these classes (decision D22): `do` picks its
+-- provider lexically per definition, through a `using` binder with a
+-- DirectSequencing/ResultSequencing/OptionSequencing head (default:
+-- DirectSequencing). A do-provider is a fixed instance choice: exactly
+-- one container per definition, no polymorphism. This class abstracts
+-- over containers for polymorphic code; its methods are ordinary class
+-- methods resolved per use site. The two mechanisms do not interact:
+-- `do` never consults the class, and a class constraint never selects
+-- a do provider.
+--
+-- Instance homes. The ownership rule is "instances live with their
+-- type; structural instances over functions and tuples live with the
+-- class module" (design/base-library.md). The function instance below
+-- is structural and lives here permanently. The List, Option and
+-- Result instances got theirs at the prelude split: they live in
+-- Data.List/Data.Option/Data.Result now.
+module Category.Functor where
+
+  import Function.Combinators
+
+  signature Functor (f :: Type -> Type) where
+    map :: forall a b. (a -> b) -> f a -> f b
+    (<$>) :: forall a b. (a -> b) -> f a -> f b
+    -- The class laws (primitive operations and inline target IR
+    -- specification section 5): mapping the identity function is the
+    -- identity (a law equation states total function applications, so
+    -- the identity is the named `Function.Combinators.identity`, never
+    -- a lambda). Citable by identity as `Functor.map-identity`; the
+    -- composition law names two functions and lives at the law
+    -- machinery's un-samplable boundary (functions are not samples).
+    law map-identity :: forall a. (x :: f a) -> Eq (map identity x) x
+    law map-compose :: forall a b c. (g :: a -> b) -> (h :: b -> c) -> (x :: f a) -> Eq (map h (map g x)) (map (compose h g) x)
+
+  infixl 4 <$>
+
+  -- Structural: map over a function's result (the reader functor).
+  implicit instance Functor_Function r :: Functor ((->) r) where
+    map f g x = f (g x)
+    (<$>) f g x = f (g x)

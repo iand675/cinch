@@ -1,0 +1,105 @@
+---
+import specimens from '../premium-heading-specimens.json';
+---
+<script is:inline define:vars={{ enabled: import.meta.env.DEV, specimens }}>
+  if (enabled) {
+    const face = new URL(location.href).searchParams.get('typepage');
+    if (face === 'domaine' || face === 'founders') {
+      const title = face === 'domaine' ? 'Domaine Sans Display' : 'Founders Grotesk';
+      const other = face === 'domaine' ? 'founders' : 'domaine';
+      const otherTitle = other === 'domaine' ? 'Domaine Sans Display' : 'Founders Grotesk';
+      document.title = `Cinch — ${title} full-page study`;
+      document.body.classList.add('paid-page-preview');
+      document.documentElement.dataset.typePreview = face;
+      const hero = document.getElementById('hero-title');
+      const image = document.createElement('img');
+      image.src = `/type-study/${face === 'domaine' ? 'domaine-sans-display' : 'founders-grotesk'}.jpg`;
+      image.alt = '';
+      image.width = face === 'domaine' ? 1042 : 929;
+      image.height = face === 'domaine' ? 440 : 329;
+      image.setAttribute('aria-hidden', 'true');
+      hero.className = 'type-paid';
+      hero.setAttribute('aria-label', 'Power, with proof.');
+      hero.replaceChildren(image);
+      const headingGroups = [
+        ['#manifesto-title', [['functional'], ['contracts', 'muted']]],
+        ['#proof-title', [['first-element'], ['requires'], ['nonempty', 'accent']]],
+        ['#features-title', [['language'], ['tracks']]],
+        ['#reading-title', [['read'], ['design']]],
+        ['.closing h2', [['read'], ['tutorial', 'cream']]],
+        ['.feature-row:nth-child(1) h3', [['dependent']]],
+        ['.feature-row:nth-child(2) h3', [['ownership']]],
+        ['.feature-row:nth-child(3) h3', [['upgrades']]],
+        ['.reading-links > a:nth-child(1) h3', [['tutorials']]],
+        ['.reading-links > a:nth-child(2) h3', [['specifications']]],
+        ['.reading-links > a:nth-child(3) h3', [['notes']]],
+      ];
+      const assets = new Set();
+      for (const [selector, lines] of headingGroups) {
+        const heading = document.querySelector(selector);
+        heading.setAttribute('aria-label', lines.map(([key]) => specimens[face][key].text).join(' '));
+        const rendered = lines.map(([key, tone]) => {
+          const spec = specimens[face][key];
+          const url = `/type-study/${face}/${key}.jpg`;
+          assets.add(url);
+          const line = document.createElement('span');
+          line.className = `paid-text-line ${tone || ''}`;
+          line.setAttribute('aria-hidden', 'true');
+          line.dataset.specimen = key;
+          line.style.width = `${spec.width / spec.size}em`;
+          line.style.aspectRatio = `${spec.width} / ${spec.height}`;
+          line.style.maskSize = `${spec.canvasWidth / spec.width * 100}% 100%`;
+          line.style.maskImage = `url("${url}")`;
+          return line;
+        });
+        heading.classList.add('paid-section-heading');
+        heading.replaceChildren(...rendered);
+      }
+      const note = document.createElement('aside');
+      note.className = 'type-preview-note';
+      note.setAttribute('aria-label', 'Typeface preview');
+      const label = document.createElement('span');
+      label.textContent = `${title} / full-page mockup`;
+      const links = document.createElement('div');
+      const swap = document.createElement('a');
+      swap.href = `/?typepage=${other}`;
+      swap.textContent = `Compare ${otherTitle} ↗`;
+      const back = document.createElement('a');
+      back.href = '/type-study/';
+      back.textContent = 'All five fonts';
+      links.append(swap, back);
+      note.append(label, links);
+      document.body.prepend(note);
+      Promise.all([...assets].map(url => new Promise(resolve => {
+        const preload = new Image();
+        preload.onload = () => resolve(true);
+        preload.onerror = () => resolve(false);
+        preload.src = url;
+      }))).then(results => {
+        document.documentElement.dataset.typePreviewReady = results.every(Boolean) ? 'true' : 'error';
+      });
+    }
+  }
+</script>
+<style is:global>
+.paid-page-preview .paid-text-line {
+  display:block;
+  max-width:100%;
+  height:auto;
+  color:inherit;
+  background-color:currentColor;
+  mask-mode:luminance;
+  mask-size:100% 100%;
+  mask-repeat:no-repeat;
+  margin-block:-.06em;
+}
+.paid-page-preview .paid-text-line.muted { color:#9a8b78; }
+.paid-page-preview .paid-text-line.accent { color:#ff8a46; }
+.paid-page-preview .paid-text-line.cream { color:#fff0d1; }
+.paid-page-preview .paid-section-heading { letter-spacing:normal; }
+.type-preview-note { display:flex; justify-content:space-between; gap:1rem; padding:.7rem 4.5%; background:#26251f; border-bottom:1px solid #ffffff25; color:#d9ccba; font: .62rem 'IBM Plex Mono', monospace; line-height:1.6; }
+.type-preview-note > div { display:flex; gap:1.5rem; }
+.type-preview-note a { text-decoration:underline; text-underline-offset:3px; }
+.paid-page-preview astro-dev-toolbar { display:none !important; }
+@media(max-width:650px) { .type-preview-note { flex-direction:column; gap:.4rem; font-size:.55rem; } }
+</style>

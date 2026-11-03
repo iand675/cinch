@@ -1,0 +1,55 @@
+---
+import PlatformLayout from '../../layouts/PlatformLayout.astro';
+import { packages,modules,symbols,packageUrl,moduleUrl,symbolUrl } from '../../lib/catalogue';
+const categories=[...new Set(packages.map(p=>p.category))].sort();
+---
+<PlatformLayout title="Packages" description="Browse Cinch libraries, modules, and API documentation." section="packages">
+  <section class="platform-banner catalogue-banner">
+    <div class="platform-eyebrow mono"><span>LIBRARY INDEX</span><span class="sample-badge">SAMPLE DATA</span></div>
+    <h1>Packages.</h1><p>Find a library. Read its modules.<br />Follow the types into the API.</p>
+    <form class="catalogue-search" role="search" action="/packages/">
+      <label for="package-search" class="mono">SEARCH PACKAGES, MODULES, OR SYMBOLS</label>
+      <div><span aria-hidden="true">⌕</span><input id="package-search" name="q" type="search" placeholder="Try json, Data.List, or map" autocomplete="off" /><button type="reset" aria-label="Clear search">×</button></div>
+    </form>
+    <div class="catalogue-counts mono"><span>{packages.length} PACKAGES</span><span>{modules.length} MODULES</span><span>{symbols.length} DECLARATIONS</span></div>
+  </section>
+  <section class="platform-content catalogue-content">
+    <div class="catalogue-toolbar"><div class="catalogue-kinds" aria-label="Result type"><button type="button" data-kind="all" aria-pressed="true">All</button><button type="button" data-kind="package" aria-pressed="false">Packages</button><button type="button" data-kind="module" aria-pressed="false">Modules</button><button type="button" data-kind="symbol" aria-pressed="false">API</button></div><label class="category-filter">Category <select id="package-category"><option value="">All categories</option>{categories.map(c=><option>{c}</option>)}</select></label></div>
+    <p class="results-count mono" aria-live="polite" data-results-count>{packages.length} packages</p>
+    <div class="catalogue-results">
+      {packages.map(p=><article class="catalogue-result package-result" data-result data-kind="package" data-category={p.category} data-search={`${p.name} ${p.synopsis} ${p.category}`.toLowerCase()}><div class="result-category mono">{p.category}<span>PACKAGE</span></div><div><h2><a href={packageUrl(p)}>{p.name}</a><span class="version-tag mono">{p.version}</span></h2><p>{p.synopsis}</p><div class="result-meta mono"><span>{p.modules.length} {p.modules.length===1?'module':'modules'}</span><span>{p.license}</span><span>{p.maintainer}</span></div></div><a class="result-open" href={packageUrl(p)} aria-label={`Browse ${p.name}`}>↗</a></article>)}
+      {modules.map(({package:p,module:m})=><article class="catalogue-result" data-result data-kind="module" data-category={p.category} data-search={`${m.name} ${p.name} ${m.description}`.toLowerCase()} hidden><div class="result-category mono">MODULE<span>{p.name}</span></div><div><h2><a href={moduleUrl(p,m)}>{m.name}</a></h2><p>{m.description}</p></div><a class="result-open" href={moduleUrl(p,m)} aria-label={`Read ${m.name}`}>↗</a></article>)}
+      {symbols.map(({package:p,module:m,declaration:d})=><article class="catalogue-result" data-result data-kind="symbol" data-category={p.category} data-search={`${d.name} ${d.signature} ${d.description} ${p.name} ${m.name}`.toLowerCase()} hidden><div class="result-category mono">{d.kind}<span>{p.name}</span></div><div><h2><a href={symbolUrl(p,m,d)}>{d.name}</a><span class="symbol-module mono">{m.name}</span></h2><pre class="search-signature"><code>{d.signature}</code></pre><p>{d.description}</p></div><a class="result-open" href={symbolUrl(p,m,d)} aria-label={`Read ${m.name}.${d.name}`}>↗</a></article>)}
+    </div>
+    <div class="empty-results" data-empty hidden><h2>No matching entries.</h2><p>Try a shorter name, a type such as Option, or another category.</p><button type="button" data-clear-filters>Clear filters</button></div>
+    <aside class="preview-note"><span class="mono">CATALOGUE PREVIEW</span><p>These packages, versions, and API examples are sample data for the documentation design. They are not published libraries. <a href="/packages/index.json">Catalogue data ↗</a></p></aside>
+  </section>
+</PlatformLayout>
+<script>
+const input=document.querySelector<HTMLInputElement>('#package-search')!;
+const category=document.querySelector<HTMLSelectElement>('#package-category')!;
+const rows=[...document.querySelectorAll<HTMLElement>('[data-result]')];
+const buttons=[...document.querySelectorAll<HTMLButtonElement>('[data-kind][type="button"]')];
+let kind='all';
+function update(){
+ const terms=input.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+ let count=0;
+ rows.forEach(row=>{
+   const matches=terms.every(t=>(row.dataset.search??'').includes(t));
+   const typeMatches=kind==='all'?(terms.length>0||row.dataset.kind==='package'):row.dataset.kind===kind;
+   const show=matches&&typeMatches&&(!category.value||row.dataset.category===category.value);
+   row.hidden=!show;if(show)count++;
+ });
+ buttons.forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.kind===kind)));
+ document.querySelector('[data-results-count]')!.textContent=`${count} ${kind==='package'||(!terms.length&&kind==='all')?'package'+(count===1?'':'s'):'result'+(count===1?'':'s')}`;
+ (document.querySelector('[data-empty]') as HTMLElement).hidden=count>0;
+ const url=new URL(location.href);url.search='';if(input.value.trim())url.searchParams.set('q',input.value.trim());if(kind!=='all')url.searchParams.set('kind',kind);if(category.value)url.searchParams.set('category',category.value);history.replaceState(null,'',url);
+}
+function readUrl(){const query=new URL(location.href).searchParams;input.value=query.get('q')??'';kind=['package','module','symbol'].includes(query.get('kind')??'')?query.get('kind')!:'all';category.value=query.get('category')??'';update();}
+input.addEventListener('input',update);category.addEventListener('change',update);
+buttons.forEach(button=>button.addEventListener('click',()=>{kind=button.dataset.kind!;update();}));
+document.querySelector('form')!.addEventListener('submit',e=>{e.preventDefault();update();});
+document.querySelector('form')!.addEventListener('reset',()=>{input.value='';update();});
+document.querySelector('[data-clear-filters]')!.addEventListener('click',()=>{input.value='';category.value='';kind='all';update();input.focus();});
+window.addEventListener('popstate',readUrl);readUrl();
+</script>

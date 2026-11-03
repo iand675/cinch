@@ -1,0 +1,147 @@
+-- Data.Char: Unicode scalar values.
+--
+-- `Char` is a core runtime type (primitive types specification
+-- section 1): one scalar value. `u32-to-char` rejects values outside
+-- the scalar range (surrogates and above 0x10FFFF) as `None`.
+--
+-- Module scheme (design/base-library.md): the type's home carries its
+-- instance family (the parked-instance deviation of D159 is over).
+module Data.Char where
+
+  import Data.Option
+  import Algebra.Arithmetic
+  import Data.Hash
+
+  export char-to-u32, u32-to-char, eq-char, ne-char, lt-char, le-char, gt-char, ge-char
+  export char-code, char-from-code
+  export is-ascii-digit, digit-value, hex-digit-value, is-ascii-hex-digit
+  export is-ascii-alpha, is-ascii-alpha-numeric, is-ascii-space
+  export is-ascii-upper, is-ascii-lower, to-upper-ascii, to-lower-ascii
+
+
+  -- Primitive types specification, section 6: Char values are Unicode
+  -- scalar values, in code point order. `u32-to-char` rejects surrogates
+  -- and values above 0x10FFFF.
+  foreign import ccall "cinch.prim.charToU32" char-to-u32 :: (c :: Char) -> refined (InRange 0 1114111 r && r == c) U32
+  foreign import ccall "cinch.prim.u32ToChar" u32-to-char :: U32 -> Option Char
+  foreign import ccall "cinch.prim.eqChar" eq-char :: Char -> Char -> Bool
+  foreign import ccall "cinch.prim.neChar" ne-char :: Char -> Char -> Bool
+  foreign import ccall "cinch.prim.ltChar" lt-char :: Char -> Char -> Bool
+  foreign import ccall "cinch.prim.leChar" le-char :: Char -> Char -> Bool
+  foreign import ccall "cinch.prim.gtChar" gt-char :: Char -> Char -> Bool
+  foreign import ccall "cinch.prim.geChar" ge-char :: Char -> Char -> Bool
+
+  -- The scalar value as a `Nat`: the conversion the text and data
+  -- homes all spelled out by hand before this was its home. A scalar
+  -- value is at most 0x10FFFF, and the result says so.
+  char-code :: Char -> InRange 0 1114111 Nat
+  char-code c = nat-from-i64 (u32-to-i64 (char-to-u32 c))
+
+  -- The inverse, partial exactly as `u32-to-char` is: a value outside
+  -- the scalar range (a surrogate, or above 0x10FFFF) is `None`. The
+  -- range test comes first, so a value past `U32` is `None` rather than
+  -- a wrapped scalar.
+  char-from-code :: Nat -> Option Char
+  char-from-code n =
+    if n <= 1114111 then u32-to-char (wrapping-i64-to-u32 (nat-to-i64 n)) else None
+
+  -- The ASCII digit and hex-digit test/value pairs. Every text and
+  -- data home that parses numeric text had written its own (under
+  -- `is-digit-char`, `digit-of`, `is-hex`, `hex-of`, ...), and this is
+  -- their one home. The names say ASCII because that is the whole
+  -- class they accept: there is no Unicode digit or decimal-digit
+  -- database here, and none is claimed.
+
+  is-ascii-digit :: Char -> Bool
+  is-ascii-digit c =
+    let n = char-code c in
+    (n >= 48) && (n <= 57)
+
+  -- `Some 0..9` for the ASCII digits, `None` otherwise (the caller
+  -- has already decided what a non-digit means).
+  digit-value :: Char -> Option Nat
+  digit-value c =
+    let n = char-code c in
+    if (n >= 48) && (n <= 57) then Some (n - 48) else None
+
+  -- `Some 0..15` for `0`-`9`, `a`-`f` and `A`-`F`; `None` otherwise.
+  hex-digit-value :: Char -> Option Nat
+  hex-digit-value c =
+    let n = char-code c in
+    if (n >= 48) && (n <= 57) then Some (n - 48)
+    else if (n >= 97) && (n <= 102) then Some (n - 87)
+    else if (n >= 65) && (n <= 70) then Some (n - 55)
+    else None
+
+  is-ascii-hex-digit :: Char -> Bool
+  is-ascii-hex-digit c = case hex-digit-value c of
+    Some _ -> True
+    None -> False
+
+  -- The ASCII character classes and the ASCII case fold, the whole
+  -- families every text home had spelled out by hand before this was
+  -- their home (`is-alpha-char`/`is-upper-char` in Text.Lex,
+  -- `is-ws-char` in Text.Scan, `ascii-up`/`ascii-down` there and in
+  -- Effect.Http). The names say ASCII because that is the whole class
+  -- they accept: there is no Unicode letter, whitespace, case or
+  -- digit database in the UTF-8 layers, and none is claimed (the
+  -- Unicode scope statement in Text.Scan's header is the house
+  -- position). `is-ascii-digit` above follows the same rule.
+
+  -- A-Z is `65..90`, `a`-`z` is `97..122` in code point order.
+  is-ascii-upper :: Char -> Bool
+  is-ascii-upper c =
+    let n = char-code c in
+    (n >= 65) && (n <= 90)
+
+  is-ascii-lower :: Char -> Bool
+  is-ascii-lower c =
+    let n = char-code c in
+    (n >= 97) && (n <= 122)
+
+  is-ascii-alpha :: Char -> Bool
+  is-ascii-alpha c = is-ascii-upper c || is-ascii-lower c
+
+  is-ascii-alpha-numeric :: Char -> Bool
+  is-ascii-alpha-numeric c = is-ascii-alpha c || is-ascii-digit c
+
+  -- ASCII whitespace: space, tab, LF, VT, FF, CR (the ASCII subset of
+  -- base's `isSpace`; the other three controls are the whitespace
+  -- classes that exist outside ASCII).
+  is-ascii-space :: Char -> Bool
+  is-ascii-space c =
+    let n = char-code c in
+    (n == 32) || ((n >= 9) && (n <= 13))
+
+  -- The ASCII case fold. A scalar outside the affected range is
+  -- returned unchanged, which is the documented behaviour for every
+  -- non-ASCII scalar and every non-letter. `char-from-code` cannot
+  -- fail on a code an upper/lower test just admitted, so the `None`
+  -- arm returns the input unchanged (never a magic placeholder).
+  to-upper-ascii :: Char -> Char
+  to-upper-ascii c =
+    let n = char-code c in
+    if (n >= 97) && (n <= 122) then
+      (case char-from-code (n - 32) of Some d -> d; None -> c)
+    else c
+
+  to-lower-ascii :: Char -> Char
+  to-lower-ascii c =
+    let n = char-code c in
+    if is-ascii-upper c then
+      (case char-from-code (n + 32) of Some d -> d; None -> c)
+    else c
+
+  implicit instance Eq_Char :: Eq Char where
+    (==) x y = eq-char x y
+    (/=) x y = ne-char x y
+
+  implicit instance Ord_Char :: Ord Char where
+    (<) x y = lt-char x y
+    (<=) x y = le-char x y
+    (>) x y = gt-char x y
+    (>=) x y = ge-char x y
+
+  -- The scalar value is the digest (instances live with their type).
+  implicit instance Hash_Char :: Hash Char where
+    hash c = nat-from-i64 (u32-to-i64 (char-to-u32 c))

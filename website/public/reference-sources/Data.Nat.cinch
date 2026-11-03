@@ -1,0 +1,144 @@
+-- Data.Nat: the mathematical natural numbers.
+--
+-- `Nat` is a core runtime type (primitive types specification section
+-- 1): a boxed bignum, distinct from every machine scalar. The runtime
+-- operations are representation-level and declared through `foreign
+-- import`. Division and remainder are total by construction: the
+-- divisor is a `NonZero Nat` (a numeral divisor decides at compile
+-- time, any other comes from `decide (NonZero d)` or is threaded), and
+-- `checked-div`/`checked-rem` answer `None` where a zero divisor is a
+-- meaningful input. Subtraction is total the same way
+-- (design/no-faults.md section 7): `a - b` and `nat-sub a b` require
+-- evidence that `b <= a` (numerals decide it at compile time; a branch
+-- condition such as `if b <= a then` supplies it), `saturating-sub`
+-- is the truncating form (`max(a - b, 0)`, "monus") under its own
+-- name, and `checked-sub` answers `None` when `b > a`.
+--
+-- Module scheme (design/base-library.md): the type's home carries its
+-- instance family. `Nat` gets no `Semigroup` instance: two monoids
+-- live on it and the newtypes `Sum`/`Product` choose (Algebra.Monoid).
+-- `Semiring` names BOTH operations, so the carrier itself can be a
+-- semiring: this is the `Sum`/`Product` story extended (no Num tower;
+-- machine scalars keep their explicit overflow families and get no
+-- `Semiring` instance).
+module Data.Nat where
+
+  import Data.Core
+  import Algebra.Arithmetic
+  import Algebra.Semiring
+  import Data.Hash
+
+  export nat-add, nat-sub, nat-mul, nat-div, nat-rem, nat-cmp, nat-from-i64, nat-to-i64, nat-from-int, nat-to-int
+  export checked-div, checked-rem, saturating-sub, checked-sub, checked-nat-from-i64, checked-nat-to-i64
+
+
+  -- The mathematical `Nat` and `Int` (primitive types specification,
+  -- section 1): boxed bignums, distinct from every machine scalar.
+  foreign import ccall "cinch.runtime.natAdd" nat-add :: Nat -> Nat -> Nat
+  -- The exact difference: the caller proves it is a `Nat`.
+  foreign import ccall "cinch.runtime.natSub" nat-sub :: using (b <= a) => (a :: Nat) -> (b :: Nat) -> Nat
+  foreign import ccall "cinch.runtime.natMul" nat-mul :: Nat -> Nat -> Nat
+  foreign import ccall "cinch.runtime.natDiv" nat-div :: Nat -> NonZero Nat -> Nat
+  -- The remainder is below the divisor (`r < d`, a fact about each
+  -- call's result: `let r = nat-rem v 256` knows `r < 256`).
+  foreign import ccall "cinch.runtime.natRem" nat-rem :: Nat -> (d :: NonZero Nat) -> refined (r < d) Nat
+  foreign import ccall "cinch.runtime.natCmp" nat-cmp :: Nat -> Nat -> I64
+  -- The `I64` conversions keep the value (`n == x`), and each states
+  -- the range it needs: a negative `I64` is no `Nat`, and a `Nat` past
+  -- `2^63 - 1` is no `I64`. A conversion result (`u32-to-i64`), a mask
+  -- (`mask-i64 x 255`) or a guard supplies the evidence; where the
+  -- value may be out of range, `checked-nat-from-i64`/
+  -- `checked-nat-to-i64` answer `None`.
+  foreign import ccall "cinch.runtime.natFromI64" nat-from-i64 :: using (0 <= x) => (x :: I64) -> refined (n == x) Nat
+  foreign import ccall "cinch.runtime.natToI64" nat-to-i64 :: using (n <= 9223372036854775807) => (n :: Nat) -> refined (x == n) I64
+  -- The `Int` conversions: every `Nat` is an `Int`, and a non-negative
+  -- `Int` is a `Nat`, both keeping the value (no `I64` in between, so a
+  -- value of any size converts).
+  foreign import ccall "cinch.runtime.intFromNat" nat-to-int :: (n :: Nat) -> refined (x == n) Int
+  foreign import ccall "cinch.runtime.intToNat" nat-from-int :: using (0 <= x) => (x :: Int) -> refined (n == x) Nat
+
+  -- Division where a zero divisor is an ordinary input the caller
+  -- handles: `None` exactly when `d` is zero. The decision is the
+  -- divisor's evidence, so the division inside is the total one.
+  checked-div :: Nat -> Nat -> Option Nat
+  checked-div n d = case decide (NonZero d) of
+    Yes w -> Some (nat-div n (NonZero d w))
+    No _ -> None
+
+  checked-rem :: Nat -> Nat -> Option Nat
+  checked-rem n d = case decide (NonZero d) of
+    Yes w -> Some (nat-rem n (NonZero d w))
+    No _ -> None
+
+  -- Truncated subtraction ("monus", Rust's `saturating_sub`): `a - b`
+  -- when `b <= a`, else `0`. Use it where clamping at zero is what the
+  -- code means, not to silence the obligation of `-`.
+  saturating-sub :: Nat -> Nat -> Nat
+  saturating-sub a b = if b <= a then nat-sub a b else 0
+
+  -- Subtraction where `b > a` is an ordinary input the caller handles:
+  -- `None` exactly then. The test is the subtraction's evidence.
+  checked-sub :: Nat -> Nat -> Option Nat
+  checked-sub a b = if b <= a then Some (nat-sub a b) else None
+
+  -- The `I64` conversions where an out-of-range value is an ordinary
+  -- input: `None` exactly then.
+  checked-nat-from-i64 :: I64 -> Option Nat
+  checked-nat-from-i64 x = if 0 <= x then Some (nat-from-i64 x) else None
+
+  checked-nat-to-i64 :: Nat -> Option I64
+  checked-nat-to-i64 n = if n <= 9223372036854775807 then Some (nat-to-i64 n) else None
+
+  implicit instance Eq_Nat :: Eq Nat where
+    (==) x y = eq-i64 (nat-cmp x y) 0
+    (/=) x y = ne-i64 (nat-cmp x y) 0
+
+  implicit instance Ord_Nat :: Ord Nat where
+    (<) x y = lt-i64 (nat-cmp x y) 0
+    (<=) x y = le-i64 (nat-cmp x y) 0
+    (>) x y = gt-i64 (nat-cmp x y) 0
+    (>=) x y = ge-i64 (nat-cmp x y) 0
+
+  implicit instance Add_Nat :: Add Nat where
+    (+) x y = nat-add x y
+
+  -- `-` at `Nat` is the exact difference, so this instance states the
+  -- precondition over the method's arguments: every direct `x - y`
+  -- discharges `y <= x` (a numeral pair decides it, a branch fact or
+  -- `Dec` evidence supplies it). The class is unchanged, so `-` at
+  -- `Int` needs nothing; and since generic code over `Sub a` could
+  -- apply `-` to anything, this dictionary is never passed to it.
+  implicit instance Sub_Nat :: Sub Nat where
+    (-) :: using (y <= x) => (x :: Nat) -> (y :: Nat) -> Nat
+    (-) x y = nat-sub x y
+
+  implicit instance Mul_Nat :: Mul Nat where
+    (*) x y = nat-mul x y
+
+  implicit instance Rem_Nat :: Rem Nat where
+    (%) x y = nat-rem x y
+
+  implicit instance Div_Nat :: Div Nat where
+    (/) x y = nat-div x y
+
+  -- The semiring of natural numbers: addition and multiplication with
+  -- their identities (see the header; instances live with their type).
+  implicit instance Semiring_Nat :: Semiring Nat where
+    zero = 0
+    one = 1
+    add x y = nat-add x y
+    mul x y = nat-mul x y
+
+  -- A `Nat` is its own bucket digest (identity hashing; instances
+  -- live with their type).
+  implicit instance Hash_Nat :: Hash Nat where
+    hash n = n
+
+  -- The enumeration of natural numbers (Data.Enum): codes are the
+  -- values; `pred 0` and `to-enum` of a negative code are `None`
+  -- (instances live with their type).
+  implicit instance Enum_Nat :: Enum Nat where
+    succ n = nat-add n 1
+    pred n = checked-sub n 1
+    to-enum n = if n < 0 then None else Some (nat-from-int n)
+    from-enum n = nat-to-int n

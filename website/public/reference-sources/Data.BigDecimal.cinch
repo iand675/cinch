@@ -1,0 +1,464 @@
+-- Data.BigDecimal: exact decimal arithmetic over the bignum `Int`.
+--
+-- A `BigDecimal` is an unscaled `Int` times ten to an `Int` exponent:
+-- `BigDecimal u e` stands for `u * 10^e`. Every value this family
+-- hands out is in CANONICAL FORM: `unscaled` is zero with exponent
+-- zero, or it is not divisible by ten. The smart constructor
+-- `big-decimal` is the only way in (the representation constructor is
+-- not exported, so an unnormalised value cannot exist outside this
+-- module), which makes the canonical form an invariant of the type and
+-- not a convention its users must remember.
+--
+-- Design law shape. Canonical form makes field equality value
+-- equality, and the laws below are what that buys:
+--   - `0.1` and `0.10` are the same value, because both normalise to
+--     `BigDecimal 1 (-1)`: `from-string`/`big-decimal` normalise what
+--     they read, so a decimal has exactly one spelling.
+--   - round trip: `from-string (to-string x)` has the same fields as
+--     `x`, and `to-string` never emits exponent notation.
+--   - arithmetic: `add`/`sub`/`mul` are EXACT (the result is the
+--     arithmetic on the represented values, with no rounding and no
+--     precision guess), and `div`/`round` are the only rounding
+--     operations, each naming its fractional-digit count and its
+--     rounding mode as arguments.
+--   - comparison: `cmp` is the order that `sub` induces, `cmp x y` is
+--     the sign of `sub x y`; `Eq`/`Ord` here are the class spellings
+--     of that same relation.
+--
+-- NAMED REFUSALS (boundaries this family deliberately does not cross):
+--   - No `NaN` and no `Infinity`. Ruby's `BigDecimal` carries both
+--     because its precision is ambient state (`BigDecimal.limit`) and
+--     a quotient can be asked for without one. Here every rounding
+--     operation takes its precision, so a quotient always exists at
+--     the caller's precision when the divisor is not zero; `div` by
+--     zero is `None` (division is total by construction, and a zero
+--     divisor has no quotient to name). An unrepresentable remainder is
+--     rounded to the requested precision, never widened to a float.
+--   - No implicit coercion to `F64` inside arithmetic. `to-f64` is the
+--     one conversion out and it renders the exact decimal and lets the
+--     runtime's correctly-rounded decimal reader parse it, so no
+--     arithmetic path can acquire a binary rounding error; there is no
+--     `BigDecimal`/`F64` mixed operation at all.
+--   - No precision or rounding mode taken from anywhere but the
+--     arguments: `div` and `round` name both (Ruby's `/` picks up
+--     `BigDecimal.limit`, its rounding picks up `BigDecimal.mode`),
+--     and no operand's precision is inferred from the other's.
+--   - No exponent notation in `to-string` (the plain decimal is the
+--     only spelling emitted; `to-f64` renders that same text) and no
+--     exponent parsing in `from-string`: the accepted literal is
+--     `[+-]? ( digits ( "." digits )? | "." digits )`. Anything else,
+--     trailing junk included, is `MalformedLiteral`, never a silent
+--     zero and never a truncated parse.
+--   - No rounding above the units place: `round` takes a `Nat`
+--     fractional-digit count, so Ruby's negative precision (round to
+--     tens and above) is outside the surface.
+--
+-- Home (design/base-library.md): `Data.*` holds concrete types, and
+-- this is the exact decimal. `Rounding` and `BigDecimalError` are this
+-- family's own vocabulary (a rounding policy and a literal error are
+-- not a mathematical kind the scheme names), so they live here with
+-- the type; the `Eq`/`Ord` instances live with their type, as the
+-- scheme requires. Ported item: Ruby's `BigDecimal`
+-- (design/stdlib-parity-ruby.md, "Numeric: `BigDecimal`
+-- (arbitrary-precision decimal; money and measurement)") under the P2
+-- discipline (types and operations, no numeric tower: D125 lists
+-- numeric towers beyond `Semiring` as deliberately out).
+module Data.BigDecimal where
+
+  import Data.Int
+  import Data.Nat
+  import Data.List
+  import Data.String
+  import Data.Char
+  import Data.Option
+  import Data.Result
+  import Data.Ordering
+  import Data.Machine
+  import Text.Show
+  import Relation.Eq
+  import Relation.Ord
+
+  export BigDecimal, big-decimal, unscaled, exponent
+  export Rounding, RoundUp, RoundDown, RoundHalfUp, RoundHalfDown, RoundHalfEven, RoundCeiling, RoundFloor
+  export add, sub, mul, div, round, cmp, neg, abs
+  export from-int, from-string, to-string, to-f64
+  export BigDecimalError, MalformedLiteral, render-big-decimal-error
+
+  -- The representation: unscaled times ten to the exponent. Not
+  -- exported (the canonical-form invariant above is the reason; D143
+  -- is the surface rule that makes the omission bind).
+  data BigDecimal where
+    BigDecimal :: Int -> Int -> BigDecimal
+
+  -- The rounding modes (Ruby's `ROUND_*` constants, spelled as
+  -- constructors per the house naming): away from zero, toward zero,
+  -- tie away from zero, tie toward zero, tie to even, toward positive
+  -- infinity, toward negative infinity.
+  data Rounding where
+    RoundUp :: Rounding
+    RoundDown :: Rounding
+    RoundHalfUp :: Rounding
+    RoundHalfDown :: Rounding
+    RoundHalfEven :: Rounding
+    RoundCeiling :: Rounding
+    RoundFloor :: Rounding
+
+  -- The literal reader's only error. It carries the offending text so
+  -- the caller's diagnostic can name it; there is no representation
+  -- for "unparsed" that a value could be confused with.
+  data BigDecimalError where
+    MalformedLiteral :: String -> BigDecimalError
+
+  render-big-decimal-error :: BigDecimalError -> String
+  render-big-decimal-error e = case e of
+    MalformedLiteral s ->
+      string-concat "malformed-literal: " (string-concat s " is not a decimal literal (the accepted form is [+-]? digits? ( . digits )?)")
+
+  -- -----------------------------------------------------------------
+  -- Construction and observation.
+  -- -----------------------------------------------------------------
+
+  -- The normalising smart constructor: the trailing zeros of the
+  -- unscaled part move into the exponent, so `big-decimal 10 (-2)`,
+  -- `big-decimal 1 (-1)` and `from-string "0.10"` are one value. Zero
+  -- is `BigDecimal 0 0` whatever exponent it arrived with.
+  big-decimal :: Int -> Int -> BigDecimal
+  big-decimal u e =
+    if u == 0 then BigDecimal 0 0
+    else if int-rem u 10 == 0 then big-decimal (int-div u 10) (int-add e 1)
+    else BigDecimal u e
+
+  from-int :: Int -> BigDecimal
+  from-int n = big-decimal n 0
+
+  unscaled :: BigDecimal -> Int
+  unscaled x = case x of
+    BigDecimal u _ -> u
+
+  exponent :: BigDecimal -> Int
+  exponent x = case x of
+    BigDecimal _ e -> e
+
+  -- -----------------------------------------------------------------
+  -- Arithmetic (exact: nothing here rounds).
+  -- -----------------------------------------------------------------
+
+  -- The alignment scale: ten to a non-negative `Int` power. Callers
+  -- pass a non-negative power only: a negative scale is a fraction,
+  -- and this representation keeps fractions in the exponent.
+  int-pow10 :: Int -> Int
+  int-pow10 k = if k == 0 then 1 else int-mul 10 (int-pow10 (int-sub k 1))
+
+  scale :: Int -> Int -> Int
+  scale u k = int-mul u (int-pow10 k)
+
+  -- Exact addition: both operands are read at the smaller exponent
+  -- (the scaling is exact, a power of ten times a bignum), so every
+  -- digit of either operand survives.
+  add :: BigDecimal -> BigDecimal -> BigDecimal
+  add x y = case x of
+    BigDecimal u1 e1 -> case y of
+      BigDecimal u2 e2 ->
+        if e1 == e2 then big-decimal (int-add u1 u2) e1
+        else if e2 < e1 then big-decimal (int-add (scale u1 (int-sub e1 e2)) u2) e2
+        else big-decimal (int-add u1 (scale u2 (int-sub e2 e1))) e1
+
+  -- Subtraction is addition of the negation: the alignment above is
+  -- the only place exponents are reconciled, and a negated value is
+  -- still canonical, so the exactness argument is the same one.
+  sub :: BigDecimal -> BigDecimal -> BigDecimal
+  sub x y = add x (neg y)
+
+  -- Exact multiplication: the unscaled parts multiply and the
+  -- exponents add, which is the representation's own product rule.
+  mul :: BigDecimal -> BigDecimal -> BigDecimal
+  mul x y = case x of
+    BigDecimal u1 e1 -> case y of
+      BigDecimal u2 e2 -> big-decimal (int-mul u1 u2) (int-add e1 e2)
+
+  neg :: BigDecimal -> BigDecimal
+  neg x = case x of
+    BigDecimal u e -> big-decimal (int-neg u) e
+
+  abs :: BigDecimal -> BigDecimal
+  abs x = case x of
+    BigDecimal u e -> if u < 0 then big-decimal (int-neg u) e else x
+
+  -- -----------------------------------------------------------------
+  -- Comparison (the order `sub` induces).
+  -- -----------------------------------------------------------------
+
+  cmp :: BigDecimal -> BigDecimal -> Ordering
+  cmp x y = case x of
+    BigDecimal u1 e1 -> case y of
+      BigDecimal u2 e2 ->
+        if e1 == e2 then compare-int u1 u2
+        else if e2 < e1 then compare-int (scale u1 (int-sub e1 e2)) u2
+        else compare-int u1 (scale u2 (int-sub e2 e1))
+
+  compare-int :: Int -> Int -> Ordering
+  compare-int a b = if a < b then LT else if a == b then EQ else GT
+
+  -- `Ordering` carries no `Eq` instance of its own (Data.Ordering has
+  -- none), so the projections the class methods need are spelled out.
+  is-lt :: Ordering -> Bool
+  is-lt o = case o of
+    LT -> True
+    EQ -> False
+    GT -> False
+
+  is-le :: Ordering -> Bool
+  is-le o = case o of
+    LT -> True
+    EQ -> True
+    GT -> False
+
+  is-gt :: Ordering -> Bool
+  is-gt o = case o of
+    LT -> False
+    EQ -> False
+    GT -> True
+
+  is-ge :: Ordering -> Bool
+  is-ge o = case o of
+    LT -> False
+    EQ -> True
+    GT -> True
+
+  is-eq-ord :: Ordering -> Bool
+  is-eq-ord o = case o of
+    LT -> False
+    EQ -> True
+    GT -> False
+
+  is-ne-ord :: Ordering -> Bool
+  is-ne-ord o = case o of
+    LT -> True
+    EQ -> False
+    GT -> True
+
+  -- The class spellings of `cmp`: canonical form makes the recursive
+  -- field comparison agree, and routing both through `cmp` is what
+  -- keeps `Eq`/`Ord` and the function surface one relation rather than
+  -- two that could drift.
+  implicit instance Eq_BigDecimal :: Eq BigDecimal where
+    (==) x y = is-eq-ord (cmp x y)
+    (/=) x y = is-ne-ord (cmp x y)
+
+  implicit instance Ord_BigDecimal :: Ord BigDecimal where
+    (<) x y = is-lt (cmp x y)
+    (<=) x y = is-le (cmp x y)
+    (>) x y = is-gt (cmp x y)
+    (>=) x y = is-ge (cmp x y)
+
+  -- -----------------------------------------------------------------
+  -- Division and rounding (the rounding operations).
+  -- -----------------------------------------------------------------
+
+  -- `p` fractional digits, rounded by `mode`, then normalised.
+  --
+  -- The precision is the fractional-digit count of the quotient
+  -- BEFORE normalisation, so `div 10 RoundHalfUp one three` is
+  -- `Some 0.3333333333` and `div 2 RoundHalfUp one eight` is `Some
+  -- 0.13`. The magnitude is rounded (the mode names below read as
+  -- their names say from there) and the sign is re-applied, so
+  -- `RoundUp` is away from zero, `RoundCeiling` is toward positive
+  -- infinity, and `RoundHalfUp` breaks a tie away from zero. A zero
+  -- divisor is `None`: there is no result to return and no infinity
+  -- to spell.
+  div :: Nat -> Rounding -> BigDecimal -> BigDecimal -> Option BigDecimal
+  div p mode x y = case x of
+    BigDecimal u1 e1 -> case y of
+      BigDecimal u2 e2 ->
+        let k = int-add e1 (int-sub (nat-to-int p) e2) in
+        if k < 0 then round-quotient mode p u1 (scale u2 (int-neg k))
+        else round-quotient mode p (scale u1 k) u2
+
+  -- Rounding a value to `p` fractional digits: the division by one at
+  -- the same precision, written without a divisor test. With `k`
+  -- fractional digits to spare the value is exact; otherwise the
+  -- divisor is `10^j` and the quotient is `j` divisions by the numeral
+  -- ten (truncation toward zero composes), so no runtime zero test
+  -- stands between `round` and its result.
+  round :: Nat -> Rounding -> BigDecimal -> BigDecimal
+  round p mode x = case x of
+    BigDecimal u e ->
+      let k = int-add e (nat-to-int p) in
+      let positive = quotient-positive u 1 in
+      if k < 0 then
+        let j = int-neg k in
+        let n = abs-int u in
+        let d = int-pow10 j in
+        let q = int-div-pow10 n j in
+        rounded mode p positive q (int-sub n (int-mul q d)) d
+      else rounded mode p positive (abs-int (scale u k)) 0 1
+
+  -- `n` divided by `10^j`, one numeral division per digit.
+  int-div-pow10 :: Int -> Int -> Int
+  int-div-pow10 n j = if j <= 0 then n else int-div-pow10 (int-div n 10) (int-sub j 1)
+
+  -- The quotient rounded to `decimals` fractional digits: magnitudes
+  -- are divided (so the modes read on `q + r/d`, non-negative by
+  -- construction) and the sign of the true quotient is re-applied.
+  -- `None` exactly when the divisor is zero: `div`'s scaled divisor is
+  -- the divisor's unscaled part times a power of ten, zero exactly when
+  -- the divisor is, and the zero test is the decision that makes the
+  -- magnitude this division's `NonZero`.
+  round-quotient :: Rounding -> Nat -> Int -> Int -> Option BigDecimal
+  round-quotient mode decimals n d =
+    let magnitude = abs-int d in
+    case decide (NonZero magnitude) of
+      No _ -> None
+      Yes w ->
+        let divisor = NonZero magnitude w in
+        let q = int-div (abs-int n) divisor in
+        let r = int-rem (abs-int n) divisor in
+        Some (rounded mode decimals (quotient-positive n d) q r magnitude)
+
+  -- `q + r/d` rounded and signed at `decimals` fractional digits.
+  rounded :: Rounding -> Nat -> Bool -> Int -> Int -> Int -> BigDecimal
+  rounded mode decimals positive q r d =
+    let m = round-magnitude mode positive q r d in
+    let e = int-neg (nat-to-int decimals) in
+    if positive then big-decimal m e else big-decimal (int-neg m) e
+
+  -- Round `q + r/d` (with `0 <= r < d`), reading `positive` for the
+  -- two directed modes. `RoundUp`/`RoundDown` are away from / toward
+  -- zero (a magnitude statement); `RoundCeiling`/`RoundFloor` are
+  -- statements about the signed value.
+  round-magnitude :: Rounding -> Bool -> Int -> Int -> Int -> Int
+  round-magnitude mode positive q r d = case mode of
+    RoundUp -> if r == 0 then q else int-add q 1
+    RoundDown -> q
+    RoundCeiling -> if positive then round-away q r else q
+    RoundFloor -> if positive then q else round-away q r
+    RoundHalfUp -> if int-mul 2 r >= d then int-add q 1 else q
+    RoundHalfDown -> if int-mul 2 r > d then int-add q 1 else q
+    RoundHalfEven -> round-half-even q r d
+
+  -- Away from zero when the division was inexact.
+  round-away :: Int -> Int -> Int
+  round-away q r = if r == 0 then q else int-add q 1
+
+  -- A tie (`2r == d`) goes to the even magnitude: the tie-to-even rule
+  -- is on the magnitude, so its sign does not enter.
+  round-half-even :: Int -> Int -> Int -> Int
+  round-half-even q r d =
+    if int-mul 2 r > d then int-add q 1
+    else if int-mul 2 r < d then q
+    else if int-rem q 2 == 0 then q
+    else int-add q 1
+
+  -- The quotient's sign, from the operands' signs (a zero numerator
+  -- is non-negative, and the magnitude it rounds to is zero, so the
+  -- branch is immaterial).
+  quotient-positive :: Int -> Int -> Bool
+  quotient-positive n d = if n < 0 then d < 0 else d >= 0
+
+  abs-int :: Int -> Int
+  abs-int n = if n < 0 then int-neg n else n
+
+  -- -----------------------------------------------------------------
+  -- Text.
+  -- -----------------------------------------------------------------
+
+  -- The plain decimal: no exponent notation, sign first, a leading
+  -- `0.` when the fraction is wider than the digit run.
+  to-string :: BigDecimal -> String
+  to-string x = case x of
+    BigDecimal u e ->
+      if u < 0 then string-concat "-" (render-unsigned (int-neg u) e)
+      else render-unsigned u e
+
+  render-unsigned :: Int -> Int -> String
+  render-unsigned m e =
+    let digits = int-to-string m in
+    if e < 0 then insert-point digits (nat-from-int (0 - e))
+    else string-concat digits (string-repeat (nat-from-int e) "0")
+
+  -- The point sits `k` digits from the right (zero-padded when `k`
+  -- reaches past the digit run); `k == 0` never gets here, since the
+  -- zero exponent is the branch above.
+  insert-point :: String -> Nat -> String
+  insert-point digits k =
+    let d = string-byte-length digits in
+    if k >= d then string-concat "0." (string-concat (string-repeat (k - d) "0") digits)
+    else
+      let cut = d - k in
+      string-concat (string-slice digits 0 cut) (string-concat "." (string-slice digits cut d))
+
+  -- The one conversion to a binary float: the exact decimal text,
+  -- read by the runtime's correctly-rounded decimal parser. Nothing
+  -- else in this module sees an `F64`.
+  to-f64 :: BigDecimal -> F64
+  to-f64 x = f64-from-decimal (string-to-bytes (to-string x))
+
+  -- The literal reader: `[+-]? ( digits ( "." digits )? | "." digits )`.
+  -- Every other shape (empty, a lone sign, a lone point, a trailing
+  -- point, trailing junk, an exponent part) is `MalformedLiteral`
+  -- carrying the text.
+  from-string :: String -> Result BigDecimalError BigDecimal
+  from-string s = from-codes s (codes-of s)
+
+  -- The parse reads scalar values (the prelude idiom: no character
+  -- literals, every character is its code).
+  from-codes :: String -> List Nat -> Result BigDecimalError BigDecimal
+  from-codes s cs = case cs of
+    Nil -> Err (MalformedLiteral s)
+    Cons c rest ->
+      if c == 45 then from-int-part s True (span-digits rest) (drop-digits rest)
+      else if c == 43 then from-int-part s False (span-digits rest) (drop-digits rest)
+      else from-int-part s False (span-digits cs) (drop-digits cs)
+
+  from-int-part :: String -> Bool -> List Nat -> List Nat -> Result BigDecimalError BigDecimal
+  from-int-part s neg ints rest = case rest of
+    Nil -> if is-empty ints then Err (MalformedLiteral s) else Ok (literal neg ints Nil)
+    Cons d rest2 ->
+      if d == 46 then from-fraction s neg ints (span-digits rest2) (drop-digits rest2)
+      else Err (MalformedLiteral s)
+
+  from-fraction :: String -> Bool -> List Nat -> List Nat -> List Nat -> Result BigDecimalError BigDecimal
+  from-fraction s neg ints fracs rest =
+    if is-empty fracs then Err (MalformedLiteral s)
+    else case rest of
+      Nil -> Ok (literal neg ints fracs)
+      Cons _ _ -> Err (MalformedLiteral s)
+
+  -- The value of a sign, a whole-digit run and a fraction-digit run:
+  -- the fraction's digit count is the negated exponent, and
+  -- `big-decimal` normalises the trailing zeros ("10.0" and "10" are
+  -- one value).
+  literal :: Bool -> List Nat -> List Nat -> BigDecimal
+  literal neg ints fracs =
+    let k = nat-to-int (list-length fracs) in
+    let value = int-add (int-mul (digits-value ints) (int-pow10 k)) (digits-value fracs) in
+    big-decimal (if neg then int-neg value else value) (int-neg k)
+
+  -- The leading digit run, and everything after it.
+  span-digits :: List Nat -> List Nat
+  span-digits cs = case cs of
+    Nil -> Nil
+    Cons c rest -> if is-digit-code c then Cons c (span-digits rest) else Nil
+
+  drop-digits :: List Nat -> List Nat
+  drop-digits cs = case cs of
+    Nil -> Nil
+    Cons c rest -> if is-digit-code c then drop-digits rest else cs
+
+  is-digit-code :: Nat -> Bool
+  is-digit-code c = if c < 48 then False else c <= 57
+
+  -- The value of a digit run (empty is zero), most significant first.
+  digits-value :: List Nat -> Int
+  digits-value ds = digits-value-acc ds 0
+
+  -- The callers pass digit runs (`span-digits`), so each code is at
+  -- least 48; the offset is taken in `Int`, where it is the same value
+  -- and needs no evidence from another function.
+  digits-value-acc :: List Nat -> Int -> Int
+  digits-value-acc ds acc = case ds of
+    Nil -> acc
+    Cons c rest -> digits-value-acc rest (int-add (int-mul acc 10) (int-sub (nat-to-int c) 48))
+
+  codes-of :: String -> List Nat
+  codes-of s = map char-code (unpack s)

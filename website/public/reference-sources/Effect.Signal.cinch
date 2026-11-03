@@ -1,0 +1,142 @@
+-- Effect.Signal: POSIX signal delivery, the safe subset of Ruby's
+-- `Signal` (P34, the platform layer; design/stdlib-parity-ruby.md's
+-- OS/process line: `` `Signal` handling reduced to the safe subset'').
+--
+-- A `Signal` names a signal this module will send; `signal-number`
+-- reads its POSIX number and `signal-send` delivers it to a pid
+-- through the `cinch.runtime.signalSend` intrinsic (POSIX `kill(2)`)
+-- under the `Io r` capability in the mold of the runtime's `Io r`
+-- operations (decision D45: signals are sent at runtime through the
+-- capability, never ambient at compile time; a `stage` body cannot
+-- reach the boundary, see Effect.Clock's header). Every failure is a
+-- NAMED `SignalError` value in a `Result` (the house style,
+-- Effect.Fs's shape), never a fault.
+--
+-- Law shape: `signal-number` is the total map from the named signals
+-- to the host's POSIX numbers, and `signal-send pid s` delivers
+-- exactly `signal-number s` to `pid`, reporting `Ok ()` exactly when
+-- `kill(2)` returned `0`. The probe is the zero-signal case:
+-- `signal-probe pid == signal-send pid SigNone` (a permission and
+-- existence check that delivers nothing).
+--
+-- THE NUMBER TABLE IS THE HOST'S, NOT A PORTABLE ONE: the numbers
+-- `signal-number` returns are the POSIX table of the platform the
+-- runtime was built for (SIGHUP 1, SIGINT 2, SIGKILL 9, SIGTERM 15,
+-- identical on Darwin and Linux). A portable mapping would need a
+-- runtime intrinsic that reports the host's numbers; none exists in
+-- this slice (see the refusals below).
+--
+-- The boundary word (`compiler/runtime/src/platform.rs`,
+-- `cinch_signal_send`) takes two machine words (pid then signal
+-- number) and returns `kill(2)`'s raw result: `0` on success, `-1` on
+-- failure, or `-6` (the runtime's `INVALID_ARGUMENT` sentinel) when
+-- the pid or the signal number falls outside the platform's `i32`
+-- range.
+--
+-- THE ERRNO LIMIT: `kill(2)` reports ESRCH (no such process) and EPERM
+-- (not permitted) through `errno`, and the boundary does NOT carry
+-- `errno` back (there is no errno intrinsic in the runtime). The two
+-- cannot be separated from the raw `-1`, so both fold into the one
+-- named variant `SignalNotDelivered`. The follow-up is exact: for
+-- ESRCH and EPERM to be separate variants, the runtime would have to
+-- carry `errno` across the extern (a `cinch_signal_send` that also
+-- surfaces the failing call's errno). No variant this boundary cannot
+-- produce is shipped.
+--
+-- Named refusals (boundaries this module deliberately does not
+-- cross, each with its reason):
+--   install a trap or a handler: there is no runtime hook for signal
+--     delivery, and a handler is exactly the point where a safe
+--     language's safety story would have to reason about arbitrary
+--     interruption points (delivery can land between any two
+--     operations and observe half-updated state); the safe subset
+--     sends signals, it does not receive them;
+--   signal masks: block/unblock is process-wide receiver-side state
+--     with the same interruption-point reasoning, and no intrinsic
+--     exposes it;
+--   `Signal.trap` blocks: the Ruby block form implies a handler
+--     callback, refused for the reason above;
+--   raising signals into the current process as a control flow
+--     mechanism (Ruby's `Process.kill` to self / `Signal.trap("INT")`
+--     to unwind): control flow is the effect system's job, and a
+--     signal delivered into a Cinch process has no safe unwinding
+--     point (the runtime installs no handler);
+--   Windows emulation: the boundary is POSIX `kill(2)`; a Windows
+--     port would need a console-control path (GenerateConsoleCtrlEvent)
+--     that names a different signal set, and emulating POSIX numbers
+--     over it would be a lie about the host table;
+--   `SigUsr1`/`SigUsr2`: their numbers differ by platform (Darwin
+--     30/31, Linux 10/12) and no runtime intrinsic supplies a
+--     portable mapping, so a single source spelling would be wrong on
+--     one platform and silently send the wrong signal (on Darwin,
+--     signal 10 is SIGBUS); they wait for the host-number intrinsic
+--     the note above names.
+--
+-- Module scheme (design/base-library.md): `Effect.*` is the effect
+-- system's vocabulary.
+module Effect.Signal where
+
+  import Data.Result
+
+  export Signal, SigNone, SigHup, SigInt, SigKill, SigTerm
+  export SignalError, SignalNotDelivered, SignalInvalidNumber
+  export signal-number, signal-send, signal-probe
+
+
+  -- A signal this module will send. The set is the portable core: the
+  -- four signals whose numbers agree on Darwin and Linux plus
+  -- `SigNone`, the zero signal (the existence and permission probe the
+  -- kernel delivers to nothing).
+  data Signal where
+    SigNone :: Signal
+    SigHup :: Signal
+    SigInt :: Signal
+    SigKill :: Signal
+    SigTerm :: Signal
+
+  -- Why a delivery did not happen.
+  data SignalError where
+    -- `kill(2)` failed: the target is gone or the caller is not
+    -- permitted to signal it (the two are one here, see the errno
+    -- note above), or another OS failure.
+    SignalNotDelivered :: SignalError
+    -- The pid or the signal number fell outside the host's `i32`
+    -- range (the runtime's `INVALID_ARGUMENT` sentinel, `-6`).
+    SignalInvalidNumber :: SignalError
+
+  -- The host's POSIX number for a signal (the table is the host's;
+  -- see the header).
+  signal-number :: Signal -> I64
+  signal-number s = case s of
+    SigNone -> 0
+    SigHup -> 1
+    SigInt -> 2
+    SigKill -> 9
+    SigTerm -> 15
+
+  -- The boundary word: POSIX `kill(pid, sig)`, the raw result. A
+  -- `cinch.runtime.*` intrinsic keeps its known monomorphic signature
+  -- (decision D6), so no effect row is spelled here (the capability is
+  -- on the public wrapper).
+  foreign import ccall "cinch.runtime.signalSend" raw-signal-send :: I64 -> I64 -> I64
+
+  -- The raw result as the named vocabulary (the two cases the boundary
+  -- can actually produce).
+  signal-error :: I64 -> SignalError
+  signal-error c = case c of
+    -6 -> SignalInvalidNumber
+    _ -> SignalNotDelivered
+
+  -- Deliver `sig` to `pid` (pid first, then the signal): the named
+  -- error on any failure, `Ok ()` when the kernel accepted it.
+  signal-send :: forall r. using (io :: Io r) => I64 -> Signal ->{IO r} Result SignalError Unit
+  signal-send pid sig = case raw-signal-send pid (signal-number sig) of
+    0 -> Ok ()
+    c -> Err (signal-error c)
+
+  -- Probe `pid` without delivering anything (the zero signal): `Ok ()`
+  -- when the process exists and the caller may signal it, the named
+  -- error otherwise. This is the one form that earns its place: it is
+  -- how a caller checks the target before a real delivery.
+  signal-probe :: forall r. using (io :: Io r) => I64 ->{IO r} Result SignalError Unit
+  signal-probe pid = signal-send pid SigNone

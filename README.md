@@ -4,6 +4,10 @@ Complete documentation export — 2026-10-22T18:59:36Z
 
 This archive contains the current overview and **all 26 pages linked from it**: nine specifications, fourteen tutorials, and three example, design-decision, and reference pages. It preserves the complete text and code, not summaries. The original pages were not modified.
 
+## Current reader documentation
+
+The Rust Cinch compiler now implements a substantial language. The original export record below describes the October 2026 design archive, including its historical implementation-status wording. For current Rust behaviour, read the [documentation hub](documentation.md), [22-chapter language tutorial](learn/00-tutorial.md), [compiler user's guide](reference/00-guide.md), and [checked library reference](library/00-index.md). Specified work still being built is marked **Coming soon**; open design questions are labelled separately. The site serves these paths at `/documentation/`, `/learn/`, `/reference/`, and `/library/`.
+
 ## Start here
 
 - Read the rendered documentation as a site: `cd website && npm install && npm run dev`, then open <http://localhost:4321>. `npm run build` writes a static copy to `website/dist/`. See [website/README.md](website/README.md).

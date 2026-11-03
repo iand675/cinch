@@ -1,0 +1,28 @@
+module Main where
+  import Data.List
+  import Data.NonEmpty
+
+  -- Average order value. Needs at least one order.
+  average :: NonEmpty Int -> Int
+  average orders =
+    sum-list 0 (unrefine orders) / length (unrefine orders)
+
+  -- Decide once what no orders means.
+  report :: List Int -> String
+  report orders = case non-empty orders of
+    Some xs -> int-to-string (average xs)
+    None -> "no orders yet"
+
+  regular :: List Int
+  regular = Cons 24 (Cons 36 (Cons 12 Nil))
+
+  newcomer :: List Int
+  newcomer = Nil
+
+  main :: Unit ->{IO r} Int
+  main u = with (io = newIO ()) in
+    let a = ioWrite (string-to-bytes (report regular)) in
+    let b = ioWrite (string-to-bytes "\n") in
+    let c = ioWrite (string-to-bytes (report newcomer)) in
+    let d = ioWrite (string-to-bytes "\n") in
+    0

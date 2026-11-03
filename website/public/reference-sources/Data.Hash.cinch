@@ -1,0 +1,30 @@
+-- Data.Hash: the hashing class.
+--
+-- `hash` maps a key to a `Nat` bucket digest. The class law is
+-- consistency with `Eq` (asserted over sample values in
+-- compiler/tests/prelude_split.rs, and over every shipped key type
+-- in compiler/tests/lib_hash_keys.rs):
+--   x == y implies hash x == hash y
+-- Equality without a common hash is a broken key, so every keyed
+-- structure states both constraints (Data.HashMap does).
+--
+-- `Sym` hashing (design/base-library.md) is identity-based and
+-- trivial: a `Sym` is a word handle to a process-wide interned name
+-- (primitive types specification section 1), so its identity IS its
+-- hash. Data.Sym is now that home; because nothing exposes a cell
+-- handle as data, the instance there hashes the interned name's bytes,
+-- which is the reachable stand-in for the identity and the only digest
+-- that is reproducible across runs.
+--
+-- Instance homes. The ownership rule is "instances live with their
+-- type": the instances live in the carriers' vocabulary modules
+-- (Data.Nat, Data.Int, Data.Bool, Data.Char, Data.String, Data.Bytes,
+-- Data.Sym, Data.Rational). The class needs only builtin types
+-- (`hash :: a -> Nat`), so the class home sits at the bottom of the
+-- module order.
+module Data.Hash where
+
+  export Hash, hash
+
+  signature Hash a where
+    hash :: a -> Nat

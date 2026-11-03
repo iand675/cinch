@@ -1,0 +1,83 @@
+import { ExpressiveCodeTheme } from 'astro-expressive-code';
+
+// The same material family as the site: ink/ivory, orange, amber, and olive.
+// Keep ordinary names quiet; colour communicates syntax rather than decoration.
+const palettes = [
+  {
+    name: 'cinch-instrument', type: 'dark',
+    background: '#1b2218', foreground: '#e6dec8',
+    comment: '#a3ad92', keyword: '#f0ac78', typeName: '#e4c58f',
+    callable: '#cedba3', string: '#bacb9b', literal: '#f1ce94',
+    operator: '#c4c4a7', punctuation: '#b1b69b',
+    border: '#626b4e', panel: '#2c3325', selection: '#d99a5040',
+    error: '#f0a080', inserted: '#bdcf9540', removed: '#d17e5640',
+  },
+  {
+    name: 'cinch-paper', type: 'light',
+    background: '#e7deca', foreground: '#353a2b',
+    comment: '#626750', keyword: '#924218', typeName: '#79551e',
+    callable: '#435c28', string: '#4b5f2a', literal: '#83471c',
+    operator: '#665a43', punctuation: '#62654e',
+    border: '#b4a98d', panel: '#ded4bc', selection: '#ab6c3540',
+    error: '#923e25', inserted: '#677d3030', removed: '#a7522e25',
+  },
+];
+
+export const syntaxThemes = palettes.map(p => new ExpressiveCodeTheme({
+  name: p.name,
+  type: p.type,
+  colors: {
+    'editor.background': p.background,
+    'editor.foreground': p.foreground,
+    'editor.selectionBackground': p.selection,
+    'editorLineNumber.foreground': p.comment,
+    'editorLineNumber.activeForeground': p.foreground,
+    'editorGroupHeader.tabsBackground': p.panel,
+    'editorGroupHeader.tabsBorder': p.border,
+    'tab.activeBackground': p.background,
+    'tab.activeForeground': p.foreground,
+    'tab.activeBorderTop': p.keyword,
+    'titleBar.activeBackground': p.panel,
+    'titleBar.activeForeground': p.foreground,
+    'titleBar.border': p.border,
+    'terminal.background': p.background,
+    'panel.background': p.panel,
+    'panel.border': p.border,
+    'focusBorder': p.keyword,
+    'textLink.foreground': p.keyword,
+    'diffEditor.insertedTextBackground': p.inserted,
+    'diffEditor.removedTextBackground': p.removed,
+  },
+  tokenColors: [
+    { scope: ['comment', 'punctuation.definition.comment'], settings: { foreground: p.comment, fontStyle: '' } },
+    { scope: ['keyword', 'storage'], settings: { foreground: p.keyword, fontStyle: '' } },
+    { scope: ['entity.name.type', 'entity.name.class', 'entity.name.namespace', 'support.type', 'support.class'], settings: { foreground: p.typeName } },
+    { scope: ['entity.name.function', 'support.function'], settings: { foreground: p.callable } },
+    { scope: ['string', 'markup.inline.raw'], settings: { foreground: p.string } },
+    { scope: ['constant', 'constant.character.escape'], settings: { foreground: p.literal } },
+    { scope: ['variable', 'meta.embedded'], settings: { foreground: p.foreground } },
+    { scope: ['punctuation'], settings: { foreground: p.punctuation } },
+    { scope: ['keyword.operator'], settings: { foreground: p.operator } },
+    { scope: ['entity.other.attribute-name', 'entity.name.tag'], settings: { foreground: p.typeName } },
+    { scope: ['invalid'], settings: { foreground: p.error } },
+    { scope: ['markup.inserted'], settings: { foreground: p.callable } },
+    { scope: ['markup.deleted'], settings: { foreground: p.error } },
+  ],
+  styleOverrides: {
+    borderColor: p.border,
+    codeFontFamily: "'IBM Plex Mono', monospace",
+    frames: {
+      editorBackground: p.background,
+      terminalBackground: p.background,
+      editorActiveTabBackground: p.background,
+      editorTabBarBackground: p.panel,
+      editorTabBarBorderColor: p.border,
+      terminalTitlebarBackground: p.panel,
+      terminalTitlebarBorderBottomColor: p.border,
+      inlineButtonForeground: p.foreground,
+      inlineButtonBackground: p.panel,
+      inlineButtonBorder: p.border,
+      frameBoxShadowCssValue: 'none',
+    },
+  },
+}).ensureMinSyntaxHighlightingColorContrast(5.5));

@@ -1,0 +1,84 @@
+/* Shared shell for the two page families.
+ *
+ * The landing page and the platform pages are the same paper stock printed two
+ * ways: one dark field, one light field, same type, same materials. Everything
+ * both families need lives here once; each family's stylesheet then adds only
+ * its own composition and overrides its label scale.
+ */
+
+.cinch-landing,
+.cinch-platform {
+  background: var(--ink);
+  scroll-behavior: smooth;
+  scroll-padding-top: 2rem;
+}
+.cinch-landing {
+  color-scheme: dark;
+}
+.cinch-platform {
+  color-scheme: light;
+}
+
+/* The page is the paper: border-box everywhere, no default body margin. */
+:is(.cinch-landing, .cinch-platform) *,
+:is(.cinch-landing, .cinch-platform) *::before,
+:is(.cinch-landing, .cinch-platform) *::after {
+  box-sizing: border-box;
+}
+:is(.cinch-landing, .cinch-platform) body {
+  margin: 0;
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+.cinch-landing body {
+  color: var(--paper);
+}
+.cinch-platform body {
+  color: var(--paper);
+}
+
+:is(.cinch-landing, .cinch-platform) a {
+  color: inherit;
+}
+.cinch-landing a {
+  text-decoration: none;
+}
+.cinch-platform a {
+  text-underline-offset: 4px;
+}
+
+:is(.cinch-landing, .cinch-platform) :is(h1, h2, h3) {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-synthesis: none;
+  letter-spacing: -0.035em;
+}
+.cinch-platform :is(h1, h2, h3) {
+  line-height: 1.08;
+  margin: 0;
+}
+.cinch-landing :is(h1, h2, h3, p, figure) {
+  margin: 0;
+}
+.cinch-landing em {
+  font-style: normal;
+}
+
+:is(.cinch-landing, .cinch-platform) :is(button, input) {
+  font: inherit;
+}
+.cinch-platform :is(textarea, select) {
+  font: inherit;
+}
+.cinch-platform :is(button, select, input[type='radio']) {
+  cursor: pointer;
+}
+
+/* Technical labels: one rule, one scale, per-family tracking. Unscoped so a
+   component's own single-class rule can still override the size, as before. */
+.mono {
+  font-family: var(--font-mono);
+  font-size: var(--label, 0.62rem);
+  line-height: 1.6;
+  letter-spacing: var(--label-tracking);
+}

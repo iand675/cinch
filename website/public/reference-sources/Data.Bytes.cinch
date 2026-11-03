@@ -1,0 +1,135 @@
+-- Data.Bytes: boxed byte buffers.
+--
+-- `Bytes` is a core runtime type: indices and lengths are `Nat`, and a
+-- byte is an `InRange 0 255 Nat`. Every operation is total by
+-- construction (design/no-faults.md): a read or write takes evidence
+-- that its index is below `bytes-len b`, a range copy evidence that both
+-- ranges end inside their buffers, a read's result carries its range and
+-- a write's value must prove it. A buffer's length is fixed when it is
+-- made, so a fact over `bytes-len b` survives writes to `b`, and
+-- `bytes-new n` gives `bytes-len out == n` to the name it is bound to.
+-- A length no allocation can hold is the heap `Exhausted` exit.
+--
+-- Module scheme (design/base-library.md): the type's home carries its
+-- instance family: `FromList` (`[1, 2, 3]` at `Bytes` fills a buffer)
+-- over `U8` elements, so a literal's numerals are range-checked as
+-- bytes at compile time, and the key pair `Eq`/`Hash` (a byte slice is
+-- a plausible key: a compiler's names arrive as the lexer's bytes).
+module Data.Bytes where
+
+  import Algebra.Arithmetic
+  import Data.Hash
+  import Data.List
+  import Data.Nat
+
+  export bytes-new, bytes-len, bytes-get, bytes-set, bytes-copy-range, bytes-compare, bytes-from-list, bytes-from-u8s, sha256-bytes
+
+
+  -- `nat-cmp`/`int-cmp` return the raw -1/0/1 immediate at `I64`, so
+  -- equality is `eq-i64 (int-cmp a b) 0`.
+
+  -- `Bytes`: boxed byte buffers. `bytes-len` comes first: the other
+  -- signatures name it. A length is an `i64` in the runtime, so it is at
+  -- most `2^63 - 1` and every index below it converts to `I64`. The
+  -- index obligation is `nat-sub`'s shape: a loop's own guard (`if i <
+  -- bytes-len b`), a fresh buffer's length or an enclosing `using (i <=
+  -- bytes-len b)` supplies it. A string literal's read-only backing is
+  -- never one of these buffers: it lives inside a `String`, and every
+  -- conversion out of a `String` copies.
+  foreign import ccall "cinch.runtime.bytesLen" bytes-len :: Bytes -> InRange 0 9223372036854775807 Nat
+  foreign import ccall "cinch.runtime.bytesNew" bytes-new :: (n :: Nat) -> refined (bytes-len out == n) Bytes
+  foreign import ccall "cinch.runtime.bytesGet" bytes-get :: using (i < bytes-len b) => (b :: Bytes) -> (i :: Nat) -> InRange 0 255 Nat
+  foreign import ccall "cinch.runtime.bytesSet" bytes-set :: using (i < bytes-len b) => (b :: Bytes) -> (i :: Nat) -> InRange 0 255 Nat -> Unit
+
+  -- `bytes-copy-range dst src di si n`: the `n` bytes of `src` from `si`
+  -- into `dst` at `di`, as one runtime `memmove` (the two may be the
+  -- same buffer and overlap). A copy loop written here would box a `Nat`
+  -- for every index step, so every bulk copy goes through this.
+  foreign import ccall "cinch.runtime.bytesCopy" bytes-copy-range :: using (di + n <= bytes-len dst, si + n <= bytes-len src) => (dst :: Bytes) -> (src :: Bytes) -> (di :: Nat) -> (si :: Nat) -> (n :: Nat) -> Unit
+
+  -- The lexicographic order of two buffers' contents as the raw -1/0/1
+  -- immediate (the `nat-cmp` convention), read in place: no copy and
+  -- no allocation.
+  foreign import ccall "cinch.runtime.bytesCompare" bytes-compare :: Bytes -> Bytes -> I64
+
+  -- SHA-256 (FIPS 180-4) at content-addressing strength over a
+  -- buffer (the P31 content identity; `compiler/runtime/src/text.rs`,
+  -- the `cinch.runtime.textSha256` intrinsic, nm-verified there): the
+  -- digest as a fresh 32-byte buffer.
+  foreign import ccall "cinch.runtime.textSha256" sha256-bytes :: Bytes -> Bytes
+
+  -- The list's bytes, in order. A byte is an `InRange 0 255 Nat`, so a
+  -- list of numerals decides each element at compile time and a
+  -- computed list carries its elements' ranges.
+  bytes-from-list :: List (InRange 0 255 Nat) -> Bytes
+  bytes-from-list xs = bytes-fill-from 0 xs
+
+  -- The elements from index `i` on: the buffer is made once, at the end
+  -- of the list, sized to `i` plus nothing more, and each element is
+  -- written on the way back. The result's refinement (`i <= bytes-len
+  -- out`) is the bound every write proves, so no index is guessed.
+  bytes-fill-from :: (i :: Nat) -> List (InRange 0 255 Nat) -> refined (i <= bytes-len out) Bytes
+  bytes-fill-from i xs = case xs of
+    Nil -> bytes-new i
+    Cons y ys ->
+      let out = bytes-fill-from (i + 1) ys in
+      let u = bytes-set out i y in
+      out
+
+  -- A `U8` as the byte it is (`Data.Machine`'s `u8-to-i64` intrinsic,
+  -- declared here because `Data.Machine` imports this module): its
+  -- promised range is the evidence `nat-from-i64` takes, and the result
+  -- keeps it.
+  foreign import ccall "cinch.prim.u8ToI64" byte-word :: (x :: U8) -> refined (InRange 0 255 r && r == x) I64
+
+  byte-of-u8 :: U8 -> InRange 0 255 Nat
+  byte-of-u8 x = let w = byte-word x in nat-from-i64 w
+
+  -- The `FromList` buffer: `bytes-from-list`'s shape over `U8`.
+  bytes-from-u8s :: List U8 -> Bytes
+  bytes-from-u8s xs = u8s-fill-from 0 xs
+
+  u8s-fill-from :: (i :: Nat) -> List U8 -> refined (i <= bytes-len out) Bytes
+  u8s-fill-from i xs = case xs of
+    Nil -> bytes-new i
+    Cons y ys ->
+      let out = u8s-fill-from (i + 1) ys in
+      let u = bytes-set out i (byte-of-u8 y) in
+      out
+
+  implicit instance FromList_Bytes :: FromList Bytes U8 where
+    from-list xs = bytes-from-u8s xs
+
+  -- Byte-for-byte equality over the whole slice: the lengths agree and
+  -- every byte agrees. The keyed structures need `Eq` beside `Hash`
+  -- (Data.HashMap's header): hashing alone cannot decide a digest
+  -- collision, so an instance that hashes without comparing is not a
+  -- key.
+  bytes-equal-from :: Bytes -> Bytes -> Nat -> Bool
+  bytes-equal-from a b i =
+    if i >= bytes-len a then i >= bytes-len b
+    else if i >= bytes-len b then False
+    else if bytes-get a i == bytes-get b i then bytes-equal-from a b (i + 1)
+    else False
+
+  implicit instance Eq_Bytes :: Eq Bytes where
+    (==) x y = bytes-equal-from x y 0
+    (/=) x y = not (bytes-equal-from x y 0)
+
+  -- The whole slice folded with the 31-mix (`h * 31 + byte`): every
+  -- byte contributes, so two slices that differ only past a shared
+  -- prefix get different digests, and the fold runs over `Nat`
+  -- (bignum), so it cannot overflow. The digest reads content only,
+  -- so equal slices hash alike (the `Hash` law) and two distinct
+  -- slices may still share one (the bucket scan's job).
+  hash-bytes-from :: Bytes -> Nat -> Nat -> Nat
+  hash-bytes-from b i h =
+    if i >= bytes-len b then h
+    else hash-bytes-from b (i + 1) (nat-add (nat-mul h 31) (bytes-get b i))
+
+  -- The buffer's digest (instances live with their type). `Data.String`
+  -- hashes its UTF-8 backing through THIS instance, so a string and the
+  -- bytes it converts to agree by construction rather than by two
+  -- copies of one algorithm.
+  implicit instance Hash_Bytes :: Hash Bytes where
+    hash b = hash-bytes-from b 0 0

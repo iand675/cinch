@@ -1,0 +1,10 @@
+---
+import { tokenize } from '../lib/highlight';
+interface Props { code:string; label?:string; caption?:string; }
+const {code,label,caption}=Astro.props;
+---
+<figure class="language-excerpt">
+  {label&&<figcaption class="mono">{label}</figcaption>}
+  <pre><code>{tokenize(code).map(token=><span class={token.kind&&`excerpt-${token.kind}`}>{token.text}</span>)}</code></pre>
+  {caption&&<p class="excerpt-caption">{caption}</p>}
+</figure>

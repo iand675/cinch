@@ -1,0 +1,41 @@
+-- Algebra.Group: carriers with a total inverse.
+--
+-- The base library scheme's group (design/base-library.md):
+-- `Group` adds `invert` to the associative `<>` with identity
+-- `mempty` (Algebra.Semigroup, Algebra.Monoid). A class constraint
+-- entails nothing (the standing no-superbundle rule): the class
+-- states `invert` alone, and the laws below are the law shape the P18
+-- law-axiom layer will formalize.
+--
+-- Laws (asserted over sample values in compiler/tests/prelude_split.rs):
+--   left inverse:  invert x <> x == mempty
+--   right inverse: x <> invert x == mempty
+-- For `Int` the monoid is the semiring's additive one (`add`/`zero`,
+-- Algebra.Semiring), the form the tests state.
+--
+-- Instance homes. The ownership rule is "instances live with their
+-- type; structural instances over functions and tuples live with the
+-- class module" (design/base-library.md). `Int`'s instance lives in
+-- Data.Int with its family; `Dual`'s lives with its type in
+-- Algebra.Monoid; the function and tuple instances are structural and
+-- here. `Nat` gets no `Group` instance: its subtraction truncates
+-- (there is no additive inverse below zero).
+module Algebra.Group where
+
+  export Group, invert
+
+  signature Group a where
+    invert :: a -> a
+
+  -- Structural: a pair inverts componentwise, each side under its own
+  -- constraint.
+  implicit instance Group_Pair t u :: using (ga :: Group t, gb :: Group u) => Group (t, u) where
+    invert p = case p of
+      (a, b) -> (invert a, invert b)
+
+  -- Structural: pointwise inversion of functions into a group. The
+  -- method is eta-expanded (`invert f` at x is `invert (f x)`)
+  -- because the bootstrap checks equations against every arrow of the
+  -- substituted method type.
+  implicit instance Group_Function t u :: using (gb :: Group u) => Group (t -> u) where
+    invert f x = invert (f x)
