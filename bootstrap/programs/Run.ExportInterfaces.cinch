@@ -14,7 +14,7 @@ module Main where
   import Text.Parse (ParseOutcome, Parsed, Failed, render-bundle)
 
   source :: String
-  source = "module A where\n  export Token, wrap, unwrap, (<+>), Parcel, Empty, Loaded, Give, give, wait, signal\n  signature Give a where\n    give :: a -> a\n  implicit instance GiveNat :: Give Nat where\n    give n = n\n  effect Notice where\n    signal :: Nat ->{Notice} Nat\n  effect Local where\n    local-op :: Nat ->{Local} Nat\n  foreign import ccall \"cinch.runtime.textSha256\" private-digest :: Bytes -> Bytes\n  data Token where\n    Hidden :: Nat -> Token\n  data Parcel a where\n    Empty :: Parcel a\n    Loaded :: a -> Parcel a\n  infixr 4 <^>\n  (<^>) :: Nat -> Nat -> Nat\n  (<^>) a b = a\n  wait :: Unit ->{Diverge, Blocking} Int\n  wait u = 0\n  wrap :: Nat -> Token\n  wrap n = Hidden n\n  unwrap :: Token -> Nat\n  unwrap token = case token of Hidden n -> n\n  infixl 6 <+>\n  (<+>) :: Nat -> Nat -> Nat\n  (<+>) a b = a + b\nmodule B where\n  import A\n  export Token, wrap\nmodule Main where\n  import B\n  main :: Int\n  main = 0\n"
+  source = "module A where\n  export Token, wrap, unwrap, (<+>), Parcel, Empty, Loaded, Give, give, wait, signal, ParcelWithPrivate, PublicParcel, make-parcel\n  signature Give a where\n    give :: a -> a\n  implicit instance GiveNat :: Give Nat where\n    give n = n\n  effect Notice where\n    signal :: Nat ->{Notice} Nat\n  effect Local where\n    local-op :: Nat ->{Local} Nat\n  foreign import ccall \"cinch.runtime.textSha256\" private-digest :: Bytes -> Bytes\n  data PrivateField where\n    PrivateFieldValue :: Nat -> PrivateField\n  data ParcelWithPrivate where\n    PublicParcel :: PrivateField -> ParcelWithPrivate\n  make-parcel :: Nat -> ParcelWithPrivate\n  make-parcel n = PublicParcel (PrivateFieldValue n)\n  data Token where\n    Hidden :: Nat -> Token\n  data Parcel a where\n    Empty :: Parcel a\n    Loaded :: a -> Parcel a\n  infixr 4 <^>\n  (<^>) :: Nat -> Nat -> Nat\n  (<^>) a b = a\n  wait :: Unit ->{Diverge, Blocking} Int\n  wait u = 0\n  wrap :: Nat -> Token\n  wrap n = Hidden n\n  unwrap :: Token -> Nat\n  unwrap token = case token of Hidden n -> n\n  infixl 6 <+>\n  (<+>) :: Nat -> Nat -> Nat\n  (<+>) a b = a + b\nmodule B where\n  import A\n  export Token, wrap\nmodule Main where\n  import B\n  main :: Int\n  main = 0\n"
   documents :: List (String, Json) -> String
   documents rows = case rows of Nil -> ""; Cons (name, doc) rest -> string-concat-all [canonical-json doc, "\n", documents rest]
   artifacts :: List (String, Json) -> Result String (List (String, String, Bytes))
@@ -42,7 +42,13 @@ module Main where
           Ok done -> Err "private constructor became importable"
           Err hidden -> case check-client interfaces "module Override where\n  import A\n  infixr 8 <+>\n  use :: Nat\n  use = 1 <+> 2\n" of
             Ok done -> Err "importing module overrode the defining fixity"
-            Err override -> check-client interfaces "module InstanceConsumer where\n  import A\n  use :: Nat -> Nat\n  use n = give n\n"
+            Err override -> case check-client interfaces "module InstanceConsumer where\n  import A\n  use :: Nat -> Nat\n  use n = give n\n" of
+              Err error -> Err error
+              Ok done -> case check-client interfaces "module LayoutConsumer where\n  import A\n  use :: Nat -> ParcelWithPrivate\n  use n = make-parcel n\n" of
+                Err error -> Err error
+                Ok done -> case check-client interfaces "module PrivateFieldIntruder where\n  import A (PrivateFieldValue)\n  use :: Int\n  use = 0\n" of
+                  Ok done -> Err "private field constructor became importable"
+                  Err hidden -> Ok ()
   checked-export :: String -> Result String String
   checked-export input = case parse-program "export-fixture" (string-to-bytes input) of
     Failed bundle -> Err (render-bundle bundle)

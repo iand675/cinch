@@ -1031,8 +1031,27 @@ module Bootstrap.Infer where
         (case collect-nominal-rows s (resolved-nominals metadata) kinds st of (ks, sk) -> collect-nominal-kinds rest ks sk)
         else collect-nominal-kinds rest kinds (add-error s "invalid resolved nominal contract" st)
     Cons (DInterface sp name hash metadata) rest -> case collect-instance-nominals sp (field "instances" (field "exports" metadata)) kinds st of
-      (more, checked) -> collect-nominal-kinds rest more checked
+      (more, checked) -> case public-constructor-nominals sp (field "types" (field "exports" metadata)) more checked of
+        (closed, done) -> collect-nominal-kinds rest closed done
     Cons d rest -> collect-nominal-kinds rest kinds st
+
+  -- A returned carrier may demand its complete public layout even when no
+  -- constructor was named by the client. The defining constructor schemes
+  -- carry private field-type identities that must be known before that
+  -- layout is checked. These facts add kinds, never source bindings or
+  -- constructor visibility; only the admitted public table supplies layouts.
+  public-constructor-nominals :: Span -> Json -> TypeContext -> Store -> (TypeContext, Store)
+  public-constructor-nominals sp types kinds st = case types of
+    JArr row rest -> case public-constructor-contracts sp (field "ctors" row) kinds st of
+      (more, checked) -> public-constructor-nominals sp rest more checked
+    JArrEnd -> (kinds, st)
+    other -> (kinds, add-error sp "invalid public constructor type table" st)
+  public-constructor-contracts :: Span -> Json -> TypeContext -> Store -> (TypeContext, Store)
+  public-constructor-contracts sp constructors kinds st = case constructors of
+    JArr row rest -> case collect-contract-nominals sp row kinds st of
+      (more, checked) -> public-constructor-contracts sp rest more checked
+    JArrEnd -> (kinds, st)
+    other -> (kinds, add-error sp "invalid public constructor contract table" st)
 
   class-declaration-rows :: Decl -> List Json
   class-declaration-rows d = case d of

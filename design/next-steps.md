@@ -145,6 +145,22 @@ constructor layouts (`Text.Lex.Span`); this repair and the final compiler/interf
 fixed point remain required. See
 [production evidence](../bootstrap/compiler-interface-production-results.json).
 
+## Real entry consumption and private field kinds
+
+The rebuilt Cinch compiler now checks its actual entry against its emitted
+compiler APIs with implementation bodies absent. The earlier check refused
+`Text.Lex.Span`. A tiny independent public-Parcel/private-Secret reproduction
+failed the same way with the previous self-built compiler.
+
+Kind collection now retains defining private nominal facts from checked public
+constructor schemes before completing public layouts. It adds no source bindings
+and does not expose private constructors. The repaired actual Cinch compiler
+accepts the public return and refuses private constructor import, private type
+annotation and a wrong field carrier. The complete source-checker and expanded
+writer/privacy targets also pass; broader nominal validation remains running.
+See [before/after and real consumer evidence](../bootstrap/private-constructor-kind-results.json).
+The fresh complete stage chain and final-source test sweep remain required.
+
 ## Earlier checkpoints
 
 The entries below retain the evidence and limitations of their named snapshots;

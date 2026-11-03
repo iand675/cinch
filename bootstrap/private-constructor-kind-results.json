@@ -1,0 +1,95 @@
+{
+  "status": "scoped-private-layout-repair-passed",
+  "scope": "Actual self-built compiler entry consumption and private-field layout facts; final stage chain and complete current-source tests remain open",
+  "actual_compiler": {
+    "rows": [
+      {
+        "exit_code": 0,
+        "expected": 0,
+        "name": "emit",
+        "status": "passed"
+      },
+      {
+        "exit_code": 0,
+        "expected": 0,
+        "name": "link",
+        "status": "passed"
+      },
+      {
+        "exit_code": 1,
+        "expected": 1,
+        "name": "startup",
+        "status": "passed"
+      },
+      {
+        "exit_code": 0,
+        "expected": 0,
+        "name": "consume",
+        "status": "passed"
+      }
+    ],
+    "scope": "Actual self-built compiler rebuilds the private nominal repair and checks entry source using independently validated emitted compiler contracts; not the final fixed-point gate",
+    "source_sha256": "3bebaa8120734fda92b0cde338debabdb160a9ebd58bf1f22c2a0c3fe96cfe63"
+  },
+  "actual_before": [
+    {
+      "exit_code": 0,
+      "name": "produce"
+    },
+    {
+      "diagnostics": "bootstrap.check:1:2: unknown type constructor or unbound type variable: i.80_114_105_118_97_116_101_46_83_101_99_114_101_116_\n",
+      "exit_code": 4,
+      "name": "consume-before-repair"
+    }
+  ],
+  "actual_after": [
+    {
+      "diagnostic": "",
+      "exit_code": 0,
+      "name": "public-return",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.resolve:2:3: Private has no exported member: Hidden\n",
+      "exit_code": 4,
+      "name": "private-constructor",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.check:3:10: unknown type constructor or unbound type variable: Secret\n",
+      "exit_code": 4,
+      "name": "private-type",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.check:4:16: type mismatch: expected i.80_114_105_118_97_116_101_46_83_101_99_114_101_116_, found Bool\n",
+      "exit_code": 4,
+      "name": "wrong-field-carrier",
+      "status": "passed"
+    }
+  ],
+  "native_targets_completed": [
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ]
+  ],
+  "native_scope_note": "Complete source-checker and writer/privacy targets pass. Remaining nominal and parser validation targets are still running at publication.",
+  "invariant": "Only defining private nominal facts are retained from admitted public constructor contracts. Source bindings, constructor visibility and complete-layout admission rules are unchanged.",
+  "files": {
+    "bootstrap/Bootstrap.Infer.cinch": "4c63793b44a891f71ee0d1f2ee70885062abcf82c7354d80a4f451d74b8f8c72",
+    "bootstrap/programs/Run.ExportInterfaces.cinch": "24974a54b1c664ff4c870c6b422863a79a9a683d31f133d1683a4203a6dd301d",
+    "compiler/tests/bootstrap_export_interfaces.rs": "39ddbcdeb6fc61d3d3343668a752837b5e15ea239f9ebb03e49f268c23e25587"
+  }
+}

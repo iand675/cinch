@@ -51,6 +51,12 @@ fn source_interfaces_preserve_private_nominals_and_defining_fixities() {
     assert!(signal.resolved.is_none(), "schema8 does not pretend an operation is an ordinary function");
     assert!(signal.total_body.is_none());
     assert!(!a.exports.types.iter().any(|t| t.name == "Notice"));
+    assert!(!a.exports.types.iter().any(|t| t.name == "PrivateField"));
+    let public_layout = a.exports.types.iter().find(|t| t.name == "ParcelWithPrivate").unwrap();
+    assert_eq!(public_layout.ctors[0].fields, ["A.PrivateField"]);
+    let private = public_layout.ctors[0].resolved.as_ref().unwrap().nominals.iter().find(|n| n.identity == "A.PrivateField").unwrap();
+    assert_eq!(private.constructors.as_ref().unwrap(), &["A.PrivateFieldValue"]);
+
     assert!(!a.exports.values.iter().any(|v| v.name == "local-op" || v.name == "private-digest"));
     let signature = a.exports.signatures.iter().find(|s| s.identity == "A.Give").unwrap();
     assert_eq!(signature.exports, ["Give"]);
