@@ -8,6 +8,10 @@
     {
       "title": "Finish all portable bootstrap groups through Cinch",
       "detail": "0 of 79 groups pass. This suite verifies the existing bootstrap programs through the exact self-built Stage3 compiler. Fixture preparation remains an explicit Native library stage; it does not replace or rescue a selected compiler invocation."
+    },
+    {
+      "title": "Complete external compiler coverage audit",
+      "detail": "The harness inventory finds 100 targets: 79 bootstrap groups and 21 ordinary groups. Classify Native API fixture production separately and run every portable compiler behavior path through final Stage3. The 79-group queue alone does not close this gate."
     }
   ],
   "checks": [
@@ -43,7 +47,7 @@
     },
     {
       "title": "All final-source auxiliary gates pass",
-      "detail": "On the exact suite27 snapshot: all 171 runtime tests, 41 tooling checks and 39 compiler/LSP/Tree-sitter tests pass, with no ignored or skipped tests. The complete compiler matrix is compiled and awaits the last focused resolver gate.",
+      "detail": "On the exact suite27 snapshot: all 171 runtime tests, 41 tooling checks and 39 compiler/LSP/Tree-sitter tests pass, with no ignored or skipped tests. Compiler test progress is tracked separately above.",
       "state": "passed"
     },
     {
@@ -95,11 +99,6 @@
       "detail": "Candidate23 finished with four failing groups: parser coverage, failed-output handling, lattice transfers and refinements. The original failures remain recorded. Fresh complete parser and pipeline reruns now pass; final-source verification is still required.",
       "state": "passed",
       "title": "Full baseline finished: 201 of 205 groups passed"
-    },
-    {
-      "detail": "The frozen-source test sweep has 130 of 208 groups passed, 1 failed and 3 running. Runtime, tooling and syntax gates pass. The sweep is handing two workers to targeted repair checks after their current tests finish. These results precede the latest fixity and Rust name-resolution repairs.",
-      "state": "running",
-      "title": "Complete test sweep and repair verification"
     },
     {
       "detail": "The self-built Stage3 compiles and executes the advanced writer. Independent Native readers accept its schema, canonical form and dependency hashes; public aliases work and private constructors and importer fixity overrides are refused.",
@@ -216,5 +215,5 @@
   ],
   "status": "Bootstrap passed; final full-suite verification running",
   "summary": "The repaired compiler bootstraps and passes exact final-Stage3 behavior checks. The full 208-group Native-backed sweep and all 79 portable bootstrap groups through Stage3 are tracked separately. Native library fixture preparation is explicit; selected compiler failures never fall back.",
-  "updatedAt": "2026-11-03T21:36:51.658442+00:00"
+  "updatedAt": "2026-11-03T21:43:32.586005+00:00"
 }
