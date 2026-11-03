@@ -1,12 +1,12 @@
 {
   "schema": 1,
-  "updatedAt": "2026-11-03T17:58:01.817459+00:00",
+  "updatedAt": "2026-11-03T18:13:32.558085+00:00",
   "estimate": 90,
   "estimateNote": "Rough engineering estimate. Remaining compiler bugs can change it; this is not a measured test pass rate.",
-  "status": "Self-build works; final verification remains",
-  "summary": "Stage2 built Stage3 with identical compiler code and executable bytes. Both pass smoke checks. The new checked-interface writer also runs through the self-built compiler; complete compiler interfaces and final-source tests are still being verified.",
-  "activity": "Published the Rust declaring-class and refinement-evaluation repairs. All 17 lattice and 18 refinement checks pass; the corrected parameter suite passes all seven tests. A new complete frozen-source sweep is compiling its test runners. The updated Cinch-built compiler has emitted and linked and is retrying its own interface export.",
-  "commit": "3a44480e90239b723438a8677c92f025c2fff9d2",
+  "status": "Own interfaces emitted; consumer repair underway",
+  "summary": "The Cinch-built compiler emits all 43 compiler interfaces. Independent Native readback validates their canonical form, dependency chain and coherence, and all source hashes match. The entry-only consumer has exposed a private field-type layout bug; its repair is under test.",
+  "activity": "The tiny reproduction confirms a public constructor loses its private field-type kind when its layout is completed. The repair retains those checked private facts without exposing source names. Native regression and an actual Cinch-to-Cinch compiler rebuild are running. The fresh 208-group sweep continues.",
+  "commit": "4f7d173a01644941eb18305c5a49236bb8b40527",
   "stages": [
     {
       "name": "Stage 0",
@@ -35,13 +35,18 @@
   ],
   "checks": [
     {
+      "title": "All 43 compiler interfaces pass independent readback",
+      "detail": "Actual self-built compiler validation2 emits all 43 documents. Native parses and canonically roundtrips them and verifies the chain and coherence across 98 total modules; every source hash matches its full module slice. The reserved Main.main identity repair passes the separate complete writer7 regression.",
+      "state": "passed"
+    },
+    {
       "title": "Full baseline finished: 201 of 205 groups passed",
       "detail": "Candidate23 finished with four failing groups: parser coverage, failed-output handling, lattice transfers and refinements. The original failures remain recorded. Fresh complete parser and pipeline reruns now pass; final-source verification is still required.",
       "state": "passed"
     },
     {
       "title": "Final-source verification and repairs",
-      "detail": "All four baseline failures have fresh scoped repair evidence. The Rust repair run passes 238 tests; its one obsolete parameter expectation is corrected and all seven parameter tests pass. A fresh complete sweep on candidate24 is compiling all current test targets.",
+      "detail": "Candidate24: all 207 test runners compile; 6 of 208 groups passed, 2 running, 0 failed. Runtime, 40 tooling and all 39 syntax experiments pass on that frozen snapshot. It predates the new private-layout repair; final coverage remains required.",
       "state": "running"
     },
     {
@@ -51,7 +56,7 @@
     },
     {
       "title": "Updated interface writer passes its complete focused gates",
-      "detail": "Fresh validation6 passes interface, type-export, parser, 16 effect tests and region-contract checks. Public effect operations retain their checked schemes and explicit non-portable resolved boundary. The defining Main.main identity correction is being verified separately.",
+      "detail": "Validation7 passes the full interface, type-export, parser, 16 effect tests and region-contract checks. It verifies Main.main, public operation contracts, definition-owned fixities and private constructor boundaries. The new private-layout regression is being tested separately.",
       "state": "passed"
     },
     {
@@ -102,9 +107,9 @@
   ],
   "blockers": [
     {
-      "title": "Finish the compiler-interface fixed point",
-      "detail": "The full export moved past built-in effect labels and then identified public Text.Parse operations as missing writer support. Both writers now pass the focused operation-export checks; the rebuilt Cinch compiler is retrying its own full export. A separate Main.main identity correction is under test.",
-      "technical": "Schema8 explicitly permits null resolved contracts for richer declarations; operation exports preserve their actual checked schemes and symbols without claiming portable handler metadata. The final gate is being strengthened to reject placeholder, malformed, wrong-ABI and stale-dependency documents. Full combined-mode Stage2/Stage3 agreement remains required."
+      "title": "Make the compiler consume its complete emitted APIs",
+      "detail": "All 43 compiler interfaces now exist and pass independent readback. Checking the real entry using only those APIs exposes a lost private field-type kind during public layout completion. A tiny reproduction fails the same way; its repair and privacy regressions are running.",
+      "technical": "The real consumer first refuses Text.Lex.Span; the reduced public-Parcel/private-Secret case reproduces it. The new Infer path collects private nominal facts from checked public constructor contracts before completing layouts. The final combined-mode compiler and canonical interface fixed point remains open."
     },
     {
       "title": "Finish the complete current-source test sweep",
