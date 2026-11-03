@@ -1,0 +1,15 @@
+{
+  "parser": {
+    "exit_code": 0,
+    "source_sha256": "4600de1f7ab94e0cd7475824997e4609b48035a473e7078721b3cce099cb5c4f",
+    "source_unchanged": true,
+    "status": "passed"
+  },
+  "pipeline": {
+    "exit_code": 0,
+    "source_sha256": "7ea7553beb2fb7447a402cc266cd760c990a7e365800dd6487b1802792f0f020",
+    "source_unchanged": true,
+    "status": "passed"
+  },
+  "scope": "Complete corrected target runs on their named frozen snapshots. Historical candidate23 failures remain recorded; this does not make the complete current suite green."
+}

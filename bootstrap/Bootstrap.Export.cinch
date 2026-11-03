@@ -4,12 +4,13 @@ module Bootstrap.Export where
   import Algebra.Semigroup
   import Bootstrap.Check (CheckedProgram, checked-elaboration, checked-surface)
   import Bootstrap.Ast (Program, Module, Decl, module-decls, program-modules, DClass, DInstance, DForeign, DRefine, DRecord, DEffect)
-  import Bootstrap.Infer (Elaboration, elaboration-bindings, elaboration-data, elaboration-contexts, CheckedBinding, checked-name, checked-scheme, checked-role)
-  import Bootstrap.Core (CoreData, CoreConstructor, core-data-name, core-data-params, core-data-constructors, core-constructor-name, core-constructor-scheme)
+  import Bootstrap.Infer (Elaboration, elaboration-bindings, elaboration-data, elaboration-contexts, elaboration-classes, elaboration-instances, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches)
+  import Bootstrap.Core (CoreData, CoreConstructor, core-data-name, core-data-params, core-data-constructors, core-constructor-name, core-constructor-scheme, core-scheme)
+  import Bootstrap.Instance
   import Bootstrap.Type
   import Bootstrap.ExportType
   import Bootstrap.ExportNominal
-  import Bootstrap.Load (LoadedInterface, loaded-module, loaded-hash)
+  import Bootstrap.Load (LoadedInterface, loaded-module, loaded-hash, loaded-entry)
   import Bootstrap.Interface (fnv-source-hash)
   import Bootstrap.RuntimeAbi (runtime-abi-int)
   import Data.Json
@@ -49,13 +50,13 @@ module Bootstrap.Export where
   append :: Json -> Json -> Json
   append first second = case first of JArr row rest -> JArr row (append rest second); other -> second
   resolved-scheme :: Elaboration -> List LoadedInterface -> Scheme -> Result String Json
-  resolved-scheme typed interfaces scheme = case (export-scheme scheme, scheme-nominals scheme (elaboration-data typed) interfaces) of
+  resolved-scheme typed interfaces scheme = case (export-scheme scheme, scheme-nominals scheme (elaboration-data typed) (elaboration-classes typed) interfaces) of
     (Ok spelling, Ok nominals) -> Ok (JObj "scheme" (JStr spelling) (JObj "nominals" nominals (JObj "measures" JArrEnd JObjEnd)))
     (Err error, other) -> Err error
     (other, Err error) -> Err error
   value-row :: Elaboration -> List LoadedInterface -> String -> String -> CheckedBinding -> Result String Json
   value-row typed interfaces name symbol binding =
-    if same (checked-role binding) "function" || same (checked-role binding) "value" then
+    if same (checked-role binding) "function" || same (checked-role binding) "value" || same (checked-role binding) "intrinsic" || same (checked-role binding) "instance" || same (checked-role binding) "implicit-instance" then
       let scheme = checked-scheme binding in
       let arity = scheme-runtime-arity scheme + list-length (scheme-requirements scheme) in
       case (export-global symbol, resolved-scheme typed interfaces scheme) of
@@ -100,6 +101,129 @@ module Bootstrap.Export where
     Cons declaration rest -> constructors-have symbol (core-data-constructors declaration) || constructor-present symbol rest
   constructors-have :: String -> List CoreConstructor -> Bool
   constructors-have symbol constructors = case constructors of Nil -> False; Cons constructor rest -> same symbol (core-constructor-name constructor) || constructors-have symbol rest
+  class-present :: String -> List CoreClass -> Bool
+  class-present name classes = case classes of Nil -> False; Cons description rest -> same name (class-name description) || class-present name rest
+  public-names :: String -> Json -> Json
+  public-names symbol rows = case rows of
+    JArr row rest -> if same symbol (text (field "symbol" row)) then insert-string (text (field "name" row)) (public-names symbol rest) else public-names symbol rest
+    other -> JArrEnd
+  method-names :: Elaboration -> CoreClass -> CoreClassMethod -> Json -> Json
+  method-names typed description member surface = case surface of
+    JArr row rest -> let symbol = text (field "symbol" row) in
+      (case find-binding symbol (elaboration-bindings typed) of
+        Some binding -> if checked-method-matches binding symbol (class-name description) (class-method-slot member) then
+          insert-string (text (field "name" row)) (method-names typed description member rest)
+          else method-names typed description member rest
+        None -> method-names typed description member rest)
+    other -> JArrEnd
+  method-rows :: Elaboration -> List LoadedInterface -> CoreClass -> Json -> List CoreClassMethod -> Result String Json
+  method-rows typed interfaces description surface methods = case methods of
+    Nil -> Ok JArrEnd
+    Cons member rest -> let slot = class-method-slot member in
+      case (resolved-scheme typed interfaces (class-method-scheme member), method-rows typed interfaces description surface rest) of
+      (Ok resolved, Ok more) -> Ok (JArr
+        (method-default description member interfaces
+          (JObj "name" (JStr (class-method-name member))
+            (JObj "slot" (JNum (nat-to-int slot))
+              (JObj "exports" (method-names typed description member surface)
+                (JObj "scheme" (field "scheme" resolved)
+                  (JObj "resolved" resolved JObjEnd)))))) more)
+      (Err error, other) -> Err error
+      (other, Err error) -> Err error
+  methods-public :: Json -> Bool
+  methods-public rows = case rows of
+    JArr row rest -> (case field "exports" row of JArr name more -> True; other -> False) || methods-public rest
+    other -> False
+  last-name :: List Char -> List Char -> String
+  last-name chars reversed = case chars of Nil -> pack (reverse reversed); Cons c rest -> last-name rest (if char-code c == 46 then Nil else Cons c reversed)
+  defining-signature :: String -> List LoadedInterface -> Option Json
+  defining-signature identity interfaces = case interfaces of Nil -> None; Cons first rest -> case loaded-entry first "signature" identity of Some row -> Some row; None -> defining-signature identity rest
+  defining-method :: String -> Json -> Option Json
+  defining-method name methods = case methods of JArr row rest -> if same name (text (field "name" row)) then Some row else defining-method name rest; other -> None
+  method-default :: CoreClass -> CoreClassMethod -> List LoadedInterface -> Json -> Json
+  method-default description member interfaces row = case export-global (class-name description) of
+    Err error -> row
+    Ok identity -> case defining-signature identity interfaces of
+      None -> row
+      Some source -> case defining-method (class-method-name member) (field "methods" source) of
+        None -> row
+        Some original -> case field "default" original of JStr identity -> set-field "default" (JStr identity) row; other -> row
+  nominal-mentioned :: String -> Json -> Bool
+  nominal-mentioned identity doc = case doc of
+    JObj key value rest -> (same identity (text (field "identity" doc)) && same "signature" (text (field "kind" doc)))
+      || nominal-mentioned identity value || nominal-mentioned identity rest
+    JArr row rest -> nominal-mentioned identity row || nominal-mentioned identity rest
+    other -> False
+  has-public-method :: Elaboration -> CoreClass -> Json -> List CoreClassMethod -> Bool
+  has-public-method typed description surface methods = case methods of
+    Nil -> False
+    Cons member rest -> (case method-names typed description member surface of JArr name more -> True; other -> False) || has-public-method typed description surface rest
+  signature-needed :: Elaboration -> CoreClass -> Json -> Json -> Json -> Bool
+  signature-needed typed description surface values types =
+    (case public-names (class-name description) surface of JArr name more -> True; other -> False)
+    || has-public-method typed description surface (class-methods description)
+    || (case export-global (class-name description) of Ok identity -> nominal-mentioned identity values || nominal-mentioned identity types; Err error -> False)
+  signature-rows :: Elaboration -> List LoadedInterface -> Json -> Json -> Json -> List CoreClass -> Result String Json
+  signature-rows typed interfaces surface values types classes = case classes of
+    Nil -> Ok JArrEnd
+    Cons description rest -> if not (signature-needed typed description surface values types) then signature-rows typed interfaces surface values types rest
+      else case (method-rows typed interfaces description surface (class-methods description), signature-rows typed interfaces surface values types rest) of
+      (Ok methods, Ok more) -> let names = public-names (class-name description) surface in
+        (case (export-global (class-name description), export-parameters (class-params description)) of
+          (Ok identity, Ok parameters) -> Ok (insert-row "name" (JObj "name" (JStr (last-name (unpack identity) Nil))
+            (JObj "identity" (JStr identity) (JObj "exports" names (JObj "params" (parameter-names parameters)
+              (JObj "parameters" (parameter-json parameters) (JObj "methods" methods JObjEnd)))))) more)
+          (Err error, other) -> Err error
+          (other, Err error) -> Err error)
+      (Err error, other) -> Err error
+      (other, Err error) -> Err error
+
+  class-head :: UType -> Option String
+  class-head ty = case ty of UCon name kind -> Some name; UApp f x -> class-head f; other -> None
+  plain-method :: UType -> Bool
+  plain-method ty = case ty of
+    UFun a b -> plain-method b
+    UFunEff a row b -> plain-method b
+    UPi id name domain row result -> plain-method result
+    URequire predicates body -> False
+    UProofFun predicate row result -> False
+    other -> True
+  instance-method-names :: String -> List CoreClassMethod -> List CoreDictionaryField -> Result String Json
+  instance-method-names identity methods fields = case (methods, fields) of
+    (Nil, Nil) -> Ok JArrEnd
+    (Cons member rest, Cons implementation more) ->
+      if class-method-slot member /= dictionary-field-slot implementation then Err "checked instance method slot differs from defining signature"
+      else if not (plain-method (scheme-body (core-scheme (dictionary-field-definition implementation)))) then Err "preconditioned instance method export requires its checked callable contract"
+      else (case instance-method-names identity rest more of
+        Err error -> Err error
+        Ok names -> Ok (JArr (JStr (string-concat-all [identity, ".", class-method-name member])) names))
+    other -> Err "checked instance has an incomplete defining method table"
+  instance-row :: Elaboration -> List LoadedInterface -> CoreInstance -> Result String Json
+  instance-row typed interfaces declaration = let scheme = instance-scheme declaration in
+    case scheme-requirements scheme of
+      Cons first rest -> Err "contextual instance export requires its canonical factory context"
+      Nil -> case class-head (scheme-body scheme) of
+        None -> Err "checked instance has no defining signature head"
+        Some owner -> case find-class owner (elaboration-classes typed) of
+          None -> Err "checked instance has no defining signature contract"
+          Some description -> case (export-global (instance-name declaration), export-global owner, resolved-scheme typed interfaces scheme) of
+            (Ok identity, Ok declaring, Ok resolved) -> case instance-method-names identity (class-methods description) (instance-fields declaration) of
+              Err error -> Err error
+              Ok methods -> Ok (JObj "id" (JStr identity) (JObj "class" (JStr declaring)
+                (JObj "target" (field "scheme" resolved) (JObj "resolved" resolved (JObj "ctx" JArrEnd
+                  (JObj "methods" methods (JObj "method_contracts" JArrEnd (JObj "implicit" (JBool (instance-implicit declaration)) JObjEnd))))))))
+            (Err error, other, more) -> Err error
+            (other, Err error, more) -> Err error
+            (other, more, Err error) -> Err error
+  instance-rows :: Elaboration -> List LoadedInterface -> Json -> List CoreInstance -> Result String Json
+  instance-rows typed interfaces context declarations = case declarations of
+    Nil -> Ok JArrEnd
+    Cons declaration rest -> if has-symbol (instance-name declaration) (field "declarations" context) then
+      (case (instance-row typed interfaces declaration, instance-rows typed interfaces context rest) of
+        (Ok row, Ok more) -> Ok (insert-row "id" row more)
+        (Err error, other) -> Err error
+        (other, Err error) -> Err error)
+      else instance-rows typed interfaces context rest
   -- A constructor is recorded only in its defining type's public table.
   -- Hidden constructors still occur in private nominal identity closures.
   exports :: Elaboration -> List LoadedInterface -> Json -> Json -> Result String (Json, Json)
@@ -111,18 +235,26 @@ module Bootstrap.Export where
           Some declaration -> case type-row typed interfaces surface name declaration of
             Err error -> Err error
             Ok actual -> Ok (values, insert-row "name" actual types)
-          None -> if constructor-present symbol (elaboration-data typed) then Ok (values, types)
+          None -> if constructor-present symbol (elaboration-data typed) || class-present symbol (elaboration-classes typed) then Ok (values, types)
             else case find-binding symbol (elaboration-bindings typed) of
               None -> Err (string-concat "export has no retained checked declaration: " name)
-              Some binding -> case value-row typed interfaces name symbol binding of
-                Err error -> Err error
-                Ok actual -> Ok (insert-row "name" actual values, types)
+              Some binding -> if same (checked-role binding) "method" then Ok (values, types)
+                else case value-row typed interfaces name symbol binding of
+                  Err error -> Err error
+                  Ok actual -> Ok (insert-row "name" actual values, types)
     JArrEnd -> Ok (JArrEnd, JArrEnd)
     other -> Err "module has no retained public export table"
   symbols :: Json -> Json
   symbols values = case values of
     JArr row rest -> JArr (JStr (string-concat-all [text (field "name" row), "=", text (field "symbol" row)])) (symbols rest)
     other -> JArrEnd
+  insert-string :: String -> Json -> Json
+  insert-string name rows = case rows of
+    JArr (JStr first) rest -> let order = string-compare name first in
+      if order == 0 then rows else if order < 0 then JArr (JStr name) rows else JArr (JStr first) (insert-string name rest)
+    other -> JArr (JStr name) JArrEnd
+  sorted-strings :: Json -> Json
+  sorted-strings rows = case rows of JArr (JStr name) rest -> insert-string name (sorted-strings rest); other -> JArrEnd
   layouts :: Json -> Json
   layouts types = case types of
     JArr row rest -> JArr (JObj "type" (field "name" row) (JObj "size" (JNum 8)
@@ -150,19 +282,27 @@ module Bootstrap.Export where
       (other, Err error) -> Err error
     JArrEnd -> Ok JArrEnd
     other -> Err "module has no retained dependency list"
-  empty-assumptions :: Json
-  empty-assumptions = JObj "primitives" JArrEnd (JObj "foreign" JArrEnd (JObj "declared" JArrEnd JObjEnd))
-  document :: Json -> String -> Json -> Json -> Json -> Json
-  document context source-hash dependencies values types =
+  has-symbol :: String -> Json -> Bool
+  has-symbol name rows = case rows of JArr (JStr first) rest -> same name first || has-symbol name rest; other -> False
+  source-primitives :: Json -> List Json -> Json
+  source-primitives context rows = case rows of
+    Nil -> JArrEnd
+    Cons row rest -> if same (text (field "category" row)) "intrinsic" && has-symbol (text (field "binding" row)) (field "declarations" context) then
+      insert-string (text (field "identity" row)) (source-primitives context rest)
+      else source-primitives context rest
+  assumptions :: Json -> Json
+  assumptions primitives = JObj "primitives" primitives (JObj "foreign" JArrEnd (JObj "declared" JArrEnd JObjEnd))
+  document :: Json -> String -> Json -> Json -> Json -> Json -> Json -> Json -> Json
+  document context source-hash dependencies values types signatures instances primitives =
     JObj "schema" (JNum 8) (JObj "runtime_abi" (JNum runtime-abi-int)
       (JObj "language" (JStr "draft-0.2+amendments") (JObj "compiler" (JStr "cinch-self-hosted")
         (JObj "module" (field "module" context) (JObj "source_hash" (JStr source-hash)
           (JObj "imports" dependencies (JObj "params" JArrEnd
-            (JObj "exports" (JObj "values" values (JObj "types" types (JObj "signatures" JArrEnd
-              (JObj "instances" JArrEnd (JObj "foreign" JArrEnd (JObj "fixities" (sort-rows "op" (public-fixities (field "exports" context) (field "fixities" context))) JObjEnd))))))
+            (JObj "exports" (JObj "values" values (JObj "types" types (JObj "signatures" signatures
+              (JObj "instances" instances (JObj "foreign" JArrEnd (JObj "fixities" (sort-rows "op" (public-fixities (field "exports" context) (field "fixities" context))) JObjEnd))))))
               (JObj "abi" (JObj "convention" (JStr "uniform-word, curried apply stub")
-                (JObj "symbols" (symbols values) (JObj "layouts" (layouts types) JObjEnd)))
-                (JObj "assumptions" empty-assumptions (JObj "assertions" JArrEnd
+                (JObj "symbols" (sorted-strings (symbols values)) (JObj "layouts" (layouts types) JObjEnd)))
+                (JObj "assumptions" (assumptions primitives) (JObj "assertions" JArrEnd
                   (JObj "contracts" JArrEnd (JObj "must_use" JArrEnd (JObj "laws" JArrEnd
                     (JObj "upgrades" JArrEnd (JObj "units" JArrEnd JObjEnd))))))))))))))))
   source-hash :: Bytes -> Json -> Result String String
@@ -182,31 +322,39 @@ module Bootstrap.Export where
       JStr name -> case (exports typed interfaces (field "exports" context) (field "exports" context),
         imports (field "imports" context) produced interfaces, source-hash source context) of
           (Ok (values, types), Ok dependencies, Ok hash) ->
-            let doc = document context hash dependencies values types in
-            case export-loop typed interfaces source (Cons (name, interface-hash doc) produced) rest of
-              Err error -> Err error
-              Ok more -> Ok (Cons (name, doc) more)
+            (case (signature-rows typed interfaces (field "exports" context) values types (elaboration-classes typed), instance-rows typed interfaces context (elaboration-instances typed)) of
+              (Ok signatures, Ok instances) ->
+                let doc = document context hash dependencies values types signatures instances (source-primitives context (elaboration-contexts typed)) in
+                (case export-loop typed interfaces source (Cons (name, interface-hash doc) produced) rest of
+                  Err error -> Err error
+                  Ok more -> Ok (Cons (name, doc) more))
+              (Err error, other) -> Err error
+              (other, Err error) -> Err error)
           (Err error, other, more) -> Err (string-concat-all [name, ": ", error])
           (other, Err error, more) -> Err (string-concat-all [name, ": ", error])
           (other, more, Err error) -> Err (string-concat-all [name, ": ", error])
       other -> export-loop typed interfaces source produced rest
   export-interfaces :: CheckedProgram -> List LoadedInterface -> Bytes -> Result String (List (String, Json))
   export-interfaces checked interfaces source = let typed = checked-elaboration checked in
-    case unsupported-modules (program-modules (checked-surface checked)) of
+    case unsupported-modules (program-modules (checked-surface checked)) (elaboration-contexts typed) of
       Some message -> Err message
       None -> export-loop typed interfaces source Nil (elaboration-contexts typed)
-  unsupported-modules :: List Module -> Option String
-  unsupported-modules modules = case modules of
+  retained-intrinsic :: String -> String -> List Json -> Bool
+  retained-intrinsic name identity rows = case rows of
+    Nil -> False
+    Cons row rest -> (same (text (field "category" row)) "intrinsic" && same (text (field "binding" row)) name && same (text (field "identity" row)) identity)
+      || retained-intrinsic name identity rest
+  unsupported-modules :: List Module -> List Json -> Option String
+  unsupported-modules modules contexts = case modules of
     Nil -> None
-    Cons first rest -> case unsupported-declarations (module-decls first) of Some message -> Some message; None -> unsupported-modules rest
-  unsupported-declarations :: List Decl -> Option String
-  unsupported-declarations declarations = case declarations of
+    Cons first rest -> case unsupported-declarations (module-decls first) contexts of Some message -> Some message; None -> unsupported-modules rest contexts
+  unsupported-declarations :: List Decl -> List Json -> Option String
+  unsupported-declarations declarations contexts = case declarations of
     Nil -> None
     Cons declaration rest -> case declaration of
-      DClass sp name parameters members -> Some "signature interface production is incomplete"
-      DInstance sp automatic name parameters head members -> Some "instance interface production is incomplete"
-      DForeign sp direction abi symbol name syntax -> Some "foreign assumption interface production is incomplete"
+      DForeign sp direction abi symbol name syntax -> if retained-intrinsic name symbol contexts then unsupported-declarations rest contexts else Some "foreign assumption interface production is incomplete"
       DRefine sp name parameters binder predicate -> Some "defining refinement interface production is incomplete"
       DRecord sp name parameters fields -> Some "record interface production is incomplete"
-      DEffect sp name parameters operations -> Some "effect interface production is incomplete"
-      other -> unsupported-declarations rest
+      -- A private effect grants no public type/operation names. If a public
+      -- scheme mentions it, nominal export still refuses the absent contract.
+      other -> unsupported-declarations rest contexts

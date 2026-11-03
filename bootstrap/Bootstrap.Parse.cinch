@@ -634,7 +634,8 @@ module Bootstrap.Parse where
       Cons w rest3 ->
         if is-word-t (lt-token w) "where" then
           case parse-block rest3 src (module-scope-fixes name headers fix) of
-            POk ds rest4 -> POk (MkModule start name (decl-spine start ds)) rest4
+            POk ds rest4 -> let finish = case rest4 of Cons next more -> span-start (sp-of next); Nil -> bytes-len src in
+              POk (MkModule (Span (span-start start) finish (span-line start) (span-col start)) name (decl-spine start ds)) rest4
             PBad -> PBad
         else PBad
       Nil -> PBad

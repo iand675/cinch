@@ -57,9 +57,9 @@ public constructor tags and fields, consumed dependency hashes and definition-ow
 fixities. Native independently parses the documents, roundtrips their canonical
 bytes and verifies their dependency chain. A real Cinch consumer accepts the public
 reexports and refuses hidden constructor imports and importer fixity overrides.
-This writer is not yet connected to the staged compiler CLI. Its explicit refusals
-for signatures, instances, foreign assumptions, defining refinements, records and
-effects must be completed before it can export the entire compiler.
+The expanded writer and its staged CLI are described below. Contextual and
+guarded instances and defining refinement/record contracts remain incomplete;
+the full compiler contract gate is still open.
 
 The compiler entry now imports every bundled module through a qualified alias.
 The pinned seed actually builds this complete43-module source closure and emits
@@ -73,6 +73,36 @@ updated parser table exactly matches all109 measured corpus entries, including
 zero unmodeled nodes in the new exporter modules. Four actual pipeline probes
 confirm that parse, check, emit and manifest refusals truncate stale IR. The full
 pipeline target recheck remains in progress; historical failures remain recorded.
+
+## Source contracts reach the compiler CLI
+
+The writer now exports checked signature parameters, method slots and public
+aliases, unconditional instance heads and private method identities, and exact
+checked primitive assumptions. Private effects and primitive names gain no public
+source names. The actual self-built Stage3 compiles and executes the expanded
+writer; a real Cinch consumer resolves an exported implicit instance.
+
+`--emit-interfaces SOURCE PREFIX` writes each checked `PREFIX.Module.cinchif`
+without IR. `--emit-ir-with-interfaces`, with the checked base/object configuration,
+emits both contracts and runtime IR. The stage driver requests that combined mode
+and records the output protocol in its cache inputs. The complete pipeline target
+and real CLI probes pass on their named snapshots. Unsupported contract forms
+remain explicit refusals. See
+[advanced contract evidence](../bootstrap/advanced-interface-contract-results.json).
+
+Module spans previously covered only the six-byte `module` keyword, making every
+produced source hash identical. Spans now cover the complete module body; independent
+FNV comparisons against the actual module slices pass. The full compiler contract
+probe now reaches a concrete missing intrinsic-effect classification (`Diverge`);
+that repair is under validation. Contextual/guarded instances, source refinements
+and records are not claimed complete.
+
+The full candidate23 sweep finished with201 target groups passing and4 failing:
+parser coverage, pipeline refusal output, lattice transfers and refinements. The
+first two corrected whole targets pass on fresh snapshots. The latter failures
+expose compile-time evaluation of runtime dictionary-self markers; its Rust repair
+is being validated alongside a distinct declaring-class identity correction.
+These scoped repairs do not substitute for a complete final-source test run.
 
 ## Earlier checkpoints
 

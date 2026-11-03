@@ -1,0 +1,88 @@
+{
+  "status": "passed",
+  "native_writer": {
+    "exit_code": 0,
+    "source_sha256": "0dfed33bcaaf5896afae57ff168bc2b852bee00d16ae8d5e86c4a86b52e836fe",
+    "source_unchanged": true,
+    "status": "passed"
+  },
+  "self_built_stage3": [
+    {
+      "exit_code": 0,
+      "name": "emit",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "name": "link",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "name": "run",
+      "status": "passed"
+    }
+  ],
+  "actual_consumer": {
+    "actual_cinch_consumer_checks": [
+      "public reexport accepted",
+      "hidden constructor import refused",
+      "importer fixity override refused"
+    ],
+    "modules": [
+      "A",
+      "B",
+      "Main"
+    ],
+    "status": "passed"
+  },
+  "cli_full_regression": {
+    "exit_code": 0,
+    "source_sha256": "fa3d1833366124e26a1ce8aff30ab13ddc22b0232bee1e3cd5d2f92d91bf2d0f",
+    "source_unchanged": true,
+    "status": "passed"
+  },
+  "cli_actual_probes": {
+    "builder": "actual pinned-seed-built Stage1 Cinch compiler",
+    "compiler_sha256": "369e34128313b4ee69b04bedf6dc70a27a666c947a752ae98cd317aaccf588c6",
+    "rows": [
+      {
+        "diagnostics": "",
+        "exit_code": 0,
+        "expected": 0,
+        "name": "valid",
+        "status": "passed"
+      },
+      {
+        "diagnostics": "bootstrap.export: signature interface production is incomplete",
+        "exit_code": 5,
+        "expected": 5,
+        "name": "unsupported",
+        "status": "passed"
+      },
+      {
+        "diagnostics": "bootstrap.resolve:3:10: name is not in scope: missing\n",
+        "exit_code": 4,
+        "expected": 4,
+        "name": "invalid",
+        "status": "passed"
+      }
+    ],
+    "status": "passed"
+  },
+  "checks": [
+    "source signatures and declaration-order method slots",
+    "source unconditional instance head and private method identities",
+    "actual implicit instance consumption",
+    "private effect and primitive names remain private",
+    "exact checked primitive assumption identity",
+    "complete module source hash compared with independent FNV",
+    "Native canonical roundtrip and dependency chain",
+    "real Cinch consumer refuses private constructor import and importer fixity override"
+  ],
+  "remaining": [
+    "full compiler interface export currently refuses intrinsic Diverge as a missing nominal; repair under validation",
+    "contextual or guarded instance output and defining refinement/record output remain explicit refusals",
+    "complete final-source suite and full interface/code fixed point still required"
+  ]
+}

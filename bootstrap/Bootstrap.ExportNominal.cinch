@@ -7,6 +7,7 @@ module Bootstrap.ExportNominal where
   import Bootstrap.ExportType (export-global, export-parameters)
   import Bootstrap.Load (LoadedInterface, loaded-contract)
   import Bootstrap.Nominal (kernel-type-name)
+  import Bootstrap.Instance (CoreClass, class-name, class-params)
   import Data.Json
 
   export scheme-nominals, data-nominal, parameter-json, parameter-names
@@ -40,6 +41,13 @@ module Bootstrap.ExportNominal where
     (Err error, other, more) -> Err error
     (other, Err error, more) -> Err error
     (other, more, Err error) -> Err error
+  class-nominal :: CoreClass -> Result String Json
+  class-nominal description = case (export-global (class-name description), export-parameters (class-params description)) of
+    (Ok name, Ok parameters) -> Ok (JObj "identity" (JStr name)
+      (JObj "kind" (JStr "signature") (JObj "parameters" (parameter-json parameters)
+        (JObj "params" (parameter-names parameters) (JObj "constructors" JNull (JObj "refinement" JNull JObjEnd))))))
+    (Err error, other) -> Err error
+    (other, Err error) -> Err error
 
   -- Traverse checked syntax, never a search over pretty-printed names.
   combine :: Result String (List String) -> Result String (List String) -> Result String (List String)
@@ -110,22 +118,28 @@ module Bootstrap.ExportNominal where
   imported-nominal name interfaces = case interfaces of
     Nil -> None
     Cons first rest -> case imported-in name (loaded-contract first) of Some row -> Some row; None -> imported-nominal name rest
-  source-nominal :: String -> List CoreData -> Result String Json
-  source-nominal name datas = case datas of
+  source-class-nominal :: String -> List CoreClass -> Result String Json
+  source-class-nominal name classes = case classes of
     Nil -> Err (string-concat "missing defining nominal contract: " name)
-    Cons declaration rest -> case export-global (core-data-name declaration) of
-      Ok identity -> if same identity name then data-nominal declaration else source-nominal name rest
+    Cons description rest -> case export-global (class-name description) of
+      Ok identity -> if same name identity then class-nominal description else source-class-nominal name rest
       Err error -> Err error
-  nominal-rows :: List String -> List CoreData -> List LoadedInterface -> Result String Json
-  nominal-rows names datas interfaces = case names of
+  source-nominal :: String -> List CoreData -> List CoreClass -> Result String Json
+  source-nominal name datas classes = case datas of
+    Nil -> source-class-nominal name classes
+    Cons declaration rest -> case export-global (core-data-name declaration) of
+      Ok identity -> if same identity name then data-nominal declaration else source-nominal name rest classes
+      Err error -> Err error
+  nominal-rows :: List String -> List CoreData -> List CoreClass -> List LoadedInterface -> Result String Json
+  nominal-rows names datas classes interfaces = case names of
     Nil -> Ok JArrEnd
-    Cons name rest -> let actual = case imported-nominal name interfaces of Some row -> Ok row; None -> source-nominal name datas in
-      case (actual, nominal-rows rest datas interfaces) of
+    Cons name rest -> let actual = case imported-nominal name interfaces of Some row -> Ok row; None -> source-nominal name datas classes in
+      case (actual, nominal-rows rest datas classes interfaces) of
         (Ok row, Ok more) -> Ok (JArr row more)
         (Err error, other) -> Err error
         (other, Err error) -> Err error
-  scheme-nominals :: Scheme -> List CoreData -> List LoadedInterface -> Result String Json
-  scheme-nominals scheme datas interfaces = case combine (quant-references (scheme-params scheme))
+  scheme-nominals :: Scheme -> List CoreData -> List CoreClass -> List LoadedInterface -> Result String Json
+  scheme-nominals scheme datas classes interfaces = case combine (quant-references (scheme-params scheme))
     (combine (requirement-references (scheme-requirements scheme)) (type-references (scheme-body scheme))) of
       Err error -> Err error
-      Ok names -> nominal-rows (sorted names Nil) datas interfaces
+      Ok names -> nominal-rows (sorted names Nil) datas classes interfaces

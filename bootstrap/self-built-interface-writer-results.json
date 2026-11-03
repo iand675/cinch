@@ -1,0 +1,35 @@
+{
+  "status": "passed",
+  "scope": "Ordinary checked interface writer after strict arity repair, before later signature/instance and source-span work",
+  "stages": [
+    {
+      "exit_code": 0,
+      "name": "emit",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "name": "link",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "name": "run",
+      "status": "passed"
+    }
+  ],
+  "readback": {
+    "actual_cinch_consumer_checks": [
+      "public reexport accepted",
+      "hidden constructor import refused",
+      "importer fixity override refused"
+    ],
+    "modules": [
+      "A",
+      "B",
+      "Main"
+    ],
+    "status": "passed"
+  },
+  "complete_bootstrap": false
+}

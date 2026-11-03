@@ -143,9 +143,39 @@ fn the_ladder_compiles_the_fib_example_with_itself() {
     assert_eq!(std::process::Command::new(dir.join("modules.bin")).status().unwrap().code(), Some(0));
 
     frontend_modes(&dir, &exe);
+    interface_output(&dir, &exe);
     refused_source(&dir, &exe);
     checked_interfaces(&dir, &exe);
     common::cleanup(&dir);
+}
+
+fn interface_output(dir: &Path, exe: &Path) {
+    let source = dir.join("interface-source.cinch");
+    std::fs::write(&source, "module A where\n  export Token, wrap\n  data Token where\n    Hidden :: Nat -> Token\n  wrap :: Nat -> Token\n  wrap n = Hidden n\nmodule Main where\n  import A\n  main :: Int\n  main = 0\n").unwrap();
+    let prefix = dir.join("interfaces-only");
+    let args = vec!["--emit-interfaces".into(), source.display().to_string(), prefix.display().to_string()];
+    let (code, stderr) = run_built(exe, dir, &args);
+    assert_eq!(code, Some(0), "{stderr}; {}", std::fs::read_to_string(prefix.with_extension("diagnostics")).unwrap_or_default());
+    let interfaces: Vec<_> = ["A", "Main"].into_iter().map(|name| {
+        let bytes = std::fs::read_to_string(dir.join(format!("interfaces-only.{name}.cinchif"))).unwrap();
+        let iface = cinch::interface::Iface::from_json(&bytes).unwrap();
+        assert_eq!(iface.to_json(), bytes);
+        iface
+    }).collect();
+    cinch::interface::verify_chain(&interfaces).unwrap();
+    let token = &interfaces[0].exports.types[0];
+    assert_eq!(token.identity, "A.Token");
+    assert!(token.ctors.is_empty());
+    assert!(!prefix.exists(), "interface-only mode emitted IR");
+    assert_eq!(std::fs::read_to_string(dir.join("interfaces-only.diagnostics")).unwrap(), "");
+
+    std::fs::write(&source, "module Main where\n  type Positive = refine (n :: Nat) with n > 0\n  main :: Int\n  main = 0\n").unwrap();
+    let args = vec!["--emit-interfaces".into(), source.display().to_string(), dir.join("unsupported-interface").display().to_string()];
+    assert_eq!(run_built(exe, dir, &args).0, Some(5));
+    assert!(common::read_output(dir, "unsupported-interface.diagnostics").contains("defining refinement interface production is incomplete"));
+    assert!(!dir.join("unsupported-interface.Main.cinchif").exists(), "unsupported contract silently produced an interface");
+    let args = vec!["--emit-ir-with-interfaces".into(), source.display().to_string(), dir.join("missing-object").display().to_string()];
+    assert_eq!(run_built(exe, dir, &args).0, Some(1), "combined IR/interface output requires the checked object configuration");
 }
 
 fn frontend_modes(dir: &Path, exe: &Path) {

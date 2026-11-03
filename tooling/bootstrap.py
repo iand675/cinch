@@ -298,6 +298,7 @@ def build_self(builder: Path, files: dict[str, bytes], directory: Path,
     inputs = {"protocol": PROTOCOL, "host": HOST, "source_sha256": source_hash(files),
               "builder_sha256": file_hash(builder), "built_by_stage": built_by_stage,
               "interface_set_sha256": digest(base_bytes), "frontend_mode": "typed-ir-objects",
+              "interface_output": "checked-schema8",
               "library_provider": provider["identity"], "object_configuration_sha256": digest(configuration),
               "runtime_archive_sha256": file_hash(runtime)}
     if cached(directory, inputs):
@@ -317,7 +318,7 @@ def build_self(builder: Path, files: dict[str, bytes], directory: Path,
     # library object and its matching pinned runtime. Native builds only the
     # generated library root and its base closure, never Bootstrap sources.
     ir, exe = directory / "compiler.ll", directory / "cinch"
-    code = run([builder, "--emit-ir", "--interfaces", manifest, "--objects", objects, source, ir], directory, log)
+    code = run([builder, "--emit-ir-with-interfaces", "--interfaces", manifest, "--objects", objects, source, ir], directory, log)
     if code:
         from bootstrap_objects import requested_roots
         diagnostics = directory / "compiler.ll.diagnostics"

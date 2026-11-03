@@ -75,6 +75,13 @@ pub fn project(tag: &str, files: &[(&str, &str)]) -> PathBuf {
     if files.iter().any(|(name, _)| *name == "Bootstrap.Pipeline.cinch") {
         std::fs::write(dir.join("Bootstrap.RuntimeIr.cinch"), include_str!("../../../bootstrap/Bootstrap.RuntimeIr.cinch"))
             .expect("typed pipeline emitter dependency");
+        for (name, source) in [
+            ("Bootstrap.Export.cinch", include_str!("../../../bootstrap/Bootstrap.Export.cinch")),
+            ("Bootstrap.ExportType.cinch", include_str!("../../../bootstrap/Bootstrap.ExportType.cinch")),
+            ("Bootstrap.ExportNominal.cinch", include_str!("../../../bootstrap/Bootstrap.ExportNominal.cinch")),
+        ] {
+            std::fs::write(dir.join(name), source).expect("checked pipeline interface dependency");
+        }
     }
     std::fs::write(dir.join("Bootstrap.Index.cinch"), include_str!("../../../bootstrap/Bootstrap.Index.cinch"))
         .expect("shared index syntax dependency");

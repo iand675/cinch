@@ -213,7 +213,7 @@ class BootstrapContract(unittest.TestCase):
                 calls.append([str(arg) for arg in args])
                 log.write_text("observed selected command")
                 if args[0] == builder:
-                    self.assertEqual(args[1:3], ["--emit-ir", "--interfaces"])
+                    self.assertEqual(args[1:3], ["--emit-ir-with-interfaces", "--interfaces"])
                     self.assertEqual(len(args), 8)
                     self.assertEqual(args[4:6], ["--objects", directory / "objects.json"])
                     Path(args[-1]).write_text("typed IR")
@@ -237,6 +237,7 @@ class BootstrapContract(unittest.TestCase):
                 self.assertEqual((directory / "link-report.txt").read_text(), "clang-exit: 0\nartifact-exit: 1\n")
                 inputs = bootstrap.read_json(directory / "stage.json")["inputs"]
                 self.assertEqual(inputs["frontend_mode"], "typed-ir-objects")
+                self.assertEqual(inputs["interface_output"], "checked-schema8")
                 self.assertEqual(inputs["runtime_archive_sha256"], bootstrap.file_hash(runtime))
                 bootstrap.build_self(builder, files, directory, 1)
                 self.assertEqual(len(calls), 3, "identical frozen inputs should reuse the verified compiler")
@@ -258,7 +259,7 @@ class BootstrapContract(unittest.TestCase):
 
             def refused(args, cwd, log, **kwargs):
                 self.assertEqual(args[0], builder)
-                self.assertEqual(args[1], "--emit-ir")
+                self.assertEqual(args[1], "--emit-ir-with-interfaces")
                 log.write_text("")
                 (directory / "compiler.ll.diagnostics").write_text("bootstrap.runtime-ir:1:1: unavailable layout")
                 return 5

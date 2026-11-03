@@ -25,12 +25,34 @@ fn source_interfaces_preserve_private_nominals_and_defining_fixities() {
         interface
     }).collect();
     assert_eq!(interfaces.len(), 3);
+    let source = std::fs::read_to_string(dir.join("export-fixture.cinch")).unwrap();
+    for (index, interface) in interfaces.iter().enumerate() {
+        let begin = source.find(&format!("module {} where", interface.module)).unwrap();
+        let end = interfaces.get(index + 1)
+            .map(|next| source.find(&format!("module {} where", next.module)).unwrap())
+            .unwrap_or(source.len());
+        assert_eq!(interface.source_hash, cinch::interface::content_hash(&source[begin..end]), "complete source identity for {}", interface.module);
+    }
     cinch::interface::verify_chain(&interfaces).expect("exact dependency identities");
     let a = interfaces.iter().find(|i| i.module == "A").unwrap();
     let b = interfaces.iter().find(|i| i.module == "B").unwrap();
     assert_eq!(a.exports.fixities.len(), 1);
     assert_eq!(a.exports.fixities[0].op, "<+>");
     assert!(b.exports.fixities.is_empty());
+    assert_eq!(a.assumptions.primitives, ["cinch.runtime.textSha256"]);
+    assert!(b.assumptions.primitives.is_empty());
+    assert!(!a.exports.types.iter().any(|t| t.name == "Local"));
+    assert!(!a.exports.values.iter().any(|v| v.name == "local-op" || v.name == "private-digest"));
+    let signature = a.exports.signatures.iter().find(|s| s.identity == "A.Give").unwrap();
+    assert_eq!(signature.exports, ["Give"]);
+    assert_eq!(signature.methods[0].name, "give");
+    assert_eq!(signature.methods[0].slot, 0);
+    assert_eq!(signature.methods[0].exports, ["give"]);
+    let instance = a.exports.instances.iter().find(|i| i.id == "A.GiveNat").unwrap();
+    assert_eq!(instance.class, "A.Give");
+    assert!(instance.implicit);
+    assert_eq!(instance.methods, ["A.GiveNat.give"]);
+    assert!(instance.method_contracts.is_empty());
     let parcel = a.exports.types.iter().find(|t| t.name == "Parcel").unwrap();
     assert_eq!(parcel.params, ["q0"]);
     assert_eq!(parcel.ctors.iter().map(|c| (c.name.as_str(), c.tag)).collect::<Vec<_>>(), [("Empty", 0), ("Loaded", 1)]);
