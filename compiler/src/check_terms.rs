@@ -5841,7 +5841,7 @@ impl Checker {
                 } else {
                     Ty::fun(Ty::Unit, ty.clone())
                 };
-                ECore::DictProj(Box::new(dict), *idx, method_site(&v.scheme, &ptys), slot_ty)
+                ECore::DictProj(Box::new(dict), *idx, self.runtime_method_site(&v.module, &v.scheme, &ptys)?, slot_ty)
             }
             ValueKind::Law => {
                 return Err(Error::at(
@@ -9946,12 +9946,12 @@ impl Checker {
         }
         let dict = holes.remove(0);
         let core = if holes.is_empty() {
-            ECore::DictProj(Box::new(dict), idx, method_site(&mscheme, &ptys), ty.clone())
+            ECore::DictProj(Box::new(dict), idx, self.runtime_method_site(&sig.module, &mscheme, &ptys)?, ty.clone())
         } else {
             let slot = ECore::DictProj(
                 Box::new(dict),
                 idx,
-                method_site(&mscheme, &ptys),
+                self.runtime_method_site(&sig.module, &mscheme, &ptys)?,
                 Ty::fun(Ty::Unit, ty.clone()),
             );
             app_spine(slot, holes)
@@ -10199,7 +10199,7 @@ impl Checker {
             ValueKind::Method { idx, .. } => {
                 let dict = holes.remove(0);
                 let slot_ty = if holes.is_empty() { ty.clone() } else { Ty::fun(Ty::Unit, ty.clone()) };
-                ECore::DictProj(Box::new(dict), *idx, method_site(&v.scheme, &ptys), slot_ty)
+                ECore::DictProj(Box::new(dict), *idx, self.runtime_method_site(&v.module, &v.scheme, &ptys)?, slot_ty)
             }
             ValueKind::StageBuiltin(_)
             | ValueKind::BoolLit(_)

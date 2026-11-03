@@ -72,6 +72,9 @@ fn source_instances_build_checked_dictionaries_from_defining_class_interfaces() 
     rows.sort(); std::fs::write(dir.join("interfaces.json"), format!("{{\"schema\":1,\"interfaces\":[{}]}}", rows.join(","))).unwrap();
     let exe = common::build(&dir, "Main.cinch", "source-instances").expect("build actual Cinch source dictionary elaborator");
     for (name, body, wanted) in [
+        ("imported class without source instance", "probe :: using (given :: Echo Int) => Int -> Int\n  probe x = echo x", 0),
+        ("renamed imported class with method context", "probe :: using (pair :: Pair Int, extra :: Echo Bool) => Bool -> Int -> Int\n  probe b x = a-last b (z-first x)", 0),
+        ("higher kind imported class without instance", "probe :: forall (f :: Type -> Type). using (given :: Mapper f) => Int -> f Int\n  probe x = make-one x", 0),
         ("monomorphic dictionary and method call", "implicit instance EchoInt :: Echo Int where\n    echo x = x\n  answer :: Int\n  answer = echo 1", 0),
         ("machine carrier specialization", "implicit instance EchoI64 :: Echo I64 where\n    echo x = x\n  answer :: I64\n  answer = echo (-1 :: I64)", 0),
         ("plain instance explicit value", "instance Explicit :: Echo Int where\n    echo x = x\n  answer :: Int\n  answer = with (chosen = Explicit) in echo 1", 0),

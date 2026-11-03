@@ -26,11 +26,45 @@ Physical manifest schema 1 records:
   constructors may share a concrete unit across type arguments.
 - Named type placement, actual constructor descriptors and tags, dictionary
   method order and stored field classes. These facts grant no source names.
+- Class method families produced by the specialization collector: declaring
+  class identity, declared method count, and the logical slot, physical slot
+  and own representation vector of each emitted method version. Every factory
+  of the class uses this same table.
 - The exact final packed layout table, including pointer-map extension words
   and their absolute indices, plus the descriptor-row count and escape flag.
 - The complete checked interface closure and its interface identities, plus
   deterministic content hashes of the LLVM text and native object. These use
   the existing interface FNV content hash, not a cryptographic digest.
+
+## Explicit library demands
+
+`emit-object` accepts `--object-roots roots.json` to retain variants that a
+separately compiled consumer needs. The file uses schema 1:
+
+```json
+{
+  "schema": 1,
+  "units": [{"symbol": "Library.choose", "classes": "T"}],
+  "dictionaries": [{"symbol": "Library.PolyInt", "classes": ""}],
+  "methods": [{"class": "Library.Poly", "slot": 0, "own": "T"}]
+}
+```
+
+Vectors contain only `R`, `O` and `T`. Units and dictionaries use their defining
+symbols and actual type-parameter vector lengths; method requests name the
+declaring class, logical slot and method's own vector. Validation checks method
+requests against the producer's actual defining instance contracts. Unknown
+roots, wrong vector lengths, unresolved classes and unknown fields are rejected.
+An object whose transitive collection leaves unrecorded representation arguments
+is refused rather than filling missing runtime authority with Raw.
+
+Demands seed the existing finite collector before its normal root scan. They
+do not enumerate all possible vectors. Requested roots and their transitive
+dependencies are retained; parameter-independent constructors still share one
+unit. Method vectors are sorted canonically, the first keeps the declared slot,
+and further vectors append after the declared methods. The emitted manifest
+records this actual plan. Runtime method sites and factories use the declaring
+module's canonical class identity, including through aliases and imports.
 
 Source exports and abstraction remain governed by the checked interfaces.
 For example the physical manifest can describe private `Data.String.StrBuf`
@@ -62,9 +96,9 @@ must not be guessed from source names or public constructor subsets.
 
 The Cinch backend does not yet consume this manifest, preseed its layout
 allocator, emit external calls or reconcile imported class method families with
-the producer. Explicit demand roots for library specialization remain needed;
-the current producer uses the existing reached-variant collector. Ordinary
-`build` also does not yet link supplied dependency objects.
+the producer. It must translate its checked dependency demands into the explicit
+producer root protocol, then consume the producer's actual variants and family
+plans. Ordinary `build` also does not yet link supplied dependency objects.
 
 Bootstrap integration must admit only the intended library/runtime dependency
 closure. No Rust frontend or compiler implementation object may substitute for

@@ -199,6 +199,16 @@ fn method_site(s: &Scheme, ptys: &[Ty]) -> Option<(String, Vec<Ty>)> {
     Some((class.class.clone(), own))
 }
 
+impl Checker {
+    fn runtime_method_site(&self, module: &str, scheme: &Scheme, ptys: &[Ty]) -> Result<Option<(String, Vec<Ty>)>> {
+        let Some((class, own)) = method_site(scheme, ptys) else { return Ok(None) };
+        let signature = self.qualified_sigs.get(&(module.to_string(), class.clone()))
+            .or_else(|| self.qualified_sigs.values().find(|s| s.module == module && format!("{}.{}", s.module, s.name) == class))
+            .ok_or_else(|| Error::plain(format!("method has no declaring signature {module}:{class}")))?;
+        Ok(Some((format!("{}.{}", signature.module, signature.name), own)))
+    }
+}
+
 fn free_locals(e: &ECore, bound: &mut Vec<LocalId>, out: &mut Vec<LocalId>) {
     match e {
         ECore::LitFold { body, .. } => free_locals(body, bound, out),

@@ -1,5 +1,37 @@
 # Next steps (as of 2026-11-03)
 
+## Imported class authority and demanded library variants
+Cinch retains checked imported class kinds and method descriptions even when a
+module declares no instance. Kinds come from the defining parameter contracts;
+closed portable method schemes are probed in private stores, without granting
+source names or changing the module's inference state. Given-only, renamed and
+higher-kind imported-class cases pass alongside the existing source instances.
+All82 backend executables still report zero leaks, and the instance-resolution,
+nominal-identity and global-authority regression targets pass. Cinch accepts all25
+updated backend modules with zero diagnostics.
+
+The Rust object producer accepts explicit function, dictionary and method-vector
+roots. It collects requested variants and their dependencies, rejects incomplete
+representation demands, and records its actual class method slot families.
+Runtime method sites and factories identify their declaring class canonically.
+A separately linked probe checks two instances sharing Raw/TObj method slots,
+escaping partial methods and demanded generic functions, with zero leaks.
+All147 unit,6 class-default,16 effect,12 module,3 dictionary and3 representation
+checks pass, plus7 module-parameter,17 surface and2 interface-contract checks
+(213 total); every Rust test target compiles and the actual rooted
+object CLI passes. The five object tests are included in the unit count.
+
+The fresh genuine stage chain passes27 tooling and all six Stage0/1 checks.
+Stage2 accepts the full compiler frontend and clears every missing-declaring-class
+refusal, then stops at missing executable library functions/factories and other
+runtime lowering. Its7127 diagnostics include cascades; IR is empty and no Stage2
+compiler exists. Cinch manifest consumption, shared layout seeding, checked
+external calls, private String/scalar lowering, full suites/correctness and
+Stage2/3 remain required. The seed is unchanged. See
+[the combined evidence](../bootstrap/runtime-imported-class-results.json) and
+[the object linkage protocol](runtime-object-linkage.md).
+
+
 ## Executable library object producer and indexed ownership repair
 The Rust compiler now emits closed library dependency objects with canonical
 physical manifests, checked interface closures and explicit closure accessors.

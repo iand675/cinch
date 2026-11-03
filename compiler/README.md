@@ -41,6 +41,9 @@ and does not register a layout table. A consumer must supply `__apply` and
 register one combined table containing the exact recorded layout prefix
 before calling library code. Ordinary `build` does not yet consume these
 objects. See [the object linkage contract](../design/runtime-object-linkage.md).
+Use `--object-roots roots.json` to request concrete generic function, dictionary
+and method variants needed by a separate consumer. The manifest records the
+actual class method slot families used by the resulting object.
 
 ## Pipeline
 

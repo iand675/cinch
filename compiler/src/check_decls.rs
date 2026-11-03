@@ -5099,7 +5099,7 @@ impl Checker {
             method_count: sig.methods.len(),
             subdict_count: mparams + subdict_count,
             methods: method_fns,
-            class: class.clone(),
+            class: format!("{}.{}", sig.module, sig.name),
             tparams: params.len(),
             own: method_own,
         };

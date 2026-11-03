@@ -1607,6 +1607,9 @@ fn scratch_dir(tag: &str) -> std::path::PathBuf {
 /// The flags a compile takes that are neither a mode nor a profile.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct DriverOptions {
+    /// Concrete representation variants demanded by a library consumer.
+    /// Used only by `EmitObject`; an empty list preserves ordinary roots.
+    pub object_roots: Vec<crate::specialize::ObjectRoot>,
     /// `--rebuild`: rewrite the package-store entry for this compile's
     /// key even when the entry is intact and matches it, instead of
     /// leaving it alone. The compile path never fails over an entry's
@@ -1705,6 +1708,9 @@ pub fn driver_with_profile_opts(
     profile: &crate::core::TargetProfile,
     opts: &DriverOptions,
 ) -> Result<i32> {
+    if mode != Mode::EmitObject && !opts.object_roots.is_empty() {
+        return Err(Error::plain("explicit object roots require emit-object mode"));
+    }
     let project = load_project(path)?;
     let adapters = wit_for_source(path)?;
     let prelude = parse_prelude(&adapters)?;
@@ -1785,7 +1791,12 @@ pub fn driver_with_profile_opts(
     // Specialization (supercompilation and JIT specification sections
     // 2-5): every residual program is rechecked before installation, and
     // the report records where specialization stopped.
-    let (program, opt) = crate::specialize::optimize(&program, profile)?;
+    let (program, opt, method_families) = if mode == Mode::EmitObject {
+        crate::specialize::optimize_object(&program, profile, &opts.object_roots)?
+    } else {
+        let (program, opt) = crate::specialize::optimize(&program, profile)?;
+        (program, opt, Vec::new())
+    };
     write_artifacts(&out_dir, &entry_stem, &ifaces, &manifest_path, &report, &program, &opt, profile, &adapters, opts)?;
     if mode == Mode::Check {
         return Ok(0);
@@ -1800,7 +1811,7 @@ pub fn driver_with_profile_opts(
     // unbalance inserted count operations.
     let program = crate::rc::insert(program, profile)?;
     if mode == Mode::EmitObject {
-        return write_object(profile, &program, &ifaces, path, out);
+        return write_object(profile, &program, &ifaces, &method_families, path, out);
     }
     let ir = codegen::emit_for(profile, &program)?;
     match mode {
@@ -1850,7 +1861,7 @@ pub fn driver_with_profile_opts(
 /// complete checked interface closure; source exports still come only from
 /// those interfaces. The final executable supplies apply and one layout table.
 fn write_object(profile: &crate::core::TargetProfile, program: &crate::core::Program,
-                ifaces: &[crate::interface::Iface], path: &Path, out: Option<&Path>) -> Result<i32> {
+                ifaces: &[crate::interface::Iface], families: &[crate::specialize::MethodFamily], path: &Path, out: Option<&Path>) -> Result<i32> {
     use crate::interface::{JsonValue as J, parse_json};
     let object = codegen::emit_object_for(profile, program)?;
     let out = out.map(Path::to_path_buf).unwrap_or_else(|| path.with_extension("o"));
@@ -1879,6 +1890,14 @@ fn write_object(profile: &crate::core::TargetProfile, program: &crate::core::Pro
         ]))
     }).collect::<Result<Vec<_>>>()?;
     fields.insert("interfaces".into(), J::Arr(interfaces));
+    fields.insert("method_families".into(), J::Arr(families.iter().map(|family| J::obj([
+        ("class", family.class.as_str().into()),
+        ("declared_methods", (family.declared_methods as u64).into()),
+        ("slots", J::Arr(family.slots.iter().map(|slot| J::obj([
+            ("logical", (slot.logical as u64).into()), ("physical", (slot.physical as u64).into()),
+            ("own", crate::repr::letters(&slot.own).into()),
+        ])).collect())),
+    ])).collect()));
     let bytes = std::fs::read(&out).map_err(|e| Error::plain(format!("{}: {e}", out.display())))?;
     fields.insert("object_content_hash".into(), crate::interface::content_hash_bytes(&bytes).into());
     std::fs::write(&abi_path, abi.to_canonical_string()).map_err(|e| Error::plain(format!("{}: {e}", abi_path.display())))?;

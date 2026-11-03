@@ -1072,6 +1072,37 @@ module Bootstrap.Infer where
         (methods, final) -> let description = MkCoreClass sp owner kind params methods in
           if class-closed description then (Some description, final) else (None, add-error sp "defining class contract is not closed or has inconsistent method slots" final)
     other -> (None, add-error sp "source instance has no defining class contract" st)
+  -- Imported methods need their defining class even when this module creates
+  -- no source instance. Probe portable contracts in a private store: an unused
+  -- unported class must not add diagnostics or inference state to the module.
+  -- A missing descriptor still receives an explicit runtime refusal if used.
+  imported-runtime-class-kinds :: List Json -> TypeContext -> Store -> (TypeContext, Store)
+  imported-runtime-class-kinds rows kinds st = case rows of
+    Nil -> (kinds, st)
+    Cons row rest -> case field "identity" row of
+      JStr identity -> (case imported-kinds kinds (field "parameters" row) (empty-store "imported class parameters") of
+        (params, checked) -> case store-errors checked of
+          Nil -> let owner = interface-global identity in let kind = kind-arrow params in
+            (case context-kind owner kinds of
+              None -> imported-runtime-class-kinds rest (context-add-kind owner kind kinds) st
+              Some old -> imported-runtime-class-kinds rest kinds (if kind-equal old kind then st else add-error zero "imported class kind disagrees with its defining parameters" st))
+          other -> imported-runtime-class-kinds rest kinds st)
+      other -> imported-runtime-class-kinds rest kinds st
+  checked-imported-classes :: List Json -> List Json -> List (String, Kind) -> TypeContext -> List CoreClass -> List CoreClass
+  checked-imported-classes remaining rows classes kinds descriptions = case remaining of
+    Nil -> descriptions
+    Cons row rest -> case field "identity" row of
+      JStr identity -> let owner = interface-global identity in case find-class owner descriptions of
+        Some description -> checked-imported-classes rest rows classes kinds descriptions
+        None -> (case member-nominal-kinds zero (field "methods" row) kinds (empty-store "imported runtime class") of
+          (local-kinds, prepared) -> case store-errors prepared of
+            Nil -> (case imported-typed-class zero owner rows classes local-kinds prepared of
+              (Some description, checked) -> case store-errors checked of
+                Nil -> checked-imported-classes rest rows classes kinds (Cons description descriptions)
+                other -> checked-imported-classes rest rows classes kinds descriptions
+              other -> checked-imported-classes rest rows classes kinds descriptions)
+            other -> checked-imported-classes rest rows classes kinds descriptions)
+      other -> checked-imported-classes rest rows classes kinds descriptions
   class-kinds :: List Json -> TypeContext -> List (String, Kind) -> List (String, Kind)
   class-kinds rows kinds seen = case rows of
     Nil -> seen
@@ -2751,9 +2782,10 @@ module Bootstrap.Infer where
     let rows = class-rows ds in
     let (instance-kinds, instance-store) = source-instance-nominals ds rows source-kinds source-store in
     let (nominal-kinds, sk) = collect-nominal-kinds ds instance-kinds instance-store in
-    let classes = Cons ("b.Io", KFun KRegion KType) (source-class-kinds ds nominal-kinds (class-kinds rows nominal-kinds Nil)) in
-    let aliases-checked = validate-refinements nominal-kinds (context-aliases nominal-kinds) sk in
-    let (class-kinds, class-store) = collect-source-classes ds classes nominal-kinds aliases-checked in
+    let (runtime-kinds, runtime-store) = imported-runtime-class-kinds rows nominal-kinds sk in
+    let classes = Cons ("b.Io", KFun KRegion KType) (source-class-kinds ds runtime-kinds (class-kinds rows runtime-kinds Nil)) in
+    let aliases-checked = validate-refinements runtime-kinds (context-aliases runtime-kinds) runtime-store in
+    let (class-kinds, class-store) = collect-source-classes ds classes runtime-kinds aliases-checked in
     let (kinds, body-store) = collect-body-contracts ds classes class-kinds class-store in
     let (values, sv) = register rows classes kinds ds (context-body-bindings kinds <> builtins) body-store in
     let (ordinary-env, si) = register-implicit-instances classes kinds ds values sv in
@@ -2766,7 +2798,8 @@ module Bootstrap.Infer where
     let (core, done) = case store-errors sm of Nil -> check-bodies classes linked-kinds families env Nil ds ds sm; other -> (Nil, sm) in
     let (datas, sd) = case store-errors done of Nil -> checked-data classes linked-kinds env ds Nil done; other -> (Nil, done) in
     let finished = case store-errors sd of Nil -> check-data-closed datas (check-global-core linked-kinds env instances core sd); other -> sd in
-    MkElaboration (store-errors finished) (finish-bindings finished env) (contexts ds) core datas effects (MkCoreClassContext classes descriptions) instances
+    let retained-classes = case store-errors finished of Nil -> checked-imported-classes rows rows classes linked-kinds descriptions; other -> descriptions in
+    MkElaboration (store-errors finished) (finish-bindings finished env) (contexts ds) core datas effects (MkCoreClassContext classes retained-classes) instances
   elaborate-modules :: String -> List Module -> Elaboration
   elaborate-modules label ms = case ms of
     Nil -> MkElaboration Nil Nil Nil Nil Nil Nil (MkCoreClassContext Nil Nil) Nil

@@ -6464,6 +6464,100 @@ int main(void) {
     }
 
     #[test]
+    fn object_explicit_roots_and_method_families_link() {
+        std::thread::Builder::new().stack_size(64 * 1024 * 1024).spawn(|| {
+            use crate::interface::parse_json;
+            use crate::specialize::{parse_object_roots, ObjectRoot};
+            let dir = std::env::temp_dir().join(format!("cinch_object_roots_{}", std::process::id()));
+            std::fs::create_dir_all(&dir).unwrap();
+            let input = dir.join("Library.cinch");
+            std::fs::write(&input, "module Library where\n  export choose, Poly, keep, PolyInt, PolyBool\n  choose :: forall a. a -> Unit -> a\n  choose x u = x\n  signature Poly a where\n    keep :: forall b. a -> b -> Unit -> b\n  instance PolyInt :: Poly Int where\n    keep anchor value unit = value\n  instance PolyBool :: Poly Bool where\n    keep anchor value unit = value\n").unwrap();
+            let roots = parse_object_roots(r#"{"schema":1,"units":[{"symbol":"Library.choose","classes":"T"},{"symbol":"Library.choose","classes":"R"}],"dictionaries":[{"symbol":"Library.PolyInt","classes":""},{"symbol":"Library.PolyBool","classes":""}],"methods":[{"class":"Library.Poly","slot":0,"own":"T"},{"class":"Library.Poly","slot":0,"own":"R"}]}"#).unwrap();
+            let profile = crate::core::TargetProfile { rc_debug: true, ..crate::core::TargetProfile::native() };
+            let opts = crate::driver::DriverOptions { object_roots: roots.clone(), ..Default::default() };
+            let out = dir.join("library.o");
+            crate::driver::driver_with_profile_opts(crate::driver::Mode::EmitObject, crate::driver::StageMode::Refresh, &input, Some(&out), &profile, &opts).unwrap();
+            let manifest = parse_json(&std::fs::read_to_string(out.with_extension("abi.json")).unwrap()).unwrap();
+            let m = manifest.as_object().unwrap();
+            let choose: Vec<_> = m["units"].as_array().unwrap().iter().filter_map(|u| {
+                let name = u.as_object().unwrap()["symbol"].as_str().unwrap();
+                name.starts_with("Library.choose@").then_some(name)
+            }).collect();
+            assert_eq!(choose, ["Library.choose@R", "Library.choose@T"]);
+            let family = m["method_families"].as_array().unwrap().iter().find(|f| f.as_object().unwrap()["class"].as_str().unwrap() == "Library.Poly").unwrap().as_object().unwrap();
+            assert_eq!(family["declared_methods"].as_num().unwrap(), 1);
+            assert_eq!(family["slots"].to_canonical_string(), "[{\"logical\":0,\"own\":\"R\",\"physical\":0},{\"logical\":0,\"own\":\"T\",\"physical\":1}]");
+            let dictionaries = m["dictionaries"].as_object().unwrap();
+            for name in ["Library.PolyInt", "Library.PolyBool"] {
+                let d = dictionaries[name].as_object().unwrap();
+                assert_eq!(d["class"].as_str().unwrap(), "Library.Poly");
+                assert_eq!(d["methods"].as_array().unwrap().len(), 2);
+            }
+            let words = m["layout_words"].as_array().unwrap();
+            let mut consumer = format!("@table = internal constant [{} x i64] [{}]\ndeclare void @cinch_layouts_register(ptr, i64)\ndeclare void @cinch_reclaim_enable()\n", words.len(), words.iter().map(|w| format!("i64 {}", w.as_num().unwrap() as i64)).collect::<Vec<_>>().join(", "));
+            consumer.push_str(APPLY_DEF);
+            consumer.push_str(&format!("define void @install() {{\n call void @cinch_reclaim_enable()\n call void @cinch_layouts_register(ptr @table, i64 {})\n ret void\n}}\n", words.len()));
+            for (alias, symbol) in [("raw_choose", "Library.choose@R"), ("tagged_choose", "Library.choose@T")] {
+                consumer.push_str(&format!("declare i64 @\"{symbol}\"(i64,i64)\ndefine i64 @{alias}(i64 %x) {{\n %r = call i64 @\"{symbol}\"(i64 %x,i64 0)\n ret i64 %r\n}}\n"));
+            }
+            for (alias, symbol) in [("int_dict", "Library.PolyInt"), ("bool_dict", "Library.PolyBool")] {
+                consumer.push_str(&format!("declare i64 @\"{symbol}.mk\"()\ndefine i64 @{alias}() {{\n %r = call i64 @\"{symbol}.mk\"()\n ret i64 %r\n}}\n"));
+            }
+            std::fs::write(dir.join("consumer.ll"), consumer).unwrap();
+            std::fs::write(dir.join("main.c"), format!(r#"#include <stdint.h>
+extern void install(void), cinch_dup(uint64_t), cinch_drop(uint64_t);
+extern uint64_t raw_choose(uint64_t), tagged_choose(uint64_t), int_dict(void), bool_dict(void);
+extern uint64_t __apply(uint64_t,uint64_t,uint64_t*), cinch_int_from_decimal(const char*,uint64_t);
+extern int64_t cinch_int_cmp(uint64_t,uint64_t), cinch_exit_check(int64_t);
+int main(void) {{
+  install();
+  if (raw_choose(19) != 19) return 1;
+  uint64_t big = cinch_int_from_decimal("18446744073709551616",20);
+  cinch_dup(big);
+  uint64_t tagged = tagged_choose(big);
+  if (cinch_int_cmp(big,tagged)) return 2;
+  cinch_drop(tagged);
+  for (int which = 0; which < 2; ++which) {{
+    uint64_t d = which ? bool_dict() : int_dict();
+    uint64_t raw = ((uint64_t*)d)[{prefix}], heap = ((uint64_t*)d)[{next}];
+    cinch_dup(raw); cinch_dup(heap); cinch_drop(d);
+    uint64_t raw_args[] = {{which ? 1 : 3, 23, 0}};
+    if (__apply(raw,3,raw_args) != 23) return 3;
+    cinch_dup(big);
+    uint64_t heap_args[] = {{which ? 1 : 3, big}};
+    uint64_t partial = __apply(heap,2,heap_args), unit = 0;
+    uint64_t result = __apply(partial,1,&unit);
+    if (cinch_int_cmp(result,big)) return 4;
+    cinch_drop(result);
+  }}
+  cinch_drop(big);
+  return cinch_exit_check(0);
+}}
+"#, prefix=block::DICT_PREFIX_WORDS, next=block::DICT_PREFIX_WORDS+1)).unwrap();
+            let clang = std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into());
+            let link = Command::new(&clang).arg(dir.join("consumer.ll")).arg(dir.join("main.c")).arg(&out).arg(runtime_lib()).arg("-o").arg(dir.join("program")).output().unwrap();
+            assert!(link.status.success(), "{}", String::from_utf8_lossy(&link.stderr));
+            let run = Command::new(dir.join("program")).env("CINCH_LEAK_CHECK", "1").env("CINCH_RC_DEBUG", "1").env("CINCH_HEAP_LIMIT", "32M").output().unwrap();
+            assert_eq!(run.status.code(), Some(0), "{}", String::from_utf8_lossy(&run.stderr));
+            assert!(String::from_utf8_lossy(&run.stderr).split_whitespace().any(|w| w == "leaked=0"));
+            let checked = crate::driver::check_sources(&std::fs::read_to_string(&input).unwrap(), "<roots>").unwrap();
+            for root in [ObjectRoot::Unit { symbol: "Missing.unit".into(), classes: vec![] },
+                ObjectRoot::Unit { symbol: "Library.choose".into(), classes: vec![] },
+                ObjectRoot::Unit { symbol: "Library.choose".into(), classes: vec![Class::Param(0)] },
+                ObjectRoot::Method { class: "Library.Poly".into(), slot: 7, own: vec![Class::Raw] }] {
+                assert!(crate::specialize::optimize_object(&checked, &profile, &[root]).is_err());
+            }
+            for invalid in [r#"{"schema":2}"#, r#"{"schema":1,"units":[{"symbol":"x","classes":"P"}]}"#,
+                r#"{"schema":1,"methods":[{"class":"x","slot":0,"own":"R","guess":true}]}"#] {
+                assert!(parse_object_roots(invalid).is_err());
+            }
+            let mut incomplete = checked.clone();
+            incomplete.fns.push(thunk("Library.incomplete", g("Library.choose")));
+            assert!(crate::specialize::optimize_object(&incomplete, &profile, &roots).err().unwrap().message.contains("unrecorded representation"));
+        }).unwrap().join().unwrap();
+    }
+
+    #[test]
     fn prim_fn_direct_call() {
         // A `foreign import` style primitive unit applied to two literals.
         let prog = main_prog(

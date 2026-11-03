@@ -8,6 +8,9 @@ module Main where
   import Bootstrap.Resolve (resolve-program-with)
   import Bootstrap.Infer (elaborate-program, elaboration-errors, elaboration-core, elaboration-classes, elaboration-class-context, elaboration-instances)
   import Bootstrap.Instance
+  import Bootstrap.Nominal (interface-global)
+  import Bootstrap.Type (scheme-params, scheme-requirements, kind-equal, kind-text, KType, KFun)
+  import Text.Show (nat-to-string)
   import Bootstrap.Core (CoreDefinition, core-definition-closed)
   import Bootstrap.Report (render-diagnostics)
   import Text.Parse (ParseOutcome, Parsed, Failed, render-bundle)
@@ -17,12 +20,37 @@ module Main where
   closed definitions = case definitions of Nil -> True; Cons d rest -> core-definition-closed d && closed rest
   dictionaries-closed :: CoreClassContext -> List CoreInstance -> Bool
   dictionaries-closed descriptions values = case values of Nil -> True; Cons entry rest -> instance-closed descriptions entry && dictionaries-closed descriptions rest
+  -- These declarations come from the real A/Facade producer fixture. No
+  -- local instance may be needed to retain their checked defining slots.
+  imported-only-closed :: List CoreClass -> Bool
+  imported-only-closed descriptions = case (find-class (interface-global "A.Echo") descriptions, find-class (interface-global "A.PairOps") descriptions, find-class (interface-global "A.Mapper") descriptions) of
+    (Some echo, Some pair, Some mapper) -> class-closed echo && class-closed pair && class-closed mapper
+      && kind-equal (class-kind mapper) (KFun (KFun KType KType) KType)
+      && (case class-methods pair of
+        Cons first (Cons second Nil) -> class-method-slot first == 0 && class-method-slot second == 1
+          && string-compare (class-method-name first) "z-first" == 0
+          && string-compare (class-method-name second) "a-last" == 0
+          && list-length (scheme-params (class-method-scheme second)) == 2
+          && list-length (scheme-requirements (class-method-scheme second)) == 2
+        other -> False)
+    other -> False
+  class-report :: List CoreClass -> String
+  class-report descriptions = case descriptions of
+    Nil -> ""
+    Cons description rest -> string-concat-all [class-name description, " kind=", kind-text (class-kind description), " ", method-report (class-methods description), "\n", class-report rest]
+  method-report :: List CoreClassMethod -> String
+  method-report methods = case methods of
+    Nil -> ""
+    Cons method rest -> string-concat-all [class-method-name method, " slot=", nat-to-string (class-method-slot method), " params=", nat-to-string (list-length (scheme-params (class-method-scheme method))), " givens=", nat-to-string (list-length (scheme-requirements (class-method-scheme method))), ";", method-report rest]
   run :: List LoadedInterface -> Bytes -> (Int, String)
   run interfaces source = case parse-program-with "source-instances" source (interface-headers interfaces) of
     Parsed program Nil -> case resolve-program-with program interfaces of
       (resolved, Nil) -> let result = elaborate-program "source-instances" resolved in
         case elaboration-errors result of
-          Nil -> if closed (elaboration-core result) && list-length (elaboration-instances result) > 0 && dictionaries-closed (elaboration-class-context result) (elaboration-instances result) then (0, "") else (94, "source instance lost its typed dictionary constructor")
+          Nil -> if not (closed (elaboration-core result)) then (94, "source core is not closed")
+            else if not (class-context-closed (elaboration-class-context result)) then (95, string-concat "class context is not closed\n" (class-report (elaboration-classes result)))
+            else if not (case elaboration-instances result of Nil -> imported-only-closed (elaboration-classes result); other -> True) then (96, string-concat "imported class contract changed\n" (class-report (elaboration-classes result)))
+            else if dictionaries-closed (elaboration-class-context result) (elaboration-instances result) then (0, "") else (97, "source dictionary constructor is not closed")
           errors -> (4, render-diagnostics errors)
       (resolved, errors) -> (4, render-diagnostics errors)
     Failed bundle -> (2, render-bundle bundle)
