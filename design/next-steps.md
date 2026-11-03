@@ -121,6 +121,30 @@ all seven parameter tests pass with its defining identity corrected to
 `Api.Stepper`. This is scoped evidence, not a complete final-source sweep.
 See [repair results](../bootstrap/native-class-refinement-repair-results.json).
 
+## Complete checked compiler-interface production
+
+An actual Cinch-built compiler now emits all43 compiler interfaces from its
+complete bundled source. Native independently parses and canonically roundtrips
+all43 and validates their dependency chain and coherence together with55 base
+interfaces. Every source hash independently matches its complete module slice.
+This snapshot still records the reserved entry symbol as `main`; the corrected
+`Main.main` defining identity passes the full writer regression separately.
+
+Both writers now retain public effect operations instead of omitting/refusing
+them. Schema8 keeps their actual checked display schemes, defining symbols and
+arities with an explicit null resolved contract; this does not claim portable
+handler metadata or permit an interface consumer to invent an ordinary function.
+The interface/type/parser and16 effect tests pass on the corrected writer.
+
+The final gate now checks canonical schema-shaped contracts, declaration and ABI
+boundaries and the exact dependency hash chain. All41 tooling checks and55 real
+base contracts pass. It also requires the self-built compiler to check its entry
+using its emitted APIs with compiler-module bodies absent. That actual consumer
+probe exposes missing private nominal kind facts when completing public
+constructor layouts (`Text.Lex.Span`); this repair and the final compiler/interface
+fixed point remain required. See
+[production evidence](../bootstrap/compiler-interface-production-results.json).
+
 ## Earlier checkpoints
 
 The entries below retain the evidence and limitations of their named snapshots;

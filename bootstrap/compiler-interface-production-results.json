@@ -1,0 +1,244 @@
+{
+  "status": "scoped-interface-production-passed",
+  "validation": {
+    "exit_code": 0,
+    "source_sha256": "24e011800eddab5af2c00f975609a3c2ff9b4c26e71d2fcb5bf01c648176d823",
+    "source_unchanged": true,
+    "status": "passed"
+  },
+  "actual_self_built_compiler": {
+    "rows": [
+      {
+        "exit_code": 0,
+        "expected": 0,
+        "name": "emit",
+        "status": "passed"
+      },
+      {
+        "exit_code": 0,
+        "expected": 0,
+        "name": "link",
+        "status": "passed"
+      },
+      {
+        "exit_code": 1,
+        "expected": 1,
+        "name": "startup",
+        "status": "passed"
+      },
+      {
+        "exit_code": 0,
+        "expected": 0,
+        "name": "interfaces",
+        "status": "passed"
+      }
+    ],
+    "scope": "Actual Cinch-built Stage2 builds updated Stage3 through legacy IR mode, then Stage3 exports its own compiler interfaces; final combined-mode fixed point remains required",
+    "source_sha256": "91eee247cf6fd1f349359ea20efe213d7d5e0defd4dd8dcc52fc9eca7e03e46e"
+  },
+  "independent_full_readback": {
+    "status": "passed",
+    "independent_native": "independent Native schema/canonical/chain/coherence: 43 compiler interfaces, 98 total modules",
+    "compiler_modules": 43,
+    "all_source_hashes_match": true,
+    "structural_checks": [
+      [
+        "Bootstrap.Ast",
+        "passed"
+      ],
+      [
+        "Bootstrap.BodyContract",
+        "passed"
+      ],
+      [
+        "Bootstrap.Builtin",
+        "passed"
+      ],
+      [
+        "Bootstrap.Check",
+        "passed"
+      ],
+      [
+        "Bootstrap.Contracts",
+        "passed"
+      ],
+      [
+        "Bootstrap.Core",
+        "passed"
+      ],
+      [
+        "Bootstrap.Dictionary",
+        "passed"
+      ],
+      [
+        "Bootstrap.Driver",
+        "passed"
+      ],
+      [
+        "Bootstrap.Eval",
+        "passed"
+      ],
+      [
+        "Bootstrap.Export",
+        "passed"
+      ],
+      [
+        "Bootstrap.ExportNominal",
+        "passed"
+      ],
+      [
+        "Bootstrap.ExportType",
+        "passed"
+      ],
+      [
+        "Bootstrap.Global",
+        "passed"
+      ],
+      [
+        "Bootstrap.Guarded",
+        "passed"
+      ],
+      [
+        "Bootstrap.Index",
+        "passed"
+      ],
+      [
+        "Bootstrap.Infer",
+        "passed"
+      ],
+      [
+        "Bootstrap.Inputs",
+        "passed"
+      ],
+      [
+        "Bootstrap.Instance",
+        "passed"
+      ],
+      [
+        "Bootstrap.Interface",
+        "passed"
+      ],
+      [
+        "Bootstrap.Ir",
+        "passed"
+      ],
+      [
+        "Bootstrap.Kinds",
+        "passed"
+      ],
+      [
+        "Bootstrap.Load",
+        "passed"
+      ],
+      [
+        "Bootstrap.Manifest",
+        "passed"
+      ],
+      [
+        "Bootstrap.Nominal",
+        "passed"
+      ],
+      [
+        "Bootstrap.Object",
+        "passed"
+      ],
+      [
+        "Bootstrap.Parse",
+        "passed"
+      ],
+      [
+        "Bootstrap.Pipeline",
+        "passed"
+      ],
+      [
+        "Bootstrap.Proof",
+        "passed"
+      ],
+      [
+        "Bootstrap.Report",
+        "passed"
+      ],
+      [
+        "Bootstrap.Resolve",
+        "passed"
+      ],
+      [
+        "Bootstrap.RuntimeAbi",
+        "passed"
+      ],
+      [
+        "Bootstrap.RuntimeIr",
+        "passed"
+      ],
+      [
+        "Bootstrap.Test",
+        "passed"
+      ],
+      [
+        "Bootstrap.Total",
+        "passed"
+      ],
+      [
+        "Bootstrap.TotalSemantics",
+        "passed"
+      ],
+      [
+        "Bootstrap.Type",
+        "passed"
+      ],
+      [
+        "Bootstrap.Typing",
+        "passed"
+      ],
+      [
+        "Main",
+        "duplicate or unowned exported value"
+      ],
+      [
+        "Text.Builder",
+        "passed"
+      ],
+      [
+        "Text.Json",
+        "passed"
+      ],
+      [
+        "Text.Lex",
+        "passed"
+      ],
+      [
+        "Text.Parse",
+        "passed"
+      ],
+      [
+        "Text.Scan",
+        "passed"
+      ]
+    ],
+    "known_pending_correction": "Main.main defining identity; this snapshot predates its separately tested repair"
+  },
+  "stronger_gate": {
+    "exit_code": 0,
+    "independently_read_base_contracts": 55,
+    "scope": "Structural/source-identity and dependency gate plus self-consumer orchestration; actual own-interface consumer execution is separate",
+    "source_sha256": "48f44b868b6853419de0ba1294e1bd260c5908fdbab249f16d0de811fbe8e94a",
+    "source_unchanged": true,
+    "status": "passed",
+    "tooling_tests": 41
+  },
+  "remaining": [
+    "The complete self-produced contract snapshot predates the separately verified Main.main correction",
+    "The actual entry-only interface consumer refuses missing private Text.Lex.Span kind during public constructor layout completion; repair required",
+    "Full current compiler/interface fixed point and final-source suites are not yet verified"
+  ],
+  "schema8_effect_operation_boundary": "Actual checked public scheme, symbol and arity retained with resolved=null; this does not grant a portable defining handler contract",
+  "source_files": {
+    "bootstrap/Bootstrap.Export.cinch": "5a00cdd0426e63469d63d765b5426ee7bd7ad60de587861f41fdda86987fb5ad",
+    "bootstrap/Bootstrap.ExportType.cinch": "8b9588ca242f756e656b244f0b5e393200f9fed0a4a078c3ad5bac57201477a1",
+    "bootstrap/Bootstrap.ExportNominal.cinch": "835fbaf1180c60641c602d828886a6fb3b293a796f7f3087cb8c2a7ed8123b76",
+    "bootstrap/programs/Run.ExportInterfaces.cinch": "90914c7a129ad381ad1b9e319aff8f08e780f089cd39bb62e8728fa5bef09ae7",
+    "compiler/src/check_decls.rs": "9e2ccf5a785463271d8014dc8cf41b8afd83d5bc40f037137d0e31754d6d8788",
+    "compiler/tests/bootstrap_export_interfaces.rs": "38ecff39dcc50f925d36243449d33df3528e1f99358f91e1a099378e6cb6f5e0",
+    "compiler/tests/interface_region_effects.rs": "aee6873d1ae87add610b4d9dfcd6b1e00bcca18020159d102ec84fe9a9b340d6"
+  }
+}

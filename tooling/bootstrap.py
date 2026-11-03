@@ -432,21 +432,86 @@ def check_fixed_point() -> None:
     require_compiler_interfaces(third, compiler_sources())
     if not interfaces or interfaces != rebuilt:
         raise BootstrapError("canonical stage-2/stage-3 interfaces are missing or differ")
+    check_interface_consumer(third, compiler_sources())
     check_changed_source()
     print("bootstrap: stages 2 and 3 reached a fixed point", flush=True)
 
 
 def require_compiler_interfaces(directory: Path, files: dict[str, bytes]) -> None:
+    from bootstrap_interfaces import interface_hash, read_contract, validate_contract, verify_dependencies
+
     expected = {name[:-6] for name in files if name.endswith(".cinch")}
-    found = set()
+    documents = {}
     for path in directory.rglob("*.cinchif"):
-        name = read_json(path).get("module")
+        header = read_json(path)
+        if not isinstance(header, dict) or not isinstance(header.get("module"), str):
+            raise BootstrapError(f"invalid actual compiler interface header: {path}")
+        name = header["module"]
         if name in expected:
-            if name in found:
+            if name in documents:
                 raise BootstrapError(f"duplicate canonical compiler interface for {name}: {directory}")
-            found.add(name)
-    if found != expected:
-        raise BootstrapError(f"{directory.name} is missing actual compiler interfaces: {', '.join(sorted(expected - found))}")
+            documents[name] = path
+    if set(documents) != expected:
+        raise BootstrapError(f"{directory.name} is missing actual compiler interfaces: {', '.join(sorted(expected - set(documents)))}")
+    contracts = {}
+    runtime_abi = seed_inputs()[0]["runtime_abi"]
+    for name, path in documents.items():
+        try:
+            doc = read_contract(path)
+            validate_contract(doc, runtime_abi)
+            if not any(doc["exports"][key] for key in ("values", "types", "signatures", "instances")):
+                raise ValueError("compiler module has an empty checked export surface")
+            contracts[name] = doc
+        except (OSError, KeyError, TypeError, ValueError) as error:
+            raise BootstrapError(f"invalid actual compiler interface {name}: {error}") from error
+    try:
+        base = {}
+        for name, identity, filename in read_json(directory / "base-interfaces.json").get("interfaces", []):
+            doc = read_contract(Path(filename))
+            validate_contract(doc, runtime_abi)
+            if doc["module"] != name or interface_hash(doc) != identity or name in base:
+                raise ValueError("base interface identity disagrees with its manifest")
+            base[name] = doc
+        verify_dependencies(contracts, base)
+    except (OSError, KeyError, TypeError, ValueError) as error:
+        raise BootstrapError(f"invalid compiler interface dependency chain: {error}") from error
+
+
+def check_interface_consumer(directory: Path, files: dict[str, bytes]) -> None:
+    """Check the actual entry against emitted contracts, with no module bodies.
+
+    The self-built compiler must reconstruct the imported APIs from its own
+    artifacts. A structurally valid but unusable contract cannot pass merely
+    because the next writer repeats the same bytes.
+    """
+    from bootstrap_interfaces import interface_hash, read_contract
+
+    require_compiler_interfaces(directory, files)
+    case = directory / "interface-consumer"
+    case.mkdir(exist_ok=True)
+    source = case / "Main.cinch"
+    source.write_bytes(files["Main.cinch"])
+    rows = {name: [name, identity, filename]
+            for name, identity, filename in read_json(directory / "base-interfaces.json").get("interfaces", [])}
+    expected = {name[:-6] for name in files if name.endswith(".cinch")}
+    for path in directory.rglob("*.cinchif"):
+        doc = read_contract(path)
+        if doc["module"] in expected:
+            rows[doc["module"]] = [doc["module"], interface_hash(doc), str(path.resolve())]
+    # Main is the source client in this check, not an imported module.
+    rows.pop("Main", None)
+    manifest = case / "interfaces.json"
+    write_json(manifest, {"schema": 1, "interfaces": [rows[name] for name in sorted(rows)]})
+    output = case / "entry"
+    diagnostics = case / "entry.diagnostics"
+    diagnostics.unlink(missing_ok=True)
+    code = run([directory / "cinch", "--check", "--interfaces", manifest, source, output],
+               case, case / "check.log")
+    if code != 0 or not diagnostics.is_file() or diagnostics.read_bytes():
+        raise BootstrapError(f"self-built compiler cannot consume its actual compiler interfaces: {diagnostics}")
+    write_json(case / "checked.json", {"status": "passed", "compiler_sha256": file_hash(directory / "cinch"),
+                                      "manifest_sha256": file_hash(manifest), "source_sha256": file_hash(source)})
+    print("bootstrap: self-built compiler checks its entry using emitted compiler interfaces", flush=True)
 
 
 def check_changed_source() -> None:

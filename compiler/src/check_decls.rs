@@ -15610,7 +15610,7 @@ impl Checker {
         for (local, d) in &surface {
             if let Some(v) = self.qualified.get(&(d.module.clone(), d.name.clone())) {
                 match &v.kind {
-                    ValueKind::TopFn | ValueKind::Prim(_) | ValueKind::PrimDecl { .. } | ValueKind::Foreign { .. } => {
+                    ValueKind::TopFn | ValueKind::Prim(_) | ValueKind::PrimDecl { .. } | ValueKind::Foreign { .. } | ValueKind::EffectOp { .. } => {
                         iface.exports.values.push(ValueExport {
                             name: local.clone(),
                             total_body: self.interface_value_body(v),

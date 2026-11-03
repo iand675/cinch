@@ -33,10 +33,17 @@ class BootstrapContract(unittest.TestCase):
                 bootstrap.require_compiler_interfaces(root, files)
             for name in ["Main", "Bootstrap.Check"]:
                 bootstrap.write_json(root / (name + ".cinchif"), {"module": name})
+            with self.assertRaisesRegex(bootstrap.BootstrapError, "invalid actual compiler interface"):
+                bootstrap.require_compiler_interfaces(root, files)
+            template = bootstrap.read_json(Path(__file__).parent / "fixtures/checked-interface.json")
+            for name in ["Main", "Bootstrap.Check"]:
+                doc = {**template, "module": name}
+                (root / (name + ".cinchif")).write_text(json.dumps(doc, ensure_ascii=False, sort_keys=True, separators=(",", ":")))
             bootstrap.require_compiler_interfaces(root, files)
             bootstrap.write_json(root / "extra.cinchif", {"module": "Bootstrap.Check"})
             with self.assertRaisesRegex(bootstrap.BootstrapError, "duplicate canonical compiler interface"):
                 bootstrap.require_compiler_interfaces(root, files)
+
     def test_runtime_abi_preparation_is_exact_and_part_of_source_identity(self):
         live = (bootstrap.ROOT / "bootstrap/Bootstrap.RuntimeAbi.cinch").read_bytes()
         self.assertEqual(live, bootstrap.runtime_abi_source(6))
