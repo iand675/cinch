@@ -1,5 +1,27 @@
 # Next steps (as of 2026-11-03)
 
+## Source signatures and polymorphic dictionary methods
+Cinch now checks source-declared signature kinds, method schemes, self evidence,
+module exports and declaration-order slots. The resolved method node retains its
+actual global binding separately from the field label. Method-local type
+parameters use canonical Raw/Obj/TObj slot families shared by every dictionary
+of the declaring class; reached vectors are planned before final emission.
+All82 executable programs report zero leaks, including escaping polymorphic
+methods and generic factory context. Five invalid signature cases remain
+rejected. All nine new source programs also run through Rust with zero leaks.
+Cinch accepts all25 updated backend modules with zero diagnostics. The real CLI,
+source-instance contracts and instance-resolution regression targets pass. The
+latter caught an earlier head-selection regression: malformed factory contexts
+now stay out of ambiguity selection without committing failed trial substitutions.
+Copy and Share remain compiler-owned; their redeclarations are rejected.
+Source defaults and laws, base-family scope, executable library bodies, private String/scalar/layout
+lowering, full current suites/correctness and Stage2/3 remain required. The last
+completed genuine full-source attempt passes the frontend and traverses beyond
+read-argv, then emits only runtime refusals with empty IR and no Stage2 compiler.
+Its diagnostics include cascades and do not count remaining features. See
+[the source-signature evidence](../bootstrap/runtime-source-signature-results.json).
+
+
 ## Rust same-file module dependency repair
 The Rust source loader now preserves dependency order when one file declares
 several modules. It previously sorted the graph, then moved the entry file's

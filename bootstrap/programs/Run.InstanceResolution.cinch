@@ -94,6 +94,18 @@ module Main where
           [CEInstance s (UApp (UCon sub-owner (KFun KType KType)) nat) "partial-sub" Nil (CEArgumentsEnd s)] in
     selected && (case numeric-method-operation uninterpreted first second of None -> True; Some op -> False)
       && (case numeric-method-operation partial first second of None -> True; Some op -> False)
+  invalid-context-check :: UType -> Bool
+  invalid-context-check requirement = case fresh-meta KType (empty-store "invalid factory context") of
+    (meta, fresh) ->
+      let poison = qualified Nil [MkRequirement "invalid" requirement] (eq nat) in
+      let term = needed (eq meta) Nil in
+      let definition = MkCoreDefinition s "context-trial" (mono (core-type term)) Nil Nil Nil [MkCoreClause s Nil term] in
+      case resolve-dictionary-definition-with classes [("poison", poison), ("integer", mono (eq integer))] definition fresh of
+        (out, done) -> clean done && string-compare (type-text (normalize done meta)) "Int" == 0
+  invalid-context-checks :: Bool
+  invalid-context-checks = invalid-context-check nat
+    && invalid-context-check (UCon "Eq" (KFun KType KType))
+    && invalid-context-check (eq (UCon "not-a-carrier" KEffect))
   run :: Nat -> Int
   run nonce =
     let leaf = string-concat "leaf-" (nat-to-string nonce) in
@@ -132,6 +144,7 @@ module Main where
     else if not spoofed then 9 else if not bad-child then 10 else if not transactional then 11
     else if not (method-checks nonce) then 12 else if not (arithmetic-checks nonce) then 13
     else if not (clean (check-instance-coherence factories start)) then 14
-    else if clean (check-instance-coherence [leaf-entry, ("duplicate", mono (eq nat))] start) then 15 else 0
+    else if clean (check-instance-coherence [leaf-entry, ("duplicate", mono (eq nat))] start) then 15
+    else if not invalid-context-checks then 16 else 0
   main :: Unit ->{IO r} Int
   main unit = with (io = newIO ()) in case fs-read (path-from-string "nonce.txt") of Err error -> 90; Ok nonce -> run (bytes-len nonce)

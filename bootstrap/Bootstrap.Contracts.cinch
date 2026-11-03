@@ -199,6 +199,8 @@ module Bootstrap.Contracts where
   declaration-reference :: Decl -> List String
   declaration-reference d = case d of
     DSig s name ty -> type-references ty
+    DMethod s label name ty -> type-references ty
+    DClass s name params members -> param-references params <> declaration-references (decls-of members)
     DFun s name clauses -> clause-references clauses
     DData s name params ctors -> param-references params <> ctor-references ctors
     DEffect s name params ops -> param-references params <> ctor-references ops

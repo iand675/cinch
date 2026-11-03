@@ -164,18 +164,41 @@ fn typed_runtime_numbers_preserve_exact_values_and_reclaim_owned_words() {
         ("imported-nullary-tag", "  import RuntimeClasses\n  package :: Parcel Int\n  package = EmptyParcel\n  main :: Int\n  main = case package of\n    EmptyParcel -> 197\n    _ -> 1\n", 197),
         ("imported-declaration-order", "  import RuntimeClasses\n  package :: Parcel Int\n  package = FlagParcel True\n  main :: Int\n  main = case package of\n    FlagParcel flag -> if flag then 199 else 1\n    _ -> 2\n", 199),
         ("imported-constructor-closure", "  import RuntimeClasses\n  pack :: Int -> Parcel Int\n  pack = LoadedParcel\n  main :: Int\n  main = let saved = pack in case saved 18446744073709551616 of\n    LoadedParcel n -> if n == 18446744073709551616 then 201 else 1\n    _ -> 2\n", 201),
+        ("source-signature", "  signature LocalEcho a where\n    echo-local :: a -> a\n  implicit instance EchoInt :: LocalEcho Int where\n    echo-local x = x + 1\n  main :: Int\n  main = if echo-local 18446744073709551616 == 18446744073709551617 then 203 else 1\n", 203),
+        ("source-signature-order", "  signature LocalOps a where\n    z-first :: a -> a\n    a-last :: a -> a\n  implicit instance IntOps :: LocalOps Int where\n    a-last x = x + 2\n    z-first x = a-last x + 1\n  main :: Int\n  main = if z-first 18446744073709551616 == 18446744073709551619 then 205 else 1\n", 205),
+        ("source-signature-values", "  data Box where\n    Box :: Int -> Box\n  signature LocalShared a where\n    duplicate :: a\n    stored :: a\n    observe :: Unit -> a\n  instance SharedBox :: LocalShared Box where\n    duplicate = stored\n    stored = Box 18446744073709551616\n    observe unit = duplicate\n  main :: Int\n  main = with (chosen = SharedBox) in case ((stored, duplicate, observe ()) :: (Box, Box, Box)) of\n    (Box a, Box b, Box c) -> if a == b && b == c then 207 else 1\n", 207),
+        ("source-signature-factory", "  data Box a where\n    Box :: a -> Box a\n  signature LocalEcho a where\n    echo-local :: a -> a\n  implicit instance IntEcho :: LocalEcho Int where\n    echo-local x = x + 1\n  implicit instance BoxEcho a :: using (element :: LocalEcho a) => LocalEcho (Box a) where\n    echo-local xs = case xs of Box x -> Box (echo-local x)\n  main :: Int\n  main = case echo-local (Box 18446744073709551616) of\n    Box n -> if n == 18446744073709551617 then 209 else 1\n", 209),
+        ("source-signature-operator", "  infixl 8 %%\n  signature Combine a where\n    (%%) :: a -> a -> a\n  implicit instance IntCombine :: Combine Int where\n    (%%) a b = a + b\n  main :: Int\n  main = if 18446744073709551616 %% 2 == 18446744073709551618 then 211 else 1\n", 211),
+        ("source-signature-module", "  import LocalSignature (Echo, echo)\n  implicit instance IntEcho :: Echo Int where\n    echo x = x + 1\n  main :: Int\n  main = if echo 18446744073709551616 == 18446744073709551617 then 213 else 1\nmodule LocalSignature where\n  export Echo, echo\n  signature Echo a where\n    echo :: a -> a\n", 213),
+        ("source-signature-method-polymorphism", "  signature LocalPoly a where\n    clone :: forall b. b -> b\n    run :: a -> a\n  implicit instance PolyInt :: LocalPoly Int where\n    clone x = x\n    run x = clone x\n  main :: Int\n  main = if run 18446744073709551616 == 18446744073709551616 then 215 else 1\n", 215),
+        ("source-signature-method-families", "  data Box where\n    Box :: Int -> Box\n  signature LocalPoly a where\n    capture :: forall b. a -> b -> Unit -> b\n  instance PolyInt :: LocalPoly Int where\n    capture anchor x = \\unit -> x\n  getPoly :: LocalPoly Int\n  getPoly = PolyInt\n  probe :: using (chosen :: LocalPoly Int) => Unit -> Int\n  probe unit =\n    let raw = capture (0 :: Int) True in\n    let tagged = capture (0 :: Int) 18446744073709551616 in\n    let object = capture (0 :: Int) (Box 18446744073709551616) in\n    case (raw (), raw (), tagged (), tagged (), object (), object ()) of\n      (a, b, x, y, Box n, Box m) -> if a && b && x == y && n == m then 217 else 1\n  main :: Int\n  main = with (chosen = getPoly) in probe ()\n", 217),
+        ("source-signature-own-factory-context", "  data Box a where\n    Box :: a -> Box a\n  signature LocalEcho a where\n    echo-local :: a -> a\n  implicit instance IntEcho :: LocalEcho Int where\n    echo-local x = x + 1\n  signature LocalPoly a where\n    capture :: forall b. a -> b -> Unit -> b\n    run :: a -> Int -> Int\n  implicit instance PolyBox a :: using (element :: LocalEcho a) => LocalPoly (Box a) where\n    capture box value = \\unit -> case box of Box x -> case echo-local x of _ -> value\n    run box n = let f = capture box n in f ()\n  main :: Int\n  main = if run (Box 18446744073709551616) 340282366920938463463374607431768211456 == 340282366920938463463374607431768211456 then 219 else 1\n", 219),
     ];
     for (index, (_, body, _)) in cases.iter().enumerate() {
         std::fs::write(dir.join(format!("input-{index}.source")), format!("module Main where\n{body}")).unwrap();
     }
     std::fs::write(dir.join(format!("input-{}.source", cases.len())), "module Main where\n  import RuntimeClasses\n  data Box where\n    Box :: Int -> Box\n  instance RawValue :: Value Bool where\n    value = True\n  instance TaggedValue :: Value Int where\n    value = 340282366920938463463374607431768211456\n  instance ObjectValue :: Value Box where\n    value = Box 18446744073709551616\n  instance FunctionValue :: Value (Int -> Int) where\n    value = let n = 18446744073709551616 in \\x -> x + n\n  getRaw :: Value Bool\n  getRaw = RawValue\n  getTagged :: Value Int\n  getTagged = TaggedValue\n  getObject :: Value Box\n  getObject = ObjectValue\n  getFunction :: Value (Int -> Int)\n  getFunction = FunctionValue\n  instance SharedBox :: Shared Box where\n    duplicate = stored\n    stored = Box 18446744073709551616\n    observe u = stored\n    escape-value u = \\v -> observe v\n  getShared :: Shared Box\n  getShared = SharedBox\n  main :: Int\n  main = case (getRaw, getTagged, getObject, getFunction, getShared) of _ -> 0\n").unwrap();
     std::fs::write(dir.join(format!("input-{}.source", cases.len() + 1)), "module Main where\n  import RuntimeClasses\n  package :: PrivateEnvelope\n  package = PublicEnvelope 18446744073709551616\n  main :: Int\n  main = case package of PublicEnvelope n -> 0; _ -> 1\n").unwrap();
-    std::fs::write(dir.join("batch.count"), vec![b'x'; cases.len() + 2]).unwrap();
+    let invalid_source_signatures = [
+        "module Main where\n  signature Copy a where\n    identity :: a -> a\n  main :: Int\n  main = 0\n",
+        "module Main where\n  signature Share a where\n    identity :: a -> a\n  main :: Int\n  main = 0\n",
+        "module Main where\n  signature Broken a where\n    same :: a -> a\n    same :: a -> a\n  main :: Int\n  main = 0\n",
+        "module Main where\n  signature Broken a where\n    value :: a\n  implicit instance Wrong :: Broken Int where\n    value = True\n  main :: Int\n  main = value\n",
+        "module Main where\n  signature Missing a where\n    value :: a\n  instance Explicit :: Missing Int where\n    value = 1\n  main :: Int\n  main = value\n",
+    ];
+    for (index, input) in invalid_source_signatures.iter().enumerate() {
+        std::fs::write(dir.join(format!("input-{}.source", cases.len() + 2 + index)), input).unwrap();
+    }
+    std::fs::write(dir.join("batch.count"), vec![b'x'; cases.len() + 2 + invalid_source_signatures.len()]).unwrap();
     let output = Command::new(&compiler).current_dir(&dir).output().unwrap();
     assert_eq!(output.status.code(), Some(0), "batch input/output: {}", String::from_utf8_lossy(&output.stderr));
     std::fs::remove_file(dir.join("batch.count")).unwrap();
     assert_eq!(common::read_output(&dir, &format!("output-{}.status", cases.len() + 1)), "5", "a partial public constructor table must not invent hidden layouts");
     assert!(common::read_output(&dir, &format!("output-{}.ll", cases.len() + 1)).is_empty());
+    for index in 0..invalid_source_signatures.len() {
+        assert_eq!(common::read_output(&dir, &format!("output-{}.status", cases.len() + 2 + index)), "4", "invalid source signature {index}");
+        assert!(common::read_output(&dir, &format!("output-{}.ll", cases.len() + 2 + index)).is_empty());
+    }
     // Following ABI/refusal probes need no class interfaces.
     std::fs::write(dir.join("interfaces.json"), "{\"schema\":1,\"interfaces\":[]}").unwrap();
     for (index, (name, _, expected)) in cases.into_iter().enumerate() {

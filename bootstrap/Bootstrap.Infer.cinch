@@ -37,23 +37,27 @@ module Bootstrap.Infer where
     ByteObservation :: String -> Option String -> ByteObservation
     TotalObservation :: String -> BodyBinding -> ByteObservation
   data TypeContext where
-    MkTypeContext :: List (String, Kind) -> List Decl -> List String -> List ByteObservation -> List CoreEffect -> TypeContext
+    MkTypeContext :: List (String, Kind) -> List Decl -> List String -> List ByteObservation -> List CoreEffect -> List CoreClass -> TypeContext
   context-kind :: String -> TypeContext -> Option Kind
-  context-kind name context = case context of MkTypeContext kinds aliases active observers effects -> lookup-kind name kinds
+  context-kind name context = case context of MkTypeContext kinds aliases active observers effects source-classes -> lookup-kind name kinds
   context-add-kind :: String -> Kind -> TypeContext -> TypeContext
-  context-add-kind name kind context = case context of MkTypeContext kinds aliases active observers effects -> MkTypeContext (Cons (name, kind) kinds) aliases active observers effects
+  context-add-kind name kind context = case context of MkTypeContext kinds aliases active observers effects source-classes -> MkTypeContext (Cons (name, kind) kinds) aliases active observers effects source-classes
   context-aliases :: TypeContext -> List Decl
-  context-aliases context = case context of MkTypeContext kinds aliases active observers effects -> aliases
+  context-aliases context = case context of MkTypeContext kinds aliases active observers effects source-classes -> aliases
   context-add-alias :: Decl -> TypeContext -> TypeContext
-  context-add-alias alias context = case context of MkTypeContext kinds aliases active observers effects -> MkTypeContext kinds (Cons alias aliases) active observers effects
+  context-add-alias alias context = case context of MkTypeContext kinds aliases active observers effects source-classes -> MkTypeContext kinds (Cons alias aliases) active observers effects source-classes
   context-enter-alias :: String -> TypeContext -> Option TypeContext
   context-enter-alias name context = case context of
-    MkTypeContext kinds aliases active observers effects -> if has name active then None else Some (MkTypeContext kinds aliases (Cons name active) observers effects)
+    MkTypeContext kinds aliases active observers effects source-classes -> if has name active then None else Some (MkTypeContext kinds aliases (Cons name active) observers effects source-classes)
 
   context-effects :: TypeContext -> List CoreEffect
-  context-effects context = case context of MkTypeContext kinds aliases active observers effects -> effects
+  context-effects context = case context of MkTypeContext kinds aliases active observers effects source-classes -> effects
   context-with-effects :: List CoreEffect -> TypeContext -> TypeContext
-  context-with-effects declarations context = case context of MkTypeContext kinds aliases active observers effects -> MkTypeContext kinds aliases active observers (declarations <> effects)
+  context-with-effects declarations context = case context of MkTypeContext kinds aliases active observers effects source-classes -> MkTypeContext kinds aliases active observers (declarations <> effects) source-classes
+  context-source-classes :: TypeContext -> List CoreClass
+  context-source-classes context = case context of MkTypeContext kinds aliases active observers effects source-classes -> source-classes
+  context-with-source-class :: CoreClass -> TypeContext -> TypeContext
+  context-with-source-class description context = case context of MkTypeContext kinds aliases active observers effects source-classes -> MkTypeContext kinds aliases active observers effects (Cons description source-classes)
   data CheckedBinding where
     MkCheckedBinding :: String -> Scheme -> String -> CheckedBinding
     MkBodyBinding :: BodyBinding -> CheckedBinding
@@ -148,6 +152,7 @@ module Bootstrap.Infer where
     Nil -> False
     Cons d rest -> (case d of
       DSig s name ty -> needs-type ty
+      DClass s name ps members -> True
       DRefine s name params binder predicate -> True
       DEffect s name params ops -> True
       DInstance s flag name params head-type members -> True
@@ -217,7 +222,7 @@ module Bootstrap.Infer where
       other -> primitive-type name)
     else primitive-type name
   primitive-kinds :: TypeContext
-  primitive-kinds = MkTypeContext (Cons ("b.Io", KFun KRegion KType) (Cons ("b.Dec", KFun KProp KType) (map-primitive ["Int", "Nat", "Bool", "Unit", "()", "String", "Char", "Bytes", "Sym", "Isize", "Usize", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "F32", "F64"])) ) Nil Nil [ByteObservation "#kernel.bytes-length" None] Nil
+  primitive-kinds = MkTypeContext (Cons ("b.Io", KFun KRegion KType) (Cons ("b.Dec", KFun KProp KType) (map-primitive ["Int", "Nat", "Bool", "Unit", "()", "String", "Char", "Bytes", "Sym", "Isize", "Usize", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "F32", "F64"])) ) Nil Nil [ByteObservation "#kernel.bytes-length" None] Nil Nil
   map-primitive :: List String -> List (String, Kind)
   map-primitive names = case names of Nil -> Nil; Cons name rest -> Cons (name, KType) (map-primitive rest)
   lookup-kind :: String -> List (String, Kind) -> Option Kind
@@ -497,14 +502,14 @@ module Bootstrap.Infer where
     else bad sp "ill-sorted, partial or unchecked typed source index" st
   context-add-byte-observation :: String -> Option String -> TypeContext -> TypeContext
   context-add-byte-observation name scheme context = case context of
-    MkTypeContext kinds aliases active observers effects -> MkTypeContext kinds aliases active (Cons (ByteObservation name scheme) observers) effects
+    MkTypeContext kinds aliases active observers effects source-classes -> MkTypeContext kinds aliases active (Cons (ByteObservation name scheme) observers) effects source-classes
   byte-observation :: String -> List ByteObservation -> Option ByteObservation
   byte-observation name observers = case observers of
     Nil -> None
     Cons (ByteObservation binding scheme) rest -> if same name binding then Some (ByteObservation binding scheme) else byte-observation name rest
     Cons other rest -> byte-observation name rest
   context-byte-observation :: String -> TypeContext -> Option ByteObservation
-  context-byte-observation name context = case context of MkTypeContext kinds aliases active observers effects -> byte-observation name observers
+  context-byte-observation name context = case context of MkTypeContext kinds aliases active observers effects source-classes -> byte-observation name observers
   byte-length-binding :: String -> TypeContext -> Bool
   byte-length-binding name context = case context-byte-observation name context of Some observer -> True; None -> False
   imported-observation-scheme :: String -> Json -> TypeContext -> Bool
@@ -886,6 +891,8 @@ module Bootstrap.Infer where
         (qs, sq) -> case add-kind s name (source-effect-kind qs) kinds (declaration-kind-errors s qs sq) of (ks, sk) -> collect-kinds rest ks sk
       DData s name ps cs -> case parameters False kinds Nil ps 0 Nil st of
         (qs, sq) -> case add-kind s name (kind-arrow qs) kinds (declaration-kind-errors s qs sq) of (ks, sk) -> collect-kinds rest ks sk
+      DClass s name ps members -> case parameters False kinds Nil ps 0 Nil st of
+        (qs, sq) -> case add-kind s name (kind-arrow qs) kinds (declaration-kind-errors s qs sq) of (ks, sk) -> collect-kinds rest ks sk
       DExternal s name category scheme metadata ->
         if same category "signature" then
           case imported-kinds kinds (field "parameters" metadata) st of
@@ -1055,7 +1062,11 @@ module Bootstrap.Infer where
     JArrEnd -> (Nil, st)
     other -> (Nil, add-error sp "invalid defining class method array" st)
   typed-class :: Span -> String -> List Json -> List (String, Kind) -> TypeContext -> Store -> (Option CoreClass, Store)
-  typed-class sp owner rows classes kinds st = case (find-class-row owner rows, context-kind owner kinds) of
+  typed-class sp owner rows classes kinds st = case find-class owner (context-source-classes kinds) of
+    Some description -> (Some description, st)
+    None -> imported-typed-class sp owner rows classes kinds st
+  imported-typed-class :: Span -> String -> List Json -> List (String, Kind) -> TypeContext -> Store -> (Option CoreClass, Store)
+  imported-typed-class sp owner rows classes kinds st = case (find-class-row owner rows, context-kind owner kinds) of
     (Some row, Some kind) -> case imported-kinds kinds (field "parameters" row) st of
       (params, checked) -> case typed-class-methods sp classes kinds (field "methods" row) checked of
         (methods, final) -> let description = MkCoreClass sp owner kind params methods in
@@ -1140,7 +1151,7 @@ module Bootstrap.Infer where
     (if same category "constructor" then check-imported-constructor sp name sc metadata st else check-imported-value sp sc metadata st)
     else st
   context-total-observation :: String -> TypeContext -> Option BodyBinding
-  context-total-observation name context = case context of MkTypeContext kinds aliases active observers effects -> total-observation name observers
+  context-total-observation name context = case context of MkTypeContext kinds aliases active observers effects source-classes -> total-observation name observers
   total-observation :: String -> List ByteObservation -> Option BodyBinding
   total-observation name observers = case observers of
     Nil -> None
@@ -1149,7 +1160,7 @@ module Bootstrap.Infer where
   context-add-total :: Span -> BodyBinding -> TypeContext -> Store -> (TypeContext, Store)
   context-add-total sp binding context st = case context-total-observation (binding-name binding) context of
     Some prior -> (context, if binding-equal prior binding then st else add-error sp "conflicting defining total body declarations" st)
-    None -> (case context of MkTypeContext kinds aliases active observers effects -> (MkTypeContext kinds aliases active (Cons (TotalObservation (binding-name binding) binding) observers) effects, st))
+    None -> (case context of MkTypeContext kinds aliases active observers effects source-classes -> (MkTypeContext kinds aliases active (Cons (TotalObservation (binding-name binding) binding) observers) effects source-classes, st))
   collect-total-metadata :: Span -> String -> String -> Json -> List (String, Kind) -> TypeContext -> Store -> (TypeContext, Store)
   collect-total-metadata sp name native metadata classes kinds st = case field "total_body" metadata of
     JNull -> (kinds, st)
@@ -1191,7 +1202,7 @@ module Bootstrap.Infer where
     Cons (TotalObservation name binding) rest -> Cons (MkBodyBinding binding) (observation-bindings rest)
     Cons other rest -> observation-bindings rest
   context-body-bindings :: TypeContext -> List CheckedBinding
-  context-body-bindings context = case context of MkTypeContext kinds aliases active observers effects -> observation-bindings observers
+  context-body-bindings context = case context of MkTypeContext kinds aliases active observers effects source-classes -> observation-bindings observers
   register-total-value :: Span -> String -> Scheme -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   register-total-value sp name sc kinds env st = case context-total-observation name kinds of
     Some binding -> if not (binding-matches name "external" sc binding) then (env, add-error sp "actual imported value disagrees with defining total body scheme" st)
@@ -1287,6 +1298,47 @@ module Bootstrap.Infer where
   operation-syntax sp inherited ty = case ty of
     TForall at binders body -> TForall sp (forall-param-spine sp (inherited <> forall-params-of binders)) body
     other -> case inherited of Nil -> ty; more -> TForall sp (forall-param-spine sp inherited) ty
+  source-class-kinds :: List Decl -> TypeContext -> List (String, Kind) -> List (String, Kind)
+  source-class-kinds ds kinds seen = case ds of
+    Nil -> seen
+    Cons (DClass sp name ps members) rest -> case context-kind name kinds of
+      Some kind -> source-class-kinds rest kinds (Cons (name, kind) seen)
+      None -> source-class-kinds rest kinds seen
+    Cons other rest -> source-class-kinds rest kinds seen
+  class-parameter-prefix :: Nat -> List Quant -> List Quant
+  class-parameter-prefix count qs = if count == 0 then Nil else case qs of
+    Nil -> Nil
+    Cons first rest -> Cons first (class-parameter-prefix (count - 1) rest)
+  source-class-methods :: String -> List TypeParam -> List (String, Kind) -> TypeContext -> Nat -> List Decl -> Store -> (List CoreClassMethod, Store)
+  source-class-methods owner ps classes kinds slot ds st = case ds of
+    Nil -> (Nil, st)
+    Cons (DMethod sp label symbol syntax) rest -> case make-scheme False classes kinds Nil (operation-syntax sp ps syntax) st of
+      (sc, checked) -> let parameters = class-parameter-prefix (list-length ps) (scheme-params sc) in
+        let self = applied-family owner (kind-arrow parameters) parameters in
+        let actual = qualified (scheme-params sc) (Cons (MkRequirement "#self" self) (scheme-requirements sc)) (scheme-body sc) in
+        case source-class-methods owner ps classes kinds (slot + 1) rest checked of
+          (more, done) -> (Cons (MkCoreClassMethod sp label slot actual) more, done)
+    Cons other rest -> source-class-methods owner ps classes kinds slot rest (add-error (decl-span other) "source signature member needs checked method elaboration" st)
+  collect-source-classes :: List Decl -> List (String, Kind) -> TypeContext -> Store -> (TypeContext, Store)
+  collect-source-classes ds classes kinds st = case ds of
+    Nil -> (kinds, st)
+    Cons (DClass sp name ps members) rest -> case parameters False kinds Nil ps 0 Nil st of
+      (qs, prepared) -> case source-class-methods name ps classes kinds 0 (decls-of members) prepared of
+        (methods, checked) -> let description = MkCoreClass sp name (kind-arrow qs) qs methods in
+          if class-closed description then collect-source-classes rest classes (context-with-source-class description kinds) checked
+          else collect-source-classes rest classes kinds (add-error sp "source signature has duplicate methods or an invalid defining scheme" checked)
+    Cons other rest -> collect-source-classes rest classes kinds st
+  source-method :: String -> List CoreClassMethod -> Option CoreClassMethod
+  source-method name methods = case methods of
+    Nil -> None
+    Cons first rest -> if same name (class-method-name first) then Some first else source-method name rest
+  register-source-methods :: CoreClass -> List Decl -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-source-methods description ds env st = case ds of
+    Nil -> (env, st)
+    Cons (DMethod sp label symbol syntax) rest -> case (source-method label (class-methods description), lookup-binding symbol env) of
+      (Some method, None) -> register-source-methods description rest (Cons (MkMethodBinding symbol (class-method-scheme method) (class-name description) (class-method-slot method)) env) st
+      other -> register-source-methods description rest env (add-error sp "source method has a duplicate binding or no declaring slot" st)
+    Cons other rest -> register-source-methods description rest env (add-error (decl-span other) "invalid resolved source method declaration" st)
   source-instance-scheme :: Span -> List (String, Kind) -> TypeContext -> List TypeParam -> TypeExpr -> Store -> (Scheme, Store)
   source-instance-scheme sp classes kinds ps head-type st = case parameters False kinds Nil ps 0 Nil st of
     (qs, prepared) -> case make-scheme False classes kinds qs head-type prepared of
@@ -1304,6 +1356,10 @@ module Bootstrap.Infer where
     Cons d rest -> case d of
       DSig s name ty -> case make-scheme False classes kinds Nil ty st of
         (sc, ss) -> case add-binding s name sc "value" env ss of (e, se) -> register rows classes kinds rest e se
+      DClass s name ps members -> case find-class name (context-source-classes kinds) of
+        Some description -> case register-source-methods description (decls-of members) env st of
+          (more, checked) -> register rows classes kinds rest more checked
+        None -> register rows classes kinds rest env (add-error s "source signature has no checked defining contract" st)
       DInstance sp flag name ps head-type members -> case source-instance-scheme sp classes kinds ps head-type st of
         (sc, checked) -> case add-binding sp name sc (if flag then "implicit-instance" else "instance") env checked of
           (more, final) -> register rows classes kinds rest more final
@@ -2537,7 +2593,7 @@ module Bootstrap.Infer where
   check-instance-globals :: TypingContext -> List CoreInstance -> Store -> Store
   check-instance-globals globals instances st = case instances of Nil -> st; Cons dictionary rest -> check-instance-globals globals rest (check-field-globals globals (instance-fields dictionary) st)
   declared-kind-rows :: TypeContext -> List (String, Kind)
-  declared-kind-rows context = case context of MkTypeContext kinds aliases active observers effects -> kinds
+  declared-kind-rows context = case context of MkTypeContext kinds aliases active observers effects source-classes -> kinds
   check-global-core :: TypeContext -> List CheckedBinding -> List CoreInstance -> List CoreDefinition -> Store -> Store
   check-global-core kinds bindings instances definitions st = case close-typing-context-with-effects (declared-kind-rows kinds) (instance-globals instances (global-bindings (finish-bindings st bindings) Nil)) (context-effects kinds) of
     Some globals -> check-instance-globals globals instances (check-core-closed globals definitions st)
@@ -2695,9 +2751,10 @@ module Bootstrap.Infer where
     let rows = class-rows ds in
     let (instance-kinds, instance-store) = source-instance-nominals ds rows source-kinds source-store in
     let (nominal-kinds, sk) = collect-nominal-kinds ds instance-kinds instance-store in
-    let classes = Cons ("b.Io", KFun KRegion KType) (class-kinds rows nominal-kinds Nil) in
+    let classes = Cons ("b.Io", KFun KRegion KType) (source-class-kinds ds nominal-kinds (class-kinds rows nominal-kinds Nil)) in
     let aliases-checked = validate-refinements nominal-kinds (context-aliases nominal-kinds) sk in
-    let (kinds, body-store) = collect-body-contracts ds classes nominal-kinds aliases-checked in
+    let (class-kinds, class-store) = collect-source-classes ds classes nominal-kinds aliases-checked in
+    let (kinds, body-store) = collect-body-contracts ds classes class-kinds class-store in
     let (values, sv) = register rows classes kinds ds (context-body-bindings kinds <> builtins) body-store in
     let (ordinary-env, si) = register-implicit-instances classes kinds ds values sv in
     let (env, conditional-store) = register-conditional-instances rows classes kinds ds ordinary-env si in
@@ -2705,7 +2762,7 @@ module Bootstrap.Infer where
     let families = Cons ("Bool", ["True", "False"]) (Cons ("b.Dec", ["b.Yes", "b.No"]) (families-of ds <> imported-families ds)) in
     let (effects, sx) = case store-errors se of Nil -> checked-effects kinds env ds se; other -> (Nil, se) in
     let linked-kinds = context-with-effects effects kinds in
-    let (descriptions, instances, sm) = case store-errors sx of Nil -> checked-source-instances rows classes linked-kinds families env ds Nil sx; other -> (Nil, Nil, sx) in
+    let (descriptions, instances, sm) = case store-errors sx of Nil -> checked-source-instances rows classes linked-kinds families env ds (context-source-classes linked-kinds) sx; other -> (Nil, Nil, sx) in
     let (core, done) = case store-errors sm of Nil -> check-bodies classes linked-kinds families env Nil ds ds sm; other -> (Nil, sm) in
     let (datas, sd) = case store-errors done of Nil -> checked-data classes linked-kinds env ds Nil done; other -> (Nil, done) in
     let finished = case store-errors sd of Nil -> check-data-closed datas (check-global-core linked-kinds env instances core sd); other -> sd in

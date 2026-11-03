@@ -365,6 +365,8 @@ module Bootstrap.Ast where
     DInterface :: Span -> String -> String -> Json -> Decl
     DExternal :: Span -> String -> String -> Option TypeExpr -> Json -> Decl
     DSig :: Span -> String -> TypeExpr -> Decl
+    -- Resolved source method: slot label and actual module binding.
+    DMethod :: Span -> String -> String -> TypeExpr -> Decl
     DFun :: Span -> String -> List (List Pat, Expr) -> Decl
     DData :: Span -> String -> List TypeParam -> List (String, TypeExpr) -> Decl
     DRefine :: Span -> String -> List TypeParam -> TypeParam -> TypeExpr -> Decl
@@ -397,6 +399,7 @@ module Bootstrap.Ast where
     DInterface s name hash metadata -> s
     DExternal s name kind scheme metadata -> s
     DSig s n t -> s
+    DMethod s label name t -> s
     DFun s n clauses -> s
     DData s n params ctors -> s
     DRefine s n params binder predicate -> s
@@ -419,6 +422,7 @@ module Bootstrap.Ast where
     DInterface s name hash metadata -> None
     DExternal s name kind scheme metadata -> Some name
     DSig s n t -> Some n
+    DMethod s label name t -> Some name
     DFun s n clauses -> Some n
     DData s n params ctors -> Some n
     DRefine s n params binder predicate -> Some n
@@ -607,6 +611,7 @@ module Bootstrap.Ast where
     DInterface s name hash metadata -> 0
     DExternal s name kind scheme metadata -> 0
     DSig s n t -> type-unmodeled-count t
+    DMethod s label name t -> type-unmodeled-count t
     DFun s n clauses -> clauses-unmodeled clauses
     DData s n params ctors -> params-unmodeled params + ctors-unmodeled ctors
     DRefine s n params binder predicate -> params-unmodeled (Cons binder params) + type-unmodeled-count predicate

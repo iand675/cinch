@@ -220,7 +220,13 @@ module Bootstrap.Dictionary where
     Cons (name, sc) rest -> let more = matching-heads context sp wanted rest st in
       case open-qualified False sc st of
         (head, requirements, pairs, opened) -> let trial = unify sp wanted head opened in
-          if clean trial && valid-goal (resolution-classes context) (normalize trial head) && instance-parameters-scoped (instance-types pairs trial) wanted trial then Cons (name, sc) more else more
+          if clean trial && valid-goal (resolution-classes context) (normalize trial head)
+            && valid-instance-context (resolution-classes context) requirements trial
+            && instance-parameters-scoped (instance-types pairs trial) wanted trial then Cons (name, sc) more else more
+  valid-instance-context :: List (String, Kind) -> List Requirement -> Store -> Bool
+  valid-instance-context classes requirements st = case requirements of
+    Nil -> True
+    Cons first rest -> valid-goal classes (normalize st (requirement-type first)) && valid-instance-context classes rest st
   collection-default :: UType -> Store -> Store
   collection-default wanted st = case normalize st wanted of
     UApp (UApp (UCon name kind) container) element -> if same name (interface-global "Data.FromList.FromList") then (case container of

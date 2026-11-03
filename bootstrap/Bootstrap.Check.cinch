@@ -908,6 +908,7 @@ module Bootstrap.Check where
         None -> fail s "imported value has no parsed type metadata"
       else fail s (string-concat-all ["imported ", kind, " needs kind, constructor or dictionary elaboration: ", name])
     DSig s n t -> Nil
+    DMethod s label name t -> fail s "resolved signature methods require typed elaboration"
     DFun s n clauses -> check-fun tops s n clauses
     DData s n params ctors -> case params of
       Nil -> Nil

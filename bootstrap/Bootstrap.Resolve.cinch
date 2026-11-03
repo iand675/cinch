@@ -109,6 +109,7 @@ module Bootstrap.Resolve where
       DImport s path mods alias members args -> own-bindings home rest acc
       DExport s text items -> own-bindings home rest acc
       DInstance s only name params class-app members -> own-bindings home rest (add-own home name acc)
+      DClass s name params members -> own-bindings home rest (own-class-methods home (decls-of members) (add-own home name acc))
       DData s name params ctors -> own-bindings home rest (own-ctors home ctors (add-own home name acc))
       DEffect s name params ops -> own-bindings home rest (own-ctors home ops (add-own home name acc))
       DForeign s direction abi symbol name ty -> own-bindings home rest (if same direction "import" then add-own home name acc else acc)
@@ -120,6 +121,12 @@ module Bootstrap.Resolve where
   add-own home name entries = case lookup-binding name entries of
     Some b -> entries
     None -> Cons (MkBinding name home (global-name home name)) entries
+
+  own-class-methods :: String -> List Decl -> List Binding -> List Binding
+  own-class-methods home ds acc = case ds of
+    Nil -> acc
+    Cons (DSig s name ty) rest -> own-class-methods home rest (add-own home name acc)
+    Cons other rest -> own-class-methods home rest acc
 
   own-ctors :: String -> List (String, TypeExpr) -> List Binding -> List Binding
   own-ctors home ctors acc = case ctors of
@@ -580,6 +587,10 @@ module Bootstrap.Resolve where
       (body, errors) -> (Cons (DFun s (global-name home name) body) Nil, errors)
     DData s name params ctors -> (Cons (DData s (global-name home name) (rename-params visible Nil params)
       (rename-ctors home visible (parameter-names params) ctors)) Nil, Nil)
+    DClass s name params members ->
+      if same name "Copy" || same name "Share" then (Nil, fail s "Copy and Share are compiler-owned structural signatures and cannot be declared") else
+        case rename-class-members home visible (parameter-names params) (decls-of members) of
+          (renamed, errors) -> ([DClass s (global-name home name) (rename-params visible Nil params) (decl-spine s renamed)], errors)
     DRefine s name params binder predicate ->
       let names = parameter-names params in
       let renamed-binder = case binder of MkTypeParam at local kind only -> MkTypeParam at local (case kind of None -> None; Some carrier -> Some (rename-type visible names carrier)) only in
@@ -598,6 +609,14 @@ module Bootstrap.Resolve where
     DExport s text items -> (Nil, Nil)
     DFixity s assoc prec ops -> (Nil, Nil)
     other -> (Cons d Nil, fail (decl-span d) "this declaration requires further namespace elaboration")
+
+  rename-class-members :: String -> List Binding -> List String -> List Decl -> (List Decl, List Diagnostic)
+  rename-class-members home visible locals ds = case ds of
+    Nil -> (Nil, Nil)
+    Cons (DSig s name ty) rest -> case rename-class-members home visible locals rest of
+      (more, errors) -> (Cons (DMethod s name (global-name home name) (rename-type visible locals ty)) more, errors)
+    Cons other rest -> case rename-class-members home visible locals rest of
+      (more, errors) -> (Cons other more, fail (decl-span other) "source signature member needs checked default or declaration elaboration" <> errors)
 
   rename-decls :: String -> List Binding -> List Decl -> (List Decl, List Diagnostic)
   rename-decls home visible ds = case ds of

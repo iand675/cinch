@@ -38,8 +38,12 @@ module Bootstrap.RuntimeIr where
     BuiltinDemand :: String -> Demand
   -- Bound scheme ids and opened rigid ids are separate namespaces.
   -- A worker is shared by all actual types with the same class vector.
+  data MethodVersion where
+    MethodVersion :: String -> Nat -> List Nat -> MethodVersion
+  data MethodSlot where
+    MethodSlot :: Nat -> Nat -> List Nat -> MethodSlot
   data ProgramInfo where
-    ProgramInfo :: List CoreData -> List CoreClass -> List CoreInstance -> List CheckedBinding -> ProgramInfo
+    ProgramInfo :: List CoreData -> List CoreClass -> List CoreInstance -> List CheckedBinding -> List MethodVersion -> ProgramInfo
   data RuntimeContext where
     RuntimeContext :: ProgramInfo -> List (Nat, Nat) -> List (Nat, Nat) -> List Demand -> List Demand -> RuntimeContext
   data Writer where
@@ -76,13 +80,94 @@ module Bootstrap.RuntimeIr where
   writer-program :: Writer -> ProgramInfo
   writer-program w = case writer-context w of RuntimeContext info bounds rigids pending done -> info
   program-data :: ProgramInfo -> List CoreData
-  program-data info = case info of ProgramInfo datas descriptions instances bindings -> datas
+  program-data info = case info of ProgramInfo datas descriptions instances bindings versions -> datas
   program-classes :: ProgramInfo -> List CoreClass
-  program-classes info = case info of ProgramInfo datas descriptions instances bindings -> descriptions
+  program-classes info = case info of ProgramInfo datas descriptions instances bindings versions -> descriptions
   program-instances :: ProgramInfo -> List CoreInstance
-  program-instances info = case info of ProgramInfo datas descriptions instances bindings -> instances
+  program-instances info = case info of ProgramInfo datas descriptions instances bindings versions -> instances
   program-bindings :: ProgramInfo -> List CheckedBinding
-  program-bindings info = case info of ProgramInfo datas descriptions instances bindings -> bindings
+  program-bindings info = case info of ProgramInfo datas descriptions instances bindings versions -> bindings
+  program-versions :: ProgramInfo -> List MethodVersion
+  program-versions info = case info of ProgramInfo datas descriptions instances bindings versions -> versions
+  with-versions :: List MethodVersion -> ProgramInfo -> ProgramInfo
+  with-versions versions info = case info of ProgramInfo datas descriptions instances bindings old -> ProgramInfo datas descriptions instances bindings versions
+  same-classes :: List Nat -> List Nat -> Bool
+  same-classes first second = case (first, second) of
+    (Nil, Nil) -> True
+    (Cons a rest, Cons b more) -> a == b && same-classes rest more
+    other -> False
+  version-present :: String -> Nat -> List Nat -> List MethodVersion -> Bool
+  version-present owner slot classes versions = case versions of
+    Nil -> False
+    Cons (MethodVersion name index actual) rest -> (same owner name && slot == index && same-classes classes actual) || version-present owner slot classes rest
+  note-version :: String -> Nat -> List Nat -> Writer -> Writer
+  note-version owner slot classes w = case w of
+    Writer next globals code errors layouts (RuntimeContext info bounds rigids pending done) ->
+      if list-length classes == 0 || version-present owner slot classes (program-versions info) then w else
+        Writer next globals code errors layouts (RuntimeContext (with-versions (program-versions info <> [MethodVersion owner slot classes]) info) bounds rigids pending done)
+  method-class-ids :: CoreClassMethod -> List Nat
+  method-class-ids member = case scheme-requirements (class-method-scheme member) of Cons self rest -> type-free-bound (requirement-type self); Nil -> Nil
+  id-present :: Nat -> List Nat -> Bool
+  id-present id ids = case ids of Nil -> False; Cons first rest -> id == first || id-present id rest
+  own-quants :: List Nat -> List Quant -> List Quant
+  own-quants inherited qs = case qs of Nil -> Nil; Cons q rest -> if id-present (quant-id q) inherited then own-quants inherited rest else Cons q (own-quants inherited rest)
+  own-actuals :: List Nat -> List Quant -> List UType -> List UType
+  own-actuals inherited qs actuals = case (qs, actuals) of
+    (Cons q rest, Cons actual more) -> if id-present (quant-id q) inherited then own-actuals inherited rest more else Cons actual (own-actuals inherited rest more)
+    other -> Nil
+  method-own-quants :: CoreClassMethod -> List Quant
+  method-own-quants member = own-quants (method-class-ids member) (scheme-params (class-method-scheme member))
+  method-own-classes :: Writer -> CoreClassMethod -> List UType -> Option (List Nat)
+  method-own-classes w member actuals = if list-length actuals /= list-length (scheme-params (class-method-scheme member)) then None else
+    scheme-classes (writer-context w) (method-own-quants member) (own-actuals (method-class-ids member) (scheme-params (class-method-scheme member)) actuals)
+  default-own :: List Quant -> List Nat
+  default-own qs = case qs of Nil -> Nil; Cons q rest -> if kind-equal (quant-kind q) KType then Cons 1 (default-own rest) else default-own rest
+  selected-versions :: String -> Nat -> List MethodVersion -> List (List Nat)
+  selected-versions owner slot versions = case versions of
+    Nil -> Nil
+    Cons (MethodVersion name index classes) rest -> if same owner name && slot == index then Cons classes (selected-versions owner slot rest) else selected-versions owner slot rest
+  classes-before :: List Nat -> List Nat -> Bool
+  classes-before first second = case (first, second) of
+    (Nil, Cons b more) -> True
+    (Cons a rest, Cons b more) -> a < b || (a == b && classes-before rest more)
+    other -> False
+  insert-version :: List Nat -> List (List Nat) -> List (List Nat)
+  insert-version classes versions = case versions of
+    Nil -> [classes]
+    Cons first rest -> if classes-before classes first then Cons classes versions else Cons first (insert-version classes rest)
+  sort-versions :: List (List Nat) -> List (List Nat)
+  sort-versions versions = case versions of Nil -> Nil; Cons first rest -> insert-version first (sort-versions rest)
+  member-versions :: Writer -> String -> CoreClassMethod -> List (List Nat)
+  member-versions w owner member = case selected-versions owner (class-method-slot member) (program-versions (writer-program w)) of
+    Nil -> [default-own (method-own-quants member)]
+    found -> sort-versions found
+  primary-method-slots :: Writer -> String -> List CoreClassMethod -> List MethodSlot
+  primary-method-slots w owner members = case members of
+    Nil -> Nil
+    Cons member rest -> let classes = case member-versions w owner member of Cons first more -> first; Nil -> Nil in
+      Cons (MethodSlot (class-method-slot member) (class-method-slot member) classes) (primary-method-slots w owner rest)
+  extra-method-versions :: Nat -> Nat -> List (List Nat) -> (Nat, List MethodSlot)
+  extra-method-versions slot next versions = case versions of
+    Nil -> (next, Nil)
+    Cons first rest -> case extra-method-versions slot (next + 1) rest of
+      (finish, more) -> (finish, Cons (MethodSlot slot next first) more)
+  extra-method-slots :: Writer -> String -> Nat -> List CoreClassMethod -> List MethodSlot
+  extra-method-slots w owner next members = case members of
+    Nil -> Nil
+    Cons member rest -> let versions = case member-versions w owner member of Cons first more -> more; Nil -> Nil in
+      case extra-method-versions (class-method-slot member) next versions of
+        (finish, own-codes) -> own-codes <> extra-method-slots w owner finish rest
+  class-method-slots :: Writer -> CoreClass -> List MethodSlot
+  class-method-slots w description = primary-method-slots w (class-name description) (class-methods description)
+    <> extra-method-slots w (class-name description) (list-length (class-methods description)) (class-methods description)
+  method-physical-slot :: Nat -> List Nat -> List MethodSlot -> Option Nat
+  method-physical-slot slot own-codes plans = case plans of
+    Nil -> None
+    Cons (MethodSlot logical physical classes) rest -> if slot == logical && same-classes own-codes classes then Some physical else method-physical-slot slot own-codes rest
+  take-classes :: Nat -> List Nat -> List Nat
+  take-classes count classes = if count == 0 then Nil else case classes of Nil -> Nil; Cons first rest -> Cons first (take-classes (count - 1) rest)
+  type-param-count :: List Quant -> Nat
+  type-param-count qs = case qs of Nil -> 0; Cons q rest -> (if kind-equal (quant-kind q) KType then 1 else 0) + type-param-count rest
   method-reference :: String -> String -> Nat -> List CheckedBinding -> Bool
   method-reference name owner slot bindings = case bindings of Nil -> False; Cons first rest -> checked-method-matches first name owner slot || method-reference name owner slot rest
   writer-data :: Writer -> List CoreData
@@ -557,7 +642,7 @@ module Bootstrap.RuntimeIr where
   self-binding w d classes = case field-owner (core-name d) (program-instances (writer-program w)) of
     Some owner -> let count = list-length (scheme-requirements (instance-scheme owner)) in
       (case drop-givens count (core-givens d) of
-        Cons self rest -> [KnownSelf (given-symbol self) (instance-name owner) classes (take-givens count (core-givens d))]
+        Cons self rest -> [KnownSelf (given-symbol self) (instance-name owner) (take-classes (type-param-count (scheme-params (instance-scheme owner))) classes) (take-givens count (core-givens d))]
         Nil -> Nil)
     None -> Nil
   field-present :: Nat -> List CoreDictionaryField -> Bool
@@ -703,30 +788,38 @@ module Bootstrap.RuntimeIr where
   method-value definitions locals w sp ty name owner slot actuals evidence = case find-class owner (program-classes (writer-program w)) of
     Some description -> case method-at slot (class-methods description) of
       Some member -> if not (method-reference name owner slot (program-bindings (writer-program w))) then unsupported w sp (cat ["dictionary field does not belong to the checked global method: ", name]) else
-        (case evidence of
-          Cons self rest -> case self of
-            CEGiven at given-ty given-name -> (case known-self given-name locals of
-              Some (KnownSelf key instance-name classes context) ->
-                self-method definitions locals w sp ty name owner slot classes instance-name context rest
-              other -> dynamic-method definitions locals w sp ty slot self rest)
-            other -> dynamic-method definitions locals w sp ty slot self rest
-          Nil -> unsupported w sp "method has no checked receiver evidence")
+        (case method-own-classes w member actuals of
+          None -> unsupported w sp "method type arguments need runtime representation classes"
+          Some own-codes -> let prepared = note-version owner slot own-codes w in
+            (case evidence of
+              Cons self rest -> case self of
+                CEGiven at given-ty given-name -> (case known-self given-name locals of
+                  Some (KnownSelf key instance-name classes context) ->
+                    self-method definitions locals prepared sp ty name owner slot classes own-codes instance-name context rest
+                  other -> project-method definitions locals prepared sp ty description slot own-codes self rest)
+                other -> project-method definitions locals prepared sp ty description slot own-codes self rest
+              Nil -> unsupported w sp "method has no checked receiver evidence"))
       None -> unsupported w sp "method slot is absent from its declaring class"
     None -> unsupported w sp (cat ["method has no checked declaring class: ", owner, ".", name])
-  self-method :: List CoreDefinition -> List Local -> Writer -> Span -> UType -> String -> String -> Nat -> List Nat -> String -> List CoreGiven -> List CoreEvidence -> (Writer, String)
-  self-method definitions locals w sp ty name owner slot classes factory context extra = case instance-named factory (program-instances (writer-program w)) of
+  self-method :: List CoreDefinition -> List Local -> Writer -> Span -> UType -> String -> String -> Nat -> List Nat -> List Nat -> String -> List CoreGiven -> List CoreEvidence -> (Writer, String)
+  self-method definitions locals w sp ty name owner slot classes own-codes factory context extra = case instance-named factory (program-instances (writer-program w)) of
     Some factory -> if (case class-owner (scheme-body (instance-scheme factory)) of Some actual -> same owner actual; None -> False) then
       (case field-at slot (instance-fields factory) of
         Some field -> if strict-value-field w factory field then
+          if list-length own-codes > 0 then unsupported w sp "polymorphic strict self values need representation-indexed initialization" else
           (case self-value-word (instance-name factory) slot locals of
             Some (actual, word) -> if list-length extra == 0 then (count-op True actual word w, word) else unsupported w sp "a strict value field cannot consume extra method evidence"
             None -> unsupported w sp "self value was used before its dictionary slot was initialized")
           else case copy-givens context locals w of
             (copied, prefix) -> case evidences definitions locals copied extra of
-              (ready, more) -> function-call definitions locals ready sp (dictionary-field-definition field) classes (prefix <> more) Nil
+              (ready, more) -> function-call definitions locals ready sp (dictionary-field-definition field) (classes <> own-codes) (prefix <> more) Nil
         None -> unsupported w sp "self method is absent from its actual factory")
       else unsupported w sp "self evidence disagrees with the selected declaring class"
     None -> unsupported w sp "self method has no actual checked factory"
+  project-method :: List CoreDefinition -> List Local -> Writer -> Span -> UType -> CoreClass -> Nat -> List Nat -> CoreEvidence -> List CoreEvidence -> (Writer, String)
+  project-method definitions locals w sp ty description slot own-codes receiver extra = case method-physical-slot slot own-codes (class-method-slots w description) of
+    Some physical -> dynamic-method definitions locals w sp ty physical receiver extra
+    None -> unsupported w sp "method representation has no planned declaring-class slot"
   dynamic-method :: List CoreDefinition -> List Local -> Writer -> Span -> UType -> Nat -> CoreEvidence -> List CoreEvidence -> (Writer, String)
   dynamic-method definitions locals w sp ty slot receiver extra = case evidence-value definitions locals w receiver of
     (ready, dictionary) -> let (one, pointer) = fresh ready "%ptr" in
@@ -750,24 +843,30 @@ module Bootstrap.RuntimeIr where
         None -> if list-length classes > 16 || groups >= 1022 then (refuse w sp "dictionary needs an extended runtime descriptor", 0) else
           let id = 64 * (groups + 1) in
           (Writer next globals code errors (LayoutPlan (groups + 1) (Cons (id, packed) tuples) names (Cons (id, packed) cells)) context, id)
-  dictionary-map :: CoreInstance -> List CoreDictionaryField -> Writer -> Option (List Nat)
+  dictionary-map :: CoreInstance -> List MethodSlot -> Writer -> Option (List Nat)
   dictionary-map owner fields w = case fields of
     Nil -> Some Nil
-    Cons first rest -> let d = dictionary-field-definition first in
-      (case dictionary-map owner rest w of
-        Some more -> if strict-value-field w owner first then (case word-class (writer-context w) (scheme-body (core-scheme d)) of Some code -> Some (Cons code more); None -> None) else Some (Cons 1 more)
-        None -> None)
+    Cons (MethodSlot logical physical own-codes) rest -> case field-at logical (instance-fields owner) of
+      Some field -> let d = dictionary-field-definition field in
+        (case dictionary-map owner rest w of
+          Some more -> if strict-value-field w owner field then
+            if list-length own-codes > 0 then None else (case word-class (writer-context w) (scheme-body (core-scheme d)) of Some code -> Some (Cons code more); None -> None)
+            else Some (Cons 1 more)
+          None -> None)
+      None -> None
   factory-bindings :: List Requirement -> Nat -> List CoreGiven
   factory-bindings requirements index = case requirements of Nil -> Nil; Cons first rest -> Cons (CGiven (Span 0 0 1 1) (cat ["#factory-", nat-to-string index]) (requirement-type first)) (factory-bindings rest (index + 1))
-  dictionary-fields :: List CoreDefinition -> CoreInstance -> List Nat -> List CoreGiven -> List Local -> String -> List CoreDictionaryField -> Writer -> Writer
+  dictionary-fields :: List CoreDefinition -> CoreInstance -> List Nat -> List CoreGiven -> List Local -> String -> List MethodSlot -> Writer -> Writer
   dictionary-fields definitions owner classes context locals pointer fields w = case fields of
     Nil -> w
-    Cons first rest -> if strict-value-field w owner first then dictionary-fields definitions owner classes context locals pointer rest w else
-      let d = dictionary-field-definition first in
-      (case copy-givens context locals w of
-        (copied, values) -> case function-call definitions locals copied (Span 0 0 1 1) d classes values Nil of
-          (ready, value) -> let stored = store-one ready pointer (1 + dictionary-field-slot first) value in
-            dictionary-fields definitions owner classes context locals pointer rest stored)
+    Cons (MethodSlot logical physical own-codes) rest -> case field-at logical (instance-fields owner) of
+      Some field -> if strict-value-field w owner field then dictionary-fields definitions owner classes context locals pointer rest w else
+        let d = dictionary-field-definition field in
+        (case copy-givens context locals w of
+          (copied, values) -> case function-call definitions locals copied (Span 0 0 1 1) d (classes <> own-codes) values Nil of
+            (ready, value) -> let stored = store-one ready pointer (1 + physical) value in
+              dictionary-fields definitions owner classes context locals pointer rest stored)
+      None -> refuse w (Span 0 0 1 1) "planned dictionary slot has no actual instance method"
   store-one :: Writer -> String -> Nat -> String -> Writer
   store-one w pointer index value = let (ready, slot) = fresh w "%ptr" in
     line (line ready (cat ["  ", slot, " = getelementptr i64, ptr ", pointer, ", i64 ", nat-to-string index])) (cat ["  store i64 ", value, ", ptr ", slot])
@@ -775,24 +874,30 @@ module Bootstrap.RuntimeIr where
   zeros count = if count == 0 then Nil else Cons "0" (zeros (count - 1))
   dictionary-worker :: List CoreDefinition -> String -> List Nat -> Writer -> Writer
   dictionary-worker definitions name classes w = case instance-named name (program-instances (writer-program w)) of
-    Some factory -> case class-bindings (scheme-params (instance-scheme factory)) classes of
+    Some factory -> case class-owner (scheme-body (instance-scheme factory)) of
+      Some owner -> (case find-class owner (program-classes (writer-program w)) of
+        Some description -> dictionary-worker-planned definitions factory classes (class-method-slots w description) w
+        None -> refuse w (Span 0 0 1 1) "dictionary has no checked declaring class")
+      None -> refuse w (Span 0 0 1 1) "dictionary target has no declaring class identity"
+    None -> refuse w (Span 0 0 1 1) "factory has no checked source implementation"
+  dictionary-worker-planned :: List CoreDefinition -> CoreInstance -> List Nat -> List MethodSlot -> Writer -> Writer
+  dictionary-worker-planned definitions factory classes plans w = case class-bindings (scheme-params (instance-scheme factory)) classes of
       Some bounds ->
         let scoped = with-representations bounds Nil w in
         let context = factory-bindings (scheme-requirements (instance-scheme factory)) 0 in
-        case dictionary-map factory (instance-fields factory) scoped of
+        case dictionary-map factory plans scoped of
           Some fields -> case request-object-shape (Span 0 0 1 1) (Cons 0 fields) scoped of
             (planned, descriptor) ->
-              let started = line (line planned (cat ["define i64 ", symbol-for-dictionary name classes, "(", join (argument-words (value-parameters (list-length context) 0)), ") {"])) "entry:" in
+              let started = line (line planned (cat ["define i64 ", symbol-for-dictionary (instance-name factory) classes, "(", join (argument-words (value-parameters (list-length context) 0)), ") {"])) "entry:" in
               let (one, pointer) = fresh started "%ptr" in
               let allocated = line one (cat ["  ", pointer, " = call ptr @cinch_alloc_shaped(i64 ", nat-to-string (8 * (1 + list-length fields)), ", i64 3, i64 ", nat-to-string descriptor, ")"]) in
               let initialized = store-fields allocated pointer 0 (Cons (nat-to-string (list-length fields)) (zeros (list-length fields))) in
               case initialize-values definitions factory classes context (given-bindings context 0) pointer (strict-fields initialized factory (instance-fields factory)) initialized of
-                (values, locals) -> let filled = dictionary-fields definitions factory classes context locals pointer (instance-fields factory) values in
+                (values, locals) -> let filled = dictionary-fields definitions factory classes context locals pointer plans values in
                   let (done, result) = fresh (drop-locals (given-roots context 0) filled) "%v" in
                   line (line (line done (cat ["  ", result, " = ptrtoint ptr ", pointer, " to i64"])) (cat ["  ret i64 ", result])) "}"
           None -> refuse scoped (Span 0 0 1 1) "dictionary field has no runtime representation"
       None -> refuse w (Span 0 0 1 1) "factory factory needs first-order or erased parameters"
-    None -> refuse w (Span 0 0 1 1) "factory factory has no checked source implementation"
   pattern-binds :: Nat -> CorePattern -> Bool
   pattern-binds id pattern = case pattern of
     CPVar sp ty key name -> id == key
@@ -1255,16 +1360,26 @@ module Bootstrap.RuntimeIr where
         UPi id name domain row result -> named domain "Unit" && named result "Int"
         other -> False) in
       if valid then (if list-length (definition-parameters d) == 1 then Some 1 else if list-length (definition-parameters d) == 0 then Some 2 else None) else None
+  empty-writer :: ProgramInfo -> Writer
+  empty-writer info = Writer 0 builder-new builder-new Nil (LayoutPlan 0 Nil Nil Nil) (RuntimeContext info Nil Nil Nil Nil)
+  -- Reached method vectors grow monotonically in a finite Raw/Obj/TObj
+  -- space. Plan to a fixed point before emitting dictionary layouts, so
+  -- every instance and every indirect projection uses one class slot table.
+  plan-method-versions :: List CoreDefinition -> ProgramInfo -> ProgramInfo
+  plan-method-versions definitions info =
+    let planned = writer-program (workers definitions (demand-worker "main" Nil (empty-writer info))) in
+    if list-length (program-versions planned) == list-length (program-versions info) then planned else plan-method-versions definitions planned
   emit-runtime-program :: CheckedProgram -> Result (List Diagnostic) String
   emit-runtime-program checked =
     let typed = checked-elaboration checked in
     let definitions = elaboration-core typed <> instance-definitions (elaboration-instances typed) in
     let datas = elaboration-data typed in
-    let initial = Writer 0 builder-new builder-new Nil (LayoutPlan 0 Nil Nil Nil) (RuntimeContext (ProgramInfo datas (elaboration-classes typed) (elaboration-instances typed) (elaboration-bindings typed)) Nil Nil Nil Nil) in
+    let info = ProgramInfo datas (elaboration-classes typed) (elaboration-instances typed) (elaboration-bindings typed) Nil in
     case definition "main" definitions of
       None -> Err [MkDiagnostic "bootstrap.runtime-ir" (Span 0 0 1 1) "runtime entry has no main definition"]
       Some d -> case entry-mode d of
         None -> Err [MkDiagnostic "bootstrap.runtime-ir" (Span 0 0 1 1) "runtime entry must be main :: Int or Unit ->{IO} Int without external evidence"]
-        Some mode -> case workers definitions (demand-worker "main" Nil initial) of
-          Writer next globals code Nil layouts datas -> Ok (cat [declarations, builder-run globals, layout-table layouts, apply-entry, builder-run code, entry mode])
-          Writer next globals code errors layouts datas -> Err errors
+        Some mode -> let initial = empty-writer (plan-method-versions definitions info) in
+          case workers definitions (demand-worker "main" Nil initial) of
+            Writer next globals code Nil layouts datas -> Ok (cat [declarations, builder-run globals, layout-table layouts, apply-entry, builder-run code, entry mode])
+            Writer next globals code errors layouts datas -> Err errors
