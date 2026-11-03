@@ -11,9 +11,72 @@ fn typed_runtime_numbers_preserve_exact_values_and_reclaim_owned_words() {
         ("Bootstrap.Resolve.cinch", include_str!("../../bootstrap/Bootstrap.Resolve.cinch")),
         ("Bootstrap.Contracts.cinch", include_str!("../../bootstrap/Bootstrap.Contracts.cinch")),
         ("Bootstrap.Load.cinch", include_str!("../../bootstrap/Bootstrap.Load.cinch")),
+        ("Bootstrap.Inputs.cinch", include_str!("../../bootstrap/Bootstrap.Inputs.cinch")),
         ("Bootstrap.Interface.cinch", include_str!("../../bootstrap/Bootstrap.Interface.cinch")),
         ("Main.cinch", include_str!("../../bootstrap/programs/Run.RuntimeIr.cinch")),
     ]);
+    let producer = common::project("runtime_classes", &[
+        ("RuntimeClasses.cinch", r#"module RuntimeClasses where
+  export Choose, choose, Ordered, z-first, a-last, Value, value, Echo, echo, Ops, first, second, Maker, bump, make, Use, use, Shared, duplicate, stored, observe, escape-value
+  signature Choose a where
+    choose :: a -> Int
+  signature Ordered a where
+    z-first :: a -> a
+    a-last :: a -> a
+  signature Value a where
+    value :: a
+  signature Echo a where
+    echo :: a -> a
+  signature Ops a where
+    first :: a -> a
+    second :: a -> a
+  signature Maker a where
+    bump :: a -> a
+    make :: a -> a -> a
+  signature Use a where
+    use :: using (extra :: Echo Int) => a -> Int
+  signature Shared a where
+    duplicate :: a
+    stored :: a
+    observe :: Unit -> a
+    escape-value :: Unit -> Unit -> a
+"#),
+        ("Main.cinch", "module Main where\n  import RuntimeClasses\n  main :: Int\n  main = 0\n"),
+    ]);
+    // These are kernel/backend tests: produce genuine checked class
+    // contracts against an empty Prelude, keeping executable base methods
+    // outside this fixture's scope. The full bootstrap uses the real base.
+    let prelude_source = "module Prelude where\n";
+    let class_source = std::fs::read_to_string(producer.join("RuntimeClasses.cinch")).unwrap();
+    let main_source = std::fs::read_to_string(producer.join("Main.cinch")).unwrap();
+    let fixities = Default::default();
+    let tables = std::collections::HashMap::new();
+    let prelude = cinch::driver::parse_source(prelude_source, "Prelude.cinch", &fixities, &tables).unwrap();
+    let classes = cinch::driver::parse_source(&class_source, "RuntimeClasses.cinch", &fixities, &tables).unwrap();
+    let entry = cinch::driver::parse_source(&main_source, "Main.cinch", &fixities, &tables).unwrap();
+    let modules = [classes.modules, entry.modules].concat();
+    let hashes = [("Prelude".into(), cinch::interface::content_hash(prelude_source)),
+        ("RuntimeClasses".into(), cinch::interface::content_hash(&class_source)),
+        ("Main".into(), cinch::interface::content_hash(&main_source))].into_iter().collect();
+    let (_, checked_interfaces, _, _) = cinch::check::check_program_multi_full(
+        &prelude.modules, &modules, &hashes, &cinch::check::StagingCx::default(), &[], &cinch::core::TargetProfile::native(),
+    ).expect("produce the actual declaring class contracts");
+    std::fs::create_dir_all(producer.join("build")).unwrap();
+    for interface in checked_interfaces {
+        std::fs::write(producer.join(format!("build/{}.cinchif", interface.module)), interface.to_json()).unwrap();
+    }
+    let mut interfaces = Vec::new();
+    for entry in std::fs::read_dir(producer.join("build")).unwrap() {
+        let path = entry.unwrap().path();
+        if path.extension().is_some_and(|s| s == "cinchif") {
+            let interface = cinch::interface::Iface::from_json(&std::fs::read_to_string(&path).unwrap()).unwrap();
+            if interface.module != "Main" {
+                interfaces.push(format!("[{},{},{}]", quote(&interface.module), quote(&interface.iface_hash()), quote(&path.display().to_string())));
+            }
+        }
+    }
+    interfaces.sort();
+    std::fs::write(dir.join("interfaces.json"), format!("{{\"schema\":1,\"interfaces\":[{}]}}", interfaces.join(","))).unwrap();
     let compiler = common::build(&dir, "Main.cinch", "runtime-ir").expect("build the Cinch runtime emitter");
     let runtime = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("runtime/target/debug/libcinchruntime.a");
     assert!(runtime.is_file(), "the Native-built emitter must have built its shared runtime");
@@ -71,12 +134,38 @@ fn typed_runtime_numbers_preserve_exact_values_and_reclaim_owned_words() {
         ("generic-object-capture", "  data Box where\n    Box :: Int -> Box\n  constant :: forall a b. a -> b -> a\n  constant x = \\y -> x\n  main :: Int\n  main = case constant (Box 18446744073709551616) False of Box x -> if x == 18446744073709551616 then 229 else 1\n", 229),
         ("lambda-tuple-pattern", "  run :: (Int, Int) -> Int\n  run = \\(x, y) -> x + y\n  main :: Int\n  main = if run (18446744073709551616, 2) == 18446744073709551618 then 231 else 1\n", 231),
         ("function-captures", "  compose :: (Int -> Int) -> (Int -> Int) -> Int -> Int\n  compose f g = \\x -> f (g x)\n  bump :: Int -> Int\n  bump x = x + 1\n  main :: Int\n  main = if compose bump bump 18446744073709551616 == 18446744073709551618 then 233 else 1\n", 233),
+        ("selected-dictionary", "  import RuntimeClasses\n  instance First :: Choose Int where\n    choose x = x + 1\n  instance Second :: Choose Int where\n    choose x = x + 2\n  run :: using (chosen :: Choose Int) => Int -> Int\n  run x = choose x\n  main :: Int\n  main = if (with (d = First) in run 18446744073709551616) == 18446744073709551617 && (with (d = Second) in run 18446744073709551616) == 18446744073709551618 then 101 else 1\n", 101),
+        ("dictionary-slot-order", "  import RuntimeClasses\n  implicit instance OpsInt :: Ordered Int where\n    a-last x = x + 2\n    z-first x = x + 1\n  main :: Int\n  main = if z-first 18446744073709551616 == 18446744073709551617 && a-last 18446744073709551616 == 18446744073709551618 then 103 else 1\n", 103),
+        ("dictionary-value", "  import RuntimeClasses\n  implicit instance Big :: Value Int where\n    value = 340282366920938463463374607431768211456\n  main :: Int\n  main = if value == 340282366920938463463374607431768211456 then 107 else 1\n", 107),
+        ("dictionary-object-value", "  import RuntimeClasses\n  data Box where\n    Box :: Int -> Box\n  implicit instance Big :: Value Box where\n    value = Box 18446744073709551616\n  main :: Int\n  main = case (value :: Box) of Box x -> if x == 18446744073709551616 then 109 else 1\n", 109),
+        ("dictionary-factory-context", "  import RuntimeClasses\n  data Box a where\n    Box :: a -> Box a\n  implicit instance EchoInt :: Echo Int where\n    echo x = x + 1\n  implicit instance EchoBox a :: using (element :: Echo a) => Echo (Box a) where\n    echo xs = case xs of Box x -> Box (echo x)\n  main :: Int\n  main = case echo (Box 18446744073709551616) of Box x -> if x == 18446744073709551617 then 113 else 1\n", 113),
+        ("dictionary-self-method", "  import RuntimeClasses\n  implicit instance OpsInt :: Ops Int where\n    first x = second x\n    second x = x + 1\n  main :: Int\n  main = if first 18446744073709551616 == 18446744073709551617 then 127 else 1\n", 127),
+        ("dictionary-self-escaping", "  import RuntimeClasses\n  implicit instance OpsInt :: Maker Int where\n    bump x = x + 1\n    make x = \\y -> bump (x + y)\n  main :: Int\n  main = let f = make 18446744073709551616 in if f 2 == 18446744073709551619 && f 3 == 18446744073709551620 then 131 else 1\n", 131),
+        ("dictionary-evidence-capture", "  import RuntimeClasses\n  implicit instance EchoInt :: Echo Int where\n    echo x = x + 1\n  maker :: using (e :: Echo Int) => Int -> Int -> Int\n  maker x = \\y -> echo (x + y)\n  main :: Int\n  main = let f = maker 18446744073709551616 in if f 2 == 18446744073709551619 && f 3 == 18446744073709551620 then 137 else 1\n", 137),
+        ("dictionary-extra-evidence", "  import RuntimeClasses\n  implicit instance EchoInt :: Echo Int where\n    echo x = x + 1\n  implicit instance UseInt :: Use Int where\n    use x = echo x\n  main :: Int\n  main = if use 18446744073709551616 == 18446744073709551617 then 139 else 1\n", 139),
+        ("dictionary-raw-value", "  import RuntimeClasses\n  implicit instance Flag :: Value Bool where\n    value = True\n  main :: Int\n  main = if value then 149 else 1\n", 149),
+        ("dictionary-shared-evidence", "  import RuntimeClasses\n  instance EchoInt :: Echo Int where\n    echo x = x + 1\n  run :: using (e :: Echo Int) => Int -> Int\n  run x = echo x + echo x\n  main :: Int\n  main = with (e = EchoInt) in if run 18446744073709551616 == 36893488147419103234 then 151 else 1\n", 151),
+        ("erased-region-identity", "  identity :: forall r a. Io r -> a -> a\n  identity token x = x\n  main :: Int\n  main = if identity (newIO ()) 18446744073709551616 == 18446744073709551616 then 157 else 1\n", 157),
+        ("io-unit-entry", "  main :: Unit ->{IO r} Int\n  main unit = with (io = newIO ()) in 163\n", 163),
+        ("io-cancellation", "  main :: Unit ->{IO r, Cancel r} Int\n  main unit = with (io = newIO ()) in case ioSleep 0 of\n    _ -> if pollCancel () then 1 else 167\n", 167),
+        ("io-evidence-capture", "  make :: forall r. using (io :: Io r) => Nat -> Unit ->{IO r, Cancel r} Int\n  make n = \\u -> case ioSleep n of _ -> if pollCancel () then 1 else 173\n  main :: Unit ->{IO r, Cancel r} Int\n  main unit = with (io = newIO ()) in let f = make 0 in f ()\n", 173),
+        ("io-observable-bytes", "  foreign import ccall \"cinch.runtime.bytesNew\" allocate :: Nat -> Bytes\n  main :: Unit ->{IO r} Int\n  main unit = with (io = newIO ()) in let buffer = allocate 2 in case ioWrite buffer of\n    _ -> case ioWrite buffer of _ -> 179\n", 179),
     ];
-    for (name, body, expected) in cases {
-        std::fs::write(dir.join("input.source"), format!("module Main where\n{body}")).unwrap();
-        let output = Command::new(&compiler).current_dir(&dir).output().unwrap();
-        assert_eq!(output.status.code(), Some(0), "{name}: {} {}", common::read_output(&dir, "output.diagnostics"), String::from_utf8_lossy(&output.stderr));
-        let ir = common::read_output(&dir, "output.ll");
+    for (index, (_, body, _)) in cases.iter().enumerate() {
+        std::fs::write(dir.join(format!("input-{index}.source")), format!("module Main where\n{body}")).unwrap();
+    }
+    std::fs::write(dir.join(format!("input-{}.source", cases.len())), "module Main where\n  import RuntimeClasses\n  data Box where\n    Box :: Int -> Box\n  instance RawValue :: Value Bool where\n    value = True\n  instance TaggedValue :: Value Int where\n    value = 340282366920938463463374607431768211456\n  instance ObjectValue :: Value Box where\n    value = Box 18446744073709551616\n  instance FunctionValue :: Value (Int -> Int) where\n    value = let n = 18446744073709551616 in \\x -> x + n\n  getRaw :: Value Bool\n  getRaw = RawValue\n  getTagged :: Value Int\n  getTagged = TaggedValue\n  getObject :: Value Box\n  getObject = ObjectValue\n  getFunction :: Value (Int -> Int)\n  getFunction = FunctionValue\n  instance SharedBox :: Shared Box where\n    duplicate = stored\n    stored = Box 18446744073709551616\n    observe u = stored\n    escape-value u = \\v -> observe v\n  getShared :: Shared Box\n  getShared = SharedBox\n  main :: Int\n  main = case (getRaw, getTagged, getObject, getFunction, getShared) of _ -> 0\n").unwrap();
+    std::fs::write(dir.join("batch.count"), vec![b'x'; cases.len() + 1]).unwrap();
+    let output = Command::new(&compiler).current_dir(&dir).output().unwrap();
+    assert_eq!(output.status.code(), Some(0), "batch input/output: {}", String::from_utf8_lossy(&output.stderr));
+    std::fs::remove_file(dir.join("batch.count")).unwrap();
+    // Following ABI/refusal probes need no class interfaces.
+    std::fs::write(dir.join("interfaces.json"), "{\"schema\":1,\"interfaces\":[]}").unwrap();
+    for (index, (name, _, expected)) in cases.into_iter().enumerate() {
+        assert_eq!(common::read_output(&dir, &format!("output-{index}.status")), "0", "{name}: {}", common::read_output(&dir, &format!("output-{index}.diagnostics")));
+        assert!(common::read_output(&dir, &format!("output-{index}.diagnostics")).is_empty());
+        let ir = common::read_output(&dir, &format!("output-{index}.ll"));
+        std::fs::write(dir.join("output.ll"), &ir).unwrap();
         let identity_worker = |line: &&str| line.starts_with("define i64 ") && line.contains("105_100_101_110_116_105_116_121_") && line.contains(".r");
         if name == "generic-identity-classes" {
             assert_eq!(ir.lines().filter(identity_worker).count(), 3, "one worker per reached Raw/Obj/TObj class");
@@ -98,11 +187,86 @@ fn typed_runtime_numbers_preserve_exact_values_and_reclaim_owned_words() {
         assert!(output.status.success(), "{name}: {}", String::from_utf8_lossy(&output.stderr));
         let output = Command::new(&exe).env("CINCH_RC_DEBUG", "1").env("CINCH_LEAK_CHECK", "1").env("CINCH_HEAP_LIMIT", "32M").output().unwrap();
         assert_eq!(output.status.code(), Some(expected), "{name}: {}", String::from_utf8_lossy(&output.stderr));
+        if name == "io-observable-bytes" {
+            assert_eq!(output.stdout, vec![0u8; 4], "IO writes must reach stdout twice");
+        } else {
+            assert!(output.stdout.is_empty(), "unexpected stdout for {name}");
+        }
         let stderr = String::from_utf8_lossy(&output.stderr);
         let leak = stderr.lines().find(|line| line.starts_with("cinch-leak:")).expect("runtime leak report");
         assert!(leak.split_whitespace().any(|word| word == "leaked=0"), "{name}: {stderr}");
         println!("{name}: exit {expected}; {leak}");
     }
+    let dictionary_index = cases.len();
+    assert_eq!(common::read_output(&dir, &format!("output-{dictionary_index}.status")), "0", "dictionary ABI: {}", common::read_output(&dir, &format!("output-{dictionary_index}.diagnostics")));
+    let mut dictionary_ir = common::read_output(&dir, &format!("output-{dictionary_index}.ll"))
+        .replace("define i32 @main(i32 %argc, ptr %argv)", "define i32 @cinch_program_main(i32 %argc, ptr %argv)");
+    let encode = |name: &str| name.chars().map(|ch| format!("{}_", ch as u32)).collect::<String>();
+    for (source, bridge) in [("getRaw", "raw"), ("getTagged", "tagged"), ("getObject", "object"), ("getFunction", "function"), ("getShared", "shared")] {
+        let symbol = format!("cinch.typed.m.{}.{}", encode("Main"), encode(source));
+        dictionary_ir.push_str(&format!("\ndefine i64 @cinch_abi_{bridge}() {{\nentry:\n  %value = call i64 @\"{symbol}\"()\n  ret i64 %value\n}}\n"));
+    }
+    dictionary_ir.push_str("\ndefine i64 @cinch_abi_dict_shape(i64 %index) {\nentry:\n  %slot = getelementptr i64, ptr @cinch.typed.layouts, i64 %index\n  %value = load i64, ptr %slot\n  ret i64 %value\n}\n");
+    std::fs::write(dir.join("dictionaries.ll"), dictionary_ir).unwrap();
+    std::fs::write(dir.join("dictionaries.c"), r#"#include <stdint.h>
+extern uint64_t cinch_abi_raw(void), cinch_abi_tagged(void), cinch_abi_object(void), cinch_abi_function(void), cinch_abi_shared(void);
+extern uint64_t cinch_abi_dict_shape(uint64_t);
+extern void cinch_reclaim_enable(void), cinch_dup(uint64_t), cinch_drop(uint64_t);
+extern uint64_t cinch_int_from_decimal(const char *, uint64_t), __apply(uint64_t, uint64_t, uint64_t *);
+extern int64_t cinch_int_cmp(uint64_t, uint64_t), cinch_exit_check(int64_t);
+static int dictionary(uint64_t word, uint64_t map) {
+  uint64_t *p = (uint64_t *)(uintptr_t)word, h = p[-1];
+  return ((h >> 40) & 255) == 3 && p[0] == 1 && cinch_abi_dict_shape(h >> 48) == (UINT64_C(2) | map << 32);
+}
+int main(void) {
+  cinch_reclaim_enable();
+  uint64_t raw = cinch_abi_raw(), tagged = cinch_abi_tagged(), object = cinch_abi_object(), function = cinch_abi_function();
+  int good = dictionary(raw, 0) && dictionary(tagged, 8) && dictionary(object, 4) && dictionary(function, 4);
+  good = good && ((uint64_t *)(uintptr_t)raw)[1] == 1;
+  uint64_t expected = cinch_int_from_decimal("340282366920938463463374607431768211456", 39);
+  good = good && cinch_int_cmp(((uint64_t *)(uintptr_t)tagged)[1], expected) == 0;
+  cinch_drop(expected);
+  uint64_t box = ((uint64_t *)(uintptr_t)object)[1];
+  expected = cinch_int_from_decimal("18446744073709551616", 20);
+  good = good && cinch_int_cmp(((uint64_t *)(uintptr_t)box)[0], expected) == 0;
+  cinch_drop(expected);
+  uint64_t f = ((uint64_t *)(uintptr_t)function)[1];
+  good = good && ((((uint64_t *)(uintptr_t)f)[-1] >> 40) & 255) == 2;
+  cinch_dup(f);
+  uint64_t arg = cinch_int_from_decimal("2", 1), result = __apply(f, 1, &arg);
+  expected = cinch_int_from_decimal("18446744073709551618", 20);
+  good = good && cinch_int_cmp(result, expected) == 0;
+  cinch_drop(result); cinch_drop(expected);
+  cinch_drop(raw); cinch_drop(tagged); cinch_drop(object); cinch_drop(function);
+  uint64_t shared = cinch_abi_shared(), *p = (uint64_t *)(uintptr_t)shared;
+  uint64_t header = p[-1], shared_box = p[1];
+  good = good && ((header >> 40) & 255) == 3 && p[0] == 4
+    && cinch_abi_dict_shape(header >> 48) == (UINT64_C(5) | UINT64_C(340) << 32)
+    && p[1] == p[2];
+  uint64_t unit = 0, observer = p[3];
+  cinch_dup(observer);
+  uint64_t observed = __apply(observer, 1, &unit);
+  good = good && observed == shared_box;
+  cinch_drop(observed);
+  uint64_t maker = p[4];
+  cinch_dup(maker);
+  uint64_t escaped = __apply(maker, 1, &unit);
+  cinch_drop(shared);
+  observed = __apply(escaped, 1, &unit);
+  expected = cinch_int_from_decimal("18446744073709551616", 20);
+  good = good && observed == shared_box
+    && cinch_int_cmp(((uint64_t *)(uintptr_t)observed)[0], expected) == 0;
+  cinch_drop(observed); cinch_drop(expected);
+  return (int)cinch_exit_check(good ? 0 : 239);
+}
+"#).unwrap();
+    let output = Command::new(std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into()))
+        .arg(dir.join("dictionaries.ll")).arg(dir.join("dictionaries.c")).arg(&runtime).args(["-lpthread", "-ldl", "-lm", "-o"]).arg(dir.join("dictionary-abi")).output().unwrap();
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    let output = Command::new(dir.join("dictionary-abi")).env("CINCH_LEAK_CHECK", "1").env("CINCH_RC_DEBUG", "1").env("CINCH_HEAP_LIMIT", "32M").output().unwrap();
+    assert_eq!(output.status.code(), Some(0), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(String::from_utf8_lossy(&output.stderr).split_whitespace().any(|word| word == "leaked=0"));
+    println!("C dictionary ABI: kind3, exact count/maps for Raw/TObj/Obj/closure values; {}", String::from_utf8_lossy(&output.stderr).trim());
     // Verify the physical ABI through C, including the anonymous tuple's
     // tag0 when its map matches a named tag1 constructor's map.
     std::fs::write(dir.join("input.source"), "module Main where\n  data D where\n    A :: Int -> D\n    B :: D -> D -> D\n  makePair :: (D, D)\n  makePair = let leaf = A 18446744073709551616 in let node = B leaf leaf in (node, leaf)\n  data Wrap a where\n    Wrap :: a -> Wrap a\n  makeGeneric :: (Wrap Bool, Wrap Int, Wrap D)\n  makeGeneric = let leaf = A 18446744073709551616 in (Wrap True, Wrap 340282366920938463463374607431768211456, Wrap leaf)\n  main :: Int\n  main = case (makePair, makeGeneric) of _ -> 0\n").unwrap();
@@ -175,5 +339,18 @@ int main(void) {
     assert_eq!(output.status.code(), Some(5), "{}", String::from_utf8_lossy(&output.stderr));
     assert!(common::read_output(&dir, "output.diagnostics").contains("extended"));
     assert!(common::read_output(&dir, "output.ll").is_empty());
+    common::cleanup(&producer);
     common::cleanup(&dir);
+}
+
+fn quote(value: &str) -> String {
+    let mut out = String::from("\"");
+    for c in value.chars() {
+        match c {
+            '\"' => out.push_str("\\\""), '\\' => out.push_str("\\\\"),
+            c if c <= '\u{1f}' => out.push_str(&format!("\\u{:04x}", c as u32)),
+            c => out.push(c),
+        }
+    }
+    out.push('\"'); out
 }

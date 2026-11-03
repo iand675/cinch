@@ -1,5 +1,24 @@
 # Next steps (as of 2026-11-03)
 
+## Cinch dictionary and IO checkpoint
+The typed Cinch backend now executes dictionary values, factory contexts,
+self-method dispatch, escaped evidence and strict values shared between fields
+and escaping closures. The physical ABI probe checks actual dictionary slot
+order, Raw/Obj/TObj maps, shared Box pointers and lifetimes after dictionary
+destruction. Erased region parameters and Unit IO entries execute; sleep,
+cancellation and observable byte writes use the shared runtime. All67 executable
+programs report zero leaks. Cinch accepts all25 backend source modules with zero
+diagnostics; the real CLI,27 tooling checks and six fresh stage0/1 smokes pass.
+Instance search now chooses matching heads before solving their contexts,
+avoiding exponential work while retaining ambiguity and numeric defaulting rules.
+The genuine full-source Stage2 attempt accepts the compiler frontend, then
+refuses executable base/library implementations and imported layouts. Its IR is
+empty and no Stage2 compiler exists; diagnostics do not count remaining features.
+Private String representation, complete current suites/correctness gates and the
+Stage2/3 fixed point remain required. The pinned seed stays unchanged. See
+[the dictionary/IO evidence](../bootstrap/runtime-dictionary-results.json).
+
+
 ## Rust strict dictionary value checkpoint
 The Rust compiler now initializes strict dictionary fields once in dependency
 order. Self projections use the initialized value, and methods and escaped

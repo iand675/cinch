@@ -214,24 +214,35 @@ module Bootstrap.Dictionary where
           if not (clean trial && valid-goal (resolution-classes context) (normalize trial head) && instance-parameters-scoped (instance-types pairs trial) wanted trial) then more
           else case instance-arguments (descend-resolution context) allowed sp (map-requirements (normalize trial) requirements) trial of
             (args, done) -> if clean done then Cons (CEInstance sp (normalize done wanted) name (instance-types pairs done) args, done) more else more
-  choose-instance :: Resolution -> List CoreGiven -> Span -> UType -> Store -> (CoreEvidence, Store)
+  matching-heads :: Resolution -> Span -> UType -> List (String, Scheme) -> Store -> List (String, Scheme)
+  matching-heads context sp wanted instances st = case instances of
+    Nil -> Nil
+    Cons (name, sc) rest -> let more = matching-heads context sp wanted rest st in
+      case open-qualified False sc st of
+        (head, requirements, pairs, opened) -> let trial = unify sp wanted head opened in
+          if clean trial && valid-goal (resolution-classes context) (normalize trial head) && instance-parameters-scoped (instance-types pairs trial) wanted trial then Cons (name, sc) more else more
   collection-default :: UType -> Store -> Store
   collection-default wanted st = case normalize st wanted of
     UApp (UApp (UCon name kind) container) element -> if same name (interface-global "Data.FromList.FromList") then (case container of
       UMeta id KType -> unify (Span 0 0 1 1) container (UApp (UCon (interface-global "Data.Core.List") (KFun KType KType)) element) st
       other -> st) else st
     other -> st
+  select-instance-head :: Resolution -> List CoreGiven -> Span -> UType -> List (String, Scheme) -> Store -> (CoreEvidence, Store)
+  select-instance-head context allowed sp wanted heads st = case heads of
+    Cons first Nil -> case instance-matches context allowed sp wanted heads st of
+      Cons (evidence, done) Nil -> (evidence, done)
+      other -> fail-evidence sp wanted (string-concat "dictionary instance resolution is required for " (type-text (normalize st wanted))) st
+    Nil -> fail-evidence sp wanted (string-concat "dictionary instance resolution is required for " (type-text (normalize st wanted))) st
+    other -> fail-evidence sp wanted "ambiguous implicit dictionary instances" st
+  choose-instance :: Resolution -> List CoreGiven -> Span -> UType -> Store -> (CoreEvidence, Store)
   choose-instance context allowed sp wanted st =
     if resolution-fuel context == 0 then fail-evidence sp wanted "dictionary instance resolution cycle or search depth exceeded" st
     else let defaulted = collection-default wanted st in
-      case instance-matches context allowed sp wanted (resolution-instances context) defaulted of
-        Cons (evidence, done) Nil -> (evidence, done)
-        Nil -> fail-evidence sp wanted (string-concat "dictionary instance resolution is required for " (type-text (normalize defaulted wanted))) defaulted
-        other -> let numeric = default-numbers-for wanted defaulted in
-          (case instance-matches context allowed sp wanted (resolution-instances context) numeric of
-            Cons (evidence, done) Nil -> (evidence, done)
-            Nil -> fail-evidence sp wanted (string-concat "dictionary instance resolution is required for " (type-text (normalize numeric wanted))) numeric
-            other -> fail-evidence sp wanted "ambiguous implicit dictionary instances" numeric)
+      let heads = matching-heads context sp wanted (resolution-instances context) defaulted in
+      case heads of
+        Cons first (Cons second rest) -> let numeric = default-numbers-for wanted defaulted in
+          select-instance-head context allowed sp wanted (matching-heads context sp wanted (resolution-instances context) numeric) numeric
+        other -> select-instance-head context allowed sp wanted heads defaulted
   instance-actuals :: Span -> List Quant -> List UType -> List (Nat, UType) -> Store -> (List (Nat, UType), Store)
   instance-actuals sp parameters actuals earlier st = case (parameters, actuals) of
     (Nil, Nil) -> (earlier, st)
