@@ -1,9 +1,9 @@
 {
-  "activity": "Final suite27: 80 of 208 groups passed, 4 running and 0 failed. Runtime171, tooling41 and syntax/editor39 already pass on this exact snapshot. Fresh final-source stage chain: 2 of 4 stages built and smoke-tested; combined fixed-point gate running-full-stage-chain.",
+  "activity": "Final suite27: 90 of 208 groups passed, 4 running and 0 failed. Runtime171, tooling41 and syntax/editor39 already pass on this exact snapshot. Fresh final-source stage chain: 2 of 4 stages built and smoke-tested; combined fixed-point gate running-full-stage-chain.",
   "blockers": [
     {
       "title": "Finish every final-source compiler test",
-      "detail": "80 of 208 groups have passed. A partial sweep does not establish the full suite. All final-source runtime, tooling and editor gates are already green."
+      "detail": "90 of 208 groups have passed. A partial sweep does not establish the full suite. All final-source runtime, tooling and editor gates are already green."
     },
     {
       "title": "Finish the fresh repaired-source bootstrap",
@@ -17,7 +17,7 @@
   "checks": [
     {
       "title": "Live final-source compiler sweep",
-      "detail": "80 of 208 complete target groups passed; 4 running and 0 failed. Every group includes ignored tests. Source snapshot c6260e01; code matches the published repairs.",
+      "detail": "90 of 208 complete target groups passed; 4 running and 0 failed. Every group includes ignored tests. Source snapshot c6260e01; code matches the published repairs.",
       "state": "running"
     },
     {
@@ -200,5 +200,5 @@
   ],
   "status": "Final-source verification running",
   "summary": "The fresh frozen-source Stage2 and Stage3 reach the full compiler/interface fixed point. Stage3 consumes its emitted compiler APIs, and Stage2 rebuilds changed compiler source correctly. Later fixity and Rust name-resolution repairs still need matching verification.",
-  "updatedAt": "2026-11-03T20:13:28.057288+00:00"
+  "updatedAt": "2026-11-03T20:15:50.485454+00:00"
 }
