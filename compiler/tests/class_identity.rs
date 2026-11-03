@@ -1,6 +1,20 @@
 mod common;
 
 #[test]
+fn a_local_data_type_can_shadow_a_legacy_signature_spelling() {
+    let dir = common::project("class_data_spelling", &[("Main.cinch", r#"module Main where
+  data Bits where
+    BitState :: Int -> Bits
+  unwrap :: Bits -> Int
+  unwrap state = case state of BitState value -> value
+  main :: Int
+  main = unwrap (BitState 37)
+"#)]);
+    assert_eq!(common::run(&dir, "Main.cinch"), 37);
+    common::cleanup(&dir);
+}
+
+#[test]
 fn distinct_declaring_classes_with_the_same_name_select_their_own_instances() {
     let dir = common::project("class_identity", &[("Main.cinch", r#"module A where
   signature Foo a where

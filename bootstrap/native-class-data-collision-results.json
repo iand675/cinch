@@ -1,0 +1,36 @@
+{
+  "schema": 1,
+  "status": "passed",
+  "source_sha256": "0e302a996f36f6279abeefbf8da8efac862a59b118a8e2dce801ccaa3b9e2823",
+  "source_unchanged": true,
+  "problem": "Local data type Bits was looked up as the legacy Algebra.Bits class, causing all four lib_zlib tests to fail.",
+  "repair": "Ordinary lexical data lookup precedes semantic signature-key fallback; qualified declaring-class identities retain their distinct registry lookup.",
+  "targets": [
+    {
+      "name": "class_identity",
+      "passed": 3,
+      "failed": 0
+    },
+    {
+      "name": "lib_zlib",
+      "passed": 4,
+      "failed": 0
+    },
+    {
+      "name": "params",
+      "passed": 7,
+      "failed": 0
+    }
+  ],
+  "original_failure": {
+    "target": "lib_zlib",
+    "failed": 4,
+    "source_sha256": "6c6644d69b3b32aa04992f6793de634278c07fe717bce59d1d0dc05d24cd3b69"
+  },
+  "files": {
+    "compiler/src/check.rs": "69291adc4b6a68648d16784c0431c34e62d3e60bf1f1ff30e2535d384392dd57",
+    "compiler/tests/class_identity.rs": "010191965a9351d2cd0780c4759f817cfeaf5a08a28e204da4b4697c7751ef21"
+  },
+  "test_log_sha256": "8f51460f34624b79cfc1e958357775dadb3f8b5bc71859f6e64e937e491497fd",
+  "scope": "Complete focused targets on the repaired frozen snapshot; full suite26 and newer complete bootstrap remain separate requirements."
+}

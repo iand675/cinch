@@ -55,6 +55,17 @@ has exposed a compression-library class-name collision; its original failure is
 retained. Those repairs require independent validation and a matching final
 bootstrap/test run before the full goal is complete.
 
+## Rust local data and class-name collision
+
+The complete frozen-source sweep exposed four compression-library failures:
+its private data type `Bits` was incorrectly looked up as the legacy
+`Algebra.Bits` signature. Ordinary lexical data lookup now precedes the semantic
+class-key fallback. Qualified declaring-class identities remain distinct.
+All three class-identity tests, four compression tests and seven module-parameter
+tests pass on the repair snapshot. See [focused evidence](../bootstrap/native-class-data-collision-results.json).
+The original full-sweep failure is retained; complete final-source verification
+belongs to the new sweep.
+
 ## Checked interface type printing
 
 `Bootstrap.ExportType` now prints portable checked schemes with definition-owned

@@ -1,15 +1,10 @@
 {
-  "activity": "The frozen-source test sweep has 130 of 208 groups passed, 1 failed and 3 running. Runtime, tooling and syntax gates pass. The sweep is handing two workers to targeted repair checks after their current tests finish.",
+  "activity": "The Rust class/data-name repair passes all 14 focused tests, including all four previously failing compression tests. The extended reexport-fixity check and actual Cinch rebuild are running. The complete repaired-source suite26 is compiling all runners.",
   "blockers": [
     {
       "detail": "The first fixity repair passes its focused checks. The extended case, where a separately compiled module forwards an imported operator, still needs validation through the real Cinch-built compiler.",
       "technical": "First repair source SHA256 5e8484ccfe7be2782134269a17d250df5d82c92f3aa6d1a151f97d5c07e7814f. Only defining modules may declare fixities; reexports carry admitted metadata.",
       "title": "Carry operator precedence through separate compilation"
-    },
-    {
-      "detail": "The full sweep found four compression-library failures: a local data type named Bits was mistaken for an imported class of the same name. A repair and regression case are prepared; their targeted checks are queued.",
-      "technical": "The original lib_zlib failure remains recorded. A passing repair run must be established independently before this blocker can close.",
-      "title": "Verify the Rust type-name repair"
     },
     {
       "detail": "The complete combined chain passed on the frozen snapshot, including its interfaces, actual entry consumer and changed-source behavior. Repeat this gate after the fixity and Rust name-resolution repairs are verified.",
@@ -23,6 +18,11 @@
     }
   ],
   "checks": [
+    {
+      "title": "Rust local data/class-name collision repaired",
+      "detail": "All 3 class-identity, 4 compression and 7 module-parameter tests pass. Local Bits data no longer becomes the Algebra.Bits signature; distinct defining class identities and wrong-evidence refusals still pass.",
+      "state": "passed"
+    },
     {
       "detail": "Frozen source 6c6644d: all four stages and their smokes pass. Stage2/Stage3 IR, executable and all 43 canonical interfaces match. Stage3 checks its actual entry from emitted APIs; Stage2 rebuilds changed source with the expected changed behavior. This precedes the two latest repairs.",
       "state": "passed",
@@ -119,7 +119,7 @@
       "title": "Direct proof reuse and complete builder checks pass"
     }
   ],
-  "commit": "7d55938ffcc636a97ace2f57ed161eb47c1877ab",
+  "commit": "a8e8ba514cc9313998e7d31190fe99dc5d777e77",
   "dashboardUrl": "https://cinch-bootstrap-status.ian92821.chatgpt.site",
   "estimate": 90,
   "estimateNote": "Rough engineering estimate. Remaining compiler bugs can change it; this is not a measured test pass rate.",
@@ -176,7 +176,7 @@
       "state": "passed"
     }
   ],
-  "status": "Combined bootstrap passed; final repairs and tests remain",
+  "status": "Bootstrap verified; Rust regression repaired",
   "summary": "The fresh frozen-source Stage2 and Stage3 reach the full compiler/interface fixed point. Stage3 consumes its emitted compiler APIs, and Stage2 rebuilds changed compiler source correctly. Later fixity and Rust name-resolution repairs still need matching verification.",
-  "updatedAt": "2026-11-03T19:34:19.147251+00:00"
+  "updatedAt": "2026-11-03T19:38:18.381227+00:00"
 }

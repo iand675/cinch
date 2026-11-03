@@ -5505,6 +5505,13 @@ impl Checker {
     }
 
     fn lookup_type_key(&self, name: &str) -> Result<TypeKind> {
+        // Ordinary data keys still use their lexical spelling. In
+        // particular a local `Bits` carrier must not become the legacy
+        // Algebra.Bits signature merely because that family is registered.
+        // Qualified semantic signature keys fall through to the registry.
+        if let Ok(kind) = self.lookup_type(&[name]) {
+            return Ok(kind);
+        }
         if let Some(signature) = self.class_sigs.get(name).and_then(|rows| rows.first()) {
             if let Some(kind) = self.qualified_types.get(&(signature.module.clone(), signature.name.clone())) {
                 return Ok(kind.clone());
