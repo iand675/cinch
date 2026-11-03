@@ -13,7 +13,9 @@ fn quote(s: &str) -> String {
 #[test]
 fn cinch_calls_actual_library_objects_with_checked_layout_authority() {
     let provider = common::project("object_library", &[("Library.cinch", r#"module Library where
-  export make-string, choose, identity, passthrough, Poly, keep, PolyInt
+  import Data.String (string-to-bytes)
+  import Data.Bytes (bytes-compare)
+  export make-string, choose, identity, passthrough, Poly, keep, PolyInt, decimal-bytes, decimal-ok
   make-string :: Unit -> String
   make-string unit = "library-owned string"
   choose :: Int -> Bool -> Int
@@ -26,6 +28,10 @@ fn cinch_calls_actual_library_objects_with_checked_layout_authority() {
     keep :: forall b. a -> b -> Unit -> b
   implicit instance PolyInt :: Poly Int where
     keep anchor value unit = value
+  decimal-bytes :: Bool -> Bytes
+  decimal-bytes negative = string-to-bytes (if negative then "-0e0" else "1.25e0")
+  decimal-ok :: Bool -> Bytes -> Bool
+  decimal-ok negative bytes = bytes-compare bytes (decimal-bytes negative) == 0
   secret :: Bool -> Bool
   secret value = value
 "#)]);
@@ -78,6 +84,9 @@ fn cinch_calls_actual_library_objects_with_checked_layout_authority() {
         ("char-pattern", "module Main where\n  main :: Int\n  main = case 'λ' of\n    'λ' -> 249\n    _ -> 1\n", 249),
         ("machine-pattern", "module Main where\n  echo :: U64 -> U64\n  echo n = n\n  main :: Int\n  main = case echo (18446744073709551615 :: U64) of\n    18446744073709551615 -> 251\n    _ -> 1\n", 251),
         ("string-pattern", "module Main where\n  import Library (make-string)\n  main :: Int\n  main = case make-string () of\n    \"different\" -> 1\n    \"library-owned string\" -> 253\n    _ -> 2\n", 253),
+        ("float-decimal", "module Main where\n  import Library (decimal-bytes, decimal-ok)\n  foreign import ccall \"cinch.runtime.textF64FromDecimal\" decode :: Bytes -> F64\n  foreign import ccall \"cinch.runtime.textF64ToDecimal\" encode :: F64 -> Bytes\n  main :: Int\n  main = if decimal-ok False (encode (decode (decimal-bytes False))) then 217 else 1\n", 217),
+        ("float-negative-zero", "module Main where\n  import Library (decimal-bytes, decimal-ok)\n  foreign import ccall \"cinch.runtime.textF64FromDecimal\" decode :: Bytes -> F64\n  foreign import ccall \"cinch.runtime.textF64ToDecimal\" encode :: F64 -> Bytes\n  main :: Int\n  main = if decimal-ok True (encode (decode (decimal-bytes True))) then 219 else 1\n", 219),
+        ("float-first-class", "module Main where\n  import Library (decimal-bytes, decimal-ok)\n  foreign import ccall \"cinch.runtime.textF64FromDecimal\" decode :: Bytes -> F64\n  foreign import ccall \"cinch.runtime.textF64ToDecimal\" encode :: F64 -> Bytes\n  apply :: forall a b. (a -> b) -> a -> b\n  apply f value = f value\n  main :: Int\n  main = if decimal-ok False (apply encode (apply decode (decimal-bytes False))) then 221 else 1\n", 221),
         ("returned-function", "module Main where\n  import Library (identity)\n  import Data.Bool (not)\n  main :: Int\n  main = if identity not False then 237 else 1\n", 237),
     ];
     for (i, (_, source, _)) in cases.iter().enumerate() { std::fs::write(dir.join(format!("input-{i}.source")), source).unwrap(); }
