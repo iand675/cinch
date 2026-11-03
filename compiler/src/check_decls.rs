@@ -6383,14 +6383,9 @@ impl Checker {
                 }
             }
         }
-        if n_pats > 0
-            && matches!(self.uni.zonk(&rest), Ty::Fun(_, _, _, _) | Ty::Pi { .. })
-        {
-            return Err(Error::at(
-                eqs[0].span,
-                format!("{name} has fewer parameters than its signature"),
-            ));
-        }
+        // Remaining arrows are the result type: an equation may return a
+        // closure just as a nullary equation already can. The body below
+        // checks against that exact type; unit arity is its actual patterns.
         let mut value_params = Vec::new();
         for _ in 0..n_pats {
             value_params.push(self.fresh_local());

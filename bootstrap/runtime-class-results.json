@@ -37,9 +37,40 @@
   "bootstrap_achieved": false,
   "class_specialization": "demand from main; key is exact definition identity plus Raw/Obj/TObj vector, never concrete types; separate scoped scheme-bound and opened-rigid class namespaces; claimed workers prevent recursive re-emission",
   "genuine_stage2": {
+    "categories": {
+      "declarations need shared runtime layout and dictionary lowering": 1,
+      "definition needs first-order runtime representation specialization": 1,
+      "runtime entry must be main :": 1
+    },
     "compiler_executable_verified": false,
+    "compiler_exists": false,
+    "diagnostic_count_scope": "demand traversal stops at unsupported main; three diagnostics do not imply only three missing features",
+    "diagnostics": 3,
     "evidence_directory": "/tmp/cinch-runtime-classes-stages-2",
-    "status": "continuation queued/running at publication; uses unchanged compiler sources from frozen2 and corrected Rust fixture gates"
+    "exit_code": 5,
+    "first_diagnostics": [
+      "bootstrap.runtime-ir:18763:3: definition needs first-order runtime representation specialization",
+      "bootstrap.runtime-ir:1:1: runtime entry must be main :: Int",
+      "bootstrap.runtime-ir:1:1: declarations need shared runtime layout and dictionary lowering"
+    ],
+    "frontend_diagnostics": 0,
+    "inputs": {
+      "builder_sha256": "b0228c6ad1000a9c5d0d242a98456b9fd04d46868fdeef23ebeb514410f9d9f6",
+      "built_by_stage": 1,
+      "frontend_mode": "typed-ir",
+      "host": {
+        "machine": "arm64",
+        "system": "Darwin"
+      },
+      "interface_set_sha256": "8bc50dadafb3539b126279ae274947b88b40a92588f3a7a593b487b9706e346f",
+      "protocol": 3,
+      "runtime_archive_sha256": "4215d4acd411231d7c0cc0a85a664a411fbf29d0250efe09ca51d202a372955a",
+      "source_sha256": "bc8e7b1a0b7cbc819b216b9155dd1a523aff772df6f714f9d3ced4292ca40351"
+    },
+    "ir_bytes": 0,
+    "source_equivalence": "compiler Cinch inputs identical to published snapshot; only two corrected Rust fixtures differ",
+    "source_sha256": "780be135a821e18825d5d2c2bc58a7de0e8e304bc75712f0333696b48fb8237f",
+    "status": "full source accepted; typed emission refuses IO/erased-parameter/dictionary boundary"
   },
   "guard_coverage": "only literal builtin True counts as an unguarded row per specification16; False/computed-True and missing constructor still refuse; actual CLI binary149 and leak checks pass",
   "higher_kind_refusal": [

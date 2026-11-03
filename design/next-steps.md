@@ -1,14 +1,24 @@
 # Next steps (as of 2026-11-03)
 
+The development Rust checker now accepts equations returning functions and
+structural lambda patterns through ordinary result checking and the existing
+exhaustive pattern compiler. All18 new executable examples report zero leaks;
+four invalid cases stay rejected. The142 unit,21 ownership,18 reclamation and17
+surface tests pass. This leaves the pinned stage0 unchanged. See
+[the Rust closure checker repair](../bootstrap/native-closure-check-results.json).
+
+## Current Cinch backend checkpoint
 The typed backend now shares polymorphic workers by Raw/Obj/TObj class vectors
 and specializes regular source data layouts by those vectors. All33 executable
 programs pass with zero leaks. Actual worker-count checks prove sharing across
 Int/Nat and distinct heap types, and finite type-growing recursion; a C probe
 checks the real generic field maps. The complete inference and emission CLI gates
 pass, including delayed numeric equality and literal-True guard coverage repairs.
-Fresh27 tooling and six stage0/1 checks pass. The genuine Stage2 continuation
-uses the same compiler sources and is queued/running; no Stage2 compiler or
-Stage3 fixed point is claimed. Closures, partial calls, dictionaries, effects,
+Fresh27 tooling and six stage0/1 checks pass. The genuine Stage2 attempt accepts
+the complete updated compiler source, then refuses the IO entry, erased parameters
+and dictionary/effect boundary. Its IR is empty and no Stage2 compiler exists.
+Demand traversal stops at that entry; the three diagnostics are not a count of
+remaining features. Closures, partial calls, dictionaries, effects,
 executable base implementations, higher/dependent representations and complete
 correctness/current-suite gates remain required. See
 [the class-specialization checkpoint](../bootstrap/runtime-class-results.json).

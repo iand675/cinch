@@ -5355,7 +5355,11 @@ impl Checker {
             ast::Term::Lam(pats, body, span) => (pats, body, *span),
             _ => unreachable!(),
         };
+        check_row_binders(pats)?;
         let mut env2 = env.clone();
+        let mut match_pats = Vec::new();
+        let mut match_cols = Vec::new();
+        let mut match_types = Vec::new();
         let mut params = Vec::new();
         let mut rest = expected.clone();
         let mut effs = Vec::new();
@@ -5415,10 +5419,13 @@ impl Checker {
                     self.register_obligation(l, "_", Some(mult), dom, p.span());
                 }
                 other => {
-                    return Err(Error::at(
-                        other.span(),
-                        "only variable and wildcard patterns are supported in lambdas in the bootstrap slice",
-                    ));
+                    if erased_dom {
+                        return Err(Error::at(other.span(), "an erased lambda parameter needs a variable or wildcard pattern"));
+                    }
+                    self.register_obligation(l, "a lambda pattern", Some(mult), dom.clone(), p.span());
+                    match_pats.push(self.expand_pat(other)?);
+                    match_cols.push(ECore::Var(l));
+                    match_types.push(dom);
                 }
             }
             // An erased parameter takes no runtime slot (core
@@ -5435,7 +5442,15 @@ impl Checker {
         // section 2).
         let saved = self.enter_perf();
         self.lam_depth += 1;
-        let bcore = self.check(&mut env2, body, &rest);
+        let bcore = if match_pats.is_empty() {
+            self.check(&mut env2, body, &rest)
+        } else {
+            self.compile_rows(
+                vec![Row { pats: match_pats, guard: None, body: body.as_ref().clone(), env: env2,
+                    idx: 0, consumed: Vec::new(), weight: None, guard_weight: None }],
+                match_cols, match_types, &rest, span, "a lambda argument combination",
+            )
+        };
         self.lam_depth -= 1;
         let bcore = bcore?;
         let performed = self.exit_perf(saved);
