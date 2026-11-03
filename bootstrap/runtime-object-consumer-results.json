@@ -105,6 +105,21 @@
       "source_sha256": "a47a65bb6d7bd92924c41224836ce5e7bf309c8220ef4c296c8db819c6899a85",
       "status": "passed"
     },
+    "native_broader17": {
+      "checks": 225,
+      "exit_code": 0,
+      "groups": [
+        "lib",
+        "arrays",
+        "ffi",
+        "intrinsic_objects",
+        "modules",
+        "ownership",
+        "reclamation"
+      ],
+      "source_unchanged": true,
+      "status": "passed"
+    },
     "object_consumer13": {
       "exit_code": 0,
       "source_unchanged": true,

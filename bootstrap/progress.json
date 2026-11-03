@@ -1,11 +1,11 @@
 {
   "schema": 1,
-  "updatedAt": "2026-11-03T11:10:12.689798+00:00",
+  "updatedAt": "2026-11-03T11:16:51.778357+00:00",
   "estimate": 80,
   "estimateNote": "Rough engineering estimate. Remaining compiler bugs can change it; this is not a measured test pass rate.",
   "status": "Verifying runtime linkage",
   "summary": "The fresh stage chain passes the full frontend. Decimal calls execute correctly. The Rust producer now exposes checked intrinsic aliases; the next full build verifies the requested bundle and conditional-method linkage.",
-  "activity": "Candidate 18 is building the full stage chain and checking conditional slot linkage. Candidate 17 stopped on a layout syntax error in the new path; that syntax is corrected. Broader Rust checks continue.",
+  "activity": "All 225 broader Rust checks passed. Candidate 18 Stage 1 built successfully; the updated library bundle and Stage 2 are next. Conditional-slot object tests and all-target compile checks are running.",
   "commit": "f5c2fef83b30101d6632edd37e0c3e2536f96060",
   "stages": [
     {
@@ -62,6 +62,11 @@
     {
       "title": "Intrinsic exports checked on ABI5 and ABI6",
       "detail": "Both producers now emit the requested public alias with exact parameter/result word classes. End-to-end and broader regressions are still running.",
+      "state": "passed"
+    },
+    {
+      "title": "225 broader Rust checks passed",
+      "detail": "Candidate 17: unit, arrays, FFI, intrinsic-object, module, ownership and reclamation groups all passed. This is a scoped regression run, not the complete current suite.",
       "state": "passed"
     }
   ],
