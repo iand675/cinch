@@ -1,12 +1,12 @@
 {
   "schema": 1,
-  "updatedAt": "2026-11-03T15:33:40.481480+00:00",
+  "updatedAt": "2026-11-03T15:45:20.008562+00:00",
   "estimate": 90,
   "estimateNote": "Rough engineering estimate. Remaining compiler bugs can change it; this is not a measured test pass rate.",
   "status": "Compiler code reaches a fixed point",
   "summary": "Stage3 rebuilt successfully. Its compiler IR and executable exactly match Stage2, and both compilers pass all three smoke checks. Real compiler interfaces and complete current-source testing remain.",
-  "activity": "Building checked interface export in Cinch. The baseline full suite continues on three bounded workers; the independently reproduced Rust linear-lambda bug is repaired and all 23 ownership tests pass.",
-  "commit": "d39d7b2ee3f95c99a924ac0a236f4b33e567a36f",
+  "activity": "Checked type printing passes through the self-built Stage3 and independent Native readback. A complete interface writer is under development; the full baseline sweep continues with no failures so far.",
+  "commit": "2c08f8a881c88d606f49d3d5be726af808e0bfde",
   "stages": [
     {
       "name": "Stage 0",
@@ -34,6 +34,11 @@
     }
   ],
   "checks": [
+    {
+      "title": "Checked type export passes independent readback",
+      "detail": "The self-built Stage3 compiles and runs the exporter. Native accepts five contract forms and independently confirms region/effect metadata. All12 named report rows pass, including stable binder names and explicit refusals. Complete interface documents remain in progress.",
+      "state": "passed"
+    },
     {
       "title": "Rust linear-parameter ownership repaired",
       "detail": "A linear parameter used once in its own lambda body was incorrectly rejected. The independent reproduction now passes; all23 ownership tests pass, including refusal of capture, duplicate use and dropped parameters.",
@@ -91,7 +96,7 @@
     },
     {
       "title": "Full baseline suite running",
-      "detail": "Candidate23: 44 /205 whole target gates passed; 3 running; 0 failed. All204 Rust runners compiled. A newer Rust ownership fix has separately passed23 tests; complete verification of that final source is still required.",
+      "detail": "Candidate23: 48 /205 whole target gates passed; 2 running; 0 failed. All204 Rust runners compiled. New Rust ownership and type-export changes have focused passing regressions; complete final-source verification remains.",
       "state": "running"
     },
     {
