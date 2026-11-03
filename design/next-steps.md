@@ -1,5 +1,16 @@
 # Next steps (as of 2026-11-03)
 
+## Rust same-file module dependency repair
+The Rust source loader now preserves dependency order when one file declares
+several modules. It previously sorted the graph, then moved the entry file's
+modules back into declaration order, breaking an import of a signature declared
+later in that file. The new regression compiles and runs that program, returns213,
+and checks the imported module's presence in the interface. All12 module,
+10 incremental and142 unit tests pass; all seven source-signature reference
+programs compile and execute with zero leaks. The seed remains unchanged. See
+[the module ordering evidence](../bootstrap/native-module-order-results.json).
+
+
 ## Imported public constructor layouts
 The Cinch frontend now retains runtime data declarations from complete checked
 imported constructor tables. The backend uses the defining constructor order,

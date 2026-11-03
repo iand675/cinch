@@ -447,8 +447,7 @@ pub fn scan_file(src: &str, file: &str) -> Result<ScannedFile> {
 }
 
 /// A resolved multi-file project: modules in dependency order (imports
-/// first), the entry file's modules last, with each module's source file
-/// and imports.
+/// first), with each module's source file and imports.
 struct Project {
     /// Module name to the file declaring it (a file may declare several).
     module_file: HashMap<String, PathBuf>,
@@ -577,9 +576,9 @@ fn load_project(entry_path: &Path) -> Result<Project> {
             }
         }
     }
-    // Dependency order; the entry file's modules go last, in declaration
-    // order, because their dependencies precede them and a cycle is an
-    // error.
+    // Keep dependency order within a file too: its first module may
+    // import one declared later in the same file. Entry membership is
+    // recorded separately and must not undo the graph's ordering.
     let graph: std::collections::BTreeMap<String, Vec<crate::interface::IfaceRef>> = imports
         .iter()
         .map(|(m, imps)| {
@@ -598,11 +597,6 @@ fn load_project(entry_path: &Path) -> Result<Project> {
     let mut order = crate::interface::topo_order(&graph)
         .map_err(|e| Error::plain(e.to_string()))?;
     order.retain(|m| module_file.contains_key(m));
-    let entry: Vec<String> = entry_modules.clone();
-    order.retain(|m| !entry.contains(m));
-    for m in &entry {
-        order.push(m.clone());
-    }
     Ok(Project {
         module_file,
         sources,
