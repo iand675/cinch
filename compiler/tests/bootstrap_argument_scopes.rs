@@ -33,6 +33,11 @@ fn compiled_cinch_keeps_argument_witness_scopes_and_effects() {
     rows.sort();
     std::fs::write(dir.join("interfaces.json"), format!("{{\"schema\":1,\"interfaces\":[{}]}}", rows.join(","))).unwrap();
     let cases = vec![
+        ("bounded byte length in nested guarded subtraction", "probe :: Nat -> Bytes -> Nat\n  probe remaining bytes = let count = bytes-len bytes in if count + 1 <= remaining then remaining - (count + 1) else 0", true),
+        ("bounded byte length with explicit sum binding", "probe :: Nat -> Bytes -> Nat\n  probe remaining bytes = let count = bytes-len bytes in let width = count + 1 in if width <= remaining then remaining - width else 0", true),
+        ("bounded byte length in direct guarded subtraction", "probe :: Nat -> Bytes -> Nat\n  probe remaining bytes = let count = bytes-len bytes in if count <= remaining then remaining - count else 0", true),
+        ("bounded byte length does not prove reversed subtraction", "probe :: Nat -> Bytes -> Nat\n  probe remaining bytes = let count = bytes-len bytes in if count + 1 <= remaining then count - (remaining + 1) else 0", false),
+        ("sum does not retain byte length upper bound", "need :: InRange 0 9223372036854775807 Nat -> Nat\n  need n = n\n  probe :: Bytes -> Nat\n  probe bytes = let count = bytes-len bytes in need (count + 1)", false),
         ("nested remainder witnesses", "import Data.Nat (nat-rem, nat-div)\n  need :: using (n < 16) => (n :: Nat) -> Nat\n  need n = n\n  probe :: Nat -> Nat\n  probe n = need (nat-rem n 16)", true),
         ("explicit remainder binding", "import Data.Nat (nat-rem, nat-div)\n  need :: using (n < 16) => (n :: Nat) -> Nat\n  need n = n\n  probe :: Nat -> Nat\n  probe n = let remainder = nat-rem n 16 in need remainder", true),
         ("wrong remainder bound", "import Data.Nat (nat-rem, nat-div)\n  need :: using (n < 16) => (n :: Nat) -> Nat\n  need n = n\n  probe :: Nat -> Nat\n  probe n = need (nat-rem n 32)", false),

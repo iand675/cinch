@@ -57,8 +57,12 @@ fragment-checker fixture also passes: an empty signature declaration is accepted
 matching current checking. The full candidate20 attempt builds Stage1 but rejects
 valid nested bounded arithmetic in the revised builder before emission. A minimal
 reproduction distinguishes the rejected nested expression from an accepted
-explicit binding; its checker repair is under validation. The complete current
-Native test sweep continues. No Stage2 executable or compiler-interface fixed
+explicit binding. The checker now retains the runtime local whenever its
+reified mathematical index has a different value kind, matching Core's existing
+scope validation. All12 Native-reference and compiled-Cinch argument-scope cases
+pass, including nested/direct/bound positives and unsafe-subtraction/upper-bound
+negatives. A fresh Stage1 builds with the repair; its full Stage2 retry is running.
+The complete current Native test sweep continues. No Stage2 executable or compiler-interface fixed
 point is established. Canonical compiler interface output, remaining runtime forms, actual
 provider demands, complete current suites/correctness and the Stage2/Stage3 fixed
 point remain required. The [progress dashboard](https://cinch-bootstrap-status.ian92821.chatgpt.site)

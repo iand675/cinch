@@ -678,7 +678,13 @@ module Bootstrap.Infer where
   let-binding sp env name sc id level value st = if not (stable-index-source value) then (MkLocalBinding name sc id level, st) else case (scheme-params sc, scheme-requirements sc) of
     (Nil, Nil) -> case reify-argument sp env value st of
       (index, checked) -> case (store-errors checked, index-of-type index) of
-        (Nil, witness) -> if typed-index-admissible index then (MkValueBinding name sc id level index, checked) else (MkLocalBinding name sc id level, st)
+        -- Reification can expose the mathematical carrier of a refined
+        -- result (for example a byte length). It is not a definition at the
+        -- refined carrier. Keep the actual local and its checked RHS fact,
+        -- just as Core's scope-definitions does for a mismatched index kind.
+        (Nil, witness) -> if typed-index-admissible index && kind-equal (type-kind (normalize checked index)) (value-kind (normalize checked (scheme-body sc))) then
+          (MkValueBinding name sc id level index, checked)
+          else (MkLocalBinding name sc id level, st)
         other -> (MkLocalBinding name sc id level, st)
     other -> (MkLocalBinding name sc id level, st)
 

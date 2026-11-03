@@ -358,3 +358,31 @@ fn llvm_module_shape_exact_text() {
 "#,
     );
 }
+
+/// A valid document must not reserve one native call frame per appended piece.
+#[test]
+fn many_chunks_flatten_on_a_small_stack() {
+    let dir = std::env::temp_dir().join(format!("cinch_builder_small_stack_{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("Text.Builder.cinch"), BUILDER).unwrap();
+    std::fs::write(dir.join("Main.cinch"), r#"module Main where
+  import Text.Builder
+  import Data.String (string-byte-length)
+  make :: Nat -> Builder -> Builder
+  make count builder = if count == 0 then builder else make (count - 1) (builder-add-line "x" builder)
+  main :: Int
+  main = let builder = make 65536 builder-new in
+    if builder-chunks builder == 65536 && builder-size builder == 131072 && string-byte-length (builder-run builder) == 131072 then 0 else 1
+"#).unwrap();
+    let input = dir.join("Main.cinch"); let exe = dir.join("builder");
+    let compiled = std::thread::Builder::new().stack_size(64 * 1024 * 1024).spawn({
+        let exe = exe.clone();
+        move || driver(Mode::Build, &input, Some(&exe))
+    }).unwrap().join().unwrap().unwrap();
+    assert_eq!(compiled, 0);
+    let result = std::process::Command::new(&exe).env("CINCH_STACK_SIZE", "2M")
+        .env("CINCH_HEAP_LIMIT", "64M").env("CINCH_LEAK_CHECK", "1").output().unwrap();
+    assert!(result.status.success(), "{}", String::from_utf8_lossy(&result.stderr));
+    assert!(String::from_utf8_lossy(&result.stderr).split_whitespace().any(|word| word == "leaked=0"));
+    std::fs::remove_dir_all(dir).unwrap();
+}
