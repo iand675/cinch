@@ -1,12 +1,12 @@
 {
   "schema": 1,
-  "updatedAt": "2026-11-03T12:15:20.867250+00:00",
+  "updatedAt": "2026-11-03T12:37:09.539807+00:00",
   "estimate": 80,
   "estimateNote": "Rough engineering estimate. Remaining compiler bugs can change it; this is not a measured test pass rate.",
-  "status": "Fixing emitter stack usage",
-  "summary": "Guarded subtraction now executes correctly and rejects wrong method authority. The full compiler reaches runtime emission, then exhausts its stack before writing IR.",
-  "activity": "Candidate20 Stage1 built. Its corrected fragment-checker gate passes; full object and builder regressions continue. The full source is being emitted again with the tail-recursive builder.",
-  "commit": "6bb44d2ad2d793ed260b5945551bc345a82c95fe",
+  "status": "Fixing bounded arithmetic checking",
+  "summary": "The fresh Stage 1 compiler builds. The next stage currently rejects valid nested arithmetic on a bounded byte length; a minimal reproduction isolates the checker bug.",
+  "activity": "All 19 linked-object programs and all five builder tests passed on candidate 20. The complete Native suite continues while the checker bug is investigated.",
+  "commit": "3487990",
   "stages": [
     {
       "name": "Stage 0",
@@ -24,7 +24,7 @@
       "name": "Stage 2",
       "state": "blocked",
       "label": "Blocked",
-      "description": "The frontend passes. Runtime dependencies must finish before a Stage 2 executable can be linked."
+      "description": "Fresh Stage 1 rejects a valid bounded-arithmetic expression in the revised text builder. No Stage 2 executable yet."
     },
     {
       "name": "Stage 3",
@@ -71,30 +71,40 @@
     },
     {
       "title": "Full Native sweep running",
-      "detail": "15 /197 old-snapshot target gates passed; 2 running. Its fragment fixture failure is corrected and passes in candidate20. The builder change still needs matching final-source coverage.",
+      "detail": "Candidate 20: 9 / 205 target gates passed; 2 running; 0 failed. Counts describe whole test targets, not individual tests.",
       "state": "running"
     },
     {
       "title": "Guarded implementation checks pass",
-      "detail": "Candidate19 runs the guarded program with zero leaks. Separate exact-artifact probes accept the valid slot and reject wrong method, owner, context and unsafe subtraction. The corrected whole target is rerunning.",
+      "detail": "Candidate 20 passes the complete linked-object target: 19 programs report zero leaks, with malformed authority and unsafe calls refused.",
       "state": "passed"
     },
     {
       "title": "Fragment-checker regression corrected",
       "detail": "Candidate20 passes the complete pinned report: empty signature declarations are accepted. The old fixture expected the earlier unsupported-class diagnostic.",
       "state": "passed"
+    },
+    {
+      "title": "All five builder checks passed",
+      "detail": "Candidate 20 passes exact text, string-concatenation oracle, chunk counts, scale, and 65,536 newline chunks on a 2 MiB stack.",
+      "state": "passed"
     }
   ],
   "blockers": [
     {
-      "title": "Stop stack growth during large emission",
-      "detail": "The full compiler exits with a stack exhaustion error during emission. A small builder stress case reproduces stack exhaustion; its iterative copy rewrite passes that case. The full retry is running to establish whether this clears the compiler failure.",
-      "technical": "Candidate19 compiler exit73, no IR/executable. Sampled RuntimeIr worker frames confirm emission was reached. Candidate20 contains the builder change; its full outcome is pending."
+      "title": "Accept valid nested bounded arithmetic",
+      "detail": "A byte length carries an upper bound. Using it in a nested addition and guarded subtraction triggers an incorrect type mismatch; binding the same addition separately succeeds. Both forms must check consistently.",
+      "technical": "Candidate20 Stage1 built; Stage2 compiler exit4. Minimal nested=4, bound=0, unsafe reversed=4. No Stage2 IR or executable."
     },
     {
-      "title": "Finish the bootstrap verification",
-      "detail": "After Stage 2 compiles, link and run it, build Stage 3, compare the results, and finish the complete test run. Further blockers may appear.",
-      "technical": "No Stage 2 IR or executable was produced by candidate 11. No fixed-point claim."
+      "title": "Verify the full compiler stack repair",
+      "detail": "The builder stress regression passes. The full compiler must get past checking before its large emission can validate the stack repair.",
+      "technical": "Earlier candidate19 exhausted the stack during runtime emission. Candidate20 stops earlier in frontend checking."
+    },
+    {
+      "title": "Finish real compiler interfaces and bootstrap verification",
+      "detail": "Emit actual checked compiler interfaces, link and run Stage 2, rebuild Stage 3, compare results, and finish the complete tests.",
+      "technical": "The source compiler still needs the required interface writer. No fixed-point claim."
     }
   ],
   "milestones": [
