@@ -23,7 +23,8 @@ fn checked_intrinsic_exports_are_object_roots_with_exact_word_classes() {
     for (name, params, result) in [("Library.compare", "[\"O\",\"O\"]", "R"), ("Library.negate", "[\"T\"]", "T")] {
         // Unit rows are flat objects in the actual canonical ABI artifact.
         let key = format!("\"symbol\":\"{name}\"");
-        let row = metadata.split('{').find(|row| row.contains(&key)).unwrap().split('}').next().unwrap();
+        let row = metadata.split('{').filter_map(|row| row.split('}').next())
+            .find(|row| row.contains(&key) && row.contains("\"closure_entry\":")).unwrap();
         assert!(row.contains(&format!("\"params\":{params}")), "{row}");
         assert!(row.contains(&format!("\"result\":\"{result}\"")), "{row}");
         assert!(row.contains(&format!("\"closure_entry\":\"{name}.object-closure\"")), "{row}");
