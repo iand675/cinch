@@ -41,6 +41,12 @@ module Main where
     , "module Main where\n  data Crate a where\n    Pack :: a -> Crate a\n  zero :: Crate Nat -> Bool\n  zero value = case value of Pack 0 -> True; Pack n -> False\n  main :: Int\n  main = 0\n"
     , "module Main where\n  data Crate a where\n    Pack :: a -> Crate a\n  zero :: (Crate Nat, Bool) -> Bool\n  zero ((Pack 0), flag) = flag\n  zero _ = False\n  main :: Int\n  main = 0\n"
     , "module Main where\n  data Crate a where\n    Pack :: a -> Crate a\n  edge :: Crate I8 -> Bool\n  edge value = case value of Pack 127 -> True; Pack n -> False\n  main :: Int\n  main = 0\n"
+    , string-concat identity-source "  choose :: Int -> Int\n  choose x = case x of _ | True -> 0\n  main :: Int\n  main = choose 1\n"
+    , string-concat sequence-source "  size :: forall a. Seq a -> Int\n  size xs = case xs of End | True -> 0; Link x rest | True -> 1 + size rest\n  main :: Int\n  main = size (Link 1 End)\n"
+    , string-concat identity-source "  main :: Int\n  main = case True of True | True -> 0; False | True -> 1\n"
+    , string-concat identity-source "  main :: Int\n  main = if identity 18446744073709551616 == 18446744073709551616 then 0 else 1\n"
+    , string-concat identity-source "  needNat :: Nat -> Int\n  needNat n = 0\n  main :: Int\n  main = case identity 1 of n -> if n == n then needNat n else 1\n"
+    , string-concat identity-source "  data Wrap a where\n    Wrap :: a -> Wrap a\n  unwrap :: forall a. Wrap a -> a\n  unwrap (Wrap x) = x\n  main :: Int\n  main = if unwrap (Wrap 18446744073709551616) == 18446744073709551616 then 0 else 1\n"
     ]
 
   negative :: List (String, String)
@@ -57,7 +63,6 @@ module Main where
     , ("module Main where\n  data Bad a where\n    Bad :: (Bad a -> a) -> Bad a\n  main :: Int\n  main = 0\n", "positivity")
     , ("module Main where\n  data Box a where\n    Box :: a -> Box a\n  data Nest a where\n    Node :: Box (Nest a) -> Nest a\n  main :: Int\n  main = 0\n", "positivity")
     , (string-concat sequence-source "  first :: forall a. Seq a -> a\n  first (Link x xs) = x\n  main :: Int\n  main = 0\n", "non-exhaustive")
-    , (string-concat identity-source "  choose :: Int -> Int\n  choose x = case x of _ | True -> 0\n  main :: Int\n  main = 0\n", "non-exhaustive")
     , ("module Main where\n  same-value :: forall a. a -> Bool\n  same-value x = x == x\n  main :: Int\n  main = 0\n", "Eq dictionary")
     , (string-concat identity-source "  helper x = x\n  main :: Int\n  main = 0\n", "no signature")
     , ("module Main where\n  identity :: forall a. a -> a\n", "signature has no definition")
@@ -71,6 +76,10 @@ module Main where
     , ("module Main where\n  bad :: forall (f :: Type -> Type) (x :: f). Int -> Int\n  bad y = y\n  main :: Int\n  main = 0\n", "proper type")
     , ("module Main where\n  bad :: forall (n :: Nat) (x :: n). Int -> Int\n  bad y = y\n  main :: Int\n  main = 0\n", "proper type")
     , ("module Main where\n  bad :: forall a a. Int -> Int\n  bad y = y\n  main :: Int\n  main = 0\n", "duplicate quantified parameter")
+    , (string-concat identity-source "  choose :: Int -> Int\n  choose x = case x of _ | False -> 0\n  main :: Int\n  main = 0\n", "non-exhaustive")
+    , (string-concat identity-source "  choose :: Int -> Int\n  choose x = case x of _ | (if True then True else True) -> 0\n  main :: Int\n  main = 0\n", "non-exhaustive")
+    , (string-concat identity-source "  main :: Int\n  main = case True of True | True -> 0\n", "non-exhaustive")
+    , (string-concat identity-source "  main :: Int\n  main = let equals = \\x -> x == x in 0\n", "Eq dictionary")
     ]
 
   starts :: List Char -> List Char -> Bool

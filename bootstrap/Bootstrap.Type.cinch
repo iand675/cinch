@@ -20,7 +20,7 @@ module Bootstrap.Type where
   export Requirement, MkRequirement, requirement-name, requirement-type, map-requirements
   export Scheme, MkScheme, MkQualifiedScheme, scheme-params, scheme-body, scheme-requirements, mono, qualified
   export map-scheme-types, open-qualified
-  export pending-number, default-numbers-for, finish-numbers
+  export pending-number, pending-comparison, default-numbers-for, finish-numbers
   export Store, empty-store, store-errors, store-level, enter-level, restore-level
   export add-error, fresh-meta, instantiate, skolemize, open-scheme, normalize, unify, valid-type
   export type-kind, type-text, free-metas, scheme-metas, generalize, scheme-arity, scheme-runtime-arity
@@ -327,6 +327,7 @@ module Bootstrap.Type where
     MkCell :: Nat -> Nat -> Kind -> Option UType -> Cell
   data PendingNumber where
     PendingNumber :: Span -> UType -> Int -> PendingNumber
+    PendingComparison :: Span -> UType -> List String -> PendingNumber
   data Store where
     MkStore :: String -> Nat -> Nat -> List Cell -> List Diagnostic -> List PendingNumber -> Store
 
@@ -1561,13 +1562,23 @@ module Bootstrap.Type where
 
   pending-number :: Span -> UType -> Int -> Store -> Store
   pending-number sp ty value st = case st of MkStore label next level cells errors numbers -> MkStore label next level cells errors (Cons (PendingNumber sp ty value) numbers)
+  -- Primitive equality may see a literal's still-unsolved carrier through
+  -- a generic call or constructor. Check it after ordinary constraints and
+  -- numeric defaulting; never invent an Eq dictionary or default a skolem.
+  pending-comparison :: Span -> UType -> List String -> Store -> Store
+  pending-comparison sp ty allowed st = case st of
+    MkStore label next level cells errors numbers -> MkStore label next level cells errors (Cons (PendingComparison sp ty allowed) numbers)
   pending-numbers :: Store -> List PendingNumber
   pending-numbers st = case st of MkStore label next level cells errors numbers -> numbers
   number-meta-ids :: List PendingNumber -> Store -> List Nat
-  number-meta-ids checks st = case checks of Nil -> Nil; Cons (PendingNumber sp ty value) rest -> merge-ids (free-metas st ty) (number-meta-ids rest st)
+  number-meta-ids checks st = case checks of
+    Nil -> Nil
+    Cons (PendingNumber sp ty value) rest -> merge-ids (free-metas st ty) (number-meta-ids rest st)
+    Cons (PendingComparison sp ty allowed) rest -> number-meta-ids rest st
   default-number-checks :: List Nat -> List PendingNumber -> Store -> Store
   default-number-checks wanted checks st = case checks of
     Nil -> st
+    Cons (PendingComparison sp ty allowed) rest -> default-number-checks wanted rest st
     Cons (PendingNumber sp ty value) rest -> (case normalize st ty of
       UMeta id KType -> default-number-checks wanted rest (if contains-id id wanted then unify sp ty (UCon "Int" KType) st else st)
       other -> default-number-checks wanted rest st)
@@ -1578,8 +1589,13 @@ module Bootstrap.Type where
   check-number-checks :: List PendingNumber -> Store -> Store
   check-number-checks checks st = case checks of
     Nil -> st
+    Cons (PendingComparison sp ty allowed) rest ->
+      let valid = case normalize st ty of UCon name KType -> comparison-name name allowed; other -> False in
+      check-number-checks rest (if valid then st else add-error sp "equality needs an Eq dictionary for this type" st)
     Cons (PendingNumber sp ty value) rest -> let carrier = number-carrier (normalize st ty) in
       check-number-checks rest (if integer-literal-valid carrier value then st else add-error sp "literal is outside its resolved integer carrier" st)
+  comparison-name :: String -> List String -> Bool
+  comparison-name name allowed = case allowed of Nil -> False; Cons first rest -> same-tag name first || comparison-name name rest
   finish-numbers :: Store -> Store
   finish-numbers st = let checks = pending-numbers st in
     let defaulted = default-number-checks (number-meta-ids checks st) checks st in

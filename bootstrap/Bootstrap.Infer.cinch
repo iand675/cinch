@@ -2200,10 +2200,14 @@ module Bootstrap.Infer where
     else if has op ["==", "/="] then case infer classes kinds families env locals a st of
       (inferred, sa) -> let first = project-comparison sp inferred sa in case check classes kinds families env locals b (core-type first) sa of
         (second, sb) -> (CPrimitive sp (primitive-type "Bool") op (CArgument sp first (CArgument sp second (CArgumentsEnd sp))),
-          if comparable (normalize sb (core-type first)) then sb else add-error sp "equality needs an Eq dictionary for this type" sb)
+          if comparable (normalize sb (core-type first)) then sb else case normalize sb (core-type first) of
+            UMeta id KType -> pending-comparison sp (core-type first) comparable-names sb
+            other -> add-error sp "equality needs an Eq dictionary for this type" sb)
     else term-error sp "operator needs dictionary or NonZero proof elaboration" st
+  comparable-names :: List String
+  comparable-names = ["Int", "Nat", "Bool", "Unit", "String", "Char", interface-global "Data.String.String"]
   comparable :: UType -> Bool
-  comparable ty = case ty of UCon name KType -> has name ["Int", "Nat", "Bool", "Unit", "String", "Char", interface-global "Data.String.String"]; other -> False
+  comparable ty = case ty of UCon name KType -> has name comparable-names; other -> False
   tuple-type :: UType -> UType
   tuple-type xs = case xs of UEnd -> primitive-type "Unit"; other -> UTuple xs
 
@@ -2294,13 +2298,21 @@ module Bootstrap.Infer where
       (condition, sc) -> case check classes kinds families (proof-branch env condition True sc) locals rhs result sc of
         (value, ss) -> (CGuard s result condition value, ss)
     other -> check classes kinds families env locals body result st
+  -- Only the literal builtin True guard counts as an unguarded row.
+  -- Arbitrary expressions that happen to evaluate to True do not cover.
+  body-covers :: Expr -> Bool
+  body-covers body = case body of
+    EGuarded s guard rhs -> case guard of
+      ECon at name (EArgsEnd end) -> same name "True"
+      other -> False
+    other -> True
   alternative-rows :: Expr -> List (List Pat)
   alternative-rows alts = case alts of
-    EAlt s p body rest -> case body of EGuarded gs g rhs -> alternative-rows rest; other -> Cons (Cons p Nil) (alternative-rows rest)
+    EAlt s p body rest -> if body-covers body then Cons (Cons p Nil) (alternative-rows rest) else alternative-rows rest
     other -> Nil
 
-  -- A constructor-specializing coverage matrix. Guarded rows never cover
-  -- values for later rows; specialization uses a private copy of the store.
+  -- A constructor-specializing coverage matrix. Nonliteral guards never
+  -- cover values; specialization uses a private copy of the store.
   wildcard :: Pat -> Bool
   wildcard p = case p of PWild s -> True; PVar s name -> True; PAs s name inner -> wildcard inner; PAnn s inner ty -> wildcard inner; other -> False
   strip-pattern :: Pat -> Pat
@@ -2375,7 +2387,7 @@ module Bootstrap.Infer where
     Cons (DExternal s name category scheme metadata) rest -> external-families (resolved-nominals metadata) <> imported-families rest
     Cons d rest -> imported-families rest
   clause-rows :: List (List Pat, Expr) -> List (List Pat)
-  clause-rows cs = case cs of Nil -> Nil; Cons (ps, body) rest -> case body of EGuarded s g x -> clause-rows rest; other -> Cons ps (clause-rows rest)
+  clause-rows cs = case cs of Nil -> Nil; Cons (ps, body) rest -> if body-covers body then Cons ps (clause-rows rest) else clause-rows rest
   check-equation :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> List Pat -> Expr -> UType -> Store -> (List CorePattern, CoreTerm, Store)
   check-equation classes kinds families env locals ps body expected st = check-equation-effects classes kinds families env locals ps body expected (URow UEnd) st
   check-equation-effects :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> List Pat -> Expr -> UType -> UType -> Store -> (List CorePattern, CoreTerm, Store)
@@ -2431,7 +2443,7 @@ module Bootstrap.Infer where
   check-overlap cs earlier st = case cs of
     Nil -> st
     Cons (ps, body) rest -> let ss = if covered-by earlier ps then add-error (expr-span body) "unreachable clause: an earlier clause already matches these patterns" st else st in
-      check-overlap rest (case body of EGuarded s guard rhs -> earlier; other -> Cons ps earlier) ss
+      check-overlap rest (if body-covers body then Cons ps earlier else earlier) ss
   clauses-full-arity :: List (List Pat, Expr) -> Nat -> Bool
   clauses-full-arity cs count = case cs of Nil -> True; Cons (ps, body) rest -> list-length ps == count && clauses-full-arity rest count
   has-definition :: String -> List Decl -> Bool

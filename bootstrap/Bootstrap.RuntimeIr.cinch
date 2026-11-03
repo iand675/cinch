@@ -20,8 +20,14 @@ module Bootstrap.RuntimeIr where
   -- has the same field map at another tag.
   data LayoutPlan where
     LayoutPlan :: Nat -> List (Nat, Nat) -> List (String, Nat) -> List (Nat, Nat) -> LayoutPlan
+  data Demand where
+    Demand :: String -> List Nat -> Demand
+  -- Bound scheme ids and opened rigid ids are separate namespaces.
+  -- A worker is shared by all actual types with the same class vector.
+  data RuntimeContext where
+    RuntimeContext :: List CoreData -> List (Nat, Nat) -> List (Nat, Nat) -> List Demand -> List Demand -> RuntimeContext
   data Writer where
-    Writer :: Nat -> Builder -> Builder -> List Diagnostic -> LayoutPlan -> List CoreData -> Writer
+    Writer :: Nat -> Builder -> Builder -> List Diagnostic -> LayoutPlan -> RuntimeContext -> Writer
   data Local where
     Local :: Nat -> UType -> String -> Local
     Discard :: UType -> String -> Local
@@ -51,26 +57,72 @@ module Bootstrap.RuntimeIr where
   number ty = named ty "Int" || named ty "Nat"
   scalar :: UType -> Bool
   scalar ty = number ty || named ty "Bool" || named ty "Unit"
+  writer-context :: Writer -> RuntimeContext
+  writer-context w = case w of Writer next globals code errors layouts context -> context
   writer-data :: Writer -> List CoreData
-  writer-data w = case w of Writer next globals code errors layouts datas -> datas
-  data-named :: String -> List CoreData -> Bool
-  data-named name datas = case datas of Nil -> False; Cons d rest -> same name (core-data-name d) || data-named name rest
-  word-class :: List CoreData -> UType -> Option Nat
-  word-class datas ty = if number ty then Some 2 else if named ty "Bool" || named ty "Unit" then Some 0 else case base ty of
-    UCon name KType -> if data-named name datas then Some 1 else None
-    UTuple fields -> if field-types datas fields 0 then Some 1 else None
-    other -> None
-  word-type :: List CoreData -> UType -> Bool
-  word-type datas ty = case word-class datas ty of Some code -> True; None -> False
-  field-types :: List CoreData -> UType -> Nat -> Bool
-  field-types datas fields count = case fields of
+  writer-data w = case writer-context w of RuntimeContext datas bounds rigids pending done -> datas
+  data-declaration :: String -> List CoreData -> Option CoreData
+  data-declaration name datas = case datas of
+    Nil -> None
+    Cons d rest -> if same name (core-data-name d) then Some d else data-declaration name rest
+  type-head :: UType -> UType
+  type-head ty = case base ty of UApp f x -> type-head f; other -> other
+  representation :: Nat -> List (Nat, Nat) -> Option Nat
+  representation id entries = case entries of Nil -> None; Cons (key, code) rest -> if key == id then Some code else representation id rest
+  word-class :: RuntimeContext -> UType -> Option Nat
+  word-class context ty = if number ty then Some 2 else if named ty "Bool" || named ty "Unit" then Some 0 else case context of
+    RuntimeContext datas bounds rigids pending done -> case base ty of
+      UBound id name KType -> representation id bounds
+      URigid id name level KType -> representation id rigids
+      UTuple fields -> if field-types context fields 0 then Some 1 else None
+      other -> case type-head ty of
+        UCon name kind -> case data-declaration name datas of Some d -> Some 1; None -> None
+        other -> None
+  word-type :: RuntimeContext -> UType -> Bool
+  word-type context ty = case word-class context ty of Some code -> True; None -> False
+  field-types :: RuntimeContext -> UType -> Nat -> Bool
+  field-types context fields count = case fields of
     UEnd -> True
-    UArg first rest -> count < 16 && word-type datas first && field-types datas rest (count + 1)
+    UArg first rest -> count < 16 && word-type context first && field-types context rest (count + 1)
     other -> False
+  class-vector :: RuntimeContext -> List UType -> Option (List Nat)
+  class-vector context actuals = case actuals of
+    Nil -> Some Nil
+    Cons ty rest -> case (word-class context ty, class-vector context rest) of
+      (Some code, Some more) -> Some (Cons code more)
+      other -> None
+  class-text :: List Nat -> String
+  class-text classes = case classes of Nil -> ""; Cons code rest -> cat [nat-to-string code, class-text rest]
+  specialized-name :: String -> List Nat -> String
+  specialized-name name classes = case classes of Nil -> name; other -> cat [name, ".r", class-text classes]
+  class-bindings :: List Quant -> List Nat -> Option (List (Nat, Nat))
+  class-bindings qs classes = case (qs, classes) of
+    (Nil, Nil) -> Some Nil
+    (Cons q rest, Cons code more) -> if kind-equal (quant-kind q) KType && code < 3 then
+      (case class-bindings rest more of Some tail -> Some (Cons (quant-id q, code) tail); None -> None) else None
+    other -> None
+  rigid-bindings :: List (Nat, UType) -> List (Nat, Nat) -> Option (List (Nat, Nat))
+  rigid-bindings openings bounds = case openings of
+    Nil -> Some Nil
+    Cons (key, URigid id name level KType) rest -> case (representation key bounds, rigid-bindings rest bounds) of
+      (Some code, Some more) -> Some (Cons (id, code) more)
+      other -> None
+    other -> None
+  with-representations :: List (Nat, Nat) -> List (Nat, Nat) -> Writer -> Writer
+  with-representations bounds rigids w = case w of
+    Writer next globals code errors layouts (RuntimeContext datas old-bound old-rigid pending done) ->
+      Writer next globals code errors layouts (RuntimeContext datas bounds rigids pending done)
+  demand-seen :: String -> List Demand -> Bool
+  demand-seen key demands = case demands of Nil -> False; Cons (Demand name classes) rest -> same key (specialized-name name classes) || demand-seen key rest
+  demand-worker :: String -> List Nat -> Writer -> Writer
+  demand-worker name classes w = case w of
+    Writer next globals code errors layouts (RuntimeContext datas bounds rigids pending done) ->
+      if demand-seen (specialized-name name classes) (pending <> done) then w else
+        Writer next globals code errors layouts (RuntimeContext datas bounds rigids (Cons (Demand name classes) pending) done)
   runtime-number :: UType -> String
   runtime-number ty = if named ty "Nat" then "nat" else "int"
   count-op :: Bool -> UType -> String -> Writer -> Writer
-  count-op duplicate ty value w = case word-class (writer-data w) ty of
+  count-op duplicate ty value w = case word-class (writer-context w) ty of
     Some 0 -> w
     Some code -> line w (cat ["  call void @cinch_", if duplicate then "dup" else "drop", "(i64 ", value, ")"])
     None -> refuse w (Span 0 0 1 1) "reference operation needs a checked runtime representation"
@@ -87,7 +139,7 @@ module Bootstrap.RuntimeIr where
     Cons (Discard ty value) rest -> local id rest
     Cons (Borrowed key ty value) rest -> if key == id then Some (ty, value) else local id rest
 
-  field-map :: List CoreData -> List UType -> Nat -> Option Nat
+  field-map :: RuntimeContext -> List UType -> Nat -> Option Nat
   field-map datas fields factor = case fields of
     Nil -> Some 0
     Cons first rest -> case (word-class datas first, field-map datas rest (factor * 4)) of
@@ -129,39 +181,54 @@ module Bootstrap.RuntimeIr where
       cat ["@cinch.typed.layouts = internal constant [", nat-to-string count, " x i64] [", words, "]\n",
         "define internal void @cinch.typed.layouts.init() {\nentry:\n  call void @cinch_layouts_register(ptr @cinch.typed.layouts, i64 ", nat-to-string count, ")\n  ret void\n}\n",
         "@llvm.global_ctors = appending global [1 x { i32, ptr, ptr }] [{ i32, ptr, ptr } { i32 65535, ptr @cinch.typed.layouts.init, ptr null }]\n"]
-  constructor-shape :: List CoreData -> String -> UType -> Bool
-  constructor-shape datas owner ty = case ty of
-    UFun domain result -> word-type datas domain && constructor-shape datas owner result
-    UCon name KType -> same name owner
+  regular-parameters :: List Quant -> List Quant -> Bool
+  regular-parameters expected actual = case (expected, actual) of
+    (Nil, Nil) -> True
+    (Cons q rest, Cons p more) -> quant-id q == quant-id p && kind-equal (quant-kind q) KType && kind-equal (quant-kind p) KType && regular-parameters rest more
     other -> False
-  constructor-supported :: List CoreData -> String -> CoreConstructor -> Bool
-  constructor-supported datas owner c = let sc = core-constructor-scheme c in
-    (case scheme-params sc of Nil -> True; other -> False)
+  data-result :: CoreData -> UType
+  data-result d = data-result-args (UCon (core-data-name d) (core-data-kind d)) (core-data-params d)
+  data-result-args :: UType -> List Quant -> UType
+  data-result-args result qs = case qs of Nil -> result; Cons q rest -> data-result-args (UApp result (UBound (quant-id q) (quant-name q) (quant-kind q))) rest
+  constructor-shape :: RuntimeContext -> UType -> UType -> Bool
+  constructor-shape context result ty = case ty of
+    UFun domain more -> word-type context domain && constructor-shape context result more
+    other -> same-data-result ty result
+  same-data-result :: UType -> UType -> Bool
+  same-data-result first second = case (first, second) of
+    (UCon a ka, UCon b kb) -> same a b && kind-equal ka kb
+    (UBound a an ka, UBound b bn kb) -> a == b && kind-equal ka kb
+    (UApp f x, UApp g y) -> same-data-result f g && same-data-result x y
+    other -> False
+  constructor-supported :: RuntimeContext -> CoreData -> CoreConstructor -> Bool
+  constructor-supported context d c = let sc = core-constructor-scheme c in
+    regular-parameters (core-data-params d) (scheme-params sc)
     && (case scheme-requirements sc of Nil -> True; other -> False)
-    && constructor-shape datas owner (scheme-body sc) && list-length (core-constructor-fields c) <= 16
-  add-constructor-layouts :: String -> Nat -> Nat -> List CoreConstructor -> Writer -> Writer
-  add-constructor-layouts owner base-id tag constructors w = case constructors of
+    && constructor-shape context (data-result d) (scheme-body sc) && list-length (core-constructor-fields c) <= 16
+  add-constructor-layouts :: RuntimeContext -> CoreData -> Nat -> Nat -> List CoreConstructor -> Writer -> Writer
+  add-constructor-layouts context d base-id tag constructors w = case constructors of
     Nil -> w
-    Cons c rest -> if not (constructor-supported (writer-data w) owner c) then
-      add-constructor-layouts owner base-id (tag + 1) rest (refuse w (Span 0 0 1 1) "constructor needs polymorphic, dependent or extended runtime lowering")
-      else case field-map (writer-data w) (core-constructor-fields c) 4294967296 of
-        None -> add-constructor-layouts owner base-id (tag + 1) rest (refuse w (Span 0 0 1 1) "constructor field representation is unknown")
+    Cons c rest -> if not (constructor-supported context d c) then
+      add-constructor-layouts context d base-id (tag + 1) rest (refuse w (Span 0 0 1 1) "constructor needs dependent, existential or extended runtime lowering")
+      else case field-map context (core-constructor-fields c) 4294967296 of
+        None -> add-constructor-layouts context d base-id (tag + 1) rest (refuse w (Span 0 0 1 1) "constructor field representation is unknown")
         Some bits -> case w of
-          Writer next globals code errors (LayoutPlan groups tuples names cells) datas ->
+          Writer next globals code errors (LayoutPlan groups tuples names cells) original ->
             let packed = list-length (core-constructor-fields c) + bits in
-            add-constructor-layouts owner base-id (tag + 1) rest (Writer next globals code errors (LayoutPlan groups tuples names (Cons (base-id + tag, packed) cells)) datas)
-  plan-data :: List CoreData -> Writer -> Writer
-  plan-data remaining w = case remaining of
-    Nil -> w
-    Cons d rest -> case w of
-      Writer next globals code errors (LayoutPlan groups tuples names cells) datas ->
-        if (case core-data-params d of Nil -> False; other -> True) || not (kind-equal (core-data-kind d) KType) then
-          plan-data rest (refuse w (Span 0 0 1 1) "parameterized data needs runtime representation specialization")
-        else if list-length (core-data-constructors d) > 64 || groups >= 1022 then
-          plan-data rest (refuse w (Span 0 0 1 1) "data family needs an extended runtime descriptor")
-        else let id = 64 * (groups + 1) in
-          let named = Writer next globals code errors (LayoutPlan (groups + 1) tuples (Cons (core-data-name d, id) names) cells) datas in
-          plan-data rest (add-constructor-layouts (core-data-name d) id 0 (core-data-constructors d) named)
+            add-constructor-layouts context d base-id (tag + 1) rest (Writer next globals code errors (LayoutPlan groups tuples names (Cons (base-id + tag, packed) cells)) original)
+  request-data :: Span -> CoreData -> List Nat -> Writer -> (Writer, Nat)
+  request-data sp d classes w = case class-bindings (core-data-params d) classes of
+    None -> (refuse w sp "data parameters need first-order runtime representation classes", 0)
+    Some bounds -> case w of
+      Writer next globals code errors (LayoutPlan groups tuples names cells) (RuntimeContext datas old-bound rigids pending done) ->
+        let key = specialized-name (core-data-name d) classes in
+        case named-layout key names of
+          Some id -> (w, id)
+          None -> if list-length (core-data-constructors d) > 64 || groups >= 1022 then
+            (refuse w sp "data family needs an extended runtime descriptor", 0)
+            else let id = 64 * (groups + 1) in
+              let planned = Writer next globals code errors (LayoutPlan (groups + 1) tuples (Cons (key, id) names) cells) (writer-context w) in
+              (add-constructor-layouts (RuntimeContext datas bounds Nil pending done) d id 0 (core-data-constructors d) planned, id)
   constructor-in :: String -> Nat -> List CoreConstructor -> Option (Nat, CoreConstructor)
   constructor-in name index constructors = case constructors of
     Nil -> None
@@ -172,9 +239,6 @@ module Bootstrap.RuntimeIr where
     Cons d rest -> case constructor-in name 0 (core-data-constructors d) of
       Some (tag, c) -> Some (core-data-name d, tag, c)
       None -> constructor name rest
-  constructor-descriptor :: String -> Nat -> Writer -> Option Nat
-  constructor-descriptor owner tag w = case w of
-    Writer next globals code errors (LayoutPlan groups tuples names cells) datas -> case named-layout owner names of Some id -> Some (id + tag); None -> None
   definition :: String -> List CoreDefinition -> Option CoreDefinition
   definition name definitions = case definitions of Nil -> None; Cons d rest -> if same name (core-name d) then Some d else definition name rest
   join :: List String -> String
@@ -195,16 +259,14 @@ module Bootstrap.RuntimeIr where
   head term = case term of CApply sp ty f x -> head f; other -> term
   arguments :: CoreTerm -> List CoreTerm -> List CoreTerm
   arguments term more = case term of CApply sp ty f x -> arguments f (Cons x more); other -> more
-  function-type :: List CoreData -> UType -> Bool
+  function-type :: RuntimeContext -> UType -> Bool
   function-type datas ty = case ty of UFun domain result -> word-type datas domain && function-type datas result; other -> word-type datas ty
   arity :: UType -> Nat
   arity ty = case ty of UFun domain result -> 1 + arity result; other -> 0
-  -- Closed scalar, tuple and monomorphic data workers. Type parameters,
-  -- dictionaries, closures and effects retain named refusals
-  -- until their representation and ownership paths are implemented.
-  scheme-supported :: List CoreData -> Scheme -> Bool
-  scheme-supported datas sc = (case scheme-params sc of Nil -> True; other -> False)
-    && (case scheme-requirements sc of Nil -> True; other -> False) && function-type datas (scheme-body sc)
+  -- Word-level workers share code by representation class. Concrete numeric
+  -- semantics stay on checked Core; a TObj parameter is never assumed Int.
+  scheme-supported :: RuntimeContext -> Scheme -> Bool
+  scheme-supported context sc = (case scheme-requirements sc of Nil -> True; other -> False) && function-type context (scheme-body sc)
   expression :: List CoreDefinition -> List Local -> Writer -> CoreTerm -> (Writer, String)
   expression definitions locals w term = case term of
     CInt sp ty text -> if number ty then decimal w ty text else unsupported w sp "integer carrier needs runtime lowering"
@@ -212,14 +274,14 @@ module Bootstrap.RuntimeIr where
     CLocal sp ty id name Nil -> case local id locals of
       Some (declared, value) -> (count-op True declared value w, value)
       None -> unsupported w sp "runtime local is absent from its lexical scope"
-    CUse sp ty name role Nil ->
+    CUse sp ty name role actuals ->
       if named ty "Bool" && same name "True" then (w, "1")
       else if named ty "Bool" && same name "False" then (w, "0")
-      else direct-call definitions locals w sp name Nil
+      else direct-call definitions locals w sp name actuals Nil
     CApply sp ty f x -> case head term of
-      CUse at function name role Nil -> direct-call definitions locals w sp name (arguments term Nil)
+      CUse at function name role actuals -> direct-call definitions locals w sp name actuals (arguments term Nil)
       other -> unsupported w sp "indirect or polymorphic application needs closure lowering"
-    CLet sp ty id name sc rhs body -> if scheme-supported (writer-data w) sc && word-type (writer-data w) (scheme-body sc) then
+    CLet sp ty id name sc rhs body -> if (case scheme-params sc of Nil -> True; other -> False) && scheme-supported (writer-context w) sc && word-type (writer-context w) (scheme-body sc) then
       (case expression definitions locals w rhs of
         (bound, value) -> case expression definitions (Cons (Local id (scheme-body sc) value) locals) bound body of
           (done, result) -> (count-op False (scheme-body sc) value done, result))
@@ -241,30 +303,35 @@ module Bootstrap.RuntimeIr where
     Nil -> (w, Nil)
     Cons term rest -> case expression definitions locals w term of
       (first, value) -> case expressions definitions locals first rest of (done, values) -> (done, Cons value values)
-  direct-call :: List CoreDefinition -> List Local -> Writer -> Span -> String -> List CoreTerm -> (Writer, String)
-  direct-call definitions locals w sp name args = case constructor name (writer-data w) of
-    Some (owner, tag, c) ->
-      if constructor-supported (writer-data w) owner c && list-length args == list-length (core-constructor-fields c) then
-        (case constructor-descriptor owner tag w of
-          Some descriptor -> case expressions definitions locals w args of
-            (ready, values) -> allocate ready descriptor values
-          None -> unsupported w sp "constructor has no checked runtime layout")
-      else unsupported w sp "partial or polymorphic constructor needs runtime lowering"
-    None -> case definition name definitions of
-      Some d -> if scheme-supported (writer-data w) (core-scheme d) && arity (scheme-body (core-scheme d)) == list-length args then
-        (case expressions definitions locals w args of (ready, values) -> call ready (symbol name) values)
-        else unsupported w sp "partial, overapplied or polymorphic call needs runtime lowering"
-      None -> unsupported w sp (cat ["external runtime implementation is unavailable: ", name])
+  direct-call :: List CoreDefinition -> List Local -> Writer -> Span -> String -> List UType -> List CoreTerm -> (Writer, String)
+  direct-call definitions locals w sp name actuals args = case class-vector (writer-context w) actuals of
+    None -> unsupported w sp "call type arguments need checked runtime representation classes"
+    Some classes -> case constructor name (writer-data w) of
+      Some (owner, tag, c) -> case data-declaration owner (writer-data w) of
+        Some d -> if list-length args == list-length (core-constructor-fields c) then
+          (case request-data sp d classes w of
+            (planned, descriptor) -> case expressions definitions locals planned args of
+              (ready, values) -> allocate ready (descriptor + tag) values)
+          else unsupported w sp "partial constructor needs closure lowering"
+        None -> unsupported w sp "constructor has no defining runtime declaration"
+      None -> case definition name definitions of
+        Some d -> case class-bindings (scheme-params (core-scheme d)) classes of
+          Some bounds -> if arity (scheme-body (core-scheme d)) == list-length args then
+            (case expressions definitions locals (demand-worker name classes w) args of
+              (ready, values) -> call ready (symbol (specialized-name name classes)) values)
+            else unsupported w sp "partial or overapplied call needs closure lowering"
+          None -> unsupported w sp "function parameters need first-order representation classes"
+        None -> unsupported w sp (cat ["external runtime implementation is unavailable: ", name])
   term-fields :: CoreTerm -> Option (List CoreTerm)
   term-fields fields = case fields of
     CArgumentsEnd sp -> Some Nil
     CArgument sp first rest -> case term-fields rest of Some more -> Some (Cons first more); None -> None
     other -> None
-  field-words :: List CoreData -> List CoreTerm -> Bool
+  field-words :: RuntimeContext -> List CoreTerm -> Bool
   field-words datas fields = case fields of Nil -> True; Cons first rest -> word-type datas (core-type first) && field-words datas rest
   tuple :: List CoreDefinition -> List Local -> Writer -> Span -> CoreTerm -> (Writer, String)
   tuple definitions locals w sp fields = case term-fields fields of
-    Some actual -> if list-length actual > 16 || not (field-words (writer-data w) actual) then unsupported w sp "tuple fields need an extended or polymorphic runtime layout" else
+    Some actual -> if list-length actual > 16 || not (field-words (writer-context w) actual) then unsupported w sp "tuple fields need an extended or polymorphic runtime layout" else
       (case expressions definitions locals w actual of
         (evaluated, values) ->
           let (planned, descriptor) = request-layout sp actual evaluated in
@@ -308,7 +375,7 @@ module Bootstrap.RuntimeIr where
     let loaded = line address (cat ["  ", header, " = load atomic i64, ptr ", slot, " monotonic, align 8"]) in
     (line (line loaded (cat ["  ", layout, " = lshr i64 ", header, ", 48"])) (cat ["  ", tag, " = and i64 ", layout, ", 63"]), tag)
   match-pattern :: CorePattern -> String -> String -> Writer -> (Writer, List Local)
-  match-pattern pattern value failed w = if not (word-type (writer-data w) (pattern-type pattern)) then
+  match-pattern pattern value failed w = if not (word-type (writer-context w) (pattern-type pattern)) then
     (refuse w (Span 0 0 1 1) "pattern needs typed runtime match lowering", Nil)
     else case pattern of
       CPVar sp ty id name -> (w, [Borrowed id ty value])
@@ -324,7 +391,7 @@ module Bootstrap.RuntimeIr where
           (case compare-word w "eq" value (if same name "True" then "1" else "0") of
             (ready, condition) -> (continue-if ready condition failed, Nil))
         else case constructor name (writer-data w) of
-          Some (owner, tag, c) -> if constructor-supported (writer-data w) owner c then
+          Some (owner, tag, c) -> if list-length (core-constructor-fields c) <= 16 && tag < 64 then
             (case constructor-tag w value of
               (loaded, actual) -> case compare-word loaded "eq" actual (nat-to-string tag) of
                 (compared, condition) -> let (ready, pointer) = fresh (continue-if compared condition failed) "%ptr" in
@@ -443,17 +510,28 @@ module Bootstrap.RuntimeIr where
         (matched, bindings) -> case guarded-expression definitions bindings matched failed body of
           (done, result) -> let returned = line (drop-locals roots done) (cat ["  ret i64 ", result]) in
             worker-clauses definitions roots rest (line returned (cat [failed, ":"]))
-  worker :: List CoreDefinition -> Writer -> CoreDefinition -> Writer
-  worker definitions w d = case d of
-    MkCoreDefinition sp name sc openings givens private clauses ->
-      if not (scheme-supported (writer-data w) sc) then refuse w sp (cat ["definition needs polymorphic, dictionary or unsupported runtime lowering: ", name])
-      else case clauses of
-        Cons (MkCoreClause at patterns body) rest ->
-          let started = line (line w (cat ["define i64 ", symbol name, "(", join (parameter-words patterns 0), ") {"])) "entry:" in
-          line (worker-clauses definitions (parameter-roots patterns 0) clauses started) "}"
-        Nil -> refuse w sp "runtime definition has no checked equations"
-  workers :: List CoreDefinition -> List CoreDefinition -> Writer -> Writer
-  workers definitions remaining w = case remaining of Nil -> w; Cons d rest -> workers definitions rest (worker definitions w d)
+  worker :: List CoreDefinition -> List Nat -> Writer -> CoreDefinition -> Writer
+  worker definitions classes w d = case d of
+    MkCoreDefinition sp name sc openings givens private clauses -> case class-bindings (scheme-params sc) classes of
+      None -> refuse w sp "definition needs first-order runtime representation specialization"
+      Some bounds -> case rigid-bindings openings bounds of
+        None -> refuse w sp "definition runtime representation openings are invalid"
+        Some rigids -> let scoped = with-representations bounds rigids w in
+          if not (scheme-supported (writer-context scoped) sc) then refuse scoped sp (cat ["definition needs dictionary or unsupported runtime lowering: ", name])
+          else case clauses of
+            Cons (MkCoreClause at patterns body) rest ->
+              let started = line (line scoped (cat ["define i64 ", symbol (specialized-name name classes), "(", join (parameter-words patterns 0), ") {"])) "entry:" in
+              line (worker-clauses definitions (parameter-roots patterns 0) clauses started) "}"
+            Nil -> refuse scoped sp "runtime definition has no checked equations"
+  workers :: List CoreDefinition -> Writer -> Writer
+  workers definitions w = case w of
+    Writer next globals code errors layouts (RuntimeContext datas bounds rigids pending done) -> case pending of
+      Nil -> w
+      Cons (Demand name classes) rest ->
+        let claimed = Writer next globals code errors layouts (RuntimeContext datas Nil Nil rest (Cons (Demand name classes) done)) in
+        case definition name definitions of
+          Some d -> workers definitions (worker definitions classes claimed d)
+          None -> workers definitions (refuse claimed (Span 0 0 1 1) "demanded runtime definition is absent")
   declarations :: String
   declarations = cat [
     "declare ptr @cinch_alloc_ctor(i64, i64)\ndeclare void @cinch_layouts_register(ptr, i64)\n",
@@ -472,7 +550,7 @@ module Bootstrap.RuntimeIr where
     let typed = checked-elaboration checked in
     let definitions = elaboration-core typed in
     let datas = elaboration-data typed in
-    let initial = plan-data datas (Writer 0 builder-new builder-new Nil (LayoutPlan 0 Nil Nil Nil) datas) in
+    let initial = Writer 0 builder-new builder-new Nil (LayoutPlan 0 Nil Nil Nil) (RuntimeContext datas Nil Nil Nil Nil) in
     let supported = ((case elaboration-effects typed of Nil -> True; other -> False)
       && (case elaboration-classes typed of Nil -> True; other -> False)
       && (case elaboration-instances typed of Nil -> True; other -> False)) in
@@ -480,6 +558,6 @@ module Bootstrap.RuntimeIr where
     let started = (case definition "main" definitions of
           Some d -> if named (scheme-body (core-scheme d)) "Int" && arity (scheme-body (core-scheme d)) == 0 then ready else refuse ready (Span 0 0 1 1) "runtime entry must be main :: Int"
           None -> refuse ready (Span 0 0 1 1) "runtime entry has no main definition") in
-    case workers definitions definitions started of
+    case workers definitions (demand-worker "main" Nil started) of
       Writer next globals code Nil layouts datas -> Ok (cat [declarations, builder-run globals, layout-table layouts, builder-run code, entry])
       Writer next globals code errors layouts datas -> Err errors

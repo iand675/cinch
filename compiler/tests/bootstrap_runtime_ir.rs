@@ -43,11 +43,37 @@ fn typed_runtime_numbers_preserve_exact_values_and_reclaim_owned_words() {
         ("failed-case-guard", "  data Box where\n    Box :: Int -> Box\n  main :: Int\n  main = case Box 18446744073709551616 of\n    Box n | n < 0 -> 1\n    Box n -> if n == 18446744073709551616 then 127 else 2\n", 127),
         ("natural-literal-pattern", "  classify :: Nat -> Int\n  classify 340282366920938463463374607431768211456 = 131\n  classify _ = 1\n  main :: Int\n  main = classify 340282366920938463463374607431768211456\n", 131),
         ("last-regular-tag", tag64.as_str(), 137),
+        ("generic-identity-classes", "  data Token where\n    Token :: Int -> Token\n  identity :: forall a. a -> a\n  identity x = x\n  readToken :: Token -> Int\n  readToken (Token n) = n\n  main :: Int\n  main = if identity True && identity (readToken (identity (Token 18446744073709551616))) == 18446744073709551616 then 151 else 1\n", 151),
+        ("generic-shared-tobj", "  identity :: forall a. a -> a\n  identity x = x\n  keepNat :: Nat -> Nat\n  keepNat n = identity n\n  main :: Int\n  main = if keepNat 340282366920938463463374607431768211456 == 340282366920938463463374607431768211456 && identity (-18446744073709551616) == -18446744073709551616 then 157 else 1\n", 157),
+        ("generic-shared-obj", "  data LeftBox where\n    LeftBox :: Int -> LeftBox\n  data RightBox where\n    RightBox :: Bool -> RightBox\n  identity :: forall a. a -> a\n  identity x = x\n  main :: Int\n  main = case identity (LeftBox 18446744073709551616) of LeftBox n -> case identity (RightBox True) of RightBox flag -> if flag && n == 18446744073709551616 then 163 else 1\n", 163),
+        ("generic-tuple-fields", "  duplicate :: forall a. a -> (a, a)\n  duplicate x = (x, x)\n  main :: Int\n  main = case duplicate 18446744073709551616 of (x, y) -> case duplicate True of (a, b) -> if a && b && x == y then 167 else 1\n", 167),
+        ("polymorphic-recursion", "  grow :: forall a. Int -> a -> Int\n  grow n value = if n == 0 then 173 else grow (n - 1) (value, value)\n  main :: Int\n  main = grow 8 True\n", 173),
+        ("class-swapping-recursion", "  rotate :: forall a b. Int -> a -> b -> Int\n  rotate n first second = if n == 0 then 179 else rotate (n - 1) second first\n  main :: Int\n  main = rotate 11 True (18446744073709551616 :: Int)\n", 179),
+        ("generic-data-classes", "  data Wrap a where\n    Wrap :: a -> Wrap a\n  unwrap :: forall a. Wrap a -> a\n  unwrap (Wrap value) = value\n  main :: Int\n  main = if unwrap (Wrap True) && unwrap (Wrap 18446744073709551616) == 18446744073709551616 then 181 else 1\n", 181),
+        ("generic-recursive-data", "  data Seq a where\n    End :: Seq a\n    Link :: a -> Seq a -> Seq a\n  size :: forall a. Seq a -> Int\n  size End = 0\n  size (Link value rest) = 1 + size rest\n  main :: Int\n  main = if size (Link (18446744073709551616 :: Int) (Link 340282366920938463463374607431768211456 End)) == 2 && size (Link True End) == 1 then 191 else 1\n", 191),
+        ("generic-data-growing-recursion", "  data Wrap a where\n    Wrap :: a -> Wrap a\n  grow :: forall a. Int -> a -> Int\n  grow n value = if n == 0 then 193 else grow (n - 1) (Wrap value)\n  main :: Int\n  main = grow 7 (18446744073709551616 :: Int)\n", 193),
+        ("generic-owned-result", "  data Wrap a where\n    Wrap :: a -> Wrap a\n  duplicate :: forall a. a -> Wrap (a, a)\n  duplicate value = Wrap (value, value)\n  main :: Int\n  main = case duplicate 340282366920938463463374607431768211456 of Wrap (x, y) -> if x == y then 197 else 1\n", 197),
     ];
     for (name, body, expected) in cases {
         std::fs::write(dir.join("input.source"), format!("module Main where\n{body}")).unwrap();
         let output = Command::new(&compiler).current_dir(&dir).output().unwrap();
         assert_eq!(output.status.code(), Some(0), "{name}: {} {}", common::read_output(&dir, "output.diagnostics"), String::from_utf8_lossy(&output.stderr));
+        let ir = common::read_output(&dir, "output.ll");
+        let identity_worker = |line: &&str| line.starts_with("define i64 ") && line.contains("105_100_101_110_116_105_116_121_") && line.contains(".r");
+        if name == "generic-identity-classes" {
+            assert_eq!(ir.lines().filter(identity_worker).count(), 3, "one worker per reached Raw/Obj/TObj class");
+            let raw_header = ir.lines().find(|line| line.starts_with("define i64 ") && line.contains("105_100_101_110_116_105_116_121_.r0")).expect("raw identity worker");
+            let raw = ir.split(raw_header).nth(1).unwrap();
+            let raw_body = raw.split('}').next().unwrap();
+            assert!(!raw_body.contains("@cinch_dup") && !raw_body.contains("@cinch_drop"), "Raw values must never be reference counted: {raw_body}");
+        }
+        if name == "generic-shared-tobj" || name == "generic-shared-obj" {
+            assert_eq!(ir.lines().filter(identity_worker).count(), 1, "{name}: callers with the same class must share one worker");
+        }
+        if name == "polymorphic-recursion" || name == "generic-data-growing-recursion" {
+            let grow_name = "103_114_111_119_";
+            assert_eq!(ir.lines().filter(|line| line.starts_with("define i64 ") && line.contains(grow_name) && line.contains(".r")).count(), 2, "{name}: changing source types must reach only two representation versions");
+        }
         let exe = dir.join(format!("emitted-{name}"));
         let output = Command::new(std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into()))
             .arg(dir.join("output.ll")).arg(&runtime).args(["-lpthread", "-ldl", "-lm", "-o"]).arg(&exe).output().unwrap();
@@ -61,7 +87,7 @@ fn typed_runtime_numbers_preserve_exact_values_and_reclaim_owned_words() {
     }
     // Verify the physical ABI through C, including the anonymous tuple's
     // tag0 when its map matches a named tag1 constructor's map.
-    std::fs::write(dir.join("input.source"), "module Main where\n  data D where\n    A :: Int -> D\n    B :: D -> D -> D\n  makePair :: (D, D)\n  makePair = let leaf = A 18446744073709551616 in let node = B leaf leaf in (node, leaf)\n  main :: Int\n  main = 0\n").unwrap();
+    std::fs::write(dir.join("input.source"), "module Main where\n  data D where\n    A :: Int -> D\n    B :: D -> D -> D\n  makePair :: (D, D)\n  makePair = let leaf = A 18446744073709551616 in let node = B leaf leaf in (node, leaf)\n  data Wrap a where\n    Wrap :: a -> Wrap a\n  makeGeneric :: (Wrap Bool, Wrap Int, Wrap D)\n  makeGeneric = let leaf = A 18446744073709551616 in (Wrap True, Wrap 340282366920938463463374607431768211456, Wrap leaf)\n  main :: Int\n  main = case (makePair, makeGeneric) of _ -> 0\n").unwrap();
     let output = Command::new(&compiler).current_dir(&dir).output().unwrap();
     assert_eq!(output.status.code(), Some(0), "ABI: {} {}", common::read_output(&dir, "output.diagnostics"), String::from_utf8_lossy(&output.stderr));
     let ir = common::read_output(&dir, "output.ll");
@@ -70,10 +96,15 @@ fn typed_runtime_numbers_preserve_exact_values_and_reclaim_owned_words() {
     let encode = |name: &str| name.chars().map(|ch| format!("{}_", ch as u32)).collect::<String>();
     let symbol = format!("cinch.typed.m.{}.{}", encode("Main"), encode("makePair"));
     ir.push_str(&format!("\ndefine i64 @cinch_abi_pair() {{\nentry:\n  %pair = call i64 @\"{symbol}\"()\n  ret i64 %pair\n}}\n"));
+    let generic_symbol = format!("cinch.typed.m.{}.{}", encode("Main"), encode("makeGeneric"));
+    ir.push_str(&format!("\ndefine i64 @cinch_abi_generic() {{\nentry:\n  %value = call i64 @\"{generic_symbol}\"()\n  ret i64 %value\n}}\n"));
+    ir.push_str("\ndefine i64 @cinch_abi_layout(i64 %index) {\nentry:\n  %slot = getelementptr i64, ptr @cinch.typed.layouts, i64 %index\n  %word = load i64, ptr %slot\n  ret i64 %word\n}\n");
     std::fs::write(dir.join("abi.ll"), ir).unwrap();
     std::fs::write(dir.join("abi.c"), r#"
 #include <stdint.h>
 extern uint64_t cinch_abi_pair(void);
+extern uint64_t cinch_abi_generic(void);
+extern uint64_t cinch_abi_layout(uint64_t);
 extern void cinch_reclaim_enable(void);
 extern void cinch_drop(uint64_t);
 extern int64_t cinch_exit_check(int64_t);
@@ -86,7 +117,18 @@ int main(void) {
   uint64_t *children = (uint64_t *)(uintptr_t)node;
   int good = tag(pair) == 0 && tag(node) == 1 && tag(leaf) == 0
     && children[0] == leaf && children[1] == leaf;
+  uint64_t generic = cinch_abi_generic();
+  uint64_t *boxes = (uint64_t *)(uintptr_t)generic;
+  uint64_t raw_id = (((uint64_t *)(uintptr_t)boxes[0])[-1] >> 48) & 65535;
+  uint64_t tagged_id = (((uint64_t *)(uintptr_t)boxes[1])[-1] >> 48) & 65535;
+  uint64_t object_id = (((uint64_t *)(uintptr_t)boxes[2])[-1] >> 48) & 65535;
+  good = good && raw_id != tagged_id && tagged_id != object_id && raw_id != object_id
+    && cinch_abi_layout(raw_id) == 1
+    && cinch_abi_layout(tagged_id) == (UINT64_C(2) << 32 | 1)
+    && cinch_abi_layout(object_id) == (UINT64_C(1) << 32 | 1)
+    && ((uint64_t *)(uintptr_t)boxes[0])[0] == 1;
   cinch_drop(pair);
+  cinch_drop(generic);
   return (int)cinch_exit_check(good ? 0 : 149);
 }
 "#).unwrap();
@@ -99,10 +141,10 @@ int main(void) {
     println!("C ABI tags and aliases: exit0; {}", String::from_utf8_lossy(&output.stderr).trim());
     // The typed frontend accepts this; unavailable lowering must refuse it
     // explicitly and clear the preceding successful IR artifact.
-    std::fs::write(dir.join("input.source"), "module Main where\n  identity :: forall a. a -> a\n  identity x = x\n  main :: Int\n  main = identity 1\n").unwrap();
+    std::fs::write(dir.join("input.source"), "module Main where\n  identity :: forall (f :: Type -> Type) a. f a -> f a\n  identity x = x\n  data Wrap a where\n    Wrap :: a -> Wrap a\n  main :: Int\n  main = case identity (Wrap 1) of Wrap n -> n\n").unwrap();
     let output = Command::new(&compiler).current_dir(&dir).output().unwrap();
     assert_eq!(output.status.code(), Some(5), "{}", String::from_utf8_lossy(&output.stderr));
-    assert!(common::read_output(&dir, "output.diagnostics").contains("polymorphic"));
+    assert!(common::read_output(&dir, "output.diagnostics").contains("representation"));
     assert!(common::read_output(&dir, "output.ll").is_empty());
     std::fs::write(dir.join("input.source"), "module Main where\n  main :: Int\n  main = case (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17) of\n    _ -> 0\n").unwrap();
     let output = Command::new(&compiler).current_dir(&dir).output().unwrap();

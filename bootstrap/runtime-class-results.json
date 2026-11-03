@@ -1,0 +1,301 @@
+{
+  "actual_case_results": [
+    "huge: exit 37; cinch-leak: live=0 immortal=0 leaked=0",
+    "alias: exit 39; cinch-leak: live=0 immortal=0 leaked=0",
+    "call: exit 41; cinch-leak: live=0 immortal=0 leaked=0",
+    "branch: exit 43; cinch-leak: live=0 immortal=0 leaked=0",
+    "recursive: exit 47; cinch-leak: live=0 immortal=0 leaked=0",
+    "negative: exit 53; cinch-leak: live=0 immortal=0 leaked=0",
+    "natural: exit 59; cinch-leak: live=0 immortal=0 leaked=0",
+    "wildcard: exit 61; cinch-leak: live=0 immortal=0 leaked=0",
+    "tuple-field: exit 67; cinch-leak: live=0 immortal=0 leaked=0",
+    "tuple-case: exit 71; cinch-leak: live=0 immortal=0 leaked=0",
+    "nested-tuple: exit 73; cinch-leak: live=0 immortal=0 leaked=0",
+    "dropped-tuple: exit 79; cinch-leak: live=0 immortal=0 leaked=0",
+    "full-inline-map: exit 83; cinch-leak: live=0 immortal=0 leaked=0",
+    "nullary-constructors: exit 89; cinch-leak: live=0 immortal=0 leaked=0",
+    "recursive-tree: exit 97; cinch-leak: live=0 immortal=0 leaked=0",
+    "failed-nested-pattern: exit 101; cinch-leak: live=0 immortal=0 leaked=0",
+    "shared-constructor-root: exit 103; cinch-leak: live=0 immortal=0 leaked=0",
+    "raw-bool-patterns: exit 107; cinch-leak: live=0 immortal=0 leaked=0",
+    "numeric-equations: exit 109; cinch-leak: live=0 immortal=0 leaked=0",
+    "nested-case-guards: exit 113; cinch-leak: live=0 immortal=0 leaked=0",
+    "failed-case-guard: exit 127; cinch-leak: live=0 immortal=0 leaked=0",
+    "natural-literal-pattern: exit 131; cinch-leak: live=0 immortal=0 leaked=0",
+    "last-regular-tag: exit 137; cinch-leak: live=0 immortal=0 leaked=0",
+    "generic-identity-classes: exit 151; cinch-leak: live=0 immortal=0 leaked=0",
+    "generic-shared-tobj: exit 157; cinch-leak: live=0 immortal=0 leaked=0",
+    "generic-shared-obj: exit 163; cinch-leak: live=0 immortal=0 leaked=0",
+    "generic-tuple-fields: exit 167; cinch-leak: live=0 immortal=0 leaked=0",
+    "polymorphic-recursion: exit 173; cinch-leak: live=0 immortal=0 leaked=0",
+    "class-swapping-recursion: exit 179; cinch-leak: live=0 immortal=0 leaked=0",
+    "generic-data-classes: exit 181; cinch-leak: live=0 immortal=0 leaked=0",
+    "generic-recursive-data: exit 191; cinch-leak: live=0 immortal=0 leaked=0",
+    "generic-data-growing-recursion: exit 193; cinch-leak: live=0 immortal=0 leaked=0",
+    "generic-owned-result: exit 197; cinch-leak: live=0 immortal=0 leaked=0"
+  ],
+  "bootstrap_achieved": false,
+  "class_specialization": "demand from main; key is exact definition identity plus Raw/Obj/TObj vector, never concrete types; separate scoped scheme-bound and opened-rigid class namespaces; claimed workers prevent recursive re-emission",
+  "genuine_stage2": {
+    "compiler_executable_verified": false,
+    "evidence_directory": "/tmp/cinch-runtime-classes-stages-2",
+    "status": "continuation queued/running at publication; uses unchanged compiler sources from frozen2 and corrected Rust fixture gates"
+  },
+  "guard_coverage": "only literal builtin True counts as an unguarded row per specification16; False/computed-True and missing constructor still refuse; actual CLI binary149 and leak checks pass",
+  "higher_kind_refusal": [
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "Native",
+      "output": ""
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "Cinch-check",
+      "output": ""
+    },
+    {
+      "exit_code": 5,
+      "expected": 5,
+      "name": "Cinch-emit",
+      "output": ""
+    }
+  ],
+  "implementation_paths": [
+    "bootstrap/Bootstrap.Type.cinch",
+    "bootstrap/Bootstrap.Infer.cinch",
+    "bootstrap/Bootstrap.RuntimeIr.cinch",
+    "bootstrap/programs/Run.Infer.cinch",
+    "compiler/tests/bootstrap_runtime_ir.rs",
+    "compiler/tests/bootstrap_runtime_emit.rs"
+  ],
+  "limits": [
+    "first-order Type parameters only; higher-kinded, dependent and existential representations refuse explicitly",
+    "generic local lets, closures, partial calls, dictionaries, effects, foreign and executable base implementations unfinished",
+    "regular descriptors up to64constructors,16inlinefields,1022groups; extensions unfinished",
+    "compile-only/default pipeline still uses legacy scalar renderer; portable EmitIr adapter unfinished",
+    "complete independent correctness and current Native/self-built suites unfinished; no verified Stage2/3 fixed point",
+    "Cinch still defaults some unconstrained generic numeric arguments that Native rejects; narrow literal-defaulting parity needs a separate repair"
+  ],
+  "native_comparison": [
+    {
+      "before_diagnostics": "",
+      "cinch_before_exit": 0,
+      "name": "generic-identity-classes",
+      "native_exit": 0,
+      "native_output": ""
+    },
+    {
+      "before_diagnostics": "bootstrap.check:7:107: equality needs an Eq dictionary for this type\n",
+      "cinch_before_exit": 4,
+      "name": "generic-shared-tobj",
+      "native_exit": 0,
+      "native_output": ""
+    },
+    {
+      "before_diagnostics": "",
+      "cinch_before_exit": 0,
+      "name": "generic-shared-obj",
+      "native_exit": 0,
+      "native_output": ""
+    },
+    {
+      "before_diagnostics": "bootstrap.check:5:105: equality needs an Eq dictionary for this type\n",
+      "cinch_before_exit": 4,
+      "name": "generic-tuple-fields",
+      "native_exit": 0,
+      "native_output": ""
+    },
+    {
+      "before_diagnostics": "",
+      "cinch_before_exit": 0,
+      "name": "polymorphic-recursion",
+      "native_exit": 0,
+      "native_output": ""
+    },
+    {
+      "before_diagnostics": "",
+      "cinch_before_exit": 0,
+      "name": "class-swapping-recursion",
+      "native_exit": 0,
+      "native_output": ""
+    },
+    {
+      "before_diagnostics": "bootstrap.check:7:35: equality needs an Eq dictionary for this type\n",
+      "cinch_before_exit": 4,
+      "name": "generic-data-classes",
+      "native_exit": 0,
+      "native_output": ""
+    },
+    {
+      "before_diagnostics": "",
+      "cinch_before_exit": 0,
+      "name": "generic-recursive-data",
+      "native_exit": 0,
+      "native_output": ""
+    },
+    {
+      "before_diagnostics": "",
+      "cinch_before_exit": 0,
+      "name": "generic-data-growing-recursion",
+      "native_exit": 0,
+      "native_output": ""
+    },
+    {
+      "before_diagnostics": "bootstrap.check:7:86: equality needs an Eq dictionary for this type\n",
+      "cinch_before_exit": 4,
+      "name": "generic-owned-result",
+      "native_exit": 0,
+      "native_output": ""
+    },
+    {
+      "before_diagnostics": "bootstrap.check:5:29: equality needs an Eq dictionary for this type\n",
+      "cinch_before_exit": 4,
+      "name": "unconstrained-equality-lambda",
+      "native_exit": 1,
+      "native_output": "cinch: 5:31: ambiguous instances for Eq ?m2019 (a literal's type is not determined by context; add a type annotation) (in /tmp/cinch-runtime-classes-oracle-2/unconstrained-equality-lambda/Main.cinch)\n"
+    }
+  ],
+  "native_source_preflight": {
+    "exit_code": 0,
+    "status": "passed"
+  },
+  "numeric_inference_repair": "defer unresolved primitive equality carrier checks until ordinary constraints and numeric defaulting finish; preserve later Nat constraints and refuse unproved generic equality; original unannotated examples remain executable regressions",
+  "physical_abi": "actual C probe verifies generic Raw0/Obj1/TObj2 scan-map entries and distinct specialized constructor descriptors, named/tuple tags and alias sharing; zero leaks",
+  "raw_validation_wrapper": {
+    "actual_test_commands": "both fresh whole commands exit0; unchanged inference whole command exit0",
+    "corrected_input_audit": "both captured input manifests unchanged; their only differences are the two corrected Rust fixtures; separate reconciliation passed",
+    "exit_code": 1,
+    "reason": "extra comparison included generated Cargo outputs"
+  },
+  "reused_inference": {
+    "exact_changed_paths": [
+      "compiler/tests/bootstrap_runtime_emit.rs",
+      "compiler/tests/bootstrap_runtime_ir.rs"
+    ],
+    "reason": "all captured inference/implementation/harness inputs are identical; only the two other Rust fixtures changed",
+    "result": {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-runtime-classes-validation-2/cargo",
+        "--test",
+        "bootstrap_infer",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T00:32:20.187852+00:00",
+      "name": "bootstrap_infer",
+      "pid": 27929,
+      "started": "2026-11-03T00:27:03.533237+00:00",
+      "status": "passed"
+    },
+    "source_sha256": "780be135a821e18825d5d2c2bc58a7de0e8e304bc75712f0333696b48fb8237f"
+  },
+  "sharing_checks": [
+    "Int and Nat call exactly one shared TObj identity worker",
+    "distinct nominal heap data call exactly one shared Obj identity worker",
+    "Raw identity worker contains no reference count calls",
+    "type-growing tuple and source-data recursion each emit exactly two reached class workers"
+  ],
+  "source_sha256": "241f8abb16df934a5ae9a6f7c61b32125432f6c4cf567356de48c40cbb353c48",
+  "source_unchanged": true,
+  "stage_gates": [
+    {
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tooling/tests",
+        "-v"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T00:27:57.344589+00:00",
+      "name": "tooling",
+      "pid": 28609,
+      "started": "2026-11-03T00:27:56.874831+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+        "tooling/bootstrap.py",
+        "smoke",
+        "--stage",
+        "0"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T00:29:04.248761+00:00",
+      "name": "stage0-smoke",
+      "pid": 28617,
+      "started": "2026-11-03T00:27:57.345006+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+        "tooling/bootstrap.py",
+        "smoke",
+        "--stage",
+        "1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T00:33:21.230823+00:00",
+      "name": "stage1-smoke",
+      "pid": 29412,
+      "started": "2026-11-03T00:29:04.249206+00:00",
+      "status": "passed"
+    }
+  ],
+  "status": "three-class function and regular source-data specialization validated",
+  "validation_audit": "both complete captured source manifests audited; generated caches excluded from input comparison; raw runner results preserved",
+  "whole_targets": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-runtime-classes-validation-3/cargo",
+        "--test",
+        "bootstrap_runtime_ir",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T00:40:26.703375+00:00",
+      "name": "bootstrap_runtime_ir",
+      "pid": 34180,
+      "started": "2026-11-03T00:35:18.923324+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-runtime-classes-validation-3/cargo",
+        "--test",
+        "bootstrap_runtime_emit",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T00:40:59.805948+00:00",
+      "name": "bootstrap_runtime_emit",
+      "pid": 34181,
+      "started": "2026-11-03T00:35:18.923881+00:00",
+      "status": "passed"
+    }
+  ]
+}

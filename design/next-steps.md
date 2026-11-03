@@ -1,5 +1,19 @@
 # Next steps (as of 2026-11-03)
 
+The typed backend now shares polymorphic workers by Raw/Obj/TObj class vectors
+and specializes regular source data layouts by those vectors. All33 executable
+programs pass with zero leaks. Actual worker-count checks prove sharing across
+Int/Nat and distinct heap types, and finite type-growing recursion; a C probe
+checks the real generic field maps. The complete inference and emission CLI gates
+pass, including delayed numeric equality and literal-True guard coverage repairs.
+Fresh27 tooling and six stage0/1 checks pass. The genuine Stage2 continuation
+uses the same compiler sources and is queued/running; no Stage2 compiler or
+Stage3 fixed point is claimed. Closures, partial calls, dictionaries, effects,
+executable base implementations, higher/dependent representations and complete
+correctness/current-suite gates remain required. See
+[the class-specialization checkpoint](../bootstrap/runtime-class-results.json).
+
+## Previous source-data checkpoint
 Typed runtime lowering now executes monomorphic source data, recursive constructors,
 refutable and nested patterns, case guards and multiple function equations. All23
 programs pass with zero leaks; a C probe checks actual constructor tags and aliases.

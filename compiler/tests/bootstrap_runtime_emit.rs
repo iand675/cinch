@@ -45,6 +45,20 @@ fn compiler_emit_mode_uses_the_typed_runtime_backend_and_preserves_refusals() {
     let output = Command::new(dir.join("adt-artifact")).env("CINCH_LEAK_CHECK", "1").env("CINCH_RC_DEBUG", "1").output().unwrap();
     assert_eq!(output.status.code(), Some(139), "{}", String::from_utf8_lossy(&output.stderr));
     assert!(String::from_utf8_lossy(&output.stderr).split_whitespace().any(|word| word == "leaked=0"));
+    // Literal True alone completes coverage; computed or false guards do not.
+    for (guard, expected) in [("True", 0), ("False", 4), ("if True then True else True", 4)] {
+        std::fs::write(dir.join("input.source"), format!("module Main where\n  main :: Int\n  main = case 18446744073709551616 of value | ({guard}) -> 149\n")).unwrap();
+        let output = invoke(&["--check", "input.source", "guard-coverage"]);
+        assert_eq!(output.status.code(), Some(expected), "{guard}: {} {}", common::read_output(&dir, "guard-coverage.diagnostics"), String::from_utf8_lossy(&output.stderr));
+    }
+    std::fs::write(dir.join("input.source"), "module Main where\n  main :: Int\n  main = case 18446744073709551616 of value | True -> if value > 0 then 149 else 1\n").unwrap();
+    assert_eq!(invoke(&["--emit-ir", "input.source", "output.ll"]).status.code(), Some(0), "{}", common::read_output(&dir, "output.ll.diagnostics"));
+    let output = Command::new(std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into()))
+        .arg(dir.join("output.ll")).arg(&runtime).args(["-lpthread", "-ldl", "-lm", "-o"]).arg(dir.join("guard-artifact")).output().unwrap();
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    let output = Command::new(dir.join("guard-artifact")).env("CINCH_LEAK_CHECK", "1").env("CINCH_RC_DEBUG", "1").output().unwrap();
+    assert_eq!(output.status.code(), Some(149), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(String::from_utf8_lossy(&output.stderr).split_whitespace().any(|word| word == "leaked=0"));
     // Constructor field carriers are resolved by their enclosing type;
     // literals must not default before that relationship is known.
     for (carrier, literal, expected) in [("Nat", "0", 0), ("I8", "127", 0), ("Bool", "0", 4), ("I8", "128", 4)] {
@@ -52,11 +66,11 @@ fn compiler_emit_mode_uses_the_typed_runtime_backend_and_preserves_refusals() {
         let output = invoke(&["--check", "input.source", "pattern-literal"]);
         assert_eq!(output.status.code(), Some(expected), "{carrier}/{literal}: {} {}", common::read_output(&dir, "pattern-literal.diagnostics"), String::from_utf8_lossy(&output.stderr));
     }
-    std::fs::write(dir.join("input.source"), "module Main where\n  identity :: forall a. a -> a\n  identity x = x\n  main :: Int\n  main = identity 1\n").unwrap();
+    std::fs::write(dir.join("input.source"), "module Main where\n  identity :: forall (f :: Type -> Type) a. f a -> f a\n  identity x = x\n  data Wrap a where\n    Wrap :: a -> Wrap a\n  main :: Int\n  main = case identity (Wrap 1) of Wrap n -> n\n").unwrap();
     assert_eq!(invoke(&["--check", "input.source", "checked"]).status.code(), Some(0));
     assert_eq!(invoke(&["--emit-ir", "input.source", "output.ll"]).status.code(), Some(5));
     assert!(common::read_output(&dir, "output.ll").is_empty(), "failed emission retained stale IR");
-    assert!(common::read_output(&dir, "output.ll.diagnostics").contains("polymorphic"));
+    assert!(common::read_output(&dir, "output.ll.diagnostics").contains("representation"));
     assert_eq!(invoke(&["--check", "--emit-ir", "input.source", "output.ll"]).status.code(), Some(1));
     common::cleanup(&dir);
 }
