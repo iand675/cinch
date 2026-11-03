@@ -268,47 +268,7 @@ mod tests {
     /// `crate::text`).
     #[test]
     fn net_exports_are_global_text_symbols() {
-        let mut candidates: Vec<std::path::PathBuf> = Vec::new();
-        let mut dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        dir.push("target");
-        let mut stack = vec![dir.clone()];
-        while let Some(d) = stack.pop() {
-            if let Ok(entries) = std::fs::read_dir(&d) {
-                for entry in entries.flatten() {
-                    let path = entry.path();
-                    if path.is_dir() {
-                        stack.push(path);
-                    } else {
-                        let name = entry.file_name().to_string_lossy().into_owned();
-                        if name.starts_with("libcinchruntime-")
-                            && (name.ends_with(".rlib") || name.ends_with(".a"))
-                        {
-                            candidates.push(path);
-                        }
-                    }
-                }
-            }
-        }
-        for sub in ["debug", "release"] {
-            let dir = dir.join(sub);
-            for artifact in ["libcinchruntime.a"] {
-                let p = dir.join(artifact);
-                if p.exists() {
-                    candidates.push(p);
-                }
-            }
-            let deps = dir.join("deps");
-            if let Ok(entries) = std::fs::read_dir(&deps) {
-                for entry in entries.flatten() {
-                    let name = entry.file_name().to_string_lossy().into_owned();
-                    if name.starts_with("libcinchruntime-")
-                        && (name.ends_with(".rlib") || name.ends_with(".a"))
-                    {
-                        candidates.push(entry.path());
-                    }
-                }
-            }
-        }
+        let candidates = crate::test_artifacts::runtime_archives();
         let syms = [
             "cinch_net_tcp_connect",
             "cinch_net_read",

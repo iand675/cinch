@@ -524,3 +524,6 @@ pub use error::{Error, Result};
 pub use int::Int;
 pub use nat::Nat;
 pub use bytes::Bytes;
+
+#[cfg(test)]
+mod test_artifacts;

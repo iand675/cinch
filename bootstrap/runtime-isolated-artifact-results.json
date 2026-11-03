@@ -1,0 +1,22 @@
+{
+  "exit_code": 0,
+  "source_sha256": "c6260e01e2fdab4397cd2d8087f835510fd80b4ad52d8729a6222a349b733703",
+  "source_unchanged": true,
+  "status": "passed",
+  "schema": 1,
+  "passed_tests": 171,
+  "failed_tests": 0,
+  "ignored_tests": 0,
+  "problem": "Four nm export checks searched the default manifest target directory and missed the actual --target-dir archives.",
+  "repair": "Test-only helper discovers runtime archives beside the running Cargo test executable; original export-symbol assertions remain intact.",
+  "scope": "Complete runtime unit, cooperative scheduler, evaluator, reference-model, task and doc suites in a fresh isolated Cargo target directory.",
+  "files": {
+    "compiler/runtime/src/lib.rs": "640f88465b898e2f34c974b46362b5a8d120cc20ae06bbc0974c7b91422bd6fb",
+    "compiler/runtime/src/net.rs": "9a2b8efd98a9a0d27550bf9f7e34ad9bfaabc077e7a11446eb52ada8ff136952",
+    "compiler/runtime/src/platform.rs": "fad0e5143d2f9c58e9dd2233e753ff31e5293642118fc510b86ce9b148bd3734",
+    "compiler/runtime/src/pty.rs": "ce6c4bf2534f124fa6fedfec0732691c1ea0a019aeda3e208d55ff6e7d5b5e18",
+    "compiler/runtime/src/text.rs": "d15576b5ea28533f9f39af9f5a849c0aebe33917b4e13c79b53530038abe7c01",
+    "compiler/runtime/src/test_artifacts.rs": "4ed928c1f0e92390daa93dd903da0307d4e45f99db927f39b27a1a09665c05a1"
+  },
+  "test_log_sha256": "5293552a4e3125bd18e6044e0fc3acfb7370972ae6a17bf71b4c5902b8b96b24"
+}

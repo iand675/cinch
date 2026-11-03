@@ -581,36 +581,7 @@ mod tests {
 
     #[test]
     fn the_text_externs_are_nm_visible() {
-        // The standing runtime rule: every `cinch_*` extern is
-        // `#[unsafe(no_mangle)]` and visible as a global text symbol in
-        // the built artifacts. `cargo test` builds the rlib and the
-        // `deps` archive (the linked top-level archive needs a separate
-        // `cargo build`); all artifacts come from the same crate
-        // compilation, so the newest one always carries the exports and
-        // a stale sibling copy is not a failure.
-        let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-        let mut candidates: Vec<std::path::PathBuf> = Vec::new();
-        for profile in ["debug", "release"] {
-            let dir = manifest.join("target").join(profile);
-            for artifact in [
-                dir.join("libcinchruntime.rlib"),
-                dir.join("libcinchruntime.a"),
-            ] {
-                if artifact.exists() {
-                    candidates.push(artifact);
-                }
-            }
-            let deps = dir.join("deps");
-            if let Ok(entries) = std::fs::read_dir(&deps) {
-                for entry in entries.flatten() {
-                    let name = entry.file_name().to_string_lossy().into_owned();
-                    if name.starts_with("libcinchruntime-") && (name.ends_with(".rlib") || name.ends_with(".a"))
-                    {
-                        candidates.push(entry.path());
-                    }
-                }
-            }
-        }
+        let candidates = crate::test_artifacts::runtime_archives();
         let syms = [
             "cinch_text_sha256",
             "cinch_text_sha512",
