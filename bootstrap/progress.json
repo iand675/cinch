@@ -215,5 +215,5 @@
   ],
   "status": "Bootstrap passed; final full-suite verification running",
   "summary": "The repaired compiler bootstraps and passes exact final-Stage3 behavior checks. The full 208-group Native-backed sweep and all 79 portable bootstrap groups through Stage3 are tracked separately. Native library fixture preparation is explicit; selected compiler failures never fall back.",
-  "updatedAt": "2026-11-03T21:43:32.586005+00:00"
+  "updatedAt": "2026-11-03T21:48:47.653992+00:00"
 }
