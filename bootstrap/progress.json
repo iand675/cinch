@@ -1,11 +1,11 @@
 {
   "schema": 1,
-  "updatedAt": "2026-11-03T15:45:20.008562+00:00",
+  "updatedAt": "2026-11-03T15:56:31.903860+00:00",
   "estimate": 90,
   "estimateNote": "Rough engineering estimate. Remaining compiler bugs can change it; this is not a measured test pass rate.",
   "status": "Compiler code reaches a fixed point",
   "summary": "Stage3 rebuilt successfully. Its compiler IR and executable exactly match Stage2, and both compilers pass all three smoke checks. Real compiler interfaces and complete current-source testing remain.",
-  "activity": "Checked type printing passes through the self-built Stage3 and independent Native readback. A complete interface writer is under development; the full baseline sweep continues with no failures so far.",
+  "activity": "The checked interface writer prototype passes independent Native schema and hash-chain validation. An expanded regression now checks real imports, private constructors and fixity ownership. The full baseline run found a stale parser coverage table; its correction is under test.",
   "commit": "2c08f8a881c88d606f49d3d5be726af808e0bfde",
   "stages": [
     {
@@ -96,7 +96,7 @@
     },
     {
       "title": "Full baseline suite running",
-      "detail": "Candidate23: 48 /205 whole target gates passed; 2 running; 0 failed. All204 Rust runners compiled. New Rust ownership and type-export changes have focused passing regressions; complete final-source verification remains.",
+      "detail": "Candidate23: 51 /205 target groups passed; 3 running; 1 failed. The parser coverage table omitted the measured RuntimeAbi module; its correction is under validation. Final combined-source verification remains.",
       "state": "running"
     },
     {
@@ -142,9 +142,9 @@
       "technical": "Source pipeline currently emits IR/diagnostics. No empty or name-only files will count; the interface completeness gate also needs stronger validation."
     },
     {
-      "title": "Complete current-source tests",
-      "detail": "The baseline sweep is progressing with three bounded workers and no failures so far. A subsequent Rust ownership fix passes its focused suite; the final combined source still needs full verification.",
-      "technical": "Candidate23 uses three bounded workers and a single shared exact-snapshot test build. Historical source20 passes remain separate."
+      "title": "Finish full verification and repair its failures",
+      "detail": "The baseline parser coverage gate failed because its expected-module table omitted RuntimeAbi. The measured module parses with zero unmodeled nodes; a corrected table and coverage for the new exporter modules are under test. Other baseline groups continue.",
+      "technical": "Baseline candidate23 is immutable. The coverage correction is being tested on a fresh snapshot; its old failure remains recorded rather than overwritten."
     }
   ],
   "milestones": [
