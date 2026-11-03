@@ -1,5 +1,25 @@
 # Self-hosting
 
+## Verified combined bootstrap (2026-11-03)
+
+The fresh frozen-source chain now passes every stage0/1/2/3 smoke check,
+byte-exact Stage2/Stage3 compiler IR and executable comparison, and all43
+canonical compiler-interface comparisons. Stage3 checks its actual entry using
+those emitted APIs without compiler-module bodies. Stage2 also rebuilds changed
+compiler source, and the resulting executable exhibits the requested changed
+diagnostic behavior. See [the complete scoped evidence](../bootstrap/fresh-combined-bootstrap-results.json).
+
+This run verifies frozen source
+`6c6644d69b3b32aa04992f6793de634278c07fe717bce59d1d0dc05d24cd3b69`.
+It precedes the subsequent reexport-fixity and Rust class/data-name repairs.
+The latter passes all14 focused checks; the former and the matching full-suite
+and stage-chain runs are being verified. Acceptance still requires the complete
+final-source compiler/runtime suites and external self-built frontend coverage,
+as specified below. The [next steps](next-steps.md) and
+[live dashboard](https://cinch-bootstrap-status.ian92821.chatgpt.site) track these gates.
+
+## Earlier Boolean branch checkpoint
+
 Boolean branch facts now preserve valid one-way implications when an opaque
 right operand prevents an exact condition reading. A true conjunction retains
 its left guard; a false disjunction retains the negative left guard. The wrong
@@ -950,7 +970,7 @@ root-launched builds. Keep jobs at low priority and each Cinch heap at most 2G;
 the per-process heap cap does not replace the shared worker limit.
 The earlier gates interrupted by the machine crash are not completed verification.
 
-## Current boundary
+## Historical refinement boundary
 
 Source anonymous refinement checking is integrated after 42 runtime-fed
 source cases pass, followed by the Core/type contract and syntax checks,
