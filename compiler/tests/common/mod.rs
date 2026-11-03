@@ -66,6 +66,10 @@ pub fn project(tag: &str, files: &[(&str, &str)]) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("cinch_boot_{}_{}_{}", tag, std::process::id(), n));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("project directory");
+    if files.iter().any(|(name, _)| matches!(*name, "Bootstrap.RuntimeIr.cinch" | "Bootstrap.Pipeline.cinch" | "Bootstrap.Object.cinch")) {
+        std::fs::write(dir.join("Bootstrap.Object.cinch"), include_str!("../../../bootstrap/Bootstrap.Object.cinch"))
+            .expect("checked runtime object dependency");
+    }
     std::fs::write(dir.join("Bootstrap.RuntimeAbi.cinch"), include_str!("../../../bootstrap/Bootstrap.RuntimeAbi.cinch"))
         .expect("exact runtime ABI dependency");
     if files.iter().any(|(name, _)| *name == "Bootstrap.Pipeline.cinch") {

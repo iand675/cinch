@@ -20,7 +20,8 @@ module Bootstrap.Pipeline where
   import Bootstrap.Check (CheckedProgram, check-and-retain)
   import Bootstrap.Driver (link-and-report, link-only-and-report)
   import Bootstrap.Ir (emit-checked-diagnostics, emit-checked-program)
-  import Bootstrap.RuntimeIr (emit-runtime-program)
+  import Bootstrap.RuntimeIr (emit-runtime-program, emit-runtime-program-with-object)
+  import Bootstrap.Object (RuntimeObject, read-runtime-object)
   import Bootstrap.Parse (parse-program)
   import Bootstrap.Parse (parse-program-with)
   import Bootstrap.Load (LoadedInterface)
@@ -81,8 +82,10 @@ module Bootstrap.Pipeline where
   -- Write a refusal's text and answer with the stage's code; a write that
   -- itself fails is its own code, because then the evidence is missing.
   write-failure :: forall r. using (io :: Io r) => Path -> String -> Int ->{IO r} Int
-  write-failure ir text code = case fs-write (refusal-path ir) (string-to-bytes text) of
-    Ok u -> code
+  write-failure ir text code = case fs-write ir (string-to-bytes "") of
+    Ok cleared -> (case fs-write (refusal-path ir) (string-to-bytes text) of
+      Ok u -> code
+      Err e -> pipeline-write-failed)
     Err e -> pipeline-write-failed
 
   -- The four argument words, or None when the caller gave fewer.
@@ -119,6 +122,22 @@ module Bootstrap.Pipeline where
     Ok interfaces -> case fs-read (path-from-string source) of
       Err error -> pipeline-read-failed
       Ok src -> after-parse-with mode interfaces source src (parse-program-with source src (interface-headers interfaces)) ir exe report
+
+  compile-source-with-object :: forall r. using (io :: Io r) => String -> String -> String -> Path ->{IO r, Diverge} Int
+  compile-source-with-object manifest object-config source ir = case read-interfaces manifest of
+    Err message -> write-failure ir (string-concat "bootstrap.interfaces: " message) pipeline-interface-failed
+    Ok interfaces -> case read-runtime-object interfaces object-config of
+      Err message -> write-failure ir (string-concat "bootstrap.object: " message) pipeline-interface-failed
+      Ok provider -> case fs-read (path-from-string source) of
+        Err error -> write-failure ir "bootstrap.object: cannot read source" pipeline-read-failed
+        Ok src -> case parse-program-with source src (interface-headers interfaces) of
+          Failed bundle -> write-failure ir (render-bundle bundle) pipeline-parse-failed
+          Parsed program Nil -> (case resolve-program-with program interfaces of
+            (resolved, Nil) -> case check-and-retain resolved of
+              Err errors -> write-failure ir (render-diagnostics errors) pipeline-check-refused
+              Ok checked -> write-runtime-module ir (emit-runtime-program-with-object checked (Some provider))
+            (resolved, errors) -> write-failure ir (render-diagnostics errors) pipeline-check-refused)
+          Parsed program errors -> write-failure ir (render-bundle (Bundle source src errors)) pipeline-parse-failed
 
   -- `ParseOutcome`'s `Parsed` carries the value AND the errors a recovering
   -- parse produced, so a clean parse is `Parsed prog Nil`. This rung accepts

@@ -45,6 +45,14 @@ Use `--object-roots roots.json` to request concrete generic function, dictionary
 and method variants needed by a separate consumer. The manifest records the
 actual class method slot families used by the resulting object.
 
+The Cinch stage compiler consumes a matching bundle through
+`--emit-ir --interfaces MANIFEST --objects CONFIG SOURCE IR`. Admission checks
+artifact SHA256 identities, exact configured ABI and checked interfaces, then
+emission preserves the provider's layout prefix and actual method slot plan.
+This flag belongs to the Cinch stage CLI; the Rust development CLI uses the
+subcommands above. The stage driver builds and links its pinned library bundle
+automatically, without routing compiler implementation sources through Rust.
+
 ## Pipeline
 
 ```

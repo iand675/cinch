@@ -137,5 +137,40 @@ int main(void) {
     assert!(common::read_output(&dir, "output.ll").is_empty(), "failed emission retained stale IR");
     assert!(common::read_output(&dir, "output.ll.diagnostics").contains("representation"));
     assert_eq!(invoke(&["--check", "--emit-ir", "input.source", "output.ll"]).status.code(), Some(1));
+    let provider = common::project("cli_object_library", &[("Library.cinch", "module Library where\n  marker :: Bool -> Bool\n  marker b = b\n")]);
+    let object = provider.join("provider.o");
+    cinch::driver::driver(cinch::driver::Mode::EmitObject, &provider.join("Library.cinch"), Some(&object)).unwrap();
+    let mut rows = Vec::new();
+    for entry in std::fs::read_dir(provider.join("build")).unwrap() {
+        let path = entry.unwrap().path();
+        if path.extension().is_some_and(|e| e == "cinchif") {
+            let iface = cinch::interface::Iface::from_json(&std::fs::read_to_string(&path).unwrap()).unwrap();
+            // All generated paths here are conventional temporary paths;
+            // the producer sources and hashes remain independently checked.
+            rows.push(format!("[\"{}\",\"{}\",\"{}\"]", iface.module, iface.iface_hash(), path.display()));
+        }
+    }
+    rows.sort(); std::fs::write(dir.join("object-interfaces.json"), format!("{{\"schema\":1,\"interfaces\":[{}]}}", rows.join(","))).unwrap();
+    let digest = |path: &std::path::Path| {
+        let output = Command::new("python3").args(["-c", "import hashlib,sys;print(hashlib.sha256(open(sys.argv[1],'rb').read()).hexdigest())"]).arg(path).output().unwrap();
+        assert!(output.status.success()); String::from_utf8(output.stdout).unwrap().trim().to_string()
+    };
+    let metadata = object.with_extension("abi.json");
+    let configuration = format!("{{\"schema\":1,\"target\":\"{}\",\"object\":\"{}\",\"metadata\":\"{}\",\"object_sha256\":\"{}\",\"metadata_sha256\":\"{}\"}}", cinch::core::TargetProfile::native().triple, object.display(), metadata.display(), digest(&object), digest(&metadata));
+    std::fs::write(dir.join("objects.json"), &configuration).unwrap();
+    std::fs::write(dir.join("input.source"), "module Main where\n  import Data.Bool (not)\n  main :: Int\n  main = if not False then 237 else 1\n").unwrap();
+    let emitted = invoke(&["--emit-ir", "--interfaces", "object-interfaces.json", "--objects", "objects.json", "input.source", "object.ll"]);
+    assert_eq!(emitted.status.code(), Some(0), "{} {}", common::read_output(&dir,"object.ll.diagnostics"), String::from_utf8_lossy(&emitted.stderr));
+    let linked = Command::new(std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into())).arg(dir.join("object.ll")).arg(&object).arg(&runtime).arg("-o").arg(dir.join("object-program")).output().unwrap();
+    assert!(linked.status.success(), "{}", String::from_utf8_lossy(&linked.stderr));
+    let ran = Command::new(dir.join("object-program")).env("CINCH_LEAK_CHECK", "1").env("CINCH_HEAP_LIMIT", "32M").output().unwrap();
+    assert_eq!(ran.status.code(), Some(237), "{}", String::from_utf8_lossy(&ran.stderr));
+    assert!(String::from_utf8_lossy(&ran.stderr).split_whitespace().any(|s| s == "leaked=0"));
+    println!("object CLI: exit237; {}", String::from_utf8_lossy(&ran.stderr).trim());
+    std::fs::write(dir.join("objects.json"), configuration.replace(&digest(&metadata), &"0".repeat(64))).unwrap();
+    assert_eq!(invoke(&["--emit-ir", "--objects", "objects.json", "--interfaces", "object-interfaces.json", "input.source", "object.ll"]).status.code(), Some(7));
+    assert!(common::read_output(&dir,"object.ll").is_empty());
+    assert!(common::read_output(&dir,"object.ll.diagnostics").contains("artifact digest mismatch"));
+    common::cleanup(&provider);
     common::cleanup(&dir);
 }

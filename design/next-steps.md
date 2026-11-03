@@ -1,5 +1,37 @@
 # Next steps (as of 2026-11-03)
 
+## Checked library consumption and reproducible stage dependencies
+Cinch now consumes a checked library object with its exact layout prefix,
+function representation variants and declaring-class method slot families.
+Value and instance exports supply separate source authority; physical inventory
+alone grants neither private names nor missing generic variants. Fourteen linked
+programs pass with zero reported leaks, covering direct and partial calls,
+returned functions, heap integers, Native-produced strings, IO arguments,
+polymorphic methods and UTF-8/empty String, Char and U64 literal/pattern behavior.
+Wrong artifacts, ABIs, targets, field maps and private imports are refused.
+The existing82 backend programs, real CLI and every Rust test-target compile
+check pass on the live ABI6 implementation.
+
+The stage driver now creates a separately pinned library-only producer and
+matching runtime, records artifact/interface hashes, invokes the preceding
+Cinch compiler with `--objects`, and links that compiler's IR with the checked
+bundle. Its closure excludes compiler implementation modules. Prepared ABI5
+stages remain separate from live ABI6 artifacts; the stage0 pin is unchanged.
+Missing concrete dependency variants are reported as explicit producer roots.
+The fixed-point gate requires actual compiler interfaces, preventing base-library
+contracts from standing in for compiler output.
+
+The first integrated full-source attempt stopped at the generated ABI module's
+dependent conversion of a global constant, before runtime emission. The
+configuration generator now emits matching Nat and Int literals from one
+validated value; the focused actual Cinch frontend changes from exit4 to0.
+The complete corrected stage attempt and remaining constructor/type regression
+targets are still running. This establishes neither a Stage2 executable nor a
+Stage3 fixed point. Canonical compiler interface output, remaining runtime forms,
+actual provider demands and complete current suites/correctness remain required.
+See [the consumer evidence](../bootstrap/runtime-object-consumer-results.json)
+and [the linkage protocol](runtime-object-linkage.md).
+
 ## Imported class authority and demanded library variants
 Cinch retains checked imported class kinds and method descriptions even when a
 module declares no instance. Kinds come from the defining parameter contracts;

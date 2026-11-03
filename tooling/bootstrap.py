@@ -19,7 +19,7 @@ import tarfile
 ROOT = Path(__file__).resolve().parents[1]
 BUILD = ROOT / "build" / "bootstrap"
 TOOLKIT = ("Lex", "Scan", "Parse", "Json", "Builder")
-PROTOCOL = 3
+PROTOCOL = 4
 HOST = {"system": platform.system(), "machine": platform.machine()}
 FROZEN_SOURCES = None
 
@@ -109,7 +109,9 @@ def run(command: list[str | Path], cwd: Path, log: Path, *, append: bool = False
 
 def required_artifacts(inputs: dict) -> tuple[str, ...]:
     if inputs.get("built_by_stage", 0) > 0:
-        return ("compiler.ll", "link-report.txt", "base-interfaces.json")
+        return (("compiler.ll", "link-report.txt", "base-interfaces.json", "objects.json")
+                if inputs.get("frontend_mode") == "typed-ir-objects" else
+                ("compiler.ll", "link-report.txt", "base-interfaces.json"))
     if "source_sha256" in inputs:
         return ("compiler.cinch", "sources/build/Main.manifest.json")
     return ()
@@ -210,12 +212,11 @@ def runtime_abi_source(abi: int) -> bytes:
     return ("-- One exact ABI per compiler build. The pinned stage builder renders this\n"
             "-- module from its verified seed lock before hashing the complete sources.\n"
             "module Bootstrap.RuntimeAbi where\n"
-            "  import Data.Nat (nat-to-int)\n"
             "  export runtime-abi, runtime-abi-int\n"
             "  runtime-abi :: Nat\n"
             f"  runtime-abi = {abi}\n"
             "  runtime-abi-int :: Int\n"
-            "  runtime-abi-int = nat-to-int runtime-abi\n").encode()
+            f"  runtime-abi-int = {abi}\n").encode()
 
 
 def collect_compiler_sources() -> dict[str, bytes]:
@@ -241,7 +242,7 @@ def bundle(files: dict[str, bytes]) -> bytes:
 
 def prepare_outputs(directory: Path) -> None:
     directory.mkdir(parents=True, exist_ok=True)
-    for name in ("cinch", "compiler.ll", "compiler.ll.diagnostics", "link-report.txt"):
+    for name in ("cinch", "compiler.ll", "compiler.ll.diagnostics", "link-report.txt", "requested-roots.json"):
         (directory / name).unlink(missing_ok=True)
     for interface in directory.rglob("*.cinchif"):
         interface.unlink()
@@ -278,12 +279,15 @@ def build_stage(stage: int) -> Path:
 
 def build_self(builder: Path, files: dict[str, bytes], directory: Path,
                built_by_stage: int, source: Path | None = None) -> Path:
-    base = base_interface_manifest()
+    provider = runtime_provider()
+    base = provider["interfaces"]
     base_bytes = json.dumps(base, sort_keys=True, separators=(",", ":")).encode()
-    runtime = runtime_archive()
+    configuration = json.dumps(provider["configuration"], sort_keys=True, separators=(",", ":")).encode()
+    runtime = provider["runtime"]
     inputs = {"protocol": PROTOCOL, "host": HOST, "source_sha256": source_hash(files),
               "builder_sha256": file_hash(builder), "built_by_stage": built_by_stage,
-              "interface_set_sha256": digest(base_bytes), "frontend_mode": "typed-ir",
+              "interface_set_sha256": digest(base_bytes), "frontend_mode": "typed-ir-objects",
+              "library_provider": provider["identity"], "object_configuration_sha256": digest(configuration),
               "runtime_archive_sha256": file_hash(runtime)}
     if cached(directory, inputs):
         print(f"{directory.name}: verified cached compiler", flush=True)
@@ -291,17 +295,25 @@ def build_self(builder: Path, files: dict[str, bytes], directory: Path,
     prepare_outputs(directory)
     manifest = directory / "base-interfaces.json"
     manifest.write_bytes(base_bytes)
+    objects = directory / "objects.json"
+    objects.write_bytes(configuration)
     if source is None:
         source = directory / "compiler.cinch"
         source.write_bytes(bundle(files))
     log = directory / "build.log"
     # Only the preceding Cinch compiler reads the source. Its retained-Core
-    # backend emits ABI5 LLVM; the platform linker consumes that IR and the
-    # exact runtime built from the pinned seed. No Native frontend fallback.
+    # backend emits LLVM; the platform linker consumes that IR, the exact
+    # library object and its matching pinned runtime. Native builds only the
+    # generated library root and its base closure, never Bootstrap sources.
     ir, exe = directory / "compiler.ll", directory / "cinch"
-    code = run([builder, "--emit-ir", "--interfaces", manifest, source, ir], directory, log)
+    code = run([builder, "--emit-ir", "--interfaces", manifest, "--objects", objects, source, ir], directory, log)
+    if code:
+        from bootstrap_objects import requested_roots
+        diagnostics = directory / "compiler.ll.diagnostics"
+        if diagnostics.is_file():
+            write_json(directory / "requested-roots.json", requested_roots(diagnostics.read_text(errors="replace")))
     if code == 0:
-        command = [os.environ.get("CINCH_CLANG", "clang"), ir, runtime, "-o", exe]
+        command = [os.environ.get("CINCH_CLANG", "clang"), ir, provider["object"], runtime, "-o", exe]
         if HOST["system"] == "Linux":
             command.extend(["-ldl", "-lpthread", "-lm"])
         code = run(command, directory, log, append=True)
@@ -317,6 +329,11 @@ def build_self(builder: Path, files: dict[str, bytes], directory: Path,
                 code = 1
         (directory / "link-report.txt").write_text(report)
     return record_build(directory, inputs, code, log)
+
+
+def runtime_provider() -> dict:
+    from bootstrap_objects import provider
+    return provider(sys.modules[__name__])
 
 
 def runtime_archive() -> Path:
@@ -399,10 +416,25 @@ def check_fixed_point() -> None:
         raise BootstrapError("stage-2 and stage-3 LLVM IR differ")
     interfaces = {str(p.relative_to(second)): file_hash(p) for p in second.rglob("*.cinchif")}
     rebuilt = {str(p.relative_to(third)): file_hash(p) for p in third.rglob("*.cinchif")}
+    require_compiler_interfaces(second, compiler_sources())
+    require_compiler_interfaces(third, compiler_sources())
     if not interfaces or interfaces != rebuilt:
         raise BootstrapError("canonical stage-2/stage-3 interfaces are missing or differ")
     check_changed_source()
     print("bootstrap: stages 2 and 3 reached a fixed point", flush=True)
+
+
+def require_compiler_interfaces(directory: Path, files: dict[str, bytes]) -> None:
+    expected = {name[:-6] for name in files if name.endswith(".cinch")}
+    found = set()
+    for path in directory.rglob("*.cinchif"):
+        name = read_json(path).get("module")
+        if name in expected:
+            if name in found:
+                raise BootstrapError(f"duplicate canonical compiler interface for {name}: {directory}")
+            found.add(name)
+    if found != expected:
+        raise BootstrapError(f"{directory.name} is missing actual compiler interfaces: {', '.join(sorted(expected - found))}")
 
 
 def check_changed_source() -> None:
@@ -465,10 +497,16 @@ def main() -> int:
                 inputs = record.get("inputs", {})
                 if status == "built" and not cached(directory, inputs):
                     status = "invalid artifacts"
+                elif status == "built" and inputs.get("protocol") != PROTOCOL:
+                    status = "stale stage protocol"
                 elif status == "built" and stage and inputs.get("source_sha256") != source_hash(compiler_sources()):
                     status = "stale sources"
                 elif status == "built" and not stage and inputs.get("seed") != seed_inputs()[0]:
                     status = "stale seed"
+                elif status == "built" and stage >= 2 and (
+                        inputs.get("library_provider", {}).get("producer") != read_json(ROOT / "bootstrap/library-provider.lock.json")
+                        or inputs.get("library_provider", {}).get("roots_sha256") != file_hash(ROOT / "bootstrap/library-object-roots.json")):
+                    status = "stale library inputs"
                 elif status == "built" and inputs.get("host") != HOST:
                     status = "different build host"
                 print(f"stage{stage}: {status}")

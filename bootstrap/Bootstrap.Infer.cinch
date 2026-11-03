@@ -2690,6 +2690,51 @@ module Bootstrap.Infer where
     Nil -> (reverse backwards, st)
     Cons d rest -> case checked-data-declaration classes kinds env d st of
       (found, ss) -> checked-data classes kinds env rest (case found of None -> backwards; Some typed -> Cons typed backwards) ss
+  -- A function may return a private data carrier without importing its type
+  -- name. Its resolved nominal contract still proves the word is an object;
+  -- it grants neither constructor layouts nor source access to private fields.
+  nominal-runtime-data :: Json -> TypeContext -> List CoreData -> Store -> (List CoreData, Store)
+  nominal-runtime-data rows kinds datas st = case rows of
+    JArr row rest -> (case (field "kind" row, field "identity" row) of
+      (JStr variety, JStr identity) -> if same variety "data" && not (runtime-data-present (interface-global identity) datas) then
+        (case imported-kinds kinds (field "parameters" row) st of
+          (params, checked) -> nominal-runtime-data rest kinds (Cons (MkCoreData zero (interface-global identity) (kind-arrow params) params Nil) datas) checked)
+        else nominal-runtime-data rest kinds datas st
+      other -> nominal-runtime-data rest kinds datas st)
+    other -> (datas, st)
+  runtime-data-present :: String -> List CoreData -> Bool
+  runtime-data-present name datas = case datas of Nil -> False; Cons first rest -> same name (core-data-name first) || runtime-data-present name rest
+  checked-nominal-data :: List Decl -> TypeContext -> List CoreData -> Store -> (List CoreData, Store)
+  checked-nominal-data ds kinds datas st = case ds of
+    Nil -> (datas, st)
+    Cons (DExternal sp name category syntax metadata) rest -> (case nominal-runtime-data (resolved-nominals metadata) kinds datas st of
+      (more, checked) -> checked-nominal-data rest kinds more checked)
+    Cons other rest -> checked-nominal-data rest kinds datas st
+  replace-runtime-data :: CoreData -> List CoreData -> List CoreData
+  replace-runtime-data actual datas = case datas of
+    Nil -> Nil
+    Cons first rest -> if same (core-data-name actual) (core-data-name first) then Cons actual rest else Cons first (replace-runtime-data actual rest)
+  -- Materialization may retain a constructor use while pruning the unused
+  -- source type-name declaration. Recover only complete PUBLIC defining
+  -- tables for carriers already checked above. Source names remain governed
+  -- by the resolver; partial/private tables remain abstract.
+  complete-runtime-data-rows :: Json -> List (String, Kind) -> TypeContext -> List CoreData -> Store -> (List CoreData, Store)
+  complete-runtime-data-rows rows classes kinds datas st = case rows of
+    JArr row rest -> (case (field "identity" row, field "kind" row) of
+      (JStr identity, JStr variety) -> let name = interface-global identity in
+        if same variety "data" && runtime-data-present name datas && runtime-constructors-complete name (field "ctors" row) then
+          (case checked-data-declaration classes kinds Nil (DExternal zero name "type" None row) st of
+            (Some actual, checked) -> complete-runtime-data-rows rest classes kinds (replace-runtime-data actual datas) checked
+            (None, checked) -> complete-runtime-data-rows rest classes kinds datas checked)
+        else complete-runtime-data-rows rest classes kinds datas st
+      other -> complete-runtime-data-rows rest classes kinds datas st)
+    other -> (datas, st)
+  complete-runtime-data :: List Decl -> List (String, Kind) -> TypeContext -> List CoreData -> Store -> (List CoreData, Store)
+  complete-runtime-data ds classes kinds datas st = case ds of
+    Nil -> (datas, st)
+    Cons (DInterface sp name hash metadata) rest -> (case complete-runtime-data-rows (field "types" (field "exports" metadata)) classes kinds datas st of
+      (more, checked) -> complete-runtime-data rest classes kinds more checked)
+    Cons other rest -> complete-runtime-data rest classes kinds datas st
   check-data-closed :: List CoreData -> Store -> Store
   check-data-closed datas st = case datas of
     Nil -> st
@@ -2797,7 +2842,9 @@ module Bootstrap.Infer where
     let linked-kinds = context-with-effects effects kinds in
     let (descriptions, instances, sm) = case store-errors sx of Nil -> checked-source-instances rows classes linked-kinds families env ds (context-source-classes linked-kinds) sx; other -> (Nil, Nil, sx) in
     let (core, done) = case store-errors sm of Nil -> check-bodies classes linked-kinds families env Nil ds ds sm; other -> (Nil, sm) in
-    let (datas, sd) = case store-errors done of Nil -> checked-data classes linked-kinds env ds Nil done; other -> (Nil, done) in
+    let (declared-data, declared-store) = case store-errors done of Nil -> checked-data classes linked-kinds env ds Nil done; other -> (Nil, done) in
+    let (nominal-data, nominal-store) = case store-errors declared-store of Nil -> checked-nominal-data ds linked-kinds declared-data declared-store; other -> (declared-data, declared-store) in
+    let (datas, sd) = case store-errors nominal-store of Nil -> complete-runtime-data ds classes linked-kinds nominal-data nominal-store; other -> (nominal-data, nominal-store) in
     let finished = case store-errors sd of Nil -> check-data-closed datas (check-global-core linked-kinds env instances core sd); other -> sd in
     let retained-classes = case store-errors finished of Nil -> checked-imported-classes rows rows classes linked-kinds descriptions; other -> descriptions in
     MkElaboration (store-errors finished) (finish-bindings finished env) (contexts ds) core datas effects (MkCoreClassContext classes retained-classes) instances

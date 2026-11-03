@@ -4,7 +4,8 @@
 -- runtime words throughout. Unsupported Core produces errors, never IR.
 module Bootstrap.RuntimeIr where
   import Bootstrap.Check (CheckedProgram, checked-elaboration)
-  import Bootstrap.Infer (elaboration-core, elaboration-data, elaboration-effects, elaboration-classes, elaboration-instances, elaboration-bindings, CheckedBinding, checked-method-matches)
+  import Bootstrap.Infer (elaboration-core, elaboration-data, elaboration-effects, elaboration-classes, elaboration-instances, elaboration-bindings, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches)
+  import Bootstrap.Object (RuntimeObject, RuntimeUnit, object-words, object-unit, object-variant, object-dictionary, object-family, object-string-layout, unit-symbol, unit-closure, unit-params, unit-result, llvm-object-symbol, llvm-data-bytes)
   import Bootstrap.Core
   import Bootstrap.Instance
   import Bootstrap.Type
@@ -14,7 +15,7 @@ module Bootstrap.RuntimeIr where
   import Text.Show (nat-to-string)
   import Text.Lex (Span)
 
-  export emit-runtime-program
+  export emit-runtime-program, emit-runtime-program-with-object
 
   -- Named families and anonymous tuples share one table, but distinct
   -- group caches: a tuple must retain tag0 even when a named constructor
@@ -36,6 +37,7 @@ module Bootstrap.RuntimeIr where
     StubDemand :: String -> List Nat -> Demand
     DictionaryDemand :: String -> List Nat -> Demand
     BuiltinDemand :: String -> Demand
+    ExternalDemand :: RuntimeUnit -> Demand
   -- Bound scheme ids and opened rigid ids are separate namespaces.
   -- A worker is shared by all actual types with the same class vector.
   data MethodVersion where
@@ -43,7 +45,7 @@ module Bootstrap.RuntimeIr where
   data MethodSlot where
     MethodSlot :: Nat -> Nat -> List Nat -> MethodSlot
   data ProgramInfo where
-    ProgramInfo :: List CoreData -> List CoreClass -> List CoreInstance -> List CheckedBinding -> List MethodVersion -> ProgramInfo
+    ProgramInfo :: List CoreData -> List CoreClass -> List CoreInstance -> List CheckedBinding -> List MethodVersion -> Option RuntimeObject -> ProgramInfo
   data RuntimeContext where
     RuntimeContext :: ProgramInfo -> List (Nat, Nat) -> List (Nat, Nat) -> List Demand -> List Demand -> RuntimeContext
   data Writer where
@@ -73,24 +75,28 @@ module Bootstrap.RuntimeIr where
   named ty name = case base ty of UCon actual KType -> same actual name; other -> False
   number :: UType -> Bool
   number ty = named ty "Int" || named ty "Nat"
+  raw-integer :: UType -> Bool
+  raw-integer ty = named ty "I8" || named ty "I16" || named ty "I32" || named ty "I64" || named ty "Isize" || named ty "U8" || named ty "U16" || named ty "U32" || named ty "U64" || named ty "Usize"
   scalar :: UType -> Bool
-  scalar ty = number ty || named ty "Bool" || named ty "Unit"
+  scalar ty = number ty || named ty "Bool" || named ty "Unit" || raw-integer ty || named ty "Char"
   writer-context :: Writer -> RuntimeContext
   writer-context w = case w of Writer next globals code errors layouts context -> context
   writer-program :: Writer -> ProgramInfo
   writer-program w = case writer-context w of RuntimeContext info bounds rigids pending done -> info
   program-data :: ProgramInfo -> List CoreData
-  program-data info = case info of ProgramInfo datas descriptions instances bindings versions -> datas
+  program-data info = case info of ProgramInfo datas descriptions instances bindings versions provider -> datas
   program-classes :: ProgramInfo -> List CoreClass
-  program-classes info = case info of ProgramInfo datas descriptions instances bindings versions -> descriptions
+  program-classes info = case info of ProgramInfo datas descriptions instances bindings versions provider -> descriptions
   program-instances :: ProgramInfo -> List CoreInstance
-  program-instances info = case info of ProgramInfo datas descriptions instances bindings versions -> instances
+  program-instances info = case info of ProgramInfo datas descriptions instances bindings versions provider -> instances
   program-bindings :: ProgramInfo -> List CheckedBinding
-  program-bindings info = case info of ProgramInfo datas descriptions instances bindings versions -> bindings
+  program-bindings info = case info of ProgramInfo datas descriptions instances bindings versions provider -> bindings
   program-versions :: ProgramInfo -> List MethodVersion
-  program-versions info = case info of ProgramInfo datas descriptions instances bindings versions -> versions
+  program-versions info = case info of ProgramInfo datas descriptions instances bindings versions provider -> versions
+  program-object :: ProgramInfo -> Option RuntimeObject
+  program-object info = case info of ProgramInfo datas descriptions instances bindings versions provider -> provider
   with-versions :: List MethodVersion -> ProgramInfo -> ProgramInfo
-  with-versions versions info = case info of ProgramInfo datas descriptions instances bindings old -> ProgramInfo datas descriptions instances bindings versions
+  with-versions versions info = case info of ProgramInfo datas descriptions instances bindings old provider -> ProgramInfo datas descriptions instances bindings versions provider
   same-classes :: List Nat -> List Nat -> Bool
   same-classes first second = case (first, second) of
     (Nil, Nil) -> True
@@ -158,7 +164,15 @@ module Bootstrap.RuntimeIr where
       case extra-method-versions (class-method-slot member) next versions of
         (finish, own-codes) -> own-codes <> extra-method-slots w owner finish rest
   class-method-slots :: Writer -> CoreClass -> List MethodSlot
-  class-method-slots w description = primary-method-slots w (class-name description) (class-methods description)
+  class-method-slots w description = case program-object (writer-program w) of
+    Some provider -> (case object-family (class-name description) provider of
+      Some (declared, slots) -> if declared == list-length (class-methods description) then imported-method-slots slots else Nil
+      None -> source-method-slots w description)
+    None -> source-method-slots w description
+  imported-method-slots :: List (Nat, Nat, List Nat) -> List MethodSlot
+  imported-method-slots slots = case slots of Nil -> Nil; Cons (logical, physical, codes) rest -> Cons (MethodSlot logical physical codes) (imported-method-slots rest)
+  source-method-slots :: Writer -> CoreClass -> List MethodSlot
+  source-method-slots w description = primary-method-slots w (class-name description) (class-methods description)
     <> extra-method-slots w (class-name description) (list-length (class-methods description)) (class-methods description)
   method-physical-slot :: Nat -> List Nat -> List MethodSlot -> Option Nat
   method-physical-slot slot own-codes plans = case plans of
@@ -181,7 +195,7 @@ module Bootstrap.RuntimeIr where
   representation :: Nat -> List (Nat, Nat) -> Option Nat
   representation id entries = case entries of Nil -> None; Cons (key, code) rest -> if key == id then Some code else representation id rest
   word-class :: RuntimeContext -> UType -> Option Nat
-  word-class context ty = if number ty then Some 2 else if named ty "Bool" || named ty "Unit" then Some 0 else case context of
+  word-class context ty = if number ty then Some 2 else if named ty "Bool" || named ty "Unit" || raw-integer ty || named ty "Char" || named ty "F32" || named ty "F64" then Some 0 else case context of
     RuntimeContext datas bounds rigids pending done -> case base ty of
       UBound id name KType -> representation id bounds
       URigid id name level KType -> representation id rigids
@@ -191,7 +205,7 @@ module Bootstrap.RuntimeIr where
       UTuple fields -> if field-types context fields 0 then Some 1 else None
       other -> case type-head ty of
         UCon name kind -> if same name "b.Io" && kind-equal kind (KFun KRegion KType) then Some 0
-          else if same name "Bytes" && kind-equal kind KType then Some 1 else
+          else if (same name "Bytes" || same name "String") && kind-equal kind KType then Some 1 else
           (case data-declaration name (program-data datas) of
             Some d -> Some 1
             None -> case find-class name (program-classes datas) of Some description -> Some 1; None -> None)
@@ -211,6 +225,8 @@ module Bootstrap.RuntimeIr where
       other -> None
   class-text :: List Nat -> String
   class-text classes = case classes of Nil -> ""; Cons code rest -> cat [nat-to-string code, class-text rest]
+  native-classes :: List Nat -> String
+  native-classes classes = case classes of Nil -> ""; Cons code rest -> cat [if code == 0 then "R" else if code == 1 then "O" else "T", native-classes rest]
   specialized-name :: String -> List Nat -> String
   specialized-name name classes = case classes of Nil -> name; other -> cat [name, ".r", class-text classes]
   erased-kind :: Kind -> Bool
@@ -254,6 +270,7 @@ module Bootstrap.RuntimeIr where
     StubDemand name classes -> cat [name, ".app"]
     DictionaryDemand name classes -> dictionary-name name classes
     BuiltinDemand name -> name
+    ExternalDemand unit -> cat ["external:", unit-symbol unit]
   request-demand :: Demand -> Writer -> Writer
   request-demand demand w = case w of
     Writer next globals code errors layouts (RuntimeContext datas bounds rigids pending done) ->
@@ -403,6 +420,33 @@ module Bootstrap.RuntimeIr where
     let declared = global next (cat [name, " = private unnamed_addr constant [", len, " x i8] c\"", text, "\""]) in
     let (ready, result) = fresh declared "%v" in
     (line ready (cat ["  ", result, " = call i64 @cinch_", runtime-number ty, "_from_decimal(ptr ", name, ", i64 ", len, ")"]), result)
+  char-word :: String -> Option String
+  char-word text = case unpack text of Cons c Nil -> Some (nat-to-string (char-code c)); other -> None
+  string-literal :: Writer -> Span -> UType -> String -> (Writer, String)
+  string-literal w sp ty text = case (base ty, program-object (writer-program w)) of
+    (UCon name KType, Some provider) -> (case object-string-layout name provider of
+      Some descriptor -> let (one, buffer-constant) = fresh w "@text" in
+        let size = nat-to-string (bytes-len (string-to-bytes text)) in
+        let declared = global one (cat [buffer-constant, " = private unnamed_addr constant [", size, " x i8] c\"", llvm-data-bytes text, "\""]) in
+        let (two, bytes) = fresh declared "%v" in
+        let copied = line two (cat ["  ", bytes, " = call i64 @cinch_bytes_from_data(ptr ", buffer-constant, ", i64 ", size, ")"]) in
+        let (three, pointer) = fresh copied "%ptr" in
+        let allocated = line three (cat ["  ", pointer, " = call ptr @cinch_alloc_ctor(i64 8, i64 ", nat-to-string descriptor, ")"]) in
+        let (done, result) = fresh (line allocated (cat ["  store i64 ", bytes, ", ptr ", pointer])) "%v" in
+        (line done (cat ["  ", result, " = ptrtoint ptr ", pointer, " to i64"]), result)
+      None -> unsupported w sp "String literal has no checked defining wrapper layout")
+    other -> unsupported w sp "String literal needs its checked library object layout"
+  string-bytes :: Writer -> String -> (Writer, String)
+  string-bytes w word = let (one, pointer) = fresh w "%ptr" in
+    let (two, bytes) = fresh one "%v" in
+    (line (line two (cat ["  ", pointer, " = inttoptr i64 ", word, " to ptr"])) (cat ["  ", bytes, " = load i64, ptr ", pointer]), bytes)
+  string-pattern :: Writer -> Span -> UType -> String -> String -> String -> (Writer, List Local)
+  string-pattern w sp ty value text failed = case string-literal w sp ty text of
+    (literal, word) -> case string-bytes literal value of
+      (one, actual) -> case string-bytes one word of
+        (two, expected) -> case call two "@cinch_bytes_compare" [actual, expected] of
+          (compared, order) -> case compare-word (count-op False ty word compared) "eq" order "0" of
+            (ready, condition) -> (continue-if ready condition failed, Nil)
   head :: CoreTerm -> CoreTerm
   head term = case term of CApply sp ty f x -> head f; CApplyEff sp ty row f x -> head f; other -> term
   arguments :: CoreTerm -> List CoreTerm -> List CoreTerm
@@ -421,7 +465,9 @@ module Bootstrap.RuntimeIr where
   scheme-supported context sc = function-type context (scheme-body sc)
   expression :: List CoreDefinition -> List Local -> Writer -> CoreTerm -> (Writer, String)
   expression definitions locals w term = case term of
-    CInt sp ty text -> if number ty then decimal w ty text else unsupported w sp "integer carrier needs runtime lowering"
+    CInt sp ty text -> if number ty then decimal w ty text else if raw-integer ty then (w, text) else unsupported w sp "integer carrier needs runtime lowering"
+    CChar sp ty text -> if named ty "Char" then (case char-word text of Some word -> (w, word); None -> unsupported w sp "invalid typed character literal") else unsupported w sp "character literal has no checked Char carrier"
+    CString sp ty text -> string-literal w sp ty text
     CUnit sp ty -> (w, "0")
     CLocal sp ty id name Nil -> case local id locals of
       Some (declared, value) -> (count-op True declared value w, value)
@@ -580,7 +626,62 @@ module Bootstrap.RuntimeIr where
           Some d -> case scheme-classes (writer-context w) (scheme-params (core-scheme d)) actuals of
             Some classes -> function-call definitions locals w sp d classes givens args
             None -> unsupported w sp "function parameters need first-order or erased representation classes"
-          None -> unsupported w sp (cat ["external runtime implementation is unavailable: ", name])
+          None -> external-call definitions locals w sp name actuals givens args
+  external-binding :: String -> List CheckedBinding -> Option CheckedBinding
+  external-binding name bindings = case bindings of Nil -> None; Cons first rest -> if same name (checked-name first) && same (checked-role first) "external" then Some first else external-binding name rest
+  external-shape :: Nat -> UType -> List UType -> Option (List UType, UType)
+  external-shape count ty params = if count == 0 then Some (params, ty) else case base ty of
+    UFun domain result -> external-shape (count - 1) result (params <> [domain])
+    UFunEff domain row result -> external-shape (count - 1) result (params <> [domain])
+    UPi id name domain row result -> external-shape (count - 1) result (params <> [domain])
+    other -> None
+  external-param-types :: List Nat -> List String
+  external-param-types params = case params of Nil -> Nil; Cons first rest -> Cons "i64" (external-param-types rest)
+  external-worker :: RuntimeUnit -> Writer -> Writer
+  external-worker unit w = global (global w (cat ["declare i64 ", llvm-object-symbol (unit-symbol unit), "(", join (external-param-types (unit-params unit)), ")"]))
+    (cat ["declare i64 ", llvm-object-symbol (unit-closure unit), "()"])
+  requirement-types :: List Requirement -> List UType
+  requirement-types requirements = case requirements of Nil -> Nil; Cons first rest -> Cons (requirement-type first) (requirement-types rest)
+  apply-words :: Writer -> String -> List String -> (Writer, String)
+  apply-words w function values = case values of
+    Nil -> (w, function)
+    Cons first rest -> case apply-one w function first of (next, result) -> apply-words next result rest
+  actual-pairs :: List Quant -> List UType -> List (Nat, UType)
+  actual-pairs qs actuals = case (qs, actuals) of
+    (Cons q rest, Cons actual more) -> Cons (quant-id q, actual) (actual-pairs rest more)
+    other -> Nil
+  concrete-scheme :: Scheme -> List UType -> Scheme
+  concrete-scheme sc actuals = let pairs = actual-pairs (scheme-params sc) actuals in
+    qualified Nil (map-requirements (substitute-bound pairs) (scheme-requirements sc)) (substitute-bound pairs (scheme-body sc))
+  external-call :: List CoreDefinition -> List Local -> Writer -> Span -> String -> List UType -> List String -> List CoreTerm -> (Writer, String)
+  external-call definitions locals w sp name actuals givens args = case program-object (writer-program w) of
+    None -> unsupported w sp (cat ["external runtime implementation is unavailable: ", name])
+    Some provider -> (case external-binding name (program-bindings (writer-program w)) of
+      Some binding -> (case scheme-classes (writer-context w) (scheme-params (checked-scheme binding)) actuals of
+        Some codes -> (case object-variant name codes provider of
+          Some unit -> external-call-unit definitions locals w sp unit (concrete-scheme (checked-scheme binding) actuals) givens args
+          None -> unsupported w sp (cat ["checked external variant is absent from the runtime object: ", name, " [", native-classes codes, "]"]))
+        None -> unsupported w sp "external function needs checked representation specialization")
+      None -> unsupported w sp (cat ["external runtime implementation is unavailable: ", name]))
+  external-call-unit :: List CoreDefinition -> List Local -> Writer -> Span -> RuntimeUnit -> Scheme -> List String -> List CoreTerm -> (Writer, String)
+  external-call-unit definitions locals w sp unit sc givens args =
+        let evidence-count = list-length (scheme-requirements sc) in
+        let native-count = list-length (unit-params unit) in
+        if list-length givens /= evidence-count || native-count < evidence-count then unsupported w sp "external function context disagrees with its checked scheme" else
+        (case external-shape (native-count - evidence-count) (scheme-body sc) Nil of
+          Some (params, result-type) -> (case (class-vector (writer-context w) (requirement-types (scheme-requirements sc) <> params), word-class (writer-context w) result-type, unit-result unit) of
+            (Some expected, Some result, Some actual-result) -> if not (same-classes expected (unit-params unit)) || result /= actual-result then unsupported w sp "external function word ABI disagrees with its checked scheme" else
+              let ready = request-demand (ExternalDemand unit) w in
+              if list-length args == list-length params then
+                (case expressions definitions locals ready args of (next, values) -> call next (llvm-object-symbol (unit-symbol unit)) (givens <> values))
+              else if list-length args < list-length params then
+                (case call ready (llvm-object-symbol (unit-closure unit)) Nil of
+                  (next, closure-value) -> case apply-words next closure-value givens of (applied, value) -> apply-terms definitions locals applied value args)
+              else (case expressions definitions locals ready (take-terms (list-length params) args) of
+                (next, values) -> case call next (llvm-object-symbol (unit-symbol unit)) (givens <> values) of
+                  (called, value) -> apply-terms definitions locals called value (drop-terms (list-length params) args))
+            other -> unsupported w sp "external function lacks concrete checked word representations")
+          None -> unsupported w sp "external unit arity exceeds its checked function telescope")
   function-call :: List CoreDefinition -> List Local -> Writer -> Span -> CoreDefinition -> List Nat -> List String -> List CoreTerm -> (Writer, String)
   function-call definitions locals w sp d classes givens args = case definition-context d classes w of
     Some context -> let parameters = definition-parameters d in
@@ -776,8 +877,43 @@ module Bootstrap.RuntimeIr where
             call (request-demand (DictionaryDemand name classes) ready) (symbol-for-dictionary name classes) values
             else unsupported ready sp "factory factory context arity disagrees with checked evidence"
         None -> unsupported w sp "factory factory needs runtime representation specialization"
-      None -> unsupported w sp (cat ["checked factory has no executable source factory: ", name])
+      None -> external-evidence definitions locals w sp ty name actuals args
     other -> unsupported w (Span 0 0 1 1) "unresolved dictionary evidence cannot be lowered"
+  instance-binding :: String -> List CheckedBinding -> Option CheckedBinding
+  instance-binding name bindings = case bindings of
+    Nil -> None
+    Cons first rest -> if same name (checked-name first) && (same (checked-role first) "instance" || same (checked-role first) "implicit-instance") then Some first else instance-binding name rest
+  extend-context :: List (Nat, Nat) -> RuntimeContext -> RuntimeContext
+  extend-context bindings context = case context of RuntimeContext info bounds rigids pending done -> RuntimeContext info (bindings <> bounds) rigids pending done
+  external-field-map :: Writer -> CoreClass -> Scheme -> List (Nat, Nat, List Nat) -> Option (List Nat)
+  external-field-map w description factory slots = case slots of
+    Nil -> Some Nil
+    Cons (logical, physical, codes) rest -> (case method-at logical (class-methods description) of
+      Some member -> (case specialize-method description factory member of
+        Some sc -> (case class-bindings (scheme-params sc) codes of
+          Some bindings -> (case (word-class (extend-context bindings (writer-context w)) (scheme-body sc), external-field-map w description factory rest) of
+            (Some code, Some more) -> Some (Cons (if list-length (scheme-requirements sc) == 0 then code else 1) more)
+            other -> None)
+          None -> None)
+        None -> None)
+      None -> None)
+  external-evidence :: List CoreDefinition -> List Local -> Writer -> Span -> UType -> String -> List UType -> CoreEvidence -> (Writer, String)
+  external-evidence definitions locals w sp ty name actuals args = case (program-object (writer-program w), instance-binding name (program-bindings (writer-program w))) of
+    (Some provider, Some binding) -> (case scheme-classes (writer-context w) (scheme-params (checked-scheme binding)) actuals of
+      Some codes -> (case object-dictionary name codes provider of
+        Some (unit, owner, context-count, fields) -> let sc = concrete-scheme (checked-scheme binding) actuals in
+          (case (class-owner (scheme-body sc), find-class owner (program-classes (writer-program w)), object-family owner provider) of
+            (Some actual-owner, Some description, Some (declared, slots)) -> if not (same owner actual-owner) || declared /= list-length (class-methods description) || context-count /= list-length (scheme-requirements sc) then unsupported w sp "external factory disagrees with its checked class or context" else
+              (case (external-field-map w description sc slots, class-vector (writer-context w) (requirement-types (scheme-requirements sc)), unit-result unit) of
+                (Some expected-fields, Some expected-params, Some 1) -> if not (same-classes expected-fields fields && same-classes expected-params (unit-params unit)) then unsupported w sp "external factory word ABI disagrees with its checked class fields" else
+                  (case evidence-values definitions locals w args of
+                    (ready, values) -> if list-length values /= context-count then unsupported ready sp "external factory context arity disagrees with checked evidence" else
+                      call (request-demand (ExternalDemand unit) ready) (llvm-object-symbol (unit-symbol unit)) values)
+                other -> unsupported w sp "external factory lacks checked runtime field representations")
+            other -> unsupported w sp "external factory has no matching checked method family")
+        None -> unsupported w sp (cat ["checked factory variant is absent from the runtime object: ", name, " [", native-classes codes, "]"]))
+      None -> unsupported w sp "external factory needs checked representation specialization")
+    other -> unsupported w sp (cat ["checked factory has no executable source factory: ", name])
   symbol-for-dictionary :: String -> List Nat -> String
   symbol-for-dictionary name classes = symbol (dictionary-name name classes)
   method-at :: Nat -> List CoreClassMethod -> Option CoreClassMethod
@@ -819,7 +955,7 @@ module Bootstrap.RuntimeIr where
   project-method :: List CoreDefinition -> List Local -> Writer -> Span -> UType -> CoreClass -> Nat -> List Nat -> CoreEvidence -> List CoreEvidence -> (Writer, String)
   project-method definitions locals w sp ty description slot own-codes receiver extra = case method-physical-slot slot own-codes (class-method-slots w description) of
     Some physical -> dynamic-method definitions locals w sp ty physical receiver extra
-    None -> unsupported w sp "method representation has no planned declaring-class slot"
+    None -> unsupported w sp (cat ["method representation has no planned declaring-class slot: ", class-name description, ":", nat-to-string slot, " [", native-classes own-codes, "]"])
   dynamic-method :: List CoreDefinition -> List Local -> Writer -> Span -> UType -> Nat -> CoreEvidence -> List CoreEvidence -> (Writer, String)
   dynamic-method definitions locals w sp ty slot receiver extra = case evidence-value definitions locals w receiver of
     (ready, dictionary) -> let (one, pointer) = fresh ready "%ptr" in
@@ -1113,6 +1249,8 @@ module Bootstrap.RuntimeIr where
     CPTuple sp ty fields -> ty
     CPConstructor sp ty name actuals constructor fields -> ty
     CPInt sp ty text -> ty
+    CPChar sp ty text -> ty
+    CPString sp ty text -> ty
     other -> UError
   continue-if :: Writer -> String -> String -> Writer
   continue-if w condition failed =
@@ -1158,7 +1296,12 @@ module Bootstrap.RuntimeIr where
           (literal, word) -> case call literal (cat ["@cinch_", runtime-number ty, "_cmp"]) [value, word] of
             (compared, order) -> case compare-word (count-op False ty word compared) "eq" order "0" of
               (ready, condition) -> (continue-if ready condition failed, Nil))
+        else if raw-integer ty then (case compare-word w "eq" value text of (ready, condition) -> (continue-if ready condition failed, Nil))
         else (refuse w sp "literal pattern needs mathematical runtime comparison", Nil)
+      CPChar sp ty text -> if named ty "Char" then (case char-word text of
+        Some word -> (case compare-word w "eq" value word of (ready, condition) -> (continue-if ready condition failed, Nil))
+        None -> (refuse w sp "invalid typed character pattern", Nil)) else (refuse w sp "character pattern has no checked Char carrier", Nil)
+      CPString sp ty text -> string-pattern w sp ty value text failed
       other -> (refuse w (Span 0 0 1 1) "pattern form needs typed runtime match lowering", Nil)
   match-fields :: CorePattern -> String -> Nat -> String -> Writer -> (Writer, List Local)
   match-fields fields pointer index failed w = case fields of
@@ -1327,11 +1470,12 @@ module Bootstrap.RuntimeIr where
           StubDemand name classes -> workers definitions (app-stub name classes claimed)
           DictionaryDemand name classes -> workers definitions (dictionary-worker definitions name classes claimed)
           BuiltinDemand name -> workers definitions (builtin-worker name claimed)
+          ExternalDemand unit -> workers definitions (external-worker unit claimed)
   declarations :: String
   declarations = cat [
     "declare ptr @cinch_alloc_ctor(i64, i64)\ndeclare ptr @cinch_alloc_shaped(i64, i64, i64)\ndeclare ptr @memcpy(ptr, ptr, i64)\ndeclare void @cinch_layouts_register(ptr, i64)\n",
     "declare void @cinch_dup(i64)\ndeclare void @cinch_drop(i64)\ndeclare void @cinch_reclaim_enable()\ndeclare i64 @cinch_exit_check(i64)\n",
-    "declare i64 @cinch_nat_to_len(i64)\ndeclare i64 @cinch_nat_from_i64(i64)\ndeclare i64 @cinch_bytes_new(i64)\ndeclare i64 @cinch_bytes_len(i64)\ndeclare i64 @cinch_io_write(i64)\ndeclare i64 @cinch_io_sleep(i64)\ndeclare i64 @cinch_task_poll_cancel()\n",
+    "declare i64 @cinch_nat_to_len(i64)\ndeclare i64 @cinch_nat_from_i64(i64)\ndeclare i64 @cinch_bytes_new(i64)\ndeclare i64 @cinch_bytes_len(i64)\ndeclare i64 @cinch_bytes_from_data(ptr, i64)\ndeclare i64 @cinch_bytes_compare(i64, i64)\ndeclare i64 @cinch_io_write(i64)\ndeclare i64 @cinch_io_sleep(i64)\ndeclare i64 @cinch_task_poll_cancel()\n",
     "declare i64 @cinch_argv_init(i64, ptr)\ndeclare i64 @cinch_run_main(ptr)\n",
     "declare i64 @cinch_int_from_decimal(ptr, i64)\ndeclare i64 @cinch_nat_from_decimal(ptr, i64)\ndeclare i64 @cinch_int_to_i64(i64)\n",
     "declare i64 @cinch_int_add(i64, i64)\ndeclare i64 @cinch_int_sub(i64, i64)\ndeclare i64 @cinch_int_mul(i64, i64)\ndeclare i64 @cinch_int_neg(i64)\ndeclare i64 @cinch_int_cmp(i64, i64)\n",
@@ -1361,7 +1505,15 @@ module Bootstrap.RuntimeIr where
         other -> False) in
       if valid then (if list-length (definition-parameters d) == 1 then Some 1 else if list-length (definition-parameters d) == 0 then Some 2 else None) else None
   empty-writer :: ProgramInfo -> Writer
-  empty-writer info = Writer 0 builder-new builder-new Nil (LayoutPlan 0 Nil Nil Nil) (RuntimeContext info Nil Nil Nil Nil)
+  empty-writer info = Writer 0 builder-new builder-new Nil (object-layouts (program-object info)) (RuntimeContext info Nil Nil Nil Nil)
+  prefix-cells :: Nat -> List Nat -> List (Nat, Nat)
+  prefix-cells index words = case words of Nil -> Nil; Cons first rest -> Cons (index, first) (prefix-cells (index + 1) rest)
+  object-layouts :: Option RuntimeObject -> LayoutPlan
+  object-layouts provider = case provider of
+    None -> LayoutPlan 0 Nil Nil Nil
+    Some value -> let words = object-words value in
+      if list-length words == 0 then LayoutPlan 0 Nil Nil Nil else
+        LayoutPlan ((list-length words + 63) / 64) Nil Nil (prefix-cells 0 words)
   -- Reached method vectors grow monotonically in a finite Raw/Obj/TObj
   -- space. Plan to a fixed point before emitting dictionary layouts, so
   -- every instance and every indirect projection uses one class slot table.
@@ -1370,11 +1522,13 @@ module Bootstrap.RuntimeIr where
     let planned = writer-program (workers definitions (demand-worker "main" Nil (empty-writer info))) in
     if list-length (program-versions planned) == list-length (program-versions info) then planned else plan-method-versions definitions planned
   emit-runtime-program :: CheckedProgram -> Result (List Diagnostic) String
-  emit-runtime-program checked =
+  emit-runtime-program checked = emit-runtime-program-with-object checked None
+  emit-runtime-program-with-object :: CheckedProgram -> Option RuntimeObject -> Result (List Diagnostic) String
+  emit-runtime-program-with-object checked provider =
     let typed = checked-elaboration checked in
     let definitions = elaboration-core typed <> instance-definitions (elaboration-instances typed) in
     let datas = elaboration-data typed in
-    let info = ProgramInfo datas (elaboration-classes typed) (elaboration-instances typed) (elaboration-bindings typed) Nil in
+    let info = ProgramInfo datas (elaboration-classes typed) (elaboration-instances typed) (elaboration-bindings typed) Nil provider in
     case definition "main" definitions of
       None -> Err [MkDiagnostic "bootstrap.runtime-ir" (Span 0 0 1 1) "runtime entry has no main definition"]
       Some d -> case entry-mode d of

@@ -1,0 +1,176 @@
+{
+  "bootstrap_achieved": false,
+  "code_hashes": {
+    "bootstrap/Bootstrap.Infer.cinch": "6d16ad0450222fb2c04d78c905a2faeb89c03cda9d402306ed1bc2b806b6ca2a",
+    "bootstrap/Bootstrap.Object.cinch": "7368a8ec0719eb1d9671e0047cd922c56f39cada62d8e7f0918fb6c745903858",
+    "bootstrap/Bootstrap.Pipeline.cinch": "658ceac7b3151afd030bb05f9c63ed6c233e4e14284aab4f04fdcbf14f47e4c4",
+    "bootstrap/Bootstrap.RuntimeAbi.cinch": "a7f25347ef8b5be6baf048cd3339a913e15623d2717961d272e22a7ff34cddd1",
+    "bootstrap/Bootstrap.RuntimeIr.cinch": "e53654c73f1da882a273cbbb04bbc400d5b4fed7b5ce3b9dc876116b7eefcc48",
+    "bootstrap/library-object-roots.json": "5c87ca22f38939e53526bdfa8c4d36fbb61382f63d80eab4d5ae6d4170d766d9",
+    "bootstrap/library-provider.lock.json": "7a4117e0996e7a76688aa4a8f541fa1aa8b87f60d6d7911fa1ed9de8baf2d289",
+    "bootstrap/programs/Run.Pipeline.cinch": "b3b44dabd6ea30fe43835af39bd56134ec56704cb0b1ba031f956b5d016225ec",
+    "bootstrap/programs/Run.RuntimeObject.cinch": "ddc93f33807fafbe123d83f4fd14b1ee3f5b44f73d2718b448adb8db32f11d00",
+    "compiler/tests/bootstrap_runtime_emit.rs": "f0615e23369c3299f0c504262bb05fce6b479e0c6f904ed977b1b53a98f0dce2",
+    "compiler/tests/bootstrap_runtime_objects.rs": "1e3d11d36c0878cd0e2fc0c6eb6fdfda98c12cf55eaac7f86b6f3ba93540076a",
+    "compiler/tests/common/mod.rs": "8e35f82c4d690a00a36b0be1f43537db40a6a0739a9975bf556f464358fdbde3",
+    "tooling/bootstrap.py": "f772715f27a85048587fe54d80a4fb50e5928b75cbcec3e3a409f3e2b4ebaee7",
+    "tooling/bootstrap_objects.py": "8ae8404ce9acd0c09db66cd2befe32d2f9c42855796935ecca12afc3970a2749",
+    "tooling/tests/test_bootstrap.py": "5cd3fa0319c0b9804d616775fa8902c19bf94b7c1d480fb7ce3915acb951dd03",
+    "tooling/tests/test_bootstrap_objects.py": "bf41da9b972ac221906d78060b94e0a1cf7401a70733fb2cb41417b5b4486054"
+  },
+  "configuration_fix": {
+    "probe": [
+      {
+        "case": "before",
+        "diagnostics": "bootstrap.check:9:32: argument index needs checked pure total reification\n",
+        "exit_code": 4
+      },
+      {
+        "case": "after",
+        "diagnostics": "",
+        "exit_code": 0
+      }
+    ],
+    "reason": "Avoid dependent global-value reification in generated ABI configuration; emit exact Nat and Int literals from one validated selection.",
+    "source_sha256": "23411a31a2f8140e5d4d60737098b59c958fc0d16d685a987a74c2ea29b5cc35",
+    "stage_chain": {
+      "pid": 47572,
+      "status": "running"
+    },
+    "tooling_checks": 35
+  },
+  "library_producer": {
+    "description": "Library-only Native producer with checked object manifests, explicit representation roots and canonical method families. Never compiles Bootstrap implementation modules. The independent stage0 compiler pin is unchanged.",
+    "revision": "ca573be15f441e16240fdaede1d5f6c1773fe4c4",
+    "runtime_abi": 5,
+    "schema": 1,
+    "source_sha256": "3212a1b9ee0e81f6006a537c9e0fe17c704ed6f18e1d3d507fe075254ea3af6a"
+  },
+  "previous_stage2": {
+    "diagnostics": 2082,
+    "exit_code": 4,
+    "ir_bytes": 0,
+    "meaning": "Frontend stopped at generated RuntimeAbi nat-to-int conversion; subsequent diagnostics may cascade. Fixed configuration passes the focused actual Cinch check; complete retry recorded separately."
+  },
+  "remaining": [
+    "Full compiler frontend/emission on corrected configuration",
+    "Actual missing concrete provider demands and remaining runtime forms",
+    "Canonical compiler interface emission",
+    "Stage2/Stage3 fixed point, changed-source behavior and complete current Native/self-built/correctness gates"
+  ],
+  "seed_changed": false,
+  "status": "validation-in-progress",
+  "validation10": {
+    "all_test_targets": {
+      "exit_code": 0,
+      "source_unchanged": true,
+      "status": "passed"
+    },
+    "boundaries": {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-object-consumer-validation-10/cargo",
+        "--test",
+        "bootstrap_nominals",
+        "--test",
+        "bootstrap_globals",
+        "--test",
+        "bootstrap_typing",
+        "--test",
+        "bootstrap_source_instances",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "pid": 14989,
+      "status": "running"
+    },
+    "live_runtime_abi": 6,
+    "object_programs": [
+      "object raw: exit 227; cinch-leak: live=0 immortal=0 leaked=0",
+      "object closure: exit 229; cinch-leak: live=0 immortal=0 leaked=0",
+      "object owned-result: exit 231; cinch-leak: live=0 immortal=0 leaked=0",
+      "object partial-owned: exit 233; cinch-leak: live=0 immortal=0 leaked=0",
+      "object combined-table: exit 235; cinch-leak: live=0 immortal=0 leaked=0",
+      "object process-arguments: exit 239; cinch-leak: live=0 immortal=0 leaked=0",
+      "object polymorphic-function: exit 241; cinch-leak: live=0 immortal=0 leaked=0",
+      "object method-families: exit 243; cinch-leak: live=0 immortal=0 leaked=0",
+      "object string-literal: exit 245; cinch-leak: live=0 immortal=0 leaked=0",
+      "object empty-string: exit 247; cinch-leak: live=0 immortal=0 leaked=0",
+      "object char-pattern: exit 249; cinch-leak: live=0 immortal=0 leaked=0",
+      "object machine-pattern: exit 251; cinch-leak: live=0 immortal=0 leaked=0",
+      "object string-pattern: exit 253; cinch-leak: live=0 immortal=0 leaked=0",
+      "object returned-function: exit 237; cinch-leak: live=0 immortal=0 leaked=0"
+    ],
+    "results": [
+      {
+        "command": [
+          "cargo",
+          "test",
+          "--target-dir",
+          "/tmp/cinch-object-consumer-validation-10/cargo",
+          "--test",
+          "bootstrap_runtime_ir",
+          "--test",
+          "bootstrap_runtime_emit",
+          "--",
+          "--include-ignored",
+          "--nocapture",
+          "--test-threads=1"
+        ],
+        "cwd": "/tmp/cinch-object-consumer-validation-10/source/compiler",
+        "exit_code": 0,
+        "finished": "2026-11-03T10:05:07.721371+00:00",
+        "name": "runtime-and-cli",
+        "pid": 91854,
+        "slot": 1,
+        "started": "2026-11-03T09:47:00.549025+00:00",
+        "status": "passed"
+      },
+      {
+        "command": [
+          "cargo",
+          "test",
+          "--target-dir",
+          "/tmp/cinch-object-consumer-validation-10/cargo",
+          "--test",
+          "bootstrap_runtime_objects",
+          "--",
+          "--include-ignored",
+          "--nocapture",
+          "--test-threads=1"
+        ],
+        "cwd": "/tmp/cinch-object-consumer-validation-10/source/compiler",
+        "exit_code": 0,
+        "finished": "2026-11-03T10:05:18.761110+00:00",
+        "name": "objects",
+        "pid": 91855,
+        "slot": 2,
+        "started": "2026-11-03T09:47:00.551781+00:00",
+        "status": "passed"
+      },
+      {
+        "command": [
+          "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "tooling/bootstrap.py",
+          "build",
+          "--stage",
+          "2"
+        ],
+        "cwd": "/tmp/cinch-object-consumer-validation-10/source",
+        "exit_code": 1,
+        "finished": "2026-11-03T10:07:06.157781+00:00",
+        "name": "stage2",
+        "pid": 91856,
+        "slot": 3,
+        "started": "2026-11-03T09:47:00.552239+00:00",
+        "status": "failed"
+      }
+    ],
+    "runtime_programs": 82,
+    "source_sha256": "a43bfa1ca352df5fc9bc4f468eb976c8bb812e19e6c254ffd7056f13d478ea3c"
+  }
+}

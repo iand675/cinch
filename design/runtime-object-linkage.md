@@ -92,13 +92,61 @@ with its real context order and checked class method family plan. A source
 export does not imply that every polymorphic variant exists. Private layouts
 must not be guessed from source names or public constructor subsets.
 
-## Remaining bootstrap integration
+## Cinch consumer and stage integration
 
-The Cinch backend does not yet consume this manifest, preseed its layout
-allocator, emit external calls or reconcile imported class method families with
-the producer. It must translate its checked dependency demands into the explicit
-producer root protocol, then consume the producer's actual variants and family
-plans. Ordinary `build` also does not yet link supplied dependency objects.
+The Cinch command-line consumer accepts one closed bundle:
+
+```text
+cinch --emit-ir --interfaces interfaces.json --objects objects.json source.cinch source.ll
+```
+
+The object configuration uses schema 1:
+
+```json
+{
+  "schema": 1,
+  "target": "aarch64-apple-darwin",
+  "object": "/absolute/path/library.o",
+  "metadata": "/absolute/path/library.abi.json",
+  "object_sha256": "actual SHA256 of library.o",
+  "metadata_sha256": "actual SHA256 of library.abi.json"
+}
+```
+
+The target must be the producer's actual target. The consumer checks both
+cryptographic identities, the configured runtime ABI, ownership mode and word
+format, the independently checked interface closure and physical pointer maps.
+It seeds the complete layout prefix before allocating its own descriptors.
+Rejected admission or lowering clears stale IR.
+
+External values require checked value-export authority; instance factories
+require checked instance-export authority. Actual inventory membership alone
+does not introduce a source name. Calls validate concrete parameter/result
+classes and use actual emitted function variants, closure accessors and class
+method families. Physical arity is distinct from arrows exposed by instantiating
+a function-valued type parameter. Remaining arguments apply to the returned
+function. String literals use the configured ABI's checked private wrapper
+descriptor over an owned byte buffer; the constructor stays private.
+
+The stage driver separately pins the library-only producer in
+`bootstrap/library-provider.lock.json`. This pin is independent of stage 0.
+It builds a generated trivial library root and only its base-package closure,
+plus compiler-generated primitive and tuple helpers. It records the producer,
+object, metadata, checked interfaces and matching runtime archive identities.
+Later stages invoke only the preceding Cinch compiler on the compiler bundle,
+then link its IR with this library object and runtime. Source preparation keeps
+one explicit ABI: current live builds use ABI6, while the unchanged pinned stage
+path prepares ABI5 and selects the matching ABI5 provider.
+
+`bootstrap/library-object-roots.json` supplies concrete dependency demands.
+Failed stage emission additionally writes `requested-roots.json`, containing
+only actual missing function, factory and method vectors reported by retained
+Core lowering. These requests must be checked by the producer before another
+attempt; no Cartesian enumeration or unresolved Raw substitution is used.
+
+Ordinary `build` does not yet consume supplied dependency objects. Full
+compiler emission, canonical compiler interface output, remaining runtime
+forms and the complete suites/correctness obligations remain bootstrap work.
 
 Bootstrap integration must admit only the intended library/runtime dependency
 closure. No Rust frontend or compiler implementation object may substitute for
