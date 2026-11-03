@@ -1,12 +1,12 @@
 {
   "schema": 1,
-  "updatedAt": "2026-11-03T11:24:23.864385+00:00",
+  "updatedAt": "2026-11-03T11:28:15.949733+00:00",
   "estimate": 80,
   "estimateNote": "Rough engineering estimate. Remaining compiler bugs can change it; this is not a measured test pass rate.",
-  "status": "Verifying runtime linkage",
-  "summary": "The fresh stage chain passes the full frontend. Decimal calls execute correctly. The Rust producer now exposes checked intrinsic aliases; the next full build verifies the requested bundle and conditional-method linkage.",
-  "activity": "The complete 18-program intrinsic consumer suite, all Rust test-target compile checks, and 35 tooling checks pass. Two workers are checking the remaining 197 Native target gates while Stage 2 and conditional linkage run separately.",
-  "commit": "f5c2fef83b30101d6632edd37e0c3e2536f96060",
+  "status": "Fixing conditional method lookup",
+  "summary": "The requested library bundle builds and is admitted. Stage 2 now stops at 57 repeated natural-subtraction lookups. The guarded-call regression identifies a raw dictionary name being used where a canonical encoded key is required.",
+  "activity": "Candidate 19 is building with the corrected dictionary key. The guarded-call and wrong-metadata checks are rerunning. The full Native sweep continues on two separate workers.",
+  "commit": "8ba8768e80c325b363dcb3f5cf30ed55b5acf182",
   "stages": [
     {
       "name": "Stage 0",
@@ -71,15 +71,15 @@
     },
     {
       "title": "Full Native sweep running",
-      "detail": "197 remaining target gates queued on two bounded workers, alongside the already passed 225-check regression run. Target gates can contain multiple tests.",
+      "detail": "4 / 197 remaining Native target gates passed; 2 running, 0 failed. Alongside the separately passed 225-check regression run. Targets can contain multiple tests.",
       "state": "running"
     }
   ],
   "blockers": [
     {
-      "title": "Finish runtime dependency linkage",
-      "detail": "The previous producer rejected a public intrinsic alias. Its repair passes focused ABI5/ABI6 checks. The next build also links conditional implementations through their checked declaring instance and method slot.",
-      "technical": "The earlier full run requested 29 function and 4 dictionary roots. Two decimal intrinsics now pass executed tests. Candidate 17 is verifying the updated producer and consumer; no full bootstrap result yet."
+      "title": "Resolve the conditional subtraction entry",
+      "detail": "The implementation exists in the checked object. The consumer passed a raw instance name to an encoded-key table. The new candidate encodes that identity at the checked-binding boundary and is under validation.",
+      "technical": "Candidate 18: full frontend passed; runtime emitter exit 5 with 57 lines, all Data.Nat.Sub_Nat.-. Library provider built and admitted with 62 hashed artifacts; no IR or Stage 2 executable."
     },
     {
       "title": "Finish the bootstrap verification",
@@ -88,6 +88,10 @@
     }
   ],
   "milestones": [
+    {
+      "title": "Requested library bundle built and admitted",
+      "detail": "The repaired ABI5 producer builds the actual 29 function and four dictionary root set. Remaining emitter refusals are the same conditional subtraction lookup."
+    },
     {
       "title": "Decimal runtime and intrinsic exports repaired",
       "detail": "17 linked programs pass the full object target; focused public intrinsic export regressions pass on ABI5 and ABI6."

@@ -20,6 +20,33 @@
     "tooling/tests/test_bootstrap.py": "5cd3fa0319c0b9804d616775fa8902c19bf94b7c1d480fb7ce3915acb951dd03",
     "tooling/tests/test_bootstrap_objects.py": "bf41da9b972ac221906d78060b94e0a1cf7401a70733fb2cb41417b5b4486054"
   },
+  "conditional_linkage_attempt18": {
+    "all_diagnostics_same_target": "Data.Nat.Sub_Nat.-",
+    "compiler_exit_code": 5,
+    "frontend_passed": true,
+    "ir_bytes": 0,
+    "next_candidate": {
+      "pid": 76138,
+      "source_sha256": "d276c85743a18c8f7424e2a73259eef5eb19f3e6ac1937912cafeb2498ffe537",
+      "status": "running"
+    },
+    "object_failure": "conditional-slot runtime refusal: raw dictionary id passed to encoded inventory lookup. Fixed at checked-conditional-target boundary in candidate19, not yet validated.",
+    "object_target": {
+      "exit_code": 101,
+      "source_unchanged": true,
+      "status": "failed"
+    },
+    "provider_hashed_artifacts": 62,
+    "provider_status": "built",
+    "runtime_diagnostic_lines": 57,
+    "source_sha256": "c91986c0a0630a830295d0c6f0e6f7ca1bfe561983dd7ba7eb31bc2fd3906b86",
+    "stage": {
+      "exit_code": 1,
+      "source_sha256": "c91986c0a0630a830295d0c6f0e6f7ca1bfe561983dd7ba7eb31bc2fd3906b86",
+      "source_unchanged": true,
+      "status": "failed"
+    }
+  },
   "configuration_fix": {
     "probe": [
       {
