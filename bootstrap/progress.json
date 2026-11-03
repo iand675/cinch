@@ -1,6 +1,10 @@
 {
-  "activity": "All 127 ordinary target groups pass. Bootstrap-specific groups: 21 of 81 passed, 3 running and 0 failed. Runtime171, tooling41 and syntax/editor39 pass on this same source. Fresh final-source stages built and smoke-tested: 4 of4; combined gate passed. Additional Stage3 coverage: ordinary: 0 of 8 passed, 0 running, 0 failed (running); mixed: 0 of 4 passed, 1 running, 0 failed (running). Self-built portable bootstrap suite: 0 of 79 groups passed, 0 running, 0 failed; state running.",
+  "activity": "All 127 ordinary target groups pass. Bootstrap-specific groups: 21 of 81 passed, 3 running and 0 failed. Runtime171, tooling41 and syntax/editor39 pass on this same source. Fresh final-source stages built and smoke-tested: 4 of4; combined gate passed. Additional Stage3 coverage: ordinary: 0 of 8 passed, 1 running, 0 failed (running); mixed: 0 of 4 passed, 0 running, 1 failed (stopped-after-failure). Self-built portable bootstrap suite: 0 of 79 groups passed, 0 running, 0 failed; state running.",
   "blockers": [
+    {
+      "title": "Mixed Stage3 verification needs investigation",
+      "detail": "Failed groups: arrays; state stopped-after-failure. Retained logs are authoritative."
+    },
     {
       "title": "Finish every final-source compiler test",
       "detail": "148 of 208 groups have passed. A partial sweep does not establish the full suite. All final-source runtime, tooling and editor gates are already green."
@@ -42,7 +46,7 @@
     },
     {
       "title": "Ordinary and mixed Stage3 behavior checks",
-      "detail": "ordinary: 0 of 8 passed, 0 running, 0 failed (running); mixed: 0 of 4 passed, 1 running, 0 failed (running). Mixed coverage runs three complete consumer targets and the designed array-intrinsic refusal check. Positive ABI6 array behavior remains in its complete Native gate per design/arrays.md.",
+      "detail": "ordinary: 0 of 8 passed, 1 running, 0 failed (running); mixed: 0 of 4 passed, 0 running, 1 failed (stopped-after-failure). Mixed coverage runs three complete consumer targets and the designed array-intrinsic refusal check. Positive ABI6 array behavior remains in its complete Native gate per design/arrays.md.",
       "state": "running"
     },
     {
@@ -218,7 +222,7 @@
       "description": "Rebuilt by Stage2; the combined gate compares IR and 43 interfaces and checks API consumption and changed-source behavior."
     }
   ],
-  "status": "Bootstrap passed; final full-suite verification running",
+  "status": "Ordinary or mixed Stage3 verification needs investigation",
   "summary": "The repaired compiler bootstraps and passes exact final-Stage3 behavior checks. The full 208-group Native-backed sweep and all 79 portable bootstrap groups through Stage3 are tracked separately. Native library fixture preparation is explicit; selected compiler failures never fall back.",
-  "updatedAt": "2026-11-03T22:05:51.519970+00:00"
+  "updatedAt": "2026-11-03T22:09:36.140153+00:00"
 }
