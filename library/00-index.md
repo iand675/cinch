@@ -74,11 +74,14 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 
 | Module | Distribution | Purpose |
 | --- | --- | --- |
+| [Data.Array.Packed](Data.Array.Packed.md) | Ship source | Packed scalar constructors for Array. The element format travels with the buffer, so generic reads and updates keep it. |
+| [Data.Array](Data.Array.md) | Ship source | Immutable contiguous arrays with optional failed reads, updates, slices, and ranges, plus list conversions. |
 | [Data.Ascii](Data.Ascii.md) | Embedded | ASCII-refined values and checked construction at text boundaries. |
 | [Data.BigDecimal](Data.BigDecimal.md) | Ship source | Decimal arithmetic with explicit precision/scale and rounding/error behaviour in the exported API. |
 | [Data.Bool](Data.Bool.md) | Embedded | Boolean operations and their comparison instances. |
 | [Data.Bytes](Data.Bytes.md) | Embedded | Mutable byte buffers with length, construction, copy, and bounds/range-aware access operations. |
 | [Data.Char](Data.Char.md) | Embedded | Unicode scalar values and checked character/code conversions, with range information for safe use. |
+| [Data.Columnar](Data.Columnar.md) | Ship source | Columnar leaves over typed arrays, zipped into nested pairs that share their buffers. A length mismatch is None. |
 | [Data.Complex](Data.Complex.md) | Ship source | Complex values and numeric operations using the module's current floating representation. |
 | [Data.Compose](Data.Compose.md) | Embedded | Composition of higher-kinded containers with the admitted generic instances. |
 | [Data.Const](Data.Const.md) | Embedded | A constant container that retains its first parameter while ignoring the mapped value parameter. |
@@ -112,6 +115,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Data.StringIo](Data.StringIo.md) | Ship source | In-memory string-oriented I/O utilities with explicit state and error results. |
 | [Data.Sym](Data.Sym.md) | Embedded | Interned symbols with identity equality, deterministic spelling order, and String conversions. |
 | [Data.Target](Data.Target.md) | Embedded | Target/platform and worker vocabulary used by the compiler-supported runtime and target examples. |
+| [Data.Tensor](Data.Tensor.md) | Ship source | Immutable row-major tensors with checked runtime shapes of any rank. |
 | [Data.Time](Data.Time.md) | Ship source | Time values, durations, and conversions with explicit units and admitted ranges. |
 
 ## Text
@@ -164,7 +168,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 
 # Scope and verification
 
-This generation covers **93 source modules**: **55 embedded** and **38 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
+This generation covers **97 source modules**: **55 embedded** and **42 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
 
 Signatures preserve the compiler's rendered schemes, including constraints and effect rows. When a source comment and a checked scheme differ, treat the scheme and Rust behaviour as current and investigate the source note. Availability of a module does not imply every feature of another language's similarly named library (for example, plaintext HTTP is not TLS, and a YAML parser may support a subset).
 

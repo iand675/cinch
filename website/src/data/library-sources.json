@@ -99,6 +99,22 @@
       "public_methods": 2
     },
     {
+      "module": "Data.Array.Packed",
+      "path": "compiler/prelude/Data/Array/Packed.cinch",
+      "sha256": "799f936d2712685f6ade99dd777c79c7c039c1e7ca28b8988700fde0f104b364",
+      "embedded": false,
+      "values": 13,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Array",
+      "path": "compiler/prelude/Data/Array.cinch",
+      "sha256": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
+      "embedded": false,
+      "values": 9,
+      "public_methods": 0
+    },
+    {
       "module": "Data.Ascii",
       "path": "compiler/prelude/Data/Ascii.cinch",
       "sha256": "5ca0b2a99f6380073373fdff71fd0e3e95eb4575eb5ccc6aa56a407c8eb284b2",
@@ -136,6 +152,14 @@
       "sha256": "217d21faf8b93a9606f779e720aca8c012fdea1ecbc745a95298e96896d783fb",
       "embedded": true,
       "values": 21,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Columnar",
+      "path": "compiler/prelude/Data/Columnar.cinch",
+      "sha256": "20bf82a9abeddc35eb4abd3c3c6a91d9ee66b40d18848eb40ab674552bbc6506",
+      "embedded": false,
+      "values": 8,
       "public_methods": 0
     },
     {
@@ -403,6 +427,14 @@
       "public_methods": 2
     },
     {
+      "module": "Data.Tensor",
+      "path": "compiler/prelude/Data/Tensor.cinch",
+      "sha256": "caeef1f823e842a73b16519af6e7baa9de0ac0ddb00d31472ed9461116836eb7",
+      "embedded": false,
+      "values": 5,
+      "public_methods": 0
+    },
+    {
       "module": "Data.Time",
       "path": "compiler/prelude/Data/Time.cinch",
       "sha256": "6847730c2f3ac9f9200a4eef90a5ab7797facdc3555fb3e2f337f8b07569bc3a",
@@ -613,7 +645,7 @@
     {
       "module": "Text.Builder",
       "path": "compiler/prelude/Text/Builder.cinch",
-      "sha256": "212242bd8c516223446f1023b982c053f80dfed0e591c7af4f6e0a3d027a05ab",
+      "sha256": "c089e433293b637862387c71967e800c5cb57f4f7011724ee4d21b18c5ece24b",
       "embedded": false,
       "values": 11,
       "public_methods": 0

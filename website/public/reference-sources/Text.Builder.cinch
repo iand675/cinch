@@ -93,20 +93,24 @@ module Text.Builder where
   -- How many pieces are pending: one per append, so a test can assert that
   -- appends do not re-copy. O(number of pieces).
   builder-chunks :: Builder -> Nat
-  builder-chunks b = case b of
-    BEnd -> 0
-    BString _ rest -> 1 + builder-chunks rest
-    BLine _ rest -> 1 + builder-chunks rest
-    BBytes _ rest -> 1 + builder-chunks rest
+  builder-chunks b = builder-chunks-from 0 b
+  builder-chunks-from :: Nat -> Builder -> Nat
+  builder-chunks-from count b = case b of
+    BEnd -> count
+    BString _ rest -> builder-chunks-from (count + 1) rest
+    BLine _ rest -> builder-chunks-from (count + 1) rest
+    BBytes _ rest -> builder-chunks-from (count + 1) rest
 
   -- The exact total byte length of the flattened result, without flattening
   -- (a line piece counts its LF). O(number of pieces).
   builder-size :: Builder -> Nat
-  builder-size b = case b of
-    BEnd -> 0
-    BString s rest -> string-byte-length s + builder-size rest
-    BLine s rest -> string-byte-length s + 1 + builder-size rest
-    BBytes x rest -> bytes-len x + builder-size rest
+  builder-size b = builder-size-from 0 b
+  builder-size-from :: Nat -> Builder -> Nat
+  builder-size-from count b = case b of
+    BEnd -> count
+    BString s rest -> builder-size-from (count + string-byte-length s) rest
+    BLine s rest -> builder-size-from (count + string-byte-length s + 1) rest
+    BBytes x rest -> builder-size-from (count + bytes-len x) rest
 
   -- One pass over the spine that makes the output at the far end and fills
   -- it on the way back. The spine holds the pieces most-recent-first (an
@@ -135,9 +139,53 @@ module Text.Builder where
       let u = copy-bytes-into out x (bytes-len out - (extra + bytes-len x)) 0 (bytes-len x) in
       out
 
-  -- The flattened bytes: one allocation, one copy pass.
+  -- Fill newest pieces backward into the preallocated buffer. Both passes
+  -- are tail-recursive: a large generated module must not keep one native
+  -- stack frame per emitted line. Guards establish each physical copy bound.
+  builder-copy :: Nat -> Builder -> Bytes -> Option Bytes
+  builder-copy remaining b out = if remaining <= bytes-len out then
+    (case b of
+      BEnd -> if remaining == 0 then Some out else None
+      BString s rest -> let x = string-to-bytes s in let count = bytes-len x in
+        if count <= remaining then
+          let start = remaining - count in
+          if start + count <= bytes-len out && 0 + count <= bytes-len x then
+            let written = bytes-copy-range out x start 0 count in
+            builder-copy start rest out
+          else None
+        else None
+      BLine s rest -> let x = string-to-bytes s in let count = bytes-len x in
+        if count + 1 <= remaining then
+          let start = remaining - (count + 1) in
+          if start + count <= bytes-len out && 0 + count <= bytes-len x then
+            if 1 <= remaining then
+              let last = remaining - 1 in
+              if last < bytes-len out then
+                let written = bytes-copy-range out x start 0 count in
+                let newline = bytes-set out last 10 in
+                builder-copy start rest out
+              else None
+            else None
+          else None
+        else None
+      BBytes x rest -> let count = bytes-len x in
+        if count <= remaining then
+          let start = remaining - count in
+          if start + count <= bytes-len out && 0 + count <= bytes-len x then
+            let written = bytes-copy-range out x start 0 count in
+            builder-copy start rest out
+          else None
+        else None)
+    else None
+
+  -- Exact size and fixed-length pieces make the checked copy pass succeed.
+  -- Preserve the original semantics if those private invariants ever disagree:
+  -- recompute with the range-checked fill, never return truncated text.
   builder-bytes :: Builder -> Bytes
-  builder-bytes b = builder-fill 0 b
+  builder-bytes b = let size = builder-size b in let out = bytes-new size in
+    case builder-copy size b out of
+      Some written -> written
+      None -> builder-fill 0 b
 
   -- The flattened string: flatten once, then decode the UTF-8. A builder
   -- built through the string, line, nat and int surface is always valid UTF-8;
