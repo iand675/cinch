@@ -172,6 +172,32 @@
     "Genuine Stage2 executable and Stage3 fixed point, changed-source behavior, all current Native/self-built suites and correctness obligations"
   ],
   "seed_changed": false,
+  "shared_adapter_followup": {
+    "checks": 2,
+    "meaning": "Shared test adapter compiles with EmitObject; selecting a self-built compiler explicitly refuses unsupported object emission without a Native fallback",
+    "source_sha256": "3857a5f505bd45da684f250c9dc81f8bf2ec8645d77b4afefd753cd91b469f69",
+    "status": "passed",
+    "validation": {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-imported-classes-validation-2/cargo",
+        "--test",
+        "bootstrap_external_frontend",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T06:38:21.004316+00:00",
+      "name": "bootstrap_external_frontend",
+      "pid": 69230,
+      "started": "2026-11-03T06:37:34.969839+00:00",
+      "status": "passed"
+    }
+  },
   "source_sha256": "6d227b3a9d1f635328b6a885a78a3063993cfde70b240a97e5f922aab2451a2c",
   "source_unchanged": true,
   "status": "passed",

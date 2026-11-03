@@ -63,7 +63,7 @@ pub fn drive(frontend: &Frontend, mode: Mode, dir: &Path, entry: &str, out: Opti
     let compiler = frontend.compiler.canonicalize().map_err(|e| format!("selected compiler (no Native fallback): {e}"))?;
     let interfaces = frontend.interfaces.canonicalize().map_err(|e| format!("selected interfaces: {e}"))?;
     validate_interfaces(&interfaces)?;
-    if mode == Mode::EmitIr { return Err("external frontend EmitIr mode is not implemented; refusing a Native fallback".into()) }
+    if matches!(mode, Mode::EmitIr | Mode::EmitObject) { return Err(format!("external frontend {mode:?} mode is not implemented; refusing a Native fallback")) }
     let dir = dir.canonicalize().map_err(|e| e.to_string())?;
     let entry = dir.join(entry).canonicalize().map_err(|e| format!("external test entry: {e}"))?;
     if !entry.starts_with(&dir) { return Err("external test entry leaves its project".into()) }
@@ -102,6 +102,6 @@ pub fn drive(frontend: &Frontend, mode: Mode, dir: &Path, entry: &str, out: Opti
         Mode::Check => Ok(0),
         Mode::Build => if exe.is_file() { Ok(0) } else { Err("selected compiler succeeded without an executable".into()) },
         Mode::Run => std::process::Command::new(&exe).current_dir(&dir).status().map_err(|e| e.to_string())?.code().ok_or_else(|| "external test artifact terminated without an exit code".into()),
-        Mode::EmitIr => unreachable!(),
+        Mode::EmitIr | Mode::EmitObject => unreachable!(),
     }
 }
