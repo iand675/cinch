@@ -1,18 +1,25 @@
 {
-  "activity": "All focused repairs pass. Suite27 has 5 of 208 groups passed, 3 running and 0 failed so far. All 171 runtime, 41 tooling and 39 syntax/editor checks pass on that exact source. Its fresh pinned Stage0/1/2/3 chain is running; source compiler identity e85a5d0 matches the actual rebuilt compiler that passed the seven fixity probes.",
+  "activity": "Final suite27: 28 of 208 groups passed, 4 running and 0 failed. Runtime171, tooling41 and syntax/editor39 already pass on this exact snapshot. Fresh final-source stage chain: 1 of 4 stages built and smoke-tested; combined fixed-point gate running-full-stage-chain.",
   "blockers": [
     {
-      "detail": "The fresh final-source Stage0/1/2/3 chain is now running after every focused repair gate passed. It must reproduce matching compiler IR and all 43 canonical interfaces, actual interface consumption, and changed-source behavior. The earlier complete chain remains verified only for its older snapshot.",
-      "technical": "Frozen source 6c6644d69b3b32aa04992f6793de634278c07fe717bce59d1d0dc05d24cd3b69. Compiler implementation code is built by Cinch after Stage1.",
-      "title": "Repeat the verified bootstrap on the final repairs"
+      "title": "Finish every final-source compiler test",
+      "detail": "28 of 208 groups have passed. A partial sweep does not establish the full suite. All final-source runtime, tooling and editor gates are already green."
     },
     {
-      "detail": "Suite27 is executing every one of its 208 compiler target groups with up to four shared workers; 5 have passed and 0 failed so far. Its runtime/tooling/editor gates already pass. The old sweep keeps its historical compression failure and 133 passing groups; its queued work has been superseded without interrupting active checks.",
-      "technical": "The run uses bounded shared workers; handing off slots waits for active checks to finish. Completed and failed historical results are preserved.",
-      "title": "Get the complete final-source suite green"
+      "title": "Finish the fresh repaired-source bootstrap",
+      "detail": "1 of 4 stages are built and smoke-tested. Matching compiler IR and canonical interfaces, actual API consumption and changed-source rebuilding must all pass on this snapshot."
+    },
+    {
+      "title": "Repeat test-runner execution through the latest compiler",
+      "detail": "Queued behind the stage chain in the fifth lane. Both original runner programs must produce exact reports and zero leaks with a 32M heap. Earlier successful results remain scoped to their compiler."
     }
   ],
   "checks": [
+    {
+      "title": "Live final-source compiler sweep",
+      "detail": "28 of 208 complete target groups passed; 4 running and 0 failed. Every group includes ignored tests. Source snapshot c6260e01; code matches the published repairs.",
+      "state": "running"
+    },
     {
       "title": "Complete expanded fixity regression passes",
       "detail": "Writer, parser, resolver and both Rust interface-fixity cases all pass on the expanded snapshot. All seven actual rebuilt Cinch probes pass too, including separate renamed forwarding and refusal of identical/changed importer declarations.",
@@ -167,31 +174,31 @@
   "schema": 1,
   "stages": [
     {
-      "description": "Pinned seed compiler and matching library provider.",
-      "label": "Verified",
       "name": "Stage 0",
-      "state": "passed"
+      "state": "passed",
+      "label": "Verified",
+      "description": "Pinned Rust seed compiler; all three smoke checks."
     },
     {
-      "description": "Cinch compiler built from the pinned seed.",
-      "label": "Built",
       "name": "Stage 1",
-      "state": "passed"
+      "state": "pending",
+      "label": "Building",
+      "description": "Cinch compiler built from the verified seed; all three smoke checks."
     },
     {
-      "description": "Built by Cinch; starts and passes valid-program, precedence and invalid-source checks.",
-      "label": "Smoke-tested",
       "name": "Stage 2",
-      "state": "passed"
+      "state": "pending",
+      "label": "Pending",
+      "description": "Compiler source rebuilt by Cinch Stage1, including actual checked interfaces."
     },
     {
-      "description": "Fresh frozen-source Stage2/Stage3 compiler IR, executable and 43 interfaces match. Actual interface consumption and changed-source checks pass. Later repairs still need a matching run.",
-      "label": "Fixed point verified",
       "name": "Stage 3",
-      "state": "passed"
+      "state": "pending",
+      "label": "Pending",
+      "description": "Rebuilt by Stage2; the combined gate compares IR and 43 interfaces and checks API consumption and changed-source behavior."
     }
   ],
-  "status": "All focused repairs pass; final full verification running",
+  "status": "Final-source verification running",
   "summary": "The fresh frozen-source Stage2 and Stage3 reach the full compiler/interface fixed point. Stage3 consumes its emitted compiler APIs, and Stage2 rebuilds changed compiler source correctly. Later fixity and Rust name-resolution repairs still need matching verification.",
-  "updatedAt": "2026-11-03T19:51:24.642283+00:00"
+  "updatedAt": "2026-11-03T19:55:57.736718+00:00"
 }
