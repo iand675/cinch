@@ -35,7 +35,7 @@ fn producer() -> std::path::PathBuf {
         ("Facade.cinch", "module Facade where\n  import A (small as narrow, widen, small-int as narrow-int, fixed, fixed-unsigned)\n  export narrow, widen, narrow-int, fixed, fixed-unsigned\n"),
         ("Main.cinch", "module Main where\n  import Facade\n  main :: Int\n  main = 0\n"),
     ]);
-    common::check(&dir, "Main.cinch").expect("emit real checked conversion and comparison contracts");
+    common::check_library_fixture_native(&dir, "Main.cinch").expect("emit real checked conversion and comparison contracts");
     dir
 }
 #[test]

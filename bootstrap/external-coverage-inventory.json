@@ -18,7 +18,8 @@
           "operation": "build"
         }
       ],
-      "classification": "portable program build/run or source refusal; requires exact final Stage3 target execution"
+      "classification": "portable program build/run or source refusal; requires exact final Stage3 target execution",
+      "execution_queue": "/tmp/cinch-self-built-ordinary-suite-1/state.json"
     },
     {
       "target": "argv",
@@ -29,7 +30,8 @@
           "operation": "build"
         }
       ],
-      "classification": "portable program build/run or source refusal; requires exact final Stage3 target execution"
+      "classification": "portable program build/run or source refusal; requires exact final Stage3 target execution",
+      "execution_queue": "/tmp/cinch-self-built-ordinary-suite-1/state.json"
     },
     {
       "target": "arrays",
@@ -61,7 +63,8 @@
         }
       ],
       "classification": "Mixed: ABI6 Native array functionality and object metadata; explicit self-hosted intrinsic-refusal behavior must also run through Stage3. Positive array lowering is outside the pinned ABI5 chain, per design/arrays.md.",
-      "design_boundary": "design/arrays.md:125-157; bootstrap/README.md:413-417. Preserve explicit unsupported-intrinsic refusals and ABI version isolation."
+      "design_boundary": "design/arrays.md:125-157; bootstrap/README.md:413-417. Preserve explicit unsupported-intrinsic refusals and ABI version isolation.",
+      "execution_queue": "/tmp/cinch-self-built-mixed-suite-1/state.json"
     },
     {
       "target": "bootstrap_abstract_nonzero_methods",
@@ -72,7 +75,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_abstract_nonzero_types",
@@ -83,7 +87,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_anonymous_contracts",
@@ -94,7 +99,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_argument_scopes",
@@ -105,7 +111,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_body_bindings",
@@ -116,7 +123,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_boolean_branches",
@@ -127,7 +135,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_buffer_aliases",
@@ -138,7 +147,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_byte_observations",
@@ -157,7 +167,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_check",
@@ -168,7 +179,8 @@
           "operation": "run"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_checked_program",
@@ -183,7 +195,8 @@
           "operation": "check"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_collections",
@@ -194,7 +207,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_conditional_methods",
@@ -205,7 +219,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_contract",
@@ -216,7 +231,8 @@
           "operation": "run"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_core",
@@ -227,7 +243,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_decisions",
@@ -238,7 +255,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_driver",
@@ -253,7 +271,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_effect_types",
@@ -264,7 +283,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_effects",
@@ -275,7 +295,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_eval",
@@ -286,7 +307,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_export_interfaces",
@@ -297,7 +319,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_export_types",
@@ -308,7 +331,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_function_preconditions",
@@ -319,7 +343,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_globals",
@@ -330,7 +355,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_guarded_arithmetic",
@@ -341,7 +367,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_guarded_association",
@@ -352,7 +379,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_guarded_bodies",
@@ -363,7 +391,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_guarded_calls",
@@ -374,7 +403,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_handler_core",
@@ -385,7 +415,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_imported_nonzero",
@@ -396,7 +427,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_imported_preconditions",
@@ -407,7 +439,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_indices",
@@ -418,7 +451,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_infer",
@@ -429,7 +463,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_instance_resolution",
@@ -440,7 +475,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_interface",
@@ -451,7 +487,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_intrinsics",
@@ -462,7 +499,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_ir",
@@ -477,7 +515,8 @@
           "operation": "run"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_ladder",
@@ -488,7 +527,8 @@
           "operation": "run"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_lexer",
@@ -503,7 +543,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_load",
@@ -514,7 +555,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_machine_values",
@@ -529,7 +571,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_manifest",
@@ -540,7 +583,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_measure_contracts",
@@ -551,7 +595,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_module_scopes",
@@ -562,7 +607,8 @@
           "operation": "run"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_named_refinements",
@@ -573,7 +619,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_nominals",
@@ -584,7 +631,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_nonzero_source",
@@ -595,7 +643,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_nonzero_types",
@@ -606,7 +655,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_parse",
@@ -617,7 +667,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_pi",
@@ -628,7 +679,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_pipeline",
@@ -639,7 +691,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_proof",
@@ -650,7 +703,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_proof_arrows",
@@ -661,7 +715,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_proof_terms",
@@ -672,7 +727,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_proposition_types",
@@ -683,7 +739,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_refinement_closure",
@@ -694,7 +751,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_refinement_constructors",
@@ -705,7 +763,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_refinement_core",
@@ -716,7 +775,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_refinement_types",
@@ -727,7 +787,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_resolve",
@@ -738,7 +799,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_runtime_emit",
@@ -749,7 +811,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_runtime_ir",
@@ -760,7 +823,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_runtime_objects",
@@ -771,7 +835,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_source_constructors",
@@ -782,7 +847,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_source_decisions",
@@ -793,7 +859,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_source_effects",
@@ -804,7 +871,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_source_handlers",
@@ -815,7 +883,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_source_instances",
@@ -830,7 +899,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_source_pi",
@@ -841,7 +911,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_source_proofs",
@@ -852,7 +923,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_source_refinements",
@@ -863,7 +935,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_test_runner",
@@ -874,7 +947,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_total",
@@ -885,7 +959,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_total_indices",
@@ -896,7 +971,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_total_semantics",
@@ -907,7 +983,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_type_syntax",
@@ -918,7 +995,8 @@
           "operation": "run"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_typed_indices",
@@ -929,7 +1007,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_typing",
@@ -940,7 +1019,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_value_indices",
@@ -951,7 +1031,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "bootstrap_value_kinds",
@@ -962,7 +1043,8 @@
           "operation": "build"
         }
       ],
-      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared"
+      "classification": "queued complete portable bootstrap target; explicit Native library fixture preparation where declared",
+      "execution_queue": "/tmp/cinch-self-built-bootstrap-suite-1/state.json"
     },
     {
       "target": "canonical_artifacts",
@@ -977,7 +1059,8 @@
           "operation": "run"
         }
       ],
-      "classification": "mixed Native artifact API assertions and portable consumer behavior; requires per-case review before final acceptance"
+      "classification": "mixed Native artifact API assertions and portable consumer behavior; requires per-case review before final acceptance",
+      "execution_queue": "/tmp/cinch-self-built-mixed-suite-1/state.json"
     },
     {
       "target": "case_evidence",
@@ -992,7 +1075,8 @@
           "operation": "build"
         }
       ],
-      "classification": "portable program build/run or source refusal; requires exact final Stage3 target execution"
+      "classification": "portable program build/run or source refusal; requires exact final Stage3 target execution",
+      "execution_queue": "/tmp/cinch-self-built-ordinary-suite-1/state.json"
     },
     {
       "target": "class_identity",
@@ -1007,7 +1091,8 @@
           "operation": "run"
         }
       ],
-      "classification": "portable program build/run or source refusal; requires exact final Stage3 target execution"
+      "classification": "portable program build/run or source refusal; requires exact final Stage3 target execution",
+      "execution_queue": "/tmp/cinch-self-built-ordinary-suite-1/state.json"
     },
     {
       "target": "exhaustion",
@@ -1018,7 +1103,8 @@
           "operation": "build"
         }
       ],
-      "classification": "portable program build/run or source refusal; requires exact final Stage3 target execution"
+      "classification": "portable program build/run or source refusal; requires exact final Stage3 target execution",
+      "execution_queue": "/tmp/cinch-self-built-ordinary-suite-1/state.json"
     },
     {
       "target": "folded_literal_ownership",
@@ -1033,7 +1119,8 @@
           "operation": "build"
         }
       ],
-      "classification": "portable program build/run or source refusal; requires exact final Stage3 target execution"
+      "classification": "portable program build/run or source refusal; requires exact final Stage3 target execution",
+      "execution_queue": "/tmp/cinch-self-built-ordinary-suite-1/state.json"
     },
     {
       "target": "interface_anonymous_contracts",
@@ -1044,7 +1131,14 @@
           "operation": "check"
         }
       ],
-      "classification": "Native interface-producer/serialization API assertions; separately require writer acceptance coverage, not portable executable evidence"
+      "classification": "Native interface-producer/serialization API assertions; separately require writer acceptance coverage, not portable executable evidence",
+      "native_api_evidence": {
+        "status": "passed",
+        "row": "interface_anonymous_contracts",
+        "executable_sha256": "e6d0a3c06d5088febebc6e862438e818ddc71282d6b9d7d891fbbcc0e780b357",
+        "log": "/tmp/cinch-full-native-27/interface_anonymous_contracts.log",
+        "reason": "Actual checked-interface writer/reader and serialization API assertions. Existing test input bytes and Native driver body retained; production source audit proves unchanged implementation."
+      }
     },
     {
       "target": "interface_byte_observations",
@@ -1059,7 +1153,8 @@
           "operation": "build"
         }
       ],
-      "classification": "mixed Native artifact API assertions and portable consumer behavior; requires per-case review before final acceptance"
+      "classification": "mixed Native artifact API assertions and portable consumer behavior; requires per-case review before final acceptance",
+      "execution_queue": "/tmp/cinch-self-built-mixed-suite-1/state.json"
     },
     {
       "target": "interface_class_contracts",
@@ -1070,7 +1165,14 @@
           "operation": "check"
         }
       ],
-      "classification": "Native interface-producer/serialization API assertions; separately require writer acceptance coverage, not portable executable evidence"
+      "classification": "Native interface-producer/serialization API assertions; separately require writer acceptance coverage, not portable executable evidence",
+      "native_api_evidence": {
+        "status": "passed",
+        "row": "interface_class_contracts",
+        "executable_sha256": "36944dfcf9ba5942105e0f08cb9a762c67e41e2372bb0fe46722ac339c2cc421",
+        "log": "/tmp/cinch-full-native-27/interface_class_contracts.log",
+        "reason": "Actual checked-interface writer/reader and serialization API assertions. Existing test input bytes and Native driver body retained; production source audit proves unchanged implementation."
+      }
     },
     {
       "target": "interface_kinds",
@@ -1081,7 +1183,14 @@
           "operation": "check"
         }
       ],
-      "classification": "Native interface-producer/serialization API assertions; separately require writer acceptance coverage, not portable executable evidence"
+      "classification": "Native interface-producer/serialization API assertions; separately require writer acceptance coverage, not portable executable evidence",
+      "native_api_evidence": {
+        "status": "passed",
+        "row": "interface_kinds",
+        "executable_sha256": "72bf20156171cb21284aea677c0907ab9b7fc571195a90a4321d078a875a5a98",
+        "log": "/tmp/cinch-full-native-27/interface_kinds.log",
+        "reason": "Actual checked-interface writer/reader and serialization API assertions. Existing test input bytes and Native driver body retained; production source audit proves unchanged implementation."
+      }
     },
     {
       "target": "interface_machine_contracts",
@@ -1096,7 +1205,8 @@
           "operation": "build"
         }
       ],
-      "classification": "mixed Native artifact API assertions and portable consumer behavior; requires per-case review before final acceptance"
+      "classification": "mixed Native artifact API assertions and portable consumer behavior; requires per-case review before final acceptance",
+      "execution_queue": "/tmp/cinch-self-built-mixed-suite-1/state.json"
     },
     {
       "target": "interface_nominals",
@@ -1107,7 +1217,14 @@
           "operation": "check"
         }
       ],
-      "classification": "Native interface-producer/serialization API assertions; separately require writer acceptance coverage, not portable executable evidence"
+      "classification": "Native interface-producer/serialization API assertions; separately require writer acceptance coverage, not portable executable evidence",
+      "native_api_evidence": {
+        "status": "passed",
+        "row": "interface_nominals",
+        "executable_sha256": "b7711c4336f5433d7e61bcfe8f95384b277a29854200ce345a745f379380a52c",
+        "log": "/tmp/cinch-full-native-27/interface_nominals.log",
+        "reason": "Actual checked-interface writer/reader and serialization API assertions. Existing test input bytes and Native driver body retained; production source audit proves unchanged implementation."
+      }
     },
     {
       "target": "interface_preconditions",
@@ -1118,7 +1235,14 @@
           "operation": "check"
         }
       ],
-      "classification": "Native interface-producer/serialization API assertions; separately require writer acceptance coverage, not portable executable evidence"
+      "classification": "Native interface-producer/serialization API assertions; separately require writer acceptance coverage, not portable executable evidence",
+      "native_api_evidence": {
+        "status": "passed",
+        "row": "interface_preconditions",
+        "executable_sha256": "730bb9ee0dca5b4b31bff9e0b23bd5cfcec3ee48d04029a586c677cbc6f3a5ba",
+        "log": "/tmp/cinch-full-native-27/interface_preconditions.log",
+        "reason": "Actual checked-interface writer/reader and serialization API assertions. Existing test input bytes and Native driver body retained; production source audit proves unchanged implementation."
+      }
     },
     {
       "target": "interface_prelude_overrides",
@@ -1129,7 +1253,14 @@
           "operation": "check"
         }
       ],
-      "classification": "Native interface-producer/serialization API assertions; separately require writer acceptance coverage, not portable executable evidence"
+      "classification": "Native interface-producer/serialization API assertions; separately require writer acceptance coverage, not portable executable evidence",
+      "native_api_evidence": {
+        "status": "passed",
+        "row": "interface_prelude_overrides",
+        "executable_sha256": "3767b6184800f4aaa78c3896e2f181194c9a7a7d1da3083e33ddf708c8963e08",
+        "log": "/tmp/cinch-full-native-27/interface_prelude_overrides.log",
+        "reason": "Actual checked-interface writer/reader and serialization API assertions. Existing test input bytes and Native driver body retained; production source audit proves unchanged implementation."
+      }
     },
     {
       "target": "interface_refinement_closure",
@@ -1140,7 +1271,14 @@
           "operation": "check"
         }
       ],
-      "classification": "Native interface-producer/serialization API assertions; separately require writer acceptance coverage, not portable executable evidence"
+      "classification": "Native interface-producer/serialization API assertions; separately require writer acceptance coverage, not portable executable evidence",
+      "native_api_evidence": {
+        "status": "passed",
+        "row": "interface_refinement_closure",
+        "executable_sha256": "5d7cb8f396d2a2afea266567757a7b81e3fe57b2fcfd4102950298c586447d11",
+        "log": "/tmp/cinch-full-native-27/interface_refinement_closure.log",
+        "reason": "Actual checked-interface writer/reader and serialization API assertions. Existing test input bytes and Native driver body retained; production source audit proves unchanged implementation."
+      }
     },
     {
       "target": "interface_refinements",
@@ -1151,7 +1289,14 @@
           "operation": "build"
         }
       ],
-      "classification": "Native interface-producer/serialization API assertions; separately require writer acceptance coverage, not portable executable evidence"
+      "classification": "Native interface-producer/serialization API assertions; separately require writer acceptance coverage, not portable executable evidence",
+      "native_api_evidence": {
+        "status": "passed",
+        "row": "interface_refinements",
+        "executable_sha256": "8c679a8038a87cdfb3af3c5cf84f270ac084754094d389a1cd3a5768d3753954",
+        "log": "/tmp/cinch-full-native-27/interface_refinements.log",
+        "reason": "Actual checked-interface writer/reader and serialization API assertions. Existing test input bytes and Native driver body retained; production source audit proves unchanged implementation."
+      }
     },
     {
       "target": "interface_region_effects",
@@ -1162,7 +1307,14 @@
           "operation": "check"
         }
       ],
-      "classification": "Native interface-producer/serialization API assertions; separately require writer acceptance coverage, not portable executable evidence"
+      "classification": "Native interface-producer/serialization API assertions; separately require writer acceptance coverage, not portable executable evidence",
+      "native_api_evidence": {
+        "status": "passed",
+        "row": "interface_region_effects",
+        "executable_sha256": "4c92779a848fccd16adb0569adffd63f68a6eedb7010a9a07c4c209918f05773",
+        "log": "/tmp/cinch-full-native-27/interface_region_effects.log",
+        "reason": "Actual checked-interface writer/reader and serialization API assertions. Existing test input bytes and Native driver body retained; production source audit proves unchanged implementation."
+      }
     },
     {
       "target": "lib_hashmap_real",
@@ -1177,7 +1329,8 @@
           "operation": "build"
         }
       ],
-      "classification": "portable program build/run or source refusal; requires exact final Stage3 target execution"
+      "classification": "portable program build/run or source refusal; requires exact final Stage3 target execution",
+      "execution_queue": "/tmp/cinch-self-built-ordinary-suite-1/state.json"
     },
     {
       "target": "primitive_length_identity",
@@ -1224,8 +1377,25 @@
           "operation": "check"
         }
       ],
-      "classification": "portable program build/run or source refusal; requires exact final Stage3 target execution"
+      "classification": "portable program build/run or source refusal; requires exact final Stage3 target execution",
+      "execution_queue": "/tmp/cinch-self-built-ordinary-suite-1/state.json"
     }
   ],
-  "classification_status": "Initial source review only. Mixed targets require per-case mapping; no target is marked externally verified by this inventory."
+  "classification_status": "Source review mapped all100 harness targets:79portable bootstrap;8ordinary program/check;3mixedNative-producer/portable-consumer;9Nativeinterface API targets with complete passing Native evidence;1ABI6array mixed target whose explicit selfhosted refusal case is queued separately per design/arrays.md. Execution and final audit remain open.",
+  "queues": {
+    "bootstrap": {
+      "path": "/tmp/cinch-self-built-bootstrap-suite-1",
+      "count": 79
+    },
+    "ordinary": {
+      "path": "/tmp/cinch-self-built-ordinary-suite-1",
+      "count": 8
+    },
+    "mixed": {
+      "path": "/tmp/cinch-self-built-mixed-suite-1",
+      "complete_targets": 3,
+      "exact_array_refusal_cases": 1
+    }
+  },
+  "production_source_audit": "/tmp/cinch-final-production-source-audit-1.json"
 }

@@ -59,6 +59,31 @@ Stage3; mixed consumer coverage and the final audit remain open. The pinned ABI5
 bootstrap retains the array refusal boundary specified in [the array design](arrays.md).
 This inventory is an open audit, not a passing result.
 
+## Additional Stage3 behavior checks
+
+The mixed consumer tests now explicitly name their Native library fixture stage;
+the consumer builds and executions continue through the selected Cinch compiler.
+All four runners compile on their frozen snapshot;
+[that result](../bootstrap/mixed-fixture-runner-results.json) does not claim that
+their consumer programs pass.
+
+The first array-refusal consumer stopped because its test-only object bundle
+lacked `Data.Option.is-none[O]`. The replacement bundle passes independent
+artifact validation and contains that exact requested unit. All55 interface
+documents match the previous bundle byte for byte. Its
+[test-only roots](../bootstrap/test-support-object-roots.json) add only the
+previously requested list-length variant and this Option variant; compiler
+roots, Stage0 and library producer pins remain unchanged. See
+[the scoped artifact result](../bootstrap/test-library-variant-results.json).
+The exact consumer rerun remains required.
+
+The ordinary Stage3 allocation target also exposed missing checked I64 equality
+and wrapping-arithmetic declarations, and rejection of pure `Unit -> Int`
+entries. A working candidate adds these with strict signatures and runtime
+regressions. Its first complete intrinsic-checking gate passes; the combined
+runtime, parser and new staged bootstrap gates remain open. The earlier green
+bootstrap remains evidence for its original e85a5d0 source, not this candidate.
+
 ## Earlier combined bootstrap checkpoint
 
 The fresh pinned Stage0/1/2/3 chain on frozen source

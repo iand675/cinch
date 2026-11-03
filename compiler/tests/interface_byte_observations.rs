@@ -29,7 +29,7 @@ fn private_observations_close_over_the_kernel_and_actual_buffer_identity() {
         ("Facade.cinch","module Facade where\n  import A (take-at as at, copy-size, make-positive, read-positive)\n  export at, copy-size, make-positive, read-positive\n"),
         ("Main.cinch","module Main where\n  import Facade\n  main :: Int\n  main = 0\n"),
     ]);
-    common::check(&source,"Main.cinch").expect("check and emit real observation contracts");
+    common::check_library_fixture_native(&source,"Main.cinch").expect("check and emit real observation contracts");
     let a=Iface::from_json(&std::fs::read_to_string(source.join("build/A.cinchif" )).unwrap()).unwrap();
     for name in ["take-at","copy-size","make-positive","read-positive"] {
         let export=a.exports.values.iter().find(|v|v.name==name).unwrap();

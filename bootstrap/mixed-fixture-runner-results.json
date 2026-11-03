@@ -1,0 +1,37 @@
+{
+  "status": "passed-runner-compilation",
+  "scope": "Allfour mixed Rust test runners compiled on immutable52e7b6snapshot; three fixture-producer calls explicitly Native. Original failed array consumer retained. Full consumer runtime verification remains open.",
+  "source_sha256": "52e7b67390ef3b0ed665b881cfe33e0ccce70333d136a59cfe3dac4688ea6b4f",
+  "test_input_changes": [
+    {
+      "path": "compiler/tests/canonical_artifacts.rs",
+      "sha256": "9914e387c2e0212dc2f8a08fc8fc97cf3439e29c0dec34da2115586c8beade8d"
+    },
+    {
+      "path": "compiler/tests/interface_byte_observations.rs",
+      "sha256": "ce4b4ddcf24e412cde97e281471851edf1d6a490479e013a3161b7386b6b80e8"
+    },
+    {
+      "path": "compiler/tests/interface_machine_contracts.rs",
+      "sha256": "77e59a8a09b81ef0d02fe41720658ef2abd133af33fe3578020b326be2d087a6"
+    }
+  ],
+  "compiled_runners": [
+    {
+      "name": "arrays",
+      "sha256": "cac6c956837dd96cfe8fb48c99dcb6291d43468b7782cce331df2016bc92379d"
+    },
+    {
+      "name": "canonical_artifacts",
+      "sha256": "3d85f70a25199da455c59387c758634f4983b490f14d002a9c05f12f4bc79b61"
+    },
+    {
+      "name": "interface_byte_observations",
+      "sha256": "90ce758aee7006f8855753d272e07ada713d7f3ffd0549aa156726f44fbd23bb"
+    },
+    {
+      "name": "interface_machine_contracts",
+      "sha256": "21a68379145b77cbb920c746c02912e5b319ddeeefb5e10fb07eb1b91fbfadac"
+    }
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "added_root": {
+    "arity": 1,
+    "closure_entry": "Data.Option.is-none@O.object-closure",
+    "params": [
+      "O"
+    ],
+    "result": "R",
+    "symbol": "Data.Option.is-none@O"
+  },
+  "checked_at": "2026-11-03T22:52:00.856843+00:00",
+  "checked_interfaces_byte_identical_to_prior": true,
+  "compiler_stage_roots_and_pins_unchanged": true,
+  "configuration": {
+    "metadata": "/tmp/cinch-test-support-provider-2/library.abi.json",
+    "metadata_sha256": "7113d776fce2b9cc2c061664c233dd20a23967ba97468c7421cff803590e6fec",
+    "object": "/tmp/cinch-test-support-provider-2/library.o",
+    "object_sha256": "077b9c43a8ee415928dd40939b838e5726afd021ce708d7c2c051250d38cd7fd",
+    "schema": 1,
+    "target": "aarch64-unknown-unknown"
+  },
+  "diagnostic_sha256": "c8dbf7b509cfed08b736174ea28cb4b7e5415bc932685e29643b3c78ca655f13",
+  "extra_test_roots": [
+    {
+      "classes": "T",
+      "symbol": "Data.List.length"
+    },
+    {
+      "classes": "O",
+      "symbol": "Data.Option.is-none"
+    }
+  ],
+  "interfaces": 55,
+  "producer": {
+    "description": "Library-only Native producer with checked object manifests, explicit representation roots and canonical method families. Never compiles Bootstrap implementation modules. The independent stage0 compiler pin is unchanged.",
+    "revision": "261ba1603be65f3e207f3665daa7f78119873d0c",
+    "runtime_abi": 5,
+    "schema": 1,
+    "source_sha256": "5a15a8d7c496ecc63c3b88879abbe88f8d0d61eef8469ef31285b0571430cdd0"
+  },
+  "producer_binary_sha256": "b0298ec0768f4d4108ba6d61c8a7225595ab3bf2f541556f11f30b497c3ac503",
+  "rerun": "/tmp/cinch-self-built-mixed-suite-2/state.json",
+  "retained_failed_consumer": "/tmp/cinch-self-built-mixed-suite-1/arrays.log",
+  "roots_sha256": "5453e2903a16897b2001d2b7bc6f8a44864f08d2cea22776c8717e792a89bb2a",
+  "runtime_sha256": "3d50ac6bab9b8cb0776bb994e3b9da76876a6eec8b9e8162f76ed8cd903f8c6d",
+  "scope": "Library-only test support. This validates the requested object variant and contracts, not the failed consumer rerun or the new compiler repairs.",
+  "status": "passed-library-artifact-validation",
+  "roots_file": "bootstrap/test-support-object-roots.json"
+}

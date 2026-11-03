@@ -98,7 +98,7 @@ fn written_artifacts_are_canonical_json_for_the_cinch_printer() {
     // cache. This binary holds one test, so the variable races nothing.
     let store = dir.join("store");
     std::env::set_var("CINCH_STORE", &store);
-    common::check(&dir, "Main.cinch").expect("the project checks");
+    common::check_library_fixture_native(&dir, "Main.cinch").expect("the project checks");
     let build = dir.join("build");
 
     // Rust side, every interface the build wrote: one line, a fixed point
