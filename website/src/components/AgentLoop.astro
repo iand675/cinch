@@ -20,6 +20,9 @@ const turns = [
   { caption: 'The module checks, so it runs the program.', code: '', run: rec['average-report.cinch'] },
 ];
 for (const t of turns) if (!t.run) throw new Error('Missing recording: run scripts/record-examples.py');
+// The fact the first rejection asks for, quoted from its recorded message.
+const missing = /obligation `([^`]+)`/.exec(turns[0].run.stderr)?.[1];
+if (!missing) throw new Error('The first agent turn no longer reports a missing obligation');
 ---
 <figure class="agent-loop" data-agent-loop aria-labelledby="agent-loop-caption">
   <div class="teletype">
@@ -41,7 +44,7 @@ for (const t of turns) if (!t.run) throw new Error('Missing recording: run scrip
       <div class="printout-feed" aria-hidden="true"></div>
     </div>
   </div>
-  <figcaption id="agent-loop-caption">Three turns, every one of them recorded from the compiler. The first message names three ways to fix the call, and the agent needs nothing else to get it right.</figcaption>
+  <figcaption id="agent-loop-caption">Real <code>cinch check</code> and <code>cinch run</code> output, recorded from the compiler. The rejection names the missing fact, <code>{missing}</code>, and the line and column that need it.</figcaption>
 </figure>
 <script>
   const loop = document.querySelector<HTMLElement>('[data-agent-loop]');

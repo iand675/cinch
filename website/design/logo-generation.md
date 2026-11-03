@@ -19,3 +19,4 @@ Precise revision of the supplied Cinch wordmark for legibility at 120 pixels wid
 
 - `public/brand/cinch-wordmark-instrument-v2-source.png`: selected full-resolution source.
 - `public/brand/cinch-wordmark-instrument-v2.webp`: selected website asset.
+- `public/brand/cinch-wordmark-emboss-mask.webp`: alpha mask of the V2 source's orange fill only, cropped and 640 px wide. The ivory keyline is transparent, so overlapping ribbons stay separate when the mask is embossed. The console housing uses it (`.console-emboss`). It was derived per pixel: alpha = clamp((R − B − 45) / 90). Regenerate it from the source if the wordmark changes.

@@ -21,6 +21,7 @@ PLAN = {
     'average-report.cinch': 'run',
     'average-unchecked.cinch': 'check',
     'average-match.cinch': 'check',
+    'life.cinch': 'check',
 }
 
 def record(name, mode):

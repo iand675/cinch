@@ -14,7 +14,7 @@ These instructions apply to `website/`. This site has an established, user-selec
 - Preserve the bold typographic composition: very large headings, broad ink/ivory/orange fields, generous space, and a clear reading order. Do not shrink the page into a dashboard of little rounded cards.
 - Use **Momo Trust Display Regular** for display headings, **DM Sans** for reading text and UI, and **IBM Plex Mono** for code, technical labels, indices, and dimensions. Momo was explicitly selected after many full-page comparisons. Do not substitute a fashionable technical-site font or synthesize extra weights.
 - Think of manufactured space-age plastic, paper manuals, and scientific instruments. The reference language includes rounded housings, spherical/circular forms, large curved shoulders, inset wells, fitted seams, restrained fasteners, and fine printed technical detail.
-- Work that language into the **page composition**, not only a decorative computer next to an otherwise generic landing page. Existing section transitions, curved navigation ends, title plates, index rails, code surrounds, and native scrollbars demonstrate the distribution.
+- Work that language into the **page composition**, not only a decorative computer next to an otherwise generic landing page. Existing section transitions, curved navigation ends, title plates, code surrounds, and native scrollbars demonstrate the distribution.
 - Keep technical ornament purposeful and subordinate. A label should identify something; a gauge should represent something; a leader line should point to something. Avoid invented coordinates, serial numbers, telemetry, controls, or “system online” messages added only to look technical.
 - Use the existing static grain asset sparingly. Texture should become apparent on closer inspection. Preserve crisp text, clean controls, and calm reading surfaces. Avoid page-wide CRT effects, moving noise, flicker, fake damage, and continuous motion.
 - Keep the material palette warm: charcoal ink, cream paper, orange, amber, and olive. The direction does not require red controls, black/green terminal styling, chrome, neon, or a literal cockpit everywhere.
@@ -42,6 +42,7 @@ These instructions apply to `website/`. This site has an established, user-selec
 | Agent session (LLM section teletype) | `src/components/AgentLoop.astro`, `.agent-*` rules in `src/styles/language-tour.css` |
 | Compiler printout (rejected example on form paper) | `src/components/CompilerPrintout.astro`, `.printout` rules in `landing.css` |
 | Landing gadgets (bits, staging, fusion, SIMD, upgrade) | `src/components/LanguageTour.astro`, `src/components/LiveEvolution.astro`, rules in `src/styles/language-tour.css` |
+| Live-editable Game of Life (simulated hot reload) | `src/components/LifeReload.astro`, `src/lib/life.ts` (board step and rule reader), `src/data/examples/life.cinch`, `.life-*` rules in `language-tour.css` |
 | Docs content and route adaptation | `src/loaders/safelang-docs.ts`, `src/components/MarkdownContent.astro`, `astro.config.mjs` |
 | Package fixtures and generated API references | `src/lib/catalogue.ts`, `src/pages/packages/`, `src/components/catalogue/` |
 | Sample releases and downloads | `src/lib/downloads.ts`, `src/pages/downloads/` |

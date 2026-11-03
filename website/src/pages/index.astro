@@ -75,21 +75,18 @@ const features = [
         <div class="hero-baseline mono"><a href="#why-cinch">INSIDE THE LANGUAGE <span>↓</span></a></div>
       </section>
       <section class="manifesto light-section" id="why-cinch" aria-labelledby="manifesto-title">
-        <div class="section-index mono"><span>THE LANGUAGE</span></div>
         <div class="manifesto-grid"><h2 id="manifesto-title">Familiar code.<br /><span>Stronger types.</span></h2><div class="manifesto-copy"><p>If you have written Haskell or OCaml, most Cinch code will look familiar. What changes is how much a type can say, and that the compiler holds the code to it.</p><p>Algebraic data types, pattern matching, higher-order functions, and instances work as you would expect. Evaluation is strict, and ownership and borrowing manage memory, files, and sockets without a tracing garbage collector.</p><p>When you need a stronger guarantee, such as an index that is in bounds or a list that is never empty, you write it in the type and the compiler checks it. Linear arithmetic like <code>i + 1 &lt;= length xs</code> is checked for you.</p><a class="text-link" href="/specifications/core-language-specification/">Core language specification <span>↗</span></a></div></div>
         <nav class="language-jump" aria-label="Explore language features"><a href="#agents">For language models ↓</a><a href="#proofs">Checked data ↓</a><a href="#specialization">Type specialization ↓</a><a href="#staging">Typed staging ↓</a><a href="#optimization">Optimization ↓</a><a href="#live-development">Incremental builds and hot reload ↓</a><a href="#runtime-contracts">Runtime contracts ↓</a></nav>
       </section>
       <div class="panel-joint" aria-hidden="true"><span></span><i></i><span></span></div>
       <section class="proof-section" id="average" aria-labelledby="proof-title">
-        <div class="section-index mono"><span>REFINEMENT TYPES</span></div>
         <div class="proof-grid">
-          <div class="proof-copy"><h2 id="proof-title">The empty&#8209;list <br />crash <em>never ships.</em></h2><p>Every codebase has a function like this: average order value, mean response time, the failure rate of last night’s jobs. It passes every test. Then a customer with no orders opens the dashboard and it divides by zero.</p><p class="muted">In Cinch, division takes a divisor that cannot be zero. <code>average</code> asks for a <code>NonEmpty</code> list, whose length is never zero, so it needs no check of its own. Code holding an ordinary list has to decide, once, what an empty history means.</p><a class="text-link" href="/learn/13-refinements-and-safe-operations/">Refinements and safe operations <span>↗</span></a></div>
+          <div class="proof-copy"><h2 id="proof-title">Crashing code<br /><em>never ships.</em></h2><p>Every codebase has a function like this: average order value, mean response time, the failure rate of last night’s jobs. It passes every test. Then a customer with no orders opens the dashboard and it divides by zero.</p><p class="muted">In Cinch, division takes a divisor that cannot be zero. <code>average</code> asks for a <code>NonEmpty</code> list, whose length is never zero, so it needs no check of its own. Code holding an ordinary list has to decide, once, what an empty history means.</p><a class="text-link" href="/learn/13-refinements-and-safe-operations/">Refinements and safe operations <span>↗</span></a></div>
           <RunnableSource file="average-report.cinch" source={averageSource}><div class="code-note"><span class="proof-check">↳</span><p><strong>Hand it an ordinary list</strong><br /><code>report orders = average orders</code> asks for a fact the compiler cannot see.</p><button type="button" class="gadget-key" data-print aria-pressed="false">Check it <span aria-hidden="true">▸</span></button></div><CompilerPrintout file="average-unchecked.cinch" source={uncheckedSource} legend={printoutLegend} /></RunnableSource>
         </div>
         <AverageFigure id="landing-average-figure" />
       </section>
       <section class="agents-section language-section" id="agents" aria-labelledby="agents-title">
-        <div class="section-index mono"><span>FOR LANGUAGE MODELS</span></div>
         <div class="tour-heading"><h2 id="agents-title">Your LLM’s new<br />favorite language.</h2><p>An agent writes code, runs the compiler, reads the result, and tries again. Cinch makes every turn of that loop count. The compiler says exactly what is missing and how to supply it, and nothing it accepts can crash in production.</p></div>
         <AgentLoop />
         <div class="agent-reasons">{agentReasons.map(r => <article><h3>{r.title}</h3><p set:html={r.text} /><a class="text-link" href={r.href}>{r.link} <span>↗</span></a></article>)}</div>
@@ -97,17 +94,15 @@ const features = [
       <LanguageTour />
       <LiveEvolution />
       <section class="feature-section light-section" id="runtime-contracts" aria-labelledby="features-title">
-        <div class="section-index mono"><span>RUNTIME CONTRACTS</span></div>
         <h2 id="features-title">Carry the contract<br />into a running system.</h2>
-        <div class="feature-list">{features.map(feature => <article class="feature-row"><span class="feature-number mono" aria-hidden="true">{feature.n}</span><div><h3>{feature.title}</h3></div><div><p>{feature.text}</p><a class="text-link" href={feature.href}>{feature.link}<span>↗</span></a></div></article>)}</div>
+        <div class="feature-list">{features.map((feature, i) => <article class="feature-row"><span class="feature-number mono" aria-hidden="true" style={`--filled:${i + 1};--total:${features.length}`}>{feature.n}</span><div><h3>{feature.title}</h3></div><div><p>{feature.text}</p><a class="text-link" href={feature.href}>{feature.link}<span>↗</span></a></div></article>)}</div>
       </section>
       <section class="reading-section" aria-labelledby="reading-title">
-        <div class="section-index mono"><span>DOCUMENTATION</span></div>
-        <div class="reading-heading"><h2 id="reading-title">Learn the<br />language.</h2><p>Start with a working program.<br />Keep the compiler guide nearby.</p></div>
+        <div class="reading-heading"><h2 id="reading-title">Learn the<br />language.</h2><p>One idea per chapter, each with an exercise and an answer. It assumes you can program, not that you know a dependently typed language.</p></div>
         <div class="reading-links"><a href={tutorial}><h3>Tutorials</h3><p>22 chapters, from a first executable to concurrency and live upgrades, each with worked programs and exercises.</p><span class="reading-arrow" aria-hidden="true">↗</span></a><a href="/reference/00-guide/"><h3>Compiler guide</h3><p>Syntax, commands, and the checking rule behind each error the compiler reports.</p><span class="reading-arrow" aria-hidden="true">↗</span></a><a href="/library/00-index/"><h3>Library reference</h3><p>Every module that ships with the compiler, documented from its checked interface.</p><span class="reading-arrow" aria-hidden="true">↗</span></a></div>
         
       </section>
-      <section class="closing"><div class="mono">TUTORIAL 1 / BUILD AND RUN A PROGRAM</div><a href={tutorial}><h2>Write your<br /><span>first program.</span></h2><span class="closing-arrow" aria-hidden="true">↗</span></a><p class="closing-note">Chapter 1 starts from an empty directory and ends with a running program.</p></section>
+      <section class="closing"><a href={tutorial}><h2>Write your<br /><span>first program.</span></h2><span class="closing-arrow" aria-hidden="true">↗<span class="closing-orbit"><i></i></span></span></a></section>
     </main>
     <footer class="landing-footer"><Brand /><div><a href="/documentation/">Documentation</a><a href="/packages/">Packages</a><a href="/downloads/">Downloads</a><a href={project.repository}>GitHub ↗</a><a href="#main">Back to top ↑</a></div></footer>
     <PremiumPagePreview />

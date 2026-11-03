@@ -93,3 +93,26 @@ The user wants the page to argue that Cinch is the best language for LLMs to wri
 
 Do not cite token counts, benchmark timings, or comparisons with named languages until they are measured.
 
+## Annotation review (2026-11-03)
+
+The user reviewed the landing page with Agentation and removed more labels:
+
+- Sections have no mono running head (`.section-index`). The heading names the section. The user marked seven; the other three were removed too so the page stays consistent. The language-jump links under the introduction still give section names.
+- The console shows only the maker's plate in its bottom strip. The instruction line ("Take every order away…") was dropped. On narrow screens the strip is hidden, since the plate already was.
+- The closing call to action is the heading and arrow alone, with no "Tutorial 1 /" label and no note under it.
+- The documentation intro says where the tutorial goes (chapter 1 runs a program, chapter 22 builds the order calculator) and that the compiler guide marks current and coming support. "Start with a working program. Keep the compiler guide nearby." was rejected as not useful.
+- Runtime-contract numbers are segmented gauges. Row n of N lights n of N orange segments, so the gauge represents position in the list. The list has no rule under its last row.
+- The proof selector is a row of tabs on one baseline. There is no top rule, and the divider beside the active tab is hidden so it does not cut the tab's curved shoulder.
+- The console's "Interactive example" label was replaced by the wordmark embossed into the housing: the same orange as the case, lit from above, keyline as grooves. The section keeps "Interactive example" as its accessible name.
+- The agent-session caption states what the reader cannot see from the turns: the output is recorded from the real compiler, and the rejection names the missing fact. The fact (`NotNull orders`) is read from the recording at build time, so the caption follows the example.
+- The incremental-builds dependency diagram was replaced by a live-editable Game of Life, at the user's request. The board runs `step` from `src/data/examples/life.cinch` (bounded; cells past the edge are dead), which `record-examples.py` checks. The reader edits the `rule` declaration. When they stop typing, `src/lib/life.ts` reads the edit and swaps it into the running board, keeping the cells and the generation count. The reload is labelled as simulated until the browser build of the compiler exists.
+- The reader accepts only Cinch the Rust compiler also accepts: a `case` on the cell with `Alive`, `Dead` or `_` arms, and `if` chains over comparisons of the count with literals, joined by `&&`, `||` and `not (...)`. A missing arm is reported as the compiler reports it. A changed signature or name is held as a contract change that would need a state migration. Anything else is "cannot read", never a guess. Widen the reader only alongside a `cinch check` of the new form.
+- The board runs only after the reader presses Run, and only while it is on screen and the tab is visible. Step and Reset are keycaps, and clicking a cell switches it.
+- The "Incremental builds" and "Hot reload" mono labels were dropped. The user marked the first; the second matched it.
+- The average section's heading is "Crashing code never ships." The user rejected "The empty-list crash never ships." and suggested "Wrong code never ships". "Crashing" keeps the claim to what the compiler rules out: the hero promises no crashes, not correct business logic.
+- The specialization heading is "Same type. Cheaper layout." The user rejected "Store a list of booleans as bits." as a headline: the BitList example is one instance of the feature, which is that a type can take a cheaper isomorphic representation. The lede now states that feature and keeps the packed list as the example. The "Changing the representation changes the cost" footnote was dropped as too far into the weeds.
+- The documentation intro is "One idea per chapter, each with an exercise and an answer. It assumes you can program, not that you know a dependently typed language." It answers whether the tutorial is for the reader, instead of listing chapters.
+- Every small mono label in the tour grew: .64rem for section and figure labels (.55 to .57 before), .62rem for staging and target labels (.51 to .54), .6rem for gadget controls (.52), .58rem for in-diagram rows (.48 to .5). Code captions went from .54 to .62rem (.48 to .56 on mobile).
+- The staging heading is "Codegen with confidence.", as the user wrote it, replacing "Generate code that gets checked." The lede still says the output is checked like hand-written code.
+- The representation figure's caption was dropped. Its figure keeps an `aria-label` naming the two forms and the press-a-bit interaction, so the bits stay announced without prose under the diagram.
+- The agent session's paper now escapes its housing: negative inline margins put it 6px past each side of the olive case, and it hangs 16px below it with a longer shadow. It reads as continuous feed out of the slot rather than a panel inside a box. The mobile case overhangs the same way at its smaller padding.

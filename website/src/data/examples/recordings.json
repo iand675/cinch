@@ -16,5 +16,11 @@
     "stdout": "",
     "stderr": "",
     "exit": 0
+  },
+  "life.cinch": {
+    "command": "cinch check life.cinch",
+    "stdout": "",
+    "stderr": "",
+    "exit": 0
   }
 }

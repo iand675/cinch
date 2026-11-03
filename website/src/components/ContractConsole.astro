@@ -3,10 +3,10 @@
 // accepts as the number of orders changes (see src/data/examples/average-report.cinch).
 const orders = [24, 36, 12, 48, 30];
 ---
-<section class="contract-console" aria-labelledby="console-title">
+<section class="contract-console" aria-label="Interactive example">
   <div class="case-fittings" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
   <div class="case-spine" aria-hidden="true"><i></i><span></span><i></i></div>
-  <div class="console-label"><span class="mono" id="console-title">INTERACTIVE EXAMPLE</span><span class="console-vents" aria-hidden="true"></span></div>
+  <div class="console-label"><span class="console-emboss" aria-hidden="true"><i></i></span><span class="console-vents" aria-hidden="true"></span></div>
   <div class="display-bezel">
     <div class="contract-screen" data-contract-screen>
       <div class="screen-header mono"><span>average.cinch</span></div>
@@ -27,7 +27,7 @@ const orders = [24, 36, 12, 48, 30];
     <div class="length-control"><label class="mono" for="vector-length">ORDERS</label><div class="length-keys"><button type="button" data-length-step="-1" aria-label="Remove an order">−</button><div class="length-dial"><output for="vector-length" id="length-readout">03</output></div><button type="button" data-length-step="1" aria-label="Add an order">+</button></div><input id="vector-length" type="range" min="0" max="5" value="3" aria-label="Number of orders" /></div>
     <a href="#average" class="example-key"><span class="mono">AVERAGE.CINCH</span><span>Read the code <span aria-hidden="true">↓</span></span></a>
   </div>
-  <div class="console-bottom mono"><span>Take every order away to see what average refuses.</span><span class="maker-plate" aria-hidden="true">CINCH · MADE TO NOT FAIL</span></div>
+  <div class="console-bottom mono"><span class="maker-plate" aria-hidden="true">CINCH · MADE TO NOT FAIL</span></div>
 </section>
 <script define:vars={{ orders }}>
   const range = document.querySelector('#vector-length');
