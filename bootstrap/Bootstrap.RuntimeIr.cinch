@@ -4,8 +4,8 @@
 -- runtime words throughout. Unsupported Core produces errors, never IR.
 module Bootstrap.RuntimeIr where
   import Bootstrap.Check (CheckedProgram, checked-elaboration)
-  import Bootstrap.Infer (elaboration-core, elaboration-data, elaboration-effects, elaboration-classes, elaboration-instances, elaboration-bindings, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches)
-  import Bootstrap.Object (RuntimeObject, RuntimeUnit, object-words, object-unit, object-variant, object-dictionary, object-family, object-string-layout, unit-symbol, unit-closure, unit-params, unit-result, llvm-object-symbol, llvm-data-bytes)
+  import Bootstrap.Infer (elaboration-core, elaboration-data, elaboration-effects, elaboration-classes, elaboration-instances, elaboration-bindings, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-conditional-target)
+  import Bootstrap.Object (RuntimeObject, RuntimeUnit, object-words, object-unit, object-variant, object-dictionary, object-family, object-conditional-unit, object-string-layout, unit-symbol, unit-closure, unit-params, unit-result, llvm-object-symbol, llvm-data-bytes)
   import Bootstrap.Core
   import Bootstrap.Instance
   import Bootstrap.Type
@@ -668,7 +668,10 @@ module Bootstrap.RuntimeIr where
     None -> unsupported w sp (cat ["external runtime implementation is unavailable: ", name])
     Some provider -> (case external-binding name (program-bindings (writer-program w)) of
       Some binding -> (case scheme-classes (writer-context w) (scheme-params (checked-scheme binding)) actuals of
-        Some codes -> (case object-variant name codes provider of
+        Some codes -> (let variant = (case checked-conditional-target binding of
+          Some (owner, dictionary, slot) -> object-conditional-unit owner dictionary slot name codes provider
+          None -> object-variant name codes provider) in
+          case variant of
           Some unit -> external-call-unit definitions locals w sp unit (concrete-scheme (checked-scheme binding) actuals) givens args
           None -> unsupported w sp (cat ["checked external variant is absent from the runtime object: ", name, " [", native-classes codes, "]"]))
         None -> unsupported w sp "external function needs checked representation specialization")

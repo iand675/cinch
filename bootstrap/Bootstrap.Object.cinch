@@ -16,7 +16,7 @@ module Bootstrap.Object where
   export RuntimeObject, RuntimeUnit, parse-runtime-object, read-runtime-object
   export object-words, object-unit, unit-symbol, unit-closure, unit-params, unit-result
   export llvm-object-symbol
-  export object-variant, object-dictionary, object-family
+  export object-variant, object-dictionary, object-family, object-conditional-unit
   export object-string-layout, llvm-data-bytes
 
   data RuntimeUnit where
@@ -78,6 +78,21 @@ module Bootstrap.Object where
           (JStr owner, JNum count, Some fields, Some unit) -> if count < 0 then None else Some (unit, interface-global owner, nat-from-int count, fields)
           other -> None)
         None -> None)
+  conditional-method-at :: Nat -> Json -> Option String
+  conditional-method-at index rows = case rows of
+    JArr (JStr name) rest -> if index == 0 then Some name else conditional-method-at (index - 1) rest
+    other -> None
+  -- A closed conditional method is callable through its actual exported
+  -- instance and checked declaring slot, never through ordinary value scope.
+  object-conditional-unit :: String -> String -> Nat -> String -> List Nat -> RuntimeObject -> Option RuntimeUnit
+  object-conditional-unit owner dictionary slot name codes value = case (codes, value) of
+    (Nil, RuntimeObject words units exports instances dictionaries families constructors types) -> if not (has dictionary instances) then None else
+      (case dictionary-row dictionary dictionaries of
+        Some (key, row) -> (case (field "class" row, field "context_arity" row, conditional-method-at slot (field "methods" row)) of
+          (JStr actual-owner, JNum 0, Some method) -> if same owner (interface-global actual-owner) && same name (interface-global method) then find-unit name units else None
+          other -> None)
+        None -> None)
+    other -> None
   own-classes :: String -> Nat -> Option (List Nat)
   own-classes text index = let bytes = string-to-bytes text in if index < bytes-len bytes then
     (let byte = bytes-get bytes index in if byte /= 82 && byte /= 79 && byte /= 84 then None else

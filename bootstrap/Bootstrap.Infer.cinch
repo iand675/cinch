@@ -29,7 +29,7 @@ module Bootstrap.Infer where
 
   export needs-inference, infer-program, elaborate-program
   export Elaboration, elaboration-errors, elaboration-bindings, elaboration-contexts, elaboration-core
-  export CheckedBinding, checked-name, checked-scheme, checked-role, checked-body-binding, checked-guarded-binding, checked-method-matches
+  export CheckedBinding, checked-name, checked-scheme, checked-role, checked-body-binding, checked-guarded-binding, checked-method-matches, checked-conditional-target
   export elaboration-data, elaboration-effects, elaboration-classes, elaboration-class-context, elaboration-instances
 
   -- Surface templates live only in this elaboration context. Checked
@@ -79,6 +79,12 @@ module Bootstrap.Infer where
   checked-scheme b = case b of MkBodyBinding binding -> binding-scheme binding; MkCheckedBinding name sc role -> sc; MkMethodBinding name sc owner slot -> sc; MkConditionalBinding name owner slot dictionary head sc guarded -> sc; MkGivenBinding name ty symbol -> mono ty; MkLocalBinding name sc id level -> sc; MkValueBinding name sc id level value -> sc; MkIntrinsicBinding name sc symbol -> sc; MkProofBinding fact -> mono UError; MkErasedBinding name predicate id -> mono predicate; MkSyntaxBinding name -> mono UError
   checked-role :: CheckedBinding -> String
   checked-role b = case b of MkBodyBinding binding -> binding-role binding; MkCheckedBinding name sc role -> role; MkMethodBinding name sc owner slot -> "method"; MkConditionalBinding name owner slot dictionary head sc guarded -> "external"; MkGivenBinding name ty symbol -> "dictionary"; MkLocalBinding name sc id level -> "local"; MkValueBinding name sc id level value -> "local"; MkIntrinsicBinding name sc symbol -> "intrinsic"; MkProofBinding fact -> "proof"; MkErasedBinding name predicate id -> "erased-proof"; MkSyntaxBinding name -> "builtin-syntax"
+  -- Retain the declaring instance/slot for backend authorization. This
+  -- does not introduce a source binding for the private implementation.
+  checked-conditional-target :: CheckedBinding -> Option (String, String, Nat)
+  checked-conditional-target binding = case binding of
+    MkConditionalBinding name owner slot dictionary head sc guarded -> Some (owner, interface-global dictionary, slot)
+    other -> None
   checked-method-matches :: CheckedBinding -> String -> String -> Nat -> Bool
   checked-method-matches binding name owner slot = case binding of
     MkMethodBinding actual sc declaring index -> same name actual && same owner declaring && slot == index

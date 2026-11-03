@@ -1,24 +1,103 @@
 {
   "bootstrap_achieved": false,
   "code_hashes": {
-    "bootstrap/Bootstrap.Infer.cinch": "6d16ad0450222fb2c04d78c905a2faeb89c03cda9d402306ed1bc2b806b6ca2a",
-    "bootstrap/Bootstrap.Object.cinch": "7368a8ec0719eb1d9671e0047cd922c56f39cada62d8e7f0918fb6c745903858",
+    "bootstrap/Bootstrap.Infer.cinch": "c73313515c3276bdd044e8b40bd9fb50210100021456b02decba1fc78ec40ff4",
+    "bootstrap/Bootstrap.Object.cinch": "7074e5475702e23993cbd4f1699109ee487a15b4caaf8a3580e8a6fd6e54f6fe",
     "bootstrap/Bootstrap.Pipeline.cinch": "658ceac7b3151afd030bb05f9c63ed6c233e4e14284aab4f04fdcbf14f47e4c4",
     "bootstrap/Bootstrap.RuntimeAbi.cinch": "a7f25347ef8b5be6baf048cd3339a913e15623d2717961d272e22a7ff34cddd1",
-    "bootstrap/Bootstrap.RuntimeIr.cinch": "7b4435b09f35f03192f15151ee26607f7dc38170fffdfc8f916d1799ffdf4a29",
+    "bootstrap/Bootstrap.RuntimeIr.cinch": "e3da57d4067d4afecdffb5bb42d7fac689695667d0ac35e3da5c0218618e4d41",
     "bootstrap/library-object-roots.json": "bd640822bab6497cf26b5f03a9cb0ce4d8122c2060e8e4f4ff3714e36b0f187f",
     "bootstrap/library-provider.lock.json": "ce5d6e7baea1bf477c094f06c3c4a9ddec4b003b1a9fd6616d34584cd75196b7",
     "bootstrap/programs/Run.Pipeline.cinch": "b3b44dabd6ea30fe43835af39bd56134ec56704cb0b1ba031f956b5d016225ec",
     "bootstrap/programs/Run.RuntimeObject.cinch": "ddc93f33807fafbe123d83f4fd14b1ee3f5b44f73d2718b448adb8db32f11d00",
     "compiler/src/check_decls.rs": "0e94ccb289495d235d9ab5354f7c00d67314bd45d7b96ea1c72fa0aebaa9438b",
     "compiler/tests/bootstrap_runtime_emit.rs": "f0615e23369c3299f0c504262bb05fce6b479e0c6f904ed977b1b53a98f0dce2",
-    "compiler/tests/bootstrap_runtime_objects.rs": "cf42a4ca4b50576981d2c06d92c56621665b00dca5c0d9df3b7d2f3e0b908ec8",
+    "compiler/tests/bootstrap_runtime_objects.rs": "12266125f65cc3ed9d8e385082212ffcea780c7e9f791a1a302e914d2807c6fb",
     "compiler/tests/common/mod.rs": "8e35f82c4d690a00a36b0be1f43537db40a6a0739a9975bf556f464358fdbde3",
     "compiler/tests/intrinsic_objects.rs": "9ea39f8ad0838749bb7bc18cc8b4666dcb8ac8935484e5c4f8d2502a6139c9a8",
     "tooling/bootstrap.py": "f772715f27a85048587fe54d80a4fb50e5928b75cbcec3e3a409f3e2b4ebaee7",
     "tooling/bootstrap_objects.py": "8ae8404ce9acd0c09db66cd2befe32d2f9c42855796935ecca12afc3970a2749",
     "tooling/tests/test_bootstrap.py": "5cd3fa0319c0b9804d616775fa8902c19bf94b7c1d480fb7ce3915acb951dd03",
     "tooling/tests/test_bootstrap_objects.py": "bf41da9b972ac221906d78060b94e0a1cf7401a70733fb2cb41417b5b4486054"
+  },
+  "conditional_call_checkpoint": {
+    "all_positive_programs_zero_leaks": true,
+    "builder_fix_scope": "New private tail-recursive builder passes same65536chunk/2MiBcase. Full stage20 verification pending; not yet claimed as the full compiler stack repair.",
+    "builder_stress_after": {
+      "chunks": 65536,
+      "exit_code": 0,
+      "stack_size": "2M",
+      "status": "observed",
+      "stderr": ""
+    },
+    "builder_stress_before": {
+      "chunks": 65536,
+      "exit_code": 73,
+      "stack_size": "2M",
+      "status": "observed",
+      "stderr": "cinch: exhausted: stack\n"
+    },
+    "compiler_exit_code": 73,
+    "failure": "exhausted: stack during runtime emission before IR output; sample13 contains RuntimeIr.worker/call-name/external-call.",
+    "full_object_target19": {
+      "exit_code": 101,
+      "source_unchanged": true,
+      "status": "failed"
+    },
+    "linked_programs": 19,
+    "next_candidate": {
+      "pid": 34805,
+      "source_sha256": "7c77a40b81d6b330e93b11993a03581d9a7ded29595a76ef79bbd80525d64754",
+      "status": "running"
+    },
+    "physical_negative_probe": {
+      "cases": [
+        {
+          "case": "valid",
+          "diagnostics": "",
+          "exit_code": 0,
+          "expected": 0,
+          "ir_bytes": 32764
+        },
+        {
+          "case": "wrong-method",
+          "diagnostics": "bootstrap.runtime-ir:4:15: checked external variant is absent from the runtime object: i.76_105_98_114_97_114_121_46_71_117_97_114_100_101_100_78_97_116_46_103_117_97_114_100_101_100_ []\n",
+          "exit_code": 5,
+          "expected": 5,
+          "ir_bytes": 0
+        },
+        {
+          "case": "wrong-owner",
+          "diagnostics": "bootstrap.runtime-ir:4:15: checked external variant is absent from the runtime object: i.76_105_98_114_97_114_121_46_71_117_97_114_100_101_100_78_97_116_46_103_117_97_114_100_101_100_ []\n",
+          "exit_code": 5,
+          "expected": 5,
+          "ir_bytes": 0
+        },
+        {
+          "case": "wrong-context",
+          "diagnostics": "bootstrap.runtime-ir:4:15: checked external variant is absent from the runtime object: i.76_105_98_114_97_114_121_46_71_117_97_114_100_101_100_78_97_116_46_103_117_97_114_100_101_100_ []\n",
+          "exit_code": 5,
+          "expected": 5,
+          "ir_bytes": 0
+        },
+        {
+          "case": "underflow",
+          "diagnostics": "bootstrap.check:4:15: function precondition is not established at this call\n",
+          "exit_code": 4,
+          "expected": 4,
+          "ir_bytes": 0
+        }
+      ],
+      "status": "passed"
+    },
+    "source_sha256": "d276c85743a18c8f7424e2a73259eef5eb19f3e6ac1937912cafeb2498ffe537",
+    "stage19": {
+      "exit_code": 1,
+      "source_sha256": "d276c85743a18c8f7424e2a73259eef5eb19f3e6ac1937912cafeb2498ffe537",
+      "source_unchanged": true,
+      "status": "failed"
+    },
+    "target19_failure_scope": "Test mutation also changed the embedded checked interface, so admission correctly refused at8 before the intended emitter5. Corrected fixture changes physical dictionary prefix only."
   },
   "conditional_linkage_attempt18": {
     "all_diagnostics_same_target": "Data.Nat.Sub_Nat.-",

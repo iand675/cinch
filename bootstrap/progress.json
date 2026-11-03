@@ -1,12 +1,12 @@
 {
   "schema": 1,
-  "updatedAt": "2026-11-03T11:28:15.949733+00:00",
+  "updatedAt": "2026-11-03T12:09:59.293887+00:00",
   "estimate": 80,
   "estimateNote": "Rough engineering estimate. Remaining compiler bugs can change it; this is not a measured test pass rate.",
-  "status": "Fixing conditional method lookup",
-  "summary": "The requested library bundle builds and is admitted. Stage 2 now stops at 57 repeated natural-subtraction lookups. The guarded-call regression identifies a raw dictionary name being used where a canonical encoded key is required.",
-  "activity": "Candidate 19 is building with the corrected dictionary key. The guarded-call and wrong-metadata checks are rerunning. The full Native sweep continues on two separate workers.",
-  "commit": "8ba8768e80c325b363dcb3f5cf30ed55b5acf182",
+  "status": "Fixing emitter stack usage",
+  "summary": "Guarded subtraction now executes correctly and rejects wrong method authority. The full compiler reaches runtime emission, then exhausts its stack before writing IR.",
+  "activity": "Candidate 20 tests a tail-recursive builder. Its 65,536-chunk reproduction now passes on the same 2 MiB stack that failed before. The full Native sweep continues; an older class-diagnostic expectation is being checked.",
+  "commit": "3300f12e5d3f521a7a9e221dacda210e3bcd9e5c",
   "stages": [
     {
       "name": "Stage 0",
@@ -71,15 +71,20 @@
     },
     {
       "title": "Full Native sweep running",
-      "detail": "4 / 197 remaining Native target gates passed; 2 running, 0 failed. Alongside the separately passed 225-check regression run. Targets can contain multiple tests.",
+      "detail": "12 /197 target gates passed, 2 running, 1 failed. The fragment-checker class diagnostic expectation differs; correction is under verification. This is not a full suite pass.",
       "state": "running"
+    },
+    {
+      "title": "Guarded implementation checks pass",
+      "detail": "Candidate19 runs the guarded program with zero leaks. Separate exact-artifact probes accept the valid slot and reject wrong method, owner, context and unsafe subtraction. The corrected whole target is rerunning.",
+      "state": "passed"
     }
   ],
   "blockers": [
     {
-      "title": "Resolve the conditional subtraction entry",
-      "detail": "The implementation exists in the checked object. The consumer passed a raw instance name to an encoded-key table. The new candidate encodes that identity at the checked-binding boundary and is under validation.",
-      "technical": "Candidate 18: full frontend passed; runtime emitter exit 5 with 57 lines, all Data.Nat.Sub_Nat.-. Library provider built and admitted with 62 hashed artifacts; no IR or Stage 2 executable."
+      "title": "Stop stack growth during large emission",
+      "detail": "The full compiler exits with a stack exhaustion error during emission. A small builder stress case reproduces stack exhaustion; its iterative copy rewrite passes that case. The full retry is running to establish whether this clears the compiler failure.",
+      "technical": "Candidate19 compiler exit73, no IR/executable. Sampled RuntimeIr worker frames confirm emission was reached. Candidate20 contains the builder change; its full outcome is pending."
     },
     {
       "title": "Finish the bootstrap verification",
@@ -88,6 +93,10 @@
     }
   ],
   "milestones": [
+    {
+      "title": "Conditional implementation linkage works",
+      "detail": "The guarded call executes with zero leaks, while wrong declaring class, method and context are refused. Full compiler emission is now limited by a stack failure."
+    },
     {
       "title": "Requested library bundle built and admitted",
       "detail": "The repaired ABI5 producer builds the actual 29 function and four dictionary root set. Remaining emitter refusals are the same conditional subtraction lookup."

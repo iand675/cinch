@@ -41,8 +41,21 @@ rejects a public intrinsic alias as an unknown root. Native and the separate ABI
 producer now retain callable monomorphic intrinsic entries under their defining
 source names; focused physical ABI regressions pass on both versions. The Stage0
 pin is unchanged. The new full candidate validates that producer and conditional
-implementation calls through the actual declaring instance/slot. Broader Native
-regressions and the new consumer are running. No Stage2 executable is established. Canonical compiler interface output, remaining runtime forms, actual
+implementation calls through the actual declaring instance/slot. All225 broader Native checks, all Rust test-target compilation and35 tooling
+checks pass. The repaired library producer builds and admits the full requested
+bundle. Conditional calls now retain their defining instance/class/slot authority;
+19 linked programs execute with zero leaks, and isolated physical-only metadata
+probes refuse wrong method, owner, context and unsafe subtraction. The original
+negative test mutated an embedded interface as well, causing an earlier valid
+admission refusal; the corrected whole target is rerunning.
+
+The complete candidate19 reaches runtime emission, then exits73 with stack
+exhaustion before writing IR. A65,536-piece builder reproduces stack exhaustion
+on a2MiB stack; a private tail-recursive sizing/copying rewrite passes the same
+case. Its full stage-chain and builder regressions are in progress. A complete
+remaining Native target sweep is also running; it found a stale empty-signature
+refusal expectation in the older fragment fixture, whose correction is being
+verified. No Stage2 executable or compiler-interface fixed point is established. Canonical compiler interface output, remaining runtime forms, actual
 provider demands, complete current suites/correctness and the Stage2/Stage3 fixed
 point remain required. The [progress dashboard](https://cinch-bootstrap-status.ian92821.chatgpt.site)
 reads the committed [status checkpoint](../bootstrap/progress.json); update that

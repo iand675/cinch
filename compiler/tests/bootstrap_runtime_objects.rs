@@ -15,7 +15,7 @@ fn cinch_calls_actual_library_objects_with_checked_layout_authority() {
     let provider = common::project("object_library", &[("Library.cinch", r#"module Library where
   import Data.String (string-to-bytes)
   import Data.Bytes (bytes-compare)
-  export make-string, choose, identity, passthrough, Poly, keep, PolyInt, decimal-bytes, decimal-ok, raw-compare
+  export make-string, choose, identity, passthrough, Poly, keep, PolyInt, decimal-bytes, decimal-ok, raw-compare, Guarded, guarded
   make-string :: Unit -> String
   make-string unit = "library-owned string"
   choose :: Int -> Bool -> Int
@@ -33,6 +33,11 @@ fn cinch_calls_actual_library_objects_with_checked_layout_authority() {
   decimal-bytes negative = string-to-bytes (if negative then "-0e0" else "1.25e0")
   decimal-ok :: Bool -> Bytes -> Bool
   decimal-ok negative bytes = bytes-compare bytes (decimal-bytes negative) == 0
+  signature Guarded a where
+    guarded :: a -> a -> a
+  implicit instance GuardedNat :: Guarded Nat where
+    guarded :: using (second <= first) => (first :: Nat) -> (second :: Nat) -> Nat
+    guarded first second = first - second
   secret :: Bool -> Bool
   secret value = value
 "#)]);
@@ -85,6 +90,7 @@ fn cinch_calls_actual_library_objects_with_checked_layout_authority() {
         ("char-pattern", "module Main where\n  main :: Int\n  main = case 'λ' of\n    'λ' -> 249\n    _ -> 1\n", 249),
         ("machine-pattern", "module Main where\n  echo :: U64 -> U64\n  echo n = n\n  main :: Int\n  main = case echo (18446744073709551615 :: U64) of\n    18446744073709551615 -> 251\n    _ -> 1\n", 251),
         ("string-pattern", "module Main where\n  import Library (make-string)\n  main :: Int\n  main = case make-string () of\n    \"different\" -> 1\n    \"library-owned string\" -> 253\n    _ -> 2\n", 253),
+        ("conditional-slot", "module Main where\n  import Library (Guarded, guarded)\n  main :: Int\n  main = case guarded (7 :: Nat) (2 :: Nat) of\n    5 -> 225\n    _ -> 1\n", 225),
         ("intrinsic-export", "module Main where\n  import Library (raw-compare, decimal-bytes)\n  main :: Int\n  main = case raw-compare (decimal-bytes False) (decimal-bytes False) of\n    0 -> 223\n    _ -> 1\n", 223),
         ("float-decimal", "module Main where\n  import Library (decimal-bytes, decimal-ok)\n  foreign import ccall \"cinch.runtime.textF64FromDecimal\" decode :: Bytes -> F64\n  foreign import ccall \"cinch.runtime.textF64ToDecimal\" encode :: F64 -> Bytes\n  main :: Int\n  main = if decimal-ok False (encode (decode (decimal-bytes False))) then 217 else 1\n", 217),
         ("float-negative-zero", "module Main where\n  import Library (decimal-bytes, decimal-ok)\n  foreign import ccall \"cinch.runtime.textF64FromDecimal\" decode :: Bytes -> F64\n  foreign import ccall \"cinch.runtime.textF64ToDecimal\" encode :: F64 -> Bytes\n  main :: Int\n  main = if decimal-ok True (encode (decode (decimal-bytes True))) then 219 else 1\n", 219),
@@ -120,6 +126,25 @@ fn cinch_calls_actual_library_objects_with_checked_layout_authority() {
     assert!(common::read_output(&dir,"output.ll").is_empty());
     assert!(common::read_output(&dir,"output.diagnostics").contains("checked external variant is absent"));
     assert!(common::read_output(&dir,"output.diagnostics").contains(" [T]"));
+    std::fs::write(dir.join("input.source"), cases[0].1).unwrap();
+    // Change physical dictionary rows, preserving the independent checked
+    // interface closure. Corrupting both would stop at interface admission
+    // before exercising the conditional target/slot checks.
+    let interface_start = metadata.find(",\"interfaces\":").unwrap();
+    let (physical, interfaces) = metadata.split_at(interface_start);
+    for changed in [
+        physical.replace("\"methods\":[\"Library.GuardedNat.guarded\"]", "\"methods\":[\"Library.secret\"]"),
+        physical.replace("\"class\":\"Library.Guarded\",\"context_arity\":0", "\"class\":\"Library.Poly\",\"context_arity\":0"),
+        physical.replace("\"class\":\"Library.Guarded\",\"context_arity\":0", "\"class\":\"Library.Guarded\",\"context_arity\":1"),
+    ] {
+        let changed = format!("{changed}{interfaces}");
+        assert_ne!(changed, metadata);
+        std::fs::write(dir.join("provider.abi.json"), changed).unwrap();
+        std::fs::write(dir.join("input.source"), cases.iter().find(|(name, _, _)| *name == "conditional-slot").unwrap().1).unwrap();
+        assert_eq!(Command::new(&compiler).current_dir(&dir).output().unwrap().status.code(), Some(5));
+        assert!(common::read_output(&dir,"output.ll").is_empty());
+    }
+    std::fs::write(dir.join("provider.abi.json"), &metadata).unwrap();
     std::fs::write(dir.join("input.source"), cases[0].1).unwrap();
     let wrong = metadata.replace("\"params\":[\"R\"],\"result\":\"R\",\"symbol\":\"Data.Bool.not\"", "\"params\":[\"O\"],\"result\":\"R\",\"symbol\":\"Data.Bool.not\"");
     assert_ne!(wrong, metadata);
