@@ -2,6 +2,10 @@
   "activity": "All 127 ordinary target groups pass. Bootstrap-specific groups: 21 of 81 passed, 3 running and 0 failed. Runtime171, tooling41 and syntax/editor39 pass on this same source. Fresh final-source stages built and smoke-tested: 4 of4; combined gate passed. Additional Stage3 coverage: ordinary: 0 of 8 passed, 1 running, 0 failed (running); mixed: 0 of 4 passed, 0 running, 1 failed (stopped-after-failure). Self-built portable bootstrap suite: 0 of 79 groups passed, 0 running, 0 failed; state running.",
   "blockers": [
     {
+      "title": "Supply a missing test-library variant",
+      "detail": "The final Stage3 compiler explicitly refused Data.Option.is-none[O], which is absent from the test-only object bundle. Its pinned library-only rebuild is waiting-reserved-lane. The exact same compiler, source and test runners are queued for a separate rerun; the original failed result is retained."
+    },
+    {
       "title": "Mixed Stage3 verification needs investigation",
       "detail": "Failed groups: arrays; state stopped-after-failure. Retained logs are authoritative."
     },
@@ -15,7 +19,7 @@
     },
     {
       "title": "Complete external compiler coverage audit",
-      "detail": "The harness inventory finds 100 targets: 79 bootstrap groups and 21 ordinary groups. Classify Native API fixture production separately and run every portable compiler behavior path through final Stage3. The 79-group queue alone does not close this gate."
+      "detail": "The harness inventory finds 100 targets: 79 bootstrap groups and 21 ordinary groups. The source review maps all 100 targets: 9 Native interface API targets already pass, while 79 bootstrap groups, 8 ordinary program targets and 3 mixed consumers plus the designed array-refusal case require Stage3 execution. The 79-group queue alone does not close this gate."
     }
   ],
   "checks": [
@@ -224,5 +228,5 @@
   ],
   "status": "Ordinary or mixed Stage3 verification needs investigation",
   "summary": "The repaired compiler bootstraps and passes exact final-Stage3 behavior checks. The full 208-group Native-backed sweep and all 79 portable bootstrap groups through Stage3 are tracked separately. Native library fixture preparation is explicit; selected compiler failures never fall back.",
-  "updatedAt": "2026-11-03T22:15:21.383438+00:00"
+  "updatedAt": "2026-11-03T22:18:04.195185+00:00"
 }
