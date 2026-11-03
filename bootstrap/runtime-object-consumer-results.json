@@ -12,7 +12,7 @@
     "bootstrap/programs/Run.RuntimeObject.cinch": "ddc93f33807fafbe123d83f4fd14b1ee3f5b44f73d2718b448adb8db32f11d00",
     "compiler/src/check_decls.rs": "0e94ccb289495d235d9ab5354f7c00d67314bd45d7b96ea1c72fa0aebaa9438b",
     "compiler/tests/bootstrap_runtime_emit.rs": "f0615e23369c3299f0c504262bb05fce6b479e0c6f904ed977b1b53a98f0dce2",
-    "compiler/tests/bootstrap_runtime_objects.rs": "09b134a0c1e610d1f67ceedf2478051d1e75db9d21581364bde632c7981141f4",
+    "compiler/tests/bootstrap_runtime_objects.rs": "cf42a4ca4b50576981d2c06d92c56621665b00dca5c0d9df3b7d2f3e0b908ec8",
     "compiler/tests/common/mod.rs": "8e35f82c4d690a00a36b0be1f43537db40a6a0739a9975bf556f464358fdbde3",
     "compiler/tests/intrinsic_objects.rs": "9ea39f8ad0838749bb7bc18cc8b4666dcb8ac8935484e5c4f8d2502a6139c9a8",
     "tooling/bootstrap.py": "f772715f27a85048587fe54d80a4fb50e5928b75cbcec3e3a409f3e2b4ebaee7",
@@ -87,6 +87,11 @@
       "status": "passed"
     },
     "all_reported_zero_leaks": true,
+    "all_test_targets18": {
+      "exit_code": 0,
+      "source_unchanged": true,
+      "status": "passed"
+    },
     "candidate17": {
       "exit_code": 1,
       "source_sha256": "3ea0d23fee16e623cec72821961a31b2d8107fc495560e7e9009dda71db3fce6",
@@ -98,6 +103,17 @@
       "negative-zero",
       "first-class"
     ],
+    "full_native18": {
+      "current_objects19": "running separately",
+      "queued_target_gates": 197,
+      "reused_broader_tests": 225,
+      "scope": "Remaining 195 integration targets plus bin/doc gates; no complete suite pass claim.",
+      "status": "running",
+      "workers": [
+        1,
+        2
+      ]
+    },
     "linked_programs": 17,
     "native6_alias_regression": {
       "exit_code": 0,
@@ -125,6 +141,14 @@
       "source_unchanged": true,
       "status": "passed"
     },
+    "object_consumer14": {
+      "all_reported_zero_leaks": true,
+      "direct_intrinsic_export_executed": true,
+      "exit_code": 0,
+      "linked_programs": 18,
+      "source_unchanged": true,
+      "status": "passed"
+    },
     "remaining": "Verify full requested provider, conditional instance method linkage, actual Stage2 emission/link/run and Stage3 interfaces/fixed point, complete suites.",
     "source_sha256": "827dd9e5e8e60d688e56cfb2d3c9000e492c7d153b8ce96fca1a3fe89f3aff9b",
     "stage13": {
@@ -133,7 +157,11 @@
       "source_unchanged": true,
       "status": "failed"
     },
-    "stage13_failure": "Old ABI5 producer rejected declared public intrinsic alias Data.Bytes.bytes-compare as an unknown root. Fixed in Native and independently in ABI5 producer; no stage0 pin change."
+    "stage13_failure": "Old ABI5 producer rejected declared public intrinsic alias Data.Bytes.bytes-compare as an unknown root. Fixed in Native and independently in ABI5 producer; no stage0 pin change.",
+    "tooling18": {
+      "checks": 35,
+      "status": "passed"
+    }
   },
   "library_producer": {
     "description": "Library-only Native producer with checked object manifests, explicit representation roots and canonical method families. Never compiles Bootstrap implementation modules. The independent stage0 compiler pin is unchanged.",

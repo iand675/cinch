@@ -1,11 +1,11 @@
 {
   "schema": 1,
-  "updatedAt": "2026-11-03T11:16:51.778357+00:00",
+  "updatedAt": "2026-11-03T11:24:23.864385+00:00",
   "estimate": 80,
   "estimateNote": "Rough engineering estimate. Remaining compiler bugs can change it; this is not a measured test pass rate.",
   "status": "Verifying runtime linkage",
   "summary": "The fresh stage chain passes the full frontend. Decimal calls execute correctly. The Rust producer now exposes checked intrinsic aliases; the next full build verifies the requested bundle and conditional-method linkage.",
-  "activity": "All 225 broader Rust checks passed. Candidate 18 Stage 1 built successfully; the updated library bundle and Stage 2 are next. Conditional-slot object tests and all-target compile checks are running.",
+  "activity": "The complete 18-program intrinsic consumer suite, all Rust test-target compile checks, and 35 tooling checks pass. Two workers are checking the remaining 197 Native target gates while Stage 2 and conditional linkage run separately.",
   "commit": "f5c2fef83b30101d6632edd37e0c3e2536f96060",
   "stages": [
     {
@@ -35,18 +35,18 @@
   ],
   "checks": [
     {
-      "title": "99 programs executed",
-      "detail": "82 runtime cases on candidate 10, plus 17 linked-object cases on candidate 13 including decimal roundtrip, negative zero, and first-class calls. Linked cases reported zero leaks.",
+      "title": "100 programs executed",
+      "detail": "82 runtime cases on candidate 10 and 18 linked-object cases on candidate 14. The linked cases, including the direct intrinsic export, all report zero leaks; the whole object target passed.",
       "state": "passed"
     },
     {
       "title": "35 tooling checks passed",
-      "detail": "Passed on candidate 11, the latest compiler candidate.",
+      "detail": "Passed on candidate 18 with the updated library pin and explicit object roots.",
       "state": "passed"
     },
     {
-      "title": "Rust test targets compile",
-      "detail": "All Rust test targets checked successfully on candidate 10. This does not mean every test has run.",
+      "title": "Every Rust test target compiles",
+      "detail": "The complete test-target compile check passes on candidate 18. Executing every test is still in progress.",
       "state": "passed"
     },
     {
@@ -68,6 +68,11 @@
       "title": "225 broader Rust checks passed",
       "detail": "Candidate 17: unit, arrays, FFI, intrinsic-object, module, ownership and reclamation groups all passed. This is a scoped regression run, not the complete current suite.",
       "state": "passed"
+    },
+    {
+      "title": "Full Native sweep running",
+      "detail": "197 remaining target gates queued on two bounded workers, alongside the already passed 225-check regression run. Target gates can contain multiple tests.",
+      "state": "running"
     }
   ],
   "blockers": [

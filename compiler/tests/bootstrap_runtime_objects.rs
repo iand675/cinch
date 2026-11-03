@@ -15,7 +15,7 @@ fn cinch_calls_actual_library_objects_with_checked_layout_authority() {
     let provider = common::project("object_library", &[("Library.cinch", r#"module Library where
   import Data.String (string-to-bytes)
   import Data.Bytes (bytes-compare)
-  export make-string, choose, identity, passthrough, Poly, keep, PolyInt, decimal-bytes, decimal-ok
+  export make-string, choose, identity, passthrough, Poly, keep, PolyInt, decimal-bytes, decimal-ok, raw-compare
   make-string :: Unit -> String
   make-string unit = "library-owned string"
   choose :: Int -> Bool -> Int
@@ -28,6 +28,7 @@ fn cinch_calls_actual_library_objects_with_checked_layout_authority() {
     keep :: forall b. a -> b -> Unit -> b
   implicit instance PolyInt :: Poly Int where
     keep anchor value unit = value
+  foreign import ccall "cinch.runtime.bytesCompare" raw-compare :: Bytes -> Bytes -> I64
   decimal-bytes :: Bool -> Bytes
   decimal-bytes negative = string-to-bytes (if negative then "-0e0" else "1.25e0")
   decimal-ok :: Bool -> Bytes -> Bool
@@ -40,7 +41,7 @@ fn cinch_calls_actual_library_objects_with_checked_layout_authority() {
     std::thread::Builder::new().stack_size(64 * 1024 * 1024).spawn({
         let input = provider.join("Library.cinch"); let object = object.clone(); let profile = profile.clone();
         move || {
-            let roots = cinch::specialize::parse_object_roots(r#"{"schema":1,"units":[{"symbol":"Library.identity","classes":"R"},{"symbol":"Library.identity","classes":"O"},{"symbol":"Library.identity","classes":"T"}],"dictionaries":[{"symbol":"Library.PolyInt","classes":""}],"methods":[{"class":"Library.Poly","slot":0,"own":"R"},{"class":"Library.Poly","slot":0,"own":"O"},{"class":"Library.Poly","slot":0,"own":"T"}]}"#).unwrap();
+            let roots = cinch::specialize::parse_object_roots(r#"{"schema":1,"units":[{"symbol":"Library.raw-compare","classes":""},{"symbol":"Library.identity","classes":"R"},{"symbol":"Library.identity","classes":"O"},{"symbol":"Library.identity","classes":"T"}],"dictionaries":[{"symbol":"Library.PolyInt","classes":""}],"methods":[{"class":"Library.Poly","slot":0,"own":"R"},{"class":"Library.Poly","slot":0,"own":"O"},{"class":"Library.Poly","slot":0,"own":"T"}]}"#).unwrap();
             let opts = cinch::driver::DriverOptions { object_roots: roots, ..Default::default() };
             cinch::driver::driver_with_profile_opts(cinch::driver::Mode::EmitObject, cinch::driver::StageMode::Refresh, &input, Some(&object), &profile, &opts).unwrap()
         }
@@ -84,6 +85,7 @@ fn cinch_calls_actual_library_objects_with_checked_layout_authority() {
         ("char-pattern", "module Main where\n  main :: Int\n  main = case 'λ' of\n    'λ' -> 249\n    _ -> 1\n", 249),
         ("machine-pattern", "module Main where\n  echo :: U64 -> U64\n  echo n = n\n  main :: Int\n  main = case echo (18446744073709551615 :: U64) of\n    18446744073709551615 -> 251\n    _ -> 1\n", 251),
         ("string-pattern", "module Main where\n  import Library (make-string)\n  main :: Int\n  main = case make-string () of\n    \"different\" -> 1\n    \"library-owned string\" -> 253\n    _ -> 2\n", 253),
+        ("intrinsic-export", "module Main where\n  import Library (raw-compare, decimal-bytes)\n  main :: Int\n  main = case raw-compare (decimal-bytes False) (decimal-bytes False) of\n    0 -> 223\n    _ -> 1\n", 223),
         ("float-decimal", "module Main where\n  import Library (decimal-bytes, decimal-ok)\n  foreign import ccall \"cinch.runtime.textF64FromDecimal\" decode :: Bytes -> F64\n  foreign import ccall \"cinch.runtime.textF64ToDecimal\" encode :: F64 -> Bytes\n  main :: Int\n  main = if decimal-ok False (encode (decode (decimal-bytes False))) then 217 else 1\n", 217),
         ("float-negative-zero", "module Main where\n  import Library (decimal-bytes, decimal-ok)\n  foreign import ccall \"cinch.runtime.textF64FromDecimal\" decode :: Bytes -> F64\n  foreign import ccall \"cinch.runtime.textF64ToDecimal\" encode :: F64 -> Bytes\n  main :: Int\n  main = if decimal-ok True (encode (decode (decimal-bytes True))) then 219 else 1\n", 219),
         ("float-first-class", "module Main where\n  import Library (decimal-bytes, decimal-ok)\n  foreign import ccall \"cinch.runtime.textF64FromDecimal\" decode :: Bytes -> F64\n  foreign import ccall \"cinch.runtime.textF64ToDecimal\" encode :: F64 -> Bytes\n  apply :: forall a b. (a -> b) -> a -> b\n  apply f value = f value\n  main :: Int\n  main = if decimal-ok False (apply encode (apply decode (decimal-bytes False))) then 221 else 1\n", 221),
