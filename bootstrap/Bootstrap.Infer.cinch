@@ -2236,7 +2236,8 @@ module Bootstrap.Infer where
         (bound, pattern, ss) -> (bound, CPAs s expected id name pattern, ss)
     PAnn s inner annotation -> case convert False kinds (value-locals env locals) annotation st of
       (ty, sa) -> bind-pattern classes kinds families env locals inner expected (unify s expected ty (expect-type s ty sa))
-    PLitInt s text -> let carrier = if integer-carrier (normalize st expected) then normalize st expected else primitive-type "Int" in
+    PLitInt s text -> let actual = normalize st expected in
+      let carrier = if integer-carrier actual || (case actual of UMeta id KType -> True; other -> False) then expected else primitive-type "Int" in
       case checked-literal s carrier text (unify s expected carrier st) of
         (CInt at ty literal, checked) -> (env, CPInt s expected literal, checked)
         (other, checked) -> (env, CPWild s UError, checked)

@@ -1,5 +1,17 @@
 # Next steps (as of 2026-11-03)
 
+Typed runtime lowering now executes monomorphic source data, recursive constructors,
+refutable and nested patterns, case guards and multiple function equations. All23
+programs pass with zero leaks; a C probe checks actual constructor tags and aliases.
+The complete inference, emission CLI and pipeline targets pass, as do27 tooling
+checks, six fresh stage0/1 smokes and the updated compiler checking its full source
+with zero diagnostics. Constructor literals now wait for their enclosing type
+before carrier/range validation. A genuine Stage2 attempt is running. Polymorphic
+representation specialization, closures, dictionaries, effects, executable base ABI,
+complete correctness/current-suite gates and the Stage2/3 fixed point remain
+required. See [the ADT checkpoint](../bootstrap/runtime-adt-results.json).
+
+## Previous typed stage checkpoint
 The stage runner now selects the actual typed backend: each later stage invokes
 its preceding Cinch compiler with `--emit-ir`, then the platform linker links
 the runtime built from the unchanged pinned seed. Protocol3 records that runtime

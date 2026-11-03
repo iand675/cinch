@@ -38,11 +38,16 @@ module Main where
     , "module Main where\n  constant :: forall a (f :: a -> a). Int -> Int\n  constant y = y\n  main :: Int\n  main = 0\n"
     , "module Main where\n  constant :: forall (f :: Type -> Type) a (x :: f a). Int -> Int\n  constant y = y\n  main :: Int\n  main = 0\n"
     , "module Main where\n  data Token where\n    Token :: Token\n  constant :: forall (x :: Token). Int -> Int\n  constant y = y\n  main :: Int\n  main = 0\n"
+    , "module Main where\n  data Crate a where\n    Pack :: a -> Crate a\n  zero :: Crate Nat -> Bool\n  zero value = case value of Pack 0 -> True; Pack n -> False\n  main :: Int\n  main = 0\n"
+    , "module Main where\n  data Crate a where\n    Pack :: a -> Crate a\n  zero :: (Crate Nat, Bool) -> Bool\n  zero ((Pack 0), flag) = flag\n  zero _ = False\n  main :: Int\n  main = 0\n"
+    , "module Main where\n  data Crate a where\n    Pack :: a -> Crate a\n  edge :: Crate I8 -> Bool\n  edge value = case value of Pack 127 -> True; Pack n -> False\n  main :: Int\n  main = 0\n"
     ]
 
   negative :: List (String, String)
   negative =
-    [ ("module Main where\n  bad :: forall a. a -> a\n  bad x = 1\n  main :: Int\n  main = 0\n", "type mismatch")
+    [ ("module Main where\n  data Crate a where\n    Pack :: a -> Crate a\n  bad :: Crate Bool -> Bool\n  bad value = case value of Pack 0 -> True; Pack n -> False\n  main :: Int\n  main = 0\n", "integer carrier")
+    , ("module Main where\n  data Crate a where\n    Pack :: a -> Crate a\n  bad :: Crate I8 -> Bool\n  bad value = case value of Pack 128 -> True; Pack n -> False\n  main :: Int\n  main = 0\n", "integer carrier")
+    , ("module Main where\n  bad :: forall a. a -> a\n  bad x = 1\n  main :: Int\n  main = 0\n", "type mismatch")
     , ("module Main where\n  bad :: forall a. a -> Int\n  bad x = x\n  main :: Int\n  main = 0\n", "type mismatch")
     , (string-concat identity-source "  main :: Int\n  main = let bad = \\f -> f f in 0\n", "infinite type")
     , (string-concat identity-source "  main :: Int\n  main = (\\f -> if f True then f 0 else 0) (\\x -> x)\n", "type mismatch")

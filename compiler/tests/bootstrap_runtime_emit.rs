@@ -37,6 +37,21 @@ fn compiler_emit_mode_uses_the_typed_runtime_backend_and_preserves_refusals() {
     let output = Command::new(dir.join("artifact")).env("CINCH_LEAK_CHECK", "1").env("CINCH_RC_DEBUG", "1").output().unwrap();
     assert_eq!(output.status.code(), Some(67), "{}", String::from_utf8_lossy(&output.stderr));
     assert!(String::from_utf8_lossy(&output.stderr).split_whitespace().any(|word| word == "leaked=0"));
+    std::fs::write(dir.join("input.source"), "module Main where\n  data Box where\n    Box :: Int -> Box\n  main :: Int\n  main = case Box 340282366920938463463374607431768211456 of\n    Box n -> if n > 0 then 139 else 1\n").unwrap();
+    assert_eq!(invoke(&["--emit-ir", "input.source", "output.ll"]).status.code(), Some(0), "{}", common::read_output(&dir, "output.ll.diagnostics"));
+    let output = Command::new(std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into()))
+        .arg(dir.join("output.ll")).arg(&runtime).args(["-lpthread", "-ldl", "-lm", "-o"]).arg(dir.join("adt-artifact")).output().unwrap();
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    let output = Command::new(dir.join("adt-artifact")).env("CINCH_LEAK_CHECK", "1").env("CINCH_RC_DEBUG", "1").output().unwrap();
+    assert_eq!(output.status.code(), Some(139), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(String::from_utf8_lossy(&output.stderr).split_whitespace().any(|word| word == "leaked=0"));
+    // Constructor field carriers are resolved by their enclosing type;
+    // literals must not default before that relationship is known.
+    for (carrier, literal, expected) in [("Nat", "0", 0), ("I8", "127", 0), ("Bool", "0", 4), ("I8", "128", 4)] {
+        std::fs::write(dir.join("input.source"), format!("module Main where\n  data Crate a where\n    Pack :: a -> Crate a\n  inspect :: Crate {carrier} -> Bool\n  inspect value = case value of Pack {literal} -> True; Pack n -> False\n  main :: Int\n  main = 0\n")).unwrap();
+        let output = invoke(&["--check", "input.source", "pattern-literal"]);
+        assert_eq!(output.status.code(), Some(expected), "{carrier}/{literal}: {} {}", common::read_output(&dir, "pattern-literal.diagnostics"), String::from_utf8_lossy(&output.stderr));
+    }
     std::fs::write(dir.join("input.source"), "module Main where\n  identity :: forall a. a -> a\n  identity x = x\n  main :: Int\n  main = identity 1\n").unwrap();
     assert_eq!(invoke(&["--check", "input.source", "checked"]).status.code(), Some(0));
     assert_eq!(invoke(&["--emit-ir", "input.source", "output.ll"]).status.code(), Some(5));
