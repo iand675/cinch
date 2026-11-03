@@ -1,9 +1,10 @@
 import {createHash} from 'node:crypto';
 export const targets=[
- {id:'macos-arm64',name:'macOS',architecture:'Apple Silicon',triple:'aarch64-apple-darwin',symbol:'M'},
- {id:'macos-x64',name:'macOS',architecture:'Intel',triple:'x86_64-apple-darwin',symbol:'M'},
- {id:'linux-x64',name:'Linux',architecture:'x86-64',triple:'x86_64-unknown-linux-gnu',symbol:'L'},
- {id:'windows-x64',name:'Windows',architecture:'x86-64',triple:'x86_64-pc-windows-msvc',symbol:'W'},
+ {id:'macos-arm64',os:'macos',arch:'arm64',name:'macOS',architecture:'Apple Silicon',triple:'aarch64-apple-darwin',symbol:'M'},
+ {id:'macos-x64',os:'macos',arch:'x64',name:'macOS',architecture:'Intel',triple:'x86_64-apple-darwin',symbol:'M'},
+ {id:'linux-x64',os:'linux',arch:'x64',name:'Linux',architecture:'x86-64',triple:'x86_64-unknown-linux-gnu',symbol:'L'},
+ {id:'linux-arm64',os:'linux',arch:'arm64',name:'Linux',architecture:'ARM64',triple:'aarch64-unknown-linux-gnu',symbol:'L'},
+ {id:'windows-x64',os:'windows',arch:'x64',name:'Windows',architecture:'x86-64',triple:'x86_64-pc-windows-msvc',symbol:'W'},
 ] as const;
 export const releases=[
  {id:'preview',name:'Preview',version:'0.1.0-preview.3',date:'28 October 2026',description:'The sample preview release.'},

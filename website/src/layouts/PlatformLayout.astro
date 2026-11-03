@@ -12,7 +12,7 @@ interface Props { title:string; description:string; section?:string; sample?:boo
 const {title,description,section='',sample=true}=Astro.props;
 ---
 <!doctype html>
-<html lang="en" class="cinch-platform" data-theme="light">
+<html lang="en" class="cinch-platform" data-theme="light" data-section={section || undefined}>
   <head>
     <meta charset="UTF-8" /><meta name="viewport" content="width=device-width" />
     <title>{title} — Cinch</title><meta name="description" content={description} />

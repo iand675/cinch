@@ -59,7 +59,11 @@ assert 'decl-with-timeout' in page(root/'packages/cinch-http/0.4.0/Net.Http.Clie
 assert 'decl-with-timeout' not in page(root/'packages/cinch-http/0.3.0/Net.Http.Client/index.html').ids
 
 archives = sorted((root/'downloads/files').glob('*.zip'))
-assert len(archives) == 8
+# Every release ships every target, so the archive count follows the data.
+assert archives, 'no sample archives were built'
+manifests = [json.loads(zipfile.ZipFile(a).read('release.json')) for a in archives]
+assert len({(m['channel'], m['target']) for m in manifests}) == len(archives), 'duplicate release target'
+assert len({m['target'] for m in manifests}) * len({m['channel'] for m in manifests}) == len(archives), 'a release is missing a target'
 for archive in archives:
     digest = hashlib.sha256(archive.read_bytes()).hexdigest()
     assert archive.with_name(archive.name+'.sha256').read_text().split()[0] == digest
