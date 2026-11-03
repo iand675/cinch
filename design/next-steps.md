@@ -1,5 +1,22 @@
 # Next steps (as of 2026-11-03)
 
+## Imported public constructor layouts
+The Cinch frontend now retains runtime data declarations from complete checked
+imported constructor tables. The backend uses the defining constructor order,
+actual tags, resolved schemes and field representations. Abstract carriers remain
+owned objects; a partial public table never invents hidden constructor layouts.
+All73 executable programs report zero leaks, including six new imported cases
+covering Raw/Obj/TObj fields, nullary tags, declaration order and constructor
+closures. The hidden-constructor probe refuses emission with no IR. The real CLI,
+nominal identity and constructor/evidence regression targets pass. Cinch accepts
+all25 backend source modules with zero diagnostics. The fresh full stage chain
+is recorded separately; no Stage2 executable or fixed point is established.
+The actual25-module String source probe identified missing source-signature
+namespace elaboration as another prerequisite for compiling base implementations.
+That source-signature work is still private and under validation. See
+[the imported layout evidence](../bootstrap/runtime-imported-layout-results.json).
+
+
 ## Cinch dictionary and IO checkpoint
 The typed Cinch backend now executes dictionary values, factory contexts,
 self-method dispatch, escaped evidence and strict values shared between fields

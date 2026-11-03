@@ -18,6 +18,14 @@ fn typed_runtime_numbers_preserve_exact_values_and_reclaim_owned_words() {
     let producer = common::project("runtime_classes", &[
         ("RuntimeClasses.cinch", r#"module RuntimeClasses where
   export Choose, choose, Ordered, z-first, a-last, Value, value, Echo, echo, Ops, first, second, Maker, bump, make, Use, use, Shared, duplicate, stored, observe, escape-value
+  export Parcel, EmptyParcel, LoadedParcel, FlagParcel, PrivateEnvelope, PublicEnvelope
+  data Parcel a where
+    EmptyParcel :: Parcel a
+    LoadedParcel :: a -> Parcel a
+    FlagParcel :: Bool -> Parcel a
+  data PrivateEnvelope where
+    HiddenEnvelope :: Int -> PrivateEnvelope
+    PublicEnvelope :: Int -> PrivateEnvelope
   signature Choose a where
     choose :: a -> Int
   signature Ordered a where
@@ -150,15 +158,24 @@ fn typed_runtime_numbers_preserve_exact_values_and_reclaim_owned_words() {
         ("io-cancellation", "  main :: Unit ->{IO r, Cancel r} Int\n  main unit = with (io = newIO ()) in case ioSleep 0 of\n    _ -> if pollCancel () then 1 else 167\n", 167),
         ("io-evidence-capture", "  make :: forall r. using (io :: Io r) => Nat -> Unit ->{IO r, Cancel r} Int\n  make n = \\u -> case ioSleep n of _ -> if pollCancel () then 1 else 173\n  main :: Unit ->{IO r, Cancel r} Int\n  main unit = with (io = newIO ()) in let f = make 0 in f ()\n", 173),
         ("io-observable-bytes", "  foreign import ccall \"cinch.runtime.bytesNew\" allocate :: Nat -> Bytes\n  main :: Unit ->{IO r} Int\n  main unit = with (io = newIO ()) in let buffer = allocate 2 in case ioWrite buffer of\n    _ -> case ioWrite buffer of _ -> 179\n", 179),
+        ("imported-tagged-fields", "  import RuntimeClasses\n  package :: Parcel Int\n  package = LoadedParcel 18446744073709551616\n  main :: Int\n  main = case package of\n    LoadedParcel n -> if n == 18446744073709551616 then 181 else 1\n    _ -> 2\n", 181),
+        ("imported-raw-fields", "  import RuntimeClasses\n  package :: Parcel Bool\n  package = LoadedParcel True\n  main :: Int\n  main = case package of\n    LoadedParcel flag -> if flag then 191 else 1\n    _ -> 2\n", 191),
+        ("imported-object-fields", "  import RuntimeClasses\n  data Box where\n    Box :: Int -> Box\n  package :: Parcel Box\n  package = LoadedParcel (Box 18446744073709551616)\n  main :: Int\n  main = case package of\n    LoadedParcel (Box n) -> if n == 18446744073709551616 then 193 else 1\n    _ -> 2\n", 193),
+        ("imported-nullary-tag", "  import RuntimeClasses\n  package :: Parcel Int\n  package = EmptyParcel\n  main :: Int\n  main = case package of\n    EmptyParcel -> 197\n    _ -> 1\n", 197),
+        ("imported-declaration-order", "  import RuntimeClasses\n  package :: Parcel Int\n  package = FlagParcel True\n  main :: Int\n  main = case package of\n    FlagParcel flag -> if flag then 199 else 1\n    _ -> 2\n", 199),
+        ("imported-constructor-closure", "  import RuntimeClasses\n  pack :: Int -> Parcel Int\n  pack = LoadedParcel\n  main :: Int\n  main = let saved = pack in case saved 18446744073709551616 of\n    LoadedParcel n -> if n == 18446744073709551616 then 201 else 1\n    _ -> 2\n", 201),
     ];
     for (index, (_, body, _)) in cases.iter().enumerate() {
         std::fs::write(dir.join(format!("input-{index}.source")), format!("module Main where\n{body}")).unwrap();
     }
     std::fs::write(dir.join(format!("input-{}.source", cases.len())), "module Main where\n  import RuntimeClasses\n  data Box where\n    Box :: Int -> Box\n  instance RawValue :: Value Bool where\n    value = True\n  instance TaggedValue :: Value Int where\n    value = 340282366920938463463374607431768211456\n  instance ObjectValue :: Value Box where\n    value = Box 18446744073709551616\n  instance FunctionValue :: Value (Int -> Int) where\n    value = let n = 18446744073709551616 in \\x -> x + n\n  getRaw :: Value Bool\n  getRaw = RawValue\n  getTagged :: Value Int\n  getTagged = TaggedValue\n  getObject :: Value Box\n  getObject = ObjectValue\n  getFunction :: Value (Int -> Int)\n  getFunction = FunctionValue\n  instance SharedBox :: Shared Box where\n    duplicate = stored\n    stored = Box 18446744073709551616\n    observe u = stored\n    escape-value u = \\v -> observe v\n  getShared :: Shared Box\n  getShared = SharedBox\n  main :: Int\n  main = case (getRaw, getTagged, getObject, getFunction, getShared) of _ -> 0\n").unwrap();
-    std::fs::write(dir.join("batch.count"), vec![b'x'; cases.len() + 1]).unwrap();
+    std::fs::write(dir.join(format!("input-{}.source", cases.len() + 1)), "module Main where\n  import RuntimeClasses\n  package :: PrivateEnvelope\n  package = PublicEnvelope 18446744073709551616\n  main :: Int\n  main = case package of PublicEnvelope n -> 0; _ -> 1\n").unwrap();
+    std::fs::write(dir.join("batch.count"), vec![b'x'; cases.len() + 2]).unwrap();
     let output = Command::new(&compiler).current_dir(&dir).output().unwrap();
     assert_eq!(output.status.code(), Some(0), "batch input/output: {}", String::from_utf8_lossy(&output.stderr));
     std::fs::remove_file(dir.join("batch.count")).unwrap();
+    assert_eq!(common::read_output(&dir, &format!("output-{}.status", cases.len() + 1)), "5", "a partial public constructor table must not invent hidden layouts");
+    assert!(common::read_output(&dir, &format!("output-{}.ll", cases.len() + 1)).is_empty());
     // Following ABI/refusal probes need no class interfaces.
     std::fs::write(dir.join("interfaces.json"), "{\"schema\":1,\"interfaces\":[]}").unwrap();
     for (index, (name, _, expected)) in cases.into_iter().enumerate() {

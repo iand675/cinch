@@ -2551,19 +2551,57 @@ module Bootstrap.Infer where
       Some binding -> case checked-constructors rest env st of
         (more, ss) -> (Cons (MkCoreConstructor (type-expr-span ty) name (checked-scheme binding)) more, ss)
       None -> checked-constructors rest env (add-error (type-expr-span ty) "typed data constructor has no checked binding" st)
-  checked-data-declaration :: TypeContext -> List CheckedBinding -> Decl -> Store -> (Option CoreData, Store)
-  checked-data-declaration kinds env d st = case d of
+  -- A public constructor table may omit private constructors. Only a
+  -- complete defining table can supply layout tags; an abstract carrier
+  -- remains an owned object without inventing its hidden field maps.
+  runtime-constructor-names :: Json -> Json -> Bool
+  runtime-constructor-names constructors names = case (constructors, names) of
+    (JArr row rest, JArr (JStr name) more) -> (case field "symbol" row of JStr actual -> same actual name; other -> False)
+      && runtime-constructor-names rest more
+    (JArrEnd, JArrEnd) -> True
+    other -> False
+  runtime-constructors-complete :: String -> Json -> Bool
+  runtime-constructors-complete owner rows = case rows of
+    JArr first rest -> case field "symbol" first of
+      JStr symbol -> case ctor-description (interface-global symbol) (resolved-nominals first) of
+        Some description -> same owner (case field "identity" description of JStr name -> interface-global name; other -> "")
+          && runtime-constructor-names rows (field "constructors" description)
+        None -> False
+      other -> False
+    JArrEnd -> True
+    other -> False
+  checked-imported-runtime-constructors :: Span -> String -> List (String, Kind) -> TypeContext -> Nat -> Json -> Store -> (List CoreConstructor, Store)
+  checked-imported-runtime-constructors sp owner classes kinds index rows st = case rows of
+    JArr row rest -> case (field "symbol" row, field "tag" row, resolved-text row) of
+      (JStr symbol, JNum tag, Some text) -> let name = interface-global symbol in
+        let tagged = if tag == nat-to-int index then st else add-error sp "imported runtime constructor tag disagrees with defining order" st in
+        (case imported-scheme sp classes kinds (TName sp "Int") row tagged of
+          (sc, checked) -> let valid = check-imported-constructor sp name sc row checked in
+            case checked-imported-runtime-constructors sp owner classes kinds (index + 1) rest valid of
+              (more, done) -> (Cons (MkCoreConstructor sp name sc) more, done))
+      other -> (Nil, add-error sp "imported runtime constructor lacks a resolved scheme or tag" st)
+    JArrEnd -> (Nil, st)
+    other -> (Nil, add-error sp "invalid imported runtime constructor table" st)
+  checked-data-declaration :: List (String, Kind) -> TypeContext -> List CheckedBinding -> Decl -> Store -> (Option CoreData, Store)
+  checked-data-declaration classes kinds env d st = case d of
     DData s name ps cs -> case context-kind name kinds of
       Some k -> case parameters False kinds Nil ps 0 Nil st of
         (qs, sq) -> case checked-constructors cs env sq of
           (constructors, sc) -> (Some (MkCoreData s name k qs constructors), sc)
       None -> (None, add-error s "typed data declaration has no checked kind" st)
+    DExternal s name category scheme metadata -> if same category "type" && (case field "kind" metadata of JStr variety -> same variety "data"; other -> False) then
+      (case imported-kinds kinds (field "parameters" metadata) st of
+        (qs, checked) -> if runtime-constructors-complete name (field "ctors" metadata) then
+          (case checked-imported-runtime-constructors s name classes kinds 0 (field "ctors" metadata) checked of
+            (constructors, done) -> (Some (MkCoreData s name (kind-arrow qs) qs constructors), done))
+          else (Some (MkCoreData s name (kind-arrow qs) qs Nil), checked))
+      else (None, st)
     other -> (None, st)
-  checked-data :: TypeContext -> List CheckedBinding -> List Decl -> List CoreData -> Store -> (List CoreData, Store)
-  checked-data kinds env ds backwards st = case ds of
+  checked-data :: List (String, Kind) -> TypeContext -> List CheckedBinding -> List Decl -> List CoreData -> Store -> (List CoreData, Store)
+  checked-data classes kinds env ds backwards st = case ds of
     Nil -> (reverse backwards, st)
-    Cons d rest -> case checked-data-declaration kinds env d st of
-      (found, ss) -> checked-data kinds env rest (case found of None -> backwards; Some typed -> Cons typed backwards) ss
+    Cons d rest -> case checked-data-declaration classes kinds env d st of
+      (found, ss) -> checked-data classes kinds env rest (case found of None -> backwards; Some typed -> Cons typed backwards) ss
   check-data-closed :: List CoreData -> Store -> Store
   check-data-closed datas st = case datas of
     Nil -> st
@@ -2669,7 +2707,7 @@ module Bootstrap.Infer where
     let linked-kinds = context-with-effects effects kinds in
     let (descriptions, instances, sm) = case store-errors sx of Nil -> checked-source-instances rows classes linked-kinds families env ds Nil sx; other -> (Nil, Nil, sx) in
     let (core, done) = case store-errors sm of Nil -> check-bodies classes linked-kinds families env Nil ds ds sm; other -> (Nil, sm) in
-    let (datas, sd) = case store-errors done of Nil -> checked-data linked-kinds env ds Nil done; other -> (Nil, done) in
+    let (datas, sd) = case store-errors done of Nil -> checked-data classes linked-kinds env ds Nil done; other -> (Nil, done) in
     let finished = case store-errors sd of Nil -> check-data-closed datas (check-global-core linked-kinds env instances core sd); other -> sd in
     MkElaboration (store-errors finished) (finish-bindings finished env) (contexts ds) core datas effects (MkCoreClassContext classes descriptions) instances
   elaborate-modules :: String -> List Module -> Elaboration
