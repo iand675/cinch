@@ -43,8 +43,10 @@ The fresh repaired-source chain now builds all43 compiler modules through
 Stages1,2 and3. Stages2 and3 match in compiler IR, executable bytes and all43
 canonical interfaces; actual entry-interface consumption and changed-source
 behavior pass too. See [verified chain evidence](final-repaired-bootstrap-results.json).
-The complete project test sweep and exact-final-Stage3 external acceptance remain
-open, as tracked in `design/self-hosting.md`. A compiler refusal is recorded with
+Exact-final-Stage3 external acceptance also passes; see
+[the original runner, fixity and portable class checks](final-stage3-external-results.json).
+The complete project test sweep remains open in `design/self-hosting.md`.
+A compiler refusal is recorded with
 its diagnostics and never falls back to the Rust frontend.
 The runner applies a positive heap cap of at most 2G to every program.
 Each stage chain runs one command at a time, with one build worker and one

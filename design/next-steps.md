@@ -22,10 +22,13 @@ ignored tests. The same snapshot passes all171 runtime tests,41 tooling checks
 and39 syntax/editor tests, with none skipped or ignored. See
 [ordinary target evidence](../bootstrap/ordinary-compiler-groups-results.json)
 and [auxiliary gates](../bootstrap/final-source-auxiliary-results.json).
-The81 bootstrap-specific groups are still executing as part of the complete
-208-group compiler sweep. Exact final-Stage3 external acceptance is also running:
-the original test-runner programs, fixity/facade probes and portable class tests.
-These remaining gates must pass before the full goal is complete.
+The81-group bootstrap-specific sweep continues as part of the complete208-group
+compiler run. Exact final-Stage3 external acceptance now passes: both original
+test-runner programs produce exact reports with zero leaks at32M, all seven
+fixity/facade probes pass, and the portable class build/run cases return37 and43.
+The class target's separate wrong-evidence case remains a Native API check.
+See [exact final-executable evidence](../bootstrap/final-stage3-external-results.json).
+The complete208-group sweep and final acceptance audit remain required.
 
 The driver uses a separately pinned library-only producer and matching runtime,
 records artifact/interface hashes, invokes the preceding Cinch compiler with

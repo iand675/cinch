@@ -1,0 +1,130 @@
+{
+  "compiler_sha256": "1da1cf952dcca05824f46f29cbbbfb865268e8a6284a4fdb6b24eabcbe37b9dd",
+  "compiler_source_sha256": "e85a5d0ad1875429759da1619b9c60cf86c72e5d6213f1d3dac2430ebd9fd9dd",
+  "heap_limit": "32M",
+  "leak_check": "both runs live=0 immortal=0 leaked=0",
+  "rows": [
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "mixed",
+      "phase": "emit",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "mixed",
+      "phase": "link",
+      "status": "passed"
+    },
+    {
+      "exit_code": 2,
+      "expected": 2,
+      "name": "mixed",
+      "phase": "run",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "passing",
+      "phase": "emit",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "passing",
+      "phase": "link",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "passing",
+      "phase": "run",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "produce",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "separate-facade",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "direct",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "renamed-reexport",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "separate-renamed",
+      "status": "passed"
+    },
+    {
+      "exit_code": 3,
+      "expected": 3,
+      "name": "identical-redeclaration",
+      "status": "passed"
+    },
+    {
+      "exit_code": 3,
+      "expected": 3,
+      "name": "changed-redeclaration",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "class-identity",
+      "status": "passed"
+    }
+  ],
+  "scope": "Exact final Stage3, selected only after the complete chain passes: both original runner programs with exact reports and 32M zero leaks, seven fixity/separate-facade probes, and complete class_identity target (two actual Cinch build/run cases and one direct Native API negative). No compiler frontend fallback.",
+  "source_sha256": "c6260e01e2fdab4397cd2d8087f835510fd80b4ad52d8729a6222a349b733703",
+  "source_unchanged": true,
+  "status": "passed",
+  "schema": 1,
+  "case_classification": {
+    "test_runner_programs": "Both compile/link/run through exact final Stage3; mixed expectedexit2 and passing0; exact reports and32MzeroLeaks",
+    "fixity": "All7 direct/separate-renamed/redecl CLI probes through exact final Stage3",
+    "class_identity": "2 actual finalStage3 portable build/run cases; 1 direct Native API wrong-class rejection"
+  },
+  "generated_wrapper_sha256": "1b0bb5caf1c951861152dcdc66db0209c5afb67a283df5f00593c8f19ee9e315",
+  "logs_sha256": {
+    "class-identity.log": "4004a0c099ff2023aa6b3ca8018b73624bb00702a0c4bc39f42d21337fd303a8",
+    "fixity/changed-redeclaration.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "fixity/direct.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "fixity/identical-redeclaration.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "fixity/produce.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "fixity/renamed-reexport.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "fixity/separate-facade.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "fixity/separate-renamed.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "mixed/emit.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "mixed/link.log": "6021f33487b85f8a9c5f9471588485ff4234e50e83be3e5c4c6e23dd0c32b455",
+    "mixed/run.log": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+    "passing/emit.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "passing/link.log": "6021f33487b85f8a9c5f9471588485ff4234e50e83be3e5c4c6e23dd0c32b455",
+    "passing/run.log": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+  },
+  "reports_sha256": {
+    "mixed": "aa284bbc45ebcfa789a4ef975b00f58c80343841a24cf17cd188be87d6845ca2",
+    "passing": "35fff1580978f43cb18b71beb22a6a6ff0d3048ea66a7e803992971529208114"
+  },
+  "full_project_suite_complete": false
+}

@@ -14,9 +14,11 @@ This run verifies frozen source
 including the reexport-fixity and Rust class/data-name repairs. The operator's
 declaring module remains the sole authority for fixity declarations.
 All127 ordinary compiler-facing groups and the171 runtime,41 tooling and39
-syntax/editor checks pass on the same snapshot. The81 bootstrap-specific groups
-and exact-final-Stage3 external acceptance still run. Acceptance below remains
-unchanged; the complete goal stays open until those gates and the final audit pass.
+syntax/editor checks pass on the same snapshot. Exact-final-Stage3 external
+acceptance also passes its original test-runner, fixity/facade and portable class
+cases; see [that evidence](../bootstrap/final-stage3-external-results.json).
+The81-group bootstrap-specific sweep still runs. Acceptance below remains
+unchanged; the goal stays open until the complete sweep and final audit pass.
 The [next steps](next-steps.md) and
 [live dashboard](https://cinch-bootstrap-status.ian92821.chatgpt.site) track them.
 
