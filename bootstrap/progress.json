@@ -1,12 +1,12 @@
 {
   "schema": 1,
-  "updatedAt": "2026-11-03T12:09:59.293887+00:00",
+  "updatedAt": "2026-11-03T12:15:20.867250+00:00",
   "estimate": 80,
   "estimateNote": "Rough engineering estimate. Remaining compiler bugs can change it; this is not a measured test pass rate.",
   "status": "Fixing emitter stack usage",
   "summary": "Guarded subtraction now executes correctly and rejects wrong method authority. The full compiler reaches runtime emission, then exhausts its stack before writing IR.",
-  "activity": "Candidate 20 tests a tail-recursive builder. Its 65,536-chunk reproduction now passes on the same 2 MiB stack that failed before. The full Native sweep continues; an older class-diagnostic expectation is being checked.",
-  "commit": "3300f12e5d3f521a7a9e221dacda210e3bcd9e5c",
+  "activity": "Candidate20 Stage1 built. Its corrected fragment-checker gate passes; full object and builder regressions continue. The full source is being emitted again with the tail-recursive builder.",
+  "commit": "6bb44d2ad2d793ed260b5945551bc345a82c95fe",
   "stages": [
     {
       "name": "Stage 0",
@@ -71,12 +71,17 @@
     },
     {
       "title": "Full Native sweep running",
-      "detail": "12 /197 target gates passed, 2 running, 1 failed. The fragment-checker class diagnostic expectation differs; correction is under verification. This is not a full suite pass.",
+      "detail": "15 /197 old-snapshot target gates passed; 2 running. Its fragment fixture failure is corrected and passes in candidate20. The builder change still needs matching final-source coverage.",
       "state": "running"
     },
     {
       "title": "Guarded implementation checks pass",
       "detail": "Candidate19 runs the guarded program with zero leaks. Separate exact-artifact probes accept the valid slot and reject wrong method, owner, context and unsafe subtraction. The corrected whole target is rerunning.",
+      "state": "passed"
+    },
+    {
+      "title": "Fragment-checker regression corrected",
+      "detail": "Candidate20 passes the complete pinned report: empty signature declarations are accepted. The old fixture expected the earlier unsupported-class diagnostic.",
       "state": "passed"
     }
   ],
@@ -93,6 +98,10 @@
     }
   ],
   "milestones": [
+    {
+      "title": "Small-stack builder reproduction passes",
+      "detail": "65,536 chunks: old builder exits73 on a2MiB stack; revised builder exits0 on the same stack. Full compiler retry still pending."
+    },
     {
       "title": "Conditional implementation linkage works",
       "detail": "The guarded call executes with zero leaks, while wrong declaring class, method and context are refused. Full compiler emission is now limited by a stack failure."
