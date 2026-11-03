@@ -38,6 +38,7 @@ These instructions apply to `website/`. This site has an established, user-selec
 | Manual-style technical figure | `src/components/TechnicalFigure.astro` (tutorial), `src/components/AverageFigure.astro` (landing), `src/styles/technical-figure.css` |
 | Checked landing examples and recorded runs | `src/data/examples/*.cinch`, `src/data/examples/recordings.json`, `scripts/record-examples.py` |
 | Runnable code window | `src/components/RunnableSource.astro`, `.run-output` rules in `landing.css` |
+| Dev-only annotation toolbar (Agentation) | `src/components/FeedbackToolbar.astro`, `src/lib/feedback-toolbar.ts`; usage in `design/agent-feedback.md` |
 | Agent session (LLM section teletype) | `src/components/AgentLoop.astro`, `.agent-*` rules in `src/styles/language-tour.css` |
 | Compiler printout (rejected example on form paper) | `src/components/CompilerPrintout.astro`, `.printout` rules in `landing.css` |
 | Landing gadgets (bits, staging, fusion, SIMD, upgrade) | `src/components/LanguageTour.astro`, `src/components/LiveEvolution.astro`, rules in `src/styles/language-tour.css` |
@@ -59,6 +60,10 @@ Reuse the owning layout/component before duplicating it. Prefer semantic colour 
 - Packages, versions, API signatures, and release bundles currently include **explicitly labelled sample data**. Keep those labels and indexing rules until real data replaces the fixtures. A sample ZIP is not a compiler distribution. Do not invent compatibility, adoption, benchmark, security, or release claims.
 - Keep real controls native and keyboard-operable where practical. Preserve skip links, visible focus, meaningful link names, selectable code, figure descriptions, and local overflow for long signatures. Decorative SVG/CSS belongs outside the accessibility tree; informative diagrams need a description and caption.
 - Keep font licences. Paid Domaine/Founders captures are historical design specimens, not licensed production webfonts. Archived reference imagery lives outside `public/`; use it to understand the design, not as unreviewed page artwork.
+
+## Annotated feedback
+
+The user may review pages with Agentation in `npm run dev` and paste the copied annotations into the chat. Each one names a page, a selector, and a note. Locate the element, change it in its owning file, and follow these instructions as usual. See [design/agent-feedback.md](design/agent-feedback.md).
 
 ## Working and verification
 

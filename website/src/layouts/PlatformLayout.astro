@@ -3,6 +3,7 @@ import Brand from '../components/Brand.astro';
 import SiteNavigation from '../components/SiteNavigation.astro';
 import ThemeInit from '../components/ThemeInit.astro';
 import ThemeControl from '../components/ThemeControl.astro';
+import FeedbackToolbar from '../components/FeedbackToolbar.astro';
 import { project } from '../lib/project';
 import '../styles/custom.css';
 import '../styles/platform.css';
@@ -26,5 +27,6 @@ const {title,description,section='',sample=true}=Astro.props;
     <header class="platform-header"><Brand /><SiteNavigation current={section}/><ThemeControl /></header>
     <main id="main" class="platform-main"><slot /></main>
     <footer class="platform-footer"><Brand /><div><a href="/overview/">Documentation</a><a href="/packages/">Packages</a><a href="/downloads/">Downloads</a><a href={project.repository}>GitHub ↗</a></div></footer>
+    <FeedbackToolbar />
   </body>
 </html>

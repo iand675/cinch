@@ -7,6 +7,7 @@ import averageSource from '../data/examples/average-report.cinch?raw';
 import RunnableSource from '../components/RunnableSource.astro';
 import CompilerPrintout from '../components/CompilerPrintout.astro';
 import AgentLoop from '../components/AgentLoop.astro';
+import FeedbackToolbar from '../components/FeedbackToolbar.astro';
 import uncheckedSource from '../data/examples/average-unchecked.cinch?raw';
 import LanguageTour from '../components/LanguageTour.astro';
 import LiveEvolution from '../components/LiveEvolution.astro';
@@ -111,5 +112,6 @@ const features = [
     <footer class="landing-footer"><Brand /><div><a href="/documentation/">Documentation</a><a href="/packages/">Packages</a><a href="/downloads/">Downloads</a><a href={project.repository}>GitHub ↗</a><a href="#main">Back to top ↑</a></div></footer>
     <PremiumPagePreview />
     <FreePagePreview />
+    <FeedbackToolbar />
   </body>
 </html>
