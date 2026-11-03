@@ -1,8 +1,8 @@
 {
-  "activity": "The Rust class/data-name repair passes all 14 focused tests, including all four previously failing compression tests. The extended reexport-fixity check and actual Cinch rebuild are running. The complete repaired-source suite26 is compiling all runners.",
+  "activity": "The Rust name-collision repair passes 14 focused tests. All 171 runtime tests pass in a fresh isolated folder after fixing four test artifact paths. The expanded fixity writer passes, with parser/resolver checks still running. Suite27 compiles all runners on the final repaired snapshot; its matching stage chain waits for actual Cinch behavior checks.",
   "blockers": [
     {
-      "detail": "The first fixity repair passes its focused checks. The extended case, where a separately compiled module forwards an imported operator, still needs validation through the real Cinch-built compiler.",
+      "detail": "The expanded writer regression passes, including a separately compiled renamed facade and forbidden identical/changed importer declarations. The complete parser/resolver gates and actual rebuilt Cinch CLI verification are still running.",
       "technical": "First repair source SHA256 5e8484ccfe7be2782134269a17d250df5d82c92f3aa6d1a151f97d5c07e7814f. Only defining modules may declare fixities; reexports carry admitted metadata.",
       "title": "Carry operator precedence through separate compilation"
     },
@@ -12,12 +12,17 @@
       "title": "Repeat the verified bootstrap on the final repairs"
     },
     {
-      "detail": "The current frozen-source sweep has 130 passing groups and one known failing group out of 208. It predates the latest two repairs. The finished compiler must pass the complete suite on matching source.",
+      "detail": "The older sweep retains 133 passing groups and one compression failure, now repaired in a separate complete target run. Its pending work will be superseded by suite27, which captures the runtime artifact-discovery repair too. The two waiting suite26/stage2 wrappers were stopped before test or stage execution; no active target was interrupted.",
       "technical": "The run uses bounded shared workers; handing off slots waits for active checks to finish. Completed and failed historical results are preserved.",
       "title": "Get the complete final-source suite green"
     }
   ],
   "checks": [
+    {
+      "title": "Complete isolated runtime suite passes",
+      "detail": "171 passed, zero failed and zero ignored. Four symbol-export checks now inspect archives beside the actual test executable instead of relying on a pre-existing default build folder. Their original export assertions remain intact.",
+      "state": "passed"
+    },
     {
       "title": "Rust local data/class-name collision repaired",
       "detail": "All 3 class-identity, 4 compression and 7 module-parameter tests pass. Local Bits data no longer becomes the Algebra.Bits signature; distinct defining class identities and wrong-evidence refusals still pass.",
@@ -119,7 +124,7 @@
       "title": "Direct proof reuse and complete builder checks pass"
     }
   ],
-  "commit": "a8e8ba514cc9313998e7d31190fe99dc5d777e77",
+  "commit": "800616fc15ce0a63cb1d4330871560eaf4559392",
   "dashboardUrl": "https://cinch-bootstrap-status.ian92821.chatgpt.site",
   "estimate": 90,
   "estimateNote": "Rough engineering estimate. Remaining compiler bugs can change it; this is not a measured test pass rate.",
@@ -176,7 +181,7 @@
       "state": "passed"
     }
   ],
-  "status": "Bootstrap verified; Rust regression repaired",
+  "status": "Bootstrap verified; final repair checks running",
   "summary": "The fresh frozen-source Stage2 and Stage3 reach the full compiler/interface fixed point. Stage3 consumes its emitted compiler APIs, and Stage2 rebuilds changed compiler source correctly. Later fixity and Rust name-resolution repairs still need matching verification.",
-  "updatedAt": "2026-11-03T19:38:18.381227+00:00"
+  "updatedAt": "2026-11-03T19:44:09.159027+00:00"
 }

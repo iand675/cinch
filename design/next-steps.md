@@ -66,6 +66,20 @@ tests pass on the repair snapshot. See [focused evidence](../bootstrap/native-cl
 The original full-sweep failure is retained; complete final-source verification
 belongs to the new sweep.
 
+## Isolated runtime export verification
+
+A clean nondefault Cargo target directory exposed four test failures: export
+checks searched `compiler/runtime/target` instead of the actual Cargo artifact
+directory. A shared test-only helper now discovers runtime archives beside the
+running test executable. The existing `nm` checks still require every expected
+global text symbol. All171 runtime tests pass, with zero failures and zero
+ignored tests, in a fresh isolated directory. See
+[runtime evidence](../bootstrap/runtime-isolated-artifact-results.json).
+
+The next full suite and fresh stage chain capture this repair together with the
+operator reexport and Rust class/data-name repairs. The two superseded waiting
+runners had no test or stage children; their earlier results remain recorded.
+
 ## Checked interface type printing
 
 `Bootstrap.ExportType` now prints portable checked schemes with definition-owned
