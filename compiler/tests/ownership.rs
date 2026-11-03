@@ -580,3 +580,29 @@ module Main where
         0,
     );
 }
+
+
+#[test]
+fn annotated_linear_lambda_owns_its_parameter_inside_its_body() {
+    for expression in [
+        r"((\token -> case token of { Token value -> value }) :: Token %1 -> Int) (Token 42)",
+        r"((\(Token value) -> value) :: Token %1 -> Int) (Token 42)",
+    ] {
+        expect_ok("linear-lambda-parameter", &format!(
+            "module Main where\n  data Token where\n    Token :: Int -> Token\n  main :: Int\n  main = {expression}\n"
+        ), 42);
+    }
+}
+
+#[test]
+fn linear_lambda_parameter_still_cannot_be_captured_duplicated_or_dropped() {
+    for expression in [
+        r"((\token -> (\u -> case token of { Token value -> value }) ()) :: Token %1 -> Int) (Token 42)",
+        r"((\token -> let first = (case token of { Token value -> value }) in case token of { Token value -> first + value }) :: Token %1 -> Int) (Token 42)",
+        r"((\token -> 0) :: Token %1 -> Int) (Token 42)",
+    ] {
+        expect_err("linear-lambda-parameter-misuse", &format!(
+            "module Main where\n  data Token where\n    Token :: Int -> Token\n  main :: Int\n  main = {expression}\n"
+        ), &["multiplicity %1"]);
+    }
+}

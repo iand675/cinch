@@ -5433,6 +5433,9 @@ impl Checker {
                     match_types.push(dom);
                 }
             }
+            // This parameter belongs to the lambda body, not its enclosing
+            // scope. A further lambda still sees it as an outer capture.
+            self.obligations.get_mut(&l).expect("registered lambda parameter").lam = self.lam_depth + 1;
             // An erased parameter takes no runtime slot (core
             // specification section 3).
             if !erased_dom {
