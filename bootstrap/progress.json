@@ -6,7 +6,7 @@
   "status": "Fixing bounded arithmetic checking",
   "summary": "The fresh Stage 1 compiler builds. The next stage currently rejects valid nested arithmetic on a bounded byte length; a minimal reproduction isolates the checker bug.",
   "activity": "All 19 linked-object programs and all five builder tests passed on candidate 20. The complete Native suite continues while the checker bug is investigated.",
-  "commit": "3487990",
+  "commit": "3487990c236000aa55bdf1ad104524416870262d",
   "stages": [
     {
       "name": "Stage 0",
