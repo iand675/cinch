@@ -10048,7 +10048,7 @@ impl Checker {
             }
         }
         let ty = Ty::Adt(target.class, target.args);
-        Ok(Some((ECore::InstDict(inst.base_id, args, actuals), ty)))
+        Ok(Some((ECore::InstDict(inst.base_id, args, actuals, true), ty)))
     }
 
     /// Bind a capability name to a value of type `Io r` (decision D21):
@@ -10660,7 +10660,7 @@ fn rec_walk(
                 rec_walk(a, guard + bump, owner, by_local, edges);
             }
         }
-        ECore::InstDict(_, args, _) | ECore::MkClos { env: args, .. } => {
+        ECore::InstDict(_, args, _, _) | ECore::MkClos { env: args, .. } => {
             for a in args {
                 rec_walk(a, guard, owner, by_local, edges);
             }
@@ -10736,7 +10736,7 @@ fn rec_collect_refs(e: &ECore, by_local: &HashMap<LocalId, usize>, out: &mut Vec
                 rec_collect_refs(a, by_local, out);
             }
         }
-        ECore::InstDict(_, args, _) | ECore::MkClos { env: args, .. } => {
+        ECore::InstDict(_, args, _, _) | ECore::MkClos { env: args, .. } => {
             for a in args {
                 rec_collect_refs(a, by_local, out);
             }
@@ -10813,7 +10813,7 @@ fn top_rec_walk(e: &ECore, guard: i32, owner: usize, edges: &mut Vec<(usize, Glo
                 top_rec_walk(a, guard + bump, owner, edges);
             }
         }
-        ECore::InstDict(_, args, _) | ECore::MkClos { env: args, .. } => {
+        ECore::InstDict(_, args, _, _) | ECore::MkClos { env: args, .. } => {
             for a in args {
                 top_rec_walk(a, guard, owner, edges);
             }
@@ -10914,7 +10914,7 @@ fn subst_rec_refs(e: &mut ECore, subs: &HashMap<LocalId, RecSub>) {
                 subst_rec_refs(a, subs);
             }
         }
-        ECore::InstDict(_, args, _) | ECore::MkClos { env: args, .. } => {
+        ECore::InstDict(_, args, _, _) | ECore::MkClos { env: args, .. } => {
             for a in args {
                 subst_rec_refs(a, subs);
             }

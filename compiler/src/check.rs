@@ -69,7 +69,7 @@ enum ECore {
     /// The type is the field's, for its representation class.
     Proj(Box<ECore>, crate::core::ProjField, Ty),
     /// A dictionary, with the instance's own parameter types.
-    InstDict(GlobalId, Vec<ECore>, Vec<Ty>),
+    InstDict(GlobalId, Vec<ECore>, Vec<Ty>, bool),
     App(Box<ECore>, Vec<ECore>),
     /// Un-hoisted lambda: `params` are its pattern parameters.
     Lam { params: Vec<LocalId>, body: Box<ECore> },
@@ -176,6 +176,7 @@ fn dict_expr_ecore(d: &DictExpr) -> ECore {
             id.clone(),
             subs.iter().map(dict_expr_ecore).collect(),
             tys.clone(),
+            false,
         ),
         DictExpr::Marker => ECore::Unit,
     }
@@ -216,7 +217,7 @@ fn free_locals(e: &ECore, bound: &mut Vec<LocalId>, out: &mut Vec<LocalId>) {
         }
         ECore::DictProj(d, ..) => free_locals(d, bound, out),
         ECore::Proj(d, ..) => free_locals(d, bound, out),
-        ECore::InstDict(_, args, _) | ECore::App(_, args) | ECore::MkClos { env: args, .. } => {
+        ECore::InstDict(_, args, _, _) | ECore::App(_, args) | ECore::MkClos { env: args, .. } => {
             for a in args {
                 free_locals(a, bound, out);
             }
@@ -322,7 +323,7 @@ fn hoist_lambdas(e: &mut ECore, hint: &str, counter: &mut usize, fns: &mut Vec<H
         }
         ECore::DictProj(d, ..) => hoist_lambdas(d, hint, counter, fns),
         ECore::Proj(d, ..) => hoist_lambdas(d, hint, counter, fns),
-        ECore::InstDict(_, args, _) | ECore::App(_, args) | ECore::MkClos { env: args, .. } => {
+        ECore::InstDict(_, args, _, _) | ECore::App(_, args) | ECore::MkClos { env: args, .. } => {
             for a in args {
                 hoist_lambdas(a, hint, counter, fns);
             }
@@ -417,7 +418,7 @@ fn assign_locals(e: &ECore, map: &mut HashMap<LocalId, LocalId>, next: &mut usiz
         }
         ECore::DictProj(d, ..) => assign_locals(d, map, next),
         ECore::Proj(d, ..) => assign_locals(d, map, next),
-        ECore::InstDict(_, args, _) | ECore::App(_, args) | ECore::MkClos { env: args, .. } => {
+        ECore::InstDict(_, args, _, _) | ECore::App(_, args) | ECore::MkClos { env: args, .. } => {
             if let ECore::App(f, _) = e {
                 assign_locals(f, map, next);
             }
@@ -557,10 +558,11 @@ fn remap_ecore(e: &ECore, r: &Remap) -> ECore {
             )
         }
         ECore::Proj(d, i, t) => ECore::Proj(Box::new(remap_ecore(d, r)), i.clone(), r.ty(t)),
-        ECore::InstDict(g, args, t) => ECore::InstDict(
+        ECore::InstDict(g, args, t, explicit) => ECore::InstDict(
             g.clone(),
             args.iter().map(|a| remap_ecore(a, r)).collect(),
             r.tys(t),
+            *explicit,
         ),
         ECore::App(f, args) => ECore::App(
             Box::new(remap_ecore(f, r)),
@@ -649,7 +651,7 @@ fn def_parts(e: &ECore, binders: &mut Vec<LocalId>, units: &mut Vec<GlobalId>) {
         }
         ECore::DictProj(d, ..) | ECore::Proj(d, ..) | ECore::Demand(d, _) | ECore::BoxGet(d, _) => def_parts(d, binders, units),
         ECore::LazyInit(_, v) | ECore::BoxInit(_, v, _) | ECore::RefSet(_, v) => def_parts(v, binders, units),
-        ECore::InstDict(_, args, _) => {
+        ECore::InstDict(_, args, _, _) => {
             for a in args {
                 def_parts(a, binders, units);
             }
@@ -717,7 +719,7 @@ fn resolve_lit_words(e: &mut ECore, lits: &[ECore]) {
         ECore::DictProj(d, ..) | ECore::Proj(d, ..) | ECore::Demand(d, _) => {
             resolve_lit_words(d, lits)
         }
-        ECore::InstDict(_, args, _) | ECore::MkClos { env: args, .. } => {
+        ECore::InstDict(_, args, _, _) | ECore::MkClos { env: args, .. } => {
             for a in args {
                 resolve_lit_words(a, lits);
             }
@@ -787,7 +789,7 @@ fn resolve_idx_words(e: &mut ECore, vals: &[ECore]) {
         ECore::DictProj(d, ..) | ECore::Proj(d, ..) | ECore::Demand(d, _) => {
             resolve_idx_words(d, vals)
         }
-        ECore::InstDict(_, args, _) | ECore::MkClos { env: args, .. } => {
+        ECore::InstDict(_, args, _, _) | ECore::MkClos { env: args, .. } => {
             for a in args {
                 resolve_idx_words(a, vals);
             }
@@ -900,7 +902,7 @@ fn fold_blocked(e: &ECore) -> bool {
         | ECore::DeclsQuote { .. } => true,
         ECore::LitFold { body, .. } => fold_blocked(body),
         ECore::DictProj(d, ..) | ECore::Proj(d, ..) => fold_blocked(d),
-        ECore::InstDict(_, args, _) | ECore::MkClos { env: args, .. } => {
+        ECore::InstDict(_, args, _, _) | ECore::MkClos { env: args, .. } => {
             args.iter().any(fold_blocked)
         }
         ECore::App(f, args) => fold_blocked(f) || args.iter().any(fold_blocked),
@@ -1197,8 +1199,15 @@ fn lower(e: &ECore, cx: &LowerCx) -> crate::core::Core {
         ECore::Proj(d, f, ty) => {
             C::Proj(Box::new(low(d)), crate::core::ProjField { class: cx.class(ty), ..f.clone() })
         }
-        ECore::InstDict(g, args, tys) => {
-            C::InstDict(g.clone(), args.iter().map(low).collect(), cx.classes(tys))
+        ECore::InstDict(g, args, tys, explicit) => {
+            let own = cx.ck.self_instance.and_then(|index| cx.ck.instance_list.get(index));
+            let is_self = cx.runtime && !*explicit && own.is_some_and(|instance| {
+                instance.base_id == *g && tys.len() == instance.params.len()
+                    && tys.iter().enumerate().all(|(i, ty)| matches!(cx.ck.uni.zonk(ty), Ty::Param(ref n) if cx.tparams.get(i) == Some(n)))
+                    && args.iter().enumerate().all(|(i, arg)| matches!(arg, ECore::Var(LocalId(j)) if *j == i) || matches!(arg, ECore::Unit))
+            });
+            let symbol = if is_self { GlobalId(format!("{}#self", g.0)) } else { g.clone() };
+            C::InstDict(symbol, args.iter().map(low).collect(), cx.classes(tys))
         }
         ECore::App(f, args) => C::App(Box::new(low(f)), args.iter().map(low).collect()),
         ECore::Lam { .. } | ECore::Hole(_) | ECore::IdxPending(_) => {
@@ -4899,7 +4908,7 @@ impl Checker {
             ECore::DictProj(d, ..) | ECore::Proj(d, ..) | ECore::Demand(d, _) => {
                 self.fold_pass(d, unit, fold)
             }
-            ECore::InstDict(_, args, _) | ECore::MkClos { env: args, .. } => {
+            ECore::InstDict(_, args, _, _) | ECore::MkClos { env: args, .. } => {
                 for a in args {
                     self.fold_pass(a, unit, fold);
                 }
@@ -5572,6 +5581,7 @@ impl Checker {
                     // names, so it needs no data type of its own.
                     data: None,
                     result: Some(Class::Obj),
+                    dictionary_values: Vec::new(),
                 },
             });
         }
@@ -9281,12 +9291,13 @@ impl Checker {
                 ECore::DictProj(Box::new(self.fill_holes(d, sol)?), *i, s.clone(), t.clone())
             }
             ECore::Proj(d, i, t) => ECore::Proj(Box::new(self.fill_holes(d, sol)?), i.clone(), t.clone()),
-            ECore::InstDict(g, args, t) => ECore::InstDict(
+            ECore::InstDict(g, args, t, explicit) => ECore::InstDict(
                 g.clone(),
                 args.iter()
                     .map(|a| self.fill_holes(a, sol))
                     .collect::<Result<Vec<_>>>()?,
                 t.clone(),
+                *explicit,
             ),
             ECore::App(f, args) => ECore::App(
                 Box::new(self.fill_holes(f, sol)?),

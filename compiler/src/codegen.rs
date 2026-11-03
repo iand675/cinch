@@ -549,6 +549,8 @@ struct InstInfo {
     methods: Vec<(String, usize)>,
     /// Actual stored word classes, including eager value-method results.
     fields: Vec<Class>,
+    /// Actual initialized value slots captured ahead of the factory context.
+    values: Vec<Vec<usize>>,
 }
 
 /// Unit name to arity map plus resolved instances.
@@ -750,11 +752,14 @@ impl Registry {
                     subdict_count: inst.subdict_count,
                     method_count: inst.method_count,
                     fields: methods.iter().map(|(name, arity)| {
-                        if *arity == inst.subdict_count {
-                            p.fns.iter().find(|f| f.id.0 == *name)
-                                .and_then(|f| f.repr.result).unwrap_or(Class::Raw)
+                        let function = p.fns.iter().find(|f| f.id.0 == *name);
+                        let hidden = function.map_or(0, |f| f.repr.dictionary_values.len());
+                        if *arity == inst.subdict_count + hidden {
+                            function.and_then(|f| f.repr.result).unwrap_or(Class::Raw)
                         } else { Class::Obj }
                     }).collect(),
+                    values: methods.iter().map(|(name, _)| p.fns.iter().find(|f| f.id.0 == *name)
+                        .map(|f| f.repr.dictionary_values.clone()).unwrap_or_default()).collect(),
                     methods,
                 },
             );
@@ -4883,74 +4888,62 @@ fn export_entry(out: &mut String, plan: &ForeignPlan, reg: &Registry, cx: &Lower
 /// method word is the method function's static closure (when the instance
 /// has no subdicts) or a fresh closure filled with the subdict parameters.
 fn mk_body(b: &mut Builder, reg: &Registry, info: &InstInfo) {
-    let mc = info.method_count;
-    // The subdictionaries are owned parameters, and every method takes
-    // each of them once (a value method's call consumes them, a method
-    // closure stores them): one reference per method, the unit's own
-    // being the last, or a drop when the class has no methods.
     let uses = info.methods.len();
     for j in 0..info.subdict_count {
-        let w = format!("%p{j}");
-        if uses == 0 {
-            rc_op(b, reg.rc_debug, true, &w, Class::Obj);
-        }
-        for _ in 1..uses {
-            rc_op(b, reg.rc_debug, false, &w, Class::Obj);
-        }
+        let word = format!("%p{j}");
+        let class = info.methods.first().and_then(|(method, _)| reg.unit_params.get(method))
+            .and_then(|params| params.get(info.values.first().map_or(0, Vec::len) + j)).copied().unwrap_or(Class::Obj);
+        if uses == 0 { rc_op(b, reg.rc_debug, true, &word, class); }
+        for _ in 1..uses { rc_op(b, reg.rc_debug, false, &word, class); }
     }
-    let bytes = (1 + mc) * 8;
-    let p = b.reg();
-    b.line(&shaped_alloc_call(&p, bytes, block::KIND_DICT, reg.dict_desc(info)));
-    b.store_at(&p, 0, &mc.to_string());
-    for (i, (method, m_arity)) in info.methods.iter().enumerate() {
-        let w = if *m_arity == info.subdict_count {
-            // A method with no value parameters stores its computed value
-            // in the dictionary (`mempty :: a` round trip): the call site
-            // projects the word directly instead of applying a closure.
-            let args: Vec<String> =
-                (0..info.subdict_count).map(|j| format!("i64 %p{j}")).collect();
-            let w = b.reg();
-            b.line(&format!(
-                "{w} = call i64 @{}({})",
-                quote(method),
-                args.join(", ")
-            ));
-            w
-        } else if info.subdict_count == 0 {
-            let w = b.reg();
-            b.line(&format!(
-                "{w} = ptrtoint ptr @{clo} to i64",
-                clo = quote(&format!("{method}.clo"))
-            ));
-            w
+    let pointer = b.reg();
+    b.line(&shaped_alloc_call(&pointer, (1 + info.method_count) * 8, block::KIND_DICT, reg.dict_desc(info)));
+    b.store_at(&pointer, 0, &info.method_count.to_string());
+    for i in 0..info.method_count { b.store_at(&pointer, (1 + i) * 8, "0"); }
+    let strict: Vec<bool> = info.methods.iter().enumerate().map(|(i, (_, arity))| *arity == info.subdict_count + info.values[i].len()).collect();
+    let mut pending: Vec<usize> = strict.iter().enumerate().filter_map(|(i, strict)| strict.then_some(i)).collect();
+    let mut initialized = std::collections::HashSet::new();
+    let mut order = Vec::new();
+    while !pending.is_empty() {
+        let index = pending.iter().position(|i| info.values[*i].iter().all(|slot| initialized.contains(slot)))
+            .expect("dictionary initialization cycles were rejected before code generation");
+        let slot = pending.remove(index); order.push(slot); initialized.insert(slot);
+    }
+    order.extend(strict.iter().enumerate().filter_map(|(i, strict)| (!strict).then_some(i)));
+    for i in order {
+        let (method, arity) = &info.methods[i];
+        let mut saved = Vec::new();
+        for slot in &info.values[i] {
+            let value = b.load_at(&pointer, (1 + slot) * 8);
+            rc_op(b, reg.rc_debug, false, &value, info.fields[*slot]);
+            saved.push(value);
+        }
+        saved.extend((0..info.subdict_count).map(|j| format!("%p{j}")));
+        let word = if strict[i] {
+            let value = b.reg();
+            b.line(&format!("{value} = call i64 @{}({})", quote(method), saved.iter().map(|w| format!("i64 {w}")).collect::<Vec<_>>().join(", ")));
+            value
+        } else if saved.is_empty() {
+            let value = b.reg();
+            b.line(&format!("{value} = ptrtoint ptr @{} to i64", quote(&format!("{method}.clo"))));
+            value
         } else {
-            let cb = (3 + info.subdict_count) * 8;
-            let c = b.reg();
-            b.line(&shaped_alloc_call(&c, cb, block::KIND_CLOSURE, reg.closure_desc(method)));
-            let cw = b.reg();
-            b.line(&format!(
-                "{cw} = ptrtoint ptr @{app} to i64",
-                app = quote(&format!("{method}.app"))
-            ));
-            b.store_at(&c, 0, &cw);
-            b.store_at(&c, 8, &m_arity.to_string());
-            b.store_at(&c, 16, &info.subdict_count.to_string());
-            for j in 0..info.subdict_count {
-                b.store_at(&c, 24 + 8 * j, &format!("%p{j}"));
-            }
-            let w = b.reg();
-            b.line(&format!("{w} = ptrtoint ptr {c} to i64"));
-            w
+            let closure = b.reg();
+            b.line(&shaped_alloc_call(&closure, (3 + saved.len()) * 8, block::KIND_CLOSURE, reg.closure_desc(method)));
+            let code = b.reg();
+            b.line(&format!("{code} = ptrtoint ptr @{} to i64", quote(&format!("{method}.app"))));
+            b.store_at(&closure, 0, &code);
+            b.store_at(&closure, 8, &arity.to_string());
+            b.store_at(&closure, 16, &saved.len().to_string());
+            for (j, value) in saved.iter().enumerate() { b.store_at(&closure, 24 + 8 * j, value); }
+            let value = b.reg();
+            b.line(&format!("{value} = ptrtoint ptr {closure} to i64")); value
         };
-        b.store_at(&p, (1 + i) * 8, &w);
+        b.store_at(&pointer, (1 + i) * 8, &word);
     }
-    let w = b.reg();
-    b.line(&format!("{w} = ptrtoint ptr {p} to i64"));
-    b.line(&format!("ret i64 {w}"));
+    let word = b.reg(); b.line(&format!("{word} = ptrtoint ptr {pointer} to i64")); b.line(&format!("ret i64 {word}"));
 }
 
-/// Lower a [`FnDef`] body from [`Core`] into a unit taking `width`
-/// parameters: the definition's arity, or its group's width for a
 /// widened worker (the trailing parameters unused).
 fn core_body(b: &mut Builder, reg: &Registry, f: &FnDef, width: usize) -> Result<()> {
     let mut bound: Vec<LocalId> = (0..f.arity()).map(LocalId).collect();

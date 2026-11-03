@@ -1,5 +1,22 @@
 # Next steps (as of 2026-11-03)
 
+## Rust strict dictionary value checkpoint
+The Rust compiler now initializes strict dictionary fields once in dependency
+order. Self projections use the initialized value, and methods and escaped
+closures capture that actual value. A source program that previously exhausted
+a32M heap now runs successfully. A physical ABI probe verifies shared Box
+pointers and an escaping method retaining the Box after its containing dictionary
+is dropped. All21 executable dictionary cases report zero leaks. The142 unit,
+21 ownership,18 reclamation,16 effect,3 representation,6 class-default,17 surface,
+10 incremental,11 module and one class-contract tests pass. A supplemental
+incremental executable check runs cold197, unchanged197 and edited199 with zero
+leaks; unchanged IR remains byte-identical. Recursive strict initialization,
+full strict-self evidence and method-local polymorphic value environments still
+receive named refusals. The pinned seed is unchanged; full current-suite and
+Stage2/3 success remain unverified. See
+[the Rust strict-value evidence](../bootstrap/native-dictionary-values-results.json).
+
+
 ## Rust dictionary ownership and scope checkpoint
 The Rust compiler now records the checked result word class and preserves it
 through representation specialization. Dictionary maps count actual eager

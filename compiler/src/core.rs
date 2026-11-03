@@ -2775,6 +2775,9 @@ pub struct UnitRepr {
     /// The actual checked result word, before hoisting. Needed when a
     /// nullary dictionary method stores its computed value in a slot.
     pub result: Option<Class>,
+    /// Leading environment words containing this dictionary's initialized
+    /// strict value slots; indices refer to the declaring dictionary.
+    pub dictionary_values: Vec<usize>,
     /// The class of each runtime parameter, parallel to `FnDef::params`
     /// (a hoisted lambda's environment slots come first).
     pub params: Vec<Class>,
@@ -4096,99 +4099,100 @@ fn renumber_core(e: &Core, nparams: usize) -> Core {
             }
         }
     }
-    fn rewrite(e: &Core, map: &HashMap<LocalId, LocalId>) -> Core {
-        let rw = |x: &Core| rewrite(x, map);
-        match e {
-            Core::Var(l) => Core::Var(*map.get(l).unwrap_or(l)),
-            Core::SpliceVal(i) => Core::SpliceVal(*i),
-            Core::Int(v) => Core::Int(*v),
-            Core::ConstBig { nat, digits } => Core::ConstBig { nat: *nat, digits: digits.clone() },
-            Core::ConstBytes(b) => Core::ConstBytes(b.clone()),
-            Core::ConstString { ctor, bytes } => Core::ConstString {
-                ctor: ctor.clone(),
-                bytes: bytes.clone(),
-            },
-            Core::ConstSym(s) => Core::ConstSym(s.clone()),
-            Core::Bool(b) => Core::Bool(*b),
-            Core::Unit => Core::Unit,
-            Core::Global(g, v) => Core::Global(g.clone(), v.clone()),
-            Core::Ctor(g, v) => Core::Ctor(g.clone(), v.clone()),
-            Core::Prim(p) => Core::Prim(*p),
-            Core::Foreign(n) => Core::Foreign(n.clone()),
-            Core::Fault => Core::Fault,
-            Core::LazyAlloc => Core::LazyAlloc,
-            Core::BoxAlloc => Core::BoxAlloc,
-            Core::SyntaxLit(t) => Core::SyntaxLit(t.clone()),
-            Core::StrLit(s) => Core::StrLit(s.clone()),
-            Core::DictProj(d, i, s, c) => Core::DictProj(Box::new(rw(d)), *i, s.clone(), *c),
-            Core::Proj(d, f) => Core::Proj(Box::new(rw(d)), f.clone()),
-            Core::Demand(d, c) => Core::Demand(Box::new(rw(d)), *c),
-            Core::InstDict(g, args, v) => Core::InstDict(g.clone(), args.iter().map(rw).collect(), v.clone()),
-            Core::App(f, args) => Core::App(Box::new(rw(f)), args.iter().map(rw).collect()),
-            Core::Lam { fn_id, env, classes } => Core::Lam {
-                fn_id: fn_id.clone(),
-                env: env.iter().map(rw).collect(),
-                classes: classes.clone(),
-            },
-            Core::Let(l, c, v, body) => Core::Let(
-                *map.get(l).unwrap_or(l),
-                *c,
-                Box::new(rw(v)),
-                Box::new(rw(body)),
-            ),
-            Core::LazyInit(l, t) => {
-                Core::LazyInit(*map.get(l).unwrap_or(l), Box::new(rw(t)))
-            }
-            Core::BoxInit(l, v, c) => {
-                Core::BoxInit(*map.get(l).unwrap_or(l), Box::new(rw(v)), *c)
-            }
-            Core::RefSet(l, v) => {
-                Core::RefSet(*map.get(l).unwrap_or(l), Box::new(rw(v)))
-            }
-            Core::BoxGet(v, c) => Core::BoxGet(Box::new(rw(v)), *c),
-            Core::Dup(l, c, body) => Core::Dup(*map.get(l).unwrap_or(l), *c, Box::new(rw(body))),
-            Core::Drop(l, c, body) => Core::Drop(*map.get(l).unwrap_or(l), *c, Box::new(rw(body))),
-            Core::If(c, t, fe) => Core::If(
-                Box::new(rw(c)),
-                CBranch { weight: t.weight, body: Box::new(rw(&t.body)) },
-                CBranch { weight: fe.weight, body: Box::new(rw(&fe.body)) },
-            ),
-            Core::Case { scrut, alts } => Core::Case {
-                scrut: Box::new(rw(scrut)),
-                alts: alts
-                    .iter()
-                    .map(|a| {
-                        let pat = match &a.pat {
-                            CPat::Var(l, c) => CPat::Var(*map.get(l).unwrap_or(l), *c),
-                            CPat::Con { tag, fields, classes } => CPat::Con {
-                                tag: *tag,
-                                fields: fields
-                                    .iter()
-                                    .map(|l| *map.get(l).unwrap_or(l))
-                                    .collect(),
-                                classes: classes.clone(),
-                            },
-                            CPat::Wild => CPat::Wild,
-                        };
-                        CAlt { pat, weight: a.weight, body: Box::new(rw(&a.body)) }
-                    })
-                    .collect(),
-            },
-            Core::Quote { template, holes, body } => Core::Quote {
-                template: template.clone(),
-                holes: holes.iter().map(rw).collect(),
-                body: body.as_ref().map(|b| Box::new(rw(b))),
-            },
-            Core::DeclsQuote { template, holes, name_holes } => Core::DeclsQuote {
-                template: template.clone(),
-                holes: holes.iter().map(rw).collect(),
-                name_holes: name_holes.clone(),
-            },
-        }
-    }
     let _ = &mut note;
     assign(e, &mut map, &mut next);
-    rewrite(e, &map)
+    rename_core_locals(e, &map)
+}
+
+pub(crate) fn rename_core_locals(e: &Core, map: &HashMap<LocalId, LocalId>) -> Core {
+    let rw = |x: &Core| rename_core_locals(x, map);
+    match e {
+        Core::Var(l) => Core::Var(*map.get(l).unwrap_or(l)),
+        Core::SpliceVal(i) => Core::SpliceVal(*i),
+        Core::Int(v) => Core::Int(*v),
+        Core::ConstBig { nat, digits } => Core::ConstBig { nat: *nat, digits: digits.clone() },
+        Core::ConstBytes(b) => Core::ConstBytes(b.clone()),
+        Core::ConstString { ctor, bytes } => Core::ConstString {
+            ctor: ctor.clone(),
+            bytes: bytes.clone(),
+        },
+        Core::ConstSym(s) => Core::ConstSym(s.clone()),
+        Core::Bool(b) => Core::Bool(*b),
+        Core::Unit => Core::Unit,
+        Core::Global(g, v) => Core::Global(g.clone(), v.clone()),
+        Core::Ctor(g, v) => Core::Ctor(g.clone(), v.clone()),
+        Core::Prim(p) => Core::Prim(*p),
+        Core::Foreign(n) => Core::Foreign(n.clone()),
+        Core::Fault => Core::Fault,
+        Core::LazyAlloc => Core::LazyAlloc,
+        Core::BoxAlloc => Core::BoxAlloc,
+        Core::SyntaxLit(t) => Core::SyntaxLit(t.clone()),
+        Core::StrLit(s) => Core::StrLit(s.clone()),
+        Core::DictProj(d, i, s, c) => Core::DictProj(Box::new(rw(d)), *i, s.clone(), *c),
+        Core::Proj(d, f) => Core::Proj(Box::new(rw(d)), f.clone()),
+        Core::Demand(d, c) => Core::Demand(Box::new(rw(d)), *c),
+        Core::InstDict(g, args, v) => Core::InstDict(g.clone(), args.iter().map(rw).collect(), v.clone()),
+        Core::App(f, args) => Core::App(Box::new(rw(f)), args.iter().map(rw).collect()),
+        Core::Lam { fn_id, env, classes } => Core::Lam {
+            fn_id: fn_id.clone(),
+            env: env.iter().map(rw).collect(),
+            classes: classes.clone(),
+        },
+        Core::Let(l, c, v, body) => Core::Let(
+            *map.get(l).unwrap_or(l),
+            *c,
+            Box::new(rw(v)),
+            Box::new(rw(body)),
+        ),
+        Core::LazyInit(l, t) => {
+            Core::LazyInit(*map.get(l).unwrap_or(l), Box::new(rw(t)))
+        }
+        Core::BoxInit(l, v, c) => {
+            Core::BoxInit(*map.get(l).unwrap_or(l), Box::new(rw(v)), *c)
+        }
+        Core::RefSet(l, v) => {
+            Core::RefSet(*map.get(l).unwrap_or(l), Box::new(rw(v)))
+        }
+        Core::BoxGet(v, c) => Core::BoxGet(Box::new(rw(v)), *c),
+        Core::Dup(l, c, body) => Core::Dup(*map.get(l).unwrap_or(l), *c, Box::new(rw(body))),
+        Core::Drop(l, c, body) => Core::Drop(*map.get(l).unwrap_or(l), *c, Box::new(rw(body))),
+        Core::If(c, t, fe) => Core::If(
+            Box::new(rw(c)),
+            CBranch { weight: t.weight, body: Box::new(rw(&t.body)) },
+            CBranch { weight: fe.weight, body: Box::new(rw(&fe.body)) },
+        ),
+        Core::Case { scrut, alts } => Core::Case {
+            scrut: Box::new(rw(scrut)),
+            alts: alts
+                .iter()
+                .map(|a| {
+                    let pat = match &a.pat {
+                        CPat::Var(l, c) => CPat::Var(*map.get(l).unwrap_or(l), *c),
+                        CPat::Con { tag, fields, classes } => CPat::Con {
+                            tag: *tag,
+                            fields: fields
+                                .iter()
+                                .map(|l| *map.get(l).unwrap_or(l))
+                                .collect(),
+                            classes: classes.clone(),
+                        },
+                        CPat::Wild => CPat::Wild,
+                    };
+                    CAlt { pat, weight: a.weight, body: Box::new(rw(&a.body)) }
+                })
+                .collect(),
+        },
+        Core::Quote { template, holes, body } => Core::Quote {
+            template: template.clone(),
+            holes: holes.iter().map(rw).collect(),
+            body: body.as_ref().map(|b| Box::new(rw(b))),
+        },
+        Core::DeclsQuote { template, holes, name_holes } => Core::DeclsQuote {
+            template: template.clone(),
+            holes: holes.iter().map(rw).collect(),
+            name_holes: name_holes.clone(),
+        },
+    }
 }
 
 /// Instantiate a rule's template (or an unfolded callee's body) at a
@@ -5571,6 +5575,7 @@ impl Driver<'_> {
                 fields: Vec::new(),
                 data: None,
                 result: None,
+                dictionary_values: Vec::new(),
             },
         });
         // Rebuild the producer: the map stages collapse into the composed
@@ -5883,7 +5888,9 @@ impl Driver<'_> {
                     if let Some(inst_def) = self.caller_program_instance(id) {
                         if let Some(mid) = inst_def.methods.get(*idx) {
                             let want = self.defs.get(&mid.0).map(|f| f.params.len());
-                            if want == Some(subs.len() + args.len()) && self.spend_fuel() {
+                            let strict_values = inst_def.methods.iter().any(|method| self.defs.get(&method.0)
+                                .is_some_and(|f| f.arity() == inst_def.subdict_count + f.repr.dictionary_values.len()));
+                            if !strict_values && want == Some(subs.len() + args.len()) && self.spend_fuel() {
                                 let mut new_args = subs.clone();
                                 new_args.extend(args.iter().cloned());
                                 // The method unit's vector: the instance's,

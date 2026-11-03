@@ -4696,6 +4696,7 @@ impl Checker {
                         fields: fields.0,
                         data: Some(format!("{}.{}", t.module, t.name)),
                         result: Some(Class::Obj),
+                    dictionary_values: Vec::new(),
                     },
                 });
             }
@@ -5276,7 +5277,7 @@ impl Checker {
             subs.push(ECore::Hole(id));
         }
         let tys: Vec<Ty> = params.iter().map(|p| sub[p].clone()).collect();
-        Ok((ECore::InstDict(base_id, subs, tys), String::new()))
+        Ok((ECore::InstDict(base_id, subs, tys, true), String::new()))
     }
 
     /// The instantiation declarations of one module (`import M (args) as
@@ -6713,7 +6714,7 @@ impl Checker {
                 ECore::DictProj(d, ..) | ECore::Proj(d, ..) | ECore::Demand(d, _) => {
                     walk(d, id, smaller, extra, params, bad)
                 }
-                ECore::InstDict(_, args, _) | ECore::MkClos { env: args, .. } => {
+                ECore::InstDict(_, args, _, _) | ECore::MkClos { env: args, .. } => {
                     for a in args {
                         walk(a, id, smaller, extra, params, bad);
                     }
@@ -9331,7 +9332,7 @@ impl Checker {
         }
         let total_bodies = self.interface_checked_bodies.clone().unwrap_or_else(|| self.checked_total_bodies());
         let (plans, foreigns) = self.build_abi_maps();
-        Ok(Program {
+        let mut program = Program {
             total_bodies,
             fns: self.fns,
             instances: self.instance_defs,
@@ -9341,7 +9342,9 @@ impl Checker {
             foreigns,
             prims: self.prims,
             laws: self.law_rows,
-        })
+        };
+        crate::dictionary_values::lower(&mut program)?;
+        Ok(program)
     }
 
     /// The `prim` signature envelope (primitive operations and inline

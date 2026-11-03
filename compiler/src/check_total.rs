@@ -83,7 +83,7 @@ fn pending_total_expr(body: &ECore, scope: &[LocalId]) -> Option<crate::total::P
 }
 fn total_dictionary(expression: &ECore, dictionaries: &[(LocalId, String)]) -> Option<String> {
     match expression {
-        ECore::InstDict(id, contexts, actuals) if contexts.is_empty() && actuals.is_empty() => Some(id.0.clone()),
+        ECore::InstDict(id, contexts, actuals, _) if contexts.is_empty() && actuals.is_empty() => Some(id.0.clone()),
         ECore::Var(id) => dictionaries.iter().rev().find(|(local, _)| local == id).map(|(_, name)| name.clone()),
         _ => None,
     }
