@@ -644,6 +644,7 @@ impl Checker {
                 if let Some((l, ty)) = self.module_param_use(p) {
                     return Ok((ECore::Var(l), ty));
                 }
+                if let Some(value) = self.named_instance_value(env, p)? { return Ok(value); }
                 let v = self.resolve_con(p, p.span())?;
                 self.value_use(&v, p.span(), env)
             }
@@ -1453,6 +1454,10 @@ impl Checker {
         // are checked, and erased evidence arguments never reach runtime.
         match term {
             ast::Term::Con(p) => {
+                if let Some((core, ty)) = self.named_instance_value(env, p)? {
+                    self.uni.unify(&ty, expected).map_err(|m| Error::at(p.span(), m))?;
+                    return Ok(core);
+                }
                 let want = self.uni.zonk(expected);
                 let (core, ty) = self.ctor_app(env, p, &[], &want, p.span())?;
                 self.uni
@@ -10007,6 +10012,45 @@ impl Checker {
         None
     }
 
+    /// Named instance values use the actual factory and ordinary scoped
+    /// dictionary obligations, independently of implicit instance search.
+    fn named_instance_value(&mut self, env: &mut Env, path: &ast::ConPath) -> Result<Option<(ECore, Ty)>> {
+        if self.resolve_con(path, path.span()).is_ok() { return Ok(None); }
+        let parts = path.parts();
+        let candidates = match parts.as_slice() {
+            [name] => self.scope_candidates(name),
+            [qual, name] => self.scope_qual_candidates(qual, name),
+            _ => return Ok(None),
+        };
+        let Some(inst) = candidates.iter().find_map(|(module, name)| {
+            self.instance_list.iter().find(|i| i.module == *module && i.name == *name).cloned()
+        }) else { return Ok(None); };
+        if !inst.method_obligs.is_empty() {
+            return Err(Error::at(path.span(), Self::method_oblig_refusal(&inst, &inst.target.to_string())));
+        }
+        let actuals: Vec<Ty> = inst.params.iter().map(|_| self.uni.fresh()).collect();
+        let substitution: HashMap<String, Ty> = inst.params.iter().cloned().zip(actuals.iter().cloned()).collect();
+        let target = Self::subst_class(&inst.target, &substitution);
+        let mut args = Vec::new();
+        if inst.base {
+            if inst.module != self.current_module {
+                return Err(Error::at(path.span(), "a parameterized module's dictionary needs its instantiated module"));
+            }
+            args.extend(self.cur_mod_params.iter().map(|(_, local, _)| ECore::Var(*local)));
+        }
+        for item in &inst.ctx {
+            match item {
+                InstCtx::Dict(_, constraint) => {
+                    let want = self.new_want(Self::subst_class(constraint, &substitution), path.span(), env);
+                    args.push(ECore::Hole(want));
+                }
+                InstCtx::Oblig(_) => return Err(Error::at(path.span(), "an explicit constrained factory needs checked refinement evidence")),
+            }
+        }
+        let ty = Ty::Adt(target.class, target.args);
+        Ok(Some((ECore::InstDict(inst.base_id, args, actuals), ty)))
+    }
+
     /// Bind a capability name to a value of type `Io r` (decision D21):
     /// the binder is both a term-level value and a solver-visible provider.
     fn bind_capability(
@@ -10016,8 +10060,16 @@ impl Checker {
         core: ECore,
         ty: Ty,
         span: ast::Span,
-    ) -> Result<(LocalId, ECore, String)> {
+    ) -> Result<(LocalId, ECore, Option<String>)> {
         let z = self.uni.zonk(&ty);
+        if let Ty::Adt(class, args) = &z {
+            if class != "Io" && self.sigs.get(class).is_some_and(|sigs| sigs.iter().any(|sig| sig.params.len() == args.len())) {
+                let local = self.fresh_local();
+                self.bind_local(env, &name.text, local, Scheme::mono(z.clone()), Some(Mult::Many), span)?;
+                env.dicts.push((local, ClassApp { class: class.clone(), args: args.clone() }));
+                return Ok((local, core, None));
+            }
+        }
         let region = match &z {
             Ty::Adt(n, args) if n == "Io" && args.len() == 1 => match &args[0] {
                 Ty::Region(r) => r.clone(),
@@ -10042,7 +10094,7 @@ impl Checker {
                 return Err(Error::at(
                     span,
                     format!(
-                        "capability supply {} must have type `Io r`, got {other}",
+                        "supply {} must have type `Io r` or another checked signature, got {other}",
                         name.text
                     ),
                 ))
@@ -10059,12 +10111,13 @@ impl Checker {
         )?;
         env.dicts
             .push((l, ClassApp { class: "Io".into(), args: vec![Ty::Region(region.clone())] }));
-        Ok((l, core, region))
+        Ok((l, core, Some(region)))
     }
 
     /// A capability for a still-flex runtime identity must not leak that
     /// identity through the supply's scope (design section 4).
-    fn check_cap_escape(&mut self, region: &str, ty: &Ty, span: ast::Span) -> Result<()> {
+    fn check_cap_escape(&mut self, region: &Option<String>, ty: &Ty, span: ast::Span) -> Result<()> {
+        let Some(region) = region else { return Ok(()); };
         let r = self.uni.resolve_region(region);
         if !self.uni.is_flex_region(&r) {
             return Ok(());

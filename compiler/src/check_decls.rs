@@ -4695,6 +4695,7 @@ impl Checker {
                         params: fields.0.clone(),
                         fields: fields.0,
                         data: Some(format!("{}.{}", t.module, t.name)),
+                        result: Some(Class::Obj),
                     },
                 });
             }
@@ -6606,7 +6607,12 @@ impl Checker {
         }
         self.cur_tparams = tparams;
         let total_result = self.total_sort(&self.uni.zonk(&rest), &mut Vec::new());
-        self.finish_fn(id.clone(), param_ids, body, None, None, false, meta, total_result)
+        self.finish_fn(id.clone(), param_ids, body, None, None, false, meta, total_result)?;
+        let result = crate::repr::repr_of(&self.uni.zonk(&rest), &self.cur_tparams, self, &mut |_| {});
+        if let Some(unit) = self.fns.iter_mut().find(|unit| unit.id == *id) {
+            unit.repr.result = Some(result);
+        }
+        Ok(())
     }
 
     /// Structural termination for the logical fragment (core
@@ -17185,6 +17191,12 @@ impl Checker {
             if ss.iter().any(|s| s.module == module) && !out.contains(n) {
                 out.push(n.clone());
             }
+        }
+        for (home, instance) in &self.instance_defs_pending {
+            if home == module && !out.contains(&instance.name.text) { out.push(instance.name.text.clone()); }
+        }
+        for instance in &self.instance_list {
+            if instance.module == module && !out.contains(&instance.name) { out.push(instance.name.clone()); }
         }
         out
     }

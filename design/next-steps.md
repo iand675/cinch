@@ -1,5 +1,21 @@
 # Next steps (as of 2026-11-03)
 
+## Rust dictionary ownership and scope checkpoint
+The Rust compiler now records the checked result word class and preserves it
+through representation specialization. Dictionary maps count actual eager
+value fields: large integers, objects and function values are no longer
+unconditionally marked Raw. Named source instances can supply ordinary
+signature constraints through `with`, including exported/import-renamed names;
+IO supplies retain their runtime-region escape checks. Explicit factory
+refinement obligations still receive a named refusal.
+All18 executable dictionary/IO cases report zero leaks, and five invalid or
+out-of-scope uses stay rejected. The focused unit, ownership, reclamation,
+effect, representation, class-default and surface targets all pass. The seed
+is unchanged. Cinch dictionary/IO lowering is still under validation; no
+Stage2 or complete current-suite pass is established here. See
+[the Rust dictionary evidence](../bootstrap/native-dictionary-check-results.json).
+
+
 The typed backend now lowers real ABI5 closures, lexical captures, partial
 functions/constructors, indirect calls and overapplication. All51 executable
 programs pass with zero leaks, including generic captures and higher-order

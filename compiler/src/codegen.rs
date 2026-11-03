@@ -547,6 +547,8 @@ struct InstInfo {
     method_count: usize,
     /// Method unit name with the arity of its `FnDef` (subdicts included).
     methods: Vec<(String, usize)>,
+    /// Actual stored word classes, including eager value-method results.
+    fields: Vec<Class>,
 }
 
 /// Unit name to arity map plus resolved instances.
@@ -747,6 +749,12 @@ impl Registry {
                 InstInfo {
                     subdict_count: inst.subdict_count,
                     method_count: inst.method_count,
+                    fields: methods.iter().map(|(name, arity)| {
+                        if *arity == inst.subdict_count {
+                            p.fns.iter().find(|f| f.id.0 == *name)
+                                .and_then(|f| f.repr.result).unwrap_or(Class::Raw)
+                        } else { Class::Obj }
+                    }).collect(),
                     methods,
                 },
             );
@@ -966,13 +974,11 @@ impl Registry {
         self.layouts.borrow_mut().shape(map)
     }
 
-    /// The shape descriptor of an instance's dictionary `{ nmeth;
-    /// methods... }`: a method slot holding a closure is counted, one
-    /// holding a value method's computed value (`mk_body`) is not, because
-    /// no unit records the class of a result.
+    /// Dictionary slots contain either closures or eagerly computed values;
+    /// the latter retain the result class recorded by the checker and collector.
     fn dict_desc(&self, info: &InstInfo) -> u64 {
         let mut map = vec![Class::Raw; block::DICT_PREFIX_WORDS as usize];
-        map.extend(info.methods.iter().map(|(_, arity)| if *arity == info.subdict_count { Class::Raw } else { Class::Obj }));
+        map.extend(info.fields.iter().copied());
         self.layouts.borrow_mut().shape(map)
     }
 

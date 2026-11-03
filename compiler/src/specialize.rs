@@ -344,6 +344,7 @@ pub fn specialize(program: &Program, report: &mut OptReport) -> Program {
                 subst_classes(&mut copy.body, v);
                 cx.rename(&mut copy.body, &slots);
                 copy.repr.params = crate::repr::subst_all(&copy.repr.params, v);
+                copy.repr.result = copy.repr.result.map(|c| c.subst(v));
                 copy.repr.tparams = 0;
                 out.fns.push(copy);
                 report.versions.push(spec_name(&f.id.0, v));
@@ -355,6 +356,7 @@ pub fn specialize(program: &Program, report: &mut OptReport) -> Program {
                 let mut copy = f.clone();
                 copy.id = GlobalId(spec_name(&f.id.0, v));
                 copy.repr.params = crate::repr::subst_all(&copy.repr.params, v);
+                copy.repr.result = copy.repr.result.map(|c| c.subst(v));
                 copy.repr.fields = crate::repr::subst_all(&copy.repr.fields, v);
                 copy.repr.tparams = 0;
                 out.fns.push(copy);

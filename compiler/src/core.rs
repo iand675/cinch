@@ -2772,6 +2772,9 @@ pub struct UnitRepr {
     /// monomorphic unit, which has exactly one copy. Hoisted lambdas and
     /// `letrec` members share their definition's parameters.
     pub tparams: usize,
+    /// The actual checked result word, before hoisting. Needed when a
+    /// nullary dictionary method stores its computed value in a slot.
+    pub result: Option<Class>,
     /// The class of each runtime parameter, parallel to `FnDef::params`
     /// (a hoisted lambda's environment slots come first).
     pub params: Vec<Class>,
@@ -5567,6 +5570,7 @@ impl Driver<'_> {
                 params: param_classes,
                 fields: Vec::new(),
                 data: None,
+                result: None,
             },
         });
         // Rebuild the producer: the map stages collapse into the composed

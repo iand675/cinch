@@ -5123,7 +5123,9 @@ impl Checker {
                 .sigs
                 .get(name)
                 .map(|ss| ss.iter().any(|s| s.module == module))
-                .unwrap_or(false);
+                .unwrap_or(false)
+            || self.instance_defs_pending.iter().any(|(m, i)| m == module && i.name.text == name)
+            || self.instance_list.iter().any(|i| i.module == module && i.name == name);
         if declared {
             Some(SurfaceName {
                 module: module.to_string(),
@@ -5569,6 +5571,7 @@ impl Checker {
                     // A tuple type has one constructor, which the unit
                     // names, so it needs no data type of its own.
                     data: None,
+                    result: Some(Class::Obj),
                 },
             });
         }
