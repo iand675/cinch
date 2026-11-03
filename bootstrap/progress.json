@@ -1,11 +1,11 @@
 {
   "schema": 1,
-  "updatedAt": "2026-11-03T19:11:22.941747+00:00",
+  "updatedAt": "2026-11-03T19:32:43.031313+00:00",
   "estimate": 90,
   "estimateNote": "Rough engineering estimate. Remaining compiler bugs can change it; this is not a measured test pass rate.",
-  "status": "Reexport fixity repair under validation",
-  "summary": "The Cinch-built compiler emits all 43 compiler interfaces and the repaired compiler checks its real entry using those APIs. It also compiles and runs Cinch\u2019s own test runner with exact reports and zero leaks. Fresh stage-chain and full-suite verification remain.",
-  "activity": "The published-source sweep has 59 /208 groups passed, 3 running and 0 failed; its runtime, tooling and syntax gates also pass. Fresh Stage1 and its smokes pass, and Stage2 is running. A targeted check found lost precedence in Cinch-produced reexports; its repair is being tested separately.",
+  "status": "Self-built stages pass; two repairs under verification",
+  "summary": "Cinch builds Stage2 and Stage3 with identical executable bytes, and both pass their smoke checks. The complete compiler/interface fixed-point check is still running. Two later repairs must receive matching stage and test verification.",
+  "activity": "The frozen-source test sweep has 130 of 208 groups passed, 1 failed and 3 running. Runtime, tooling and syntax gates pass. The sweep is handing two workers to targeted repair checks after their current tests finish.",
   "commit": "7d55938ffcc636a97ace2f57ed161eb47c1877ab",
   "stages": [
     {
@@ -30,10 +30,15 @@
       "name": "Stage 3",
       "state": "passed",
       "label": "Code matches",
-      "description": "Built by Stage2; passes smoke checks. Compiler IR and binary exactly match Stage2. Interface verification is still required."
+      "description": "Fresh frozen-source Stage3 builds through Stage2, passes all three smoke checks and matches the Stage2 executable exactly. Full interface and changed-source verification is still running; later repairs need a new chain."
     }
   ],
   "checks": [
+    {
+      "title": "Reexport precedence repair passes its first focused checks",
+      "detail": "The complete writer, parser, resolver and Rust interface-fixity targets pass on the first repair snapshot. Importers still cannot declare or override fixities. A later extension tests forwarding through a separately compiled facade and is awaiting validation.",
+      "state": "passed"
+    },
     {
       "title": "Actual self-built compiler consumes the compiler APIs",
       "detail": "The repaired Cinch compiler emits and links successfully and checks its real entry with implementation bodies absent. The reduced public-return case passes, while private constructor import, private type annotation and a wrong field carrier are all refused.",
@@ -60,8 +65,8 @@
       "state": "passed"
     },
     {
-      "title": "Final-source verification and repairs",
-      "detail": "Candidate25: all 207 runners compiled; 5 of 208 target groups passed, 3 running, 0 failed. It uses the exact frozen source of the fresh full stage chain. Three shared workers execute every group; runtime, tooling and syntax checks are separately queued.",
+      "title": "Complete test sweep and repair verification",
+      "detail": "The frozen-source test sweep has 130 of 208 groups passed, 1 failed and 3 running. Runtime, tooling and syntax gates pass. The sweep is handing two workers to targeted repair checks after their current tests finish. These results precede the latest fixity and Rust name-resolution repairs.",
       "state": "running"
     },
     {
@@ -85,8 +90,8 @@
       "state": "passed"
     },
     {
-      "title": "36 tooling checks passed",
-      "detail": "The staged-build driver checks pass with the new interface-producing compiler mode. The final combined stage/interface fixed point remains open.",
+      "title": "Fresh auxiliary checks passed",
+      "detail": "The frozen-source run passes runtime checks, all 41 tooling checks, and all 39 syntax tests with none skipped. Final-source full-suite verification remains open.",
       "state": "passed"
     },
     {
@@ -122,19 +127,24 @@
   ],
   "blockers": [
     {
-      "title": "Preserve defining fixities through interface reexports",
-      "detail": "Direct imports work and importers correctly cannot redeclare fixities, but a reexport loses the original precedence. The Rust control preserves it. The Cinch repair now retains the same exported facts used by the parser, including renamed operators, without adding source declarations.",
-      "technical": "Actual self-built compiler reproduction: direct and prefix controls pass; infix use through B fails. Both identical and changed importer declarations remain refused. The complete writer/resolver/parser/fixity validation is running on a fresh repair snapshot; the older sweep and stage chain do not prove this new change."
+      "title": "Carry operator precedence through separate compilation",
+      "detail": "The first fixity repair passes its focused checks. The extended case, where a separately compiled module forwards an imported operator, still needs validation through the real Cinch-built compiler.",
+      "technical": "First repair source SHA256 5e8484ccfe7be2782134269a17d250df5d82c92f3aa6d1a151f97d5c07e7814f. Only defining modules may declare fixities; reexports carry admitted metadata."
     },
     {
-      "title": "Finish the fresh combined compiler/interface fixed point",
-      "detail": "The fresh published-source Stage1 builds and passes all three smokes; Stage2 is running. Its compiler/interface results remain scoped to that snapshot. After the fixity repair passes, a matching current-source stage chain is still required.",
-      "technical": "Frozen source 6c6644d69b3b32aa04992f6793de634278c07fe717bce59d1d0dc05d24cd3b69; compiler source 3bebaa8120734fda92b0cde338debabdb160a9ebd58bf1f22c2a0c3fe96cfe63. No Native fallback for compiler implementation code after Stage1."
+      "title": "Verify the Rust type-name repair",
+      "detail": "The full sweep found four compression-library failures: a local data type named Bits was mistaken for an imported class of the same name. A repair and regression case are prepared; their targeted checks are queued.",
+      "technical": "The original lib_zlib failure remains recorded. A passing repair run must be established independently before this blocker can close."
     },
     {
-      "title": "Finish all tests on the final source",
-      "detail": "The current sweep is verifying the published private-layout repair. It predates the newly discovered reexport-fixity change. Completed groups and auxiliary gates remain recorded; the tested new source must receive matching final coverage.",
-      "technical": "All 713 execution inputs checked against the published tree match this snapshot. Later progress/evidence/prose updates are excluded from that code audit. Three shared test slots plus the stage probe and the separate syntax worker stay within the five-heavy-job limit."
+      "title": "Finish the compiler/interface fixed point",
+      "detail": "Fresh Stage0, Stage1, Stage2 and Stage3 build and pass their smoke checks. Stage2 and Stage3 executables match. The combined interface and changed-source gates are still running on that frozen source; the two later repairs need a matching new chain.",
+      "technical": "Frozen source 6c6644d69b3b32aa04992f6793de634278c07fe717bce59d1d0dc05d24cd3b69. Compiler implementation code is built by Cinch after Stage1."
+    },
+    {
+      "title": "Get the complete final-source suite green",
+      "detail": "The current frozen-source sweep has 130 passing groups and one known failing group out of 208. It predates the latest two repairs. The finished compiler must pass the complete suite on matching source.",
+      "technical": "The run uses bounded shared workers; handing off slots waits for active checks to finish. Completed and failed historical results are preserved."
     }
   ],
   "milestones": [
