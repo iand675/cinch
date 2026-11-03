@@ -1,0 +1,51 @@
+//! Interface types are printed by Cinch and consumed as source by Native.
+mod common;
+#[test]
+fn checked_schemes_have_portable_definition_owned_syntax() {
+    let dir = common::project("export_types", &[
+        ("Bootstrap.ExportType.cinch", include_str!("../../bootstrap/Bootstrap.ExportType.cinch")),
+        ("Bootstrap.Type.cinch", include_str!("../../bootstrap/Bootstrap.Type.cinch")),
+        ("Bootstrap.Nominal.cinch", include_str!("../../bootstrap/Bootstrap.Nominal.cinch")),
+        ("Bootstrap.Ast.cinch", include_str!("../../bootstrap/Bootstrap.Ast.cinch")),
+        ("Bootstrap.Report.cinch", include_str!("../../bootstrap/Bootstrap.Report.cinch")),
+        ("Main.cinch", include_str!("../../bootstrap/programs/Run.ExportType.cinch")),
+    ]);
+    let exe = common::build(&dir, "Main.cinch", "export-types").expect("compile actual Cinch type exporter");
+    let run = std::process::Command::new(&exe).current_dir(&dir).output().unwrap();
+    assert_eq!(run.status.code(), Some(0), "{}", String::from_utf8_lossy(&run.stderr));
+    let report = common::read_output(&dir, "export-types.txt");
+    for line in report.lines() {
+        let (name, scheme) = line.split_once('\t').expect("named type export");
+        let body = match name {
+            "nat" | "polymorphic" | "dependent" | "refinement" | "nominal" => "probe x = x",
+            "region" => "probe u = 0",
+            "source-identity" => { assert_eq!(scheme, "A.Token"); continue; }
+            "alpha-stable" => { assert_eq!(scheme, "yes"); continue; }
+            "unsolved" | "escaped" | "malformed-identity" | "independent-row-tails" => {
+                assert!(scheme.starts_with("ERROR:"), "{name}: {scheme}"); continue;
+            }
+            _ => panic!("unexpected exporter result {line}"),
+        };
+        assert!(!scheme.starts_with("ERROR:"), "{name}: {scheme}");
+        if name == "region" {
+            // Region kind annotations are part of resolved interface syntax.
+            // Compare with Native's own checked interface production rather
+            // than interpreting that internal spelling as a source kind.
+            let (_, interfaces) = cinch::driver::check_sources_ifaces(
+                "module Main where\n  probe :: forall {q0}. using (d0 :: Io q0) => Unit ->{IO q0} Int\n  probe u = 0\n  main :: Int\n  main = 0\n",
+                "native-region-interface-oracle.cinch",
+            ).unwrap();
+            let main = interfaces.iter().find(|i| i.module == "Main").unwrap();
+            let reference = main.exports.values.iter().find(|v| v.name == "probe").unwrap()
+                .resolved.as_ref().unwrap();
+            let compact = |s: &str| s.chars().filter(|c| !c.is_whitespace()).collect::<String>();
+            assert_eq!(compact(scheme), compact(&reference.scheme), "region interface contract");
+            continue;
+        }
+        let source = format!("module A where\n  data Token where\n    Token :: Token\nmodule Main where\n  import A\n  probe :: {scheme}\n  {body}\n  main :: Int\n  main = 0\n");
+        let checked = cinch::driver::check_sources(&source, "cinch-exported-type.cinch");
+        assert!(checked.is_ok(), "Native readback {name}: {scheme}\n{checked:?}\nProject: {}", dir.display());
+    }
+    assert_eq!(report.lines().count(), 12, "{report}");
+    common::cleanup(&dir);
+}

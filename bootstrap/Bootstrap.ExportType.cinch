@@ -1,0 +1,192 @@
+-- Portable interface syntax comes from checked types, never diagnostic text.
+-- Unsolved identities and unrepresentable rows are explicit export refusals.
+module Bootstrap.ExportType where
+  import Algebra.Semigroup
+  import Bootstrap.Type
+  import Bootstrap.Index
+  import Bootstrap.Total (total-identity)
+  import Data.Char (char-from-code)
+  import Data.String
+  import Text.Show (nat-to-string, int-to-string)
+
+  export export-global, export-type, export-scheme, export-kind
+
+  join :: List (Result String String) -> Result String String
+  join parts = case parts of
+    Nil -> Ok ""
+    Cons (Err error) rest -> Err error
+    Cons (Ok first) rest -> case join rest of Err error -> Err error; Ok more -> Ok (string-concat first more)
+  same :: String -> String -> Bool
+  same a b = string-compare a b == 0
+  decode :: List Char -> Nat -> Bool -> List Char -> Result String String
+  decode input number digits reversed = case input of
+    Nil -> if digits then Err "unterminated encoded defining identity" else Ok (pack (reverse reversed))
+    Cons c rest -> let code = char-code c in
+      if code == 95 then
+        (if not digits then Err "empty encoded identity scalar" else case char-from-code number of
+          None -> Err "invalid encoded identity scalar"
+          Some scalar -> decode rest 0 False (Cons scalar reversed))
+      else if code >= 48 && code <= 57 then decode rest (number * 10 + (code - 48)) True reversed
+      else Err "invalid encoded defining identity"
+  split-owner :: List Char -> List Char -> Result String (String, String)
+  split-owner input prefix = case input of
+    Nil -> Err "source defining identity has no member"
+    Cons c rest -> if char-code c == 46 then
+      (case (decode (reverse prefix) 0 False Nil, decode rest 0 False Nil) of
+        (Ok owner, Ok member) -> if string-length owner > 0 && string-length member > 0 then Ok (owner, member) else Err "empty source defining identity"
+        (Err error, other) -> Err error
+        (other, Err error) -> Err error)
+      else split-owner rest (Cons c prefix)
+  export-global :: String -> Result String String
+  export-global name = case unpack name of
+    Cons prefix (Cons dot rest) -> if char-code dot == 46 && char-code prefix == 105 then
+      (case decode rest 0 False Nil of Ok value -> if string-length value > 0 then Ok value else Err "empty imported defining identity"; Err error -> Err error)
+      else if char-code dot == 46 && char-code prefix == 109 then
+        (case split-owner rest Nil of Err error -> Err error; Ok (owner, member) -> Ok (string-concat-all [owner, ".", member]))
+      else if same name "b.Io" then Ok "Io" else if same name "b.Dec" then Ok "Dec"
+      else if char-code dot == 46 && char-code prefix == 98 then Err "unported kernel defining identity" else Ok name
+    other -> Ok name
+
+  local :: Nat -> List (Nat, String) -> Result String String
+  local id scope = case scope of
+    Nil -> Err "interface type contains an unbound local identity"
+    Cons (key, name) rest -> if id == key then Ok name else local id rest
+  fresh-name :: String -> Nat -> String
+  fresh-name prefix id = string-concat prefix (nat-to-string id)
+  kind-in :: List (Nat, String) -> Kind -> Result String String
+  kind-in scope kind = case kind of
+    KType -> Ok "Type"
+    KProp -> Ok "Prop"
+    KRegion -> Ok "Region"
+    KEffect -> Ok "Effect"
+    KRow -> Ok "Row"
+    KFun a b -> join [Ok "(", kind-in scope a, Ok " -> ", kind-in scope b, Ok ")"]
+    KValue value -> case value-carrier kind of Some carrier -> type-in scope carrier; None -> Err "invalid checked value kind"
+  export-kind :: Kind -> Result String String
+  export-kind kind = kind-in Nil kind
+  index-in :: List (Nat, String) -> IndexTerm -> Result String String
+  index-in scope index = case index of
+    IInteger n -> Ok (int-to-string n)
+    IBound id name -> local id scope
+    IRigid id name level -> local id scope
+    IGlobal name -> export-global name
+    IApply f x -> join [Ok "(", index-in scope f, Ok " ", index-in scope x, Ok ")"]
+    IAdd a b -> join [Ok "(", index-in scope a, Ok " + ", index-in scope b, Ok ")"]
+    ISubtract a b -> join [Ok "(", index-in scope a, Ok " - ", index-in scope b, Ok ")"]
+    IMultiply a b -> join [Ok "(", index-in scope a, Ok " * ", index-in scope b, Ok ")"]
+    other -> Err "interface index has no portable checked representation"
+  separated :: List (Nat, String) -> String -> UType -> Result String String
+  separated scope delimiter spine = case spine of
+    UEnd -> Ok ""
+    UArg first UEnd -> type-in scope first
+    UArg first rest -> join [type-in scope first, Ok delimiter, separated scope delimiter rest]
+    other -> Err "malformed checked interface spine"
+  row-parts :: List (Nat, String) -> UType -> Result String (List String, List String)
+  row-parts scope row = case row of
+    URow labels -> row-labels scope labels
+    URowJoin first second -> (case (row-parts scope first, row-parts scope second) of
+      (Ok (a, x), Ok (b, y)) -> Ok (a <> b, x <> y)
+      (Err error, other) -> Err error
+      (other, Err error) -> Err error)
+    UBound id name KRow -> (case local id scope of Ok value -> Ok (Nil, [value]); Err error -> Err error)
+    URigid id name level KRow -> (case local id scope of Ok value -> Ok (Nil, [value]); Err error -> Err error)
+    other -> Err "unresolved or malformed exported effect row"
+  application-in :: List (Nat, String) -> UType -> Result String String
+  application-in scope ty = case ty of
+    UApp f x -> join [application-in scope f, Ok " ", type-in scope x]
+    other -> type-in scope ty
+  row-labels :: List (Nat, String) -> UType -> Result String (List String, List String)
+  row-labels scope labels = case labels of
+    UEnd -> Ok (Nil, Nil)
+    UArg first rest -> (case (application-in scope first, row-labels scope rest) of
+      (Ok value, Ok (more, tails)) -> Ok (Cons value more, tails)
+      (Err error, other) -> Err error
+      (other, Err error) -> Err error)
+    other -> row-parts scope labels
+  has :: String -> List String -> Bool
+  has value values = case values of Nil -> False; Cons first rest -> same value first || has value rest
+  unique :: List String -> List String -> List String
+  unique values seen = case values of Nil -> reverse seen; Cons first rest -> unique rest (if has first seen then seen else Cons first seen)
+  strings :: String -> List String -> String
+  strings delimiter values = case values of Nil -> ""; Cons first Nil -> first; Cons first rest -> string-concat-all [first, delimiter, strings delimiter rest]
+  row-in :: List (Nat, String) -> UType -> Result String String
+  row-in scope row = case row-parts scope row of
+    Err error -> Err error
+    Ok (labels, tails) -> let body = strings ", " (unique labels Nil) in
+      case unique tails Nil of
+        Nil -> Ok (if string-length body == 0 then "" else string-concat-all ["{", body, "}"])
+        Cons tail Nil -> Ok (string-concat-all ["{", body, " | ", tail, "}"])
+        other -> Err "exported effect row has independent unresolved tails"
+  type-in :: List (Nat, String) -> UType -> Result String String
+  type-in scope ty = case ty of
+    UCon name kind -> export-global name
+    UBound id name kind -> local id scope
+    URigid id name level kind -> local id scope
+    UIndex carrier index -> index-in scope index
+    UIndexForget value -> type-in scope value
+    UIndexPromote value -> type-in scope value
+    UIndexByteLength value -> join [Ok "(b.bytesLen ", type-in scope value, Ok ")"]
+    UIndexCall function args -> join [Ok "(", export-global (total-identity function), Ok " ", separated scope " " args, Ok ")"]
+    UIndexMath op a b -> join [Ok "(", type-in scope a, Ok (string-concat-all [" ", op, " "]), type-in scope b, Ok ")"]
+    UPropLit value -> Ok (if value then "True" else "False")
+    UCompare relation a b -> join [Ok "(", type-in scope a, Ok (string-concat-all [" ", relation, " "]), type-in scope b, Ok ")"]
+    UPropAnd a b -> join [Ok "(", type-in scope a, Ok " && ", type-in scope b, Ok ")"]
+    UPropOr a b -> join [Ok "(", type-in scope a, Ok " || ", type-in scope b, Ok ")"]
+    UPropNot value -> join [Ok "(Not ", type-in scope value, Ok ")"]
+    UPropNonZero value -> join [Ok "(NonZero ", type-in scope value, Ok ")"]
+    URequire predicates body -> Err "nested function preconditions have no portable interface syntax"
+    URefine id name carrier predicate -> join [Ok "(refined (", type-in (Cons (id, "cinch-result") scope) predicate, Ok ") ", type-in scope carrier, Ok ")"]
+    UPi id name domain row result -> let binder = fresh-name "p" (list-length scope) in let bound = Cons (id, binder) scope in
+      join [Ok "((", Ok binder, Ok " :: ", type-in scope domain, Ok ") ->", row-in bound row, Ok " ", type-in bound result, Ok ")"]
+    UApp f x -> join [Ok "(", type-in scope f, Ok " ", type-in scope x, Ok ")"]
+    UFun a b -> join [Ok "(", type-in scope a, Ok " -> ", type-in scope b, Ok ")"]
+    UFunEff a row b -> join [Ok "(", type-in scope a, Ok " ->", row-in scope row, Ok " ", type-in scope b, Ok ")"]
+    UTuple fields -> join [Ok "(", separated scope ", " fields, Ok ")"]
+    other -> Err "checked type has no portable interface representation"
+  export-type :: UType -> Result String String
+  export-type ty = type-in Nil ty
+  quantifiers :: List (Nat, String) -> List Quant -> Result String (String, List (Nat, String))
+  quantifiers scope quants = case quants of
+    Nil -> Ok ("", scope)
+    Cons q rest -> let name = fresh-name "q" (list-length scope) in
+      (case (kind-in scope (quant-kind q), quantifiers (Cons (quant-id q, name) scope) rest) of
+        (Ok kind, Ok (more, bound)) -> Ok (string-concat-all [if quant-implicit q then "{" else "(", name, " :: ", kind, if quant-implicit q then "} " else ") ", more], bound)
+        (Err error, other) -> Err error
+        (other, Err error) -> Err error)
+  requirements :: List (Nat, String) -> Nat -> List Requirement -> Result String String
+  requirements scope position needs = case needs of
+    Nil -> Ok ""
+    Cons first rest -> join [Ok (fresh-name "d" position), Ok " :: ", application-in scope (requirement-type first),
+      case rest of Nil -> Ok ""; more -> join [Ok ", ", requirements scope (position + 1) more]]
+  with-result :: List (Result String String) -> Result String (String, List String) -> Result String (String, List String)
+  with-result prefix result = case result of
+    Err error -> Err error
+    Ok (body, predicates) -> case join (prefix <> [Ok body, Ok ")"]) of Err error -> Err error; Ok value -> Ok (value, predicates)
+  -- Source contracts sink their proof context under computational binders.
+  -- Portable syntax places it at signature scope, where the named Pi
+  -- arguments still identify the exact variables used by each obligation.
+  scheme-result :: List (Nat, String) -> UType -> Result String (String, List String)
+  scheme-result scope ty = case ty of
+    UPi id name domain row result -> let binder = fresh-name "p" (list-length scope) in let bound = Cons (id, binder) scope in
+      with-result [Ok "((", Ok binder, Ok " :: ", type-in scope domain, Ok ") ->", row-in bound row, Ok " "] (scheme-result bound result)
+    UFun domain result -> with-result [Ok "(", type-in scope domain, Ok " -> "] (scheme-result scope result)
+    UFunEff domain row result -> with-result [Ok "(", type-in scope domain, Ok " ->", row-in scope row, Ok " "] (scheme-result scope result)
+    URequire predicates body -> case body of
+      UPi id name a row b -> Err "early dependent precondition cannot be moved across an argument"
+      UFun a b -> Err "early precondition cannot be moved across an argument"
+      UFunEff a row b -> Err "early effectful precondition cannot be moved across an argument"
+      other -> (case (separated scope ", " predicates, scheme-result scope body) of
+        (Ok conditions, Ok (value, rest)) -> Ok (value, Cons conditions rest)
+        (Err error, other) -> Err error
+        (other, Err error) -> Err error)
+    other -> case type-in scope ty of Err error -> Err error; Ok value -> Ok (value, Nil)
+  export-scheme :: Scheme -> Result String String
+  export-scheme scheme = case quantifiers Nil (scheme-params scheme) of
+    Err error -> Err error
+    Ok (prefix, scope) -> case (requirements scope 0 (scheme-requirements scheme), scheme-result scope (scheme-body scheme)) of
+      (Err error, other) -> Err error
+      (other, Err error) -> Err error
+      (Ok dictionaries, Ok (body, predicates)) ->
+        let contexts = (if string-length dictionaries == 0 then Nil else [dictionaries]) <> predicates in
+        let constrained = case contexts of Nil -> Ok body; more -> join [Ok "using (", Ok (strings ", " more), Ok ") => ", Ok body] in
+        if string-length prefix == 0 then constrained else join [Ok "forall ", Ok prefix, Ok ". ", constrained]

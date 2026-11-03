@@ -1,0 +1,70 @@
+{
+  "status": "passed",
+  "scope": "Portable checked scheme printing, not complete interface production",
+  "native": {
+    "exit_code": 0,
+    "source_sha256": "a9d769881194fc042723b7413f5ad48d28bdf8a15f6103d98bdecd5e4df50594",
+    "source_unchanged": true,
+    "status": "passed"
+  },
+  "self_built_stage3": [
+    {
+      "exit_code": 0,
+      "name": "emit",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "name": "link",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "name": "run",
+      "status": "passed"
+    }
+  ],
+  "native_readback": [
+    {
+      "exit_code": 0,
+      "name": "nat",
+      "scheme": "(Nat -> Nat)",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "name": "polymorphic",
+      "scheme": "forall (q0 :: Type) . (q0 -> q0)",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "name": "dependent",
+      "scheme": "using ((p0 <= 5)) => ((p0 :: Nat) -> Nat)",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "name": "refinement",
+      "scheme": "((p0 :: Nat) -> (refined ((cinch-result >= p0)) Nat))",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "name": "nominal",
+      "scheme": "(A.Token -> A.Token)",
+      "status": "passed"
+    }
+  ],
+  "checks": [
+    "12 named report rows",
+    "canonical alpha-renaming independent of inference IDs",
+    "region and effect contract compared with Native own resolved interface production",
+    "private defining nominal identity preserved",
+    "unresolved and escaped identities refused",
+    "independent unresolved effect tails refused"
+  ],
+  "exporter_sha256": "70f63d810d322e21ddb48ce5ae58f50c0ff1f67001daddd6a4c47e4d4d44d12a",
+  "complete_interface_writer": false,
+  "compiler_bootstrap_complete": false
+}

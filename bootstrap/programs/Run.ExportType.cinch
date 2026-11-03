@@ -1,0 +1,38 @@
+module Main where
+  import Algebra.Semigroup
+  import Bootstrap.ExportType
+  import Bootstrap.Type
+  import Bootstrap.Index
+  import Bootstrap.Nominal (interface-global)
+  import Effect.Fs (fs-write)
+  import Data.Path (path-from-string)
+  import Data.String
+
+  nat :: UType
+  nat = UCon "Nat" KType
+  unit :: UType
+  unit = UCon "Unit" KType
+  empty :: UType
+  empty = URow UEnd
+  variable :: Nat -> String -> UType
+  variable id name = UIndex nat (IBound id name)
+  row :: String -> Result String String -> String
+  row name value = let message = (case value of Ok text -> text; Err error -> string-concat "ERROR:" error) in string-concat-all [name, "\t", message, "\n"]
+  report :: String
+  report =
+    row "nat" (export-scheme (mono (UFun nat nat))) <>
+    row "polymorphic" (export-scheme (MkScheme [MkQuant 7 "a" KType False] (UFun (UBound 7 "a" KType) (UBound 7 "a" KType)))) <>
+    row "region" (export-scheme (MkQualifiedScheme [MkQuant 8 "r" KRegion True] [MkRequirement "io" (UApp (UCon "b.Io" (KFun KRegion KType)) (UBound 8 "r" KRegion))] (UFunEff unit (URow (UArg (UApp (UCon "IO" (KFun KRegion KEffect)) (UBound 8 "r" KRegion)) UEnd)) (UCon "Int" KType)))) <>
+    row "dependent" (export-scheme (mono (UPi 4 "n" nat empty (URequire (UArg (UCompare "<=" (variable 4 "n") (UIndex nat (IInteger 5))) UEnd) nat)))) <>
+    row "refinement" (export-scheme (mono (UPi 4 "n" nat empty (URefine 9 "out" nat (UCompare ">=" (variable 9 "out") (variable 4 "n")))))) <>
+    row "nominal" (export-scheme (mono (UFun (UCon (interface-global "A.Token") KType) (UCon (interface-global "A.Token") KType)))) <>
+    row "alpha-stable" (case (export-scheme (MkScheme [MkQuant 7 "a" KType False] (UFun (UBound 7 "a" KType) (UBound 7 "a" KType))), export-scheme (MkScheme [MkQuant 997 "renamed" KType False] (UFun (UBound 997 "renamed" KType) (UBound 997 "renamed" KType)))) of
+      (Ok first, Ok second) -> if string-compare first second == 0 then Ok "yes" else Err "inference identities changed the exported contract"
+      other -> Err "valid alpha-renamed scheme was refused") <>
+    row "source-identity" (export-global "m.65_.84_111_107_101_110_") <>
+    row "unsolved" (export-scheme (mono (UMeta 7 KType))) <>
+    row "escaped" (export-scheme (mono (URigid 3 "escaped" 1 KType))) <>
+    row "malformed-identity" (export-global "m.65_.not_encoded") <>
+    row "independent-row-tails" (export-scheme (MkScheme [MkQuant 1 "e" KRow False, MkQuant 2 "f" KRow False] (UFunEff unit (URowJoin (UBound 1 "e" KRow) (UBound 2 "f" KRow)) unit)))
+  main :: Unit ->{IO r} Int
+  main u = with (io = newIO ()) in case fs-write (path-from-string "export-types.txt") (string-to-bytes report) of Ok done -> 0; Err error -> 1

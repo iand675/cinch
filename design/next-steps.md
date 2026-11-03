@@ -37,6 +37,18 @@ The [progress dashboard](https://cinch-bootstrap-status.ian92821.chatgpt.site)
 reads the committed [status checkpoint](../bootstrap/progress.json). Update it
 when stages, blockers or verified results materially change.
 
+## Checked interface type printing
+
+`Bootstrap.ExportType` now prints portable checked schemes with definition-owned
+nominal identities and canonical binder names. The actual self-built Stage3
+compiles and runs its exporter. Independent Native readback accepts the ordinary,
+polymorphic, dependent, refined and nominal examples; the region/effect example
+matches Native's own resolved interface production. Unsolved, escaped and malformed
+identities and independent unresolved effect tails are refused. All12 report rows
+pass the focused Native regression. This is a prerequisite, not complete interface
+production; the full writer remains under development. See
+[checked type export evidence](../bootstrap/checked-type-export-results.json).
+
 ## Earlier checkpoints
 
 The entries below retain the evidence and limitations of their named snapshots;
