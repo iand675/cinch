@@ -57,10 +57,11 @@ module Bootstrap.Export where
   value-row typed interfaces name symbol binding =
     if same (checked-role binding) "function" || same (checked-role binding) "value" then
       let scheme = checked-scheme binding in
+      let arity = scheme-runtime-arity scheme + list-length (scheme-requirements scheme) in
       case (export-global symbol, resolved-scheme typed interfaces scheme) of
         (Ok identity, Ok resolved) -> Ok (JObj "name" (JStr name)
           (JObj "symbol" (JStr identity) (JObj "scheme" (field "scheme" resolved)
-            (JObj "resolved" resolved (JObj "arity" (JNum (nat-to-int (scheme-runtime-arity scheme + list-length (scheme-requirements scheme))))
+            (JObj "resolved" resolved (JObj "arity" (JNum (nat-to-int arity))
               (JObj "total_body" JNull JObjEnd))))))
         (Err error, other) -> Err error
         (other, Err error) -> Err error

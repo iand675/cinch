@@ -2,7 +2,7 @@
 
 ## Current bootstrap result and remaining gates
 
-The Cinch compiler now builds a runnable Stage2 compiler, which builds Stage3
+Candidate23 builds a runnable Stage2 compiler, which builds Stage3
 with byte-for-byte identical LLVM IR and executable bytes. Both stages pass
 valid-program, precedence and invalid-source smoke checks. The self-built
 Stage2 also rebuilds modified compiler source, and that executable exhibits the
@@ -65,7 +65,7 @@ The compiler entry now imports every bundled module through a qualified alias.
 The pinned seed actually builds this complete43-module source closure and emits
 all43 compiler interfaces, including unused modules. The source identity in
 [writer evidence](../bootstrap/checked-interface-writer-results.json) matches this
-compiler checkpoint exactly. The source-only compiler still has to emit its own
+checked snapshot exactly. The source-only compiler still has to emit its own
 complete contracts; seed-produced contracts cannot substitute for that gate.
 
 The baseline full run exposed stale parser and pipeline test expectations. The

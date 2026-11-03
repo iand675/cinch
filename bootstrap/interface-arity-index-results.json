@@ -1,0 +1,16 @@
+{
+  "status": "reduced Stage3 discrepancy reproduced; explicit local passes",
+  "rows": [
+    {
+      "diagnostics": "bootstrap.check:8:22: argument call needs checked pure total reification or a checked observation contract\nbootstrap.check:8:22: ill-sorted, partial or unchecked typed source index\n",
+      "exit_code": 4,
+      "name": "direct"
+    },
+    {
+      "diagnostics": "",
+      "exit_code": 0,
+      "name": "bound"
+    }
+  ],
+  "scope": "Two actual Stage3 --check programs isolate direct opaque getter reification versus a strictly bound Nat value. Full writer retry remains pending."
+}
