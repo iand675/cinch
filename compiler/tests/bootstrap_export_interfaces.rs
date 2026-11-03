@@ -40,7 +40,11 @@ fn source_interfaces_preserve_private_nominals_and_defining_fixities() {
     assert_eq!(main.exports.values.iter().find(|v| v.name == "main").unwrap().symbol, "Main.main");
     assert_eq!(a.exports.fixities.len(), 1);
     assert_eq!(a.exports.fixities[0].op, "<+>");
-    assert!(b.exports.fixities.is_empty());
+    assert_eq!(b.exports.fixities.iter().map(|f| (f.op.as_str(), f.assoc.as_str(), f.prec)).collect::<Vec<_>>(),
+        [("<#>", "left", 6), ("<+>", "left", 6)]);
+    for name in ["<#>", "<+>"] {
+        assert_eq!(b.exports.values.iter().find(|v| v.name == name).unwrap().symbol, "A.<+>");
+    }
     assert_eq!(a.assumptions.primitives, ["cinch.runtime.textSha256"]);
     assert!(b.assumptions.primitives.is_empty());
     assert!(!a.exports.types.iter().any(|t| t.name == "Local"));

@@ -50,7 +50,7 @@ module Bootstrap.Parse where
   import Text.Show (nat-to-string, char-string)
   import Algebra.Semigroup
 
-  export parse-program, parse-program-with, parse-scheme
+  export parse-program, parse-program-with, parse-scheme, exported-fixities
 
   -- ------------------------------------------------------------------
   -- The parser result: a value with the unconsumed token stream, or a
@@ -430,6 +430,27 @@ module Bootstrap.Parse where
     Cons first rest -> case find-fix-module name headers of
       None -> fallback
       Some m -> private-module-fixes m headers (Cons name Nil)
+
+  -- Interface output uses the same defining facts as source parsing,
+  -- including selected/renamed reexports and prefix-only shadowing.
+  -- Ordinary export names need no traversal of the import fixity graph.
+  exported-fixities :: String -> List Module -> List String -> List (String, String, Nat)
+  exported-fixities name modules names = case exported-operators names of
+    Nil -> Nil
+    wanted -> exported-fixity-facts wanted (module-fixes name modules Nil)
+  exported-operators :: List String -> List String
+  exported-operators names = case names of
+    Nil -> Nil
+    Cons name rest -> if is-operator-name name then Cons name (exported-operators rest) else exported-operators rest
+  exported-fixity-facts :: List String -> List (String, Fix) -> List (String, String, Nat)
+  exported-fixity-facts names facts = case names of
+    Nil -> Nil
+    Cons name rest -> case find-fix name facts of
+      Some (MkFix association precedence) ->
+        if string-compare association "left" == 0 || string-compare association "right" == 0 || string-compare association "none" == 0 then
+          Cons (name, association, precedence) (exported-fixity-facts rest facts)
+        else exported-fixity-facts rest facts
+      None -> exported-fixity-facts rest facts
 
   duplicate-fixes :: Span -> List (String, Fix) -> List (String, Fix) -> List ParseError
   duplicate-fixes sp incoming seen = case incoming of

@@ -56,7 +56,8 @@ module Bootstrap.Export where
     (other, Err error) -> Err error
   value-row :: Elaboration -> List LoadedInterface -> String -> String -> CheckedBinding -> Result String Json
   value-row typed interfaces name symbol binding =
-    if same (checked-role binding) "operation" then operation-row name symbol binding
+    if imported-symbol symbol then imported-value-row interfaces name symbol
+    else if same (checked-role binding) "operation" then operation-row name symbol binding
     else if same (checked-role binding) "function" || same (checked-role binding) "value" || same (checked-role binding) "intrinsic" || same (checked-role binding) "instance" || same (checked-role binding) "implicit-instance" then
       let scheme = checked-scheme binding in
       let arity = scheme-runtime-arity scheme + list-length (scheme-requirements scheme) in
@@ -68,6 +69,23 @@ module Bootstrap.Export where
         (Err error, other) -> Err error
         (other, Err error) -> Err error
     else Err (string-concat "unsupported checked value export category: " (checked-role binding))
+  imported-symbol :: String -> Bool
+  imported-symbol symbol = case unpack symbol of
+    Cons prefix (Cons dot rest) -> char-code prefix == 105 && char-code dot == 46
+    other -> False
+  imported-value :: String -> List LoadedInterface -> Option Json
+  imported-value identity interfaces = case interfaces of
+    Nil -> None
+    Cons first rest -> case loaded-entry first "value" identity of Some row -> Some row; None -> imported-value identity rest
+  -- An admitted imported value already has its defining scheme, arity and
+  -- optional executable/measure contracts. Rename its public spelling only;
+  -- reprinting a display scheme would discard those defining facts.
+  imported-value-row :: List LoadedInterface -> String -> String -> Result String Json
+  imported-value-row interfaces name symbol = case export-global symbol of
+    Err error -> Err error
+    Ok identity -> case imported-value identity interfaces of
+      Some row -> Ok (set-field "name" (JStr name) row)
+      None -> Err (string-concat "imported value has no admitted defining export: " identity)
   -- Schema8 keeps checked display schemes even when a richer declaration has
   -- no portable resolved contract. An operation needs its defining effect and
   -- handler table before it can be called through an interface alone; null

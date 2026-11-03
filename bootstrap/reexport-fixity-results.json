@@ -1,0 +1,130 @@
+{
+  "schema": 1,
+  "status": "passed",
+  "scope": "Actual self-built compiler and seven CLI behavior checks; first complete writer/parser/resolver/fixity run and expanded writer/parser run pass. The expanded resolver run, final full suite and matching complete stage chain are still running or queued.",
+  "before": [
+    {
+      "diagnostic": "",
+      "exit_code": 0,
+      "name": "direct"
+    },
+    {
+      "diagnostic": "bootstrap.resolve:4:3: this declaration requires further namespace elaboration\n",
+      "exit_code": 4,
+      "name": "reexport"
+    },
+    {
+      "diagnostic": "",
+      "exit_code": 0,
+      "name": "prefix"
+    },
+    {
+      "diagnostic": "/tmp/cinch-fixity-reexport-self-probe-2/identical-redeclaration.cinch:3:3:\nonly the module declaring operator `<?>` may declare its fixity; an importer must inherit it\n",
+      "exit_code": 3,
+      "name": "identical-redeclaration"
+    },
+    {
+      "diagnostic": "/tmp/cinch-fixity-reexport-self-probe-2/changed-redeclaration.cinch:3:3:\nonly the module declaring operator `<?>` may declare its fixity; an importer must inherit it\n",
+      "exit_code": 3,
+      "name": "changed-redeclaration"
+    }
+  ],
+  "after": {
+    "compiler_sha256": "3211512dde1d3779d31d2e61cae76eb16b27825db1a2e14a26ffb16622c7efb5",
+    "rows": [
+      {
+        "exit_code": 0,
+        "expected": 0,
+        "name": "produce",
+        "status": "passed"
+      },
+      {
+        "exit_code": 0,
+        "expected": 0,
+        "name": "separate-facade",
+        "status": "passed"
+      },
+      {
+        "exit_code": 0,
+        "expected": 0,
+        "name": "direct",
+        "status": "passed"
+      },
+      {
+        "exit_code": 0,
+        "expected": 0,
+        "name": "renamed-reexport",
+        "status": "passed"
+      },
+      {
+        "exit_code": 0,
+        "expected": 0,
+        "name": "separate-renamed",
+        "status": "passed"
+      },
+      {
+        "exit_code": 3,
+        "expected": 3,
+        "name": "identical-redeclaration",
+        "status": "passed"
+      },
+      {
+        "exit_code": 3,
+        "expected": 3,
+        "name": "changed-redeclaration",
+        "status": "passed"
+      }
+    ],
+    "scope": "Actual repaired Cinch-built compiler emits source reexports and a separately compiled renamed facade; original checked value metadata is preserved exactly except public spelling. All clients inherit defining precedence, and identical or changed importer declarations are refused.",
+    "source_sha256": "439756ad1fe8588652406903c3da7d53dfa8690cffd90259a024280283f74381",
+    "status": "passed"
+  },
+  "actual_compiler_build": {
+    "compiler_sha256": "3211512dde1d3779d31d2e61cae76eb16b27825db1a2e14a26ffb16622c7efb5",
+    "compiler_source_sha256": "e85a5d0ad1875429759da1619b9c60cf86c72e5d6213f1d3dac2430ebd9fd9dd",
+    "rows": [
+      {
+        "exit_code": 0,
+        "expected": 0,
+        "name": "emit",
+        "status": "passed"
+      },
+      {
+        "exit_code": 0,
+        "expected": 0,
+        "name": "link",
+        "status": "passed"
+      },
+      {
+        "exit_code": 1,
+        "expected": 1,
+        "name": "startup",
+        "status": "passed"
+      }
+    ],
+    "scope": "Actual self-built Stage3 compiles current repair source and emits all checked interfaces, links and starts; separate behavioral and fixed-point gates remain",
+    "source_sha256": "439756ad1fe8588652406903c3da7d53dfa8690cffd90259a024280283f74381",
+    "source_unchanged": true,
+    "status": "passed"
+  },
+  "first_focused_validation": {
+    "exit_code": 0,
+    "source_sha256": "5e8484ccfe7be2782134269a17d250df5d82c92f3aa6d1a151f97d5c07e7814f",
+    "source_unchanged": true,
+    "status": "passed"
+  },
+  "expanded_native_writer_and_parser": "passed; expanded resolver still running at checkpoint",
+  "independent_contract_validation": "A/B/Facade schema, ABI5 and exact dependency chain pass",
+  "files": {
+    "bootstrap/Bootstrap.Parse.cinch": "c9cb574264e6efecb967692cc81ba9a62cb17d77658da62ca97ae2df53626460",
+    "bootstrap/Bootstrap.Resolve.cinch": "11f3fff68bda22b9bb2459c2dd8d7b4c60d0af528d25c52c57ab72dd441d7e79",
+    "bootstrap/Bootstrap.Export.cinch": "fd4f504213dd1faba647fca222cd8da19fbe7ec3dd4852596911915d42d4db88",
+    "bootstrap/programs/Run.ExportInterfaces.cinch": "e0a63593bf302b669c32fbccc9944f73f5d532cad2d07e7aa3c675afaa098a6b",
+    "compiler/tests/bootstrap_export_interfaces.rs": "3de16eb55007b3f6099300d51383d733bf04e09d008a77ea3480751d54be665f"
+  },
+  "contracts": {
+    "A": "7cdd6f8ca5dea2db1ba8f8882091e697bc46f15d4695a3ccd3833e2b2ccadf87",
+    "B": "4d3489f0302a62aa807bb1920d66adee0fdfdffb96b20b851c6290559ab69c3a",
+    "Facade": "bb77a5b2348c5aec957e5dec096fc60fdab9c5d6b51c08bdb6cd9a3a4436c443"
+  }
+}

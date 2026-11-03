@@ -1,4 +1,5 @@
 module Main where
+  import Algebra.Semigroup
   import Bootstrap.Parse (parse-program, parse-program-with)
   import Bootstrap.Resolve (resolve-program, resolve-program-with)
   import Bootstrap.Contracts (interface-headers)
@@ -14,7 +15,7 @@ module Main where
   import Text.Parse (ParseOutcome, Parsed, Failed, render-bundle)
 
   source :: String
-  source = "module A where\n  export Token, wrap, unwrap, (<+>), Parcel, Empty, Loaded, Give, give, wait, signal, ParcelWithPrivate, PublicParcel, make-parcel\n  signature Give a where\n    give :: a -> a\n  implicit instance GiveNat :: Give Nat where\n    give n = n\n  effect Notice where\n    signal :: Nat ->{Notice} Nat\n  effect Local where\n    local-op :: Nat ->{Local} Nat\n  foreign import ccall \"cinch.runtime.textSha256\" private-digest :: Bytes -> Bytes\n  data PrivateField where\n    PrivateFieldValue :: Nat -> PrivateField\n  data ParcelWithPrivate where\n    PublicParcel :: PrivateField -> ParcelWithPrivate\n  make-parcel :: Nat -> ParcelWithPrivate\n  make-parcel n = PublicParcel (PrivateFieldValue n)\n  data Token where\n    Hidden :: Nat -> Token\n  data Parcel a where\n    Empty :: Parcel a\n    Loaded :: a -> Parcel a\n  infixr 4 <^>\n  (<^>) :: Nat -> Nat -> Nat\n  (<^>) a b = a\n  wait :: Unit ->{Diverge, Blocking} Int\n  wait u = 0\n  wrap :: Nat -> Token\n  wrap n = Hidden n\n  unwrap :: Token -> Nat\n  unwrap token = case token of Hidden n -> n\n  infixl 6 <+>\n  (<+>) :: Nat -> Nat -> Nat\n  (<+>) a b = a + b\nmodule B where\n  import A\n  export Token, wrap\nmodule Main where\n  import B\n  main :: Int\n  main = 0\n"
+  source = "module A where\n  export Token, wrap, unwrap, (<+>), Parcel, Empty, Loaded, Give, give, wait, signal, ParcelWithPrivate, PublicParcel, make-parcel\n  signature Give a where\n    give :: a -> a\n  implicit instance GiveNat :: Give Nat where\n    give n = n\n  effect Notice where\n    signal :: Nat ->{Notice} Nat\n  effect Local where\n    local-op :: Nat ->{Local} Nat\n  foreign import ccall \"cinch.runtime.textSha256\" private-digest :: Bytes -> Bytes\n  data PrivateField where\n    PrivateFieldValue :: Nat -> PrivateField\n  data ParcelWithPrivate where\n    PublicParcel :: PrivateField -> ParcelWithPrivate\n  make-parcel :: Nat -> ParcelWithPrivate\n  make-parcel n = PublicParcel (PrivateFieldValue n)\n  data Token where\n    Hidden :: Nat -> Token\n  data Parcel a where\n    Empty :: Parcel a\n    Loaded :: a -> Parcel a\n  infixr 4 <^>\n  (<^>) :: Nat -> Nat -> Nat\n  (<^>) a b = a\n  wait :: Unit ->{Diverge, Blocking} Int\n  wait u = 0\n  wrap :: Nat -> Token\n  wrap n = Hidden n\n  unwrap :: Token -> Nat\n  unwrap token = case token of Hidden n -> n\n  infixl 6 <+>\n  (<+>) :: Bool -> Int -> Bool\n  (<+>) a b = a\nmodule B where\n  import A\n  import A ((<+>) as (<#>))\n  export Token, wrap, (<+>), (<#>)\nmodule Main where\n  import B\n  main :: Int\n  main = 0\n"
   documents :: List (String, Json) -> String
   documents rows = case rows of Nil -> ""; Cons (name, doc) rest -> string-concat-all [canonical-json doc, "\n", documents rest]
   artifacts :: List (String, Json) -> Result String (List (String, String, Bytes))
@@ -48,7 +49,34 @@ module Main where
                 Err error -> Err error
                 Ok done -> case check-client interfaces "module PrivateFieldIntruder where\n  import A (PrivateFieldValue)\n  use :: Int\n  use = 0\n" of
                   Ok done -> Err "private field constructor became importable"
-                  Err hidden -> Ok ()
+                  Err hidden -> validate-fixity-clients interfaces rows
+  validate-fixity-clients :: List LoadedInterface -> List (String, Json) -> Result String Unit
+  validate-fixity-clients interfaces rows =
+    case check-client interfaces "module Inherited where\n  import B\n  use :: Bool\n  use = True <+> 1 + 2\nmodule Renamed where\n  import B\n  use :: Bool\n  use = True <#> 1 + 2\n" of
+      Err error -> Err error
+      Ok done -> case check-client interfaces "module Identical where\n  import B\n  infixl 6 <#>\n  use :: Int\n  use = 0\n" of
+        Ok done -> Err "an importer redeclared an identical inherited fixity"
+        Err identical -> case check-client interfaces "module Changed where\n  import B\n  infixr 8 <#>\n  use :: Int\n  use = 0\n" of
+          Ok done -> Err "an importer changed a renamed operator's defining fixity"
+          Err changed -> validate-separate-facade interfaces rows
+  validate-separate-facade :: List LoadedInterface -> List (String, Json) -> Result String Unit
+  validate-separate-facade interfaces rows =
+    let input = "module Facade where\n  import B ((<#>) as (<!>))\n  export (<!>)\n" in
+    let bytes = string-to-bytes input in
+    case parse-program-with "separate-facade" bytes (interface-headers interfaces) of
+      Parsed program Nil -> case resolve-program-with program interfaces of
+        (resolved, Nil) -> case check-and-retain resolved of
+          Err errors -> Err (render-diagnostics errors)
+          Ok checked -> case export-interfaces checked interfaces bytes of
+            Err error -> Err error
+            Ok facade -> case artifacts (facade <> rows) of
+              Err error -> Err error
+              Ok bytes -> case load-interface-set bytes of
+                Err error -> Err error
+                Ok imported -> check-client imported "module SeparateConsumer where\n  import Facade\n  use :: Bool\n  use = True <!> 1 + 2\n"
+        (resolved, errors) -> Err (render-diagnostics errors)
+      Failed bundle -> Err (render-bundle bundle)
+      other -> Err "recovering parse in separate facade"
   checked-export :: String -> Result String String
   checked-export input = case parse-program "export-fixture" (string-to-bytes input) of
     Failed bundle -> Err (render-bundle bundle)

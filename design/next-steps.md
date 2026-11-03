@@ -80,6 +80,23 @@ The next full suite and fresh stage chain capture this repair together with the
 operator reexport and Rust class/data-name repairs. The two superseded waiting
 runners had no test or stage children; their earlier results remain recorded.
 
+## Definition-owned reexport fixities and imported value forwarding
+
+The actual self-built compiler now preserves defining fixities through ordinary
+and renamed reexports, including a facade compiled separately against checked
+interfaces. Resolve records the same exported fixity facts used by Parse.
+Interface production forwards an admitted imported value's complete defining row,
+changing only its public spelling, so schemes, symbols, arity, nominal and
+optional executable contracts survive separate compilation.
+
+The actual rebuilt compiler emits and starts successfully, then passes all seven
+CLI probes. Direct, renamed and separately compiled uses inherit precedence;
+identical and changed importer declarations are both refused. Independent schema,
+ABI and dependency-chain validation passes for the three actual artifacts.
+The initial complete writer/parser/resolver/fixity run passes, as do the expanded
+writer and parser tests. The expanded resolver, complete suite27 and matching
+fresh chain remain required. See [before/after evidence](../bootstrap/reexport-fixity-results.json).
+
 ## Checked interface type printing
 
 `Bootstrap.ExportType` now prints portable checked schemes with definition-owned
