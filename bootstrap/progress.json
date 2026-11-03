@@ -1,12 +1,12 @@
 {
   "schema": 1,
-  "updatedAt": "2026-11-03T12:46:14.834731+00:00",
+  "updatedAt": "2026-11-03T12:57:16.447992+00:00",
   "estimate": 80,
   "estimateNote": "Rough engineering estimate. Remaining compiler bugs can change it; this is not a measured test pass rate.",
-  "status": "Fixing bounded arithmetic checking",
-  "summary": "The fresh Stage 1 compiler builds. The next stage currently rejects valid nested arithmetic on a bounded byte length; a minimal reproduction isolates the checker bug.",
-  "activity": "Candidate 21 tests a checker repair that keeps refined runtime values distinct from mathematical aliases. Its positive and negative Native reference cases agree with expectations; the actual Cinch checker and fresh stage chain are running.",
-  "commit": "f69ebdbda2aa1f84c35c3447c2a04e96db61fd55",
+  "status": "Verifying the full compiler retry",
+  "summary": "The refined-local checker repair passes all 12 regression cases. Fresh Stage 1 builds; the complete compiler retry is running. Stage 2 has no verified executable yet.",
+  "activity": "Published the tested checker repair and small-stack text builder. The full-source retry, additional actual Stage 1 probes, and complete Native test sweep continue.",
+  "commit": "e6919b0bb6a9899f8067a4d29b6fe8772779bf6e",
   "stages": [
     {
       "name": "Stage 0",
@@ -22,9 +22,9 @@
     },
     {
       "name": "Stage 2",
-      "state": "blocked",
-      "label": "Blocked",
-      "description": "Fresh Stage 1 rejects a valid bounded-arithmetic expression in the revised text builder. No Stage 2 executable yet."
+      "state": "pending",
+      "label": "Verifying",
+      "description": "The fresh Stage 1 compiler is processing the complete compiler source with the repaired checker and builder."
     },
     {
       "name": "Stage 3",
@@ -71,7 +71,7 @@
     },
     {
       "title": "Full Native sweep running",
-      "detail": "Candidate 20: 14 / 205 whole target gates passed; 2 running; 0 failed. Candidate 21 separately checks the subsequent Cinch checker repair.",
+      "detail": "Candidate 20: 15 / 205 whole test groups passed; 2 running; 0 failed. Candidate 21 separately passes the subsequent checker repair regression.",
       "state": "running"
     },
     {
@@ -88,13 +88,18 @@
       "title": "All five builder checks passed",
       "detail": "Candidate 20 passes exact text, string-concatenation oracle, chunk counts, scale, and 65,536 newline chunks on a 2 MiB stack.",
       "state": "passed"
+    },
+    {
+      "title": "All 12 arithmetic and argument-scope cases pass",
+      "detail": "Candidate 21: Native reference and the compiled Cinch checker accept nested, explicit-binding and direct guarded subtraction, while refusing reversed subtraction and an unjustified upper bound.",
+      "state": "passed"
     }
   ],
   "blockers": [
     {
-      "title": "Accept valid nested bounded arithmetic",
-      "detail": "A byte length carries an upper bound. Using it in a nested addition and guarded subtraction triggers an incorrect type mismatch; binding the same addition separately succeeds. Both forms must check consistently.",
-      "technical": "Candidate20 Stage1 built; Stage2 compiler exit4. Minimal nested=4, bound=0, unsafe reversed=4. No Stage2 IR or executable."
+      "title": "Confirm the repair in the full compiler",
+      "detail": "The isolated checker regression passes. The complete compiler source is now being processed to check for further frontend or runtime-emission failures.",
+      "technical": "Candidate21 Stage1 built. Full Stage2 attempt is running; no Stage2 executable or full-frontend success claimed yet."
     },
     {
       "title": "Verify the full compiler stack repair",
@@ -108,6 +113,10 @@
     }
   ],
   "milestones": [
+    {
+      "title": "Refined-local checker repair passes",
+      "detail": "All 12 argument-scope cases pass against both Native and actual compiled Cinch checking. The tested repair and builder are pushed to main."
+    },
     {
       "title": "Small-stack builder reproduction passes",
       "detail": "65,536 chunks: old builder exits73 on a2MiB stack; revised builder exits0 on the same stack. Full compiler retry still pending."
