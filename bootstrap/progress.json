@@ -3,7 +3,7 @@
   "blockers": [
     {
       "title": "Validate the additional Stage3 repairs",
-      "detail": "Allocation programs exposed missing I64 primitive contracts and rejection of pure Unit-entry programs. The working candidate adds both with strict signature, overflow, entry-shape and zero-leak checks. Focused tests: waiting-shared-slot; new compiler bootstrap: waiting-combined-focused-gates. Earlier green bootstrap results remain scoped to their original source."
+      "detail": "Allocation programs exposed missing I64 primitive contracts and rejection of pure Unit-entry programs. The working candidate adds both with strict signature, overflow, entry-shape and zero-leak checks. Focused tests: waiting-reserved-lane; new compiler bootstrap: waiting-combined-focused-gates. Earlier green bootstrap results remain scoped to their original source."
     },
     {
       "title": "Ordinary Stage3 verification needs investigation",
@@ -228,5 +228,5 @@
   ],
   "status": "Ordinary or mixed Stage3 verification needs investigation",
   "summary": "The repaired compiler bootstraps and passes exact final-Stage3 behavior checks. The full 208-group Native-backed sweep and all 79 portable bootstrap groups through Stage3 are tracked separately. Native library fixture preparation is explicit; selected compiler failures never fall back.",
-  "updatedAt": "2026-11-03T23:01:59.599285+00:00"
+  "updatedAt": "2026-11-03T23:05:22.763804+00:00"
 }
