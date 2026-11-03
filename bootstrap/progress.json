@@ -1,12 +1,12 @@
 {
   "schema": 1,
-  "updatedAt": "2026-11-03T17:41:42.511738+00:00",
+  "updatedAt": "2026-11-03T17:58:01.817459+00:00",
   "estimate": 90,
   "estimateNote": "Rough engineering estimate. Remaining compiler bugs can change it; this is not a measured test pass rate.",
   "status": "Self-build works; final verification remains",
   "summary": "Stage2 built Stage3 with identical compiler code and executable bytes. Both pass smoke checks. The new checked-interface writer also runs through the self-built compiler; complete compiler interfaces and final-source tests are still being verified.",
-  "activity": "The updated Cinch-built compiler has emitted and linked successfully and is now exporting its own compiler interfaces. A broader Rust repair run is checking class identity and refinement evaluation. The baseline sweep has finished: 201 of 205 target groups passed, with four failures recorded.",
-  "commit": "ba61f11df3b36424948fdc2720e5c51c785e92bd",
+  "activity": "Published the Rust declaring-class and refinement-evaluation repairs. All 17 lattice and 18 refinement checks pass; the corrected parameter suite passes all seven tests. A new complete frozen-source sweep is compiling its test runners. The updated Cinch-built compiler has emitted and linked and is retrying its own interface export.",
+  "commit": "3a44480e90239b723438a8677c92f025c2fff9d2",
   "stages": [
     {
       "name": "Stage 0",
@@ -41,7 +41,7 @@
     },
     {
       "title": "Final-source verification and repairs",
-      "detail": "The class-identity and dictionary-evaluation repair passes 191 tests across eight targets, including all 17 lattice tests. A broader fresh run also covers refinements, parameter contracts and staging; its result is pending.",
+      "detail": "All four baseline failures have fresh scoped repair evidence. The Rust repair run passes 238 tests; its one obsolete parameter expectation is corrected and all seven parameter tests pass. A fresh complete sweep on candidate24 is compiling all current test targets.",
       "state": "running"
     },
     {
@@ -51,7 +51,7 @@
     },
     {
       "title": "Updated interface writer passes its complete focused gates",
-      "detail": "Fresh validation5 passes the interface, type-export and parser targets, including built-in Diverge and Blocking effect labels. This verifies that repair; full compiler-interface export is still running.",
+      "detail": "Fresh validation6 passes interface, type-export, parser, 16 effect tests and region-contract checks. Public effect operations retain their checked schemes and explicit non-portable resolved boundary. The defining Main.main identity correction is being verified separately.",
       "state": "passed"
     },
     {
@@ -102,14 +102,14 @@
   ],
   "blockers": [
     {
-      "title": "Finish exporting the compiler\u2019s own checked interfaces",
-      "detail": "The new compiler is now running that export on its own full source. After it succeeds, Stage2 and Stage3 must agree on the checked interfaces as well as compiler code. Any unsupported contract it encounters must be implemented and verified.",
-      "technical": "A prior real compiler-source export refused the built-in Diverge effect. The repair passes focused Native gates and is present in the updated Cinch-built compiler now running the own-interface probe. Contextual factories, guarded methods and other unsupported contract forms remain explicit refusals."
+      "title": "Finish the compiler-interface fixed point",
+      "detail": "The full export moved past built-in effect labels and then identified public Text.Parse operations as missing writer support. Both writers now pass the focused operation-export checks; the rebuilt Cinch compiler is retrying its own full export. A separate Main.main identity correction is under test.",
+      "technical": "Schema8 explicitly permits null resolved contracts for richer declarations; operation exports preserve their actual checked schemes and symbols without claiming portable handler metadata. The final gate is being strengthened to reject placeholder, malformed, wrong-ABI and stale-dependency documents. Full combined-mode Stage2/Stage3 agreement remains required."
     },
     {
-      "title": "Get the final source through the complete test suite",
-      "detail": "The baseline finished with four failing groups. Complete fresh parser and pipeline reruns pass; the Rust class and dictionary-evaluation repair passes the focused lattice checks. Broader refinement validation and a complete final-source sweep remain.",
-      "technical": "Baseline: 201 passed, 4 failed, 0 running, out of 205 target groups. Fresh repairs are separate evidence; historical results are not overwritten, and a focused pass is not counted as a complete final-suite pass."
+      "title": "Finish the complete current-source test sweep",
+      "detail": "The original baseline finished with 201 of 205 groups passing. Parser and pipeline reruns pass; lattice and refinement repairs now pass their complete targets. The fresh candidate24 suite includes the new regressions and has not yet finished.",
+      "technical": "Candidate24 uses a frozen source copy, newly compiled test binaries, two shared worker slots, single-threaded builds/tests and the existing heap cap. Runtime, tooling and syntax experiments are queued against that same snapshot."
     }
   ],
   "milestones": [
