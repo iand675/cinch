@@ -1,12 +1,12 @@
 {
   "schema": 1,
-  "updatedAt": "2026-11-03T11:07:42.460847+00:00",
+  "updatedAt": "2026-11-03T11:10:12.689798+00:00",
   "estimate": 80,
   "estimateNote": "Rough engineering estimate. Remaining compiler bugs can change it; this is not a measured test pass rate.",
   "status": "Verifying runtime linkage",
   "summary": "The fresh stage chain passes the full frontend. Decimal calls execute correctly. The Rust producer now exposes checked intrinsic aliases; the next full build verifies the requested bundle and conditional-method linkage.",
-  "activity": "Candidate 17 is building Stage 1 and testing the library consumer. Broader Rust regressions are running. No Stage 2 executable yet.",
-  "commit": "09d10b0ac4f2a5b4b0af3e21539e1a119b1be62e",
+  "activity": "Candidate 18 is building the full stage chain and checking conditional slot linkage. Candidate 17 stopped on a layout syntax error in the new path; that syntax is corrected. Broader Rust checks continue.",
+  "commit": "f5c2fef83b30101d6632edd37e0c3e2536f96060",
   "stages": [
     {
       "name": "Stage 0",
