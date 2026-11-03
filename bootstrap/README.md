@@ -392,7 +392,13 @@ remain required. See [the runtime IR checkpoint](runtime-ir-results.json).
 The `--emit-ir` mode routes retained checked Core through the typed shared-runtime
 backend, writes LLVM without linking or execution, and clears stale IR if the
 emitter refuses a checked program. Mode and interface flags work in either order.
-The generated module must be linked with the matching ABI5 `libcinchruntime.a`.
+The generated module must be linked with the matching `libcinchruntime.a`.
+`Bootstrap.RuntimeAbi` selects the exact interface/kernel ABI for a build:
+live Native builds select ABI6; the pinned stage builder renders ABI5 from
+its verified seed lock before hashing and exporting its source snapshot.
+That pinned chain still uses the matching ABI5 seed runtime and interfaces.
+Each build rejects other ABI versions and mixed interface sets. Selecting
+ABI6 does not add Cinch array lowering; those intrinsics remain unsupported.
 The real CLI test links and runs an exact bignum calculation, with zero leaks;
 the existing whole pipeline still passes. The complete updated compiler source
 also passes through Cinch in check-only mode. See [the emit-mode report](runtime-emit-results.json).

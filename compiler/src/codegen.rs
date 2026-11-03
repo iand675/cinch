@@ -6445,10 +6445,12 @@ int main(void) {{
             let text = std::fs::read_to_string(out.with_extension("abi.json")).unwrap();
             let manifest = parse_json(&text).unwrap();
             let m = manifest.as_object().unwrap();
+            assert_eq!(m["runtime_abi"].as_num().unwrap(), crate::interface::RUNTIME_ABI_VERSION as u64);
             let mut ifaces = Vec::new();
             for row in m["interfaces"].as_array().unwrap() {
                 let row = row.as_object().unwrap();
                 let iface = crate::interface::Iface::from_json(&row["interface"].to_canonical_string()).unwrap();
+                assert_eq!(iface.runtime_abi, crate::interface::RUNTIME_ABI_VERSION);
                 assert_eq!(iface.module, row["module"].as_str().unwrap());
                 assert_eq!(iface.iface_hash(), row["iface_hash"].as_str().unwrap());
                 ifaces.push(iface);

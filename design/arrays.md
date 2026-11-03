@@ -1,7 +1,7 @@
 # Array primitives
 
-Native candidate, 2026-11-02. This change is isolated from the ABI5
-self-hosting checkpoint and its pinned producer. Runtime ABI **6** is
+Native implementation; main integration, 2026-11-03. This change preserves
+the ABI5 self-hosting checkpoint and its pinned producer. Runtime ABI **6** is
 required. Interface schema remains 8; the existing kinded schemes express
 these constructors without a schema change.
 
@@ -131,10 +131,9 @@ requires, at minimum:
 3. Implement specialization, owned argument/result handling and array
    lowering in the Cinch IR/emitter, including Option/tuple pointer maps,
    packed scalar formats and every new runtime extern.
-4. Reconcile the trusted ABI fields in `Bootstrap.Builtin` and the exact
-   ABI checks in `Bootstrap.Infer` (intrinsics, decisions, constructors,
-   and source-instance metadata). Recheck byte observations in
-   `Bootstrap.Core`; retain historical ABI5 evidence as ABI5 evidence.
+4. Retain the exact selected ABI in kernel metadata and interface admission.
+   Recheck byte observations in `Bootstrap.Core`; retain historical ABI5
+   evidence as ABI5 evidence.
 5. Run negative ABI compatibility checks, native/Cinch conformance and an
    actual new stage chain, then intentionally update the producer pin.
 
@@ -143,3 +142,16 @@ self-hosted checker. The native compile-time evaluator also returns its
 named `primitive ... is not available at compile time in this slice`
 diagnostic for array operations. It must never reinterpret an array as
 Bytes or silently substitute an ABI5 implementation.
+
+`Bootstrap.RuntimeAbi` selects one exact ABI per compiler build. Live
+sources select 6, so Native-built Cinch loader/checker tests use matching
+ABI6 interfaces and kernel metadata for the operations they support.
+`tooling/bootstrap.py` renders this small configuration module from the
+verified stage0 lock when preparing the pinned chain, currently selecting
+5. The rendered bytes enter the source hash, bundled compiler and exported
+stage source files. Unsupported ABI selections fail before building. Each
+loader admits only its selected version, including across interface sets;
+there is no artifact translation or mixed-ABI admission. The pinned chain
+still links its verified seed runtime archive. Its seed lock, seed patch,
+and historical reports are unchanged. ABI selection does not implement
+Cinch array kinds, intrinsic checking, or lowering.

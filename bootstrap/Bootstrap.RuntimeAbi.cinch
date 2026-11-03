@@ -1,0 +1,9 @@
+-- One exact ABI per compiler build. The pinned stage builder renders this
+-- module from its verified seed lock before hashing the complete sources.
+module Bootstrap.RuntimeAbi where
+  import Data.Nat (nat-to-int)
+  export runtime-abi, runtime-abi-int
+  runtime-abi :: Nat
+  runtime-abi = 6
+  runtime-abi-int :: Int
+  runtime-abi-int = nat-to-int runtime-abi

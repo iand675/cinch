@@ -4,6 +4,7 @@ module Main where
   import Bootstrap.Parse (parse-program)
   import Bootstrap.Check (check-program)
   import Bootstrap.Infer
+  import Bootstrap.RuntimeAbi (runtime-abi-int)
   import Bootstrap.Core
   import Bootstrap.Report (render-diagnostics)
   import Data.Json
@@ -21,7 +22,7 @@ module Main where
   contract-retained identity external rows = case rows of
     Nil -> False
     Cons row rest -> (case (field "category" row, field "identity" row, field "external" row, field "runtime_abi" row) of
-      (JStr category, JStr symbol, JStr external-name, JNum abi) -> same category "intrinsic" && same symbol identity && same external-name external && abi == 5
+      (JStr category, JStr symbol, JStr external-name, JNum abi) -> same category "intrinsic" && same symbol identity && same external-name external && abi == runtime-abi-int
       other -> False) || contract-retained identity external rest
   references :: String -> CoreTerm -> Nat
   references identity term = case term of

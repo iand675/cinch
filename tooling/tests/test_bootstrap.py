@@ -13,6 +13,21 @@ import bootstrap
 
 
 class BootstrapContract(unittest.TestCase):
+    def test_runtime_abi_preparation_is_exact_and_part_of_source_identity(self):
+        live = (bootstrap.ROOT / "bootstrap/Bootstrap.RuntimeAbi.cinch").read_bytes()
+        self.assertEqual(live, bootstrap.runtime_abi_source(6))
+        pinned = bootstrap.collect_compiler_sources()
+        self.assertEqual(pinned["Bootstrap.RuntimeAbi.cinch"], bootstrap.runtime_abi_source(5))
+        self.assertIn(b"runtime-abi = 5", bootstrap.bundle(pinned))
+        native = {**pinned, "Bootstrap.RuntimeAbi.cinch": live}
+        self.assertNotEqual(bootstrap.source_hash(pinned), bootstrap.source_hash(native))
+        for invalid in (None, True, "5", 0, 4, 7):
+            with self.assertRaises(bootstrap.BootstrapError):
+                bootstrap.runtime_abi_source(invalid)
+        with patch.object(bootstrap, "seed_inputs", return_value=({"runtime_abi": 7}, b"")):
+            with self.assertRaises(bootstrap.BootstrapError):
+                bootstrap.collect_compiler_sources()
+
     def test_stage_commands_keep_build_and_test_workers_serial(self):
         with patch.dict(os.environ, {"CARGO_BUILD_JOBS": "32", "RUST_TEST_THREADS": "32"}, clear=True):
             env = bootstrap.environment()

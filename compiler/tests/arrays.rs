@@ -40,6 +40,43 @@ fn normal_arrays_preserve_values_and_return_none_at_boundaries() {
 }
 
 #[test]
+fn array_library_objects_stamp_matching_abi_and_owned_types() {
+    let source = r#"module Library where
+  import Data.Array
+  import Data.Tensor
+  import Data.Columnar
+  export make, peek, column
+  make :: Int -> Array Int
+  make x = array-from-list [x]
+  peek :: Tensor Int -> Array Nat -> Option Int
+  peek tensor indices = tensor-get tensor indices
+  column :: Array Int -> Columnar Int
+  column values = columnar-column values
+"#;
+    let mut sources = SOURCES.to_vec();
+    sources.push(("Library.cinch", source));
+    let dir = common::project("arrays_object", &sources);
+    let out = dir.join("library.o");
+    common::drive(cinch::driver::Mode::EmitObject, &dir, "Library.cinch", Some(out.clone()))
+        .expect("emit the array library object");
+    assert!(out.is_file());
+    let text = std::fs::read_to_string(out.with_extension("abi.json")).unwrap();
+    assert!(text.contains("\"runtime_abi\":6"), "{text}");
+    // Inspect the separately emitted interface through the public reader.
+    let iface = cinch::interface::Iface::from_json(&std::fs::read_to_string(dir.join("build/Library.cinchif")).unwrap()).unwrap();
+    assert_eq!(iface.runtime_abi, cinch::interface::RUNTIME_ABI_VERSION);
+    for (name, ty) in [("make", "Array"), ("peek", "Tensor"), ("column", "Columnar")] {
+        assert!(iface.exports.values.iter().any(|v| v.name == name && v.scheme.contains(ty)), "{name}: {:?}", iface.exports.values);
+    }
+    let ir = std::fs::read_to_string(out.with_extension("ll")).unwrap();
+    for external in ["cinch_array_from_list", "cinch_tensor_get", "cinch_columnar_column"] {
+        assert!(ir.contains(external), "missing {external}");
+    }
+    assert!(text.contains("\"result\":\"O\""), "array results must be owned objects");
+    common::cleanup(&dir);
+}
+
+#[test]
 fn arrays_keep_record_and_string_elements_alive() {
     run("arrays_objects", r#"
   data Item where
@@ -193,8 +230,8 @@ fn native_staging_refuses_arrays_by_name_until_the_evaluator_supports_them() {
 }
 
 #[test]
-fn abi5_self_hosted_intrinsic_contracts_refuse_array_operations() {
-    let dir = common::project("arrays_abi5_refusal", &[
+fn self_hosted_intrinsic_contracts_refuse_unimplemented_array_operations() {
+    let dir = common::project("arrays_self_hosted_refusal", &[
         ("Bootstrap.Ast.cinch", include_str!("../../bootstrap/Bootstrap.Ast.cinch")),
         ("Bootstrap.Report.cinch", include_str!("../../bootstrap/Bootstrap.Report.cinch")),
         ("Bootstrap.Builtin.cinch", include_str!("../../bootstrap/Bootstrap.Builtin.cinch")),

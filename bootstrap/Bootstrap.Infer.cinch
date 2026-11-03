@@ -17,6 +17,7 @@ module Bootstrap.Infer where
   import Bootstrap.Global
   import Bootstrap.Typing
   import Bootstrap.Builtin (builtin-declarations, intrinsic-contract)
+  import Bootstrap.RuntimeAbi (runtime-abi-int)
   import Bootstrap.Dictionary (resolve-dictionary-definition-with, resolve-dictionary-term-with, resolve-ready-term, check-instance-coherence)
   import Bootstrap.Parse (parse-scheme)
   import Bootstrap.Nominal (interface-global, resolved-entry-valid, resolved-text, resolved-nominals, qualify-resolved, qualify-refinement-predicate, resolved-measures)
@@ -2578,7 +2579,7 @@ module Bootstrap.Infer where
     Cons (DForeign s direction abi symbol name syntax) rest -> case intrinsic-contract symbol of
       Some (text, external) -> Cons (JObj "category" (JStr "intrinsic")
         (JObj "binding" (JStr name) (JObj "identity" (JStr symbol)
-          (JObj "external" (JStr external) (JObj "runtime_abi" (JNum 5)
+          (JObj "external" (JStr external) (JObj "runtime_abi" (JNum runtime-abi-int)
             (JObj "scheme" (JStr text) JObjEnd)))))) (contexts rest)
       None -> contexts rest
     Cons d rest -> contexts rest

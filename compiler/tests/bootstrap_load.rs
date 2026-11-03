@@ -139,8 +139,15 @@ fn the_loader_checks_emitted_interfaces_and_dependency_identities() {
     let wrong_parameters_row = row(&dir, "wrong-class-parameters.cinchif", &wrong_parameters);
     let wrong_parameters_set: Vec<_> = full.iter().filter(|r| r[0] != "Main").map(|r|
         if r[0] == "Facade" { wrong_parameters_row.clone() } else { r.clone() }).collect();
+    let mut old_abi = lib.clone();
+    old_abi.runtime_abi = 5;
+    let old_abi_row = row(&dir, "old-abi.cinchif", &old_abi);
+    cases.push((old_abi_row.clone(), "interface runtime ABI mismatch".into()));
+    let mixed_abi_set: Vec<_> = full.iter().map(|r|
+        if r[0] == "Lib" { old_abi_row.clone() } else { r.clone() }).collect();
     let sets = [
         (full, ""),
+        (mixed_abi_set, "Lib: interface runtime ABI mismatch"),
         (missing, "Lib: missing interface dependency: Dep"),
         (stale_set, "Lib: stale interface dependency: Dep"),
         (duplicate, "duplicate interface module: Lib"),

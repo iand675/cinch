@@ -202,8 +202,26 @@ def build_seed() -> Path:
     return record_build(directory, inputs, code, log)
 
 
+def runtime_abi_source(abi: int) -> bytes:
+    # This is build configuration, not permission to translate artifacts.
+    # Interfaces and the linked archive must come from the same producer.
+    if type(abi) is not int or abi not in (5, 6):
+        raise BootstrapError(f"unsupported compiler runtime ABI: {abi!r}")
+    return ("-- One exact ABI per compiler build. The pinned stage builder renders this\n"
+            "-- module from its verified seed lock before hashing the complete sources.\n"
+            "module Bootstrap.RuntimeAbi where\n"
+            "  import Data.Nat (nat-to-int)\n"
+            "  export runtime-abi, runtime-abi-int\n"
+            "  runtime-abi :: Nat\n"
+            f"  runtime-abi = {abi}\n"
+            "  runtime-abi-int :: Int\n"
+            "  runtime-abi-int = nat-to-int runtime-abi\n").encode()
+
+
 def collect_compiler_sources() -> dict[str, bytes]:
     files = {p.name: p.read_bytes() for p in sorted((ROOT / "bootstrap").glob("*.cinch"))}
+    lock, _ = seed_inputs()
+    files["Bootstrap.RuntimeAbi.cinch"] = runtime_abi_source(lock.get("runtime_abi"))
     for module in TOOLKIT:
         files[f"Text.{module}.cinch"] = (ROOT / "compiler" / "prelude" / "Text" / f"{module}.cinch").read_bytes()
     files["Main.cinch"] = (ROOT / "bootstrap" / "programs" / "Run.Pipeline.cinch").read_bytes()
