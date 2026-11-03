@@ -2,6 +2,10 @@
   "activity": "All 127 ordinary target groups pass. Bootstrap-specific groups: 23 of 81 passed, 1 running and 0 failed. Runtime171, tooling41 and syntax/editor39 pass on this same source. Fresh final-source stages built and smoke-tested: 4 of4; combined gate passed. Additional Stage3 coverage: ordinary: 0 of 8 passed, 0 running, 1 failed (stopped-after-failure); mixed: 0 of 4 passed, 0 running, 1 failed (stopped-after-failure). Self-built portable bootstrap suite: 0 of 79 groups passed, 1 running, 0 failed; state running.",
   "blockers": [
     {
+      "title": "Validate the additional Stage3 repairs",
+      "detail": "Allocation programs exposed missing I64 primitive contracts and rejection of pure Unit-entry programs. The working candidate adds both with strict signature, overflow, entry-shape and zero-leak checks. Focused tests: running; new compiler bootstrap: waiting-combined-focused-gates. Earlier green bootstrap results remain scoped to their original source."
+    },
+    {
       "title": "Supply a missing test-library variant",
       "detail": "The final Stage3 compiler explicitly refused Data.Option.is-none[O], which is absent from the test-only object bundle. Its pinned library-only rebuild is waiting-reserved-lane. The exact same compiler, source and test runners are queued for a separate rerun; the original failed result is retained."
     },
@@ -232,5 +236,5 @@
   ],
   "status": "Ordinary or mixed Stage3 verification needs investigation",
   "summary": "The repaired compiler bootstraps and passes exact final-Stage3 behavior checks. The full 208-group Native-backed sweep and all 79 portable bootstrap groups through Stage3 are tracked separately. Native library fixture preparation is explicit; selected compiler failures never fall back.",
-  "updatedAt": "2026-11-03T22:34:35.702961+00:00"
+  "updatedAt": "2026-11-03T22:36:46.228792+00:00"
 }
