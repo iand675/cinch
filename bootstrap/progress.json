@@ -1,9 +1,9 @@
 {
-  "activity": "Final suite27: 120 of 208 groups passed, 4 running and 0 failed. Runtime171, tooling41 and syntax/editor39 already pass on this exact snapshot. Fresh final-source stage chain: 2 of 4 stages built and smoke-tested; combined fixed-point gate running-full-stage-chain.",
+  "activity": "All 127 ordinary target groups pass. Bootstrap-specific groups: 0 of 81 passed, 4 running and 0 failed. Runtime171, tooling41 and syntax/editor39 pass on this same source. Fresh final-source stages built and smoke-tested: 2 of4; combined gate running-full-stage-chain.",
   "blockers": [
     {
       "title": "Finish every final-source compiler test",
-      "detail": "120 of 208 groups have passed. A partial sweep does not establish the full suite. All final-source runtime, tooling and editor gates are already green."
+      "detail": "127 of 208 groups have passed. A partial sweep does not establish the full suite. All final-source runtime, tooling and editor gates are already green."
     },
     {
       "title": "Finish the fresh repaired-source bootstrap",
@@ -16,8 +16,13 @@
   ],
   "checks": [
     {
+      "title": "All ordinary compiler-facing groups pass",
+      "detail": "All 127 non-bootstrap target groups pass, including compiler units, library, ownership, interface, LSP and documentation checks. The 81 bootstrap-specific groups remain separate; 0 have passed so far.",
+      "state": "passed"
+    },
+    {
       "title": "Live final-source compiler sweep",
-      "detail": "120 of 208 complete target groups passed; 4 running and 0 failed. Every group includes ignored tests. Source snapshot c6260e01; code matches the published repairs.",
+      "detail": "127 of 208 complete target groups passed; 4 running and 0 failed. Every group includes ignored tests. Source snapshot c6260e01; code matches the published repairs.",
       "state": "running"
     },
     {
@@ -200,5 +205,5 @@
   ],
   "status": "Final-source verification running",
   "summary": "The fresh frozen-source Stage2 and Stage3 reach the full compiler/interface fixed point. Stage3 consumes its emitted compiler APIs, and Stage2 rebuilds changed compiler source correctly. Later fixity and Rust name-resolution repairs still need matching verification.",
-  "updatedAt": "2026-11-03T20:21:17.058648+00:00"
+  "updatedAt": "2026-11-03T20:25:20.766433+00:00"
 }
