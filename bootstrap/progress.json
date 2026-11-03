@@ -1,11 +1,11 @@
 {
   "schema": 1,
-  "updatedAt": "2026-11-03T10:30:34.762215+00:00",
+  "updatedAt": "2026-11-03T10:35:15.793126+00:00",
   "estimate": 80,
   "estimateNote": "Rough engineering estimate. Remaining compiler bugs can change it; this is not a measured test pass rate.",
   "status": "Fixing a Stage 2 blocker",
   "summary": "Stage 1 builds. It is checking the compiler source for Stage 2, but a natural-number proof obligation currently stops that build.",
-  "activity": "Publishing the progress dashboard. The latest boundary suite has finished successfully; next compiler step is the subtraction-guard reproduction.",
+  "activity": "Testing an explicit subtraction bound against the full compiler source. A scalar-only probe accepts the original guard, so list-derived counts are being checked separately.",
   "commit": "843d9c3dd8eea2d0e19176de21b827a691eab3da",
   "stages": [
     {
@@ -58,7 +58,7 @@
   "blockers": [
     {
       "title": "Prove a subtraction is safe",
-      "detail": "The Cinch checker cannot establish that the native argument count is large enough before subtracting dictionary arguments in external-call-unit. Next: express that bound directly, validate a small reproduction, then retry Stage 2.",
+      "detail": "The full compiler fails to establish a subtraction bound in external-call-unit. A simpler scalar probe accepts the original guard. An explicit positive-bound rewrite is now under a full-source check; it is not yet verified as a repair.",
       "technical": "Candidate 11: bootstrap.check:16879:46 \u2014 function precondition is not established at this call. 211 diagnostics include cascades; they are not 211 separate features."
     },
     {
