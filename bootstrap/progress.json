@@ -1,5 +1,5 @@
 {
-  "activity": "All 127 ordinary target groups pass. Bootstrap-specific groups: 0 of 81 passed, 4 running and 0 failed. Runtime171, tooling41 and syntax/editor39 pass on this same source. Fresh final-source stages built and smoke-tested: 2 of4; combined gate running-full-stage-chain.",
+  "activity": "All 127 ordinary target groups pass. Bootstrap-specific groups: 0 of 81 passed, 4 running and 0 failed. Runtime171, tooling41 and syntax/editor39 pass on this same source. Fresh final-source stages built and smoke-tested: 3 of4; combined gate running-full-stage-chain.",
   "blockers": [
     {
       "title": "Finish every final-source compiler test",
@@ -7,7 +7,7 @@
     },
     {
       "title": "Finish the fresh repaired-source bootstrap",
-      "detail": "2 of 4 stages are built and smoke-tested. Matching compiler IR and canonical interfaces, actual API consumption and changed-source rebuilding must all pass on this snapshot."
+      "detail": "3 of 4 stages are built and smoke-tested. Matching compiler IR and canonical interfaces, actual API consumption and changed-source rebuilding must all pass on this snapshot."
     },
     {
       "title": "Repeat test-runner execution through the latest compiler",
@@ -192,18 +192,18 @@
     },
     {
       "name": "Stage 2",
-      "state": "pending",
-      "label": "Building",
+      "state": "passed",
+      "label": "Verified",
       "description": "Compiler source rebuilt by Cinch Stage1, including actual checked interfaces."
     },
     {
       "name": "Stage 3",
       "state": "pending",
-      "label": "Pending",
+      "label": "Building",
       "description": "Rebuilt by Stage2; the combined gate compares IR and 43 interfaces and checks API consumption and changed-source behavior."
     }
   ],
   "status": "Final-source verification running",
   "summary": "The fresh frozen-source Stage2 and Stage3 reach the full compiler/interface fixed point. Stage3 consumes its emitted compiler APIs, and Stage2 rebuilds changed compiler source correctly. Later fixity and Rust name-resolution repairs still need matching verification.",
-  "updatedAt": "2026-11-03T20:25:20.766433+00:00"
+  "updatedAt": "2026-11-03T20:26:23.033706+00:00"
 }
