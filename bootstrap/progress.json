@@ -1,12 +1,12 @@
 {
   "schema": 1,
-  "updatedAt": "2026-11-03T18:46:15.196599+00:00",
+  "updatedAt": "2026-11-03T19:11:22.941747+00:00",
   "estimate": 90,
   "estimateNote": "Rough engineering estimate. Remaining compiler bugs can change it; this is not a measured test pass rate.",
-  "status": "Self-consumption works; final gates running",
+  "status": "Reexport fixity repair under validation",
   "summary": "The Cinch-built compiler emits all 43 compiler interfaces and the repaired compiler checks its real entry using those APIs. It also compiles and runs Cinch\u2019s own test runner with exact reports and zero leaks. Fresh stage-chain and full-suite verification remain.",
-  "activity": "The fresh pinned Stage0 build and all three smokes pass; Stage1 is building. All 207 final-source test runners compiled successfully. Candidate25 now has 5 /208 groups passed, 3 running and 0 failed, with all groups retained. The older snapshot workers have drained.",
-  "commit": "42fee2705b5fe4a1967d2fef6a76a0979ab6fab3",
+  "activity": "The published-source sweep has 59 /208 groups passed, 3 running and 0 failed; its runtime, tooling and syntax gates also pass. Fresh Stage1 and its smokes pass, and Stage2 is running. A targeted check found lost precedence in Cinch-produced reexports; its repair is being tested separately.",
+  "commit": "7d55938ffcc636a97ace2f57ed161eb47c1877ab",
   "stages": [
     {
       "name": "Stage 0",
@@ -122,13 +122,18 @@
   ],
   "blockers": [
     {
+      "title": "Preserve defining fixities through interface reexports",
+      "detail": "Direct imports work and importers correctly cannot redeclare fixities, but a reexport loses the original precedence. The Rust control preserves it. The Cinch repair now retains the same exported facts used by the parser, including renamed operators, without adding source declarations.",
+      "technical": "Actual self-built compiler reproduction: direct and prefix controls pass; infix use through B fails. Both identical and changed importer declarations remain refused. The complete writer/resolver/parser/fixity validation is running on a fresh repair snapshot; the older sweep and stage chain do not prove this new change."
+    },
+    {
       "title": "Finish the fresh combined compiler/interface fixed point",
-      "detail": "The real entry consumer now passes and the private-layout repair is verified. The fresh pinned chain must build Stage1, Stage2 and Stage3, then compare compiler code and canonical interfaces and verify changed-source behavior. Stage0 and its three smokes already pass.",
+      "detail": "The fresh published-source Stage1 builds and passes all three smokes; Stage2 is running. Its compiler/interface results remain scoped to that snapshot. After the fixity repair passes, a matching current-source stage chain is still required.",
       "technical": "Frozen source 6c6644d69b3b32aa04992f6793de634278c07fe717bce59d1d0dc05d24cd3b69; compiler source 3bebaa8120734fda92b0cde338debabdb160a9ebd58bf1f22c2a0c3fe96cfe63. No Native fallback for compiler implementation code after Stage1."
     },
     {
       "title": "Finish all tests on the final source",
-      "detail": "The final complete sweep and stage chain share one immutable source snapshot. Three bounded suite workers will run after test compilation; runtime, tooling and syntax verification are also queued. The earlier baseline failures all have passing repair checks.",
+      "detail": "The current sweep is verifying the published private-layout repair. It predates the newly discovered reexport-fixity change. Completed groups and auxiliary gates remain recorded; the tested new source must receive matching final coverage.",
       "technical": "All 713 execution inputs checked against the published tree match this snapshot. Later progress/evidence/prose updates are excluded from that code audit. Three shared test slots plus the stage probe and the separate syntax worker stay within the five-heavy-job limit."
     }
   ],
