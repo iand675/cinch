@@ -1,5 +1,5 @@
 {
-  "activity": "All 127 ordinary target groups pass. Bootstrap-specific groups: 22 of 81 passed, 2 running and 0 failed. Runtime171, tooling41 and syntax/editor39 pass on this same source. Fresh final-source stages built and smoke-tested: 4 of4; combined gate passed. Additional Stage3 coverage: ordinary: 0 of 8 passed, 1 running, 0 failed (running); mixed: 0 of 4 passed, 0 running, 1 failed (stopped-after-failure). Self-built portable bootstrap suite: 0 of 79 groups passed, 0 running, 0 failed; state running.",
+  "activity": "All 127 ordinary target groups pass. Bootstrap-specific groups: 23 of 81 passed, 1 running and 0 failed. Runtime171, tooling41 and syntax/editor39 pass on this same source. Fresh final-source stages built and smoke-tested: 4 of4; combined gate passed. Additional Stage3 coverage: ordinary: 0 of 8 passed, 1 running, 0 failed (running); mixed: 0 of 4 passed, 0 running, 1 failed (stopped-after-failure). Self-built portable bootstrap suite: 0 of 79 groups passed, 0 running, 0 failed; state running.",
   "blockers": [
     {
       "title": "Supply a missing test-library variant",
@@ -11,7 +11,7 @@
     },
     {
       "title": "Finish every final-source compiler test",
-      "detail": "149 of 208 groups have passed. A partial sweep does not establish the full suite. All final-source runtime, tooling and editor gates are already green."
+      "detail": "150 of 208 groups have passed. A partial sweep does not establish the full suite. All final-source runtime, tooling and editor gates are already green."
     },
     {
       "title": "Finish all portable bootstrap groups through Cinch",
@@ -40,12 +40,12 @@
     },
     {
       "title": "All ordinary compiler-facing groups pass",
-      "detail": "All 127 non-bootstrap target groups pass, including compiler units, library, ownership, interface, LSP and documentation checks. The 81 bootstrap-specific groups remain separate; 22 have passed so far.",
+      "detail": "All 127 non-bootstrap target groups pass, including compiler units, library, ownership, interface, LSP and documentation checks. The 81 bootstrap-specific groups remain separate; 23 have passed so far.",
       "state": "passed"
     },
     {
       "title": "Live final-source compiler sweep",
-      "detail": "149 of 208 complete target groups passed; 2 running and 0 failed. Every group includes ignored tests. Source snapshot c6260e01; code matches the published repairs.",
+      "detail": "150 of 208 complete target groups passed; 1 running and 0 failed. Every group includes ignored tests. Source snapshot c6260e01; code matches the published repairs.",
       "state": "running"
     },
     {
@@ -228,5 +228,5 @@
   ],
   "status": "Ordinary or mixed Stage3 verification needs investigation",
   "summary": "The repaired compiler bootstraps and passes exact final-Stage3 behavior checks. The full 208-group Native-backed sweep and all 79 portable bootstrap groups through Stage3 are tracked separately. Native library fixture preparation is explicit; selected compiler failures never fall back.",
-  "updatedAt": "2026-11-03T22:28:48.684652+00:00"
+  "updatedAt": "2026-11-03T22:30:12.138040+00:00"
 }
