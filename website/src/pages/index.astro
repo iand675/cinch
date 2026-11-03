@@ -89,7 +89,7 @@ const features = [
       </section>
       <section class="agents-section language-section" id="agents" aria-labelledby="agents-title">
         <div class="section-index mono"><span>FOR LANGUAGE MODELS</span></div>
-        <div class="tour-heading"><h2 id="agents-title">The language your<br />agent should write.</h2><p>An agent writes code, runs the compiler, reads the result, and tries again. Cinch makes every turn of that loop count. The compiler says exactly what is missing and how to supply it, and nothing it accepts can crash in production.</p></div>
+        <div class="tour-heading"><h2 id="agents-title">Your LLM’s new<br />favorite language.</h2><p>An agent writes code, runs the compiler, reads the result, and tries again. Cinch makes every turn of that loop count. The compiler says exactly what is missing and how to supply it, and nothing it accepts can crash in production.</p></div>
         <AgentLoop />
         <div class="agent-reasons">{agentReasons.map(r => <article><h3>{r.title}</h3><p set:html={r.text} /><a class="text-link" href={r.href}>{r.link} <span>↗</span></a></article>)}</div>
       </section>
