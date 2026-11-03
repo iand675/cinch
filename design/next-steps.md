@@ -18,9 +18,9 @@ source hashes match. The separate defining-entry correction and private-layout
 repair pass their focused gates. The rebuilt self-built compiler now checks its
 entry using those emitted APIs with implementation bodies absent.
 
-The complete goal remains open: the current-source Stage2 and Stage3 must reach
-the combined compiler/interface fixed point, and the full final-source suite must
-pass. The stronger check rejects placeholder or malformed contracts and requires
+The complete goal remains open: the final repaired source must preserve the
+combined compiler/interface fixed point, and the full final-source suite must
+pass. The frozen-source combined chain below has now passed. The stronger check rejects placeholder or malformed contracts and requires
 actual interface consumption. The fresh pinned chain and final test sweep use
 the same frozen source (`6c6644d69b3b32aa04992f6793de634278c07fe717bce59d1d0dc05d24cd3b69`).
 The sweep compiles207 Rust runners and includes the documentation gate, for208
@@ -38,6 +38,22 @@ work remains an explicit compatibility boundary.
 The [progress dashboard](https://cinch-bootstrap-status.ian92821.chatgpt.site)
 reads the committed [status checkpoint](../bootstrap/progress.json). Update it
 when stages, blockers or verified results materially change.
+
+## Fresh combined bootstrap fixed point
+
+The fresh pinned Stage0/1/2/3 chain on frozen source
+`6c6644d69b3b32aa04992f6793de634278c07fe717bce59d1d0dc05d24cd3b69`
+passes all stage smoke checks, exact Stage2/Stage3 compiler IR and executable
+comparison, and all43 canonical compiler-interface comparisons. Stage3 checks
+its actual entry through those emitted interfaces with compiler-module bodies
+absent. Stage2 also rebuilds a changed compiler whose diagnostic behavior changes
+as requested. See [complete chain evidence](../bootstrap/fresh-combined-bootstrap-results.json).
+
+This establishes the combined bootstrap on that snapshot. It predates the later
+reexport-fixity and Rust local-data/class-name repairs. The complete test sweep
+has exposed a compression-library class-name collision; its original failure is
+retained. Those repairs require independent validation and a matching final
+bootstrap/test run before the full goal is complete.
 
 ## Checked interface type printing
 

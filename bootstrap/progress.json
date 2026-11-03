@@ -1,173 +1,182 @@
 {
-  "schema": 1,
-  "updatedAt": "2026-11-03T19:32:43.031313+00:00",
-  "estimate": 90,
-  "estimateNote": "Rough engineering estimate. Remaining compiler bugs can change it; this is not a measured test pass rate.",
-  "status": "Self-built stages pass; two repairs under verification",
-  "summary": "Cinch builds Stage2 and Stage3 with identical executable bytes, and both pass their smoke checks. The complete compiler/interface fixed-point check is still running. Two later repairs must receive matching stage and test verification.",
   "activity": "The frozen-source test sweep has 130 of 208 groups passed, 1 failed and 3 running. Runtime, tooling and syntax gates pass. The sweep is handing two workers to targeted repair checks after their current tests finish.",
-  "commit": "7d55938ffcc636a97ace2f57ed161eb47c1877ab",
-  "stages": [
+  "blockers": [
     {
-      "name": "Stage 0",
-      "state": "passed",
-      "label": "Verified",
-      "description": "Pinned seed compiler and matching library provider."
+      "detail": "The first fixity repair passes its focused checks. The extended case, where a separately compiled module forwards an imported operator, still needs validation through the real Cinch-built compiler.",
+      "technical": "First repair source SHA256 5e8484ccfe7be2782134269a17d250df5d82c92f3aa6d1a151f97d5c07e7814f. Only defining modules may declare fixities; reexports carry admitted metadata.",
+      "title": "Carry operator precedence through separate compilation"
     },
     {
-      "name": "Stage 1",
-      "state": "passed",
-      "label": "Built",
-      "description": "Cinch compiler built from the pinned seed."
+      "detail": "The full sweep found four compression-library failures: a local data type named Bits was mistaken for an imported class of the same name. A repair and regression case are prepared; their targeted checks are queued.",
+      "technical": "The original lib_zlib failure remains recorded. A passing repair run must be established independently before this blocker can close.",
+      "title": "Verify the Rust type-name repair"
     },
     {
-      "name": "Stage 2",
-      "state": "passed",
-      "label": "Smoke-tested",
-      "description": "Built by Cinch; starts and passes valid-program, precedence and invalid-source checks."
+      "detail": "The complete combined chain passed on the frozen snapshot, including its interfaces, actual entry consumer and changed-source behavior. Repeat this gate after the fixity and Rust name-resolution repairs are verified.",
+      "technical": "Frozen source 6c6644d69b3b32aa04992f6793de634278c07fe717bce59d1d0dc05d24cd3b69. Compiler implementation code is built by Cinch after Stage1.",
+      "title": "Repeat the verified bootstrap on the final repairs"
     },
     {
-      "name": "Stage 3",
-      "state": "passed",
-      "label": "Code matches",
-      "description": "Fresh frozen-source Stage3 builds through Stage2, passes all three smoke checks and matches the Stage2 executable exactly. Full interface and changed-source verification is still running; later repairs need a new chain."
+      "detail": "The current frozen-source sweep has 130 passing groups and one known failing group out of 208. It predates the latest two repairs. The finished compiler must pass the complete suite on matching source.",
+      "technical": "The run uses bounded shared workers; handing off slots waits for active checks to finish. Completed and failed historical results are preserved.",
+      "title": "Get the complete final-source suite green"
     }
   ],
   "checks": [
     {
-      "title": "Reexport precedence repair passes its first focused checks",
+      "detail": "Frozen source 6c6644d: all four stages and their smokes pass. Stage2/Stage3 IR, executable and all 43 canonical interfaces match. Stage3 checks its actual entry from emitted APIs; Stage2 rebuilds changed source with the expected changed behavior. This precedes the two latest repairs.",
+      "state": "passed",
+      "title": "Fresh full compiler/interface bootstrap passed"
+    },
+    {
       "detail": "The complete writer, parser, resolver and Rust interface-fixity targets pass on the first repair snapshot. Importers still cannot declare or override fixities. A later extension tests forwarding through a separately compiled facade and is awaiting validation.",
-      "state": "passed"
+      "state": "passed",
+      "title": "Reexport precedence repair passes its first focused checks"
     },
     {
-      "title": "Actual self-built compiler consumes the compiler APIs",
       "detail": "The repaired Cinch compiler emits and links successfully and checks its real entry with implementation bodies absent. The reduced public-return case passes, while private constructor import, private type annotation and a wrong field carrier are all refused.",
-      "state": "passed"
+      "state": "passed",
+      "title": "Actual self-built compiler consumes the compiler APIs"
     },
     {
-      "title": "Cinch compiles and runs its own test runner",
       "detail": "Both programs compile through the actual self-built compiler and produce exact reports: two deliberate failures are correctly counted, and the passing suite reports zero. Both run with a 32M heap and report zero leaks. A separate checked test-library bundle supplies the requested list-length variant.",
-      "state": "passed"
+      "state": "passed",
+      "title": "Cinch compiles and runs its own test runner"
     },
     {
-      "title": "Complete private-layout regression passed",
       "detail": "Validation9 passes source checking, the expanded writer/privacy case, type export, nominal identity, parsing and region contracts. Kind facts are retained from actual public constructor contracts; source names and private constructors remain hidden.",
-      "state": "passed"
+      "state": "passed",
+      "title": "Complete private-layout regression passed"
     },
     {
-      "title": "All 43 compiler interfaces pass independent readback",
       "detail": "Actual self-built compiler validation2 emits all 43 documents. Native parses and canonically roundtrips them and verifies the chain and coherence across 98 total modules; every source hash matches its full module slice. The reserved Main.main identity repair passes the separate complete writer7 regression.",
-      "state": "passed"
+      "state": "passed",
+      "title": "All 43 compiler interfaces pass independent readback"
     },
     {
-      "title": "Full baseline finished: 201 of 205 groups passed",
       "detail": "Candidate23 finished with four failing groups: parser coverage, failed-output handling, lattice transfers and refinements. The original failures remain recorded. Fresh complete parser and pipeline reruns now pass; final-source verification is still required.",
-      "state": "passed"
+      "state": "passed",
+      "title": "Full baseline finished: 201 of 205 groups passed"
     },
     {
-      "title": "Complete test sweep and repair verification",
       "detail": "The frozen-source test sweep has 130 of 208 groups passed, 1 failed and 3 running. Runtime, tooling and syntax gates pass. The sweep is handing two workers to targeted repair checks after their current tests finish. These results precede the latest fixity and Rust name-resolution repairs.",
-      "state": "running"
+      "state": "running",
+      "title": "Complete test sweep and repair verification"
     },
     {
-      "title": "Checked interfaces run through the self-built compiler",
       "detail": "The self-built Stage3 compiles and executes the advanced writer. Independent Native readers accept its schema, canonical form and dependency hashes; public aliases work and private constructors and importer fixity overrides are refused.",
-      "state": "passed"
+      "state": "passed",
+      "title": "Checked interfaces run through the self-built compiler"
     },
     {
-      "title": "Updated interface writer passes its complete focused gates",
       "detail": "Validation7 passes the full interface, type-export, parser, 16 effect tests and region-contract checks. It verifies Main.main, public operation contracts, definition-owned fixities and private constructor boundaries. The new private-layout regression is being tested separately.",
-      "state": "passed"
+      "state": "passed",
+      "title": "Updated interface writer passes its complete focused gates"
     },
     {
-      "title": "Compiler interface CLI and complete source identities verified",
       "detail": "The CLI emits checked interface files and refuses invalid input. The seed builds all 43 compiler modules. Source hashes now cover each complete module body rather than only its header.",
-      "state": "passed"
+      "state": "passed",
+      "title": "Compiler interface CLI and complete source identities verified"
     },
     {
-      "title": "Parser and failed-output regressions repaired",
       "detail": "The full corrected parser target and full corrected pipeline target pass on fresh snapshots. Coverage includes all 109 measured parser entries and four stale-output refusal probes.",
-      "state": "passed"
+      "state": "passed",
+      "title": "Parser and failed-output regressions repaired"
     },
     {
-      "title": "Fresh auxiliary checks passed",
       "detail": "The frozen-source run passes runtime checks, all 41 tooling checks, and all 39 syntax tests with none skipped. Final-source full-suite verification remains open.",
-      "state": "passed"
+      "state": "passed",
+      "title": "Fresh auxiliary checks passed"
     },
     {
-      "title": "Rust linear-parameter ownership repaired",
       "detail": "A linear parameter used once in its own lambda body was incorrectly rejected. The independent reproduction now passes; all23 ownership tests pass, including refusal of capture, duplicate use and dropped parameters.",
-      "state": "passed"
+      "state": "passed",
+      "title": "Rust linear-parameter ownership repaired"
     },
     {
-      "title": "Self-built compiler rebuilds changed source correctly",
       "detail": "Stage2 compiles a modified compiler; that executable produces the changed diagnostic label and correctly refuses the invalid probe. The verification driver now explicitly uses Stage2 for this gate.",
-      "state": "passed"
+      "state": "passed",
+      "title": "Self-built compiler rebuilds changed source correctly"
     },
     {
-      "title": "Stage2 and Stage3 compiler code matches exactly",
       "detail": "Candidate23: identical LLVM IR and executable SHA256; Stage3 also passes valid-program, precedence and invalid-source smoke checks. This does not establish the compiler-interface fixed point.",
-      "state": "passed"
+      "state": "passed",
+      "title": "Stage2 and Stage3 compiler code matches exactly"
     },
     {
-      "title": "100 programs executed",
       "detail": "82 runtime cases on candidate 10 and 18 linked-object cases on candidate 14. The linked cases, including the direct intrinsic export, all report zero leaks; the whole object target passed.",
-      "state": "passed"
+      "state": "passed",
+      "title": "100 programs executed"
     },
     {
-      "title": "All five builder checks passed",
       "detail": "Candidate 20 passes exact text, string-concatenation oracle, chunk counts, scale, and 65,536 newline chunks on a 2 MiB stack.",
-      "state": "passed"
+      "state": "passed",
+      "title": "All five builder checks passed"
     },
     {
-      "title": "Direct proof reuse and complete builder checks pass",
       "detail": "Candidate23 passes the entire proof certificate regression. Its fresh Stage1 accepts the reduced outer-guard case and complete builder, while refusing an out-of-bounds write.",
-      "state": "passed"
+      "state": "passed",
+      "title": "Direct proof reuse and complete builder checks pass"
     }
   ],
-  "blockers": [
-    {
-      "title": "Carry operator precedence through separate compilation",
-      "detail": "The first fixity repair passes its focused checks. The extended case, where a separately compiled module forwards an imported operator, still needs validation through the real Cinch-built compiler.",
-      "technical": "First repair source SHA256 5e8484ccfe7be2782134269a17d250df5d82c92f3aa6d1a151f97d5c07e7814f. Only defining modules may declare fixities; reexports carry admitted metadata."
-    },
-    {
-      "title": "Verify the Rust type-name repair",
-      "detail": "The full sweep found four compression-library failures: a local data type named Bits was mistaken for an imported class of the same name. A repair and regression case are prepared; their targeted checks are queued.",
-      "technical": "The original lib_zlib failure remains recorded. A passing repair run must be established independently before this blocker can close."
-    },
-    {
-      "title": "Finish the compiler/interface fixed point",
-      "detail": "Fresh Stage0, Stage1, Stage2 and Stage3 build and pass their smoke checks. Stage2 and Stage3 executables match. The combined interface and changed-source gates are still running on that frozen source; the two later repairs need a matching new chain.",
-      "technical": "Frozen source 6c6644d69b3b32aa04992f6793de634278c07fe717bce59d1d0dc05d24cd3b69. Compiler implementation code is built by Cinch after Stage1."
-    },
-    {
-      "title": "Get the complete final-source suite green",
-      "detail": "The current frozen-source sweep has 130 passing groups and one known failing group out of 208. It predates the latest two repairs. The finished compiler must pass the complete suite on matching source.",
-      "technical": "The run uses bounded shared workers; handing off slots waits for active checks to finish. Completed and failed historical results are preserved."
-    }
-  ],
+  "commit": "7d55938ffcc636a97ace2f57ed161eb47c1877ab",
+  "dashboardUrl": "https://cinch-bootstrap-status.ian92821.chatgpt.site",
+  "estimate": 90,
+  "estimateNote": "Rough engineering estimate. Remaining compiler bugs can change it; this is not a measured test pass rate.",
   "milestones": [
     {
-      "title": "Updated Cinch-built compiler emits and links",
-      "detail": "The compiler containing the latest checked-interface writer starts successfully and is now exporting contracts from its own source."
+      "detail": "All four stages, exact compiler/interface comparisons, actual API consumption and changed-source rebuilding pass on the same frozen snapshot.",
+      "title": "Fresh combined bootstrap fixed point verified"
     },
     {
-      "title": "Self-built Stage3 executes the advanced interface writer",
-      "detail": "Actual emission, linking and execution all pass, alongside independent contract readback."
+      "detail": "The compiler containing the latest checked-interface writer starts successfully and is now exporting contracts from its own source.",
+      "title": "Updated Cinch-built compiler emits and links"
     },
     {
-      "title": "Complete baseline sweep finished",
-      "detail": "205 target groups executed: 201 passed and four failures identified for repair."
+      "detail": "Actual emission, linking and execution all pass, alongside independent contract readback.",
+      "title": "Self-built Stage3 executes the advanced interface writer"
     },
     {
-      "title": "Compiler-code fixed point verified",
-      "detail": "Candidate23 Stage2 and Stage3 have identical compiler IR and executable bytes and both pass all smoke cases."
+      "detail": "205 target groups executed: 201 passed and four failures identified for repair.",
+      "title": "Complete baseline sweep finished"
     },
     {
-      "title": "Changed-source rebuilding verified",
-      "detail": "The self-built Stage2 builds a modified compiler whose diagnostic changes as intended."
+      "detail": "Candidate23 Stage2 and Stage3 have identical compiler IR and executable bytes and both pass all smoke cases.",
+      "title": "Compiler-code fixed point verified"
+    },
+    {
+      "detail": "The self-built Stage2 builds a modified compiler whose diagnostic changes as intended.",
+      "title": "Changed-source rebuilding verified"
     }
   ],
-  "dashboardUrl": "https://cinch-bootstrap-status.ian92821.chatgpt.site"
+  "schema": 1,
+  "stages": [
+    {
+      "description": "Pinned seed compiler and matching library provider.",
+      "label": "Verified",
+      "name": "Stage 0",
+      "state": "passed"
+    },
+    {
+      "description": "Cinch compiler built from the pinned seed.",
+      "label": "Built",
+      "name": "Stage 1",
+      "state": "passed"
+    },
+    {
+      "description": "Built by Cinch; starts and passes valid-program, precedence and invalid-source checks.",
+      "label": "Smoke-tested",
+      "name": "Stage 2",
+      "state": "passed"
+    },
+    {
+      "description": "Fresh frozen-source Stage2/Stage3 compiler IR, executable and 43 interfaces match. Actual interface consumption and changed-source checks pass. Later repairs still need a matching run.",
+      "label": "Fixed point verified",
+      "name": "Stage 3",
+      "state": "passed"
+    }
+  ],
+  "status": "Combined bootstrap passed; final repairs and tests remain",
+  "summary": "The fresh frozen-source Stage2 and Stage3 reach the full compiler/interface fixed point. Stage3 consumes its emitted compiler APIs, and Stage2 rebuilds changed compiler source correctly. Later fixity and Rust name-resolution repairs still need matching verification.",
+  "updatedAt": "2026-11-03T19:34:19.147251+00:00"
 }

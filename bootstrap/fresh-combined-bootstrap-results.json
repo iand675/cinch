@@ -1,0 +1,86 @@
+{
+  "changed_source": {
+    "compiler_sha256": "b7c05d694839ab170cbabe5573aa7271918409750f18771ee8ac578f80690f45",
+    "diagnostics_sha256": "f141beff8826d369b35167f6648aef03679bed8e6ff326446a1c8950fdb04b48",
+    "source_sha256": "4018689f06c9ab858c2deb30124cb1654d749dc073d8ed4c7da03ce31bc1aa01"
+  },
+  "compiler_executable_sha256": "b60aee30acb29545a751235e2dce67239f65b558e742179321edae5e76fb70f9",
+  "compiler_interfaces_sha256": {
+    "compiler.ll.Bootstrap.Ast.cinchif": "c7da06d43252a26d76ebd998c38ca51a53a0088393fe370226f4286e7cebbe53",
+    "compiler.ll.Bootstrap.BodyContract.cinchif": "d42e8aa8bea30cea599ddf911f815edf03bc108f47c6aae7ea96bf7796e0b58f",
+    "compiler.ll.Bootstrap.Builtin.cinchif": "7e75f569331c5aa7b4359020b97d31ea4ff90f084b20f806d31ed25d04cff239",
+    "compiler.ll.Bootstrap.Check.cinchif": "745bd6340e89c8c7960c698e65d47e3e62a4c030e634c87ab5217984b1a571fa",
+    "compiler.ll.Bootstrap.Contracts.cinchif": "6c45567a60a6377f5077470367d9dd6cf7d87352a7c9d1d53007b099d39eca30",
+    "compiler.ll.Bootstrap.Core.cinchif": "dbeb3594ef704eac39d727dcce0b673e3a0c44094a51c7741ef13fd3531645b6",
+    "compiler.ll.Bootstrap.Dictionary.cinchif": "cf794c169fcb5190edd619479575f33b0dac5650590b8047657202327e856454",
+    "compiler.ll.Bootstrap.Driver.cinchif": "103907e5d142487e4dd6aea3d629c80413eee3de93050d684e8a831e7fc0dbac",
+    "compiler.ll.Bootstrap.Eval.cinchif": "d93a1b2fe5dff7bbea171e9f616d1c8944026ad0f45aa838dc84d9fc62b69bb4",
+    "compiler.ll.Bootstrap.Export.cinchif": "e676b88249b31cf8de24f28b82f95afb60be8654f106db459f58affd48aaa039",
+    "compiler.ll.Bootstrap.ExportNominal.cinchif": "cf7c76e2c857cc999950e30000c2c4df4daba9b06037b1bb569db0e847d113df",
+    "compiler.ll.Bootstrap.ExportType.cinchif": "02128cbfa5931d0dd300c6ebb6d2f08640f4cb666bebd26e27985628751e6d4b",
+    "compiler.ll.Bootstrap.Global.cinchif": "ccdc8736559b260a03bc89d390687e6bb9c2665d6a1c6b81f0484e9bdc81ff51",
+    "compiler.ll.Bootstrap.Guarded.cinchif": "c25e59c739abd209e0a8a3cbf03cf13bf87d659d54565c1fd29950a83aeb8a71",
+    "compiler.ll.Bootstrap.Index.cinchif": "b5937f1e98994375f6773a36e298c86f0a19f8dd774c84ac8b364fb326a9563b",
+    "compiler.ll.Bootstrap.Infer.cinchif": "41f8a239959260dbd8aa24c06398160e468a465a76cdea17c89004fb9d76d72e",
+    "compiler.ll.Bootstrap.Inputs.cinchif": "e9787927d6cfc77916cfd91bdd8e94fb5493a143bd42553c6dddb46be8f89cc5",
+    "compiler.ll.Bootstrap.Instance.cinchif": "5284b1d8c448f95baa0d41136ef3f83a1972727077b2eade36bad978d4e8ac6f",
+    "compiler.ll.Bootstrap.Interface.cinchif": "52fff22c629082e8bdb14a03639ed19bd6e2584d2affcc504ca09b14899428fb",
+    "compiler.ll.Bootstrap.Ir.cinchif": "ad5a4ae2591eb58a242abb1a2b84d647193e18dcfcc6078e01c03b8c735dee9b",
+    "compiler.ll.Bootstrap.Kinds.cinchif": "55dd3b03c9a05d29b43264608048315473203913d58e9c3c824b2fdb4ce31185",
+    "compiler.ll.Bootstrap.Load.cinchif": "c71d1a4c33fe288c1ba3df13f82ae5e9fc9ac117e7e21f4cea5aacf8a6411187",
+    "compiler.ll.Bootstrap.Manifest.cinchif": "79860cf250e8868246cce340652e42ba55bba8998da7a56edcda55a7dacce81b",
+    "compiler.ll.Bootstrap.Nominal.cinchif": "56fe98f0b9c2891432ccacde89ffb6c760e76ce5dd824f7b1ac30b3584a2d4ac",
+    "compiler.ll.Bootstrap.Object.cinchif": "e0ca9f918292c0cc99be89276aba68bdd69b7ed3f3dc3f6d367a8ba8f3a899a5",
+    "compiler.ll.Bootstrap.Parse.cinchif": "ca325a1821ac1aaa2148a1ee157ce73610d1d04c71ffd4ff0fa7553a96f35373",
+    "compiler.ll.Bootstrap.Pipeline.cinchif": "e9adba1495bffc970ed271439a04819d11eb7bb76b02f7acbce38dad5332d0ef",
+    "compiler.ll.Bootstrap.Proof.cinchif": "236d4f67d4e3abab0ba785658f801de1d4edc9665847d7600fdedaea3ba949a9",
+    "compiler.ll.Bootstrap.Report.cinchif": "072dfc7e2f3b8d2ba4e99c9a5d6d5bd383d4de31a8756be25894d305aa23765a",
+    "compiler.ll.Bootstrap.Resolve.cinchif": "fcea0e2faf8d4020e9a5a142f0b0dcbdc1eae03acba5cd7a289a42da762dcf05",
+    "compiler.ll.Bootstrap.RuntimeAbi.cinchif": "824d2de2586dbd2c6a79d4f4f1006bc10b6a00197d6b696445e1e4513f447f0a",
+    "compiler.ll.Bootstrap.RuntimeIr.cinchif": "d46085d830b3ab9a9e2378446bbcf0b03cab6096dcadf061b0fc79129ac546b1",
+    "compiler.ll.Bootstrap.Test.cinchif": "21cccffb9233dab4e6c0e7cfcde666afec1f93e480a9cccafe376e492723ecf3",
+    "compiler.ll.Bootstrap.Total.cinchif": "65bc290ad8b45d51e92bb4187cef2f4eebc6d50d30fedfe45c3bd434709d7f39",
+    "compiler.ll.Bootstrap.TotalSemantics.cinchif": "379d3dbdec92940f25145a447d1807dc7852b7cf7e7f4155e8deba90aaf8a388",
+    "compiler.ll.Bootstrap.Type.cinchif": "deaa9d591e39e4fafef5b2225bcd4e9a96f1d76de894ef6b207ed732027b8e24",
+    "compiler.ll.Bootstrap.Typing.cinchif": "e0f4cf86f8e17d326d8eb44d954ca089ee9924dbe09f1eddaa10197a670e9833",
+    "compiler.ll.Main.cinchif": "08aedae3734e691504923013f78ce769f0e975474a9cb7fb7ba85b8b18a52ef0",
+    "compiler.ll.Text.Builder.cinchif": "814ad49f731d5daa885fd39bcf1fa5cd0e88cc0be69a9fc02408891d1ce34916",
+    "compiler.ll.Text.Json.cinchif": "211310e8f51481209b92452b73b270475aa34f565c601ef4964934b74805d62c",
+    "compiler.ll.Text.Lex.cinchif": "33e42142a8ea3cffc48d357a7ae85f4bbdef118f01929de34731ac08b24c4a8e",
+    "compiler.ll.Text.Parse.cinchif": "ce68d00f9c2934c797ff41baa4035dafeba07571d3222b62da3d751fa5e362b4",
+    "compiler.ll.Text.Scan.cinchif": "a96acc006ddacd7d872517f7fb17715db3a6b72309d2d68612cac54763862bdd"
+  },
+  "compiler_ir_sha256": "39a75010d31e3bd9a9cd1e70c14821ec1dbf006bd7891f3cdeb9a9e4f870534a",
+  "interface_consumer": {
+    "compiler_sha256": "b60aee30acb29545a751235e2dce67239f65b558e742179321edae5e76fb70f9",
+    "manifest_sha256": "605643b5cce7e1f14bb426ddcf2eee385f9249978e6e2d38780eb596141276ed",
+    "source_sha256": "5eb1e5581fa0fa526c5208f891a893fea3a5049ebb29fd70f4c94bdce3c6d6d4",
+    "status": "passed"
+  },
+  "schema": 1,
+  "scope": "Complete fresh pinned Stage0/1/2/3 chain, smokes, compiler IR and 43 canonical interfaces fixed point, actual entry consumption and changed-source behavior. Predates later fixity-reexport and Rust data/class collision repairs; does not claim complete project test success.",
+  "source_sha256": "6c6644d69b3b32aa04992f6793de634278c07fe717bce59d1d0dc05d24cd3b69",
+  "stages": [
+    {
+      "compiler_sha256": "f4ce2b739cc1ef47afc27d244d1de20c6f47c414620248f873dfa6c415c3419d",
+      "stage": 0,
+      "status": "passed"
+    },
+    {
+      "compiler_sha256": "0ccfb2903ed3a98f63f716bfffc42e7b2d7ea40ede47e3ac8c59eb6cbf4a0d8e",
+      "stage": 1,
+      "status": "passed"
+    },
+    {
+      "compiler_sha256": "b60aee30acb29545a751235e2dce67239f65b558e742179321edae5e76fb70f9",
+      "stage": 2,
+      "status": "passed"
+    },
+    {
+      "compiler_sha256": "b60aee30acb29545a751235e2dce67239f65b558e742179321edae5e76fb70f9",
+      "stage": 3,
+      "status": "passed"
+    }
+  ],
+  "status": "passed"
+}
