@@ -85,11 +85,17 @@
       "0"
     ]
   ],
-  "native_scope_note": "Complete source-checker and writer/privacy targets pass. Remaining nominal and parser validation targets are still running at publication.",
+  "native_scope_note": "Complete source-checker, writer/privacy, type-export, nominal identity, parser and region-contract targets all pass.",
   "invariant": "Only defining private nominal facts are retained from admitted public constructor contracts. Source bindings, constructor visibility and complete-layout admission rules are unchanged.",
   "files": {
     "bootstrap/Bootstrap.Infer.cinch": "4c63793b44a891f71ee0d1f2ee70885062abcf82c7354d80a4f451d74b8f8c72",
     "bootstrap/programs/Run.ExportInterfaces.cinch": "24974a54b1c664ff4c870c6b422863a79a9a683d31f133d1683a4203a6dd301d",
     "compiler/tests/bootstrap_export_interfaces.rs": "39ddbcdeb6fc61d3d3343668a752837b5e15ea239f9ebb03e49f268c23e25587"
+  },
+  "completed_native_validation": {
+    "exit_code": 0,
+    "source_sha256": "e175285e67ad76e5223540ee96181644af1adf3920c4a085d1d4c562ed146e49",
+    "source_unchanged": true,
+    "status": "passed"
   }
 }

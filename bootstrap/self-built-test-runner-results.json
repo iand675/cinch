@@ -1,0 +1,107 @@
+{
+  "status": "passed",
+  "scope": "Actual self-built compiler emits, links and executes Cinch test runner programs using a separately checked library-only test support bundle",
+  "compiler_run": {
+    "compiler_sha256": "0aff510b1d1e94e10d07169ee8d92e0cbe98743c9e090a5f6bf0b2a86386c56f",
+    "rows": [
+      {
+        "exit_code": 0,
+        "expected": 0,
+        "name": "mixed",
+        "phase": "emit",
+        "status": "passed"
+      },
+      {
+        "exit_code": 0,
+        "expected": 0,
+        "name": "mixed",
+        "phase": "link",
+        "status": "passed"
+      },
+      {
+        "exit_code": 2,
+        "expected": 2,
+        "name": "mixed",
+        "phase": "run",
+        "status": "passed"
+      },
+      {
+        "exit_code": 0,
+        "expected": 0,
+        "name": "passing",
+        "phase": "emit",
+        "status": "passed"
+      },
+      {
+        "exit_code": 0,
+        "expected": 0,
+        "name": "passing",
+        "phase": "link",
+        "status": "passed"
+      },
+      {
+        "exit_code": 0,
+        "expected": 0,
+        "name": "passing",
+        "phase": "run",
+        "status": "passed"
+      }
+    ],
+    "scope": "Actual self-built compiler emits, links and runs the Cinch test runner; mixed suite must report its two intended failures and passing suite must report zero"
+  },
+  "ownership": {
+    "heap_limit": "32M",
+    "rows": [
+      {
+        "exit_code": 2,
+        "expected": 2,
+        "leak_diagnostic": "cinch-leak: live=0 immortal=0 leaked=0",
+        "name": "mixed",
+        "report_sha256": "aa284bbc45ebcfa789a4ef975b00f58c80343841a24cf17cd188be87d6845ca2",
+        "status": "passed"
+      },
+      {
+        "exit_code": 0,
+        "expected": 0,
+        "leak_diagnostic": "cinch-leak: live=0 immortal=0 leaked=0",
+        "name": "passing",
+        "report_sha256": "35fff1580978f43cb18b71beb22a6a6ff0d3048ea66a7e803992971529208114",
+        "status": "passed"
+      }
+    ],
+    "status": "passed"
+  },
+  "test_support": {
+    "added_root": {
+      "classes": "T",
+      "symbol": "Data.List.length"
+    },
+    "configuration": {
+      "metadata": "/tmp/cinch-test-support-provider-1/library.abi.json",
+      "metadata_sha256": "0b2a8fc742c4ffc71c4809dab7a752628acbfba5c9badb93e68f8297aa0b94f7",
+      "object": "/tmp/cinch-test-support-provider-1/library.o",
+      "object_sha256": "a0744764493a761dcccf0c83898c559eececfb91406ab3df6fcc30dce0113778",
+      "schema": 1,
+      "target": "aarch64-unknown-unknown"
+    },
+    "interfaces": 55,
+    "producer": {
+      "description": "Library-only Native producer with checked object manifests, explicit representation roots and canonical method families. Never compiles Bootstrap implementation modules. The independent stage0 compiler pin is unchanged.",
+      "revision": "261ba1603be65f3e207f3665daa7f78119873d0c",
+      "runtime_abi": 5,
+      "schema": 1,
+      "source_sha256": "5a15a8d7c496ecc63c3b88879abbe88f8d0d61eef8469ef31285b0571430cdd0"
+    },
+    "producer_binary_sha256": "b0298ec0768f4d4108ba6d61c8a7225595ab3bf2f541556f11f30b497c3ac503",
+    "runtime": "/tmp/cinch-object-consumer-validation-23/source/build/bootstrap/library-provider/99026590a298c18a76f13856906e27df60f94bf6cccf2b834f8298238261fe3b/libcinchruntime.a",
+    "runtime_sha256": "3d50ac6bab9b8cb0776bb994e3b9da76876a6eec8b9e8162f76ed8cd903f8c6d",
+    "scope": "Separate checked library-only test support; compiler stage roots remain unchanged",
+    "status": "passed"
+  },
+  "roots": "bootstrap/test-runner-object-roots.json",
+  "reports": {
+    "mixed": "bootstrap.test:1:1: check failed: away-by-one\nbootstrap.test:1:1: check failed: different-names\npassed 3, failed 2\n",
+    "passing": "passed 2, failed 0\n"
+  },
+  "prior_refusal": "The compiler-only object bundle lacked Data.List.length[T]. The separate pinned library-only test support bundle adds that actual requested variant; compiler stage roots and pins are unchanged."
+}

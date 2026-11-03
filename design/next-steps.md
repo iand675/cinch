@@ -11,20 +11,22 @@ intended changed diagnostic behavior. These results are recorded in
 [Stage3](../bootstrap/stage3-code-fixed-point-results.json), and
 [changed-source behavior](../bootstrap/stage2-changed-source-results.json).
 
-The compiler-code fixed point is established. The complete bootstrap goal is
-still open: the Cinch compiler must emit genuine checked schema8 interfaces for
-its own modules, and their canonical bytes must reach the same fixed point.
-The current interface-presence gate needs stronger validation; empty or
-name-only documents are not evidence of a compiler contract. Definition-owned
-fixities, private nominal identities and constructor visibility must survive
-interface production and consumption.
+The compiler-code fixed point is established. The Cinch-built compiler also
+emits all43 actual compiler interfaces. Native independently checks canonical
+readback, dependency hashes and coherence across98 total modules, and all43
+source hashes match. The separate defining-entry correction and private-layout
+repair pass their focused gates. The rebuilt self-built compiler now checks its
+entry using those emitted APIs with implementation bodies absent.
 
-Current-source verification is running on frozen candidate23. All204 Rust test
-runners compile; the additional documentation gate makes205 target groups.
-The proof and14-case argument-scope regression already pass on that exact
-snapshot. The full suite runs with three bounded workers after verified archive
-recovery restored disk headroom. Earlier-snapshot passes remain scoped evidence,
-not a claim that the current entire suite is green.
+The complete goal remains open: the current-source Stage2 and Stage3 must reach
+the combined compiler/interface fixed point, and the full final-source suite must
+pass. The stronger check rejects placeholder or malformed contracts and requires
+actual interface consumption. The fresh pinned chain and final test sweep use
+the same frozen source (`6c6644d69b3b32aa04992f6793de634278c07fe717bce59d1d0dc05d24cd3b69`).
+The sweep compiles207 Rust runners and includes the documentation gate, for208
+target groups. The earlier205-group baseline finished with201 passing and four
+failures; all four have passing scoped repairs. Earlier evidence remains scoped,
+not a claim that the final entire suite is green.
 
 The stage driver uses a separately pinned library-only producer and matching
 runtime, records artifact/interface hashes, invokes the preceding Cinch compiler
@@ -157,9 +159,20 @@ constructor schemes before completing public layouts. It adds no source bindings
 and does not expose private constructors. The repaired actual Cinch compiler
 accepts the public return and refuses private constructor import, private type
 annotation and a wrong field carrier. The complete source-checker and expanded
-writer/privacy targets also pass; broader nominal validation remains running.
+writer/privacy, nominal identity, parser and region-contract targets also pass.
 See [before/after and real consumer evidence](../bootstrap/private-constructor-kind-results.json).
 The fresh complete stage chain and final-source test sweep remain required.
+
+## Self-built test runner executes and reports exactly
+
+The actual rebuilt Cinch compiler emits and links both bootstrap test-runner
+programs. The mixed suite returns2 and reports exactly its two intentional
+failures; the passing suite returns0 and reports zero failures. Both execute
+with a32M heap and report zero leaks. The separate checked test-library bundle
+adds the actually requested `Data.List.length[T]` variant using the existing
+library-only producer pin; compiler stage roots and both pins are unchanged.
+See [test-runner evidence](../bootstrap/self-built-test-runner-results.json)
+and [the reproducible test root set](../bootstrap/test-runner-object-roots.json).
 
 ## Earlier checkpoints
 
