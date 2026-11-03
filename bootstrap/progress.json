@@ -1,12 +1,12 @@
 {
   "schema": 1,
-  "updatedAt": "2026-11-03T10:48:50.031027+00:00",
+  "updatedAt": "2026-11-03T11:07:42.460847+00:00",
   "estimate": 80,
   "estimateNote": "Rough engineering estimate. Remaining compiler bugs can change it; this is not a measured test pass rate.",
-  "status": "Filling runtime dependencies",
-  "summary": "The full compiler source passes the Cinch frontend again. Stage 2 now stops during runtime emission because required library variants and two decimal conversion calls are missing.",
-  "activity": "Candidate 13 is building with the 29 function and 4 dictionary variants requested by the real compiler run. Decimal conversion and linked-object checks are running.",
-  "commit": "9c39c5435d4eba75a76045c73a091e661327d074",
+  "status": "Verifying runtime linkage",
+  "summary": "The fresh stage chain passes the full frontend. Decimal calls execute correctly. The Rust producer now exposes checked intrinsic aliases; the next full build verifies the requested bundle and conditional-method linkage.",
+  "activity": "Candidate 17 is building Stage 1 and testing the library consumer. Broader Rust regressions are running. No Stage 2 executable yet.",
+  "commit": "09d10b0ac4f2a5b4b0af3e21539e1a119b1be62e",
   "stages": [
     {
       "name": "Stage 0",
@@ -35,8 +35,8 @@
   ],
   "checks": [
     {
-      "title": "96 programs executed",
-      "detail": "82 runtime cases and 14 linked-object cases passed on candidate 10. No leaks reported in the linked-object cases.",
+      "title": "99 programs executed",
+      "detail": "82 runtime cases on candidate 10, plus 17 linked-object cases on candidate 13 including decimal roundtrip, negative zero, and first-class calls. Linked cases reported zero leaks.",
       "state": "passed"
     },
     {
@@ -55,16 +55,21 @@
       "state": "passed"
     },
     {
-      "title": "Full compiler frontend passed",
-      "detail": "Verified with the real candidate 11 Cinch compiler on the explicit-bound source. Runtime emission remains incomplete; the fresh stage-chain retry is running.",
+      "title": "Fresh stage frontend passed",
+      "detail": "Candidate 12 built Stage 1 and passed the complete Stage 2 frontend. Runtime emission still refused the missing dependencies; the extracted root list matches the earlier probe.",
+      "state": "passed"
+    },
+    {
+      "title": "Intrinsic exports checked on ABI5 and ABI6",
+      "detail": "Both producers now emit the requested public alias with exact parameter/result word classes. End-to-end and broader regressions are still running.",
       "state": "passed"
     }
   ],
   "blockers": [
     {
-      "title": "Supply the requested runtime dependencies",
-      "detail": "The real compiler run requests 29 function variants, four dictionary variants, and two decimal conversion intrinsics. The next candidate supplies those exact variants and tests the conversion calls.",
-      "technical": "Full-source probe: frontend passed; runtime emitter exit 5 with 1,568 diagnostic lines, largely repeated missing dependencies. No IR or executable produced."
+      "title": "Finish runtime dependency linkage",
+      "detail": "The previous producer rejected a public intrinsic alias. Its repair passes focused ABI5/ABI6 checks. The next build also links conditional implementations through their checked declaring instance and method slot.",
+      "technical": "The earlier full run requested 29 function and 4 dictionary roots. Two decimal intrinsics now pass executed tests. Candidate 17 is verifying the updated producer and consumer; no full bootstrap result yet."
     },
     {
       "title": "Finish the bootstrap verification",
@@ -73,6 +78,10 @@
     }
   ],
   "milestones": [
+    {
+      "title": "Decimal runtime and intrinsic exports repaired",
+      "detail": "17 linked programs pass the full object target; focused public intrinsic export regressions pass on ABI5 and ABI6."
+    },
     {
       "title": "Subtraction blocker cleared in the full source",
       "detail": "An explicit positive bound clears the frontend and exposes concrete runtime dependency requests."

@@ -34,8 +34,15 @@ rewrite now passes the full compiler frontend with the actual preceding Cinch
 compiler. Runtime emission stops at 29 missing function variants, four missing
 dictionary variants and two decimal conversion intrinsics. These are extracted
 from real retained-Core requests; the next candidate builds that finite library
-root set and adds the matching runtime calls. Fresh stage-chain and linked-object
-checks are in progress. No Stage2 executable is established. Canonical compiler interface output, remaining runtime forms, actual
+root set and adds the matching runtime calls. The complete 17-program linked-object target now passes with zero reported
+leaks, including decimal roundtrip, negative zero and first-class calls. The fresh
+stage chain confirms the full frontend pass, then the old library producer
+rejects a public intrinsic alias as an unknown root. Native and the separate ABI5
+producer now retain callable monomorphic intrinsic entries under their defining
+source names; focused physical ABI regressions pass on both versions. The Stage0
+pin is unchanged. The new full candidate validates that producer and conditional
+implementation calls through the actual declaring instance/slot. Broader Native
+regressions and the new consumer are running. No Stage2 executable is established. Canonical compiler interface output, remaining runtime forms, actual
 provider demands, complete current suites/correctness and the Stage2/Stage3 fixed
 point remain required. The [progress dashboard](https://cinch-bootstrap-status.ian92821.chatgpt.site)
 reads the committed [status checkpoint](../bootstrap/progress.json); update that
