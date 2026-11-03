@@ -83,7 +83,6 @@ module Effect.Coverage where
   import Data.String
   import Text.Show
 
-  infixr 6 <>
 
   export Coverage, coverage-new, coverage-hit, coverage-counts, coverage-total, coverage-report, coverage-merge
 

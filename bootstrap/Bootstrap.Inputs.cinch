@@ -1,0 +1,49 @@
+-- Read a closed interface set before lexing the source's operator chains.
+module Bootstrap.Inputs where
+
+  import Bootstrap.Load (LoadedInterface, load-interface-set)
+  import Data.Json
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read)
+  import Text.Json (parse-json)
+  import Text.Parse (ParseOutcome, Parsed, Failed)
+
+  export read-interfaces
+
+  field :: String -> Json -> Json
+  field name doc = case doc of
+    JObj key value rest -> if string-compare name key == 0 then value else field name rest
+    other -> JNull
+
+  rows :: Json -> Result String (List (String, String, String))
+  rows items = case items of
+    JArr (JArr (JStr name) (JArr (JStr hash) (JArr (JStr path) JArrEnd))) rest -> case rows rest of
+      Err message -> Err message
+      Ok more -> Ok (Cons (name, hash, path) more)
+    JArrEnd -> Ok Nil
+    other -> Err "malformed interface manifest rows"
+
+  read-files :: forall r. using (io :: Io r) => List (String, String, String) ->{IO r} Result String (List (String, String, Bytes))
+  read-files inputs = case inputs of
+    Nil -> Ok Nil
+    Cons (name, hash, path) rest -> case fs-read (path-from-string path) of
+      Err error -> Err (string-concat "cannot read interface: " path)
+      Ok src -> case read-files rest of
+        Err message -> Err message
+        Ok others -> Ok (Cons (name, hash, src) others)
+
+  read-interfaces :: forall r. using (io :: Io r) => String ->{IO r} Result String (List LoadedInterface)
+  read-interfaces path = case fs-read (path-from-string path) of
+    Err error -> Err (string-concat "cannot read interface manifest: " path)
+    Ok src -> case parse-json path src of
+      Parsed doc Nil -> case field "schema" doc of
+        JNum version ->
+          if version == 1 then
+            case rows (field "interfaces" doc) of
+              Err message -> Err message
+              Ok inputs -> case read-files inputs of
+                Err message -> Err message
+                Ok files -> load-interface-set files
+          else Err "unsupported interface manifest schema"
+        other -> Err "missing interface manifest schema"
+      other -> Err "interface manifest is not valid JSON"

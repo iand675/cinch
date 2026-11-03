@@ -1,0 +1,1385 @@
+-- Typed Core to LLVM using the shared runtime ABI. Each generated value
+-- owns one reference; local reads duplicate, scope exits drop, and direct
+-- calls transfer arguments to the callee. Mathematical numbers remain
+-- runtime words throughout. Unsupported Core produces errors, never IR.
+module Bootstrap.RuntimeIr where
+  import Bootstrap.Check (CheckedProgram, checked-elaboration)
+  import Bootstrap.Infer (elaboration-core, elaboration-data, elaboration-effects, elaboration-classes, elaboration-instances, elaboration-bindings, CheckedBinding, checked-method-matches)
+  import Bootstrap.Core
+  import Bootstrap.Instance
+  import Bootstrap.Type
+  import Bootstrap.Report
+  import Algebra.Semigroup
+  import Text.Builder
+  import Text.Show (nat-to-string)
+  import Text.Lex (Span)
+
+  export emit-runtime-program
+
+  -- Named families and anonymous tuples share one table, but distinct
+  -- group caches: a tuple must retain tag0 even when a named constructor
+  -- has the same field map at another tag.
+  data LayoutPlan where
+    LayoutPlan :: Nat -> List (Nat, Nat) -> List (String, Nat) -> List (Nat, Nat) -> LayoutPlan
+  data Local where
+    Local :: Nat -> UType -> String -> Local
+    Discard :: UType -> String -> Local
+    Borrowed :: Nat -> UType -> String -> Local
+    GivenLocal :: String -> UType -> String -> Local
+    SelfValue :: String -> Nat -> UType -> String -> Local
+    KnownSelf :: String -> String -> List Nat -> List CoreGiven -> Local
+
+  data Demand where
+    Demand :: String -> List Nat -> Demand
+    ConstructorDemand :: String -> List Nat -> Demand
+    LambdaDemand :: String -> List (Nat, Nat) -> List (Nat, Nat) -> List Local -> CorePattern -> CoreTerm -> Demand
+    StubDemand :: String -> List Nat -> Demand
+    DictionaryDemand :: String -> List Nat -> Demand
+    BuiltinDemand :: String -> Demand
+  -- Bound scheme ids and opened rigid ids are separate namespaces.
+  -- A worker is shared by all actual types with the same class vector.
+  data MethodVersion where
+    MethodVersion :: String -> Nat -> List Nat -> MethodVersion
+  data MethodSlot where
+    MethodSlot :: Nat -> Nat -> List Nat -> MethodSlot
+  data ProgramInfo where
+    ProgramInfo :: List CoreData -> List CoreClass -> List CoreInstance -> List CheckedBinding -> List MethodVersion -> ProgramInfo
+  data RuntimeContext where
+    RuntimeContext :: ProgramInfo -> List (Nat, Nat) -> List (Nat, Nat) -> List Demand -> List Demand -> RuntimeContext
+  data Writer where
+    Writer :: Nat -> Builder -> Builder -> List Diagnostic -> LayoutPlan -> RuntimeContext -> Writer
+
+  cat :: List String -> String
+  cat xs = string-concat-all xs
+  same :: String -> String -> Bool
+  same a b = string-compare a b == 0
+  line :: Writer -> String -> Writer
+  line w text = case w of Writer next globals code errors layouts datas -> Writer next globals (builder-add-line text code) errors layouts datas
+  emit-lines :: Writer -> List String -> Writer
+  emit-lines w texts = case texts of Nil -> w; Cons first rest -> emit-lines (line w first) rest
+  global :: Writer -> String -> Writer
+  global w text = case w of Writer next globals code errors layouts datas -> Writer next (builder-add-line text globals) code errors layouts datas
+  fresh :: Writer -> String -> (Writer, String)
+  fresh w prefix = case w of Writer next globals code errors layouts datas -> (Writer (next + 1) globals code errors layouts datas, cat [prefix, nat-to-string next])
+  refuse :: Writer -> Span -> String -> Writer
+  refuse w sp text = case w of Writer next globals code errors layouts datas -> Writer next globals code (Cons (MkDiagnostic "bootstrap.runtime-ir" sp text) errors) layouts datas
+  unsupported :: Writer -> Span -> String -> (Writer, String)
+  unsupported w sp text = (refuse w sp text, "0")
+  symbol :: String -> String
+  symbol name = cat ["@\"cinch.typed.", name, "\""]
+  base :: UType -> UType
+  base ty = case ty of URefine id name carrier predicate -> base carrier; URequire predicates body -> base body; other -> ty
+  named :: UType -> String -> Bool
+  named ty name = case base ty of UCon actual KType -> same actual name; other -> False
+  number :: UType -> Bool
+  number ty = named ty "Int" || named ty "Nat"
+  scalar :: UType -> Bool
+  scalar ty = number ty || named ty "Bool" || named ty "Unit"
+  writer-context :: Writer -> RuntimeContext
+  writer-context w = case w of Writer next globals code errors layouts context -> context
+  writer-program :: Writer -> ProgramInfo
+  writer-program w = case writer-context w of RuntimeContext info bounds rigids pending done -> info
+  program-data :: ProgramInfo -> List CoreData
+  program-data info = case info of ProgramInfo datas descriptions instances bindings versions -> datas
+  program-classes :: ProgramInfo -> List CoreClass
+  program-classes info = case info of ProgramInfo datas descriptions instances bindings versions -> descriptions
+  program-instances :: ProgramInfo -> List CoreInstance
+  program-instances info = case info of ProgramInfo datas descriptions instances bindings versions -> instances
+  program-bindings :: ProgramInfo -> List CheckedBinding
+  program-bindings info = case info of ProgramInfo datas descriptions instances bindings versions -> bindings
+  program-versions :: ProgramInfo -> List MethodVersion
+  program-versions info = case info of ProgramInfo datas descriptions instances bindings versions -> versions
+  with-versions :: List MethodVersion -> ProgramInfo -> ProgramInfo
+  with-versions versions info = case info of ProgramInfo datas descriptions instances bindings old -> ProgramInfo datas descriptions instances bindings versions
+  same-classes :: List Nat -> List Nat -> Bool
+  same-classes first second = case (first, second) of
+    (Nil, Nil) -> True
+    (Cons a rest, Cons b more) -> a == b && same-classes rest more
+    other -> False
+  version-present :: String -> Nat -> List Nat -> List MethodVersion -> Bool
+  version-present owner slot classes versions = case versions of
+    Nil -> False
+    Cons (MethodVersion name index actual) rest -> (same owner name && slot == index && same-classes classes actual) || version-present owner slot classes rest
+  note-version :: String -> Nat -> List Nat -> Writer -> Writer
+  note-version owner slot classes w = case w of
+    Writer next globals code errors layouts (RuntimeContext info bounds rigids pending done) ->
+      if list-length classes == 0 || version-present owner slot classes (program-versions info) then w else
+        Writer next globals code errors layouts (RuntimeContext (with-versions (program-versions info <> [MethodVersion owner slot classes]) info) bounds rigids pending done)
+  method-class-ids :: CoreClassMethod -> List Nat
+  method-class-ids member = case scheme-requirements (class-method-scheme member) of Cons self rest -> type-free-bound (requirement-type self); Nil -> Nil
+  id-present :: Nat -> List Nat -> Bool
+  id-present id ids = case ids of Nil -> False; Cons first rest -> id == first || id-present id rest
+  own-quants :: List Nat -> List Quant -> List Quant
+  own-quants inherited qs = case qs of Nil -> Nil; Cons q rest -> if id-present (quant-id q) inherited then own-quants inherited rest else Cons q (own-quants inherited rest)
+  own-actuals :: List Nat -> List Quant -> List UType -> List UType
+  own-actuals inherited qs actuals = case (qs, actuals) of
+    (Cons q rest, Cons actual more) -> if id-present (quant-id q) inherited then own-actuals inherited rest more else Cons actual (own-actuals inherited rest more)
+    other -> Nil
+  method-own-quants :: CoreClassMethod -> List Quant
+  method-own-quants member = own-quants (method-class-ids member) (scheme-params (class-method-scheme member))
+  method-own-classes :: Writer -> CoreClassMethod -> List UType -> Option (List Nat)
+  method-own-classes w member actuals = if list-length actuals /= list-length (scheme-params (class-method-scheme member)) then None else
+    scheme-classes (writer-context w) (method-own-quants member) (own-actuals (method-class-ids member) (scheme-params (class-method-scheme member)) actuals)
+  default-own :: List Quant -> List Nat
+  default-own qs = case qs of Nil -> Nil; Cons q rest -> if kind-equal (quant-kind q) KType then Cons 1 (default-own rest) else default-own rest
+  selected-versions :: String -> Nat -> List MethodVersion -> List (List Nat)
+  selected-versions owner slot versions = case versions of
+    Nil -> Nil
+    Cons (MethodVersion name index classes) rest -> if same owner name && slot == index then Cons classes (selected-versions owner slot rest) else selected-versions owner slot rest
+  classes-before :: List Nat -> List Nat -> Bool
+  classes-before first second = case (first, second) of
+    (Nil, Cons b more) -> True
+    (Cons a rest, Cons b more) -> a < b || (a == b && classes-before rest more)
+    other -> False
+  insert-version :: List Nat -> List (List Nat) -> List (List Nat)
+  insert-version classes versions = case versions of
+    Nil -> [classes]
+    Cons first rest -> if classes-before classes first then Cons classes versions else Cons first (insert-version classes rest)
+  sort-versions :: List (List Nat) -> List (List Nat)
+  sort-versions versions = case versions of Nil -> Nil; Cons first rest -> insert-version first (sort-versions rest)
+  member-versions :: Writer -> String -> CoreClassMethod -> List (List Nat)
+  member-versions w owner member = case selected-versions owner (class-method-slot member) (program-versions (writer-program w)) of
+    Nil -> [default-own (method-own-quants member)]
+    found -> sort-versions found
+  primary-method-slots :: Writer -> String -> List CoreClassMethod -> List MethodSlot
+  primary-method-slots w owner members = case members of
+    Nil -> Nil
+    Cons member rest -> let classes = case member-versions w owner member of Cons first more -> first; Nil -> Nil in
+      Cons (MethodSlot (class-method-slot member) (class-method-slot member) classes) (primary-method-slots w owner rest)
+  extra-method-versions :: Nat -> Nat -> List (List Nat) -> (Nat, List MethodSlot)
+  extra-method-versions slot next versions = case versions of
+    Nil -> (next, Nil)
+    Cons first rest -> case extra-method-versions slot (next + 1) rest of
+      (finish, more) -> (finish, Cons (MethodSlot slot next first) more)
+  extra-method-slots :: Writer -> String -> Nat -> List CoreClassMethod -> List MethodSlot
+  extra-method-slots w owner next members = case members of
+    Nil -> Nil
+    Cons member rest -> let versions = case member-versions w owner member of Cons first more -> more; Nil -> Nil in
+      case extra-method-versions (class-method-slot member) next versions of
+        (finish, own-codes) -> own-codes <> extra-method-slots w owner finish rest
+  class-method-slots :: Writer -> CoreClass -> List MethodSlot
+  class-method-slots w description = primary-method-slots w (class-name description) (class-methods description)
+    <> extra-method-slots w (class-name description) (list-length (class-methods description)) (class-methods description)
+  method-physical-slot :: Nat -> List Nat -> List MethodSlot -> Option Nat
+  method-physical-slot slot own-codes plans = case plans of
+    Nil -> None
+    Cons (MethodSlot logical physical classes) rest -> if slot == logical && same-classes own-codes classes then Some physical else method-physical-slot slot own-codes rest
+  take-classes :: Nat -> List Nat -> List Nat
+  take-classes count classes = if count == 0 then Nil else case classes of Nil -> Nil; Cons first rest -> Cons first (take-classes (count - 1) rest)
+  type-param-count :: List Quant -> Nat
+  type-param-count qs = case qs of Nil -> 0; Cons q rest -> (if kind-equal (quant-kind q) KType then 1 else 0) + type-param-count rest
+  method-reference :: String -> String -> Nat -> List CheckedBinding -> Bool
+  method-reference name owner slot bindings = case bindings of Nil -> False; Cons first rest -> checked-method-matches first name owner slot || method-reference name owner slot rest
+  writer-data :: Writer -> List CoreData
+  writer-data w = program-data (writer-program w)
+  data-declaration :: String -> List CoreData -> Option CoreData
+  data-declaration name datas = case datas of
+    Nil -> None
+    Cons d rest -> if same name (core-data-name d) then Some d else data-declaration name rest
+  type-head :: UType -> UType
+  type-head ty = case base ty of UApp f x -> type-head f; other -> other
+  representation :: Nat -> List (Nat, Nat) -> Option Nat
+  representation id entries = case entries of Nil -> None; Cons (key, code) rest -> if key == id then Some code else representation id rest
+  word-class :: RuntimeContext -> UType -> Option Nat
+  word-class context ty = if number ty then Some 2 else if named ty "Bool" || named ty "Unit" then Some 0 else case context of
+    RuntimeContext datas bounds rigids pending done -> case base ty of
+      UBound id name KType -> representation id bounds
+      URigid id name level KType -> representation id rigids
+      UFun domain result -> Some 1
+      UFunEff domain row result -> Some 1
+      UPi id name domain row result -> Some 1
+      UTuple fields -> if field-types context fields 0 then Some 1 else None
+      other -> case type-head ty of
+        UCon name kind -> if same name "b.Io" && kind-equal kind (KFun KRegion KType) then Some 0
+          else if same name "Bytes" && kind-equal kind KType then Some 1 else
+          (case data-declaration name (program-data datas) of
+            Some d -> Some 1
+            None -> case find-class name (program-classes datas) of Some description -> Some 1; None -> None)
+        other -> None
+  word-type :: RuntimeContext -> UType -> Bool
+  word-type context ty = case word-class context ty of Some code -> True; None -> False
+  field-types :: RuntimeContext -> UType -> Nat -> Bool
+  field-types context fields count = case fields of
+    UEnd -> True
+    UArg first rest -> count < 16 && word-type context first && field-types context rest (count + 1)
+    other -> False
+  class-vector :: RuntimeContext -> List UType -> Option (List Nat)
+  class-vector context actuals = case actuals of
+    Nil -> Some Nil
+    Cons ty rest -> case (word-class context ty, class-vector context rest) of
+      (Some code, Some more) -> Some (Cons code more)
+      other -> None
+  class-text :: List Nat -> String
+  class-text classes = case classes of Nil -> ""; Cons code rest -> cat [nat-to-string code, class-text rest]
+  specialized-name :: String -> List Nat -> String
+  specialized-name name classes = case classes of Nil -> name; other -> cat [name, ".r", class-text classes]
+  erased-kind :: Kind -> Bool
+  erased-kind kind = case kind of KRegion -> True; KEffect -> True; KRow -> True; KProp -> True; other -> False
+  scheme-classes :: RuntimeContext -> List Quant -> List UType -> Option (List Nat)
+  scheme-classes context qs actuals = case (qs, actuals) of
+    (Nil, Nil) -> Some Nil
+    (Cons q rest, Cons actual more) -> if kind-equal (quant-kind q) KType then
+      (case (word-class context actual, scheme-classes context rest more) of
+        (Some code, Some tail) -> Some (Cons code tail)
+        other -> None)
+      else if erased-kind (quant-kind q) then scheme-classes context rest more else None
+    other -> None
+  class-bindings :: List Quant -> List Nat -> Option (List (Nat, Nat))
+  class-bindings qs classes = case qs of
+    Nil -> case classes of Nil -> Some Nil; other -> None
+    Cons q rest -> if erased-kind (quant-kind q) then class-bindings rest classes else
+      (case classes of
+        Cons code more -> if kind-equal (quant-kind q) KType && code < 3 then
+          (case class-bindings rest more of Some tail -> Some (Cons (quant-id q, code) tail); None -> None) else None
+        Nil -> None)
+  rigid-bindings :: List (Nat, UType) -> List (Nat, Nat) -> Option (List (Nat, Nat))
+  rigid-bindings openings bounds = case openings of
+    Nil -> Some Nil
+    Cons (key, URigid id name level kind) rest -> if erased-kind kind then rigid-bindings rest bounds else
+      (case (representation key bounds, rigid-bindings rest bounds) of
+        (Some code, Some more) -> Some (Cons (id, code) more)
+        other -> None)
+    other -> None
+  with-representations :: List (Nat, Nat) -> List (Nat, Nat) -> Writer -> Writer
+  with-representations bounds rigids w = case w of
+    Writer next globals code errors layouts (RuntimeContext datas old-bound old-rigid pending done) ->
+      Writer next globals code errors layouts (RuntimeContext datas bounds rigids pending done)
+  demand-seen :: String -> List Demand -> Bool
+  demand-seen key demands = case demands of Nil -> False; Cons first rest -> same key (demand-key first) || demand-seen key rest
+  demand-key :: Demand -> String
+  demand-key demand = case demand of
+    Demand name classes -> specialized-name name classes
+    ConstructorDemand name classes -> specialized-name name classes
+    LambdaDemand name bounds rigids saved parameter body -> name
+    StubDemand name classes -> cat [name, ".app"]
+    DictionaryDemand name classes -> dictionary-name name classes
+    BuiltinDemand name -> name
+  request-demand :: Demand -> Writer -> Writer
+  request-demand demand w = case w of
+    Writer next globals code errors layouts (RuntimeContext datas bounds rigids pending done) ->
+      if demand-seen (demand-key demand) (pending <> done) then w else
+        Writer next globals code errors layouts (RuntimeContext datas bounds rigids (Cons demand pending) done)
+  demand-worker :: String -> List Nat -> Writer -> Writer
+  demand-worker name classes w = request-demand (Demand name classes) w
+  runtime-number :: UType -> String
+  runtime-number ty = if named ty "Nat" then "nat" else "int"
+  count-op :: Bool -> UType -> String -> Writer -> Writer
+  count-op duplicate ty value w = case word-class (writer-context w) ty of
+    Some 0 -> w
+    Some code -> line w (cat ["  call void @cinch_", if duplicate then "dup" else "drop", "(i64 ", value, ")"])
+    None -> refuse w (Span 0 0 1 1) "reference operation needs a checked runtime representation"
+  drop-locals :: List Local -> Writer -> Writer
+  drop-locals locals w = case locals of
+    Nil -> w
+    Cons (Local id ty value) rest -> count-op False ty value (drop-locals rest w)
+    Cons (Discard ty value) rest -> count-op False ty value (drop-locals rest w)
+    Cons (Borrowed id ty value) rest -> drop-locals rest w
+    Cons (GivenLocal name ty value) rest -> drop-locals rest w
+    Cons (KnownSelf symbol name classes context) rest -> drop-locals rest w
+    Cons (SelfValue owner slot ty word) rest -> drop-locals rest w
+  local :: Nat -> List Local -> Option (UType, String)
+  local id locals = case locals of
+    Nil -> None
+    Cons (Local key ty value) rest -> if key == id then Some (ty, value) else local id rest
+    Cons (Discard ty value) rest -> local id rest
+    Cons (Borrowed key ty value) rest -> if key == id then Some (ty, value) else local id rest
+    Cons (GivenLocal name ty value) rest -> local id rest
+    Cons (KnownSelf symbol name classes context) rest -> local id rest
+    Cons (SelfValue owner slot ty word) rest -> local id rest
+
+  field-map :: RuntimeContext -> List UType -> Nat -> Option Nat
+  field-map datas fields factor = case fields of
+    Nil -> Some 0
+    Cons first rest -> case (word-class datas first, field-map datas rest (factor * 4)) of
+      (Some code, Some more) -> Some (code * factor + more)
+      other -> None
+  term-types :: List CoreTerm -> List UType
+  term-types terms = case terms of Nil -> Nil; Cons term rest -> Cons (core-type term) (term-types rest)
+  known-layout :: Nat -> List (Nat, Nat) -> Option Nat
+  known-layout packed layouts = case layouts of
+    Nil -> None
+    Cons (id, entry-word) rest -> if packed == entry-word then Some id else known-layout packed rest
+  named-layout :: String -> List (String, Nat) -> Option Nat
+  named-layout name groups = case groups of Nil -> None; Cons (owner, id) rest -> if same owner name then Some id else named-layout name rest
+  request-layout :: Span -> List CoreTerm -> Writer -> (Writer, Nat)
+  request-layout sp fields w = case w of
+    Writer next globals code errors (LayoutPlan groups tuples names cells) datas ->
+      case field-map datas (term-types fields) 4294967296 of
+        None -> (refuse w sp "tuple fields need checked runtime representations", 0)
+        Some bits -> let packed = list-length fields + bits in case known-layout packed tuples of
+          Some id -> (w, id)
+          None -> if list-length fields > 16 || groups >= 1022 then
+            (refuse w sp "tuple layout needs an extended runtime descriptor", 0)
+            else let id = 64 * (groups + 1) in
+              (Writer next globals code errors (LayoutPlan (groups + 1) (Cons (id, packed) tuples) names (Cons (id, packed) cells)) datas, id)
+  layout-count :: LayoutPlan -> Nat
+  layout-count plan = case plan of LayoutPlan groups tuples names cells -> if groups == 0 then 0 else 64 * (groups + 1)
+  layout-word :: Nat -> List (Nat, Nat) -> Nat
+  layout-word index cells = case cells of
+    Nil -> 0
+    Cons (id, packed) rest -> if id == index then packed else layout-word index rest
+  layout-words :: Nat -> Nat -> List (Nat, Nat) -> Builder -> Builder
+  layout-words index end cells code = if index == end then code else
+    layout-words (index + 1) end cells (builder-add-string (cat [if index == 0 then "" else ", ", "i64 ", nat-to-string (layout-word index cells)]) code)
+  layout-table :: LayoutPlan -> String
+  layout-table plan = case plan of
+    LayoutPlan 0 tuples names cells -> ""
+    LayoutPlan groups tuples names cells -> let count = layout-count plan in
+      let words = builder-run (layout-words 0 count cells builder-new) in
+      cat ["@cinch.typed.layouts = internal constant [", nat-to-string count, " x i64] [", words, "]\n",
+        "define internal void @cinch.typed.layouts.init() {\nentry:\n  call void @cinch_layouts_register(ptr @cinch.typed.layouts, i64 ", nat-to-string count, ")\n  ret void\n}\n",
+        "@llvm.global_ctors = appending global [1 x { i32, ptr, ptr }] [{ i32, ptr, ptr } { i32 65535, ptr @cinch.typed.layouts.init, ptr null }]\n"]
+  regular-parameters :: List Quant -> List Quant -> Bool
+  regular-parameters expected actual = case (expected, actual) of
+    (Nil, Nil) -> True
+    (Cons q rest, Cons p more) -> quant-id q == quant-id p && kind-equal (quant-kind q) KType && kind-equal (quant-kind p) KType && regular-parameters rest more
+    other -> False
+  data-result :: CoreData -> UType
+  data-result d = data-result-args (UCon (core-data-name d) (core-data-kind d)) (core-data-params d)
+  data-result-args :: UType -> List Quant -> UType
+  data-result-args result qs = case qs of Nil -> result; Cons q rest -> data-result-args (UApp result (UBound (quant-id q) (quant-name q) (quant-kind q))) rest
+  constructor-shape :: RuntimeContext -> UType -> UType -> Bool
+  constructor-shape context result ty = case ty of
+    UFun domain more -> word-type context domain && constructor-shape context result more
+    other -> same-data-result ty result
+  same-data-result :: UType -> UType -> Bool
+  same-data-result first second = case (first, second) of
+    (UCon a ka, UCon b kb) -> same a b && kind-equal ka kb
+    (UBound a an ka, UBound b bn kb) -> a == b && kind-equal ka kb
+    (UApp f x, UApp g y) -> same-data-result f g && same-data-result x y
+    other -> False
+  constructor-supported :: RuntimeContext -> CoreData -> CoreConstructor -> Bool
+  constructor-supported context d c = let sc = core-constructor-scheme c in
+    regular-parameters (core-data-params d) (scheme-params sc)
+    && (case scheme-requirements sc of Nil -> True; other -> False)
+    && constructor-shape context (data-result d) (scheme-body sc) && list-length (core-constructor-fields c) <= 16
+  add-constructor-layouts :: RuntimeContext -> CoreData -> Nat -> Nat -> List CoreConstructor -> Writer -> Writer
+  add-constructor-layouts context d base-id tag constructors w = case constructors of
+    Nil -> w
+    Cons c rest -> if not (constructor-supported context d c) then
+      add-constructor-layouts context d base-id (tag + 1) rest (refuse w (Span 0 0 1 1) "constructor needs dependent, existential or extended runtime lowering")
+      else case field-map context (core-constructor-fields c) 4294967296 of
+        None -> add-constructor-layouts context d base-id (tag + 1) rest (refuse w (Span 0 0 1 1) "constructor field representation is unknown")
+        Some bits -> case w of
+          Writer next globals code errors (LayoutPlan groups tuples names cells) original ->
+            let packed = list-length (core-constructor-fields c) + bits in
+            add-constructor-layouts context d base-id (tag + 1) rest (Writer next globals code errors (LayoutPlan groups tuples names (Cons (base-id + tag, packed) cells)) original)
+  request-data :: Span -> CoreData -> List Nat -> Writer -> (Writer, Nat)
+  request-data sp d classes w = case class-bindings (core-data-params d) classes of
+    None -> (refuse w sp "data parameters need first-order runtime representation classes", 0)
+    Some bounds -> case w of
+      Writer next globals code errors (LayoutPlan groups tuples names cells) (RuntimeContext datas old-bound rigids pending done) ->
+        let key = specialized-name (core-data-name d) classes in
+        case named-layout key names of
+          Some id -> (w, id)
+          None -> if list-length (core-data-constructors d) > 64 || groups >= 1022 then
+            (refuse w sp "data family needs an extended runtime descriptor", 0)
+            else let id = 64 * (groups + 1) in
+              let planned = Writer next globals code errors (LayoutPlan (groups + 1) tuples (Cons (key, id) names) cells) (writer-context w) in
+              (add-constructor-layouts (RuntimeContext datas bounds Nil pending done) d id 0 (core-data-constructors d) planned, id)
+  constructor-in :: String -> Nat -> List CoreConstructor -> Option (Nat, CoreConstructor)
+  constructor-in name index constructors = case constructors of
+    Nil -> None
+    Cons c rest -> if same name (core-constructor-name c) then Some (index, c) else constructor-in name (index + 1) rest
+  constructor :: String -> List CoreData -> Option (String, Nat, CoreConstructor)
+  constructor name datas = case datas of
+    Nil -> None
+    Cons d rest -> case constructor-in name 0 (core-data-constructors d) of
+      Some (tag, c) -> Some (core-data-name d, tag, c)
+      None -> constructor name rest
+  definition :: String -> List CoreDefinition -> Option CoreDefinition
+  definition name definitions = case definitions of Nil -> None; Cons d rest -> if same name (core-name d) then Some d else definition name rest
+  join :: List String -> String
+  join words = case words of Nil -> ""; Cons word Nil -> word; Cons word rest -> cat [word, ", ", join rest]
+  argument-words :: List String -> List String
+  argument-words values = case values of Nil -> Nil; Cons value rest -> Cons (cat ["i64 ", value]) (argument-words rest)
+  call :: Writer -> String -> List String -> (Writer, String)
+  call w name args = let (next, result) = fresh w "%v" in
+    (line next (cat ["  ", result, " = call i64 ", name, "(", join (argument-words args), ")"]), result)
+  decimal :: Writer -> UType -> String -> (Writer, String)
+  decimal w ty text =
+    let (next, name) = fresh w "@number" in
+    let len = nat-to-string (string-length text) in
+    let declared = global next (cat [name, " = private unnamed_addr constant [", len, " x i8] c\"", text, "\""]) in
+    let (ready, result) = fresh declared "%v" in
+    (line ready (cat ["  ", result, " = call i64 @cinch_", runtime-number ty, "_from_decimal(ptr ", name, ", i64 ", len, ")"]), result)
+  head :: CoreTerm -> CoreTerm
+  head term = case term of CApply sp ty f x -> head f; CApplyEff sp ty row f x -> head f; other -> term
+  arguments :: CoreTerm -> List CoreTerm -> List CoreTerm
+  arguments term more = case term of CApply sp ty f x -> arguments f (Cons x more); CApplyEff sp ty row f x -> arguments f (Cons x more); other -> more
+  function-type :: RuntimeContext -> UType -> Bool
+  function-type datas ty = case base ty of
+    UFun domain result -> word-type datas domain && function-type datas result
+    UFunEff domain row result -> word-type datas domain && function-type datas result
+    UPi id name domain row result -> word-type datas domain && function-type datas result
+    other -> word-type datas ty
+  arity :: UType -> Nat
+  arity ty = case ty of UFun domain result -> 1 + arity result; other -> 0
+  -- Word-level workers share code by representation class. Concrete numeric
+  -- semantics stay on checked Core; a TObj parameter is never assumed Int.
+  scheme-supported :: RuntimeContext -> Scheme -> Bool
+  scheme-supported context sc = function-type context (scheme-body sc)
+  expression :: List CoreDefinition -> List Local -> Writer -> CoreTerm -> (Writer, String)
+  expression definitions locals w term = case term of
+    CInt sp ty text -> if number ty then decimal w ty text else unsupported w sp "integer carrier needs runtime lowering"
+    CUnit sp ty -> (w, "0")
+    CLocal sp ty id name Nil -> case local id locals of
+      Some (declared, value) -> (count-op True declared value w, value)
+      None -> unsupported w sp "runtime local is absent from its lexical scope"
+    CUse sp ty name role actuals ->
+      if named ty "Bool" && same name "True" then (w, "1")
+      else if named ty "Bool" && same name "False" then (w, "0")
+      else direct-call definitions locals w sp name actuals Nil
+    CQualifiedUse sp ty name role actuals evidence -> case evidences definitions locals w evidence of
+      (ready, values) -> call-name definitions locals ready sp name actuals values Nil
+    CMethod sp ty name owner slot actuals evidence -> method-value definitions locals w sp ty name owner slot actuals evidence
+    CWith sp ty given value body -> case expression definitions locals w value of
+      (ready, word) -> case expression definitions (Cons (GivenLocal (given-symbol given) (given-type given) word) locals) ready body of
+        (done, result) -> (count-op False (given-type given) word done, result)
+    CApplyEff sp ty row f x -> application definitions locals w sp term f x
+    CApply sp ty f x -> application definitions locals w sp term f x
+    CLambda sp ty pattern body -> lambda definitions locals w sp pattern body
+    CLet sp ty id name sc rhs body -> if (case scheme-params sc of Nil -> True; other -> False) && scheme-supported (writer-context w) sc && word-type (writer-context w) (scheme-body sc) then
+      (case expression definitions locals w rhs of
+        (bound, value) -> case expression definitions (Cons (Local id (scheme-body sc) value) locals) bound body of
+          (done, result) -> (count-op False (scheme-body sc) value done, result))
+      else unsupported w sp "polymorphic or aggregate let needs runtime lowering"
+    CIf sp ty test yes no -> branch definitions locals w sp test yes no
+    CTuple sp ty fields -> tuple definitions locals w sp fields
+    CCase sp ty value alternatives -> case expression definitions locals w value of
+      (ready, word) -> case-value definitions locals ready (core-type value) word alternatives
+    CPrimitive sp ty op args -> primitive definitions locals w sp ty op args
+    CProved sp ty evidence body -> expression definitions locals w body
+    CRefine sp ty evidence body -> expression definitions locals w body
+    CForget sp ty body -> expression definitions locals w body
+    CRequire sp ty body -> expression definitions locals w body
+    CDischarge sp ty evidence body -> expression definitions locals w body
+    CDecision sp ty predicate condition -> unsupported w sp "decision constructors need runtime layouts"
+    other -> unsupported w (Span 0 0 1 1) "Core form needs typed runtime lowering"
+  application :: List CoreDefinition -> List Local -> Writer -> Span -> CoreTerm -> CoreTerm -> CoreTerm -> (Writer, String)
+  application definitions locals w sp term f x = case head term of
+      CUse at function name role actuals -> direct-call definitions locals w sp name actuals (arguments term Nil)
+      other -> case expression definitions locals w f of
+        (callee, function) -> case expression definitions locals callee x of
+          (ready, value) -> apply-one ready function value
+  expressions :: List CoreDefinition -> List Local -> Writer -> List CoreTerm -> (Writer, List String)
+  expressions definitions locals w terms = case terms of
+    Nil -> (w, Nil)
+    Cons term rest -> case expression definitions locals w term of
+      (first, value) -> case expressions definitions locals first rest of (done, values) -> (done, Cons value values)
+  -- A shape entry includes the three raw ABI prefix words and every
+  -- parameter class. The allocation itself holds only the filled prefix.
+  class-bits :: List Nat -> Nat -> Nat
+  class-bits classes factor = case classes of Nil -> 0; Cons first rest -> first * factor + class-bits rest (factor * 4)
+  request-shape :: Span -> List Nat -> Writer -> (Writer, Nat)
+  request-shape sp classes w = case w of
+    Writer next globals code errors (LayoutPlan groups tuples names cells) context ->
+      let packed = 3 + list-length classes + class-bits classes 274877906944 in
+      case known-layout packed tuples of
+        Some id -> (w, id)
+        None -> if list-length classes > 13 || groups >= 1022 then
+          (refuse w sp "closure shape needs an extended runtime descriptor", 0)
+          else let id = 64 * (groups + 1) in
+            (Writer next globals code errors (LayoutPlan (groups + 1) (Cons (id, packed) tuples) names (Cons (id, packed) cells)) context, id)
+  closure :: Span -> String -> List Nat -> List String -> Writer -> (Writer, String)
+  closure sp name classes values w = case request-shape sp classes (request-demand (StubDemand name classes) w) of
+    (planned, descriptor) ->
+      let (one, pointer) = fresh planned "%ptr" in
+      let allocated = line one (cat ["  ", pointer, " = call ptr @cinch_alloc_shaped(i64 ", nat-to-string (8 * (3 + list-length values)), ", i64 2, i64 ", nat-to-string descriptor, ")"]) in
+      let prefix = [cat ["ptrtoint (ptr ", symbol (cat [name, ".app"]), " to i64)"], nat-to-string (list-length classes), nat-to-string (list-length values)] in
+      let (done, word) = fresh (store-fields allocated pointer 0 (prefix <> values)) "%v" in
+      (line done (cat ["  ", word, " = ptrtoint ptr ", pointer, " to i64"]), word)
+  apply-one :: Writer -> String -> String -> (Writer, String)
+  apply-one w function value =
+    let (one, argv) = fresh w "%ptr" in
+    let (two, result) = fresh one "%v" in
+    let stored = line (line two (cat ["  ", argv, " = alloca i64"])) (cat ["  store i64 ", value, ", ptr ", argv]) in
+    (line stored (cat ["  ", result, " = call i64 @__apply(i64 ", function, ", i64 1, ptr ", argv, ")"]), result)
+  apply-terms :: List CoreDefinition -> List Local -> Writer -> String -> List CoreTerm -> (Writer, String)
+  apply-terms definitions locals w function terms = case terms of
+    Nil -> (w, function)
+    Cons first rest -> case expression definitions locals w first of
+      (ready, value) -> case apply-one ready function value of
+        (applied, result) -> apply-terms definitions locals applied result rest
+  take-terms :: Nat -> List CoreTerm -> List CoreTerm
+  take-terms count terms = if count == 0 then Nil else case terms of Nil -> Nil; Cons first rest -> Cons first (take-terms (count - 1) rest)
+  drop-terms :: Nat -> List CoreTerm -> List CoreTerm
+  drop-terms count terms = if count == 0 then terms else case terms of Nil -> Nil; Cons first rest -> drop-terms (count - 1) rest
+  definition-parameters :: CoreDefinition -> List CorePattern
+  definition-parameters d = case core-clauses d of Nil -> Nil; Cons (MkCoreClause sp parameters body) rest -> parameters
+  pattern-types :: List CorePattern -> List UType
+  pattern-types patterns = case patterns of Nil -> Nil; Cons first rest -> Cons (pattern-type first) (pattern-types rest)
+  definition-context :: CoreDefinition -> List Nat -> Writer -> Option RuntimeContext
+  definition-context d classes w = case class-bindings (scheme-params (core-scheme d)) classes of
+    None -> None
+    Some bounds -> case rigid-bindings (core-openings d) bounds of
+      None -> None
+      Some rigids -> Some (RuntimeContext (writer-program w) bounds rigids Nil Nil)
+  constructor-context :: CoreData -> List Nat -> Writer -> Option RuntimeContext
+  constructor-context d classes w = case class-bindings (core-data-params d) classes of
+    None -> None
+    Some bounds -> Some (RuntimeContext (writer-program w) bounds Nil Nil Nil)
+  builtin-known :: String -> Bool
+  builtin-known name = same name "b.newIO" || same name "b.ioWrite" || same name "b.ioSleep" || same name "b.pollCancel" || same name "cinch.runtime.bytesNew" || same name "cinch.runtime.bytesLen"
+  builtin-classes :: String -> List Nat
+  builtin-classes name = if same name "b.newIO" then [0] else if same name "b.ioWrite" then [0, 1] else if same name "b.ioSleep" then [0, 2] else if same name "b.pollCancel" then [0, 0] else if same name "cinch.runtime.bytesNew" then [2] else [1]
+  builtin-call :: List CoreDefinition -> List Local -> Writer -> Span -> String -> List UType -> List String -> List CoreTerm -> (Writer, String)
+  builtin-call definitions locals w sp name actuals givens args =
+    let classes = builtin-classes name in
+    let prepared = request-demand (BuiltinDemand name) w in
+    let count = list-length classes in
+    let supplied = list-length givens in
+    if supplied > count then unsupported w sp "builtin context exceeds its checked ABI arity" else
+      let missing = count - supplied in
+      (case expressions definitions locals prepared (take-terms missing args) of
+        (ready, values) -> let all = givens <> values in
+          if list-length all < list-length classes then closure sp name classes all ready else
+            (case call ready (symbol name) all of
+              (done, result) -> apply-terms definitions locals done result (drop-terms missing args)))
+  builtin-worker :: String -> Writer -> Writer
+  builtin-worker name w =
+    let classes = builtin-classes name in
+    let started = line (line w (cat ["define i64 ", symbol name, "(", join (argument-words (value-parameters (list-length classes) 0)), ") {"])) "entry:" in
+    let lowered = (if same name "b.newIO" then (started, "0")
+      else if same name "b.ioWrite" then (case call started "@cinch_io_write" ["%arg1"] of (done, result) -> (line done "  call void @cinch_drop(i64 %arg1)", "0"))
+      else if same name "b.ioSleep" then (case call started "@cinch_nat_to_len" ["%arg1"] of
+        (converted, length) -> case call converted "@cinch_io_sleep" [length] of (done, result) -> (line done "  call void @cinch_drop(i64 %arg1)", "0"))
+      else if same name "b.pollCancel" then call started "@cinch_task_poll_cancel" Nil
+      else if same name "cinch.runtime.bytesNew" then (case call started "@cinch_nat_to_len" ["%arg0"] of
+        (converted, length) -> case call converted "@cinch_bytes_new" [length] of (done, result) -> (line done "  call void @cinch_drop(i64 %arg0)", result))
+      else (case call started "@cinch_bytes_len" ["%arg0"] of
+        (measured, length) -> case call measured "@cinch_nat_from_i64" [length] of (done, result) -> (line done "  call void @cinch_drop(i64 %arg0)", result))) in
+    case lowered of (done, result) -> line (line done (cat ["  ret i64 ", result])) "}"
+  direct-call :: List CoreDefinition -> List Local -> Writer -> Span -> String -> List UType -> List CoreTerm -> (Writer, String)
+  direct-call definitions locals w sp name actuals args = call-name definitions locals w sp name actuals Nil args
+  call-name :: List CoreDefinition -> List Local -> Writer -> Span -> String -> List UType -> List String -> List CoreTerm -> (Writer, String)
+  call-name definitions locals w sp name actuals givens args = if builtin-known name then builtin-call definitions locals w sp name actuals givens args else
+    case instance-named name (program-instances (writer-program w)) of
+      Some factory -> case scheme-classes (writer-context w) (scheme-params (instance-scheme factory)) actuals of
+        Some classes -> if (case args of Nil -> True; other -> False) && list-length givens == list-length (scheme-requirements (instance-scheme factory)) then
+          call (request-demand (DictionaryDemand name classes) w) (symbol-for-dictionary name classes) givens else unsupported w sp "factory constructor arguments disagree with its checked context"
+        None -> unsupported w sp "factory needs runtime representation specialization"
+      None -> case constructor name (writer-data w) of
+        Some (owner, tag, c) -> case data-declaration owner (writer-data w) of
+          Some d -> case scheme-classes (writer-context w) (scheme-params (core-constructor-scheme c)) actuals of
+            None -> unsupported w sp "constructor parameters need runtime representation classes"
+            Some classes -> case constructor-context d classes w of
+              None -> unsupported w sp "constructor parameters need first-order representation classes"
+              Some context -> if list-length args == list-length (core-constructor-fields c) then
+                (case request-data sp d classes w of
+                  (planned, descriptor) -> case expressions definitions locals planned args of
+                    (ready, values) -> allocate ready (descriptor + tag) values)
+                else if list-length args < list-length (core-constructor-fields c) then
+                  (case class-vector context (core-constructor-fields c) of
+                    Some parameters -> case expressions definitions locals (request-demand (ConstructorDemand name classes) w) args of
+                      (ready, values) -> closure sp (specialized-name name classes) parameters values ready
+                    None -> unsupported w sp "constructor fields need known closure parameter representations")
+                else unsupported w sp "constructor application exceeds its checked arity"
+          None -> unsupported w sp "constructor has no defining runtime declaration"
+        None -> case definition name definitions of
+          Some d -> case scheme-classes (writer-context w) (scheme-params (core-scheme d)) actuals of
+            Some classes -> function-call definitions locals w sp d classes givens args
+            None -> unsupported w sp "function parameters need first-order or erased representation classes"
+          None -> unsupported w sp (cat ["external runtime implementation is unavailable: ", name])
+  function-call :: List CoreDefinition -> List Local -> Writer -> Span -> CoreDefinition -> List Nat -> List String -> List CoreTerm -> (Writer, String)
+  function-call definitions locals w sp d classes givens args = case definition-context d classes w of
+    Some context -> let parameters = definition-parameters d in
+      let required = runtime-givens w d in
+      let dependencies = definition-value-dependencies w d in
+      let all-types = value-field-types dependencies <> given-types required <> pattern-types parameters in
+      let count = list-length parameters in
+      if list-length givens > list-length required then unsupported w sp "function context exceeds its checked ABI" else
+        if list-length givens < list-length required && list-length args > 0 then unsupported w sp "explicit arguments precede missing function evidence" else
+        case definition-self-values d locals w of
+          (prepared, saved) -> if list-length givens < list-length required || list-length args < count then
+            (case class-vector context all-types of
+              Some parameter-classes -> case expressions definitions locals (demand-worker (core-name d) classes prepared) args of
+                (ready, values) -> closure sp (specialized-name (core-name d) classes) parameter-classes (saved <> givens <> values) ready
+              None -> unsupported prepared sp "function parameters need known closure representations")
+            else case expressions definitions locals (demand-worker (core-name d) classes prepared) (take-terms count args) of
+              (ready, values) -> case call ready (symbol (specialized-name (core-name d) classes)) (saved <> givens <> values) of
+                (called, result) -> apply-terms definitions locals called result (drop-terms count args)
+    None -> unsupported w sp "function parameters need first-order or erased representation classes"
+  instance-definitions :: List CoreInstance -> List CoreDefinition
+  instance-definitions instances = case instances of Nil -> Nil; Cons first rest -> field-definitions (instance-fields first) <> instance-definitions rest
+  field-definitions :: List CoreDictionaryField -> List CoreDefinition
+  field-definitions fields = case fields of Nil -> Nil; Cons first rest -> Cons (dictionary-field-definition first) (field-definitions rest)
+  instance-named :: String -> List CoreInstance -> Option CoreInstance
+  instance-named name instances = case instances of Nil -> None; Cons first rest -> if same name (instance-name first) then Some first else instance-named name rest
+  field-named :: String -> List CoreDictionaryField -> Option CoreDictionaryField
+  field-named name fields = case fields of Nil -> None; Cons first rest -> if same name (core-name (dictionary-field-definition first)) then Some first else field-named name rest
+  field-owner :: String -> List CoreInstance -> Option CoreInstance
+  field-owner name instances = case instances of Nil -> None; Cons first rest -> case field-named name (instance-fields first) of Some field -> Some first; None -> field-owner name rest
+  field-at :: Nat -> List CoreDictionaryField -> Option CoreDictionaryField
+  field-at slot fields = case fields of Nil -> None; Cons first rest -> if dictionary-field-slot first == slot then Some first else field-at slot rest
+  take-givens :: Nat -> List CoreGiven -> List CoreGiven
+  take-givens count givens = if count == 0 then Nil else case givens of Nil -> Nil; Cons first rest -> Cons first (take-givens (count - 1) rest)
+  drop-givens :: Nat -> List CoreGiven -> List CoreGiven
+  drop-givens count givens = if count == 0 then givens else case givens of Nil -> Nil; Cons first rest -> drop-givens (count - 1) rest
+  remove-given :: Nat -> List CoreGiven -> List CoreGiven
+  remove-given index givens = case givens of Nil -> Nil; Cons first rest -> if index == 0 then rest else Cons first (remove-given (index - 1) rest)
+  runtime-givens :: Writer -> CoreDefinition -> List CoreGiven
+  runtime-givens w d = case field-owner (core-name d) (program-instances (writer-program w)) of
+    Some owner -> remove-given (list-length (scheme-requirements (instance-scheme owner))) (core-givens d)
+    None -> core-givens d
+  given-types :: List CoreGiven -> List UType
+  given-types givens = case givens of Nil -> Nil; Cons first rest -> Cons (given-type first) (given-types rest)
+  given-bindings :: List CoreGiven -> Nat -> List Local
+  given-bindings givens index = case givens of Nil -> Nil; Cons first rest -> Cons (GivenLocal (given-symbol first) (given-type first) (cat ["%arg", nat-to-string index])) (given-bindings rest (index + 1))
+  given-roots :: List CoreGiven -> Nat -> List Local
+  given-roots givens index = case givens of Nil -> Nil; Cons first rest -> Cons (Discard (given-type first) (cat ["%arg", nat-to-string index])) (given-roots rest (index + 1))
+  given-word :: String -> List Local -> Option (UType, String)
+  given-word symbol locals = case locals of
+    Nil -> None
+    Cons (GivenLocal name ty word) rest -> if same name symbol then Some (ty, word) else given-word symbol rest
+    Cons other rest -> given-word symbol rest
+  known-self :: String -> List Local -> Option Local
+  known-self symbol locals = case locals of
+    Nil -> None
+    Cons (KnownSelf name owner classes context) rest -> if same symbol name then Some (KnownSelf name owner classes context) else known-self symbol rest
+    Cons other rest -> known-self symbol rest
+  self-binding :: Writer -> CoreDefinition -> List Nat -> List Local
+  self-binding w d classes = case field-owner (core-name d) (program-instances (writer-program w)) of
+    Some owner -> let count = list-length (scheme-requirements (instance-scheme owner)) in
+      (case drop-givens count (core-givens d) of
+        Cons self rest -> [KnownSelf (given-symbol self) (instance-name owner) (take-classes (type-param-count (scheme-params (instance-scheme owner))) classes) (take-givens count (core-givens d))]
+        Nil -> Nil)
+    None -> Nil
+  field-present :: Nat -> List CoreDictionaryField -> Bool
+  field-present slot fields = case fields of Nil -> False; Cons first rest -> dictionary-field-slot first == slot || field-present slot rest
+  merge-value-fields :: List CoreDictionaryField -> List CoreDictionaryField -> List CoreDictionaryField
+  merge-value-fields first second = case first of
+    Nil -> second
+    Cons field rest -> if field-present (dictionary-field-slot field) second then merge-value-fields rest second else Cons field (merge-value-fields rest second)
+  method-seen :: String -> List String -> Bool
+  method-seen name names = case names of Nil -> False; Cons first rest -> same name first || method-seen name rest
+  value-dependencies :: Writer -> CoreInstance -> CoreDefinition -> List String -> List CoreDictionaryField
+  value-dependencies w owner d seen = if method-seen (core-name d) seen then Nil else
+    case drop-givens (list-length (scheme-requirements (instance-scheme owner))) (core-givens d) of
+      Cons self rest -> clause-value-dependencies w owner (given-symbol self) (Cons (core-name d) seen) (core-clauses d)
+      Nil -> Nil
+  clause-value-dependencies :: Writer -> CoreInstance -> String -> List String -> List CoreClause -> List CoreDictionaryField
+  clause-value-dependencies w owner key seen clauses = case clauses of
+    Nil -> Nil
+    Cons (MkCoreClause sp patterns body) rest -> merge-value-fields (term-value-dependencies w owner key seen body) (clause-value-dependencies w owner key seen rest)
+  term-value-dependencies :: Writer -> CoreInstance -> String -> List String -> CoreTerm -> List CoreDictionaryField
+  term-value-dependencies w owner key seen term = case term of
+    CMethod sp ty name description slot actuals (Cons (CEGiven at given-ty symbol) extra) ->
+      if same key symbol then (case field-at slot (instance-fields owner) of
+        Some field -> if strict-value-field w owner field then [field] else value-dependencies w owner (dictionary-field-definition field) seen
+        None -> Nil) else Nil
+    CApply sp ty first second -> merge-value-fields (term-value-dependencies w owner key seen first) (term-value-dependencies w owner key seen second)
+    CApplyEff sp ty row first second -> merge-value-fields (term-value-dependencies w owner key seen first) (term-value-dependencies w owner key seen second)
+    CLambda sp ty pattern body -> term-value-dependencies w owner key seen body
+    CLet sp ty id name sc value body -> merge-value-fields (term-value-dependencies w owner key seen value) (term-value-dependencies w owner key seen body)
+    CWith sp ty given value body -> merge-value-fields (term-value-dependencies w owner key seen value) (term-value-dependencies w owner key seen body)
+    CIf sp ty condition yes no -> merge-value-fields (term-value-dependencies w owner key seen condition) (merge-value-fields (term-value-dependencies w owner key seen yes) (term-value-dependencies w owner key seen no))
+    CCase sp ty value alternatives -> merge-value-fields (term-value-dependencies w owner key seen value) (term-value-dependencies w owner key seen alternatives)
+    CTuple sp ty fields -> term-value-dependencies w owner key seen fields
+    CPrimitive sp ty op args -> term-value-dependencies w owner key seen args
+    CProved sp ty evidence body -> term-value-dependencies w owner key seen body
+    CRefine sp ty evidence body -> term-value-dependencies w owner key seen body
+    CForget sp ty body -> term-value-dependencies w owner key seen body
+    CRequire sp ty body -> term-value-dependencies w owner key seen body
+    CDischarge sp ty evidence body -> term-value-dependencies w owner key seen body
+    CGuard sp ty guard body -> merge-value-fields (term-value-dependencies w owner key seen guard) (term-value-dependencies w owner key seen body)
+    CArgument sp first rest -> merge-value-fields (term-value-dependencies w owner key seen first) (term-value-dependencies w owner key seen rest)
+    CAlternative sp pattern body rest -> merge-value-fields (term-value-dependencies w owner key seen body) (term-value-dependencies w owner key seen rest)
+    other -> Nil
+  definition-value-dependencies :: Writer -> CoreDefinition -> List CoreDictionaryField
+  definition-value-dependencies w d = case field-owner (core-name d) (program-instances (writer-program w)) of
+    Some owner -> value-dependencies w owner d Nil
+    None -> Nil
+  value-field-types :: List CoreDictionaryField -> List UType
+  value-field-types fields = case fields of Nil -> Nil; Cons first rest -> Cons (scheme-body (core-scheme (dictionary-field-definition first))) (value-field-types rest)
+  self-value-word :: String -> Nat -> List Local -> Option (UType, String)
+  self-value-word owner slot locals = case locals of
+    Nil -> None
+    Cons (SelfValue name index ty word) rest -> if same owner name && slot == index then Some (ty, word) else self-value-word owner slot rest
+    Cons other rest -> self-value-word owner slot rest
+  copy-self-values :: String -> List CoreDictionaryField -> List Local -> Writer -> (Writer, List String)
+  copy-self-values owner fields locals w = case fields of
+    Nil -> (w, Nil)
+    Cons field rest -> case self-value-word owner (dictionary-field-slot field) locals of
+      Some (ty, word) -> case copy-self-values owner rest locals (count-op True ty word w) of (done, values) -> (done, Cons word values)
+      None -> (refuse w (Span 0 0 1 1) "self value dependency is absent from its initialized environment", Nil)
+  definition-self-values :: CoreDefinition -> List Local -> Writer -> (Writer, List String)
+  definition-self-values d locals w = case field-owner (core-name d) (program-instances (writer-program w)) of
+    Some owner -> copy-self-values (instance-name owner) (definition-value-dependencies w d) locals w
+    None -> (w, Nil)
+  self-value-bindings :: String -> List CoreDictionaryField -> Nat -> List Local
+  self-value-bindings owner fields index = case fields of
+    Nil -> Nil
+    Cons first rest -> Cons (SelfValue owner (dictionary-field-slot first) (scheme-body (core-scheme (dictionary-field-definition first))) (cat ["%arg", nat-to-string index])) (self-value-bindings owner rest (index + 1))
+  worker-self-values :: Writer -> CoreDefinition -> List CoreDictionaryField -> List Local
+  worker-self-values w d fields = case field-owner (core-name d) (program-instances (writer-program w)) of Some owner -> self-value-bindings (instance-name owner) fields 0; None -> Nil
+  self-values-used :: String -> CoreTerm -> List Local -> Bool
+  self-values-used owner body locals = case locals of
+    Nil -> False
+    Cons (KnownSelf key name classes context) rest -> (same owner name && given-uses key body) || self-values-used owner body rest
+    Cons other rest -> self-values-used owner body rest
+  strict-fields :: Writer -> CoreInstance -> List CoreDictionaryField -> List CoreDictionaryField
+  strict-fields w owner fields = case fields of Nil -> Nil; Cons first rest -> if strict-value-field w owner first then Cons first (strict-fields w owner rest) else strict-fields w owner rest
+  values-ready :: String -> List CoreDictionaryField -> List Local -> Bool
+  values-ready owner fields locals = case fields of Nil -> True; Cons first rest -> (case self-value-word owner (dictionary-field-slot first) locals of Some value -> True; None -> False) && values-ready owner rest locals
+  ready-value :: Writer -> CoreInstance -> List Local -> List CoreDictionaryField -> List CoreDictionaryField -> Option (CoreDictionaryField, List CoreDictionaryField)
+  ready-value w owner locals before fields = case fields of
+    Nil -> None
+    Cons first rest -> if values-ready (instance-name owner) (value-dependencies w owner (dictionary-field-definition first) Nil) locals then Some (first, before <> rest) else ready-value w owner locals (before <> [first]) rest
+  initialize-values :: List CoreDefinition -> CoreInstance -> List Nat -> List CoreGiven -> List Local -> String -> List CoreDictionaryField -> Writer -> (Writer, List Local)
+  initialize-values definitions owner classes context locals pointer fields w = case fields of
+    Nil -> (w, locals)
+    Cons first rest -> case ready-value w owner locals Nil fields of
+      None -> (refuse w (Span 0 0 1 1) "cyclic strict dictionary values need recursive environment lowering", locals)
+      Some (selected, pending) -> let d = dictionary-field-definition selected in
+        case copy-givens context locals w of
+          (copied, values) -> case function-call definitions locals copied (Span 0 0 1 1) d classes values Nil of
+            (ready, word) -> initialize-values definitions owner classes context (Cons (SelfValue (instance-name owner) (dictionary-field-slot selected) (scheme-body (core-scheme d)) word) locals) pointer pending (store-one ready pointer (1 + dictionary-field-slot selected) word)
+  dictionary-name :: String -> List Nat -> String
+  dictionary-name name classes = cat [specialized-name name classes, ".dictionary"]
+  copy-givens :: List CoreGiven -> List Local -> Writer -> (Writer, List String)
+  copy-givens givens locals w = case givens of
+    Nil -> (w, Nil)
+    Cons first rest -> case given-word (given-symbol first) locals of
+      Some (ty, value) -> case copy-givens rest locals (count-op True ty value w) of (done, values) -> (done, Cons value values)
+      None -> (refuse w (Span 0 0 1 1) "factory context is absent from its actual lexical scope", Nil)
+  evidence-values :: List CoreDefinition -> List Local -> Writer -> CoreEvidence -> (Writer, List String)
+  evidence-values definitions locals w args = case args of
+    CEArgumentsEnd sp -> (w, Nil)
+    CEArgument sp first rest -> case evidence-value definitions locals w first of
+      (ready, value) -> case evidence-values definitions locals ready rest of (done, values) -> (done, Cons value values)
+    other -> (refuse w (Span 0 0 1 1) "malformed dictionary evidence argument spine", Nil)
+  evidences :: List CoreDefinition -> List Local -> Writer -> List CoreEvidence -> (Writer, List String)
+  evidences definitions locals w args = case args of
+    Nil -> (w, Nil)
+    Cons first rest -> case evidence-value definitions locals w first of
+      (ready, value) -> case evidences definitions locals ready rest of (done, values) -> (done, Cons value values)
+  strict-value-field :: Writer -> CoreInstance -> CoreDictionaryField -> Bool
+  strict-value-field w owner field = let d = dictionary-field-definition field in
+    list-length (definition-parameters d) == 0 && list-length (runtime-givens w d) == list-length (scheme-requirements (instance-scheme owner))
+  has-strict-values :: Writer -> CoreInstance -> List CoreDictionaryField -> Bool
+  has-strict-values w owner fields = case fields of Nil -> False; Cons first rest -> strict-value-field w owner first || has-strict-values w owner rest
+  evidence-value :: List CoreDefinition -> List Local -> Writer -> CoreEvidence -> (Writer, String)
+  evidence-value definitions locals w evidence = case evidence of
+    CEGiven sp ty symbol -> (case known-self symbol locals of
+      Some (KnownSelf name owner classes context) -> case instance-named owner (program-instances (writer-program w)) of
+        Some factory -> if has-strict-values w factory (instance-fields factory) then unsupported w sp "materializing self evidence with strict value fields needs initialization dependencies" else
+          (case copy-givens context locals w of (ready, values) -> call (request-demand (DictionaryDemand owner classes) ready) (symbol-for-dictionary owner classes) values)
+        None -> unsupported w sp "self evidence has no checked factory factory"
+      other -> case given-word symbol locals of
+        Some (actual, word) -> (count-op True actual word w, word)
+        None -> unsupported w sp "dictionary evidence is absent from its lexical scope")
+    CEInstance sp ty name actuals args -> case instance-named name (program-instances (writer-program w)) of
+      Some factory -> case scheme-classes (writer-context w) (scheme-params (instance-scheme factory)) actuals of
+        Some classes -> case evidence-values definitions locals w args of
+          (ready, values) -> if list-length values == list-length (scheme-requirements (instance-scheme factory)) then
+            call (request-demand (DictionaryDemand name classes) ready) (symbol-for-dictionary name classes) values
+            else unsupported ready sp "factory factory context arity disagrees with checked evidence"
+        None -> unsupported w sp "factory factory needs runtime representation specialization"
+      None -> unsupported w sp (cat ["checked factory has no executable source factory: ", name])
+    other -> unsupported w (Span 0 0 1 1) "unresolved dictionary evidence cannot be lowered"
+  symbol-for-dictionary :: String -> List Nat -> String
+  symbol-for-dictionary name classes = symbol (dictionary-name name classes)
+  method-at :: Nat -> List CoreClassMethod -> Option CoreClassMethod
+  method-at slot methods = case methods of Nil -> None; Cons first rest -> if class-method-slot first == slot then Some first else method-at slot rest
+  class-owner :: UType -> Option String
+  class-owner ty = case type-head ty of UCon name kind -> Some name; other -> None
+  method-value :: List CoreDefinition -> List Local -> Writer -> Span -> UType -> String -> String -> Nat -> List UType -> List CoreEvidence -> (Writer, String)
+  method-value definitions locals w sp ty name owner slot actuals evidence = case find-class owner (program-classes (writer-program w)) of
+    Some description -> case method-at slot (class-methods description) of
+      Some member -> if not (method-reference name owner slot (program-bindings (writer-program w))) then unsupported w sp (cat ["dictionary field does not belong to the checked global method: ", name]) else
+        (case method-own-classes w member actuals of
+          None -> unsupported w sp "method type arguments need runtime representation classes"
+          Some own-codes -> let prepared = note-version owner slot own-codes w in
+            (case evidence of
+              Cons self rest -> case self of
+                CEGiven at given-ty given-name -> (case known-self given-name locals of
+                  Some (KnownSelf key instance-name classes context) ->
+                    self-method definitions locals prepared sp ty name owner slot classes own-codes instance-name context rest
+                  other -> project-method definitions locals prepared sp ty description slot own-codes self rest)
+                other -> project-method definitions locals prepared sp ty description slot own-codes self rest
+              Nil -> unsupported w sp "method has no checked receiver evidence"))
+      None -> unsupported w sp "method slot is absent from its declaring class"
+    None -> unsupported w sp (cat ["method has no checked declaring class: ", owner, ".", name])
+  self-method :: List CoreDefinition -> List Local -> Writer -> Span -> UType -> String -> String -> Nat -> List Nat -> List Nat -> String -> List CoreGiven -> List CoreEvidence -> (Writer, String)
+  self-method definitions locals w sp ty name owner slot classes own-codes factory context extra = case instance-named factory (program-instances (writer-program w)) of
+    Some factory -> if (case class-owner (scheme-body (instance-scheme factory)) of Some actual -> same owner actual; None -> False) then
+      (case field-at slot (instance-fields factory) of
+        Some field -> if strict-value-field w factory field then
+          if list-length own-codes > 0 then unsupported w sp "polymorphic strict self values need representation-indexed initialization" else
+          (case self-value-word (instance-name factory) slot locals of
+            Some (actual, word) -> if list-length extra == 0 then (count-op True actual word w, word) else unsupported w sp "a strict value field cannot consume extra method evidence"
+            None -> unsupported w sp "self value was used before its dictionary slot was initialized")
+          else case copy-givens context locals w of
+            (copied, prefix) -> case evidences definitions locals copied extra of
+              (ready, more) -> function-call definitions locals ready sp (dictionary-field-definition field) (classes <> own-codes) (prefix <> more) Nil
+        None -> unsupported w sp "self method is absent from its actual factory")
+      else unsupported w sp "self evidence disagrees with the selected declaring class"
+    None -> unsupported w sp "self method has no actual checked factory"
+  project-method :: List CoreDefinition -> List Local -> Writer -> Span -> UType -> CoreClass -> Nat -> List Nat -> CoreEvidence -> List CoreEvidence -> (Writer, String)
+  project-method definitions locals w sp ty description slot own-codes receiver extra = case method-physical-slot slot own-codes (class-method-slots w description) of
+    Some physical -> dynamic-method definitions locals w sp ty physical receiver extra
+    None -> unsupported w sp "method representation has no planned declaring-class slot"
+  dynamic-method :: List CoreDefinition -> List Local -> Writer -> Span -> UType -> Nat -> CoreEvidence -> List CoreEvidence -> (Writer, String)
+  dynamic-method definitions locals w sp ty slot receiver extra = case evidence-value definitions locals w receiver of
+    (ready, dictionary) -> let (one, pointer) = fresh ready "%ptr" in
+      case load-word (line one (cat ["  ", pointer, " = inttoptr i64 ", dictionary, " to ptr"])) pointer (nat-to-string (1 + slot)) of
+        (loaded, field) ->
+          let field-ty = case extra of Nil -> ty; other -> UFun (UCon "Unit" KType) ty in
+          let retained = count-op True field-ty field loaded in
+          let released = count-op False (evidence-type receiver) dictionary retained in
+          case evidences definitions locals released extra of
+            (given, values) -> apply-values given field values
+  apply-values :: Writer -> String -> List String -> (Writer, String)
+  apply-values w function values = case values of Nil -> (w, function); Cons first rest -> case apply-one w function first of (done, result) -> apply-values done result rest
+  field-map-codes :: List Nat -> Nat -> Nat
+  field-map-codes codes factor = case codes of Nil -> 0; Cons first rest -> first * factor + field-map-codes rest (factor * 4)
+  request-object-shape :: Span -> List Nat -> Writer -> (Writer, Nat)
+  request-object-shape sp classes w = case w of
+    Writer next globals code errors (LayoutPlan groups tuples names cells) context ->
+      let packed = list-length classes + field-map-codes classes 4294967296 in
+      case known-layout packed tuples of
+        Some id -> (w, id)
+        None -> if list-length classes > 16 || groups >= 1022 then (refuse w sp "dictionary needs an extended runtime descriptor", 0) else
+          let id = 64 * (groups + 1) in
+          (Writer next globals code errors (LayoutPlan (groups + 1) (Cons (id, packed) tuples) names (Cons (id, packed) cells)) context, id)
+  dictionary-map :: CoreInstance -> List MethodSlot -> Writer -> Option (List Nat)
+  dictionary-map owner fields w = case fields of
+    Nil -> Some Nil
+    Cons (MethodSlot logical physical own-codes) rest -> case field-at logical (instance-fields owner) of
+      Some field -> let d = dictionary-field-definition field in
+        (case dictionary-map owner rest w of
+          Some more -> if strict-value-field w owner field then
+            if list-length own-codes > 0 then None else (case word-class (writer-context w) (scheme-body (core-scheme d)) of Some code -> Some (Cons code more); None -> None)
+            else Some (Cons 1 more)
+          None -> None)
+      None -> None
+  factory-bindings :: List Requirement -> Nat -> List CoreGiven
+  factory-bindings requirements index = case requirements of Nil -> Nil; Cons first rest -> Cons (CGiven (Span 0 0 1 1) (cat ["#factory-", nat-to-string index]) (requirement-type first)) (factory-bindings rest (index + 1))
+  dictionary-fields :: List CoreDefinition -> CoreInstance -> List Nat -> List CoreGiven -> List Local -> String -> List MethodSlot -> Writer -> Writer
+  dictionary-fields definitions owner classes context locals pointer fields w = case fields of
+    Nil -> w
+    Cons (MethodSlot logical physical own-codes) rest -> case field-at logical (instance-fields owner) of
+      Some field -> if strict-value-field w owner field then dictionary-fields definitions owner classes context locals pointer rest w else
+        let d = dictionary-field-definition field in
+        (case copy-givens context locals w of
+          (copied, values) -> case function-call definitions locals copied (Span 0 0 1 1) d (classes <> own-codes) values Nil of
+            (ready, value) -> let stored = store-one ready pointer (1 + physical) value in
+              dictionary-fields definitions owner classes context locals pointer rest stored)
+      None -> refuse w (Span 0 0 1 1) "planned dictionary slot has no actual instance method"
+  store-one :: Writer -> String -> Nat -> String -> Writer
+  store-one w pointer index value = let (ready, slot) = fresh w "%ptr" in
+    line (line ready (cat ["  ", slot, " = getelementptr i64, ptr ", pointer, ", i64 ", nat-to-string index])) (cat ["  store i64 ", value, ", ptr ", slot])
+  zeros :: Nat -> List String
+  zeros count = if count == 0 then Nil else Cons "0" (zeros (count - 1))
+  dictionary-worker :: List CoreDefinition -> String -> List Nat -> Writer -> Writer
+  dictionary-worker definitions name classes w = case instance-named name (program-instances (writer-program w)) of
+    Some factory -> case class-owner (scheme-body (instance-scheme factory)) of
+      Some owner -> (case find-class owner (program-classes (writer-program w)) of
+        Some description -> dictionary-worker-planned definitions factory classes (class-method-slots w description) w
+        None -> refuse w (Span 0 0 1 1) "dictionary has no checked declaring class")
+      None -> refuse w (Span 0 0 1 1) "dictionary target has no declaring class identity"
+    None -> refuse w (Span 0 0 1 1) "factory has no checked source implementation"
+  dictionary-worker-planned :: List CoreDefinition -> CoreInstance -> List Nat -> List MethodSlot -> Writer -> Writer
+  dictionary-worker-planned definitions factory classes plans w = case class-bindings (scheme-params (instance-scheme factory)) classes of
+      Some bounds ->
+        let scoped = with-representations bounds Nil w in
+        let context = factory-bindings (scheme-requirements (instance-scheme factory)) 0 in
+        case dictionary-map factory plans scoped of
+          Some fields -> case request-object-shape (Span 0 0 1 1) (Cons 0 fields) scoped of
+            (planned, descriptor) ->
+              let started = line (line planned (cat ["define i64 ", symbol-for-dictionary (instance-name factory) classes, "(", join (argument-words (value-parameters (list-length context) 0)), ") {"])) "entry:" in
+              let (one, pointer) = fresh started "%ptr" in
+              let allocated = line one (cat ["  ", pointer, " = call ptr @cinch_alloc_shaped(i64 ", nat-to-string (8 * (1 + list-length fields)), ", i64 3, i64 ", nat-to-string descriptor, ")"]) in
+              let initialized = store-fields allocated pointer 0 (Cons (nat-to-string (list-length fields)) (zeros (list-length fields))) in
+              case initialize-values definitions factory classes context (given-bindings context 0) pointer (strict-fields initialized factory (instance-fields factory)) initialized of
+                (values, locals) -> let filled = dictionary-fields definitions factory classes context locals pointer plans values in
+                  let (done, result) = fresh (drop-locals (given-roots context 0) filled) "%v" in
+                  line (line (line done (cat ["  ", result, " = ptrtoint ptr ", pointer, " to i64"])) (cat ["  ret i64 ", result])) "}"
+          None -> refuse scoped (Span 0 0 1 1) "dictionary field has no runtime representation"
+      None -> refuse w (Span 0 0 1 1) "factory factory needs first-order or erased parameters"
+  pattern-binds :: Nat -> CorePattern -> Bool
+  pattern-binds id pattern = case pattern of
+    CPVar sp ty key name -> id == key
+    CPAs sp ty key name inner -> id == key || pattern-binds id inner
+    CPTuple sp ty fields -> pattern-binds id fields
+    CPConstructor sp ty name actuals sc fields -> pattern-binds id fields
+    CPField sp first rest -> pattern-binds id first || pattern-binds id rest
+    other -> False
+  term-uses :: Nat -> CoreTerm -> Bool
+  term-uses id term = case term of
+    CLocal sp ty key name actuals -> id == key
+    CApply sp ty first second -> term-uses id first || term-uses id second
+    CApplyEff sp ty row first second -> term-uses id first || term-uses id second
+    CWith sp ty given value body -> term-uses id value || term-uses id body
+    CLambda sp ty pattern body -> not (pattern-binds id pattern) && term-uses id body
+    CLet sp ty key name sc rhs body -> term-uses id rhs || (id /= key && term-uses id body)
+    CIf sp ty test yes no -> term-uses id test || term-uses id yes || term-uses id no
+    CCase sp ty value alternatives -> term-uses id value || term-uses id alternatives
+    CTuple sp ty fields -> term-uses id fields
+    CPrimitive sp ty op args -> term-uses id args
+    CProved sp ty evidence body -> term-uses id body
+    CRefine sp ty evidence body -> term-uses id body
+    CForget sp ty body -> term-uses id body
+    CRequire sp ty body -> term-uses id body
+    CDischarge sp ty evidence body -> term-uses id body
+    CGuard sp ty guard body -> term-uses id guard || term-uses id body
+    CArgument sp first rest -> term-uses id first || term-uses id rest
+    CAlternative sp pattern body rest -> (not (pattern-binds id pattern) && term-uses id body) || term-uses id rest
+    other -> False
+  evidence-uses :: String -> CoreEvidence -> Bool
+  evidence-uses name evidence = case evidence of
+    CEGiven sp ty symbol -> same name symbol
+    CEInstance sp ty symbol actuals args -> evidence-uses name args
+    CEArgument sp first rest -> evidence-uses name first || evidence-uses name rest
+    other -> False
+  evidences-use :: String -> List CoreEvidence -> Bool
+  evidences-use name evidence = case evidence of Nil -> False; Cons first rest -> evidence-uses name first || evidences-use name rest
+  given-uses :: String -> CoreTerm -> Bool
+  given-uses name term = case term of
+    CQualifiedUse sp ty symbol role actuals evidence -> evidences-use name evidence
+    CMethod sp ty symbol owner slot actuals evidence -> evidences-use name evidence
+    CApply sp ty first second -> given-uses name first || given-uses name second
+    CApplyEff sp ty row first second -> given-uses name first || given-uses name second
+    CLambda sp ty pattern body -> given-uses name body
+    CLet sp ty key symbol sc rhs body -> given-uses name rhs || given-uses name body
+    CWith sp ty given value body -> given-uses name value || (not (same name (given-symbol given)) && given-uses name body)
+    CIf sp ty test yes no -> given-uses name test || given-uses name yes || given-uses name no
+    CCase sp ty value alternatives -> given-uses name value || given-uses name alternatives
+    CTuple sp ty fields -> given-uses name fields
+    CPrimitive sp ty op args -> given-uses name args
+    CProved sp ty evidence body -> given-uses name body
+    CRefine sp ty evidence body -> given-uses name body
+    CForget sp ty body -> given-uses name body
+    CRequire sp ty body -> given-uses name body
+    CDischarge sp ty evidence body -> given-uses name body
+    CGuard sp ty guard body -> given-uses name guard || given-uses name body
+    CArgument sp first rest -> given-uses name first || given-uses name rest
+    CAlternative sp pattern body rest -> given-uses name body || given-uses name rest
+    other -> False
+  given-in :: String -> List CoreGiven -> Bool
+  given-in name givens = case givens of Nil -> False; Cons first rest -> same name (given-symbol first) || given-in name rest
+  self-context-uses :: String -> CoreTerm -> List Local -> Bool
+  self-context-uses name body locals = case locals of
+    Nil -> False
+    Cons (KnownSelf key owner classes context) rest -> (given-uses key body && given-in name context) || self-context-uses name body rest
+    Cons other rest -> self-context-uses name body rest
+  captures-from :: CorePattern -> CoreTerm -> List Local -> List Local -> List Local
+  captures-from parameter body all locals = case locals of
+    Nil -> Nil
+    Cons (Local id ty value) rest -> if not (pattern-binds id parameter) && term-uses id body then Cons (Local id ty value) (captures-from parameter body all rest) else captures-from parameter body all rest
+    Cons (Borrowed id ty value) rest -> if not (pattern-binds id parameter) && term-uses id body then Cons (Local id ty value) (captures-from parameter body all rest) else captures-from parameter body all rest
+    Cons (GivenLocal name ty value) rest -> if given-uses name body || self-context-uses name body all then Cons (GivenLocal name ty value) (captures-from parameter body all rest) else captures-from parameter body all rest
+    Cons (KnownSelf key owner classes context) rest -> if given-uses key body then Cons (KnownSelf key owner classes context) (captures-from parameter body all rest) else captures-from parameter body all rest
+    Cons (SelfValue owner slot ty value) rest -> if self-values-used owner body all then Cons (SelfValue owner slot ty value) (captures-from parameter body all rest) else captures-from parameter body all rest
+    Cons (Discard ty value) rest -> captures-from parameter body all rest
+  capture-types :: List Local -> List UType
+  capture-types locals = case locals of
+    Nil -> Nil
+    Cons (Local id ty value) rest -> Cons ty (capture-types rest)
+    Cons (GivenLocal name ty value) rest -> Cons ty (capture-types rest)
+    Cons (SelfValue owner slot ty value) rest -> Cons ty (capture-types rest)
+    Cons other rest -> capture-types rest
+  capture-values :: List Local -> Writer -> (Writer, List String)
+  capture-values locals w = case locals of
+    Nil -> (w, Nil)
+    Cons (Local id ty value) rest -> case capture-values rest (count-op True ty value w) of
+      (done, values) -> (done, Cons value values)
+    Cons (GivenLocal name ty value) rest -> case capture-values rest (count-op True ty value w) of
+      (done, values) -> (done, Cons value values)
+    Cons (SelfValue owner slot ty value) rest -> case capture-values rest (count-op True ty value w) of
+      (done, values) -> (done, Cons value values)
+    Cons (KnownSelf key owner classes context) rest -> capture-values rest w
+    other -> (refuse w (Span 0 0 1 1) "malformed closure capture list", Nil)
+  captured-bindings :: List Local -> Nat -> List Local
+  captured-bindings saved index = case saved of
+    Nil -> Nil
+    Cons (Local id ty value) rest -> Cons (Borrowed id ty (cat ["%arg", nat-to-string index])) (captured-bindings rest (index + 1))
+    Cons (GivenLocal name ty value) rest -> Cons (GivenLocal name ty (cat ["%arg", nat-to-string index])) (captured-bindings rest (index + 1))
+    Cons (SelfValue owner slot ty value) rest -> Cons (SelfValue owner slot ty (cat ["%arg", nat-to-string index])) (captured-bindings rest (index + 1))
+    Cons (KnownSelf key owner classes context) rest -> Cons (KnownSelf key owner classes context) (captured-bindings rest index)
+    Cons other rest -> captured-bindings rest index
+  capture-roots :: List UType -> Nat -> List Local
+  capture-roots types index = case types of Nil -> Nil; Cons ty rest -> Cons (Discard ty (cat ["%arg", nat-to-string index])) (capture-roots rest (index + 1))
+  lambda :: List CoreDefinition -> List Local -> Writer -> Span -> CorePattern -> CoreTerm -> (Writer, String)
+  lambda definitions locals w sp parameter body =
+    let saved = captures-from parameter body locals locals in
+    case class-vector (writer-context w) (capture-types saved <> [pattern-type parameter]) of
+      None -> unsupported w sp "lambda parameters need known runtime representations"
+      Some classes -> let (named, name) = fresh w ".lambda" in
+        (case writer-context named of
+          RuntimeContext datas bounds rigids pending done ->
+            let planned = request-demand (LambdaDemand name bounds rigids saved parameter body) named in
+            case capture-values saved planned of
+              (ready, values) -> closure sp name classes values ready)
+  -- App stubs consume the closure and argv. Saved fields are duplicated
+  -- before the original closure is dropped; argv fields transfer directly.
+  load-word :: Writer -> String -> String -> (Writer, String)
+  load-word w pointer index =
+    let (one, slot) = fresh w "%ptr" in
+    let (two, value) = fresh one "%v" in
+    (line (line two (cat ["  ", slot, " = getelementptr i64, ptr ", pointer, ", i64 ", index])) (cat ["  ", value, " = load i64, ptr ", slot]), value)
+  saved-dups :: List Nat -> Nat -> String -> String -> Writer -> Writer
+  saved-dups classes index filled merged w = case classes of
+    Nil -> w
+    Cons first rest -> if first == 0 then saved-dups rest (index + 1) filled merged w else
+      let (one, condition) = fresh w "%v" in
+      let (two, duplicate) = fresh one "saveddup" in
+      let (three, next) = fresh two "savednext" in
+      let started = line (line (line three (cat ["  ", condition, " = icmp ult i64 ", nat-to-string index, ", ", filled])) (cat ["  br i1 ", condition, ", label %", duplicate, ", label %", next])) (cat [duplicate, ":"]) in
+      case load-word started merged (nat-to-string index) of
+        (loaded, word) -> saved-dups rest (index + 1) filled merged (line (line (line loaded (cat ["  call void @cinch_dup(i64 ", word, ")"])) (cat ["  br label %", next])) (cat [next, ":"]))
+  load-arguments :: Nat -> Nat -> String -> Writer -> (Writer, List String)
+  load-arguments count index merged w = if count == 0 then (w, Nil) else case load-word w merged (nat-to-string index) of
+    (loaded, word) -> case load-arguments (count - 1) (index + 1) merged loaded of (done, words) -> (done, Cons word words)
+  app-stub :: String -> List Nat -> Writer -> Writer
+  app-stub name classes w = case request-shape (Span 0 0 1 1) classes w of
+    (planned, descriptor) ->
+      let header = line (line planned (cat ["define i64 ", symbol (cat [name, ".app"]), "(ptr %self, i64 %argc, ptr %argv) {"])) "entry:" in
+      let (loaded, filled) = load-word header "%self" "2" in
+      let (one, total) = fresh loaded "%v" in
+      let (two, saved) = fresh one "%ptr" in
+      let (three, merged) = fresh two "%ptr" in
+      let (four, saved-bytes) = fresh three "%v" in
+      let (five, argument-bytes) = fresh four "%v" in
+      let (six, incoming) = fresh five "%ptr" in
+      let copied0 = line six (cat ["  ", total, " = add i64 ", filled, ", %argc"]) in
+      let copied1 = line copied0 (cat ["  ", saved, " = getelementptr i64, ptr %self, i64 3"]) in
+      let copied2 = line copied1 (cat ["  ", merged, " = alloca i64, i64 ", total]) in
+      let copied3 = line copied2 (cat ["  ", saved-bytes, " = mul i64 ", filled, ", 8"]) in
+      let copied4 = line copied3 (cat ["  ", argument-bytes, " = mul i64 %argc, 8"]) in
+      let copied5 = line copied4 (cat ["  call ptr @memcpy(ptr ", merged, ", ptr ", saved, ", i64 ", saved-bytes, ")"]) in
+      let copied6 = line copied5 (cat ["  ", incoming, " = getelementptr i64, ptr ", merged, ", i64 ", filled]) in
+      let copied = line copied6 (cat ["  call ptr @memcpy(ptr ", incoming, ", ptr %argv, i64 ", argument-bytes, ")"]) in
+      let (seven, self-word) = fresh (saved-dups classes 0 filled merged copied) "%v" in
+      let released = line (line seven (cat ["  ", self-word, " = ptrtoint ptr %self to i64"])) (cat ["  call void @cinch_drop(i64 ", self-word, ")"]) in
+      let (eight, full) = fresh released "%v" in
+      let (nine, partial-label) = fresh eight "partial" in
+      let (ten, full-label) = fresh nine "saturated" in
+      let split = line (line (line ten (cat ["  ", full, " = icmp uge i64 ", total, ", ", nat-to-string (list-length classes)])) (cat ["  br i1 ", full, ", label %", full-label, ", label %", partial-label])) (cat [partial-label, ":"]) in
+      let (eleven, words) = fresh split "%v" in
+      let (twelve, bytes) = fresh eleven "%v" in
+      let (thirteen, pointer) = fresh twelve "%ptr" in
+      let allocated = line (line (line thirteen (cat ["  ", words, " = add i64 ", total, ", 3"])) (cat ["  ", bytes, " = mul i64 ", words, ", 8"])) (cat ["  ", pointer, " = call ptr @cinch_alloc_shaped(i64 ", bytes, ", i64 2, i64 ", nat-to-string descriptor, ")"]) in
+      let prefix = [cat ["ptrtoint (ptr ", symbol (cat [name, ".app"]), " to i64)"], nat-to-string (list-length classes), total] in
+      let (fourteen, destination) = fresh (store-fields allocated pointer 0 prefix) "%ptr" in
+      let (fifteen, merged-bytes) = fresh fourteen "%v" in
+      let (sixteen, closure-word) = fresh fifteen "%v" in
+      let partial-returned = line (line (line (line (line sixteen (cat ["  ", destination, " = getelementptr i64, ptr ", pointer, ", i64 3"])) (cat ["  ", merged-bytes, " = mul i64 ", total, ", 8"])) (cat ["  call ptr @memcpy(ptr ", destination, ", ptr ", merged, ", i64 ", merged-bytes, ")"])) (cat ["  ", closure-word, " = ptrtoint ptr ", pointer, " to i64"])) (cat ["  ret i64 ", closure-word]) in
+      case load-arguments (list-length classes) 0 merged (line partial-returned (cat [full-label, ":"])) of
+        (arguments-ready, args) -> case call arguments-ready (symbol name) args of
+          (called, result) ->
+            let (seventeen, excess) = fresh called "%v" in
+            let (eighteen, more) = fresh seventeen "%v" in
+            let (nineteen, over-label) = fresh eighteen "overapplied" in
+            let (twenty, return-label) = fresh nineteen "appreturn" in
+            let saturated = line (line (line (line (line twenty (cat ["  ", excess, " = sub i64 ", total, ", ", nat-to-string (list-length classes)])) (cat ["  ", more, " = icmp ne i64 ", excess, ", 0"])) (cat ["  br i1 ", more, ", label %", over-label, ", label %", return-label])) (cat [return-label, ":"])) (cat ["  ret i64 ", result]) in
+            let (twenty-one, tail) = fresh (line saturated (cat [over-label, ":"])) "%ptr" in
+            let (twenty-two, out) = fresh twenty-one "%v" in
+            line (line (line (line twenty-two (cat ["  ", tail, " = getelementptr i64, ptr ", merged, ", i64 ", nat-to-string (list-length classes)])) (cat ["  ", out, " = call i64 @__apply(i64 ", result, ", i64 ", excess, ", ptr ", tail, ")"])) (cat ["  ret i64 ", out])) "}"
+  term-fields :: CoreTerm -> Option (List CoreTerm)
+  term-fields fields = case fields of
+    CArgumentsEnd sp -> Some Nil
+    CArgument sp first rest -> case term-fields rest of Some more -> Some (Cons first more); None -> None
+    other -> None
+  field-words :: RuntimeContext -> List CoreTerm -> Bool
+  field-words datas fields = case fields of Nil -> True; Cons first rest -> word-type datas (core-type first) && field-words datas rest
+  tuple :: List CoreDefinition -> List Local -> Writer -> Span -> CoreTerm -> (Writer, String)
+  tuple definitions locals w sp fields = case term-fields fields of
+    Some actual -> if list-length actual > 16 || not (field-words (writer-context w) actual) then unsupported w sp "tuple fields need an extended or polymorphic runtime layout" else
+      (case expressions definitions locals w actual of
+        (evaluated, values) ->
+          let (planned, descriptor) = request-layout sp actual evaluated in
+          allocate planned descriptor values)
+    None -> unsupported w sp "malformed tuple argument spine"
+  allocate :: Writer -> Nat -> List String -> (Writer, String)
+  allocate w descriptor values =
+    let (allocated, pointer) = fresh w "%ptr" in
+    let ready = line allocated (cat ["  ", pointer, " = call ptr @cinch_alloc_ctor(i64 ", nat-to-string (8 * list-length values), ", i64 ", nat-to-string descriptor, ")"]) in
+    let filled = store-fields ready pointer 0 values in
+    let (done, result) = fresh filled "%v" in
+    (line done (cat ["  ", result, " = ptrtoint ptr ", pointer, " to i64"]), result)
+  store-fields :: Writer -> String -> Nat -> List String -> Writer
+  store-fields w pointer index values = case values of
+    Nil -> w
+    Cons value rest -> let (ready, slot) = fresh w "%ptr" in
+      let pointed = line ready (cat ["  ", slot, " = getelementptr i64, ptr ", pointer, ", i64 ", nat-to-string index]) in
+      store-fields (line pointed (cat ["  store i64 ", value, ", ptr ", slot])) pointer (index + 1) rest
+  pattern-type :: CorePattern -> UType
+  pattern-type pattern = case pattern of
+    CPVar sp ty id name -> ty
+    CPWild sp ty -> ty
+    CPAs sp ty id name inner -> ty
+    CPTuple sp ty fields -> ty
+    CPConstructor sp ty name actuals constructor fields -> ty
+    CPInt sp ty text -> ty
+    other -> UError
+  continue-if :: Writer -> String -> String -> Writer
+  continue-if w condition failed =
+    let (one, flag) = fresh w "%v" in
+    let (two, succeeded) = fresh one "matched" in
+    line (line (line two (cat ["  ", flag, " = icmp ne i64 ", condition, ", 0"])) (cat ["  br i1 ", flag, ", label %", succeeded, ", label %", failed])) (cat [succeeded, ":"])
+  constructor-tag :: Writer -> String -> (Writer, String)
+  constructor-tag w value =
+    let (one, pointer) = fresh w "%ptr" in
+    let (two, slot) = fresh one "%ptr" in
+    let (three, header) = fresh two "%v" in
+    let (four, layout) = fresh three "%v" in
+    let (five, tag) = fresh four "%v" in
+    let address = line (line five (cat ["  ", pointer, " = inttoptr i64 ", value, " to ptr"])) (cat ["  ", slot, " = getelementptr i64, ptr ", pointer, ", i64 -1"]) in
+    let loaded = line address (cat ["  ", header, " = load atomic i64, ptr ", slot, " monotonic, align 8"]) in
+    (line (line loaded (cat ["  ", layout, " = lshr i64 ", header, ", 48"])) (cat ["  ", tag, " = and i64 ", layout, ", 63"]), tag)
+  match-pattern :: CorePattern -> String -> String -> Writer -> (Writer, List Local)
+  match-pattern pattern value failed w = if not (word-type (writer-context w) (pattern-type pattern)) then
+    (refuse w (Span 0 0 1 1) "pattern needs typed runtime match lowering", Nil)
+    else case pattern of
+      CPVar sp ty id name -> (w, [Borrowed id ty value])
+      CPWild sp ty -> (w, Nil)
+      CPAs sp ty id name inner -> case match-pattern inner value failed w of
+        (done, bindings) -> (done, Cons (Borrowed id ty value) bindings)
+      CPTuple sp ty fields -> case fields of
+        CPDone end -> (w, Nil)
+        other -> let (ready, pointer) = fresh w "%ptr" in
+          match-fields fields pointer 0 failed (line ready (cat ["  ", pointer, " = inttoptr i64 ", value, " to ptr"]))
+      CPConstructor sp ty name actuals sc fields ->
+        if named ty "Bool" && (same name "True" || same name "False") then
+          (case compare-word w "eq" value (if same name "True" then "1" else "0") of
+            (ready, condition) -> (continue-if ready condition failed, Nil))
+        else case constructor name (writer-data w) of
+          Some (owner, tag, c) -> if list-length (core-constructor-fields c) <= 16 && tag < 64 then
+            (case constructor-tag w value of
+              (loaded, actual) -> case compare-word loaded "eq" actual (nat-to-string tag) of
+                (compared, condition) -> let (ready, pointer) = fresh (continue-if compared condition failed) "%ptr" in
+                  match-fields fields pointer 0 failed (line ready (cat ["  ", pointer, " = inttoptr i64 ", value, " to ptr"])))
+            else (refuse w sp "constructor pattern needs a specialized runtime representation", Nil)
+          None -> (refuse w sp "constructor pattern has no defining runtime declaration", Nil)
+      CPInt sp ty text -> if number ty then
+        (case decimal w ty text of
+          (literal, word) -> case call literal (cat ["@cinch_", runtime-number ty, "_cmp"]) [value, word] of
+            (compared, order) -> case compare-word (count-op False ty word compared) "eq" order "0" of
+              (ready, condition) -> (continue-if ready condition failed, Nil))
+        else (refuse w sp "literal pattern needs mathematical runtime comparison", Nil)
+      other -> (refuse w (Span 0 0 1 1) "pattern form needs typed runtime match lowering", Nil)
+  match-fields :: CorePattern -> String -> Nat -> String -> Writer -> (Writer, List Local)
+  match-fields fields pointer index failed w = case fields of
+    CPDone end -> (w, Nil)
+    CPField sp first rest ->
+      let (one, slot) = fresh w "%ptr" in
+      let (two, value) = fresh one "%v" in
+      let loaded = line (line two (cat ["  ", slot, " = getelementptr i64, ptr ", pointer, ", i64 ", nat-to-string index])) (cat ["  ", value, " = load i64, ptr ", slot]) in
+      case match-pattern first value failed loaded of
+        (bound, bindings) -> case match-fields rest pointer (index + 1) failed bound of
+          (done, more) -> (done, bindings <> more)
+    other -> (refuse w (Span 0 0 1 1) "malformed tuple pattern spine", Nil)
+  guarded-expression :: List CoreDefinition -> List Local -> Writer -> String -> CoreTerm -> (Writer, String)
+  guarded-expression definitions locals w failed term = case term of
+    CGuard sp ty condition body -> case expression definitions locals w condition of
+      (ready, value) -> guarded-expression definitions locals (continue-if ready value failed) failed body
+    other -> expression definitions locals w term
+  case-value :: List CoreDefinition -> List Local -> Writer -> UType -> String -> CoreTerm -> (Writer, String)
+  case-value definitions locals w ty value alternatives =
+    let (one, slot) = fresh w "%slot" in
+    let (two, joined) = fresh one "casejoin" in
+    let finished = case-rows definitions locals (line two (cat ["  ", slot, " = alloca i64"])) ty value slot joined alternatives in
+    let (ready, result) = fresh (line finished (cat [joined, ":"])) "%v" in
+    (line ready (cat ["  ", result, " = load i64, ptr ", slot]), result)
+  case-rows :: List CoreDefinition -> List Local -> Writer -> UType -> String -> String -> String -> CoreTerm -> Writer
+  case-rows definitions locals w ty value slot joined alternatives = case alternatives of
+    CAlternativesEnd end -> line w "  unreachable"
+    CAlternative sp pattern body rest ->
+      let (one, failed) = fresh w "nextalt" in
+      case match-pattern pattern value failed one of
+        (matched, bindings) -> case guarded-expression definitions (bindings <> locals) matched failed body of
+          (done, result) -> let stored = line (count-op False ty value done) (cat ["  store i64 ", result, ", ptr ", slot]) in
+            let next = line (line stored (cat ["  br label %", joined])) (cat [failed, ":"]) in
+            case-rows definitions locals next ty value slot joined rest
+    other -> line (refuse w (Span 0 0 1 1) "malformed case alternative spine") "  unreachable"
+  branch :: List CoreDefinition -> List Local -> Writer -> Span -> CoreTerm -> CoreTerm -> CoreTerm -> (Writer, String)
+  branch definitions locals w sp test yes no =
+    let (tested, condition) = expression definitions locals w test in
+    let (one, slot) = fresh tested "%slot" in
+    let (two, predicate) = fresh one "%v" in
+    let (three, left) = fresh two "yes" in
+    let (four, right) = fresh three "no" in
+    let (five, end) = fresh four "join" in
+    let split = line (line (line five (cat ["  ", slot, " = alloca i64"])) (cat ["  ", predicate, " = icmp ne i64 ", condition, ", 0"])) (cat ["  br i1 ", predicate, ", label %", left, ", label %", right]) in
+    let (first, a) = expression definitions locals (line split (cat [left, ":"])) yes in
+    let middle = line (line (line first (cat ["  store i64 ", a, ", ptr ", slot])) (cat ["  br label %", end])) (cat [right, ":"]) in
+    let (second, b) = expression definitions locals middle no in
+    let joined = line (line (line second (cat ["  store i64 ", b, ", ptr ", slot])) (cat ["  br label %", end])) (cat [end, ":"]) in
+    let (ready, result) = fresh joined "%v" in
+    (line ready (cat ["  ", result, " = load i64, ptr ", slot]), result)
+  primitive :: List CoreDefinition -> List Local -> Writer -> Span -> UType -> String -> CoreTerm -> (Writer, String)
+  primitive definitions locals w sp ty op args = case args of
+    CArgument at input (CArgumentsEnd end) -> if same op "negate" && named (core-type input) "Int" then
+      (case expression definitions locals w input of
+        (ready, value) -> case call ready "@cinch_int_neg" [value] of (done, result) -> (count-op False (core-type input) value done, result))
+      else unsupported w sp "unary primitive needs runtime lowering"
+    CArgument at first (CArgument bt second (CArgumentsEnd end)) ->
+      if number (core-type first) then binary definitions locals w sp op first second
+      else if (same op "==" || same op "/=") && scalar (core-type first) then
+        (case expressions definitions locals w [first, second] of
+          (ready, [a, b]) -> compare-word ready (if same op "==" then "eq" else "ne") a b
+          other -> unsupported w sp "malformed scalar equality arguments")
+      else unsupported w sp "primitive carrier needs runtime lowering"
+    CArgumentsEnd end -> if same op "decision-true" then (w, "1") else if same op "decision-false" then (w, "0") else unsupported w sp "nullary primitive needs runtime lowering"
+    other -> unsupported w sp "primitive arity needs runtime lowering"
+  compare-word :: Writer -> String -> String -> String -> (Writer, String)
+  compare-word w predicate a b = let (one, flag) = fresh w "%v" in let (two, result) = fresh one "%v" in
+    (line (line two (cat ["  ", flag, " = icmp ", predicate, " i64 ", a, ", ", b])) (cat ["  ", result, " = zext i1 ", flag, " to i64"]), result)
+  comparison :: String -> Option String
+  comparison op = if same op "==" then Some "eq" else if same op "/=" then Some "ne" else if same op "<" then Some "slt" else if same op "<=" then Some "sle" else if same op ">" then Some "sgt" else if same op ">=" then Some "sge" else None
+  binary :: List CoreDefinition -> List Local -> Writer -> Span -> String -> CoreTerm -> CoreTerm -> (Writer, String)
+  binary definitions locals w sp op first second = case expressions definitions locals w [first, second] of
+    (ready, [a, b]) ->
+      let ty = core-type first in
+      let prefix = cat ["@cinch_", runtime-number ty, "_"] in
+      let operation = if same op "+" then Some "add" else if same op "-" then Some "sub" else if same op "*" then Some "mul" else None in
+      let lowered = (case operation of
+            Some suffix -> call ready (cat [prefix, suffix]) [a, b]
+            None -> case comparison op of
+              Some predicate -> case call ready (cat [prefix, "cmp"]) [a, b] of (compared, order) -> compare-word compared predicate order "0"
+              None -> unsupported ready sp "numeric primitive needs runtime lowering") in
+      case lowered of (done, result) -> (count-op False ty b (count-op False ty a done), result)
+    other -> unsupported w sp "malformed numeric arguments"
+  parameter-words :: List CorePattern -> Nat -> List String
+  parameter-words patterns index = case patterns of
+    Nil -> Nil
+    Cons first rest -> Cons (cat ["i64 %arg", nat-to-string index]) (parameter-words rest (index + 1))
+  parameter-roots :: List CorePattern -> Nat -> List Local
+  parameter-roots patterns index = case patterns of
+    Nil -> Nil
+    Cons first rest -> Cons (Discard (pattern-type first) (cat ["%arg", nat-to-string index])) (parameter-roots rest (index + 1))
+  match-parameters :: List CorePattern -> Nat -> String -> Writer -> (Writer, List Local)
+  match-parameters patterns index failed w = case patterns of
+    Nil -> (w, Nil)
+    Cons first rest -> case match-pattern first (cat ["%arg", nat-to-string index]) failed w of
+      (matched, bindings) -> case match-parameters rest (index + 1) failed matched of
+        (done, more) -> (done, bindings <> more)
+  worker-clauses :: List CoreDefinition -> List Local -> List Local -> Nat -> List CoreClause -> Writer -> Writer
+  worker-clauses definitions prefix roots offset clauses w = case clauses of
+    Nil -> line w "  unreachable"
+    Cons (MkCoreClause sp patterns body) rest ->
+      let (one, failed) = fresh w "nexteq" in
+      case match-parameters patterns offset failed one of
+        (matched, bindings) -> case guarded-expression definitions (bindings <> prefix) matched failed body of
+          (done, result) -> let returned = line (drop-locals roots done) (cat ["  ret i64 ", result]) in
+            worker-clauses definitions prefix roots offset rest (line returned (cat [failed, ":"]))
+  worker :: List CoreDefinition -> List Nat -> Writer -> CoreDefinition -> Writer
+  worker definitions classes w d = case d of
+    MkCoreDefinition sp name sc openings givens private clauses -> case class-bindings (scheme-params sc) classes of
+      None -> refuse w sp "definition needs first-order runtime representation specialization"
+      Some bounds -> case rigid-bindings openings bounds of
+        None -> refuse w sp "definition runtime representation openings are invalid"
+        Some rigids -> let scoped = with-representations bounds rigids w in
+          if not (scheme-supported (writer-context scoped) sc) then refuse scoped sp (cat ["definition needs dictionary or unsupported runtime lowering: ", name])
+          else case clauses of
+            Cons (MkCoreClause at patterns body) rest ->
+              let context = runtime-givens scoped d in
+              let dependencies = definition-value-dependencies scoped d in
+              let hidden = list-length dependencies in
+              let offset = hidden + list-length context in
+              let prefix = worker-self-values scoped d dependencies <> given-bindings context hidden <> self-binding scoped d classes in
+              let roots = capture-roots (value-field-types dependencies) 0 <> given-roots context hidden <> parameter-roots patterns offset in
+              let started = line (line scoped (cat ["define i64 ", symbol (specialized-name name classes), "(", join (argument-words (value-parameters (offset + list-length patterns) 0)), ") {"])) "entry:" in
+              line (worker-clauses definitions prefix roots offset clauses started) "}"
+            Nil -> refuse scoped sp "runtime definition has no checked equations"
+  value-parameters :: Nat -> Nat -> List String
+  value-parameters count index = if count == 0 then Nil else Cons (cat ["%arg", nat-to-string index]) (value-parameters (count - 1) (index + 1))
+  constructor-worker :: String -> List Nat -> Writer -> Writer
+  constructor-worker name classes w = case constructor name (writer-data w) of
+    Some (owner, tag, c) -> case data-declaration owner (writer-data w) of
+      Some d -> case constructor-context d classes w of
+        Some context -> case context of
+          RuntimeContext datas bounds rigids pending done ->
+            let scoped = with-representations bounds rigids w in
+            case request-data (Span 0 0 1 1) d classes scoped of
+              (planned, descriptor) ->
+                let count = list-length (core-constructor-fields c) in
+                let values = value-parameters count 0 in
+                let started = line (line planned (cat ["define i64 ", symbol (specialized-name name classes), "(", join (argument-words values), ") {"])) "entry:" in
+                case allocate started (descriptor + tag) values of
+                  (allocated, result) -> line (line allocated (cat ["  ret i64 ", result])) "}"
+        None -> refuse w (Span 0 0 1 1) "constructor worker needs representation specialization"
+      None -> refuse w (Span 0 0 1 1) "constructor worker has no defining data"
+    None -> refuse w (Span 0 0 1 1) "constructor worker has no checked constructor"
+  lambda-worker :: List CoreDefinition -> String -> List (Nat, Nat) -> List (Nat, Nat) -> List Local -> CorePattern -> CoreTerm -> Writer -> Writer
+  lambda-worker definitions name bounds rigids saved parameter body w =
+    let scoped = with-representations bounds rigids w in
+    if not (word-type (writer-context scoped) (core-type body)) then refuse scoped (Span 0 0 1 1) "lambda result needs a checked runtime representation" else
+      let types = capture-types saved in
+      let offset = list-length types in
+      let roots = capture-roots types 0 <> parameter-roots [parameter] offset in
+      let started = line (line scoped (cat ["define i64 ", symbol name, "(", join (argument-words (value-parameters (offset + 1) 0)), ") {"])) "entry:" in
+      line (worker-clauses definitions (captured-bindings saved 0) roots offset [MkCoreClause (Span 0 0 1 1) [parameter] body] started) "}"
+  workers :: List CoreDefinition -> Writer -> Writer
+  workers definitions w = case w of
+    Writer next globals code errors layouts (RuntimeContext datas bounds rigids pending done) -> case pending of
+      Nil -> w
+      Cons demand rest ->
+        let claimed = Writer next globals code errors layouts (RuntimeContext datas Nil Nil rest (Cons demand done)) in
+        case demand of
+          Demand name classes -> case definition name definitions of
+            Some d -> workers definitions (worker definitions classes claimed d)
+            None -> workers definitions (refuse claimed (Span 0 0 1 1) "demanded runtime definition is absent")
+          ConstructorDemand name classes -> workers definitions (constructor-worker name classes claimed)
+          LambdaDemand name saved-bound saved-rigid saved parameter body -> workers definitions (lambda-worker definitions name saved-bound saved-rigid saved parameter body claimed)
+          StubDemand name classes -> workers definitions (app-stub name classes claimed)
+          DictionaryDemand name classes -> workers definitions (dictionary-worker definitions name classes claimed)
+          BuiltinDemand name -> workers definitions (builtin-worker name claimed)
+  declarations :: String
+  declarations = cat [
+    "declare ptr @cinch_alloc_ctor(i64, i64)\ndeclare ptr @cinch_alloc_shaped(i64, i64, i64)\ndeclare ptr @memcpy(ptr, ptr, i64)\ndeclare void @cinch_layouts_register(ptr, i64)\n",
+    "declare void @cinch_dup(i64)\ndeclare void @cinch_drop(i64)\ndeclare void @cinch_reclaim_enable()\ndeclare i64 @cinch_exit_check(i64)\n",
+    "declare i64 @cinch_nat_to_len(i64)\ndeclare i64 @cinch_nat_from_i64(i64)\ndeclare i64 @cinch_bytes_new(i64)\ndeclare i64 @cinch_bytes_len(i64)\ndeclare i64 @cinch_io_write(i64)\ndeclare i64 @cinch_io_sleep(i64)\ndeclare i64 @cinch_task_poll_cancel()\n",
+    "declare i64 @cinch_argv_init(i64, ptr)\ndeclare i64 @cinch_run_main(ptr)\n",
+    "declare i64 @cinch_int_from_decimal(ptr, i64)\ndeclare i64 @cinch_nat_from_decimal(ptr, i64)\ndeclare i64 @cinch_int_to_i64(i64)\n",
+    "declare i64 @cinch_int_add(i64, i64)\ndeclare i64 @cinch_int_sub(i64, i64)\ndeclare i64 @cinch_int_mul(i64, i64)\ndeclare i64 @cinch_int_neg(i64)\ndeclare i64 @cinch_int_cmp(i64, i64)\n",
+    "declare i64 @cinch_nat_add(i64, i64)\ndeclare i64 @cinch_nat_sub(i64, i64)\ndeclare i64 @cinch_nat_mul(i64, i64)\ndeclare i64 @cinch_nat_cmp(i64, i64)\n"]
+  apply-entry :: String
+  apply-entry = cat ["define i64 @__apply(i64 %closure, i64 %argc, ptr %argv) {\nentry:\n",
+    "  %self = inttoptr i64 %closure to ptr\n  %code = load i64, ptr %self\n  %function = inttoptr i64 %code to ptr\n",
+    "  %result = call i64 %function(ptr %self, i64 %argc, ptr %argv)\n  ret i64 %result\n}\n"]
+  entry :: Nat -> String
+  entry mode =
+    let invocation = (if mode == 0 then cat ["  %result = call i64 ", symbol "main", "()\n"]
+      else if mode == 1 then cat ["  %result = call i64 ", symbol "main", "(i64 0)\n"]
+      else cat ["  %function = call i64 ", symbol "main", "()\n  %argv = alloca i64\n  store i64 0, ptr %argv\n  %result = call i64 @__apply(i64 %function, i64 1, ptr %argv)\n"]) in
+    cat ["define i64 @cinch.typed.exit() {\nentry:\n", invocation,
+    "  %exit = call i64 @cinch_int_to_i64(i64 %result)\n  call void @cinch_drop(i64 %result)\n  ret i64 %exit\n}\n",
+    "define i32 @main(i32 %argc, ptr %argv) {\nentry:\n  call void @cinch_reclaim_enable()\n  %count = sext i32 %argc to i64\n  call i64 @cinch_argv_init(i64 %count, ptr %argv)\n",
+    "  %exit = call i64 @cinch_run_main(ptr @cinch.typed.exit)\n  %checked = call i64 @cinch_exit_check(i64 %exit)\n  %code = trunc i64 %checked to i32\n  ret i32 %code\n}\n"]
+  entry-parameters :: List Quant -> Bool
+  entry-parameters qs = case qs of Nil -> True; Cons q rest -> erased-kind (quant-kind q) && entry-parameters rest
+  entry-mode :: CoreDefinition -> Option Nat
+  entry-mode d = if not (entry-parameters (scheme-params (core-scheme d))) || list-length (core-givens d) > 0 then None else
+    if named (scheme-body (core-scheme d)) "Int" && list-length (definition-parameters d) == 0 then Some 0 else
+      let ty = base (scheme-body (core-scheme d)) in
+      let valid = (case ty of
+        UFunEff domain row result -> named domain "Unit" && named result "Int"
+        UPi id name domain row result -> named domain "Unit" && named result "Int"
+        other -> False) in
+      if valid then (if list-length (definition-parameters d) == 1 then Some 1 else if list-length (definition-parameters d) == 0 then Some 2 else None) else None
+  empty-writer :: ProgramInfo -> Writer
+  empty-writer info = Writer 0 builder-new builder-new Nil (LayoutPlan 0 Nil Nil Nil) (RuntimeContext info Nil Nil Nil Nil)
+  -- Reached method vectors grow monotonically in a finite Raw/Obj/TObj
+  -- space. Plan to a fixed point before emitting dictionary layouts, so
+  -- every instance and every indirect projection uses one class slot table.
+  plan-method-versions :: List CoreDefinition -> ProgramInfo -> ProgramInfo
+  plan-method-versions definitions info =
+    let planned = writer-program (workers definitions (demand-worker "main" Nil (empty-writer info))) in
+    if list-length (program-versions planned) == list-length (program-versions info) then planned else plan-method-versions definitions planned
+  emit-runtime-program :: CheckedProgram -> Result (List Diagnostic) String
+  emit-runtime-program checked =
+    let typed = checked-elaboration checked in
+    let definitions = elaboration-core typed <> instance-definitions (elaboration-instances typed) in
+    let datas = elaboration-data typed in
+    let info = ProgramInfo datas (elaboration-classes typed) (elaboration-instances typed) (elaboration-bindings typed) Nil in
+    case definition "main" definitions of
+      None -> Err [MkDiagnostic "bootstrap.runtime-ir" (Span 0 0 1 1) "runtime entry has no main definition"]
+      Some d -> case entry-mode d of
+        None -> Err [MkDiagnostic "bootstrap.runtime-ir" (Span 0 0 1 1) "runtime entry must be main :: Int or Unit ->{IO} Int without external evidence"]
+        Some mode -> let initial = empty-writer (plan-method-versions definitions info) in
+          case workers definitions (demand-worker "main" Nil initial) of
+            Writer next globals code Nil layouts datas -> Ok (cat [declarations, builder-run globals, layout-table layouts, apply-entry, builder-run code, entry mode])
+            Writer next globals code errors layouts datas -> Err errors

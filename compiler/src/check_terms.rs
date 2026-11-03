@@ -433,6 +433,7 @@ impl Checker {
             site: format!("{}:{}", span.line, span.col),
             kind: if map { "map" } else { "list" }.to_string(),
             folded: false,
+            result_ty: result.clone(),
         });
         Ok((
             ECore::LitFold {
@@ -511,6 +512,7 @@ impl Checker {
             site: format!("{}:{}", span.line, span.col),
             kind: "range".to_string(),
             folded: false,
+            result_ty: result.clone(),
         });
         Ok((
             ECore::LitFold {
@@ -642,6 +644,7 @@ impl Checker {
                 if let Some((l, ty)) = self.module_param_use(p) {
                     return Ok((ECore::Var(l), ty));
                 }
+                if let Some(value) = self.named_instance_value(env, p)? { return Ok(value); }
                 let v = self.resolve_con(p, p.span())?;
                 self.value_use(&v, p.span(), env)
             }
@@ -1451,6 +1454,10 @@ impl Checker {
         // are checked, and erased evidence arguments never reach runtime.
         match term {
             ast::Term::Con(p) => {
+                if let Some((core, ty)) = self.named_instance_value(env, p)? {
+                    self.uni.unify(&ty, expected).map_err(|m| Error::at(p.span(), m))?;
+                    return Ok(core);
+                }
                 let want = self.uni.zonk(expected);
                 let (core, ty) = self.ctor_app(env, p, &[], &want, p.span())?;
                 self.uni
@@ -1506,7 +1513,8 @@ impl Checker {
             ast::Term::Let(decls, body, span) => self.in_let(*span, |s| {
                 let mut env2 = env.clone();
                 let (binds, group) = s.elab_locals(&mut env2, decls, LocalForm::Plain)?;
-                let bcore = s.check(&mut env2, body, expected)?;
+                let scoped = s.numeric_contract_in_value_scope(expected, env, &env2);
+                let bcore = s.check(&mut env2, body, &scoped)?;
                 if let Some(g) = &group {
                     s.discharge_group(g, expected, *span)?;
                 }
@@ -1515,7 +1523,8 @@ impl Checker {
             ast::Term::Letrec(decls, body, span) => self.in_let(*span, |s| {
                 let mut env2 = env.clone();
                 let (binds, group) = s.elab_letrec(&mut env2, decls)?;
-                let bcore = s.check(&mut env2, body, expected)?;
+                let scoped = s.numeric_contract_in_value_scope(expected, env, &env2);
+                let bcore = s.check(&mut env2, body, &scoped)?;
                 if let Some(g) = &group {
                     s.discharge_group(g, expected, *span)?;
                 }
@@ -2934,8 +2943,8 @@ impl Checker {
                 if !args.iter().all(|a| self.fact_term_ok(env, a)) {
                     return false;
                 }
-                if v.module == "Data.Bytes" && v.name == "bytes-len" {
-                    return true;
+                if matches!(v.kind, ValueKind::Prim(PrimOp::Bytes(BytesOp::Len))) {
+                    return args.len() == 1;
                 }
                 // A pure arithmetic intrinsic applied to all of its
                 // arguments (`u32-to-i64 c`, `bit-and-i64 x 255`,
@@ -3595,6 +3604,8 @@ impl Checker {
                     }
                 }
                 c
+            } else if let Ty::Prp(prop) = self.uni.zonk(dom) {
+                self.check_constructor_proof(env, a, &prop)?
             } else {
                 self.check(env, a, dom)?
             };
@@ -3648,7 +3659,7 @@ impl Checker {
                 ),
             ));
         }
-        Ok(ITerm::Fn(fn_id(&v.module, &v.name).0))
+        Ok(ITerm::Fn(value_index_id(v)))
     }
 
     /// A term in index position (a value a dependent type mentions):
@@ -3778,6 +3789,72 @@ impl Checker {
     /// Proof terms check and vanish: they never become runtime code (core
     /// specification section 3), and a failed check never produces
     /// evidence.
+    fn note_value_alias(&mut self, local: LocalId, core: &ECore) {
+        if let ECore::Var(original) = core {
+            let original = self.value_aliases.get(original).copied().unwrap_or(*original);
+            self.value_aliases.insert(local, original);
+        }
+    }
+
+    /// Give equal runtime values the same current lexical spelling while
+    /// retaining a proof's derivation scope. Never reinterpret its old names
+    /// in the caller's newer scope. Internally named hidden locals remain
+    /// resolvable by identity, not by a guessed source spelling.
+    fn proof_in_value_scope(
+        &self, prop: &PTerm, source: &HashMap<String, LocalId>, current: &Env,
+    ) -> PTerm {
+        self.proof_values_in_scope(&self.reduce_prop(prop), source, current)
+    }
+
+    fn proof_values_in_scope(
+        &self, prop: &PTerm, source: &HashMap<String, LocalId>, current: &Env,
+    ) -> PTerm {
+        let mut visible = HashMap::new();
+        for (name, local, _) in &current.locals {
+            if current.lookup(name).is_some_and(|(active, _)| active == *local) {
+                let original = self.value_aliases.get(local).copied().unwrap_or(*local);
+                visible.insert(original, name.clone());
+            }
+        }
+        let mut out = prop.clone();
+        let mut names = Vec::new(); out.free_vars(&mut names);
+        // Simultaneous substitution avoids an alias's spelling being
+        // mistaken for another source name which occurs in the predicate.
+        let replacements: Vec<_> = names.iter().filter_map(|name| {
+            let local = *source.get(name)?;
+            let original = self.value_aliases.get(&local).copied().unwrap_or(local);
+            let fresh = format!("$proof-value:{}", original.0);
+            Some((name.clone(), fresh, original))
+        }).collect();
+        for (name, fresh, _) in &replacements { out = out.subst(name, &ITerm::Var(fresh.clone())); }
+        for (_, fresh, original) in replacements {
+            if let Some(name) = visible.get(&original) { out = out.subst(&fresh, &ITerm::Var(name.clone())); }
+        }
+        out
+    }
+
+    fn check_constructor_proof(&mut self, env: &mut Env, term: &ast::Term, prop: &PTerm) -> Result<ECore> {
+        if let ast::Term::Var(path) = term {
+            if path.quals.is_empty() {
+                if let Some((local, mut scheme)) = env.lookup(&path.name.text) {
+                    if let Ty::Prp(statement) = self.uni.zonk(&scheme.ty) {
+                        if let Some(origin) = self.proof_value_scopes.get(&local) {
+                            let caller: HashMap<_, _> = env.locals.iter().map(|(name, id, _)| (name.clone(), *id)).collect();
+                            let statement = self.proof_in_value_scope(&statement, origin, env);
+                            let goal = self.proof_in_value_scope(prop, &caller, env);
+                            scheme.ty = Ty::Prp(Box::new(statement));
+                            let mut scoped = env.clone();
+                            let binding = scoped.locals.iter_mut().rev().find(|(_, id, _)| *id == local).expect("looked-up proof local");
+                            binding.2 = scheme;
+                            return self.check_proof(&mut scoped, term, &goal);
+                        }
+                    }
+                }
+            }
+        }
+        self.check_proof(env, term, prop)
+    }
+
     fn check_proof(&mut self, env: &mut Env, term: &ast::Term, prop: &PTerm) -> Result<ECore> {
         match self.static_obligation(prop)? {
             ObligStatus::Disproved => {
@@ -3891,6 +3968,9 @@ impl Checker {
                 } else {
                     self.resolve_var(p, p.span())?
                 };
+                if matches!(v.kind, ValueKind::ProofSearch) {
+                    return self.search_proof(env, args, prop, *span);
+                }
                 // `congr F e`: the lifting function is an explicit index
                 // term (e.g. `\ys -> Cons (f (g x)) ys`) and the evidence
                 // argument follows it. The one-argument form `congr e`
@@ -4038,6 +4118,65 @@ impl Checker {
                 "a proof term is `refl`, `congr [f] e`, a `case` on the induction variable, or the name of evidence",
             )),
         }
+    }
+
+    /// Experimental plan executor. It sees the checker's actual goal and
+    /// shadow-safe evidence snapshot, never text guessed by a syntax macro.
+    /// Failed alternatives do not unify metas or record evidence uses.
+    fn search_proof(
+        &mut self,
+        env: &Env,
+        args: &[ast::Term],
+        prop: &PTerm,
+        span: ast::Span,
+    ) -> Result<ECore> {
+        let [ast::Term::Str(plan, _)] = args else {
+            return Err(Error::at(span, "Proof.search expects one literal tactic plan"));
+        };
+        if plan.len() > 128 {
+            return Err(Error::at(span, "tactic plan exceeds 128 bytes"));
+        }
+        let steps: Vec<_> = plan.split_whitespace().collect();
+        if steps.is_empty() || steps.len() > 8
+            || steps.iter().any(|s| !matches!(*s, "assumption" | "linear"))
+        {
+            return Err(Error::at(span, "tactic plan needs 1–8 steps: assumption or linear"));
+        }
+        // The bootstrap branch tracks proof values across strict aliases
+        // and shadowing. Put the goal in the same current value scope as
+        // `evidence_in`, rather than comparing old source spellings.
+        let caller = env.locals.iter().map(|(name, id, _)| (name.clone(), *id)).collect();
+        // Keep opaque measures intact for arithmetic search, just as
+        // `evidence_in` does. Reduction belongs to exact proof matching.
+        let goal = self.proof_values_in_scope(prop, &caller, env);
+        let reduced_goal = self.reduce_prop(&goal);
+        let evidence = self.evidence_in(env);
+        for step in steps {
+            let used = match step {
+                "assumption" => evidence.items.iter().rposition(|(_, q, _, _)| {
+                    // These are free local indices, not refinement
+                    // binders: never match up to renaming (i < n is not
+                    // evidence for n < i, or for j < n).
+                    self.reduce_prop(q).eq(&reduced_goal)
+                }).map(|i| vec![i]),
+                // `linear_discharge` searches for certificates; the trusted
+                // `check_linear_proof` rechecks them before it returns. Only
+                // facts actually cited by those certificates count as uses.
+                "linear" => self.linear_discharge(&evidence, &goal),
+                _ => unreachable!("plan validated above"),
+            };
+            if let Some(used) = used {
+                let items: Vec<_> = used.iter().map(|i| &evidence.items[*i]).collect();
+                self.note_ev_used(&items, span);
+                return Ok(ECore::Unit);
+            }
+        }
+        let facts = evidence.items.iter().map(|(name, q, _, _)| format!("{name}: {q}"))
+            .chain(evidence.refined.iter().map(ToString::to_string))
+            .collect::<Vec<_>>().join("; ");
+        Err(Error::at(span, format!(
+            "tactic plan `{plan}` could not prove `{prop}`; scoped facts: [{facts}]"
+        )))
     }
 
     /// Proof-goal matching with named-helper reduction: the proof layer
@@ -5221,7 +5360,11 @@ impl Checker {
             ast::Term::Lam(pats, body, span) => (pats, body, *span),
             _ => unreachable!(),
         };
+        check_row_binders(pats)?;
         let mut env2 = env.clone();
+        let mut match_pats = Vec::new();
+        let mut match_cols = Vec::new();
+        let mut match_types = Vec::new();
         let mut params = Vec::new();
         let mut rest = expected.clone();
         let mut effs = Vec::new();
@@ -5281,10 +5424,13 @@ impl Checker {
                     self.register_obligation(l, "_", Some(mult), dom, p.span());
                 }
                 other => {
-                    return Err(Error::at(
-                        other.span(),
-                        "only variable and wildcard patterns are supported in lambdas in the bootstrap slice",
-                    ));
+                    if erased_dom {
+                        return Err(Error::at(other.span(), "an erased lambda parameter needs a variable or wildcard pattern"));
+                    }
+                    self.register_obligation(l, "a lambda pattern", Some(mult), dom.clone(), p.span());
+                    match_pats.push(self.expand_pat(other)?);
+                    match_cols.push(ECore::Var(l));
+                    match_types.push(dom);
                 }
             }
             // An erased parameter takes no runtime slot (core
@@ -5301,7 +5447,15 @@ impl Checker {
         // section 2).
         let saved = self.enter_perf();
         self.lam_depth += 1;
-        let bcore = self.check(&mut env2, body, &rest);
+        let bcore = if match_pats.is_empty() {
+            self.check(&mut env2, body, &rest)
+        } else {
+            self.compile_rows(
+                vec![Row { pats: match_pats, guard: None, body: body.as_ref().clone(), env: env2,
+                    idx: 0, consumed: Vec::new(), weight: None, guard_weight: None }],
+                match_cols, match_types, &rest, span, "a lambda argument combination",
+            )
+        };
         self.lam_depth -= 1;
         let bcore = bcore?;
         let performed = self.exit_perf(saved);
@@ -5553,6 +5707,9 @@ impl Checker {
                     ),
                 ));
             }
+            ValueKind::ProofSearch => {
+                return Err(Error::at(span, "Proof.search needs an expected proposition; it cannot be inferred or used at runtime"));
+            }
             ValueKind::ProofCtor => {
                 // Evidence constructors are erased: they are checked as
                 // proof terms and vanish at runtime (core specification
@@ -5684,7 +5841,7 @@ impl Checker {
                 } else {
                     Ty::fun(Ty::Unit, ty.clone())
                 };
-                ECore::DictProj(Box::new(dict), *idx, method_site(&v.scheme, &ptys), slot_ty)
+                ECore::DictProj(Box::new(dict), *idx, self.runtime_method_site(&v.module, &v.scheme, &ptys)?, slot_ty)
             }
             ValueKind::Law => {
                 return Err(Error::at(
@@ -5695,7 +5852,7 @@ impl Checker {
                     ),
                 ))
             }
-            ValueKind::BoolLit(_) | ValueKind::EffectOp { .. } | ValueKind::ProofCtor => {
+            ValueKind::BoolLit(_) | ValueKind::EffectOp { .. } | ValueKind::ProofCtor | ValueKind::ProofSearch => {
                 unreachable!()
             }
         };
@@ -5920,7 +6077,18 @@ impl Checker {
                         }
                     };
                     let scheme = self.generalize_local(env, l, &ty, is_value.then_some(&core));
-                    self.bind_local(env, &name.text, l, scheme, None, name.span)?;
+                    let equation = self.checked_nat_let_fact(env, &name.text, l, &core, &ty);
+                    self.note_value_alias(l, &core);
+                    // A strict alias transfers the source binder's usage
+                    // discipline. Otherwise `let y = x` launders a %1/%aff
+                    // parameter into an unrestricted local (also observable
+                    // through syntax templates that introduce temporaries).
+                    let mult = match &core {
+                        ECore::Var(source) => self.effective_mult(*source),
+                        _ => None,
+                    };
+                    self.bind_local(env, &name.text, l, scheme, mult, name.span)?;
+                    if let Some(fact) = equation { self.bind_facts(env, &[fact], self.ev_writes.len(), *span)?; }
                     // A let-generalized local's uses are copies of its
                     // definition, so the binding itself is never read.
                     if !self.gen_defs.contains_key(&l) {
@@ -5935,7 +6103,14 @@ impl Checker {
                         ast::Pat::Var(n, _) => {
                             let def = is_syntactic_value(body).then_some(&bc);
                             let scheme = self.generalize_local(env, l, &bt, def);
-                            self.bind_local(env, &n.text, l, scheme, None, n.span)?;
+                            let equation = self.checked_nat_let_fact(env, &n.text, l, &bc, &bt);
+                            self.note_value_alias(l, &bc);
+                            let mult = match &bc {
+                                ECore::Var(source) => self.effective_mult(*source),
+                                _ => None,
+                            };
+                            self.bind_local(env, &n.text, l, scheme, mult, n.span)?;
+                            if let Some(fact) = equation { self.bind_facts(env, &[fact], self.ev_writes.len(), *span)?; }
                             if self.gen_defs.contains_key(&l) {
                                 continue;
                             }
@@ -6542,6 +6717,7 @@ impl Checker {
         }
         self.gen_locals.insert(l, metas);
         Scheme {
+            con_params: Vec::new(),
             obligs: Vec::new(),
             params: tps,
             idx_params: Vec::new(),
@@ -7207,6 +7383,12 @@ impl Checker {
                             let map = binder_maps.entry(tag).or_default();
                             for (i, sp) in args.iter().enumerate() {
                                 let b = &parts.fields[i].0;
+                                if !parts.fields.iter().skip(i + 1).any(|(_, t, _)| ty_mentions(t, b)) {
+                                    // Ordinary fields have no name to substitute
+                                    // in later field types. Their row-local
+                                    // pattern binders may differ freely.
+                                    continue;
+                                }
                                 if let ast::Pat::Var(n, _) = sp {
                                     match map.get(b) {
                                         Some(prev) if *prev != n.text => {
@@ -7222,12 +7404,7 @@ impl Checker {
                                             map.insert(b.clone(), n.text.clone());
                                         }
                                     }
-                                } else if parts
-                                    .fields
-                                    .iter()
-                                    .enumerate()
-                                    .any(|(j, (_, t, _))| j > i && ty_mentions(t, b))
-                                {
+                                } else {
                                     return Err(Error::at(
                                         sp.span(),
                                         format!(
@@ -9371,6 +9548,16 @@ impl Checker {
             ));
         }
         let head = h.effect.segments[0].text.clone();
+        let mut clause_names = Vec::new();
+        for clause in &h.clauses {
+            if clause_names.contains(&clause.op.text) {
+                return Err(Error::at(
+                    clause.op.span,
+                    format!("duplicate handler clause for operation {}", clause.op.text),
+                ));
+            }
+            clause_names.push(clause.op.text.clone());
+        }
         let (region_param, ops) = {
             let e = self.effects.get(&head).ok_or_else(|| {
                 Error::at(h.effect.span(), format!("unknown effect {head}"))
@@ -9458,7 +9645,18 @@ impl Checker {
                     )
                 })?;
             seen.push(op_name.clone());
-            let (op_ty, op_ctx, _) = self.instantiate(op_scheme);
+            let (op_ty, op_ctx, _, op_params) = self.instantiate_at(op_scheme);
+            // A clause implements every instantiation of the operation;
+            // checking it at fresh flexible types would let `forall a`
+            // specialize to Int even when this invocation returns Bool.
+            let mut clause_rigids = HashMap::new();
+            for (name, actual) in op_scheme.params.iter().zip(op_params) {
+                let rigid = self.fresh_param(name);
+                self.uni
+                    .unify(&actual, &Ty::Param(rigid.clone()))
+                    .map_err(|message| Error::at(slot_clause.span, message))?;
+                clause_rigids.insert(rigid, Ty::Unit);
+            }
             if !op_ctx.is_empty() {
                 return Err(Error::at(
                     slot_clause.span,
@@ -9550,6 +9748,14 @@ impl Checker {
             self.lam_depth -= 1;
             let body = body?;
             let performed = self.exit_perf(saved);
+            // Operation-local skolems cannot become the enclosing answer
+            // type, handler input, or a captured local/dictionary type.
+            let mut outer_types = vec![self.uni.zonk(&input), self.uni.zonk(&output)];
+            outer_types.extend(env.locals.iter().map(|(_, _, scheme)| self.uni.zonk(&scheme.ty)));
+            outer_types.extend(env.dicts.iter().flat_map(|(_, class)| class.args.iter().map(|ty| self.uni.zonk(ty))));
+            if outer_types.iter().any(|ty| Self::subst_full(ty, &clause_rigids, &HashMap::new(), &HashMap::new()) != *ty) {
+                return Err(Error::at(slot_clause.span, "operation-local type parameter escapes its handler clause"));
+            }
             clause_eff = self
                 .uni
                 .union_rows(&clause_eff, &performed)
@@ -9740,12 +9946,12 @@ impl Checker {
         }
         let dict = holes.remove(0);
         let core = if holes.is_empty() {
-            ECore::DictProj(Box::new(dict), idx, method_site(&mscheme, &ptys), ty.clone())
+            ECore::DictProj(Box::new(dict), idx, self.runtime_method_site(&sig.module, &mscheme, &ptys)?, ty.clone())
         } else {
             let slot = ECore::DictProj(
                 Box::new(dict),
                 idx,
-                method_site(&mscheme, &ptys),
+                self.runtime_method_site(&sig.module, &mscheme, &ptys)?,
                 Ty::fun(Ty::Unit, ty.clone()),
             );
             app_spine(slot, holes)
@@ -9806,6 +10012,45 @@ impl Checker {
         None
     }
 
+    /// Named instance values use the actual factory and ordinary scoped
+    /// dictionary obligations, independently of implicit instance search.
+    fn named_instance_value(&mut self, env: &mut Env, path: &ast::ConPath) -> Result<Option<(ECore, Ty)>> {
+        if self.resolve_con(path, path.span()).is_ok() { return Ok(None); }
+        let parts = path.parts();
+        let candidates = match parts.as_slice() {
+            [name] => self.scope_candidates(name),
+            [qual, name] => self.scope_qual_candidates(qual, name),
+            _ => return Ok(None),
+        };
+        let Some(inst) = candidates.iter().find_map(|(module, name)| {
+            self.instance_list.iter().find(|i| i.module == *module && i.name == *name).cloned()
+        }) else { return Ok(None); };
+        if !inst.method_obligs.is_empty() {
+            return Err(Error::at(path.span(), Self::method_oblig_refusal(&inst, &inst.target.to_string())));
+        }
+        let actuals: Vec<Ty> = inst.params.iter().map(|_| self.uni.fresh()).collect();
+        let substitution: HashMap<String, Ty> = inst.params.iter().cloned().zip(actuals.iter().cloned()).collect();
+        let target = Self::subst_class(&inst.target, &substitution);
+        let mut args = Vec::new();
+        if inst.base {
+            if inst.module != self.current_module {
+                return Err(Error::at(path.span(), "a parameterized module's dictionary needs its instantiated module"));
+            }
+            args.extend(self.cur_mod_params.iter().map(|(_, local, _)| ECore::Var(*local)));
+        }
+        for item in &inst.ctx {
+            match item {
+                InstCtx::Dict(_, constraint) => {
+                    let want = self.new_want(Self::subst_class(constraint, &substitution), path.span(), env);
+                    args.push(ECore::Hole(want));
+                }
+                InstCtx::Oblig(_) => return Err(Error::at(path.span(), "an explicit constrained factory needs checked refinement evidence")),
+            }
+        }
+        let ty = Ty::Adt(target.class, target.args);
+        Ok(Some((ECore::InstDict(inst.base_id, args, actuals, true), ty)))
+    }
+
     /// Bind a capability name to a value of type `Io r` (decision D21):
     /// the binder is both a term-level value and a solver-visible provider.
     fn bind_capability(
@@ -9815,8 +10060,16 @@ impl Checker {
         core: ECore,
         ty: Ty,
         span: ast::Span,
-    ) -> Result<(LocalId, ECore, String)> {
+    ) -> Result<(LocalId, ECore, Option<String>)> {
         let z = self.uni.zonk(&ty);
+        if let Ty::Adt(class, args) = &z {
+            if class != "Io" && self.sigs.get(class).is_some_and(|sigs| sigs.iter().any(|sig| sig.params.len() == args.len())) {
+                let local = self.fresh_local();
+                self.bind_local(env, &name.text, local, Scheme::mono(z.clone()), Some(Mult::Many), span)?;
+                env.dicts.push((local, ClassApp { class: class.clone(), args: args.clone() }));
+                return Ok((local, core, None));
+            }
+        }
         let region = match &z {
             Ty::Adt(n, args) if n == "Io" && args.len() == 1 => match &args[0] {
                 Ty::Region(r) => r.clone(),
@@ -9841,7 +10094,7 @@ impl Checker {
                 return Err(Error::at(
                     span,
                     format!(
-                        "capability supply {} must have type `Io r`, got {other}",
+                        "supply {} must have type `Io r` or another checked signature, got {other}",
                         name.text
                     ),
                 ))
@@ -9858,12 +10111,13 @@ impl Checker {
         )?;
         env.dicts
             .push((l, ClassApp { class: "Io".into(), args: vec![Ty::Region(region.clone())] }));
-        Ok((l, core, region))
+        Ok((l, core, Some(region)))
     }
 
     /// A capability for a still-flex runtime identity must not leak that
     /// identity through the supply's scope (design section 4).
-    fn check_cap_escape(&mut self, region: &str, ty: &Ty, span: ast::Span) -> Result<()> {
+    fn check_cap_escape(&mut self, region: &Option<String>, ty: &Ty, span: ast::Span) -> Result<()> {
+        let Some(region) = region else { return Ok(()); };
         let r = self.uni.resolve_region(region);
         if !self.uni.is_flex_region(&r) {
             return Ok(());
@@ -9945,13 +10199,14 @@ impl Checker {
             ValueKind::Method { idx, .. } => {
                 let dict = holes.remove(0);
                 let slot_ty = if holes.is_empty() { ty.clone() } else { Ty::fun(Ty::Unit, ty.clone()) };
-                ECore::DictProj(Box::new(dict), *idx, method_site(&v.scheme, &ptys), slot_ty)
+                ECore::DictProj(Box::new(dict), *idx, self.runtime_method_site(&v.module, &v.scheme, &ptys)?, slot_ty)
             }
             ValueKind::StageBuiltin(_)
             | ValueKind::BoolLit(_)
             | ValueKind::EffectOp { .. }
             | ValueKind::Law
-            | ValueKind::ProofCtor => {
+            | ValueKind::ProofCtor
+            | ValueKind::ProofSearch => {
                 return Err(Error::at(span, "this value takes no capability supplies"))
             }
         };
@@ -10405,7 +10660,7 @@ fn rec_walk(
                 rec_walk(a, guard + bump, owner, by_local, edges);
             }
         }
-        ECore::InstDict(_, args, _) | ECore::MkClos { env: args, .. } => {
+        ECore::InstDict(_, args, _, _) | ECore::MkClos { env: args, .. } => {
             for a in args {
                 rec_walk(a, guard, owner, by_local, edges);
             }
@@ -10481,7 +10736,7 @@ fn rec_collect_refs(e: &ECore, by_local: &HashMap<LocalId, usize>, out: &mut Vec
                 rec_collect_refs(a, by_local, out);
             }
         }
-        ECore::InstDict(_, args, _) | ECore::MkClos { env: args, .. } => {
+        ECore::InstDict(_, args, _, _) | ECore::MkClos { env: args, .. } => {
             for a in args {
                 rec_collect_refs(a, by_local, out);
             }
@@ -10558,7 +10813,7 @@ fn top_rec_walk(e: &ECore, guard: i32, owner: usize, edges: &mut Vec<(usize, Glo
                 top_rec_walk(a, guard + bump, owner, edges);
             }
         }
-        ECore::InstDict(_, args, _) | ECore::MkClos { env: args, .. } => {
+        ECore::InstDict(_, args, _, _) | ECore::MkClos { env: args, .. } => {
             for a in args {
                 top_rec_walk(a, guard, owner, edges);
             }
@@ -10659,7 +10914,7 @@ fn subst_rec_refs(e: &mut ECore, subs: &HashMap<LocalId, RecSub>) {
                 subst_rec_refs(a, subs);
             }
         }
-        ECore::InstDict(_, args, _) | ECore::MkClos { env: args, .. } => {
+        ECore::InstDict(_, args, _, _) | ECore::MkClos { env: args, .. } => {
             for a in args {
                 subst_rec_refs(a, subs);
             }
@@ -10693,4 +10948,24 @@ fn wrap_lets(binds: Vec<(LocalId, ECore)>, body: ECore) -> ECore {
         out = ECore::Let(l, Box::new(v), Box::new(out));
     }
     out
+}
+
+impl Checker {
+    // Numeric result contracts are scoped before a let introduces names.
+    // Rebase their free value names to surviving aliases or internal local
+    // identities; a replacement source spelling is never the old value.
+    fn numeric_contract_in_value_scope(&self, ty: &Ty, source: &Env, current: &Env) -> Ty {
+        if !self.int_view(&self.uni.zonk(ty)).is_some_and(|(_, refinement)| refinement.is_some()) { return ty.clone() }
+        let mut out = ty.clone(); let mut names = std::collections::BTreeSet::new(); let mut replacements = Vec::new();
+        for (name, id, _) in source.locals.iter().rev() {
+            if !names.insert(name.clone()) || current.lookup(name).map(|(active, _)| active) == Some(*id) { continue }
+            let original = self.value_aliases.get(id).copied().unwrap_or(*id);
+            let fresh = format!("$proof-value:{}", original.0);
+            let visible = current.locals.iter().rev().find(|(name, local, _)| current.lookup(name).is_some_and(|(active, _)| active == *local) && self.value_aliases.get(local).copied().unwrap_or(*local) == original).map(|(name, _, _)| name.clone());
+            out = out.subst_idx(name, &ITerm::Var(fresh.clone()));
+            replacements.push((fresh, visible));
+        }
+        for (fresh, visible) in replacements { if let Some(name) = visible { out = out.subst_idx(&fresh, &ITerm::Var(name)); } }
+        out
+    }
 }

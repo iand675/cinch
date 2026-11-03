@@ -1,0 +1,78 @@
+-- Interfaces and source are runtime inputs to this compiled Cinch checker.
+module Main where
+  import Bootstrap.Ast
+  import Data.Json
+  import Text.Json (parse-json)
+  import Text.Show (int-to-string)
+  import Bootstrap.Inputs (read-interfaces)
+  import Bootstrap.Load (LoadedInterface)
+  import Bootstrap.Contracts (interface-headers)
+  import Bootstrap.Parse (parse-program-with)
+  import Bootstrap.Resolve (resolve-program-with)
+  import Bootstrap.Infer (elaborate-program, elaboration-errors, elaboration-core, elaboration-bindings, CheckedBinding, checked-body-binding)
+  import Bootstrap.Core
+  import Bootstrap.Type (UType, UApp, UCon, Kind, KType)
+  import Bootstrap.Nominal (interface-global)
+  import Bootstrap.BodyContract (BodyBinding)
+  import Bootstrap.Report (render-diagnostics)
+  import Text.Parse (ParseOutcome, Parsed, Failed, render-bundle)
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read, fs-write)
+  bindings-bodies :: List CheckedBinding -> List BodyBinding
+  bindings-bodies bindings = case bindings of
+    Nil -> Nil
+    Cons binding rest -> (case checked-body-binding binding of Some body -> Cons body (bindings-bodies rest); None -> bindings-bodies rest)
+  closed :: List BodyBinding -> List CoreDefinition -> Bool
+  closed bodies definitions = case definitions of Nil -> True; Cons d rest -> core-definition-bodies-closed bodies d && closed bodies rest
+  run :: List LoadedInterface -> Bytes -> String -> (Int, String)
+  run interfaces source element = case parse-program-with "imported-preconditions" source (interface-headers interfaces) of
+    Parsed program Nil -> case resolve-program-with program interfaces of
+      (resolved, Nil) -> let result = elaborate-program "imported-preconditions" resolved in
+        case elaboration-errors result of
+          Nil -> if closed (bindings-bodies (elaboration-bindings result)) (elaboration-core result) && (string-length element == 0 || selected-definition element (elaboration-core result)) then (0, "") else (94, "imported condition lost its Core evidence")
+          errors -> (4, render-diagnostics errors)
+      (resolved, errors) -> (4, render-diagnostics errors)
+    Failed bundle -> (2, render-bundle bundle)
+    other -> (2, "recoverable parse errors")
+  selected-type :: String -> UType -> Bool
+  selected-type element ty = case ty of
+    UApp (UApp (UCon owner kind) container) (UCon name KType) -> string-compare owner (interface-global "Data.FromList.FromList") == 0 && string-compare element name == 0
+    other -> False
+  selected-term :: String -> CoreTerm -> Bool
+  selected-term element term = case term of
+    CMethod sp ty name owner slot actuals (Cons evidence rest) -> selected-type element (evidence-type evidence)
+    CApply sp ty function input -> selected-term element function || selected-term element input
+    CApplyEff sp ty row function input -> selected-term element function || selected-term element input
+    CLet sp ty id name sc rhs body -> selected-term element rhs || selected-term element body
+    CRequire sp ty body -> selected-term element body
+    CDischarge sp ty evidence body -> selected-term element body
+    CWith sp ty given value body -> selected-term element value || selected-term element body
+    CLambda sp ty pattern body -> selected-term element body
+    other -> False
+  selected-clauses :: String -> List CoreClause -> Bool
+  selected-clauses element clauses = case clauses of Nil -> False; Cons (MkCoreClause sp patterns body) rest -> selected-term element body || selected-clauses element rest
+  selected-definition :: String -> List CoreDefinition -> Bool
+  selected-definition element definitions = case definitions of Nil -> False; Cons definition rest -> selected-clauses element (core-clauses definition) || selected-definition element rest
+  field :: String -> Json -> Json
+  field name doc = case doc of JObj key value rest -> if string-compare name key == 0 then value else field name rest; other -> JNull
+  cases :: List LoadedInterface -> Json -> (Int, String)
+  cases interfaces rows = case rows of
+    JArr row rest -> (case (field "name" row, field "source" row, field "wanted" row) of
+      (JStr name, JStr source, JNum wanted) -> let element = case field "element" row of JStr name -> name; other -> "" in
+        let (actual, report) = run interfaces (string-to-bytes source) element in
+        (case cases interfaces rest of
+          (failed, more) -> (failed + (if actual == wanted then 0 else 1), string-concat-all [name, ": wanted ", int-to-string wanted, ", actual ", int-to-string actual, "\n", report, "\n", more]))
+      other -> (1, "malformed collection case"))
+    JArrEnd -> (0, "")
+    other -> (1, "invalid collection cases")
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case read-interfaces "interfaces.json" of
+    Err message -> (case fs-write (path-from-string "collection-report.txt") (string-to-bytes message) of Ok _ -> 90; Err error -> 92)
+    Ok interfaces -> (case fs-read (path-from-string "cases.json") of
+      Err error -> 91
+      Ok contents -> (case parse-json "collection-cases" contents of
+        Parsed document Nil -> let (failed, report) = cases interfaces document in
+          (case fs-write (path-from-string "collection-report.txt") (string-to-bytes report) of
+            Err error -> 92
+            Ok _ -> if failed == 0 then 0 else 1)
+        other -> 93))

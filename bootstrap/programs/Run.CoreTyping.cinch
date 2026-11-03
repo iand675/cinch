@@ -1,0 +1,114 @@
+module Main where
+  import Bootstrap.Type
+  import Bootstrap.Index
+  import Bootstrap.Core
+  import Bootstrap.Global
+  import Bootstrap.Kinds
+  import Bootstrap.Typing
+  import Text.Lex (Span)
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read)
+
+  sp :: Span
+  sp = Span 0 0 1 1
+  int :: UType
+  int = UCon "Int" KType
+  nat :: UType
+  nat = UCon "Nat" KType
+  bool :: UType
+  bool = UCon "Bool" KType
+  unit :: UType
+  unit = UCon "Unit" KType
+  string :: UType
+  string = UCon "String" KType
+  log-row :: UType
+  log-row = URow (UArg (UCon "Log" KEffect) UEnd)
+  zero-row :: UType
+  zero-row = URow UEnd
+  truth :: CoreTerm
+  truth = CUse sp bool "True" "constructor" Nil
+  integer :: CoreTerm
+  integer = CInt sp int "1"
+  arguments :: CoreTerm -> CoreTerm -> CoreTerm
+  arguments a b = CArgument sp a (CArgument sp b (CArgumentsEnd sp))
+  answer :: CoreTerm -> CoreDefinition
+  answer body = MkCoreDefinition sp "answer" (mono int) Nil Nil Nil [MkCoreClause sp Nil body]
+  kinds :: List (String, Kind)
+  kinds = [("Int", KType), ("Nat", KType), ("I64", KType), ("Bool", KType), ("Unit", KType), ("String", KType), ("Char", KType), ("Bytes", KType), ("Log", KEffect), ("Box", KType), ("At", KFun (value-kind nat) KType)]
+  checks :: Nat -> List Bool
+  checks nonce =
+    let q = MkQuant nonce "a" KType False in let a = UBound nonce "a" KType in
+    let indexed = MkScheme [MkQuant (nonce + 1) "n" (value-kind nat) False] (UApp (UCon "At" (KFun (value-kind nat) KType)) (UIndex nat (IBound (nonce + 1) "n"))) in
+    let declarations =
+          [ GlobalValue "answer" "value" (mono int)
+          , GlobalValue "True" "constructor" (mono bool)
+          , GlobalValue "id-int" "external" (mono (UFun int int))
+          , GlobalValue "id-bool" "external" (mono (UFun bool bool))
+          , GlobalValue "generic" "external" (MkScheme [q] (UFun a a))
+          , GlobalValue "mark" "constructor" indexed
+          , GlobalValue "effect" "external" (mono (UFunEff unit log-row int))
+          , GlobalValue "lambda" "value" (mono (UFun int int))
+          , GlobalValue "function" "value" (mono (UFun int int))
+          , GlobalValue "effect-function" "value" (mono (UFunEff unit log-row int))
+          ] in
+    case (close-typing-context kinds declarations, close-globals declarations) of
+      (Some context, Some references) ->
+        let check body = typing-definition-closed context (answer body) in
+        let id-int = CUse sp (UFun int int) "id-int" "external" Nil in
+        let id-bool = CUse sp (UFun bool bool) "id-bool" "external" Nil in
+        let operation = CUse sp (UFunEff unit log-row int) "effect" "external" Nil in
+        let x = nonce + 10 in let fresh = URigid (nonce + 20) "hidden" 1 KType in
+        let generic = CUse sp (UFun fresh fresh) "generic" "external" [fresh] in
+        let local = CPVar sp int x "x" in
+        let function body = MkCoreDefinition sp "function" (mono (UFun int int)) Nil Nil Nil [MkCoreClause sp [local] body] in
+        let wrong-index = UIndex nat (IRigid x "x" 0) in
+        let marked = UApp (UCon "At" (KFun (value-kind nat) KType)) wrong-index in
+        let bad-primitive = CPrimitive sp int "+" (arguments truth truth) in
+        let wrong-argument = CApply sp int id-int truth in
+        [ check integer
+        , check (CApply sp int id-int integer)
+        , check (CIf sp int truth integer (CInt sp int "2"))
+        , check (CPrimitive sp int "+" (arguments integer integer))
+        , check (CPrimitive sp int "negate" (CArgument sp integer (CArgumentsEnd sp)))
+        , global-definition-closed references (answer bad-primitive)
+        , not (check bad-primitive)
+        , global-definition-closed references (answer wrong-argument)
+        , not (check wrong-argument)
+        , not (check (CApply sp int id-bool truth))
+        , not (check (CApply sp int integer integer))
+        , not (check (CIf sp int integer integer integer))
+        , not (check (CIf sp int truth integer (CString sp string "wrong branch")))
+        , not (check (CString sp int "not an integer"))
+        , not (check (CChar sp int "x"))
+        , not (check (CUnit sp int))
+        , not (check (CTuple sp int (CArgument sp integer (CArgumentsEnd sp))))
+        , not (check (CPrimitive sp int "invented" (arguments integer integer)))
+        , not (check (CPrimitive sp int "+" (CArgument sp integer (CArgumentsEnd sp))))
+        , not (check (CPrimitive sp int "negate" (arguments integer integer)))
+        , not (check (CApply sp int operation (CUnit sp unit)))
+        , not (check (CApplyEff sp int zero-row operation (CUnit sp unit)))
+        , typing-definition-closed context (MkCoreDefinition sp "effect-function" (mono (UFunEff unit log-row int)) Nil Nil Nil [MkCoreClause sp [CPVar sp unit x "u"] (CApplyEff sp int log-row operation (CLocal sp unit x "u" Nil))])
+        , not (check (CApplyEff sp int log-row operation (CUnit sp unit)))
+        , typing-definition-closed context (MkCoreDefinition sp "lambda" (mono (UFun int int)) Nil Nil Nil [MkCoreClause sp Nil (CLambda sp (UFun int int) local (CLocal sp int x "x" Nil))])
+        , not (typing-definition-closed context (MkCoreDefinition sp "lambda" (mono (UFun int int)) Nil Nil Nil [MkCoreClause sp Nil (CLambda sp (UFun int int) (CPVar sp bool x "x") integer)]))
+        , not (typing-definition-closed context (MkCoreDefinition sp "lambda" (mono (UFun int int)) Nil Nil Nil [MkCoreClause sp Nil (CLambda sp (UFun int int) local truth)]))
+        , not (check (CCase sp int integer (CAlternative sp (CPConstructor sp int "True" Nil bool (CPDone sp)) integer (CAlternativesEnd sp))))
+        , not (typing-definition-closed context (function (CLet sp int (x + 1) "wrong-index" (mono marked) (CUse sp marked "mark" "constructor" [wrong-index]) integer)))
+        , not (check (CLet sp int x "hidden" (mono (UFun fresh fresh)) generic integer))
+        , typing-definition-closed context (MkCoreDefinition sp "answer" (mono int) Nil Nil [(nonce + 20, KType)] [MkCoreClause sp Nil (CLet sp int x "hidden" (mono (UFun fresh fresh)) generic integer)])
+        , not (typing-definition-closed context (MkCoreDefinition sp "answer" (mono int) Nil Nil [(nonce + 20, KType), (nonce + 20, KType)] [MkCoreClause sp Nil integer]))
+        , not (type-well-formed kinds empty-type-scope (UCon "missing" KType))
+        , not (type-well-formed kinds empty-type-scope (UCon "Box" (KFun KType KType)))
+        , not (type-well-formed kinds empty-type-scope fresh)
+        , not (scheme-well-formed kinds empty-type-scope (MkScheme [q] (UFun a (UBound (nonce + 1) "unbound" KType))))
+        , not (argument-well-formed kinds empty-type-scope UEnd)
+        , (case close-typing-context kinds [GlobalValue "bad" "external" (mono (UCon "missing" KType))] of None -> True; Some other -> False)
+        , (case close-typing-context kinds [GlobalValue "bad" "constructor" (mono (UFunEff unit log-row int))] of None -> True; Some other -> False)
+        ]
+      other -> [False]
+  verdict :: Int -> List Bool -> Int
+  verdict next values = case values of Nil -> 0; Cons True rest -> verdict (next + 1) rest; Cons False rest -> next
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case fs-read (path-from-string "nonce.txt") of
+    Err error -> 90
+    Ok input -> verdict 1 (checks (340282366920938463463374607431768211456 + bytes-len input))

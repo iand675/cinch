@@ -19,7 +19,11 @@ Artifacts and logs live in `build/bootstrap/stageN/`. Stage 0 is pinned by
 `bootstrap/stage0.lock.json`: a Git revision, a reviewed patch and hashes
 of the patch and compiler sources. Editing the development Rust compiler
 does not silently replace the seed. Stages 2 and 3 read the same frozen
-compiler source bundle and invoke only their preceding Cinch compiler.
+compiler source bundle and use only their preceding Cinch compiler as frontend.
+That compiler emits typed shared-runtime LLVM with `--emit-ir`; the platform
+linker links the matching pinned runtime archive. The runtime archive hash
+participates in later-stage cache identity. The produced compiler must also
+run and return its bad-arguments status before the build is accepted.
 Cache hits verify source/builder identities and output hashes.
 The final check also rebuilds a changed checker diagnostic and requires
 that change in the resulting compiler's observable behavior.
@@ -32,8 +36,10 @@ refusal is an actual bootstrap blocker, recorded with its diagnostics;
 there is no fallback to the Rust frontend. `design/self-hosting.md` states
 what remains before that build and the complete bootstrap check can pass.
 The runner applies a positive heap cap of at most 2G to every program.
-Builds and tests run one command at a time, with one build worker and one
-test thread. The heap cap applies to each generated process separately.
+Each stage chain runs one command at a time, with one build worker and one
+test thread. Independent validation jobs share a limit of five heavy jobs:
+four shared slots and one explicitly assigned probe lane. The heap cap
+applies to each generated process separately.
 
 The complete verification entry point is:
 
@@ -44,16 +50,33 @@ uses private build caches, checks the test executables' source paths, and
 runs compiler, runtime, tooling and bootstrap checks sequentially at reduced
 priority. Its final gate requires stage 2, stage 3, their fixed point and
 the changed-source probe; the current stage-2 refusal therefore prevents a
-complete pass. The verifier's tooling unit tests pass; its first complete
-frozen run is still required.
+complete pass. The verifier's tooling unit tests pass. Earlier completed
+Native-assisted suites do not establish the final self-hosting gate.
+
+The driver also has separate frontend and build modes:
+
+    cinch --check [--interfaces MANIFEST] SOURCE DIAGNOSTICS_BASE
+    cinch --emit-ir [--interfaces MANIFEST] SOURCE IR
+    cinch --compile-only [--interfaces MANIFEST] SOURCE IR EXECUTABLE REPORT
+
+Check-only runs parsing, resolution and the current source/Core checks, then
+writes `DIAGNOSTICS_BASE.diagnostics` (empty on success). It does not run the
+emitter or linker. Compile-only emits and links without executing the output;
+its report contains the linker exit alone. Omitting a mode preserves the
+original compile/link/run behavior. Mode and interface options may appear in
+either order; duplicate or conflicting mode options are refused. These modes
+prepare the external Cinch test harness; they do not establish complete
+independent correctness checking or a self-built frontend suite.
 
 The pipeline also accepts `--interfaces MANIFEST` before its four paths.
 The manifest is JSON: `{"schema":1,"interfaces":[["Module","hash","path"]]}`.
 Paths are absolute or relative to the process's working directory. The
 loader verifies the entire dependency set before source parsing, so
 operator fixities come from checked public interfaces. Resolution retains
-full contracts and defining identities. Schema 4 carries definition-site
-pure schemes and private nominal kinds. Pure polymorphic values and
+full contracts and defining identities. Schema 7 carries definition-site
+schemes, private nominal kinds, class contracts, Region and closed effect
+contexts, exact value-index carriers, refinements and byte observations.
+Pure polymorphic values and
 regular imported constructors enter checking under those contracts;
 display spellings do not establish a nominal identity. Private constructor
 identities constrain coverage without exposing source names. The loader
@@ -72,19 +95,27 @@ accepts the kernel newIO/ioWrite/ioSleep/pollCancel contracts, lexical Io
 providers, Region binders and closed kernel effect arrows. Function bodies
 must fit their declared rows; a with binding does not remove effects.
 Fresh regions cannot escape in inferred returned closures. Open row tails,
-ioRead's imported Option contract, foreign declarations and effect handlers
-still need elaboration.
+ioRead's imported Option contract, foreign declarations outside checked
+runtime intrinsics, and effect handlers still need elaboration. Source
+effect declarations retain checked operation schemes and dispatch slots;
+operation calls retain their declared effect rows.
 The decision contracts keep `decide` as predicate syntax and retain
-`Yes`/`No`'s erased evidence fields; they require dependent checking before
-acceptance.
+`Yes`/`No`'s erased evidence fields. Source elaboration and independent Core
+checks validate their scoped predicates and separate source/runtime arities.
 
 `Bootstrap.Type` and `Bootstrap.Infer` add rank-one checking in Cinch:
 fresh instantiation, rigid quantified variables, kind checks, occurs and
 scope-escape checks, let generalization, regular parameterized constructors,
 positivity and pattern coverage. Pure polymorphic programs now reach the
 emitter's explicit refusal for typed lowering. Lexical dictionary evidence
-and kernel IO effects are retained; global instance selection, existential
-and dependent obligations remain checker refusals.
+and kernel IO effects are retained. Coherent implicit instance selection
+and named explicit dictionary values are supported. Source instances of
+checked defining class interfaces retain specialized method schemes,
+captured contexts and typed dictionary fields. Only implicit instances
+participate in automatic search. A named dictionary may be supplied with
+`with`; its member labels do not become new public functions. Source
+class declarations, existential/indexed constructor elaboration and
+decision/proof erasure remain required.
 `Bootstrap.Core` retains the checked terms, effect rows, capability scopes, constructor field types,
 type instantiations and generalized let schemes. Failed elaboration exposes
 no core. Source data retain their kinds, parameters and complete constructor
@@ -96,6 +127,61 @@ source-effects runner reads changed programs after compilation and passes
 region mismatches, scope leaks and fresh-region closure escape.
 The resolver keeps public aliases and source-module provenance in `DSource`
 nodes so the later typed interface writer can retain the original scopes.
+
+`Bootstrap.Global` independently rechecks Core references against retained
+global declarations: schemes and type argument kinds, roles, method
+owners/slots, constructor schemes, dictionary factories and lexical
+providers. Universal openings and declared dictionary binders are checked
+too, including within source dictionary method bodies. Its validated
+context constructor is private. This reference checker is not the full
+independent kind/term/proof kernel. Numeric reflection still needs actual
+checked primitive or instance-body semantics; a canonical class name and
+slot do not establish those semantics. Current evidence and remaining
+gates are recorded in
+[the global-reference report](global-reference-checkpoint-results.json)
+and [the self-hosting design](../design/self-hosting.md).
+
+`Bootstrap.Kinds` and `Bootstrap.Typing` separately check the nominal and
+lexical kind contexts and the types/effects of retained Core terms. This
+includes application and branch results, patterns and constructor fields,
+primitive operands, strict lets and latent rows. They run after source
+elaboration and global-reference checking. Their focused tests and the
+full pipeline pass. Fresh stage0/1 pass six smokes; actual stage2 refuses
+four headers before body checking and produces no compiler. That preceding
+kind/term implementation passed all164+5 Native-assisted gates. It has been
+superseded locally by the validated169+5 constructor snapshot. The later
+source-decision implementation has separate validation. Full declaration/coverage,
+semantic proof authority, totality and usage remain required; see
+[the Core typing report](core-typing-checkpoint-results.json).
+
+`UProofFun` retains a Prop domain, latent effect row and proper result type.
+Source and runtime arity differ explicitly; ordinary runtime arguments cannot
+stand in for erased evidence. The preceding type-only checkpoint passes all
+nine focused targets; see [its report](proof-arrow-checkpoint-results.json).
+Current source-proof validation and runtime limits are described below.
+
+`CPProof`, `CProofRef` and `CErasedApply` retain scoped proof identities and
+call effects. Source proof forwarding and lambda checks pass; wrong evidence,
+runtime proof inspection and value-index confusion are refused. These checks
+are included in the completed169+5 constructor suite. General proof computation,
+totality and typed runtime erasure remain required; see [the source proof report](source-proof-checkpoint-results.json).
+
+Kernel-owned `Yes`/`No` retain one erased source evidence field and no runtime
+payload. Their source patterns, proposition scopes and exact metadata checks
+pass, as do the separate fixed-semantics Core decision checks. That constructor
+snapshot now passes the complete169+5 Native-assisted suite and its exact code
+is installed locally. Its stage2 attempt stopped at two headers before bodies;
+the newer source-decision attempt below has its own evidence. See
+[the decision report](decision-checkpoint-results.json).
+
+Source `decide` now retains checked predicates and executable Core decisions,
+including short-circuit logical forms and stable strict-let value identity.
+Its source/Core and dependent-function checks pass. Fresh stage0/1 pass six
+smokes; actual stage2 stops before bodies at one imported measure-contract
+header and produces no IR or compiler executable. Broader regressions and its
+complete170+5 matrix are running. Unknown method bodies cannot define arithmetic aliases. Typed
+runtime lowering and genuine self-hosting remain required. See
+[the source decision report](source-decision-checkpoint-results.json).
 
 The orchestration checks run with:
 
@@ -245,3 +331,88 @@ A rung's driver program is `bootstrap/programs/Run.<Rung>.cinch` (declaring
 `module Main where`), and the rung's Rust test ships that same file as its
 entry, so the program the test runs and the program a human runs are one
 artifact rather than two copies of one program.
+
+
+## Selecting an external frontend for portable tests
+
+The shared Rust test helpers accept an explicit Cinch compiler and checked base
+manifest through `CINCH_TEST_COMPILER` and `CINCH_TEST_INTERFACES`. Both variables
+must be set together. A selected compiler's failure is reported directly; it
+never falls back to the Rust frontend. With neither variable set, the existing
+Native path remains the default.
+
+The external path bundles the project's owned source files, invokes `--check`
+or `--compile-only`, and records inputs, arguments, outputs and status beneath
+`.cinch-self-tests/`. Build does not execute the artifact; run executes the
+successfully built artifact and retains its exit code. Only distinct base-family
+interfaces are accepted; Native-produced compiler implementation interfaces are
+refused. EmitIr is explicitly unsupported on this path for now.
+
+`compiler/examples/bootstrap_external_probe.rs` exercises all three supported
+modes through a compiled Cinch frontend, including multi-module input, a filename
+containing a newline, a separately runnable binary and invalid source. This is an
+adapter probe, not a complete self-built frontend suite. Tests that call Native
+APIs directly still require separate coverage and classification.
+
+
+## Retained checked programs
+
+The pipeline now calls `check-and-retain`, which preserves the resolved source
+and its typed elaboration together in `CheckedProgram`. Its constructor is
+private. The typed emitter boundary receives this checked value; scalar emission
+still uses its associated source while shared-runtime Core lowering is built.
+The existing diagnostic-only `check-program` API remains available.
+
+A runtime-input probe checks retention of polymorphic definitions and data,
+rejects an actual type error, and verifies that outside code cannot call the
+checked constructor. The complete scalar IR and pipeline targets pass. This
+boundary is not a claim of complete usage/totality checking, typed runtime
+lowering or successful self-hosting. See [the focused report](checked-program-results.json).
+
+
+## Typed shared-runtime lowering
+
+`Bootstrap.RuntimeIr.emit-runtime-program` consumes the retained checked Core
+and returns either a complete LLVM module or named diagnostics. The first
+implemented path covers closed scalar workers, exact mathematical Int/Nat
+arithmetic, direct calls, branches, lexical lets and recursion. Values use
+ABI5 runtime words, with duplication on local reads and cleanup at scope exits.
+The native entry uses the runtime's reserved stack and exit leak check.
+
+`programs/Run.RuntimeIr.cinch` reads source after it has been built. Eight
+runtime-fed programs emit LLVM, link to the existing runtime, return their exact
+expected results and report zero leaks, including bignums above2^128. Unsupported
+polymorphism returns named diagnostics and clears stale IR. The complete emitter
+source closure also passes through Cinch. The real compiler CLI route is being
+validated separately; the default pipeline still uses its standalone scalar
+renderer. Aggregates, closures, dictionaries, effects and the complete base ABI
+remain required. See [the runtime IR checkpoint](runtime-ir-results.json).
+
+
+The `--emit-ir` mode routes retained checked Core through the typed shared-runtime
+backend, writes LLVM without linking or execution, and clears stale IR if the
+emitter refuses a checked program. Mode and interface flags work in either order.
+The generated module must be linked with the matching ABI5 `libcinchruntime.a`.
+The real CLI test links and runs an exact bignum calculation, with zero leaks;
+the existing whole pipeline still passes. The complete updated compiler source
+also passes through Cinch in check-only mode. See [the emit-mode report](runtime-emit-results.json).
+
+
+Typed runtime lowering also supports closed tuples and irrefutable tuple
+patterns in parameters and single-alternative cases. One module-wide ABI5
+registry stores the actual Raw/Obj/TObj field maps. Nested fields are borrowed
+while their owning root stays live; returning a field retains it before the
+root is dropped. Thirteen executable cases pass with zero leaks, including a
+full16-field inline map. A17-field layout gets a named refusal until extended
+descriptors are implemented. The whole backend source closure passes through
+Cinch. Source ADTs and polymorphic/closure/dictionary/effect lowering remain
+unfinished. See [the tuple report](runtime-tuple-results.json).
+
+
+The protocol3 stage driver passes all27 tooling checks, six fresh stage0/1
+smokes and a real numeric source-to-Cinch-IR-to-pinned-runtime executable probe.
+The actual complete compiler still exits5 on the typed emitter's named
+polymorphic/dictionary/aggregate refusals; no Stage2 compiler or usable IR is
+produced. The empty IR file confirms stale output was cleared. That stage
+snapshot precedes the tuple checkpoint. The numeric probe proves the linkage
+path, not a self-built compiler. See [the exact driver results](typed-stage-driver-results.json).

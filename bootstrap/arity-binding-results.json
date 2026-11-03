@@ -1,0 +1,200 @@
+{
+  "boolean_broader_whole_gates": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-boolean-branch-validation-1/cargo",
+        "--test",
+        "bootstrap_guarded_calls",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-02T21:56:20.304889+00:00",
+      "name": "bootstrap_guarded_calls",
+      "pid": 70911,
+      "started": "2026-11-02T21:36:55.533227+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-boolean-branch-validation-1/cargo",
+        "--test",
+        "bootstrap_source_effects",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-02T22:01:22.503405+00:00",
+      "name": "bootstrap_source_effects",
+      "pid": 12247,
+      "started": "2026-11-02T21:56:20.305580+00:00",
+      "status": "passed"
+    }
+  ],
+  "bootstrap_achieved": false,
+  "changes": [
+    "Bind actual imported scheme arity plus requirement count before Nat conversion",
+    "Bind actual legacy checker type arity before Nat conversion"
+  ],
+  "current_stage_source_sha256": "7abd4dd806cbaf95d3b52cdedc8c3140813126ecb9c2b535a62113d5828e046a",
+  "current_stages": [
+    {
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+        "tooling/bootstrap.py",
+        "smoke",
+        "--stage",
+        "0"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-02T22:21:21.342024+00:00",
+      "name": "stage0-smoke",
+      "pid": 37924,
+      "started": "2026-11-02T22:20:14.241428+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+        "tooling/bootstrap.py",
+        "smoke",
+        "--stage",
+        "1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-02T22:25:31.008267+00:00",
+      "name": "stage1-smoke",
+      "pid": 38772,
+      "started": "2026-11-02T22:21:21.403244+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+        "tooling/bootstrap.py",
+        "check"
+      ],
+      "name": "self-hosting",
+      "pid": 42005,
+      "started": "2026-11-02T22:25:31.068354+00:00",
+      "status": "running"
+    }
+  ],
+  "preceding_actual_stage2": {
+    "diagnostic_categories": {
+      "argument call needs checked pure total reification or a checked observation contract": 1,
+      "non-exhaustive patterns": 18,
+      "with binding needs a checked signature value": 1
+    },
+    "diagnostics": 20,
+    "exit_code": 4,
+    "first_diagnostics": [
+      "bootstrap.check:1718:53: argument call needs checked pure total reification or a checked observation contract",
+      "bootstrap.check:1721:19: non-exhaustive patterns",
+      "bootstrap.check:1723:16: non-exhaustive patterns",
+      "bootstrap.check:1726:23: non-exhaustive patterns",
+      "bootstrap.check:1745:24: non-exhaustive patterns",
+      "bootstrap.check:1747:18: non-exhaustive patterns",
+      "bootstrap.check:1751:34: non-exhaustive patterns",
+      "bootstrap.check:1759:20: non-exhaustive patterns",
+      "bootstrap.check:1802:20: non-exhaustive patterns",
+      "bootstrap.check:14458:32: non-exhaustive patterns"
+    ],
+    "inputs": {
+      "builder_sha256": "d0bff63e132248ca402fae9fcb277532b51cd6c93437fa9f817fd05c8b8e4544",
+      "built_by_stage": 1,
+      "host": {
+        "machine": "arm64",
+        "system": "Darwin"
+      },
+      "interface_set_sha256": "080e8d68fbf65139d1d52469880e902b9c1a533ccbdc4e05c389d4c3ba24ddca",
+      "protocol": 2,
+      "source_sha256": "e368b4f565c7a70ead6daecb3c7e875170c47fdd7778c5e9abe97b84f771a98b"
+    },
+    "log": "/private/tmp/cinch-import-arity-validation-1/source/build/bootstrap/stage2/build.log",
+    "status": "failed"
+  },
+  "source_checks": [
+    {
+      "cinch_exit": 5,
+      "emitter_diagnostic_lines": 5253,
+      "first_emitter_diagnostics": [
+        "bootstrap.ir:1:1: imported type needs the shared uniform-word ABI and layout registry before lowering: i.65_108_103_101_98_114_97_46_65_114_105_116_104_109_101_116_105_99_46_73_110_82_97_110_103_101_",
+        "bootstrap.ir:1:1: imported method needs the shared uniform-word ABI and layout registry before lowering: i.65_108_103_101_98_114_97_46_65_114_105_116_104_109_101_116_105_99_46_65_100_100_46_43_",
+        "bootstrap.ir:1:1: imported method needs the shared uniform-word ABI and layout registry before lowering: i.65_108_103_101_98_114_97_46_65_114_105_116_104_109_101_116_105_99_46_68_105_118_46_47_"
+      ],
+      "modules": 23,
+      "name": "import-arity",
+      "native_exit": 0,
+      "source_sha256": "757c51662cd168e1e35209fff1c69916827bf56fe4f725f2cbe854197ef61b1d"
+    },
+    {
+      "cinch_exit": 5,
+      "emitter_diagnostic_lines": 5475,
+      "first_emitter_diagnostics": [
+        "bootstrap.ir:1:1: imported type needs the shared uniform-word ABI and layout registry before lowering: i.65_108_103_101_98_114_97_46_65_114_105_116_104_109_101_116_105_99_46_73_110_82_97_110_103_101_",
+        "bootstrap.ir:1:1: imported method needs the shared uniform-word ABI and layout registry before lowering: i.65_108_103_101_98_114_97_46_65_114_105_116_104_109_101_116_105_99_46_65_100_100_46_43_",
+        "bootstrap.ir:1:1: imported method needs the shared uniform-word ABI and layout registry before lowering: i.65_108_103_101_98_114_97_46_65_114_105_116_104_109_101_116_105_99_46_68_105_118_46_47_"
+      ],
+      "modules": 24,
+      "name": "check-arity",
+      "native_exit": 0,
+      "source_sha256": "7abd4dd806cbaf95d3b52cdedc8c3140813126ecb9c2b535a62113d5828e046a"
+    }
+  ],
+  "stage2_executable": false,
+  "stage3_fixed_point": false,
+  "status": "whole source closures, imported-call/global regressions and six fresh stage0/1 smokes passed; actual latest Stage2 running",
+  "whole_regressions": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-import-arity-validation-1/cargo",
+        "--test",
+        "bootstrap_imported_preconditions",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-02T22:18:02.091418+00:00",
+      "name": "bootstrap_imported_preconditions",
+      "pid": 22679,
+      "started": "2026-11-02T22:03:33.678094+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-import-arity-validation-1/cargo",
+        "--test",
+        "bootstrap_globals",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-02T22:19:40.915999+00:00",
+      "name": "bootstrap_globals",
+      "pid": 36372,
+      "started": "2026-11-02T22:18:02.092452+00:00",
+      "status": "passed"
+    }
+  ]
+}

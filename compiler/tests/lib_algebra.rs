@@ -105,11 +105,11 @@ const HELPERS: &str = r#"
 "#;
 
 /// The `Main` module of a law program: the standard imports (with the
-/// `<>` fixity, decision D2 per-module fixity declarations) around the
+/// `<>` fixity inherited from its declaring module) around the
 /// shared helpers and the program body.
 fn main_module(body: &str) -> String {
     let mut src = String::from(
-        "module Main where\n\n  import Algebra.Semigroup\n  import Algebra.Monoid\n\n  infixr 6 <>\n",
+        "module Main where\n\n  import Algebra.Semigroup\n  import Algebra.Monoid\n\n",
     );
     src.push_str(HELPERS);
     src.push('\n');

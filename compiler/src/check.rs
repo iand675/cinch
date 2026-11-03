@@ -10,7 +10,7 @@
 use crate::ast;
 use crate::repr::Class;
 use crate::core::{ArithMode, ArithOp, BytesOp, CAlt, CBranch, CPat, CmpOp, ConcOp, Core, FieldAccess, FieldShape, FnDef, GlobalId, InstanceDef, IntOp, LocalId, NatOp, PrimOp, Program, ProjField, SymOp};
-use crate::types::{ClassApp, EffLabel, EffRow, EitherMeta, IntSort, IxParam, ITerm, IdxCmp, IdxOp, Mult, PTerm, PredFn, PropOblig, PtrRole, RowTail, Scalar, Scheme, Sort, Sorts, Ty, Unifier, c_abi_scalar, collect_row_names, default_mult, linear_entails, pred_alpha_eq, pred_binder, pred_conjuncts, pred_entails, pred_implies};
+use crate::types::{BYTE_LENGTH_INDEX, ClassApp, EffLabel, EffRow, EitherMeta, IntSort, IxParam, ITerm, IdxCmp, IdxOp, Mult, PTerm, PredFn, PropOblig, PtrRole, RowTail, Scalar, Scheme, Sort, Sorts, Ty, Unifier, c_abi_scalar, collect_row_names, default_mult, linear_entails, pred_alpha_eq, pred_binder, pred_conjuncts, pred_entails, pred_implies};
 use crate::{Error, Result};
 use SolveOutcome::{Solved, Ambiguous};
 use std::cell::RefCell;
@@ -69,7 +69,7 @@ enum ECore {
     /// The type is the field's, for its representation class.
     Proj(Box<ECore>, crate::core::ProjField, Ty),
     /// A dictionary, with the instance's own parameter types.
-    InstDict(GlobalId, Vec<ECore>, Vec<Ty>),
+    InstDict(GlobalId, Vec<ECore>, Vec<Ty>, bool),
     App(Box<ECore>, Vec<ECore>),
     /// Un-hoisted lambda: `params` are its pattern parameters.
     Lam { params: Vec<LocalId>, body: Box<ECore> },
@@ -176,6 +176,7 @@ fn dict_expr_ecore(d: &DictExpr) -> ECore {
             id.clone(),
             subs.iter().map(dict_expr_ecore).collect(),
             tys.clone(),
+            false,
         ),
         DictExpr::Marker => ECore::Unit,
     }
@@ -198,6 +199,16 @@ fn method_site(s: &Scheme, ptys: &[Ty]) -> Option<(String, Vec<Ty>)> {
     Some((class.class.clone(), own))
 }
 
+impl Checker {
+    fn runtime_method_site(&self, module: &str, scheme: &Scheme, ptys: &[Ty]) -> Result<Option<(String, Vec<Ty>)>> {
+        let Some((class, own)) = method_site(scheme, ptys) else { return Ok(None) };
+        let signature = self.qualified_sigs.get(&(module.to_string(), class.clone()))
+            .or_else(|| self.qualified_sigs.values().find(|s| s.module == module && format!("{}.{}", s.module, s.name) == class))
+            .ok_or_else(|| Error::plain(format!("method has no declaring signature {module}:{class}")))?;
+        Ok(Some((format!("{}.{}", signature.module, signature.name), own)))
+    }
+}
+
 fn free_locals(e: &ECore, bound: &mut Vec<LocalId>, out: &mut Vec<LocalId>) {
     match e {
         ECore::LitFold { body, .. } => free_locals(body, bound, out),
@@ -216,7 +227,7 @@ fn free_locals(e: &ECore, bound: &mut Vec<LocalId>, out: &mut Vec<LocalId>) {
         }
         ECore::DictProj(d, ..) => free_locals(d, bound, out),
         ECore::Proj(d, ..) => free_locals(d, bound, out),
-        ECore::InstDict(_, args, _) | ECore::App(_, args) | ECore::MkClos { env: args, .. } => {
+        ECore::InstDict(_, args, _, _) | ECore::App(_, args) | ECore::MkClos { env: args, .. } => {
             for a in args {
                 free_locals(a, bound, out);
             }
@@ -322,7 +333,7 @@ fn hoist_lambdas(e: &mut ECore, hint: &str, counter: &mut usize, fns: &mut Vec<H
         }
         ECore::DictProj(d, ..) => hoist_lambdas(d, hint, counter, fns),
         ECore::Proj(d, ..) => hoist_lambdas(d, hint, counter, fns),
-        ECore::InstDict(_, args, _) | ECore::App(_, args) | ECore::MkClos { env: args, .. } => {
+        ECore::InstDict(_, args, _, _) | ECore::App(_, args) | ECore::MkClos { env: args, .. } => {
             for a in args {
                 hoist_lambdas(a, hint, counter, fns);
             }
@@ -417,7 +428,7 @@ fn assign_locals(e: &ECore, map: &mut HashMap<LocalId, LocalId>, next: &mut usiz
         }
         ECore::DictProj(d, ..) => assign_locals(d, map, next),
         ECore::Proj(d, ..) => assign_locals(d, map, next),
-        ECore::InstDict(_, args, _) | ECore::App(_, args) | ECore::MkClos { env: args, .. } => {
+        ECore::InstDict(_, args, _, _) | ECore::App(_, args) | ECore::MkClos { env: args, .. } => {
             if let ECore::App(f, _) = e {
                 assign_locals(f, map, next);
             }
@@ -557,10 +568,11 @@ fn remap_ecore(e: &ECore, r: &Remap) -> ECore {
             )
         }
         ECore::Proj(d, i, t) => ECore::Proj(Box::new(remap_ecore(d, r)), i.clone(), r.ty(t)),
-        ECore::InstDict(g, args, t) => ECore::InstDict(
+        ECore::InstDict(g, args, t, explicit) => ECore::InstDict(
             g.clone(),
             args.iter().map(|a| remap_ecore(a, r)).collect(),
             r.tys(t),
+            *explicit,
         ),
         ECore::App(f, args) => ECore::App(
             Box::new(remap_ecore(f, r)),
@@ -649,7 +661,7 @@ fn def_parts(e: &ECore, binders: &mut Vec<LocalId>, units: &mut Vec<GlobalId>) {
         }
         ECore::DictProj(d, ..) | ECore::Proj(d, ..) | ECore::Demand(d, _) | ECore::BoxGet(d, _) => def_parts(d, binders, units),
         ECore::LazyInit(_, v) | ECore::BoxInit(_, v, _) | ECore::RefSet(_, v) => def_parts(v, binders, units),
-        ECore::InstDict(_, args, _) => {
+        ECore::InstDict(_, args, _, _) => {
             for a in args {
                 def_parts(a, binders, units);
             }
@@ -717,7 +729,7 @@ fn resolve_lit_words(e: &mut ECore, lits: &[ECore]) {
         ECore::DictProj(d, ..) | ECore::Proj(d, ..) | ECore::Demand(d, _) => {
             resolve_lit_words(d, lits)
         }
-        ECore::InstDict(_, args, _) | ECore::MkClos { env: args, .. } => {
+        ECore::InstDict(_, args, _, _) | ECore::MkClos { env: args, .. } => {
             for a in args {
                 resolve_lit_words(a, lits);
             }
@@ -787,7 +799,7 @@ fn resolve_idx_words(e: &mut ECore, vals: &[ECore]) {
         ECore::DictProj(d, ..) | ECore::Proj(d, ..) | ECore::Demand(d, _) => {
             resolve_idx_words(d, vals)
         }
-        ECore::InstDict(_, args, _) | ECore::MkClos { env: args, .. } => {
+        ECore::InstDict(_, args, _, _) | ECore::MkClos { env: args, .. } => {
             for a in args {
                 resolve_idx_words(a, vals);
             }
@@ -900,11 +912,15 @@ fn fold_blocked(e: &ECore) -> bool {
         | ECore::DeclsQuote { .. } => true,
         ECore::LitFold { body, .. } => fold_blocked(body),
         ECore::DictProj(d, ..) | ECore::Proj(d, ..) => fold_blocked(d),
-        ECore::InstDict(_, args, _) | ECore::MkClos { env: args, .. } => {
+        ECore::InstDict(_, args, _, _) | ECore::MkClos { env: args, .. } => {
             args.iter().any(fold_blocked)
         }
         ECore::App(f, args) => fold_blocked(f) || args.iter().any(fold_blocked),
-        ECore::Lam { body, .. } => fold_blocked(body),
+        // Folding runs before lambda hoisting. Even a closed callback
+        // cannot be lowered yet, and closures have no constant reification.
+        // Keep the ordinary runtime construction instead of trying to
+        // lower an unhoisted lambda while folding its enclosing list.
+        ECore::Lam { .. } => true,
         ECore::Let(_, v, body) => fold_blocked(v) || fold_blocked(body),
         ECore::If(c, t, f) => {
             fold_blocked(c) || fold_blocked(&t.body) || fold_blocked(&f.body)
@@ -1193,8 +1209,15 @@ fn lower(e: &ECore, cx: &LowerCx) -> crate::core::Core {
         ECore::Proj(d, f, ty) => {
             C::Proj(Box::new(low(d)), crate::core::ProjField { class: cx.class(ty), ..f.clone() })
         }
-        ECore::InstDict(g, args, tys) => {
-            C::InstDict(g.clone(), args.iter().map(low).collect(), cx.classes(tys))
+        ECore::InstDict(g, args, tys, explicit) => {
+            let own = cx.ck.self_instance.and_then(|index| cx.ck.instance_list.get(index));
+            let is_self = cx.runtime && !*explicit && own.is_some_and(|instance| {
+                instance.base_id == *g && tys.len() == instance.params.len()
+                    && tys.iter().enumerate().all(|(i, ty)| matches!(cx.ck.uni.zonk(ty), Ty::Param(ref n) if cx.tparams.get(i) == Some(n)))
+                    && args.iter().enumerate().all(|(i, arg)| matches!(arg, ECore::Var(LocalId(j)) if *j == i) || matches!(arg, ECore::Unit))
+            });
+            let symbol = if is_self { GlobalId(format!("{}#self", g.0)) } else { g.clone() };
+            C::InstDict(symbol, args.iter().map(low).collect(), cx.classes(tys))
         }
         ECore::App(f, args) => C::App(Box::new(low(f)), args.iter().map(low).collect()),
         ECore::Lam { .. } | ECore::Hole(_) | ECore::IdxPending(_) => {
@@ -1381,6 +1404,8 @@ enum ValueKind {
     /// proof and never becomes runtime code (core specification
     /// section 3).
     ProofCtor,
+    /// Experimental, goal-directed proof elaboration. Never a runtime value.
+    ProofSearch,
     /// A `stage` definition: compile-time code (staging, P9). It may only
     /// be referenced from compile-time code.
     StageFn,
@@ -1618,6 +1643,8 @@ struct InstanceInfo {
     /// method; the dictionary never reaches code that could apply the
     /// method without them (a generic callee, a sub-dictionary).
     method_obligs: Vec<(usize, String, Vec<PTerm>)>,
+    /// Checked per-method signatures retained for interface proof contracts.
+    method_contracts: Vec<(usize, String, Scheme)>,
 }
 
 /// One module parameter of a parameterized module (`module M (x :: T)
@@ -2198,23 +2225,23 @@ fn collect_idx_reads(t: &ITerm, out: &mut Vec<String>) {
 }
 
 /// Whether every occurrence of the binder in an index term sits under
-/// a baked measure (`length`/`toNat`, the compiler's own measure
-/// vocabulary): a measure atom over a non-numeric container reads the
+/// a baked measure (`length`/`toNat`) or the checked byte-length
+/// primitive over an actual Bytes carrier: a measure atom over a non-numeric container reads the
 /// binder's value through the measure, never bare and never through a
 /// source function a shadowing module could lie with.
-fn measure_covers(t: &ITerm, binder: &str) -> bool {
+fn measure_covers(t: &ITerm, binder: &str, byte_length: bool) -> bool {
     match t {
         ITerm::Var(n) => n != binder,
         ITerm::Num(_) | ITerm::Fn(_) | ITerm::MVar(_) => true,
-        ITerm::Lam(_, body) => measure_covers(body, binder),
-        ITerm::Bin(_, a, b) => measure_covers(a, binder) && measure_covers(b, binder),
+        ITerm::Lam(_, body) => measure_covers(body, binder, byte_length),
+        ITerm::Bin(_, a, b) => measure_covers(a, binder, byte_length) && measure_covers(b, binder, byte_length),
         ITerm::App(f, args) => {
             let measured = matches!(
                 &**f,
                 ITerm::Fn(k) if k == "<builtin>.length" || k == "<builtin>.toNat"
-            );
-            args.iter().all(|a| measure_covers(a, binder) || (measured && is_binder(a, binder)))
-                && measure_covers(f, binder)
+            ) || (byte_length && args.len() == 1 && matches!(&**f, ITerm::Fn(k) if k == BYTE_LENGTH_INDEX));
+            args.iter().all(|a| measure_covers(a, binder, byte_length) || (measured && is_binder(a, binder)))
+                && measure_covers(f, binder, byte_length)
         }
     }
 }
@@ -2664,6 +2691,15 @@ struct Checker {
     param_inst_defs: HashMap<(String, String), crate::core::InstanceDef>,
     /// Each module's own fixity declarations, for its interface.
     module_fixities: Vec<(String, crate::interface::FixityExport)>,
+    /// Source binders retain declaration order and implicitness for
+    /// interface kind metadata; the converted TypeKind supplies kinds.
+    interface_binders: HashMap<(String, String), Vec<ast::TypeBinder>>,
+    /// Captured while checking each source signature, before nominal
+    /// definition identities disappear from the legacy `Ty` spelling.
+    interface_source_schemes: HashMap<(String, String), DefinitionScheme>,
+    interface_total_bodies: std::collections::BTreeMap<String, crate::total::PendingDefinition>,
+    interface_guarded_bodies: std::collections::BTreeMap<String, (usize, PendingGuardedNat)>,
+    interface_checked_bodies: Option<crate::total::CheckedGraph>,
     /// Each module's foreign declarations, for its interface.
     module_foreign: Vec<(String, crate::interface::ForeignExport)>,
     /// Real foreign binding contracts by unit name (foreign function
@@ -2677,6 +2713,11 @@ struct Checker {
     /// (local ids are unique across the whole check, so entries never
     /// collide between definitions).
     local_tys: HashMap<LocalId, Ty>,
+    /// Lexical value bindings at the derivation of an erased proof. A later
+    /// source-name shadow cannot change which values its statement names.
+    proof_value_scopes: HashMap<LocalId, HashMap<String, LocalId>>,
+    /// Direct strict-let aliases preserve the same runtime value identity.
+    value_aliases: HashMap<LocalId, LocalId>,
     /// Binders whose class is fixed without a type: dictionaries,
     /// capability evidence and markers.
     local_cls: HashMap<LocalId, crate::repr::Class>,
@@ -3025,6 +3066,8 @@ pub struct LitFold {
     pub kind: String,
     /// Whether the construction folded to a constant value.
     pub folded: bool,
+    /// Checked result type retained while reifying constructor constants.
+    result_ty: Ty,
 }
 
 /// How a build treats compile-time I/O (modules specification section 10).
@@ -3059,6 +3102,15 @@ pub struct StageInput {
 
 fn fn_id(module: &str, name: &str) -> GlobalId {
     GlobalId(format!("{module}.{name}"))
+}
+
+/// Two checked declarations of the same primitive denote the same index
+/// operation. A similarly named ordinary definition keeps its own identity.
+fn value_index_id(value: &ValueInfo) -> String {
+    match value.kind {
+        ValueKind::Prim(PrimOp::Bytes(BytesOp::Len)) => BYTE_LENGTH_INDEX.to_string(),
+        _ => fn_id(&value.module, &value.name).0,
+    }
 }
 
 /// The named functions a proposition's index terms apply, with the
@@ -3193,10 +3245,17 @@ impl Checker {
             module_names: std::collections::HashSet::new(),
             param_inst_defs: HashMap::new(),
             module_fixities: Vec::new(),
+            interface_binders: HashMap::new(),
+            interface_source_schemes: HashMap::new(),
+            interface_total_bodies: std::collections::BTreeMap::new(),
+            interface_guarded_bodies: std::collections::BTreeMap::new(),
+            interface_checked_bodies: None,
             module_foreign: Vec::new(),
             foreign_plans: Vec::new(),
             pending_foreign: Vec::new(),
             local_tys: HashMap::new(),
+            proof_value_scopes: HashMap::new(),
+            value_aliases: HashMap::new(),
             local_cls: HashMap::new(),
             local_origin: HashMap::new(),
             cur_tparams: Vec::new(),
@@ -3409,6 +3468,10 @@ impl Checker {
         // name this derivation site when the item goes stale.
         if matches!(self.uni.zonk(&scheme.ty), Ty::Prp(_)) {
             self.ev_derivs.insert(l, (self.ev_writes.len(), span));
+            let origin = self.value_aliases.get(&l)
+                .and_then(|original| self.proof_value_scopes.get(original)).cloned()
+                .unwrap_or_else(|| env.locals.iter().map(|(n, local, _)| (n.clone(), *local)).collect());
+            self.proof_value_scopes.insert(l, origin);
         }
         env.locals.push((name.to_string(), l, scheme));
         Ok(())
@@ -3424,7 +3487,14 @@ impl Checker {
         let mut muts = Vec::new();
         let mut refs = Vec::new();
         for v in vars {
-            if let Some((_, s)) = env.lookup(&v) {
+            let binding = env.lookup(&v).or_else(|| {
+                // Logical provenance can still name a hidden outer local.
+                // These handles are never ordinary source bindings.
+                let id = v.strip_prefix("$proof-value:")?.parse::<usize>().ok()?;
+                env.locals.iter().find(|(_, local, _)| local.0 == id)
+                    .map(|(_, local, scheme)| (*local, scheme.clone()))
+            });
+            if let Some((_, s)) = binding {
                 match self.uni.zonk(&s.ty) {
                     Ty::Mut(r, _) => {
                         if !muts.contains(&r) {
@@ -3504,6 +3574,17 @@ impl Checker {
     /// name's innermost binding only.
     fn evidence_in(&self, env: &Env) -> Evidence {
         let mut out = Evidence::default();
+        // Logical local identities remain scoped even if their source name
+        // is shadowed. They are never ordinary source lookup bindings.
+        for (_, local, scheme) in &env.locals {
+            if scheme.params.is_empty() {
+                if let Some((sort, _)) = self.int_view(&self.uni.zonk(&scheme.ty)) {
+                    let original = self.value_aliases.get(local).copied().unwrap_or(*local);
+                    let name = format!("$proof-value:{}", original.0);
+                    if !out.sorts.iter().any(|(old, _)| *old == name) { out.sorts.push((name, sort)); }
+                }
+            }
+        }
         // Innermost first, so `later` holds every name bound after the
         // current local; the items are reversed back to scope order.
         let mut later: HashSet<&str> = HashSet::new();
@@ -3540,11 +3621,13 @@ impl Checker {
                 continue;
             };
             let q = self.uni.resolve_prop(q);
+            let origin = self.proof_value_scopes.get(local);
+            let q = origin.map(|source| self.proof_values_in_scope(&q, source, env)).unwrap_or(q);
             let mut fv = Vec::new();
             q.free_vars(&mut fv);
             // `later` already holds this binder's own name, which its
             // statement never mentions.
-            if fv.iter().any(|v| v != name && later.contains(v.as_str())) {
+            if origin.is_none() && fv.iter().any(|v| v != name && later.contains(v.as_str())) {
                 continue;
             }
             let (muts, _) = self.ev_footprint(&q, env);
@@ -3575,6 +3658,7 @@ impl Checker {
     /// The integer sort of a named function's result applied to `arity`
     /// arguments (the head of an index-level application).
     fn fn_int_sort(&self, head: &str, arity: usize) -> Option<IntSort> {
+        if head == BYTE_LENGTH_INDEX { return (arity == 1).then_some(IntSort::Nat); }
         let (module, name) = head.rsplit_once('.')?;
         let v = self.qualified.get(&(module.to_string(), name.to_string()))?;
         let mut ty = v.scheme.ty.clone();
@@ -3648,6 +3732,9 @@ impl Checker {
             }),
             ITerm::App(f, args) => {
                 let ITerm::Fn(h) = &**f else { return false };
+                if h == BYTE_LENGTH_INDEX {
+                    return args.len() == 1 && args.iter().all(|a| self.stable_reading(a));
+                }
                 let Some((module, name)) = h.rsplit_once('.') else { return false };
                 match self.qualified.get(&(module.to_string(), name.to_string())).map(|v| &v.kind) {
                     Some(ValueKind::Prim(op)) => {
@@ -3704,6 +3791,14 @@ impl Checker {
         let mut apps = Vec::new();
         preds(p, &mut apps);
         for (head, args, term) in apps {
+            if head == BYTE_LENGTH_INDEX {
+                if args.len() == 1 {
+                    if let Some((promise, _)) = prim_result_promise(PrimOp::Bytes(BytesOp::Len)) {
+                        out.push(promise.subst("$it", term));
+                    }
+                }
+                continue;
+            }
             let Some((module, name)) = head.rsplit_once('.') else { continue };
             let Some(v) = self.qualified.get(&(module.to_string(), name.to_string())) else { continue };
             let mut ty = v.scheme.ty.clone();
@@ -4777,7 +4872,8 @@ impl Checker {
         match e {
             ECore::LitFold { idx, body } => {
                 let idx = *idx;
-                match if fold { self.fold_constant(body) } else { None } {
+                let result_ty = self.uni.zonk(&self.literal_folds[idx].result_ty);
+                match if fold { self.fold_constant(body, &result_ty) } else { None } {
                     Some(k) => {
                         self.literal_folds[idx].folded = true;
                         self.literal_folds[idx].unit = unit.to_string();
@@ -4822,7 +4918,7 @@ impl Checker {
             ECore::DictProj(d, ..) | ECore::Proj(d, ..) | ECore::Demand(d, _) => {
                 self.fold_pass(d, unit, fold)
             }
-            ECore::InstDict(_, args, _) | ECore::MkClos { env: args, .. } => {
+            ECore::InstDict(_, args, _, _) | ECore::MkClos { env: args, .. } => {
                 for a in args {
                     self.fold_pass(a, unit, fold);
                 }
@@ -4860,7 +4956,7 @@ impl Checker {
     /// it is stage-known and evaluates to a constant value. Anything
     /// else (free runtime values, code the evaluator cannot run, a value
     /// with no constant form) keeps the runtime class call.
-    fn fold_constant(&mut self, body: &ECore) -> Option<ECore> {
+    fn fold_constant(&mut self, body: &ECore, ty: &Ty) -> Option<ECore> {
         let mut free = Vec::new();
         free_locals(body, &mut Vec::new(), &mut free);
         if !free.is_empty() || fold_blocked(body) {
@@ -4876,7 +4972,42 @@ impl Checker {
         // would without the fold.
         let v = self.eval_core(&mut cx, &core, &mut frame).ok()?;
         let string_ctor = self.string_ctor_id().0;
-        reify_value(&v, &string_ctor)
+        self.reify_constant(&v, ty, &string_ctor)
+    }
+
+    /// Preserve constructor instantiations when folding a collection. A
+    /// type-erased constructor defaults its fields to Raw, which leaks
+    /// bignums and objects that the list or map owns.
+    fn reify_constant(&self, value: &crate::core::Value, ty: &Ty, string_ctor: &str) -> Option<ECore> {
+        // A generalized literal can still carry an unsolved original
+        // metavariable. Preserve its typed runtime construction instead
+        // of letting an unknown constructor argument default to Raw.
+        if !self.uni.free_metas(ty).is_empty() { return None; }
+        let crate::core::Value::Adt { ctor, fields, .. } = value else {
+            return reify_value(value, string_ctor);
+        };
+        if ctor == string_ctor { return reify_value(value, string_ctor); }
+        let (args, field_types) = match self.uni.zonk(ty) {
+            Ty::Tuple(types) => (types.clone(), types),
+            Ty::Adt(name, args) => {
+                let info = self.lookup_type(&[&name]).ok()?;
+                let cname = ctor.rsplit('.').next()?;
+                let defining = self.ctor_of_type(&info, cname).ok()?;
+                if format!("{}.{}", defining.module, defining.name) != *ctor { return None; }
+                let parts = self.ctor_parts(&defining, &args).ok()?;
+                if !parts.local_idx.is_empty() { return None; }
+                let inst = args.iter().zip(&info.param_kinds).filter_map(|(a, kind)|
+                    matches!(kind, ParamKind::Type | ParamKind::Con(_)).then(|| a.clone())).collect();
+                (inst, parts.fields.into_iter().filter_map(|(_, ty, erased)| (!erased).then_some(ty)).collect())
+            }
+            _ => return None,
+        };
+        if fields.len() != field_types.len() { return None; }
+        let mut out = ECore::Ctor(GlobalId(ctor.clone()), args);
+        for (field, ty) in fields.iter().zip(field_types) {
+            out = app_spine(out, vec![self.reify_constant(field, &ty, string_ctor)?]);
+        }
+        Some(out)
     }
 
     /// An index term as runtime code (core specification section 3:
@@ -4906,6 +5037,7 @@ impl Checker {
                     ))
                 }
             },
+            ITerm::Fn(g) if g == BYTE_LENGTH_INDEX => ECore::Prim(PrimOp::Bytes(BytesOp::Len)),
             ITerm::Fn(g) => {
                 self.check_executable(&g, span)?;
                 ECore::Global(GlobalId(g), Vec::new())
@@ -5010,7 +5142,9 @@ impl Checker {
                 .sigs
                 .get(name)
                 .map(|ss| ss.iter().any(|s| s.module == module))
-                .unwrap_or(false);
+                .unwrap_or(false)
+            || self.instance_defs_pending.iter().any(|(m, i)| m == module && i.name.text == name)
+            || self.instance_list.iter().any(|i| i.module == module && i.name == name);
         if declared {
             Some(SurfaceName {
                 module: module.to_string(),
@@ -5456,6 +5590,8 @@ impl Checker {
                     // A tuple type has one constructor, which the unit
                     // names, so it needs no data type of its own.
                     data: None,
+                    result: Some(Class::Obj),
+                    dictionary_values: Vec::new(),
                 },
             });
         }
@@ -5843,7 +5979,7 @@ impl Checker {
                 }
             });
             match found {
-                Ok(v) => fn_id(&v.module, &v.name).0,
+                Ok(v) => value_index_id(&v),
                 Err(_) => {
                     return Err(Error::at(
                         span,
@@ -6058,7 +6194,7 @@ impl Checker {
                             // A measure atom over any container: the
                             // binder may appear only under the baked
                             // measures (`length xs > 100`).
-                            if measure_covers(a, binder) && measure_covers(b, binder) {
+                            if measure_covers(a, binder, matches!(base, Ty::Bytes)) && measure_covers(b, binder, matches!(base, Ty::Bytes)) {
                                 Ok(())
                             } else {
                                 Err(Error::at(
@@ -6266,6 +6402,20 @@ impl Checker {
                 "the `refined` former takes a predicate and at most one container (`refined P T`)",
             ));
         }
+        // The implicit refined value is the predicate's unbound name,
+        // not the first name visited: an earlier telescope binder can
+        // precede it (n <= bytes-len bytes). Retain that distinction in
+        // the existing canonical binder understood by all refinement
+        // consumers, before the surrounding telescope is transformed.
+        let mut free = Vec::new();
+        pred.free_vars(&mut free);
+        let implicit: Vec<_> = free.iter()
+            .filter(|name| !vars.contains(name) && !crate::types::is_positional_arg(name))
+            .collect();
+        let pred = match implicit.as_slice() {
+            [binder] => pred.subst(binder, &ITerm::Var("$it".to_string())),
+            _ => pred,
+        };
         let mut out = vec![Ty::Prp(Box::new(pred))];
         if let Some(t) = args.get(1) {
             out.push(self.conv_type(t, vars)?);
@@ -7460,6 +7610,7 @@ impl Checker {
                         .collect();
                     let constraints = self.kind_constraints.borrow().clone();
                     let mut type_params: Vec<String> = Vec::new();
+                    let mut con_params = Vec::new();
                     let mut val_params: Vec<(String, Ty)> = Vec::new();
                     let mut prop_params: Vec<String> = Vec::new();
                     for (name, hint, span) in binders {
@@ -7469,12 +7620,17 @@ impl Checker {
                         let kind =
                             self.resolve_binder_kind(&name, hint.as_ref(), &constraints, span)?;
                         match kind {
-                            ParamKind::Type | ParamKind::Con(_) => type_params.push(name),
+                            ParamKind::Type => type_params.push(name),
+                            ParamKind::Con(n) => {
+                                con_params.push((name.clone(), n));
+                                type_params.push(name);
+                            }
                             ParamKind::Val(vty) => val_params.push((name, vty)),
                             ParamKind::Prop => prop_params.push(name),
                         }
                     }
-                    return Ok(Scheme {
+                    let scheme = Scheme {
+                        con_params,
                         params: type_params,
                         idx_params: Vec::new(),
                         val_params,
@@ -7484,9 +7640,199 @@ impl Checker {
                         ctx,
                         obligs,
                         ty: Self::positional_results(&t, 0),
-                    });
+                    };
+                    self.check_length_scheme(&scheme, ty.span())?;
+                    return Ok(scheme);
                 }
             }
+        }
+    }
+
+    /// Validate primitive observations against the converted signature's actual
+    /// telescope. Kind-inference notes deliberately do not establish value
+    /// carrier equality and must not be used as a typing environment here.
+    fn check_length_scheme(&self, scheme: &Scheme, span: ast::Span) -> Result<()> {
+        let mut env: HashMap<String, Ty> = scheme.val_params.iter().cloned().collect();
+        for p in &scheme.idx_params {
+            if let IxParam::Val(n, t) = p { env.insert(n.clone(), t.clone()); }
+        }
+        for (_, t) in &scheme.val_params { self.check_length_type(t, &env, 0, span)?; }
+        self.check_length_type(&scheme.ty, &env, 0, span)?;
+        // `using` predicates were rewritten to these positional names.
+        let mut cur = &scheme.ty;
+        let mut i = 0;
+        loop {
+            match cur {
+                Ty::Fun(d, _, _, c) => { env.insert(format!("$a{i}"), (**d).clone()); cur = c; }
+                Ty::Pi { var, dom, cod, .. } => {
+                    env.insert(var.clone(), (**dom).clone());
+                    env.insert(format!("$a{i}"), (**dom).clone()); cur = cod;
+                }
+                _ => break,
+            }
+            i += 1;
+        }
+        for (_, c) in &scheme.ctx {
+            for t in &c.args { self.check_length_type(t, &env, 0, span)?; }
+        }
+        for p in &scheme.obligs {
+            let p = match p { PropOblig::Pred(p) | PropOblig::Preserves { pred: p, .. } => p };
+            self.check_length_prop(p, &env, span)?;
+        }
+        Ok(())
+    }
+
+    fn check_length_type(&self, t: &Ty, env: &HashMap<String, Ty>, pos: usize, span: ast::Span) -> Result<()> {
+        match t {
+            Ty::Fun(d, _, _, c) | Ty::Pi { dom: d, cod: c, .. } => {
+                self.check_length_type(d, env, 0, span)?;
+                let mut inner = env.clone();
+                inner.insert(format!("$a{pos}"), (**d).clone());
+                if let Ty::Pi { var, .. } = t { inner.insert(var.clone(), (**d).clone()); }
+                self.check_length_type(c, &inner, pos + 1, span)?;
+            }
+            Ty::Sigma { var, dom, cod } => {
+                self.check_length_type(dom, env, 0, span)?;
+                let mut inner = env.clone(); inner.insert(var.clone(), (**dom).clone());
+                self.check_length_type(cod, &inner, 0, span)?;
+            }
+            Ty::Adt(name, args) => {
+                if let Some(view) = self.refine_view(t) {
+                    let mut inner = env.clone();
+                    if let Some(base) = &view.base {
+                        self.check_length_type(base, env, 0, span)?;
+                        inner.insert(view.binder.clone(), base.clone());
+                    }
+                    self.check_length_prop(&view.pred, &inner, span)?;
+                    // The predicate's binder is scoped by this refinement,
+                    // not by an unrelated sibling type argument.
+                    for a in args { if !matches!(a, Ty::Prp(_)) { self.check_length_type(a, env, 0, span)?; } }
+                } else {
+                    let info = self.types.get(name).and_then(|xs| xs.first());
+                    for (i, a) in args.iter().enumerate() {
+                        if let (Ty::Idx(it), Some(ParamKind::Val(carrier))) = (a, info.and_then(|x| x.param_kinds.get(i))) {
+                            self.check_length_index(it, Some(carrier), env, span)?;
+                        } else { self.check_length_type(a, env, 0, span)?; }
+                    }
+                }
+            }
+            Ty::Idx(it) => self.check_length_index(it, None, env, span)?,
+            Ty::Prp(p) => self.check_length_prop(p, env, span)?,
+            Ty::Tuple(args) => for a in args { self.check_length_type(a, env, 0, span)?; },
+            Ty::App(f, args) => {
+                self.check_length_type(f, env, 0, span)?;
+                for a in args { self.check_length_type(a, env, 0, span)?; }
+            }
+            Ty::Thunk { inner, .. } | Ty::Later(inner) | Ty::Lazy { inner, .. }
+            | Ty::Ref(_, inner) | Ty::Mut(_, inner) | Ty::Ptr { pointee: inner, .. } => self.check_length_type(inner, env, 0, span)?,
+            Ty::Handler { input, output, .. } => {
+                self.check_length_type(input, env, 0, span)?;
+                self.check_length_type(output, env, 0, span)?;
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    fn check_length_prop(&self, p: &PTerm, env: &HashMap<String, Ty>, span: ast::Span) -> Result<()> {
+        match p {
+            PTerm::Cmp(_, a, b) | PTerm::Eq(a, b) => {
+                self.check_length_index(a, None, env, span)?;
+                self.check_length_index(b, None, env, span)?;
+            }
+            PTerm::Pred(_, a) => self.check_length_index(a, None, env, span)?,
+            PTerm::Not(p) => self.check_length_prop(p, env, span)?,
+            PTerm::And(a, b) | PTerm::Or(a, b) => {
+                self.check_length_prop(a, env, span)?; self.check_length_prop(b, env, span)?;
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    fn length_in_index(it: &ITerm) -> bool {
+        match it {
+            ITerm::Fn(n) => n == BYTE_LENGTH_INDEX,
+            ITerm::App(f, xs) => Self::length_in_index(f) || xs.iter().any(Self::length_in_index),
+            ITerm::Bin(_, a, b) => Self::length_in_index(a) || Self::length_in_index(b),
+            ITerm::Lam(_, body) => Self::length_in_index(body),
+            _ => false,
+        }
+    }
+
+    fn check_length_index(&self, it: &ITerm, expected: Option<&Ty>, env: &HashMap<String, Ty>, span: ast::Span) -> Result<()> {
+        if !Self::length_in_index(it) { return Ok(()); }
+        // This validation must not solve or specialize the enclosing checker.
+        let mut uni = self.uni.clone();
+        let actual = self.length_index_type(it, expected, env, &mut uni, span)?;
+        if let Some(want) = expected {
+            self.length_index_unify(&actual, want, &mut uni, span)?;
+        }
+        Ok(())
+    }
+
+    fn length_index_unify(&self, actual: &Ty, want: &Ty, uni: &mut Unifier, span: ast::Span) -> Result<()> {
+        // A checked refinement may weaken to its carrier. The requested
+        // type is never weakened: that would discharge an unproved contract.
+        let actual = uni.zonk(actual);
+        let actual = if self.refine_view(want).is_none() { self.refine_base(&actual).unwrap_or(actual) } else { actual };
+        uni.unify(&actual, want).map_err(|e| Error::at(span, format!("byte-length index operand/result type: {e}")))
+    }
+
+    fn length_index_type(&self, it: &ITerm, expected: Option<&Ty>, env: &HashMap<String, Ty>, uni: &mut Unifier, span: ast::Span) -> Result<Ty> {
+        match it {
+            ITerm::Var(n) => env.get(n).cloned().ok_or_else(|| Error::at(span, format!("byte-length index operand `{n}` has no checked carrier in scope"))),
+            ITerm::Num(n) => {
+                let t = expected.map(|t| uni.zonk(t)).filter(|t| matches!(t, Ty::Nat | Ty::Int | Ty::Prim(_))).unwrap_or(Ty::Nat);
+                if t == Ty::Nat && n.starts_with('-') { return Err(Error::at(span, "negative index literal cannot inhabit Nat")); }
+                Ok(t)
+            }
+            ITerm::Fn(n) if n == BYTE_LENGTH_INDEX => Ok(Ty::fun_mult(Ty::Bytes, Mult::Many, EffRow::pure(), Ty::Nat)),
+            ITerm::Fn(n) => {
+                let value = self.qualified.values().find(|v| fn_id(&v.module, &v.name).0 == *n)
+                    .ok_or_else(|| Error::at(span, format!("byte-length operand names unchecked index function {n}")))?;
+                let s = &value.scheme;
+                let mut types = HashMap::new(); let mut rows = HashMap::new();
+                for p in &s.params { types.insert(p.clone(), uni.fresh()); }
+                for p in &s.idx_params {
+                    match p { IxParam::Val(n, _) => { types.insert(n.clone(), uni.fresh_idx()); }, IxParam::Prop(n) => { types.insert(n.clone(), uni.fresh_prop()); } }
+                }
+                for (n, _) in &s.val_params { types.insert(n.clone(), uni.fresh_idx()); }
+                for n in &s.prop_params { types.insert(n.clone(), uni.fresh_prop()); }
+                for n in &s.row_params { rows.insert(n.clone(), uni.fresh_row().tail); }
+                Ok(Self::subst_full(&s.ty, &types, &rows, &HashMap::new()))
+            }
+            ITerm::App(f, args) => {
+                let mut ty = self.length_index_type(f, None, env, uni, span)?;
+                for a in args {
+                    let (dom, eff, cod, binder) = match uni.zonk(&ty) {
+                        Ty::Fun(d, _, e, c) => (*d, e, *c, None),
+                        Ty::Pi { var, dom, eff, cod, .. } => (*dom, eff, *cod, Some(var)),
+                        other => return Err(Error::at(span, format!("byte-length index applies non-function carrier {other}; check its arity"))),
+                    };
+                    if !eff.is_pure() { return Err(Error::at(span, "byte-length index operand application must be pure")); }
+                    let actual = self.length_index_type(a, Some(&dom), env, uni, span)?;
+                    self.length_index_unify(&actual, &dom, uni, span)?;
+                    ty = match binder { Some(n) => cod.subst_idx(&n, a), None => cod };
+                }
+                Ok(uni.zonk(&ty))
+            }
+            ITerm::Bin(_, a, b) => {
+                let carrier = self.length_index_type(a, expected, env, uni, span)?;
+                if !matches!(uni.zonk(&carrier), Ty::Nat | Ty::Int) { return Err(Error::at(span, "byte-length index arithmetic requires Nat or Int")); }
+                let right = self.length_index_type(b, Some(&carrier), env, uni, span)?;
+                self.length_index_unify(&right, &carrier, uni, span)?; Ok(uni.zonk(&carrier))
+            }
+            ITerm::Lam(n, body) => {
+                let Some(Ty::Fun(dom, mult, eff, cod)) = expected.map(|t| uni.zonk(t)) else {
+                    return Err(Error::at(span, "byte-length index lambda needs a checked function carrier"));
+                };
+                let mut inner = env.clone(); inner.insert(n.clone(), (*dom).clone());
+                let actual = self.length_index_type(body, Some(&cod), &inner, uni, span)?;
+                self.length_index_unify(&actual, &cod, uni, span)?;
+                Ok(Ty::fun_mult(*dom, mult, eff, *cod))
+            }
+            ITerm::MVar(_) => Err(Error::at(span, "byte-length index operand has an unsolved carrier")),
         }
     }
 
@@ -8955,12 +9301,13 @@ impl Checker {
                 ECore::DictProj(Box::new(self.fill_holes(d, sol)?), *i, s.clone(), t.clone())
             }
             ECore::Proj(d, i, t) => ECore::Proj(Box::new(self.fill_holes(d, sol)?), i.clone(), t.clone()),
-            ECore::InstDict(g, args, t) => ECore::InstDict(
+            ECore::InstDict(g, args, t, explicit) => ECore::InstDict(
                 g.clone(),
                 args.iter()
                     .map(|a| self.fill_holes(a, sol))
                     .collect::<Result<Vec<_>>>()?,
                 t.clone(),
+                *explicit,
             ),
             ECore::App(f, args) => ECore::App(
                 Box::new(self.fill_holes(f, sol)?),
@@ -9151,3 +9498,18 @@ fn shifted_meta(meta: &crate::core::FnMeta, k: usize) -> crate::core::FnMeta {
 // `check_decls.rs`. Both are included at module scope.
 include!("check_terms.rs");
 include!("check_decls.rs");
+include!("check_interface.rs");
+include!("check_total.rs");
+
+#[cfg(test)]
+mod proof_value_scope_tests {
+    use super::*;
+    #[test]
+    fn logical_provenance_does_not_grant_source_names() {
+        let mut env = Env::default();
+        env.locals.push(("payload".into(), LocalId(1), Scheme::mono(Ty::Unit)));
+        env.locals.push(("payload".into(), LocalId(2), Scheme::mono(Ty::Unit)));
+        assert_eq!(env.lookup("payload").unwrap().0, LocalId(2));
+        assert!(env.lookup("$proof-value:1").is_none());
+    }
+}

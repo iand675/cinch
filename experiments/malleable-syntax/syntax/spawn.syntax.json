@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "name": "spawn",
+  "entry": "root",
+  "rules": {
+    "root": {
+      "pattern": [
+        {
+          "capture": "scope",
+          "of": {
+            "host": true
+          }
+        },
+        "run",
+        {
+          "capture": "body",
+          "of": {
+            "host": true
+          }
+        },
+        "}"
+      ],
+      "emit": "(${@fork} (${scope}) (\\() -> (${body})))"
+    }
+  },
+  "helpers": {
+    "fork": "Tasks.fork"
+  }
+}

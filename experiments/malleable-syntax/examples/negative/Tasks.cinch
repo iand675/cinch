@@ -1,0 +1,11 @@
+module Main where
+  import Tasks
+  import syntax "../../syntax/spawn.syntax.json" as spawn-in
+  work :: forall r. using (io :: Io r) => Unit ->{Async r, Cancel r, Diverge} Result LoadError Nat
+  work u = withScope $ \scope -> do
+    task-handle <- spawn-in!{ {scope} run {Ok 42} }
+    Ok 42
+  main :: Unit ->{Async r, Cancel r, Diverge} Int
+  main u = with (io = newIO ()) in case work () of
+    Ok n -> if n == 42 then 0 else 1
+    Err e -> 2

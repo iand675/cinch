@@ -1,0 +1,8 @@
+__pycache__/
+.generated/
+editor/tree-sitter-*/
+editor/**/src/parser.c
+editor/**/src/grammar.json
+editor/**/src/node-types.json
+editor/**/src/tree_sitter/
+editor/**/build/

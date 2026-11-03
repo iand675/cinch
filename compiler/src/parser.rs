@@ -21,7 +21,9 @@ pub type Fixity = (Assoc, u8);
 /// module's own, which shadow the imported ones.
 #[derive(Clone, Debug, Default)]
 pub struct FixityTable {
-    map: BTreeMap<String, Fixity>,
+    // An exported operator without a fixity still shadows an inherited
+    // operator of the same spelling. It may be used in prefix form only.
+    map: BTreeMap<String, Option<Fixity>>,
 }
 
 impl FixityTable {
@@ -31,7 +33,7 @@ impl FixityTable {
 
     /// Fixity of `op` if it is declared.
     pub fn get(&self, op: &str) -> Option<Fixity> {
-        self.map.get(op).copied()
+        self.map.get(op).copied().flatten()
     }
 
     /// Declare `op`'s fixity. Redeclaring the same fixity is accepted;
@@ -43,12 +45,12 @@ impl FixityTable {
             )));
         }
         match self.map.get(op) {
-            Some(&(a, p)) if (a, p) == (assoc, prec) => Ok(()),
-            Some(&(a, p)) => Err(Error::plain(format!(
+            Some(&Some((a, p))) if (a, p) == (assoc, prec) => Ok(()),
+            Some(&Some((a, p))) => Err(Error::plain(format!(
                 "conflicting fixity declarations for `{op}`: already {a:?} {p}, now {assoc:?} {prec}"
             ))),
-            None => {
-                self.map.insert(op.to_string(), (assoc, prec));
+            None | Some(None) => {
+                self.map.insert(op.to_string(), Some((assoc, prec)));
                 Ok(())
             }
         }
@@ -105,16 +107,20 @@ pub struct ParsedModules {
     /// Per-module fixity tables (imported declarations plus the module's
     /// own), keyed by module name.
     pub fixities: std::collections::HashMap<String, FixityTable>,
+    /// Only exported operators, with their defining module's fixities.
+    /// Importers must not receive this module's private parsing context.
+    pub exported_fixities: std::collections::HashMap<String, FixityTable>,
 }
 
 /// Parse one module from a layout-processed token stream. `imported` holds the
 /// fixities visible through imports; the module's own fixity declarations
-/// shadow them and are returned in `ParsedModule.fixities`.
+/// belong to operators declared here. Importers cannot redeclare them.
 pub fn parse_module(tokens: &[Token], imported: &FixityTable) -> Result<ParsedModule> {
     let mut p = Parser::new(tokens);
     let mut module = p.parse_module_decl()?;
     p.expect_eof()?;
-    let fixities = imported.merge(&p.own_fixities);
+    let own = owned_fixities(&module, &p.own_fixities)?;
+    let fixities = imported.merge(&own);
     resolve_module(&mut module, &fixities)?;
     Ok(ParsedModule { module, fixities })
 }
@@ -129,25 +135,18 @@ pub fn parse_modules(
     base: &FixityTable,
     tables: &std::collections::HashMap<String, FixityTable>,
 ) -> Result<ParsedModules> {
-    let mut p = Parser::new(tokens);
-    let mut modules: Vec<(Module, FixityTable)> = Vec::new();
-    while !p.at(&Tok::Eof) {
-        let module = p.parse_module_decl()?;
-        let own = std::mem::take(&mut p.own_fixities);
-        modules.push((module, own));
-    }
+    let modules = fixity_headers(tokens)?;
+    let exported_fixities = export_fixity_headers(&modules, tables)?;
+    let implicit = exported_fixities.get("Prelude").unwrap_or(base);
     let mut out = Vec::new();
     let mut fixities = std::collections::HashMap::new();
     for (module, own) in &modules {
         let mut module = module.clone();
-        let mut table = base.clone();
+        let mut table = implicit.clone();
         for imp in &module.imports {
-            // Fixity tables key on the import's full dotted name.
             let name = imp.path.parts().join(".");
-            if let Some(t) = modules.iter().find(|(m, _)| m.name.text == name).map(|(_, o)| o) {
-                table = table.merge(t);
-            } else if let Some(t) = tables.get(&name) {
-                table = table.merge(t);
+            if let Some(t) = exported_fixities.get(&name).or_else(|| tables.get(&name)) {
+                table = table.merge(&import_fixities(imp, t, false));
             }
         }
         table = table.merge(own);
@@ -155,7 +154,158 @@ pub fn parse_modules(
         fixities.insert(module.name.text.clone(), table);
         out.push(module);
     }
-    Ok(ParsedModules { modules: out, fixities })
+    Ok(ParsedModules { modules: out, fixities, exported_fixities })
+}
+
+/// Parse declarations without resolving operator chains. The base loader
+/// uses these headers to discover the facade's inherited fixities before
+/// parsing any family member's body.
+pub fn fixity_headers(tokens: &[Token]) -> Result<Vec<(Module, FixityTable)>> {
+    let mut p = Parser::new(tokens);
+    let mut modules = Vec::new();
+    while !p.at(&Tok::Eof) {
+        let module = p.parse_module_decl()?;
+        let own = owned_fixities(&module, &std::mem::take(&mut p.own_fixities))?;
+        modules.push((module, own));
+    }
+    Ok(modules)
+}
+
+fn is_operator_spelling(name: &str) -> bool {
+    name.chars().next().is_some_and(|c| "!#$%&*+./<=>?@\\^|-~:".contains(c))
+}
+
+fn declared_operators(decl: &Decl, out: &mut FixityTable) {
+    let mut add = |name: &Name| {
+        if is_operator_spelling(&name.text) {
+            out.map.entry(name.text.clone()).or_insert(None);
+        }
+    };
+    match decl {
+        Decl::ValueSig { name, .. } => add(name),
+        Decl::Equation { eq, .. } => add(&eq.name),
+        Decl::Signature(s) => for (name, _) in &s.methods { add(name); },
+        Decl::Foreign(f) if f.is_import => add(&f.name),
+        Decl::Prim(p) => add(&p.name),
+        Decl::Effect(e) => for (name, _) in &e.ops { add(name); },
+        Decl::Attributed { inner, .. } => declared_operators(inner, out),
+        _ => {}
+    }
+}
+
+fn owned_fixities(module: &Module, declared: &FixityTable) -> Result<FixityTable> {
+    let mut own = FixityTable::new();
+    for decl in &module.decls { declared_operators(decl, &mut own); }
+    for op in declared.map.keys() {
+        if !own.map.contains_key(op) {
+            let span = module.decls.iter().find_map(|d| match d {
+                Decl::Fixity(f) => f.ops.iter().find(|n| n.text == *op).map(|n| n.span),
+                _ => None,
+            }).unwrap_or(module.span);
+            return Err(Error::at(span, format!(
+                "only the module declaring operator `{op}` may declare its fixity; an importer must inherit it"
+            )));
+        }
+    }
+    Ok(own.merge(declared))
+}
+
+fn import_qualifier(imp: &Import) -> String {
+    imp.alias.as_ref().map(|n| n.text.clone()).unwrap_or_else(|| {
+        imp.path.parts().last().copied().unwrap_or("").to_string()
+    })
+}
+
+fn import_fixities(imp: &Import, source: &FixityTable, qualified: bool) -> FixityTable {
+    if !qualified && imp.alias.is_some() && imp.members.is_empty() {
+        return FixityTable::new();
+    }
+    if imp.members.is_empty() { return source.clone(); }
+    let mut selected = FixityTable::new();
+    for item in &imp.members {
+        if let Some(fix) = source.map.get(&item.name.text) {
+            let local = item.as_name.as_ref().unwrap_or(&item.name);
+            if is_operator_spelling(&local.text) { selected.map.insert(local.text.clone(), *fix); }
+        }
+    }
+    selected
+}
+
+pub fn export_fixity_headers(
+    modules: &[(Module, FixityTable)],
+    external: &std::collections::HashMap<String, FixityTable>,
+) -> Result<std::collections::HashMap<String, FixityTable>> {
+    fn publish(
+        name: &str, modules: &[(Module, FixityTable)],
+        external: &std::collections::HashMap<String, FixityTable>,
+        done: &mut std::collections::HashMap<String, FixityTable>, active: &mut Vec<String>,
+    ) -> Result<FixityTable> {
+        if let Some(table) = done.get(name) { return Ok(table.clone()); }
+        let Some((module, own)) = modules.iter().find(|(m, _)| m.name.text == name) else {
+            return Ok(external.get(name).cloned().unwrap_or_default());
+        };
+        if active.iter().any(|n| n == name) {
+            // The module loader/checker diagnoses import cycles. No
+            // inherited fact is invented to break one during parsing.
+            return Ok(FixityTable::new());
+        }
+        active.push(name.to_string());
+        let mut views = Vec::new();
+        let mut visible = FixityTable::new();
+        for imp in &module.imports {
+            let source = publish(&imp.path.parts().join("."), modules, external, done, active)?;
+            visible = visible.merge(&import_fixities(imp, &source, false));
+            views.push((imp, source));
+        }
+        visible = visible.merge(own);
+        let exports: Vec<&ExportItem> = module.decls.iter().filter_map(|d| match d {
+            Decl::Export(e) => Some(e.items.iter()), _ => None,
+        }).flatten().collect();
+        // An explicit export may name an operator from the implicit Prelude.
+        // Carry its owner's fact just as an explicit import would. Delay this
+        // lookup until needed so the Prelude's own dependencies do not acquire
+        // a spurious cycle back through its facade.
+        if name != "Prelude" && exports.iter().any(|item| match item {
+            ExportItem::Name(n) => is_operator_spelling(&n.text) && !visible.map.contains_key(&n.text),
+            _ => false,
+        }) {
+            let implicit = publish("Prelude", modules, external, done, active)?;
+            visible = implicit.merge(&visible);
+        }
+        let mut surface = if exports.is_empty() { own.clone() } else { FixityTable::new() };
+        for item in exports {
+            match item {
+                ExportItem::Name(n) => if let Some(f) = visible.map.get(&n.text) {
+                    surface.map.insert(n.text.clone(), *f);
+                },
+                ExportItem::Member(path) => {
+                    let parts = path.parts();
+                    let qualifier = parts[..parts.len() - 1].join(".");
+                    let local = parts[parts.len() - 1];
+                    for (imp, source) in &views {
+                        if import_qualifier(imp) == qualifier {
+                            if let Some(f) = import_fixities(imp, source, true).map.get(local) {
+                                surface.map.insert(local.to_string(), *f);
+                            }
+                        }
+                    }
+                }
+                ExportItem::Module(n) => for (imp, source) in &views {
+                    if imp.path.parts().join(".") == n.text || import_qualifier(imp) == n.text {
+                        surface = surface.merge(&import_fixities(imp, source, true));
+                    }
+                },
+            }
+        }
+        active.pop();
+        done.insert(name.to_string(), surface.clone());
+        Ok(surface)
+    }
+    let mut done = std::collections::HashMap::new();
+    for (module, _) in modules {
+        publish(&module.name.text, modules, external, &mut done, &mut Vec::new())?;
+    }
+    Ok(done)
 }
 
 // ----------------------------------------------------------------- helpers
@@ -1132,6 +1282,7 @@ impl<'a> Parser<'a> {
                             self.bump();
                             Name::new(s, nspan)
                         }
+                        Tok::LParen => self.parse_value_name()?,
                         t => {
                             return Err(self.err(format!(
                                 "expected a member name, found {}",
@@ -1147,6 +1298,7 @@ impl<'a> Parser<'a> {
                                 self.bump();
                                 Some(Name::new(s, sspan))
                             }
+                            Tok::LParen => Some(self.parse_value_name()?),
                             t => {
                                 return Err(self.err(format!(
                                     "expected a member name after `as`, found {}",
@@ -4213,7 +4365,9 @@ mod tests {
              \x20 plus :: Int -> Int -> Int\n\
              \x20 plus x y = x + y\n\
              \x20 foreign import ccall \"sin\" sinF :: Int -> Int\n\
-             \x20 foreign export ccall \"put\" putF :: Int -> Int\n",
+             \x20 foreign export ccall \"put\" putF :: Int -> Int\n\
+             \x20 (+) x y = x\n\
+             \x20 (&&) x y = x\n",
         );
         let m = &p.module;
         assert_eq!(m.name.text, "T");
@@ -4221,7 +4375,7 @@ mod tests {
         assert_eq!(m.imports[0].path.parts(), vec!["Prelude"]);
         assert_eq!(m.imports[1].path.parts(), vec!["Data", "List"]);
         assert_eq!(m.imports[1].alias.as_ref().unwrap().text, "DL");
-        assert_eq!(m.decls.len(), 13);
+        assert_eq!(m.decls.len(), 15);
 
         let data = m
             .decls
@@ -4300,7 +4454,7 @@ mod tests {
     #[test]
     fn precedence_and_order_independence() {
         // Fixity declarations come after the equation that needs them.
-        let p = ok("module T where\n  f = 1 + 2 * 3\n  infixl 6 +\n  infixl 7 *\n");
+        let p = ok("module T where\n  f = 1 + 2 * 3\n  infixl 6 +\n  infixl 7 *\n  (+) x y = x\n  (*) x y = x\n");
         let (f, args) = app(eq_body(&p.module, "f"));
         assert_eq!(var(f), "+");
         assert_eq!(int(&args[0]), 1);
@@ -4312,7 +4466,7 @@ mod tests {
 
     #[test]
     fn left_associativity() {
-        let p = ok("module T where\n  infixl 6 -\n  f = 1 - 2 - 3\n");
+        let p = ok("module T where\n  infixl 6 -\n  f = 1 - 2 - 3\n  (-) x y = x\n");
         let (f, args) = app(eq_body(&p.module, "f"));
         assert_eq!(var(f), "-");
         assert_eq!(int(&args[1]), 3);
@@ -4324,7 +4478,7 @@ mod tests {
 
     #[test]
     fn right_associativity() {
-        let p = ok("module T where\n  infixr 6 ^\n  f = 1 ^ 2 ^ 3\n");
+        let p = ok("module T where\n  infixr 6 ^\n  f = 1 ^ 2 ^ 3\n  (^) x y = x\n");
         let (f, args) = app(eq_body(&p.module, "f"));
         assert_eq!(var(f), "^");
         assert_eq!(int(&args[0]), 1);
@@ -4336,13 +4490,13 @@ mod tests {
 
     #[test]
     fn non_associative_chain_is_rejected() {
-        let e = err("module T where\n  infix 4 ==\n  f = 1 == 2 == 3\n");
+        let e = err("module T where\n  infix 4 ==\n  f = 1 == 2 == 3\n  (==) x y = x\n");
         assert!(e.contains("cannot be chained"), "{e}");
     }
 
     #[test]
     fn mixed_associativity_at_equal_precedence_is_rejected() {
-        let e = err("module T where\n  infixl 6 +\n  infixr 6 ^\n  f = 1 + 2 ^ 3\n");
+        let e = err("module T where\n  infixl 6 +\n  infixr 6 ^\n  f = 1 + 2 ^ 3\n  (+) x y = x\n  (^) x y = x\n");
         assert!(e.contains("incompatible associativity"), "{e}");
     }
 
@@ -4364,7 +4518,7 @@ mod tests {
 
     #[test]
     fn dollar_is_looser_than_infix_operators() {
-        let p = ok("module T where\n  infixl 6 +\n  f = p + q $ x\n");
+        let p = ok("module T where\n  infixl 6 +\n  f = p + q $ x\n  (+) a b = a\n");
         let (f, args) = app(eq_body(&p.module, "f"));
         // `f $ x` is App(f, [x]), so the head is `p + q`.
         let (g, gargs) = app(f);
@@ -4906,31 +5060,20 @@ mod tests {
 
     #[test]
     fn parses_the_prelude() {
-        // The prelude is the split family: the facade's curated
-        // re-export surface plus the scheme homes carrying the
-        // declarations (the prelude split).
-        let p = ok(include_str!("../prelude/Prelude.cinch"));
-        let m = &p.module;
-        assert_eq!(m.name.text, "Prelude");
-        let exports = m
-            .decls
-            .iter()
-            .filter(|d| matches!(d, Decl::Export(_)))
-            .count();
+        let family = crate::driver::parse_prelude(&[]).expect("parse family");
+        let m = family.modules.iter().find(|m| m.name.text == "Prelude").unwrap();
+        let exports = m.decls.iter().filter(|d| matches!(d, Decl::Export(_))).count();
         assert!(exports >= 20, "expected the curated export surface, got {exports}");
-        let base = p.fixities.clone();
+        let base = family.base.clone();
         let mut datas: Vec<String> = Vec::new();
         let mut foreigns = 0;
         let mut insts: Vec<InstDecl> = Vec::new();
-        for (_path, src) in crate::driver::prelude_sources() {
-            let toks = crate::lexer::lex(src).expect("lex the family");
-            let toks = crate::layout::layout(toks).expect("lay out the family");
-            let pm = parse_module(&toks, &base).expect("parse should succeed");
-            for d in &pm.module.decls {
+        for m in family.modules {
+            for d in m.decls {
                 match d {
-                    Decl::Data(x) => datas.push(x.name.text.clone()),
+                    Decl::Data(x) => datas.push(x.name.text),
                     Decl::Foreign(_) => foreigns += 1,
-                    Decl::Instance(x) => insts.push(x.clone()),
+                    Decl::Instance(x) => insts.push(x),
                     _ => {}
                 }
             }
@@ -4951,14 +5094,14 @@ mod tests {
         );
         // The operator table (surface grammar local amendments section
         // 6): Rust's relative precedences in the 0..=9 band.
-        assert_eq!(p.fixities.get("+"), Some((Assoc::Left, 8)));
-        assert_eq!(p.fixities.get("*"), Some((Assoc::Left, 9)));
-        assert_eq!(p.fixities.get("=="), Some((Assoc::None, 3)));
-        assert_eq!(p.fixities.get("&&"), Some((Assoc::Right, 2)));
+        assert_eq!(base.get("+"), Some((Assoc::Left, 8)));
+        assert_eq!(base.get("*"), Some((Assoc::Left, 9)));
+        assert_eq!(base.get("=="), Some((Assoc::None, 3)));
+        assert_eq!(base.get("&&"), Some((Assoc::Right, 2)));
     }
 
     #[test]
-    fn fixity_table_conflicts_and_shadowing() {
+    fn fixity_table_conflicts_and_distinct_local_bindings() {
         let mut own = FixityTable::new();
         own.insert("+", Assoc::Left, 6).unwrap();
         own.insert("+", Assoc::Left, 6).unwrap();
@@ -4972,17 +5115,75 @@ mod tests {
     }
 
     #[test]
-    fn imported_fixities_apply_and_own_decls_shadow_them() {
+    fn imported_fixities_cannot_be_redeclared() {
         let mut imported = FixityTable::new();
         imported.insert("+", Assoc::Right, 9).unwrap();
-        let toks = crate::lexer::lex("module T where\n  infixl 6 +\n  f = 1 + 2 + 3\n").unwrap();
-        let toks = crate::layout::layout(toks).unwrap();
-        let p = parse_module(&toks, &imported).unwrap();
-        assert_eq!(p.fixities.get("+"), Some((Assoc::Left, 6)));
-        // Shadowed to infixl 6: `1 + 2` groups first.
-        let (f, args) = app(eq_body(&p.module, "f"));
-        assert_eq!(var(f), "+");
-        assert_eq!(int(&args[1]), 3);
+        for declaration in ["infixl 6 +", "infixr 9 +"] {
+            let source = format!("module T where\n  {declaration}\n  f = 1 + 2 + 3\n");
+            let toks = crate::layout::layout(crate::lexer::lex(&source).unwrap()).unwrap();
+            let error = parse_module(&toks, &imported).unwrap_err();
+            assert!(error.message.contains("only the module declaring operator"), "{error}");
+        }
+    }
+
+    fn module_program(source: &str, base: &FixityTable) -> Result<ParsedModules> {
+        let tokens = crate::layout::layout(crate::lexer::lex(source)?)?;
+        let mut external = std::collections::HashMap::new();
+        external.insert("Prelude".to_string(), base.clone());
+        parse_modules(&tokens, base, &external)
+    }
+
+    #[test]
+    fn operator_fixities_follow_selected_renamed_reexports() {
+        let parsed = module_program(
+            "module Owner where\n  infixr 6 <+>\n  (<+>) a b = b\n\
+             module Facade where\n  import Owner ((<+>) as (<*>))\n  export (<*>)\n\
+             module Main where\n  import Facade\n  f = 1 <*> 2 <*> 3\n",
+            &FixityTable::new(),
+        ).unwrap();
+        let main = parsed.modules.iter().find(|m| m.name.text == "Main").unwrap();
+        let (op, args) = app(eq_body(main, "f"));
+        assert_eq!(var(op), "<*>");
+        assert_eq!(int(&args[0]), 1);
+        let (_, right) = app(&args[1]);
+        assert_eq!(int(&right[0]), 2);
+        assert_eq!(int(&right[1]), 3);
+        assert_eq!(parsed.exported_fixities["Facade"].get("<*>"), Some((Assoc::Right, 6)));
+        assert_eq!(parsed.exported_fixities["Facade"].get("<+>"), None);
+    }
+
+    #[test]
+    fn private_fixity_context_is_not_implicitly_reexported() {
+        let source = "module Owner where\n  infixr 6 <+>\n  (<+>) a b = b\n\
+                      module Private where\n  import Owner\n  value = 1 <+> 2\n\
+                      module Main where\n  import Private\n  f = 1 <+> 2\n";
+        assert!(module_program(source, &FixityTable::new()).is_err());
+    }
+
+    #[test]
+    fn new_operator_without_fixity_is_prefix_only_despite_inherited_spelling() {
+        let mut base = FixityTable::new();
+        base.insert("+", Assoc::Left, 8).unwrap();
+        let prefix = "module Local where\n  (+) a b = a\n  f = (+) 1 2\n";
+        module_program(prefix, &base).unwrap();
+        let infix = "module Local where\n  (+) a b = a\n  f = 1 + 2\n";
+        assert!(module_program(infix, &base).is_err());
+        let imported_prefix = "module Owner where\n  (+) a b = a\nmodule Main where\n  import Owner\n  f = (+) 1 2\n";
+        let parsed = module_program(imported_prefix, &base).unwrap();
+        assert_eq!(parsed.fixities["Main"].get("+"), None);
+        let imported_infix = "module Owner where\n  (+) a b = a\nmodule Main where\n  import Owner\n  f = 1 + 2\n";
+        assert!(module_program(imported_infix, &base).is_err());
+    }
+
+    #[test]
+    fn implicit_prelude_operator_reexport_carries_its_fixity() {
+        let mut base = FixityTable::new();
+        base.insert("+", Assoc::Left, 8).unwrap();
+        let parsed = module_program(
+            "module Facade where\n  export (+)\n\
+             module Main where\n  import Facade\n  f = 1 + 2 + 3\n", &base,
+        ).unwrap();
+        assert_eq!(parsed.exported_fixities["Facade"].get("+"), Some((Assoc::Left, 8)));
     }
 }
 

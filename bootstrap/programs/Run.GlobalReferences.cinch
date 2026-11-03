@@ -1,0 +1,110 @@
+module Main where
+  import Bootstrap.Type
+  import Bootstrap.Index
+  import Bootstrap.Core
+  import Bootstrap.Global
+  import Text.Lex (Span)
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read)
+
+  sp :: Span
+  sp = Span 0 0 1 1
+  int :: UType
+  int = UCon "Int" KType
+  bool :: UType
+  bool = UCon "Bool" KType
+  dictionary :: UType -> UType
+  dictionary ty = UApp (UCon "Class" (KFun KType KType)) ty
+  definition :: String -> Scheme -> List CoreGiven -> List CorePattern -> CoreTerm -> CoreDefinition
+  definition name sc givens patterns body = MkCoreDefinition sp name sc Nil givens Nil [MkCoreClause sp patterns body]
+  result :: CoreTerm -> CoreDefinition
+  result body = definition "answer" (mono int) Nil Nil body
+  accepted :: CoreGlobals -> CoreDefinition -> Bool
+  accepted globals body = core-definition-closed body && global-definition-closed globals body
+  checks :: Nat -> List Bool
+  checks nonce =
+    let a = UBound nonce "a" KType in let q = MkQuant nonce "a" KType False in
+    let identity = MkScheme [q] (UFun a a) in
+    let member = qualified [q] [MkRequirement "self" (dictionary a)] (UFun a a) in
+    let locals = qualified Nil [MkRequirement "context" (dictionary int)] int in
+    let polymorphic = MkScheme [q, MkQuant (nonce + 1) "n" (value-kind a) False] (UFun a a) in
+    let declarations =
+          [ GlobalValue "answer" "value" (mono int)
+          , GlobalValue "truth" "constructor" (mono bool)
+          , GlobalValue "one" "external" (mono int)
+          , GlobalValue "identity" "external" identity
+          , GlobalValue "poly" "value" identity
+          , GlobalValue "poly2" "value" (MkScheme [q, MkQuant (nonce + 1) "b" KType False] (UFun a a))
+          , GlobalValue "indexed" "external" polymorphic
+          , GlobalValue "dict-int" "implicit-instance" (mono (dictionary int))
+          , GlobalValue "needs-dict" "external" (qualified Nil [MkRequirement "d" (dictionary int)] int)
+          , GlobalValue "with-given" "value" locals
+          , GlobalValue "local" "value" (mono (UFun int int))
+          , GlobalMethod "method" "Class" 3 member
+          ] in
+    case close-globals declarations of
+      None -> [False]
+      Some globals ->
+        let d = CEInstance sp (dictionary int) "dict-int" Nil (CEArgumentsEnd sp) in
+        let need evidence = CQualifiedUse sp int "needs-dict" "external" Nil [evidence] in
+        let use evidence owner slot = CMethod sp (UFun int int) "method" owner slot [int] [evidence] in
+        let project term = CApply sp int term (CInt sp int "1") in
+        let given = CGiven sp "#given" (dictionary int) in
+        let g = CEGiven sp (dictionary int) "#given" in
+        let body = definition "with-given" locals [given] Nil (need g) in
+        let x = nonce + 10 in
+        let fresh = URigid (nonce + 100) "universal" 1 KType in
+        let poly = MkCoreDefinition sp "poly" identity [(nonce, fresh)] Nil Nil [MkCoreClause sp [CPVar sp fresh x "x"] (CLocal sp fresh x "x" Nil)] in
+        [ globals-closed declarations
+        , not (globals-closed (Cons (GlobalValue "answer" "value" (mono bool)) declarations))
+        , not (globals-closed [GlobalValue "bad" "local" (mono int)])
+        , not (globals-closed [GlobalMethod "bad" "Different" 3 member])
+        , accepted globals (result (CUse sp int "one" "external" Nil))
+        , accepted globals poly
+        , not (accepted globals (MkCoreDefinition sp "poly" identity [(nonce, int)] Nil Nil [MkCoreClause sp [CPVar sp int x "x"] (CInt sp int "1")]))
+        , not (accepted globals (MkCoreDefinition sp "poly" identity [(nonce + 1, fresh)] Nil Nil (core-clauses poly)))
+        , not (accepted globals (MkCoreDefinition sp "poly" identity Nil Nil Nil (core-clauses poly)))
+        , not (accepted globals (MkCoreDefinition sp "poly2" (MkScheme [q, MkQuant (nonce + 1) "b" KType False] (UFun a a)) [(nonce, fresh), (nonce + 1, fresh)] Nil Nil (core-clauses poly)))
+        , not (accepted globals (result (CUse sp bool "truth" "constructor" Nil)))
+        , not (accepted globals (MkCoreDefinition sp "answer" (mono int) Nil Nil Nil Nil))
+        , not (accepted globals (result (CUse sp int "missing" "external" Nil)))
+        , not (accepted globals (result (CUse sp int "truth" "constructor" Nil)))
+        , not (accepted globals (result (CUse sp int "one" "constructor" Nil)))
+        , accepted globals (result (project (CUse sp (UFun int int) "identity" "external" [int])))
+        , not (accepted globals (result (project (CUse sp (UFun int int) "identity" "external" [bool]))))
+        , not (accepted globals (result (project (CUse sp (UFun int int) "identity" "external" Nil))))
+        , not (accepted globals (result (project (CUse sp (UFun int int) "identity" "external" [int, int]))))
+        , accepted globals (result (project (CUse sp (UFun int int) "indexed" "external" [int, UIndex int (IInteger 1)])))
+        , not (accepted globals (result (project (CUse sp (UFun int int) "indexed" "external" [int, UIndex (UCon "Nat" KType) (IInteger 1)]))))
+        , accepted globals (result (need d))
+        , not (accepted globals (result (CUse sp int "needs-dict" "external" Nil)))
+        , not (accepted globals (result (need (CEInstance sp (dictionary int) "one" Nil (CEArgumentsEnd sp)))))
+        , not (accepted globals (result (need (CEInstance sp (dictionary bool) "dict-int" Nil (CEArgumentsEnd sp)))))
+        , not (accepted globals (result (need (CEInstance sp (dictionary int) "dict-int" [int] (CEArgumentsEnd sp)))))
+        , not (accepted globals (result (need (CEInstance sp (dictionary int) "dict-int" Nil (CEArgument sp d (CEArgumentsEnd sp))))))
+        , accepted globals (result (project (use d "Class" 3)))
+        , not (accepted globals (result (project (use d "Class" 4))))
+        , not (accepted globals (result (project (use d "Other" 3))))
+        , accepted globals body
+        , not (accepted globals (definition "answer" (mono int) [given] Nil (need g)))
+        , not (accepted globals (definition "with-given" locals Nil Nil (need d)))
+        , not (accepted globals (definition "with-given" locals [given, given] Nil (need g)))
+        , not (accepted globals (definition "with-given" locals [CGiven sp "#given" (dictionary bool)] Nil (need g)))
+        , not (accepted globals (result (need g)))
+        , accepted globals (result (CWith sp int given (CUse sp (dictionary int) "dict-int" "implicit-instance" Nil) (need g)))
+        , not (accepted globals (result (CWith sp int given (CInt sp int "1") (need g))))
+        , not (accepted globals (definition "with-given" locals [given] Nil (CWith sp int given (CUse sp (dictionary int) "dict-int" "implicit-instance" Nil) (need g))))
+        , accepted globals (definition "local" (mono (UFun int int)) Nil [CPVar sp int x "x"] (CLocal sp int x "different display name" Nil))
+        , not (accepted globals (definition "local" (mono (UFun int int)) Nil [CPVar sp int x "x"] (CLocal sp bool x "x" Nil)))
+        , not (accepted globals (definition "local" (mono (UFun int int)) Nil [CPVar sp int x "x"] (CUse sp int "x" "local" Nil)))
+        , accepted globals (result (CCase sp int (CUse sp bool "truth" "constructor" Nil) (CAlternative sp (CPConstructor sp bool "truth" Nil bool (CPDone sp)) (CInt sp int "1") (CAlternativesEnd sp))))
+        , not (accepted globals (result (CCase sp int (CUse sp bool "truth" "constructor" Nil) (CAlternative sp (CPConstructor sp bool "one" Nil int (CPDone sp)) (CInt sp int "1") (CAlternativesEnd sp)))))
+        , not (accepted globals (definition "unknown-definition" (mono int) Nil Nil (CInt sp int "1")))
+        , not (accepted globals (definition "answer" (mono bool) Nil Nil (CUse sp bool "truth" "constructor" Nil)))
+        ]
+  verdict :: Int -> List Bool -> Int
+  verdict next values = case values of Nil -> 0; Cons True rest -> verdict (next + 1) rest; Cons False rest -> next
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case fs-read (path-from-string "nonce.txt") of
+    Err error -> 90
+    Ok input -> verdict 1 (checks (340282366920938463463374607431768211456 + bytes-len input))

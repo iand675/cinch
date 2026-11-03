@@ -11,24 +11,35 @@
 -- consumer that composes them unqualified gets an ambiguity, and the
 -- language's remedy is a selection.
 --
--- The argument words come from `read-argv` (Bootstrap.Driver), which reads
--- them from the runtime's input source because a compiled Cinch program
--- cannot yet reach the operating system's own argv. Four words: the source
--- to compile, the IR module to write, the executable clang must produce,
--- and the report naming both the child's exit code and the artifact's.
+-- The runnable entry reads four words from its own command line: source,
+-- IR module, executable and report. Arguments are never split on whitespace.
 
 module Bootstrap.Pipeline where
 
   import Bootstrap.Ast (Program)
-  import Bootstrap.Check (check-program)
-  import Bootstrap.Driver (link-and-report, read-argv)
-  import Bootstrap.Ir (emit-diagnostics, emit-program)
+  import Bootstrap.Check (CheckedProgram, check-and-retain)
+  import Bootstrap.Driver (link-and-report, link-only-and-report)
+  import Bootstrap.Ir (emit-checked-diagnostics, emit-checked-program)
+  import Bootstrap.RuntimeIr (emit-runtime-program)
   import Bootstrap.Parse (parse-program)
+  import Bootstrap.Parse (parse-program-with)
+  import Bootstrap.Load (LoadedInterface)
+  import Bootstrap.Inputs (read-interfaces)
+  import Bootstrap.Contracts (interface-headers)
+  import Bootstrap.Resolve (resolve-program, resolve-program-with)
   import Bootstrap.Report (Diagnostic, render-diagnostics)
   import Data.Path (Path, path-from-string, path-to-string)
   import Data.String (string-concat, string-to-bytes)
   import Effect.Fs (fs-read, fs-write)
   import Text.Parse (Bundle, Failed, ParseError, ParseOutcome, Parsed, render-bundle)
+
+  -- Check-only preserves all frontend checks while stopping before emission.
+  -- Compile-only emits and links without running the generated program.
+  data PipelineMode where
+    CheckOnly :: PipelineMode
+    EmitOnly :: PipelineMode
+    CompileOnly :: PipelineMode
+    CompileAndRun :: PipelineMode
 
   -- ----------------------------------------------------------------- exits
 
@@ -56,6 +67,9 @@ module Bootstrap.Pipeline where
   pipeline-write-failed :: Int
   pipeline-write-failed = 6
 
+  pipeline-interface-failed :: Int
+  pipeline-interface-failed = 7
+
   -- --------------------------------------------------------------- helpers
 
   -- The refusal file sits beside the IR module: a `.diagnostics` suffix on
@@ -77,7 +91,8 @@ module Bootstrap.Pipeline where
     Cons a rest -> case rest of
       Cons b rest2 -> case rest2 of
         Cons c rest3 -> case rest3 of
-          Cons d others -> Some (a, b, c, d)
+          Cons d Nil -> Some (a, b, c, d)
+          Cons d (Cons extra tail) -> None
           Nil -> None
         Nil -> None
       Nil -> None
@@ -88,34 +103,83 @@ module Bootstrap.Pipeline where
   -- Source to running binary. Each stage hands its artifact to the next,
   -- and the first refusal stops the run with the code that names it.
   compile-source :: forall r. using (io :: Io r) => String -> Path -> Path -> Path ->{IO r, Diverge} Int
-  compile-source source ir exe report = case fs-read (path-from-string source) of
+  compile-source source ir exe report = compile-source-mode CompileAndRun source ir exe report
+
+  compile-source-mode :: forall r. using (io :: Io r) => PipelineMode -> String -> Path -> Path -> Path ->{IO r, Diverge} Int
+  compile-source-mode mode source ir exe report = case fs-read (path-from-string source) of
     Err e -> pipeline-read-failed
-    Ok src -> after-parse source src (parse-program source src) ir exe report
+    Ok src -> after-parse mode source src (parse-program source src) ir exe report
+
+  compile-source-with-manifest :: forall r. using (io :: Io r) => String -> String -> Path -> Path -> Path ->{IO r, Diverge} Int
+  compile-source-with-manifest manifest source ir exe report = compile-source-with-manifest-mode CompileAndRun manifest source ir exe report
+
+  compile-source-with-manifest-mode :: forall r. using (io :: Io r) => PipelineMode -> String -> String -> Path -> Path -> Path ->{IO r, Diverge} Int
+  compile-source-with-manifest-mode mode manifest source ir exe report = case read-interfaces manifest of
+    Err message -> write-failure ir (string-concat "bootstrap.interfaces: " message) pipeline-interface-failed
+    Ok interfaces -> case fs-read (path-from-string source) of
+      Err error -> pipeline-read-failed
+      Ok src -> after-parse-with mode interfaces source src (parse-program-with source src (interface-headers interfaces)) ir exe report
 
   -- `ParseOutcome`'s `Parsed` carries the value AND the errors a recovering
   -- parse produced, so a clean parse is `Parsed prog Nil`. This rung accepts
   -- only a clean parse: a recovered one stops the pipeline and writes the
   -- recoverable errors beside the module, because handing a half-understood
   -- tree to the checker would be the silent drop the ladder forbids.
-  after-parse :: forall r. using (io :: Io r) => String -> Bytes -> ParseOutcome Program -> Path -> Path -> Path ->{IO r, Diverge} Int
-  after-parse name src outcome ir exe report = case outcome of
+  after-parse :: forall r. using (io :: Io r) => PipelineMode -> String -> Bytes -> ParseOutcome Program -> Path -> Path -> Path ->{IO r, Diverge} Int
+  after-parse mode name src outcome ir exe report = case outcome of
     Failed bundle -> write-failure ir (render-bundle bundle) pipeline-parse-failed
-    Parsed prog Nil -> after-check (check-program prog) prog ir exe report
+    Parsed prog Nil -> after-resolve mode prog ir exe report
     Parsed prog recoverable -> write-failure ir (render-bundle (Bundle name src recoverable)) pipeline-parse-failed
 
-  after-check :: forall r. using (io :: Io r) => List Diagnostic -> Program -> Path -> Path -> Path ->{IO r, Diverge} Int
-  after-check found prog ir exe report = case found of
-    Nil -> after-emit (emit-diagnostics prog) prog ir exe report
-    Cons d rest -> write-failure ir (render-diagnostics found) pipeline-check-refused
+  after-parse-with :: forall r. using (io :: Io r) => PipelineMode -> List LoadedInterface -> String -> Bytes -> ParseOutcome Program -> Path -> Path -> Path ->{IO r, Diverge} Int
+  after-parse-with mode interfaces name src outcome ir exe report = case outcome of
+    Failed bundle -> write-failure ir (render-bundle bundle) pipeline-parse-failed
+    Parsed prog Nil -> case resolve-program-with prog interfaces of
+      (resolved, Nil) -> after-check mode (check-and-retain resolved) ir exe report
+      (resolved, found) -> write-failure ir (render-diagnostics found) pipeline-check-refused
+    Parsed prog recoverable -> write-failure ir (render-bundle (Bundle name src recoverable)) pipeline-parse-failed
 
-  after-emit :: forall r. using (io :: Io r) => List Diagnostic -> Program -> Path -> Path -> Path ->{IO r, Diverge} Int
-  after-emit found prog ir exe report = case found of
-    Nil -> write-module ir (emit-program prog) exe report
+  after-resolve :: forall r. using (io :: Io r) => PipelineMode -> Program -> Path -> Path -> Path ->{IO r, Diverge} Int
+  after-resolve mode prog ir exe report = case resolve-program prog of
+    (resolved, Nil) -> after-check mode (check-and-retain resolved) ir exe report
+    (resolved, found) -> write-failure ir (render-diagnostics found) pipeline-check-refused
+
+  after-check :: forall r. using (io :: Io r) => PipelineMode -> Result (List Diagnostic) CheckedProgram -> Path -> Path -> Path ->{IO r, Diverge} Int
+  after-check mode result ir exe report = case result of
+    Ok prog -> case mode of
+      CheckOnly -> case fs-write (refusal-path ir) (string-to-bytes "") of
+        Ok written -> pipeline-ok
+        Err e -> pipeline-write-failed
+      EmitOnly -> write-runtime-module ir (emit-runtime-program prog)
+      other -> after-emit mode (emit-checked-diagnostics prog) prog ir exe report
+    Err found -> write-failure ir (render-diagnostics found) pipeline-check-refused
+
+  after-emit :: forall r. using (io :: Io r) => PipelineMode -> List Diagnostic -> CheckedProgram -> Path -> Path -> Path ->{IO r, Diverge} Int
+  after-emit mode found prog ir exe report = case found of
+    Nil -> write-module mode ir (emit-checked-program prog) exe report
     Cons d rest -> write-failure ir (render-diagnostics found) pipeline-emit-refused
+
+  -- The typed backend emits a complete shared-runtime LLVM module. Linking
+  -- is separate in this mode, so an unavailable lowering cannot fall back
+  -- to the standalone fragment's representation or run an old artifact.
+  write-runtime-module :: forall r. using (io :: Io r) => Path -> Result (List Diagnostic) String ->{IO r} Int
+  write-runtime-module ir result = case result of
+    Err found -> case fs-write ir (string-to-bytes "") of
+      Err e -> pipeline-write-failed
+      Ok cleared -> write-failure ir (render-diagnostics found) pipeline-emit-refused
+    Ok text -> case fs-write ir (string-to-bytes text) of
+      Err e -> pipeline-write-failed
+      Ok written -> case fs-write (refusal-path ir) (string-to-bytes "") of
+        Err e -> pipeline-write-failed
+        Ok cleared -> pipeline-ok
 
   -- The last stage: the module lands, then the driver rung links it, runs
   -- the artifact and writes the report the caller reads.
-  write-module :: forall r. using (io :: Io r) => Path -> String -> Path -> Path ->{IO r, Diverge} Int
-  write-module ir text exe report = case fs-write ir (string-to-bytes text) of
+  write-module :: forall r. using (io :: Io r) => PipelineMode -> Path -> String -> Path -> Path ->{IO r, Diverge} Int
+  write-module mode ir text exe report = case fs-write ir (string-to-bytes text) of
     Err e -> pipeline-write-failed
-    Ok u -> link-and-report ir exe report
+    Ok u -> case mode of
+      CompileOnly -> link-only-and-report ir exe report
+      CompileAndRun -> link-and-report ir exe report
+      CheckOnly -> pipeline-emit-refused
+      EmitOnly -> pipeline-emit-refused

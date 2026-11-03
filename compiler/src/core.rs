@@ -2772,6 +2772,12 @@ pub struct UnitRepr {
     /// monomorphic unit, which has exactly one copy. Hoisted lambdas and
     /// `letrec` members share their definition's parameters.
     pub tparams: usize,
+    /// The actual checked result word, before hoisting. Needed when a
+    /// nullary dictionary method stores its computed value in a slot.
+    pub result: Option<Class>,
+    /// Leading environment words containing this dictionary's initialized
+    /// strict value slots; indices refer to the declaring dictionary.
+    pub dictionary_values: Vec<usize>,
     /// The class of each runtime parameter, parallel to `FnDef::params`
     /// (a hoisted lambda's environment slots come first).
     pub params: Vec<Class>,
@@ -2835,6 +2841,9 @@ pub struct InstanceDef {
 
 #[derive(Clone, Debug)]
 pub struct Program {
+    /// Typed, acyclic primitive body descriptions captured from actual checked
+    /// definitions. Not admitted by schema-7 interfaces.
+    pub total_bodies: crate::total::CheckedGraph,
     pub fns: Vec<FnDef>,
     pub instances: Vec<InstanceDef>,
     /// The synthesized exit adapter for `main :: Int`, when the entry module
@@ -4090,99 +4099,100 @@ fn renumber_core(e: &Core, nparams: usize) -> Core {
             }
         }
     }
-    fn rewrite(e: &Core, map: &HashMap<LocalId, LocalId>) -> Core {
-        let rw = |x: &Core| rewrite(x, map);
-        match e {
-            Core::Var(l) => Core::Var(*map.get(l).unwrap_or(l)),
-            Core::SpliceVal(i) => Core::SpliceVal(*i),
-            Core::Int(v) => Core::Int(*v),
-            Core::ConstBig { nat, digits } => Core::ConstBig { nat: *nat, digits: digits.clone() },
-            Core::ConstBytes(b) => Core::ConstBytes(b.clone()),
-            Core::ConstString { ctor, bytes } => Core::ConstString {
-                ctor: ctor.clone(),
-                bytes: bytes.clone(),
-            },
-            Core::ConstSym(s) => Core::ConstSym(s.clone()),
-            Core::Bool(b) => Core::Bool(*b),
-            Core::Unit => Core::Unit,
-            Core::Global(g, v) => Core::Global(g.clone(), v.clone()),
-            Core::Ctor(g, v) => Core::Ctor(g.clone(), v.clone()),
-            Core::Prim(p) => Core::Prim(*p),
-            Core::Foreign(n) => Core::Foreign(n.clone()),
-            Core::Fault => Core::Fault,
-            Core::LazyAlloc => Core::LazyAlloc,
-            Core::BoxAlloc => Core::BoxAlloc,
-            Core::SyntaxLit(t) => Core::SyntaxLit(t.clone()),
-            Core::StrLit(s) => Core::StrLit(s.clone()),
-            Core::DictProj(d, i, s, c) => Core::DictProj(Box::new(rw(d)), *i, s.clone(), *c),
-            Core::Proj(d, f) => Core::Proj(Box::new(rw(d)), f.clone()),
-            Core::Demand(d, c) => Core::Demand(Box::new(rw(d)), *c),
-            Core::InstDict(g, args, v) => Core::InstDict(g.clone(), args.iter().map(rw).collect(), v.clone()),
-            Core::App(f, args) => Core::App(Box::new(rw(f)), args.iter().map(rw).collect()),
-            Core::Lam { fn_id, env, classes } => Core::Lam {
-                fn_id: fn_id.clone(),
-                env: env.iter().map(rw).collect(),
-                classes: classes.clone(),
-            },
-            Core::Let(l, c, v, body) => Core::Let(
-                *map.get(l).unwrap_or(l),
-                *c,
-                Box::new(rw(v)),
-                Box::new(rw(body)),
-            ),
-            Core::LazyInit(l, t) => {
-                Core::LazyInit(*map.get(l).unwrap_or(l), Box::new(rw(t)))
-            }
-            Core::BoxInit(l, v, c) => {
-                Core::BoxInit(*map.get(l).unwrap_or(l), Box::new(rw(v)), *c)
-            }
-            Core::RefSet(l, v) => {
-                Core::RefSet(*map.get(l).unwrap_or(l), Box::new(rw(v)))
-            }
-            Core::BoxGet(v, c) => Core::BoxGet(Box::new(rw(v)), *c),
-            Core::Dup(l, c, body) => Core::Dup(*map.get(l).unwrap_or(l), *c, Box::new(rw(body))),
-            Core::Drop(l, c, body) => Core::Drop(*map.get(l).unwrap_or(l), *c, Box::new(rw(body))),
-            Core::If(c, t, fe) => Core::If(
-                Box::new(rw(c)),
-                CBranch { weight: t.weight, body: Box::new(rw(&t.body)) },
-                CBranch { weight: fe.weight, body: Box::new(rw(&fe.body)) },
-            ),
-            Core::Case { scrut, alts } => Core::Case {
-                scrut: Box::new(rw(scrut)),
-                alts: alts
-                    .iter()
-                    .map(|a| {
-                        let pat = match &a.pat {
-                            CPat::Var(l, c) => CPat::Var(*map.get(l).unwrap_or(l), *c),
-                            CPat::Con { tag, fields, classes } => CPat::Con {
-                                tag: *tag,
-                                fields: fields
-                                    .iter()
-                                    .map(|l| *map.get(l).unwrap_or(l))
-                                    .collect(),
-                                classes: classes.clone(),
-                            },
-                            CPat::Wild => CPat::Wild,
-                        };
-                        CAlt { pat, weight: a.weight, body: Box::new(rw(&a.body)) }
-                    })
-                    .collect(),
-            },
-            Core::Quote { template, holes, body } => Core::Quote {
-                template: template.clone(),
-                holes: holes.iter().map(rw).collect(),
-                body: body.as_ref().map(|b| Box::new(rw(b))),
-            },
-            Core::DeclsQuote { template, holes, name_holes } => Core::DeclsQuote {
-                template: template.clone(),
-                holes: holes.iter().map(rw).collect(),
-                name_holes: name_holes.clone(),
-            },
-        }
-    }
     let _ = &mut note;
     assign(e, &mut map, &mut next);
-    rewrite(e, &map)
+    rename_core_locals(e, &map)
+}
+
+pub(crate) fn rename_core_locals(e: &Core, map: &HashMap<LocalId, LocalId>) -> Core {
+    let rw = |x: &Core| rename_core_locals(x, map);
+    match e {
+        Core::Var(l) => Core::Var(*map.get(l).unwrap_or(l)),
+        Core::SpliceVal(i) => Core::SpliceVal(*i),
+        Core::Int(v) => Core::Int(*v),
+        Core::ConstBig { nat, digits } => Core::ConstBig { nat: *nat, digits: digits.clone() },
+        Core::ConstBytes(b) => Core::ConstBytes(b.clone()),
+        Core::ConstString { ctor, bytes } => Core::ConstString {
+            ctor: ctor.clone(),
+            bytes: bytes.clone(),
+        },
+        Core::ConstSym(s) => Core::ConstSym(s.clone()),
+        Core::Bool(b) => Core::Bool(*b),
+        Core::Unit => Core::Unit,
+        Core::Global(g, v) => Core::Global(g.clone(), v.clone()),
+        Core::Ctor(g, v) => Core::Ctor(g.clone(), v.clone()),
+        Core::Prim(p) => Core::Prim(*p),
+        Core::Foreign(n) => Core::Foreign(n.clone()),
+        Core::Fault => Core::Fault,
+        Core::LazyAlloc => Core::LazyAlloc,
+        Core::BoxAlloc => Core::BoxAlloc,
+        Core::SyntaxLit(t) => Core::SyntaxLit(t.clone()),
+        Core::StrLit(s) => Core::StrLit(s.clone()),
+        Core::DictProj(d, i, s, c) => Core::DictProj(Box::new(rw(d)), *i, s.clone(), *c),
+        Core::Proj(d, f) => Core::Proj(Box::new(rw(d)), f.clone()),
+        Core::Demand(d, c) => Core::Demand(Box::new(rw(d)), *c),
+        Core::InstDict(g, args, v) => Core::InstDict(g.clone(), args.iter().map(rw).collect(), v.clone()),
+        Core::App(f, args) => Core::App(Box::new(rw(f)), args.iter().map(rw).collect()),
+        Core::Lam { fn_id, env, classes } => Core::Lam {
+            fn_id: fn_id.clone(),
+            env: env.iter().map(rw).collect(),
+            classes: classes.clone(),
+        },
+        Core::Let(l, c, v, body) => Core::Let(
+            *map.get(l).unwrap_or(l),
+            *c,
+            Box::new(rw(v)),
+            Box::new(rw(body)),
+        ),
+        Core::LazyInit(l, t) => {
+            Core::LazyInit(*map.get(l).unwrap_or(l), Box::new(rw(t)))
+        }
+        Core::BoxInit(l, v, c) => {
+            Core::BoxInit(*map.get(l).unwrap_or(l), Box::new(rw(v)), *c)
+        }
+        Core::RefSet(l, v) => {
+            Core::RefSet(*map.get(l).unwrap_or(l), Box::new(rw(v)))
+        }
+        Core::BoxGet(v, c) => Core::BoxGet(Box::new(rw(v)), *c),
+        Core::Dup(l, c, body) => Core::Dup(*map.get(l).unwrap_or(l), *c, Box::new(rw(body))),
+        Core::Drop(l, c, body) => Core::Drop(*map.get(l).unwrap_or(l), *c, Box::new(rw(body))),
+        Core::If(c, t, fe) => Core::If(
+            Box::new(rw(c)),
+            CBranch { weight: t.weight, body: Box::new(rw(&t.body)) },
+            CBranch { weight: fe.weight, body: Box::new(rw(&fe.body)) },
+        ),
+        Core::Case { scrut, alts } => Core::Case {
+            scrut: Box::new(rw(scrut)),
+            alts: alts
+                .iter()
+                .map(|a| {
+                    let pat = match &a.pat {
+                        CPat::Var(l, c) => CPat::Var(*map.get(l).unwrap_or(l), *c),
+                        CPat::Con { tag, fields, classes } => CPat::Con {
+                            tag: *tag,
+                            fields: fields
+                                .iter()
+                                .map(|l| *map.get(l).unwrap_or(l))
+                                .collect(),
+                            classes: classes.clone(),
+                        },
+                        CPat::Wild => CPat::Wild,
+                    };
+                    CAlt { pat, weight: a.weight, body: Box::new(rw(&a.body)) }
+                })
+                .collect(),
+        },
+        Core::Quote { template, holes, body } => Core::Quote {
+            template: template.clone(),
+            holes: holes.iter().map(rw).collect(),
+            body: body.as_ref().map(|b| Box::new(rw(b))),
+        },
+        Core::DeclsQuote { template, holes, name_holes } => Core::DeclsQuote {
+            template: template.clone(),
+            holes: holes.iter().map(rw).collect(),
+            name_holes: name_holes.clone(),
+        },
+    }
 }
 
 /// Instantiate a rule's template (or an unfolded callee's body) at a
@@ -5425,6 +5435,7 @@ struct Driver<'a> {
     changed: bool,
     fuel_left: u32,
     fuel_reported: bool,
+    residual_limit: usize,
 }
 
 impl Driver<'_> {
@@ -5563,6 +5574,8 @@ impl Driver<'_> {
                 params: param_classes,
                 fields: Vec::new(),
                 data: None,
+                result: None,
+                dictionary_values: Vec::new(),
             },
         });
         // Rebuild the producer: the map stages collapse into the composed
@@ -5875,7 +5888,9 @@ impl Driver<'_> {
                     if let Some(inst_def) = self.caller_program_instance(id) {
                         if let Some(mid) = inst_def.methods.get(*idx) {
                             let want = self.defs.get(&mid.0).map(|f| f.params.len());
-                            if want == Some(subs.len() + args.len()) && self.spend_fuel() {
+                            let strict_values = inst_def.methods.iter().any(|method| self.defs.get(&method.0)
+                                .is_some_and(|f| f.arity() == inst_def.subdict_count + f.repr.dictionary_values.len()));
+                            if !strict_values && want == Some(subs.len() + args.len()) && self.spend_fuel() {
                                 let mut new_args = subs.clone();
                                 new_args.extend(args.iter().cloned());
                                 // The method unit's vector: the instance's,
@@ -5984,10 +5999,18 @@ impl Driver<'_> {
             self.site("unfold", Some("opaque boundary: a replaceable dispatch boundary residualizes".to_string()));
             return None;
         }
-        let f = self.defs.get(&g.0)?.clone();
+        let f = self.defs.get(&g.0)?;
         if f.prim.is_some() || f.ctor.is_some() || f.meta.prim_body || args.len() != f.params.len() {
             return None;
         }
+        // Do not even copy a previously optimized callee that exceeds
+        // this caller's entire residual allowance. Otherwise expansion
+        // can multiply across units before the round-level whistle runs.
+        if size_of(&f.body) > self.residual_limit {
+            self.site("unfold", Some("whistle: the callee exceeds the residual measure bound".to_string()));
+            return None;
+        }
+        let f = f.clone();
         if self.stack.iter().any(|s| s == &g.0) {
             self.site("unfold", Some("whistle: a repeated configuration folds to a residual call".to_string()));
             return None;
@@ -6597,6 +6620,8 @@ pub fn optimize(program: &Program, profile: &TargetProfile) -> Result<(Program, 
         if orig.prim.is_some() || orig.ctor.is_some() {
             continue;
         }
+        let base_size = size_of(&orig.body).max(1);
+        let residual_limit = base_size.saturating_mul(profile.measure.max(1) as usize);
         let mut drv = Driver {
             cx: &cx,
             defs: defs.clone(),
@@ -6616,22 +6641,33 @@ pub fn optimize(program: &Program, profile: &TargetProfile) -> Result<(Program, 
             changed: false,
             fuel_left: profile.fuel,
             fuel_reported: false,
+            residual_limit,
         };
         let mut body = orig.body.clone();
-        let base_size = size_of(&body).max(1);
         let mut rounds = 0;
         loop {
+            let previous = body.clone();
+            let previous_fns = drv.new_fns.len();
+            let previous_fusions = drv.fused.len();
+            let previous_sites = drv.sites.len();
             drv.changed = false;
             drv.drive(&mut body);
             drv.merge_cases(&mut body);
             drv.push_cases(&mut body);
             drv.dead_alts(&mut body);
             rounds += 1;
-            if !drv.changed || rounds >= 8 {
+            if size_of(&body) > residual_limit {
+                // A whistle must residualize the bounded configuration,
+                // not install the expansion that triggered it. Helpers
+                // created only by the rejected round are discarded too.
+                body = previous;
+                drv.new_fns.truncate(previous_fns);
+                drv.fused.truncate(previous_fusions);
+                drv.sites.truncate(previous_sites);
+                drv.site("unfold", Some("whistle: the residual grew past the measure bound; retained the preceding residual".to_string()));
                 break;
             }
-            if size_of(&body) > base_size * profile.measure.max(1) as usize {
-                drv.site("unfold", Some("whistle: the residual grew past the measure bound".to_string()));
+            if !drv.changed || rounds >= 8 {
                 break;
             }
         }
@@ -6730,6 +6766,64 @@ pub(crate) fn child_slots_imm(e: &Core) -> Vec<&Core> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn optimizer_measure_bounds_transitive_unfolding() {
+        // Each caller has two calls to the preceding unit. Feeding an
+        // already expanded callee into the next caller used to multiply
+        // residuals even after the measure whistle had fired.
+        let mut fns = Vec::new();
+        for i in 0..12 {
+            let branch = |value| if i == 0 {
+                Core::Int(value)
+            } else {
+                Core::App(
+                    Box::new(Core::Global(GlobalId(format!("Growth.f{}", i - 1)), vec![])),
+                    vec![Core::Var(LocalId(0))],
+                )
+            };
+            fns.push(FnDef {
+                id: GlobalId(format!("Growth.f{i}")),
+                params: vec!["condition".into()],
+                body: Core::If(
+                    Box::new(Core::Var(LocalId(0))),
+                    CBranch::weighted(None, branch(7)),
+                    CBranch::weighted(None, branch(9)),
+                ),
+                prim: None,
+                ctor: None,
+                hints: FnHints::default(),
+                meta: FnMeta { pure: true, ..FnMeta::default() },
+                repr: UnitRepr { params: vec![Class::Raw], ..UnitRepr::default() },
+            });
+        }
+        let mut program = Program {
+            total_bodies: crate::total::CheckedGraph::empty(),
+            fns, instances: vec![], main: None, rewrites: vec![],
+            plans: Default::default(), foreigns: Default::default(),
+            prims: vec![], laws: vec![],
+        };
+        for reverse in [false, true] {
+            if reverse { program.fns.reverse(); }
+            for measure in [1, 2, 8] {
+                let mut profile = TargetProfile::native();
+                profile.measure = measure;
+                let (residual, report) = optimize(&program, &profile).expect("bounded optimization");
+                for (original, result) in program.fns.iter().zip(&residual.fns) {
+                    assert!(size_of(&result.body) <= size_of(&original.body) * measure as usize,
+                        "{} grew from {} to {} nodes with measure {measure}",
+                        original.id.0, size_of(&original.body), size_of(&result.body));
+                }
+                if measure == 1 {
+                    assert!(report.sites.iter().any(|site|
+                        site.stop.as_deref().is_some_and(|reason| reason.contains("measure bound"))));
+                    assert!(!report.sites.iter().any(|site|
+                        site.kind == "unfold" && site.stop.is_none()),
+                        "discarded expansions must not be reported as installed");
+                }
+            }
+        }
+    }
 
     /// Every operation's symbol parses back to the same operation.
     #[test]

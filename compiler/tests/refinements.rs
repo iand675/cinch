@@ -517,7 +517,6 @@ module Main where
   import Data.Sorted
   import Algebra.Semigroup
 
-  infixr 6 <>
 
   implicit instance Semigroup_SortedReverse :: Semigroup Sorted where
     (<>) p q = (<>) q p
@@ -765,4 +764,57 @@ module Main where
 "#,
         0,
     );
+}
+
+
+#[test]
+fn anonymous_byte_refinement_keeps_outer_telescope_values() {
+    expect_checks("outer-before-refined-byte-value", r#"
+module Main where
+  import Data.Bytes
+  keep :: (n :: Nat) -> refined (n <= bytes-len bytes) Bytes -> refined (n <= bytes-len out) Bytes
+  keep n bytes = bytes
+  main :: Int
+  main = 0
+"#);
+    expect_err("byte-contract-cannot-strengthen-outer-bound", r#"
+module Main where
+  import Data.Bytes
+  keep :: (n :: Nat) -> refined (n <= bytes-len bytes) Bytes -> refined (n + 1 <= bytes-len out) Bytes
+  keep n bytes = bytes
+  main :: Int
+  main = 0
+"#, &["refinement"]);
+    expect_err("outer-nat-is-not-a-byte-carrier", r#"
+module Main where
+  import Data.Bytes
+  keep :: (n :: Nat) -> refined (bytes-len n <= bytes-len bytes) Bytes -> Bytes
+  keep n bytes = bytes
+  main :: Int
+  main = 0
+"#, &["byte-length"]);
+}
+
+
+#[test]
+fn anonymous_refinement_display_does_not_capture_an_outer_r() {
+    use cinch::types::{IdxCmp, ITerm, PTerm, Ty};
+    let predicate = PTerm::Cmp(IdxCmp::Le, Box::new(ITerm::Var("r".into())), Box::new(ITerm::Var("$it".into())));
+    let refined = Ty::Adt("refined".into(), vec![Ty::Prp(Box::new(predicate)), Ty::Nat]);
+    let text = refined.to_string();
+    assert_eq!(text, "refined (r <= r-r) Nat");
+    expect_checks("roundtrip-capture-free-refinement", &format!(r#"
+module Main where
+  keep :: (r :: Nat) -> {text} -> {text}
+  keep r value = value
+  main :: Int
+  main = 0
+"#));
+    expect_err("roundtrip-preserves-outer-bound", &format!(r#"
+module Main where
+  forge :: (r :: Nat) -> Nat -> {text}
+  forge r value = value
+  main :: Int
+  main = 0
+"#), &["refinement"]);
 }

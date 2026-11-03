@@ -1,0 +1,349 @@
+-- Integer arithmetic evidence. Search is untrusted; check-proof rereads
+-- every citation from the actual hypotheses and actual goal. No cached
+-- inequality or claimed goal in a certificate can replace that context.
+-- The elaborator must reify well-typed mathematical integer expressions
+-- and supply only facts justified in the current lexical scope.
+-- Calls in indices must already have checked purity/totality contracts.
+-- Wrapping machine arithmetic stays opaque without checked no-wrap evidence.
+-- Source Nat subtraction also needs its nonnegative-result obligation
+-- checked in the actual preceding context before reification. Integer
+-- subtraction here does not establish that a source Nat operation is total.
+-- This is the compiled certificate-check tier, not a reflected soundness
+-- theorem. Source obligations are not discharged by this module alone.
+module Bootstrap.Proof where
+
+  import Algebra.Semigroup
+
+  export Arithmetic, AInteger, AVariable, APlus, AMinus, ATimes
+  export ACall, AArgument, AArgumentsEnd
+  export Comparison, Less, AtMost, Equal, Unequal, AtLeast, Greater
+  export Proposition, PTruth, PFalsehood, PCompare, PBoth, PEither, PNegate
+  export Citation, Hypothesis, NegatedGoal, Alternative
+  export Certificate, Farkas, Split
+  export Proof, Refutation, Conjunction, Trivial
+  export prove, check-proof, arithmetic-equal, proposition-equal
+
+  data Arithmetic where
+    AInteger :: Int -> Arithmetic
+    AVariable :: String -> Arithmetic
+    APlus :: Arithmetic -> Arithmetic -> Arithmetic
+    AMinus :: Arithmetic -> Arithmetic -> Arithmetic
+    ATimes :: Arithmetic -> Arithmetic -> Arithmetic
+    ACall :: String -> Arithmetic -> Arithmetic
+    AArgument :: Arithmetic -> Arithmetic -> Arithmetic
+    AArgumentsEnd :: Arithmetic
+
+  data Comparison where
+    Less :: Comparison
+    AtMost :: Comparison
+    Equal :: Comparison
+    Unequal :: Comparison
+    AtLeast :: Comparison
+    Greater :: Comparison
+
+  data Proposition where
+    PTruth :: Proposition
+    PFalsehood :: Proposition
+    PCompare :: Comparison -> Arithmetic -> Arithmetic -> Proposition
+    PBoth :: Proposition -> Proposition -> Proposition
+    PEither :: Proposition -> Proposition -> Proposition
+    PNegate :: Proposition -> Proposition
+
+  data Citation where
+    Hypothesis :: Nat -> Nat -> Citation
+    NegatedGoal :: Nat -> Citation
+    -- Depth zero names the nearest split alternative, never an ambient
+    -- assumption invented by the certificate. The second index selects
+    -- a conjunct of that alternative.
+    Alternative :: Nat -> Nat -> Citation
+
+  data Certificate where
+    Farkas :: List (Int, Citation) -> Certificate
+    Split :: Citation -> Certificate -> Certificate -> Certificate
+
+  data Proof where
+    Refutation :: Certificate -> Proof
+    Conjunction :: Proof -> Proof -> Proof
+    Trivial :: Proof
+
+  same :: String -> String -> Bool
+  same a b = string-compare a b == 0
+  arithmetic-equal :: Arithmetic -> Arithmetic -> Bool
+  arithmetic-equal a b = case (a, b) of
+    (AInteger x, AInteger y) -> x == y
+    (AVariable x, AVariable y) -> same x y
+    (APlus x y, APlus u v) -> arithmetic-equal x u && arithmetic-equal y v
+    (AMinus x y, AMinus u v) -> arithmetic-equal x u && arithmetic-equal y v
+    (ATimes x y, ATimes u v) -> arithmetic-equal x u && arithmetic-equal y v
+    (ACall f xs, ACall g ys) -> same f g && arithmetic-equal xs ys
+    (AArgument x xs, AArgument y ys) -> arithmetic-equal x y && arithmetic-equal xs ys
+    (AArgumentsEnd, AArgumentsEnd) -> True
+    other -> False
+  comparison-equal :: Comparison -> Comparison -> Bool
+  comparison-equal a b = case (a, b) of
+    (Less, Less) -> True
+    (AtMost, AtMost) -> True
+    (Equal, Equal) -> True
+    (Unequal, Unequal) -> True
+    (AtLeast, AtLeast) -> True
+    (Greater, Greater) -> True
+    other -> False
+  proposition-equal :: Proposition -> Proposition -> Bool
+  proposition-equal a b = case (a, b) of
+    (PTruth, PTruth) -> True
+    (PFalsehood, PFalsehood) -> True
+    (PCompare op x y, PCompare rel u v) -> comparison-equal op rel && arithmetic-equal x u && arithmetic-equal y v
+    (PBoth x y, PBoth u v) -> proposition-equal x u && proposition-equal y v
+    (PEither x y, PEither u v) -> proposition-equal x u && proposition-equal y v
+    (PNegate x, PNegate y) -> proposition-equal x y
+    other -> False
+  valid-arithmetic :: Arithmetic -> Bool
+  valid-arithmetic a = case a of
+    AInteger n -> True
+    AVariable name -> string-length name > 0
+    APlus x y -> valid-arithmetic x && valid-arithmetic y
+    AMinus x y -> valid-arithmetic x && valid-arithmetic y
+    ATimes x y -> valid-arithmetic x && valid-arithmetic y
+    ACall name args -> string-length name > 0 && valid-arguments args
+    other -> False
+  valid-arguments :: Arithmetic -> Bool
+  valid-arguments args = case args of
+    AArgumentsEnd -> True
+    AArgument x rest -> valid-arithmetic x && valid-arguments rest
+    other -> False
+  valid-proposition :: Proposition -> Bool
+  valid-proposition p = case p of
+    PCompare op a b -> valid-arithmetic a && valid-arithmetic b
+    PBoth a b -> valid-proposition a && valid-proposition b
+    PEither a b -> valid-proposition a && valid-proposition b
+    PNegate a -> valid-proposition a
+    other -> True
+  valid-hypotheses :: List Proposition -> Bool
+  valid-hypotheses hs = case hs of Nil -> True; Cons h rest -> valid-proposition h && valid-hypotheses rest
+
+  -- Negation normal form. Strictness is interpreted over mathematical
+  -- integers by atom-row, not rounded as if these were real inequalities.
+  normal :: Bool -> Proposition -> Proposition
+  normal positive p = case p of
+    PTruth -> if positive then PTruth else PFalsehood
+    PFalsehood -> if positive then PFalsehood else PTruth
+    PNegate a -> normal (not positive) a
+    PBoth a b -> if positive then PBoth (normal True a) (normal True b) else PEither (normal False a) (normal False b)
+    PEither a b -> if positive then PEither (normal True a) (normal True b) else PBoth (normal False a) (normal False b)
+    PCompare op a b -> normal-comparison positive op a b
+  normal-comparison :: Bool -> Comparison -> Arithmetic -> Arithmetic -> Proposition
+  normal-comparison positive op a b = case op of
+    AtMost -> if positive then PCompare AtMost a b else PCompare Less b a
+    Less -> if positive then PCompare Less a b else PCompare AtMost b a
+    AtLeast -> normal-comparison positive AtMost b a
+    Greater -> normal-comparison positive Less b a
+    Equal -> if positive then PBoth (PCompare AtMost a b) (PCompare AtMost b a)
+      else PEither (PCompare Less a b) (PCompare Less b a)
+    Unequal -> normal-comparison (not positive) Equal a b
+  conjuncts :: Proposition -> List Proposition
+  conjuncts p = case p of PBoth a b -> conjuncts a <> conjuncts b; other -> [p]
+  at :: forall a. Nat -> List a -> Option a
+  at index xs = case xs of Nil -> None; Cons x rest -> if index == 0 then Some x else at (index - 1) rest
+  citation-equal :: Citation -> Citation -> Bool
+  citation-equal a b = case (a, b) of
+    (Hypothesis h c, Hypothesis k d) -> h == k && c == d
+    (NegatedGoal c, NegatedGoal d) -> c == d
+    (Alternative depth c, Alternative other d) -> depth == other && c == d
+    other -> False
+  cited :: List Proposition -> Proposition -> List Proposition -> Citation -> Option Proposition
+  cited hypotheses goal alternatives reference = case reference of
+    Hypothesis index conjunct -> case at index hypotheses of
+      Some h -> at conjunct (conjuncts (normal True h))
+      None -> None
+    NegatedGoal conjunct -> at conjunct (conjuncts (normal False goal))
+    Alternative depth conjunct -> case at depth alternatives of
+      Some p -> at conjunct (conjuncts (normal True p))
+      None -> None
+
+  -- Affine expressions and rows are private. Certificate data contains
+  -- citations and positive multipliers only; the checker reconstructs rows.
+  data Affine where
+    MkAffine :: List (Arithmetic, Int) -> Int -> Affine
+  data Row where
+    MkRow :: List (Arithmetic, Int) -> Int -> Row
+  data SearchRow where
+    MkSearchRow :: Row -> List (Int, Citation) -> SearchRow
+  add-term :: Arithmetic -> Int -> List (Arithmetic, Int) -> List (Arithmetic, Int)
+  add-term key amount terms = if amount == 0 then terms else case terms of
+    Nil -> [(key, amount)]
+    Cons (other, coefficient) rest -> if arithmetic-equal key other then
+      (if coefficient + amount == 0 then rest else Cons (other, coefficient + amount) rest)
+      else Cons (other, coefficient) (add-term key amount rest)
+  add-terms :: List (Arithmetic, Int) -> List (Arithmetic, Int) -> List (Arithmetic, Int)
+  add-terms first second = case first of Nil -> second; Cons (key, amount) rest -> add-terms rest (add-term key amount second)
+  scale-terms :: Int -> List (Arithmetic, Int) -> List (Arithmetic, Int)
+  scale-terms by terms = if by == 0 then Nil else case terms of Nil -> Nil; Cons (key, coefficient) rest -> Cons (key, by * coefficient) (scale-terms by rest)
+  plus-affine :: Affine -> Affine -> Affine
+  plus-affine a b = case (a, b) of (MkAffine xs x, MkAffine ys y) -> MkAffine (add-terms xs ys) (x + y)
+  scale-affine :: Int -> Affine -> Affine
+  scale-affine by a = case a of MkAffine terms constant -> MkAffine (scale-terms by terms) (by * constant)
+  affine :: Arithmetic -> Affine
+  affine expr = case expr of
+    AInteger n -> MkAffine Nil n
+    APlus a b -> plus-affine (affine a) (affine b)
+    AMinus a b -> plus-affine (affine a) (scale-affine (-1) (affine b))
+    ATimes a b -> case (affine a, affine b) of
+      (MkAffine Nil x, rhs) -> scale-affine x rhs
+      (lhs, MkAffine Nil y) -> scale-affine y lhs
+      other -> MkAffine [(expr, 1)] 0
+    other -> MkAffine [(expr, 1)] 0
+  atom-row :: Proposition -> Option Row
+  atom-row p = case p of
+    PFalsehood -> Some (MkRow Nil (-1))
+    PTruth -> Some (MkRow Nil 0)
+    PCompare op a b -> case plus-affine (affine a) (scale-affine (-1) (affine b)) of
+      MkAffine terms constant -> case op of
+        AtMost -> Some (MkRow terms (0 - constant))
+        Less -> Some (MkRow terms (0 - constant - 1))
+        other -> None
+    other -> None
+  row-plus :: Row -> Row -> Row
+  row-plus a b = case (a, b) of (MkRow xs x, MkRow ys y) -> MkRow (add-terms xs ys) (x + y)
+  row-scale :: Int -> Row -> Row
+  row-scale by row = case row of MkRow terms constant -> MkRow (scale-terms by terms) (by * constant)
+  contradiction :: Row -> Bool
+  contradiction row = case row of MkRow Nil constant -> constant < 0; other -> False
+
+  -- Trusted certificate check. In particular, no search-produced row,
+  -- branch premise or stored result is accepted as a source assumption.
+  sum-citations :: List Proposition -> Proposition -> List Proposition -> List (Int, Citation) -> Option Row
+  sum-citations hypotheses goal alternatives weights = case weights of
+    Nil -> Some (MkRow Nil 0)
+    Cons (by, reference) rest -> if by <= 0 then None else case cited hypotheses goal alternatives reference of
+      Some p -> case atom-row p of
+        Some row -> case sum-citations hypotheses goal alternatives rest of
+          Some total -> Some (row-plus (row-scale by row) total)
+          None -> None
+        None -> None
+      None -> None
+  check-refutation :: List Proposition -> Proposition -> List Proposition -> Certificate -> Bool
+  check-refutation hypotheses goal alternatives certificate = case certificate of
+    Farkas Nil -> False
+    Farkas weights -> case sum-citations hypotheses goal alternatives weights of Some total -> contradiction total; None -> False
+    Split reference left right -> case cited hypotheses goal alternatives reference of
+      Some (PEither a b) -> check-refutation hypotheses goal (Cons a alternatives) left && check-refutation hypotheses goal (Cons b alternatives) right
+      other -> False
+  check-normal-proof :: List Proposition -> Proposition -> Proof -> Bool
+  check-normal-proof hypotheses goal evidence = case evidence of
+    Trivial -> case normal True goal of PTruth -> True; other -> False
+    Conjunction left right -> case normal True goal of
+      PBoth a b -> check-normal-proof hypotheses a left && check-normal-proof hypotheses b right
+      other -> False
+    Refutation certificate -> check-refutation hypotheses goal Nil certificate
+  check-proof :: List Proposition -> Proposition -> Proof -> Bool
+  check-proof hypotheses goal evidence = valid-hypotheses hypotheses && valid-proposition goal && check-normal-proof hypotheses goal evidence
+
+  -- Untrusted search. Each Fourier-Motzkin row retains positive original
+  -- citations; elimination never becomes evidence until check-proof passes.
+  weighted-add :: Int -> Citation -> List (Int, Citation) -> List (Int, Citation)
+  weighted-add by reference weights = case weights of
+    Nil -> [(by, reference)]
+    Cons (coefficient, old) rest -> if citation-equal reference old then Cons (coefficient + by, old) rest
+      else Cons (coefficient, old) (weighted-add by reference rest)
+  weighted-plus :: List (Int, Citation) -> List (Int, Citation) -> List (Int, Citation)
+  weighted-plus first second = case first of Nil -> second; Cons (by, reference) rest -> weighted-plus rest (weighted-add by reference second)
+  weighted-scale :: Int -> List (Int, Citation) -> List (Int, Citation)
+  weighted-scale by weights = case weights of Nil -> Nil; Cons (coefficient, reference) rest -> Cons (by * coefficient, reference) (weighted-scale by rest)
+  coefficient :: Arithmetic -> List (Arithmetic, Int) -> Int
+  coefficient key terms = case terms of Nil -> 0; Cons (other, amount) rest -> if arithmetic-equal key other then amount else coefficient key rest
+  row-coefficient :: Arithmetic -> SearchRow -> Int
+  row-coefficient key row = case row of MkSearchRow (MkRow terms constant) weights -> coefficient key terms
+  combine :: Int -> SearchRow -> Int -> SearchRow -> SearchRow
+  combine x a y b = case (a, b) of
+    (MkSearchRow first refs, MkSearchRow second others) -> MkSearchRow (row-plus (row-scale x first) (row-scale y second)) (weighted-plus (weighted-scale x refs) (weighted-scale y others))
+  partition :: Arithmetic -> List SearchRow -> (List SearchRow, List SearchRow, List SearchRow)
+  partition key rows = case rows of
+    Nil -> (Nil, Nil, Nil)
+    Cons row rest -> case partition key rest of
+      (positive, negative, zero) -> let amount = row-coefficient key row in
+        if amount > 0 then (Cons row positive, negative, zero)
+        else if amount < 0 then (positive, Cons row negative, zero)
+        else (positive, negative, Cons row zero)
+  eliminate-one :: Arithmetic -> SearchRow -> List SearchRow -> List SearchRow
+  eliminate-one key positive negative = case negative of
+    Nil -> Nil
+    Cons row rest -> Cons (combine (0 - row-coefficient key row) positive (row-coefficient key positive) row) (eliminate-one key positive rest)
+  eliminate-pairs :: Arithmetic -> List SearchRow -> List SearchRow -> List SearchRow
+  eliminate-pairs key positive negative = case positive of Nil -> Nil; Cons row rest -> eliminate-one key row negative <> eliminate-pairs key rest negative
+  first-variable :: List SearchRow -> Option Arithmetic
+  first-variable rows = case rows of
+    Nil -> None
+    Cons (MkSearchRow (MkRow (Cons (key, amount) rest) constant) weights) more -> Some key
+    Cons row more -> first-variable more
+  find-contradiction :: List SearchRow -> Option Certificate
+  find-contradiction rows = case rows of
+    Nil -> None
+    Cons (MkSearchRow row weights) rest -> if contradiction row then Some (Farkas weights) else find-contradiction rest
+  fourier :: Nat -> Nat -> List SearchRow -> Option Certificate
+  fourier fuel limit rows = if list-length rows > limit then None else case find-contradiction rows of
+    Some certificate -> Some certificate
+    None -> if fuel == 0 then None else case first-variable rows of
+      None -> None
+      Some key -> case partition key rows of
+        (positive, negative, zero) -> if list-length positive * list-length negative + list-length zero > limit then None
+          else fourier (fuel - 1) limit (zero <> eliminate-pairs key positive negative)
+
+  -- References are rebuilt for each split context. Alternative indices
+  -- cannot accidentally retain the depths from a sibling branch.
+  reference-conjuncts :: Citation -> List Proposition -> List (Citation, Proposition)
+  reference-conjuncts reference ps = case ps of
+    Nil -> Nil
+    Cons p rest -> Cons (reference, p) (reference-conjuncts (next-citation reference) rest)
+  next-citation :: Citation -> Citation
+  next-citation reference = case reference of
+    Hypothesis h c -> Hypothesis h (c + 1)
+    NegatedGoal c -> NegatedGoal (c + 1)
+    Alternative depth c -> Alternative depth (c + 1)
+  hypothesis-references :: Nat -> List Proposition -> List (Citation, Proposition)
+  hypothesis-references index hs = case hs of
+    Nil -> Nil
+    Cons h rest -> reference-conjuncts (Hypothesis index 0) (conjuncts (normal True h)) <> hypothesis-references (index + 1) rest
+  alternative-references :: Nat -> List Proposition -> List (Citation, Proposition)
+  alternative-references depth ps = case ps of
+    Nil -> Nil
+    Cons p rest -> reference-conjuncts (Alternative depth 0) (conjuncts (normal True p)) <> alternative-references (depth + 1) rest
+  all-references :: List Proposition -> Proposition -> List Proposition -> List (Citation, Proposition)
+  all-references hypotheses goal alternatives = hypothesis-references 0 hypotheses
+    <> reference-conjuncts (NegatedGoal 0) (conjuncts (normal False goal))
+    <> alternative-references 0 alternatives
+  rows-from :: List (Citation, Proposition) -> List SearchRow
+  rows-from references = case references of
+    Nil -> Nil
+    Cons (reference, p) rest -> case atom-row p of
+      Some row -> Cons (MkSearchRow row [(1, reference)]) (rows-from rest)
+      None -> rows-from rest
+  already-split :: Proposition -> List Proposition -> Bool
+  already-split p seen = case seen of Nil -> False; Cons q rest -> proposition-equal p q || already-split p rest
+  find-split :: List (Citation, Proposition) -> List Proposition -> Option (Citation, Proposition, Proposition)
+  find-split references seen = case references of
+    Nil -> None
+    Cons (reference, PEither a b) rest -> if already-split (PEither a b) seen then find-split rest seen else Some (reference, a, b)
+    Cons pair rest -> find-split rest seen
+  refute :: Nat -> List Proposition -> Proposition -> List Proposition -> List Proposition -> Option Certificate
+  refute fuel hypotheses goal alternatives seen = let references = all-references hypotheses goal alternatives in
+    case fourier 64 256 (rows-from references) of
+      Some certificate -> Some certificate
+      None -> if fuel == 0 then None else case find-split references seen of
+        None -> None
+        Some (reference, a, b) -> let selected = Cons (PEither a b) seen in
+          case refute (fuel - 1) hypotheses goal (Cons a alternatives) selected of
+            Some left -> case refute (fuel - 1) hypotheses goal (Cons b alternatives) selected of
+              Some right -> Some (Split reference left right)
+              None -> None
+            None -> None
+  search :: List Proposition -> Proposition -> Option Proof
+  search hypotheses goal = case normal True goal of
+    PTruth -> Some Trivial
+    PBoth a b -> case search hypotheses a of
+      Some left -> case search hypotheses b of Some right -> Some (Conjunction left right); None -> None
+      None -> None
+    other -> case refute 8 hypotheses goal Nil Nil of Some certificate -> Some (Refutation certificate); None -> None
+  prove :: List Proposition -> Proposition -> Option Proof
+  prove hypotheses goal = if not (valid-hypotheses hypotheses && valid-proposition goal) then None else case search hypotheses goal of
+    Some evidence -> if check-proof hypotheses goal evidence then Some evidence else None
+    None -> None

@@ -1,0 +1,93 @@
+-- Source is supplied only after this checker is compiled.
+module Main where
+  import Bootstrap.Ast
+  import Bootstrap.Parse (parse-program)
+  import Bootstrap.Infer
+  import Bootstrap.Core
+  import Bootstrap.Type
+  import Bootstrap.Index
+  import Text.Lex (Span)
+  import Bootstrap.Report (render-diagnostics)
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read, fs-write)
+  import Text.Parse (ParseOutcome, Parsed, Failed)
+  import Algebra.Semigroup
+  definition :: UType -> List CorePattern -> CoreTerm -> CoreDefinition
+  definition ty parameters body = MkCoreDefinition (Span 0 0 1 1) "signature-type-invariant" (mono ty) Nil Nil Nil [MkCoreClause (Span 0 0 1 1) parameters body]
+  invariants :: Nat -> Bool
+  invariants nonce =
+    let s = Span 0 0 1 1 in
+    let nat = UCon "Nat" KType in
+    let boolean = UCon "Bool" KType in
+    let id = nonce + 340282366920938463463374607431768211456 in
+    let binder = id + 1 in
+    let bound = UIndex nat (IBound binder "n") in
+    let index = UIndex nat (IRigid id "actual" 0) in
+    let obligation = URequire (UArg (UCompare ">" index (UIndex nat (IInteger 0))) UEnd) nat in
+    let signature-type = UPi binder "n" nat (URow UEnd) (URequire (UArg (UCompare ">" bound (UIndex nat (IInteger 0))) UEnd) nat) in
+    let parameter = CPVar s nat id "actual" in
+    let value = CLocal s nat id "actual" Nil in
+    let zero = CInt s nat "0" in
+    let one = CInt s nat "1" in
+    let condition = CPrimitive s boolean ">" (CArgument s value (CArgument s zero (CArgumentsEnd s))) in
+    let callee = CUse s signature-type "pred" "global" Nil in
+    let call = CApply s obligation callee value in
+    let gamma = [(id, nat)] in
+    case core-condition gamma Nil condition of
+      None -> False
+      Some fact -> case prove-predicates gamma [fact] obligation of
+        None -> False
+        Some evidence ->
+          let good = CDischarge s nat evidence call in
+          let accepted = core-definition-closed (definition (UFun nat nat) [parameter] (CIf s nat condition good zero)) in
+          let outside = not (core-definition-closed (definition (UFun nat nat) [parameter] good)) in
+          let wrong-branch = not (core-definition-closed (definition (UFun nat nat) [parameter] (CIf s nat condition zero good))) in
+          let wrong-actual = not (core-definition-closed (definition (UFun nat nat) [parameter] (CIf s nat condition (CDischarge s nat evidence (CApply s obligation callee zero)) zero))) in
+          let missing-proof = not (core-definition-closed (definition (UFun nat nat) [parameter] (CIf s nat condition (CDischarge s nat Nil call) zero))) in
+          let missing-discharge = not (core-definition-closed (definition (UFun nat nat) [parameter] (CIf s nat condition call zero))) in
+          let forged-introduction = not (core-definition-closed (definition (UFun nat nat) [parameter] (CRequire s obligation zero))) in
+          case prove-subtraction gamma [fact] value one of
+            None -> False
+            Some subtraction ->
+              let operation = CPrimitive s nat "-" (CArgument s value (CArgument s one (CArgumentsEnd s))) in
+              let introduction = CRequire s obligation (CProved s nat subtraction operation) in
+              let accepted-introduction = core-definition-closed (definition signature-type [parameter] introduction) in
+              let wrong-declaration = not (core-definition-closed (definition (UPi binder "n" nat (URow UEnd) (URequire (UArg (UPropLit True) UEnd) nat)) [parameter] introduction)) in
+              accepted && outside && wrong-branch && wrong-actual && missing-proof && missing-discharge && forged-introduction && accepted-introduction && wrong-declaration && generic-contract nonce
+  -- A closed caller may contain an opened type quantifier at level one.
+  -- Core must check the Pi substitution in that existing lexical scope.
+  generic-contract :: Nat -> Bool
+  generic-contract nonce =
+    let s = Span 0 0 1 1 in
+    let nat = UCon "Nat" KType in
+    let q = nonce + 340282366920938463463374607431768211470 in
+    let rigid-id = q + 1 in
+    let value-id = q + 2 in
+    let pi-id = q + 3 in
+    let a = URigid rigid-id "a" 1 KType in
+    let body-type = UFun a a in
+    let requirement = URequire (UArg (UCompare ">" (UIndex nat (IInteger 1)) (UIndex nat (IInteger 0))) UEnd) a in
+    let callee-type = UPi pi-id "n" nat (URow UEnd) (UFun a (URequire (UArg (UCompare ">" (UIndex nat (IBound pi-id "n")) (UIndex nat (IInteger 0))) UEnd) a)) in
+    let callee = CUse s callee-type "generic-conditional" "global" [a] in
+    let partial = CApply s (UFun a requirement) callee (CInt s nat "1") in
+    let call = CApply s requirement partial (CLocal s a value-id "value" Nil) in
+    case prove-predicates [(value-id, a)] Nil requirement of
+      None -> False
+      Some evidence ->
+        let sc = MkScheme [MkQuant q "a" KType False] (UFun (UBound q "a" KType) (UBound q "a" KType)) in
+        core-definition-closed (MkCoreDefinition s "generic-contract-caller" sc [(q, a)] Nil Nil [MkCoreClause s [CPVar s a value-id "value"] (CDischarge s a evidence call)])
+  closed :: List CoreDefinition -> Bool
+  closed definitions = case definitions of Nil -> True; Cons d rest -> core-definition-closed d && closed rest
+  run :: Bytes -> (Int, String)
+  run source = if not (invariants (bytes-len source)) then (95, "signature-type certificate escaped its actual goal or declaration") else case parse-program "signature-type-source" source of
+    Parsed program Nil -> let result = elaborate-program "signature-type-source" program in
+      case elaboration-errors result of
+        Nil -> if closed (elaboration-core result) then (0, "") else (94, "precondition Core is not closed")
+        errors -> (4, render-diagnostics errors)
+    other -> (2, "source parse failed")
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case fs-read (path-from-string "source.cinch") of
+    Err error -> 90
+    Ok source -> let (status, report) = run source in case fs-write (path-from-string "signature-type-report.txt") (string-to-bytes report) of
+      Err error -> 91
+      Ok _ -> status

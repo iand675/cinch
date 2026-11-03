@@ -1,0 +1,9 @@
+module Main where
+  import syntax "../../syntax/by.syntax.json" as by
+  unsafe-index :: forall region. Mut region Nat -> Option (Fin 5)
+  unsafe-index m = case decide (copyOut m + 1 <= 5) of
+    Yes bound ->
+      let u = refSet m 9 in Some (Fin (copyOut m) (by!{ linear }))
+    No _ -> None
+  main :: Int
+  main = 0

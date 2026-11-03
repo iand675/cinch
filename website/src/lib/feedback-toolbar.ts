@@ -8,5 +8,7 @@ export function mountFeedbackToolbar(endpoint?: string) {
   mount.dataset.feedbackToolbarRoot = '';
   document.body.append(mount);
   const props: AgentationProps = { appName: 'Cinch website', endpoint };
-  createRoot(mount).render(createElement(Agentation, props));
+  // Agentation's `props` parameter is optional, so inference would make P
+  // include `undefined` and fail `P extends {}`; name P explicitly.
+  createRoot(mount).render(createElement<AgentationProps>(Agentation, props));
 }

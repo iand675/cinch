@@ -22,6 +22,7 @@ pub mod repr;
 pub mod specialize;
 pub mod store;
 pub mod types;
+pub mod total;
 
 use std::fmt;
 
@@ -54,3 +55,5 @@ impl fmt::Display for Error {
 impl std::error::Error for Error {}
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+mod dictionary_values;

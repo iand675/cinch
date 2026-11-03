@@ -1,0 +1,20 @@
+module Main where
+  import Binary
+  import Data.Bytes
+  import syntax "../../syntax/format.syntax.json" as format
+  format!{ Packet magic 999 version 1 payload prefixed-u8 checksum sum8 }
+  main :: Int
+  main =
+    let payload = bytes-from-list [10, 20, 30] in
+    case write-Packet (Packet { payload = payload }) of
+      None -> 1
+      Some bytes -> case parse-Packet bytes of
+        None -> 2
+        Some packet ->
+          if packet.payload == payload then
+            case parse-Packet (bytes-from-list [67, 1, 2, 10]) of
+              None -> case parse-Packet (bytes-from-list [67, 1, 1, 10, 99]) of
+                None -> 0
+                Some bad -> 3
+              Some bad -> 4
+          else 5

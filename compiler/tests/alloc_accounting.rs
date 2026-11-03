@@ -316,12 +316,12 @@ fn the_cap_bounds_live_bytes_not_the_lifetime_total() {
 }
 
 #[test]
-fn normal_program_runs_under_the_default_cap() {
-    let (dir, exe) = built("alloc_default", LIST_1000);
-    // The default cap applies when the variable is unset; this program is
-    // bounded by construction (1000 cells), so leaving it unset is safe.
+fn normal_program_is_quiet_under_the_guarded_cap() {
+    let (dir, exe) = built("alloc_quiet", LIST_1000);
+    // The runtime unit tests check the unset/invalid default-setting rule.
+    // Every generated program keeps an explicit guard, even this small one.
     let out = Command::new(&exe)
-        .env_remove("CINCH_HEAP_LIMIT")
+        .env("CINCH_HEAP_LIMIT", "256M")
         .env_remove("CINCH_ALLOC_STATS")
         .output()
         .expect("spawn program");

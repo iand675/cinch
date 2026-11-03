@@ -703,3 +703,60 @@ module Main where
         0,
     );
 }
+
+#[test]
+fn duplicate_handler_operation_clauses_are_rejected() {
+    // A duplicate previously vanished behind the first matching clause,
+    // even when its body was ill-typed. Check both inline dispatch and a
+    // first-class handler value so neither elaboration path drops it.
+    for handled in [
+        "handle poke () with (handler Poke where\n    return x -> x\n    poke u resume k -> k 1\n    poke u resume k -> ())",
+        "let h = (handler Poke where\n    return x -> x\n    poke u resume k -> k 1\n    poke u resume k -> ()) in handle poke () with h",
+    ] {
+        let source = format!("module Main where\n  effect Poke where\n    poke :: Unit ->{{Poke}} Int\n  main :: Int\n  main = {handled}\n");
+        expect_err("duplicate operation clause", &source, "duplicate handler clause for operation poke");
+    }
+}
+
+#[test]
+fn handler_operation_type_parameters_are_universal_and_scoped() {
+    expect_err(
+        "handler cannot specialize polymorphic result",
+        r#"
+module Main where
+  effect Magic where
+    magic :: forall a. Unit ->{Magic} a
+  main :: Int
+  main = handle (if magic () then 1 else 2) with (handler Magic where
+    return x -> x
+    magic ignored resume k -> k (123 :: Int))
+"#,
+        "type mismatch",
+    );
+    expect_err(
+        "handler-local type cannot escape through the answer",
+        r#"
+module Main where
+  effect Echo where
+    echo :: forall a. a ->{Echo} a
+  main :: Int
+  main = handle echo () with (handler Echo where
+    return x -> x
+    echo value resume k -> value)
+"#,
+        "operation-local type parameter escapes",
+    );
+    expect_ok(
+        "polymorphic failure may abort at either result type",
+        r#"
+module Main where
+  effect Fail where
+    fail :: forall a. Unit ->{Fail} a
+  main :: Int
+  main = handle (if fail () then 1 else 2) with (handler Fail where
+    return x -> x
+    fail ignored resume k -> 7)
+"#,
+        7,
+    );
+}

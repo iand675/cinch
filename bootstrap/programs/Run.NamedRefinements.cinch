@@ -1,0 +1,36 @@
+module Main where
+  import Bootstrap.Ast
+  import Bootstrap.Parse (parse-program-with)
+  import Bootstrap.Inputs (read-interfaces)
+  import Bootstrap.Load (LoadedInterface)
+  import Bootstrap.Contracts (interface-headers)
+  import Bootstrap.Check (check-program)
+  import Bootstrap.Resolve (resolve-program-with)
+  import Bootstrap.Infer
+  import Bootstrap.Core
+  import Bootstrap.Report (render-diagnostics)
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read, fs-write)
+  import Text.Parse (ParseOutcome, Parsed, Failed)
+
+  closed :: List CoreDefinition -> Bool
+  closed definitions = case definitions of Nil -> True; Cons definition rest -> core-definition-closed definition && closed rest
+  run :: List LoadedInterface -> Bytes -> (Int, String)
+  run interfaces source = case parse-program-with "refinement-source" source (interface-headers interfaces) of
+    Parsed program Nil -> case resolve-program-with program interfaces of
+      (resolved, Nil) -> case check-program resolved of
+        Nil -> let result = elaborate-program "refinement-source" resolved in
+          case elaboration-errors result of
+            Nil -> if closed (elaboration-core result) then (0, "") else (94, "refinement Core did not retain checked evidence")
+            errors -> (4, render-diagnostics errors)
+        errors -> (4, render-diagnostics errors)
+      (resolved, errors) -> (4, render-diagnostics errors)
+    other -> (2, "refinement source parse failed")
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case read-interfaces "interfaces.json" of
+    Err error -> 89
+    Ok interfaces -> case fs-read (path-from-string "source.cinch") of
+      Err error -> 90
+      Ok source -> let (status, report) = run interfaces source in case fs-write (path-from-string "refinement-report.txt") (string-to-bytes report) of
+        Err error -> 91
+        Ok _ -> status

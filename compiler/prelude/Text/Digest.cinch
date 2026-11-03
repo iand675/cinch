@@ -74,7 +74,6 @@ module Text.Digest where
 
   import Algebra.Semigroup
 
-  infixr 6 <>
 
   export Digest, DigestSha256, DigestSha512, DigestSha1, DigestMd5
   export digest-bytes, digest-string, digest-hex

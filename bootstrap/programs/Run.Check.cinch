@@ -40,7 +40,6 @@ module Main where
 
   -- The declaration lists and the check lists below are appended with the
   -- `Semigroup` operator, so this module declares its fixity.
-  infixr 6 <>
 
   -- ------------------------------------------------------------ constructors
 
@@ -183,7 +182,7 @@ module Main where
   class-program = program-of (one-decl (DClass (at 4 3) "Eq" Nil (DDeclsEnd (at 4 3))))
 
   instance-program :: Program
-  instance-program = program-of (one-decl (DInstance (at 4 3) False "Eq_Int" (TName (at 4 3) "Int") (DDeclsEnd (at 4 3))))
+  instance-program = program-of (one-decl (DInstance (at 4 3) False "Eq_Int" Nil (TName (at 4 3) "Int") (DDeclsEnd (at 4 3))))
 
   fixity-program :: Program
   fixity-program = program-of (one-decl (DFixity (at 4 3) "infixl" 6 (Cons "+" Nil)))
@@ -196,21 +195,21 @@ module Main where
        <> (one-decl (fib-fun-of (Cons (PVar (at 5 7) "n") Nil) (EBin (at 5 11) "&&" (ELitInt (at 5 11) "1") (ELitInt (at 5 11) "2"))))
        <> (one-decl main-sig) <> (one-decl main-fun))
 
-  -- a tuple literal is outside the fragment.
-  tuple-expr :: Expr
-  tuple-expr = ETuple (at 5 11) (expr-spine (at 5 11) (Cons (ELitInt (at 5 11) "1") Nil))
+  -- A floating-point literal is outside the fragment.
+  unsupported-expr :: Expr
+  unsupported-expr = ELitFloat (at 5 11) "1.5"
 
   expression-program :: Program
   expression-program =
     program-of
       ((one-decl fib-sig)
-       <> (one-decl (fib-fun-of (Cons (PVar (at 5 7) "n") Nil) tuple-expr))
+       <> (one-decl (fib-fun-of (Cons (PVar (at 5 7) "n") Nil) unsupported-expr))
        <> (one-decl main-sig) <> (one-decl main-fun))
 
   -- a polymorphic signature is outside the fragment.
   type-form-program :: Program
   type-form-program =
-    program-of (one-decl (DSig (at 4 3) "id" (TForall (at 4 8) (Cons "a" Nil) (TName (at 4 8) "a"))))
+    program-of (one-decl (DSig (at 4 3) "id" (TForall (at 4 8) (forall-param-spine (at 4 8) (Cons (MkTypeParam (at 4 8) "a" None False) Nil)) (TName (at 4 8) "a"))))
 
   -- an unmodeled type, with the parser's own source text.
   unmodeled-type-program :: Program
@@ -224,7 +223,7 @@ module Main where
   --   Ps :: Peano -> Peano
   peano-data :: Decl
   peano-data =
-    DData (at 4 3) "Peano"
+    DData (at 4 3) "Peano" Nil
       (Cons (ctor-decl "Pz" (TName (at 5 11) "Peano"))
       (Cons (ctor-decl "Ps" (TFun (at 6 11) (TName (at 6 11) "Peano") (TName (at 6 20) "Peano"))) Nil))
 
@@ -283,7 +282,7 @@ module Main where
 
   -- Pz is declared under `Peano` but its type says `Int`.
   ctor-return-program :: Program
-  ctor-return-program = program-of (one-decl (DData (at 4 3) "Peano" (Cons (ctor-decl "Pz" (TName (at 4 10) "Int")) Nil)))
+  ctor-return-program = program-of (one-decl (DData (at 4 3) "Peano" Nil (Cons (ctor-decl "Pz" (TName (at 4 10) "Int")) Nil)))
 
   -- the second clause is a case the first one already matches.
   coverage-program :: Program
@@ -482,11 +481,11 @@ module Main where
     <> (one (MkCheck "unmodeled-type" unmodeled-type-program "bootstrap.check:4:8: unmodeled type: (a, b) -> Int\n"))
     <> (one (MkCheck "unmodeled-pattern" unmodeled-pattern-program "bootstrap.check:10:5: unmodeled pattern: Pz | Ps q\n"))
     <> (one (MkCheck "class" class-program "bootstrap.check:4:3: class declarations are not supported in this rung\n"))
-    <> (one (MkCheck "instance" instance-program "bootstrap.check:4:3: instance declarations are not supported in this rung\n"))
+    <> (one (MkCheck "instance" instance-program "bootstrap.check:4:3: source instance needs a closed saturated signature target\n"))
     <> (one (MkCheck "fixity" fixity-program "bootstrap.check:4:3: fixity declarations are not supported in this rung\n"))
     <> (one (MkCheck "operator" operator-program "bootstrap.check:5:11: unsupported operator: &&\n"))
-    <> (one (MkCheck "expression" expression-program "bootstrap.check:5:11: unsupported expression: tuple\n"))
-    <> (one (MkCheck "type-form" type-form-program "bootstrap.check:4:8: unsupported type: forall\n"))
+    <> (one (MkCheck "expression" expression-program "bootstrap.check:5:11: unsupported expression: float literal\n"))
+    <> (one (MkCheck "missing-polymorphic-body" type-form-program "bootstrap.check:4:3: signature has no definition: id\n"))
     <> (one (MkCheck "pattern" pattern-program "bootstrap.check:10:5: unsupported pattern: list literal\n"))
     <> (one (MkCheck "unknown-ctor" unknown-ctor-program "bootstrap.check:10:5: unknown constructor: Qz\n"))
     <> (one (MkCheck "ctor-arity" ctor-arity-program "bootstrap.check:11:5: arity mismatch: constructor Ps: declared arity 1, used arity 2\n"))

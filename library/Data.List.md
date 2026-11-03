@@ -10,7 +10,7 @@ Import with `import Data.List`. Selected exports may already be in Prelude.
 
 # Dependencies
 
-[Algebra.Arithmetic](Algebra.Arithmetic.md), [Algebra.Monoid](Algebra.Monoid.md), [Algebra.Semigroup](Algebra.Semigroup.md), [Category.Alternative](Category.Alternative.md), [Category.Applicative](Category.Applicative.md), [Category.Foldable](Category.Foldable.md), [Category.Functor](Category.Functor.md), [Category.Monad](Category.Monad.md), [Category.Traversable](Category.Traversable.md), [Data.Core](Data.Core.md), [Data.Ordering](Data.Ordering.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md).
+[Algebra.Arithmetic](Algebra.Arithmetic.md), [Algebra.Monoid](Algebra.Monoid.md), [Algebra.Semigroup](Algebra.Semigroup.md), [Category.Alternative](Category.Alternative.md), [Category.Applicative](Category.Applicative.md), [Category.Foldable](Category.Foldable.md), [Category.Functor](Category.Functor.md), [Category.Monad](Category.Monad.md), [Category.Traversable](Category.Traversable.md), [Data.Core](Data.Core.md), [Data.FromList](Data.FromList.md), [Data.Ordering](Data.Ordering.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md).
 
 <details><summary>Behaviour and boundary notes from the source</summary>
 
@@ -77,7 +77,7 @@ The longest prefix whose elements do NOT satisfy `p`, and the rest.
 Written out rather than spelled `span` of a negated predicate:
 `not` lives in `Data.Bool`, which is checked after this module.
 
-[Source](/reference-sources/Data.List.cinch) · line 219
+[Source](/reference-sources/Data.List.cinch) · line 220
 
 <a id="value-6379636c65"></a>
 
@@ -91,7 +91,7 @@ The list repeated `n` times. `base`'s `cycle` on an empty list
 never returns; here the empty list stays empty, because every
 list-producing walk in this language must end.
 
-[Source](/reference-sources/Data.List.cinch) · line 298
+[Source](/reference-sources/Data.List.cinch) · line 299
 
 <a id="value-64726f70"></a>
 
@@ -103,7 +103,7 @@ drop :: forall a . (Nat -> (List a -> List a))
 
 Everything but the first `n` elements.
 
-[Source](/reference-sources/Data.List.cinch) · line 106
+[Source](/reference-sources/Data.List.cinch) · line 107
 
 <a id="value-656c656d2d696e646578"></a>
 
@@ -116,7 +116,7 @@ elem-index :: forall a . using (eq :: Eq a) => (a -> (List a -> Option Nat))
 The position of the first element equal to `x` (`None` when
 absent).
 
-[Source](/reference-sources/Data.List.cinch) · line 262
+[Source](/reference-sources/Data.List.cinch) · line 263
 
 <a id="value-66696e64"></a>
 
@@ -128,7 +128,7 @@ find :: forall a . ((a -> Bool) -> (List a -> Option a))
 
 The first element `p` accepts (`None` when none does).
 
-[Source](/reference-sources/Data.List.cinch) · line 239
+[Source](/reference-sources/Data.List.cinch) · line 240
 
 <a id="value-66696e642d696e646578"></a>
 
@@ -142,7 +142,7 @@ The position of the first element `p` accepts (`None` when none
 does). The position is a `Nat`: it counts from zero, so it cannot
 be negative.
 
-[Source](/reference-sources/Data.List.cinch) · line 249
+[Source](/reference-sources/Data.List.cinch) · line 250
 
 <a id="value-666f6c642d6c65667431"></a>
 
@@ -155,7 +155,7 @@ fold-left1 :: forall a . ((a -> (a -> a)) -> (List a -> Option a))
 The left fold seeded with the first element, so an empty list has
 nothing to return (`None`; `base`'s `foldl1` faults).
 
-[Source](/reference-sources/Data.List.cinch) · line 329
+[Source](/reference-sources/Data.List.cinch) · line 330
 
 <a id="value-666f6c642d726967687431"></a>
 
@@ -168,7 +168,7 @@ fold-right1 :: forall a . ((a -> (a -> a)) -> (List a -> Option a))
 The right fold seeded with the first element (`None` on an empty
 list).
 
-[Source](/reference-sources/Data.List.cinch) · line 342
+[Source](/reference-sources/Data.List.cinch) · line 343
 
 <a id="value-666f6c6472"></a>
 
@@ -178,7 +178,7 @@ list).
 foldr :: forall a b . ((a -> (b -> b)) -> (b -> (List a -> b)))
 ```
 
-[Source](/reference-sources/Data.List.cinch) · line 67
+[Source](/reference-sources/Data.List.cinch) · line 68
 
 <a id="value-67726f75702d6279"></a>
 
@@ -193,7 +193,7 @@ run starts at an element and grows while `same` holds of that
 element and the next candidate, so `same` is the same-group test
 rather than an equality (`base`'s `groupBy`).
 
-[Source](/reference-sources/Data.List.cinch) · line 427
+[Source](/reference-sources/Data.List.cinch) · line 428
 
 <a id="value-68656164"></a>
 
@@ -209,7 +209,7 @@ reports the empty list as `None` (the prelude's partiality
 convention: a partial accessor returns `Option`, never a fault).
 `head` is `nth 0` spelled for the reader.
 
-[Source](/reference-sources/Data.List.cinch) · line 139
+[Source](/reference-sources/Data.List.cinch) · line 140
 
 <a id="value-696e6974"></a>
 
@@ -219,7 +219,7 @@ convention: a partial accessor returns `Option`, never a fault).
 init :: forall a . (List a -> Option (List a))
 ```
 
-[Source](/reference-sources/Data.List.cinch) · line 156
+[Source](/reference-sources/Data.List.cinch) · line 157
 
 <a id="value-696e74657263616c617465"></a>
 
@@ -236,7 +236,7 @@ than `Category.Foldable`'s class-level `concat`: this is a list
 operation, its join is four lines, and a home needs no class
 constraint to concatenate its own type.
 
-[Source](/reference-sources/Data.List.cinch) · line 453
+[Source](/reference-sources/Data.List.cinch) · line 454
 
 <a id="value-696e746572737065727365"></a>
 
@@ -250,7 +250,7 @@ intersperse :: forall a . (a -> (List a -> List a))
 elements, so `Nil` and a singleton come back unchanged (`base`'s
 `intersperse`).
 
-[Source](/reference-sources/Data.List.cinch) · line 436
+[Source](/reference-sources/Data.List.cinch) · line 437
 
 <a id="value-69732d656d707479"></a>
 
@@ -260,7 +260,7 @@ elements, so `Nil` and a singleton come back unchanged (`base`'s
 is-empty :: forall a . (List a -> Bool)
 ```
 
-[Source](/reference-sources/Data.List.cinch) · line 129
+[Source](/reference-sources/Data.List.cinch) · line 130
 
 <a id="value-69746572617465"></a>
 
@@ -274,7 +274,7 @@ The enumeration `x, f x, f (f x), ...` cut to `n` elements. The
 bound is what keeps the walk total (`base`'s `iterate` is
 infinite).
 
-[Source](/reference-sources/Data.List.cinch) · line 280
+[Source](/reference-sources/Data.List.cinch) · line 281
 
 <a id="value-6c617374"></a>
 
@@ -284,7 +284,7 @@ infinite).
 last :: forall a . (List a -> Option a)
 ```
 
-[Source](/reference-sources/Data.List.cinch) · line 149
+[Source](/reference-sources/Data.List.cinch) · line 150
 
 <a id="value-6c656e677468"></a>
 
@@ -294,7 +294,7 @@ last :: forall a . (List a -> Option a)
 length :: forall a . (List a -> Int)
 ```
 
-[Source](/reference-sources/Data.List.cinch) · line 72
+[Source](/reference-sources/Data.List.cinch) · line 73
 
 <a id="value-6c6973742d6c656e677468"></a>
 
@@ -309,7 +309,7 @@ that works in `Nat` (`take`/`drop`/`nth` below, offsets, widths).
 `length` stays `Int` because the prelude surface has always
 returned `Int` there.
 
-[Source](/reference-sources/Data.List.cinch) · line 81
+[Source](/reference-sources/Data.List.cinch) · line 82
 
 <a id="value-6c6f6f6b7570"></a>
 
@@ -324,7 +324,7 @@ so a repeated key keeps the earliest value (`None` when absent).
 `lookup` is the association-list read `Data.Map`/`Data.HashMap`
 build their trees over.
 
-[Source](/reference-sources/Data.List.cinch) · line 269
+[Source](/reference-sources/Data.List.cinch) · line 270
 
 <a id="value-6d6170"></a>
 
@@ -339,7 +339,7 @@ here (that module's header says why: `Data.List` and `Data.Option`
 name each other in signatures, so neither can be checked first).
 This home carries the type's instance family and its operations.
 
-[Source](/reference-sources/Data.List.cinch) · line 62
+[Source](/reference-sources/Data.List.cinch) · line 63
 
 <a id="value-6e7468"></a>
 
@@ -351,7 +351,7 @@ nth :: forall a . (Nat -> (List a -> Option a))
 
 The element at index `n` (`None` past the end).
 
-[Source](/reference-sources/Data.List.cinch) · line 114
+[Source](/reference-sources/Data.List.cinch) · line 115
 
 <a id="value-6e7562"></a>
 
@@ -365,7 +365,7 @@ The list with later duplicates removed, keeping the first
 occurrence of each element (`base`'s `nub`; the `Eq` constraint is
 what decides sameness).
 
-[Source](/reference-sources/Data.List.cinch) · line 465
+[Source](/reference-sources/Data.List.cinch) · line 466
 
 <a id="value-706172746974696f6e"></a>
 
@@ -378,7 +378,7 @@ partition :: forall a . ((a -> Bool) -> (List a -> (List a, List a)))
 The elements that satisfy `p` and the ones that do not, each in
 input order (so the two results interleave back into the input).
 
-[Source](/reference-sources/Data.List.cinch) · line 229
+[Source](/reference-sources/Data.List.cinch) · line 230
 
 <a id="value-7265706c6963617465"></a>
 
@@ -390,7 +390,7 @@ replicate :: forall a . (Nat -> (a -> List a))
 
 `x` repeated `n` times.
 
-[Source](/reference-sources/Data.List.cinch) · line 124
+[Source](/reference-sources/Data.List.cinch) · line 125
 
 <a id="value-72657665727365"></a>
 
@@ -404,7 +404,7 @@ Reversal (the accumulator is the reverse built so far, so the walk
 is linear; `reverse-into` is the private twin every accumulator
 walk here shares).
 
-[Source](/reference-sources/Data.List.cinch) · line 89
+[Source](/reference-sources/Data.List.cinch) · line 90
 
 <a id="value-7363616e6c"></a>
 
@@ -417,7 +417,7 @@ scanl :: forall a b . ((b -> (a -> b)) -> (b -> (List a -> List b)))
 The successive reductions from the left, the seed first: `scanl f z
 xs` has one element more than `xs` (`base`'s `scanl`).
 
-[Source](/reference-sources/Data.List.cinch) · line 307
+[Source](/reference-sources/Data.List.cinch) · line 308
 
 <a id="value-7363616e72"></a>
 
@@ -430,7 +430,7 @@ scanr :: forall a b . ((a -> (b -> b)) -> (b -> (List a -> List b)))
 The successive reductions from the right: the first element is the
 whole fold and the seed is last (`base`'s `scanr`).
 
-[Source](/reference-sources/Data.List.cinch) · line 314
+[Source](/reference-sources/Data.List.cinch) · line 315
 
 <a id="value-736f7274"></a>
 
@@ -442,7 +442,7 @@ sort :: forall a . using (ord :: Ord a) => (List a -> List a)
 
 The list in ascending order under `Ord` (a stable merge sort).
 
-[Source](/reference-sources/Data.List.cinch) · line 410
+[Source](/reference-sources/Data.List.cinch) · line 411
 
 <a id="value-736f72742d6279"></a>
 
@@ -456,7 +456,7 @@ Merge sort under a three-way comparator. Stable: the left element
 is kept unless the right one compares strictly before it, so equal
 elements stay in their input order (`base`'s `sortBy`).
 
-[Source](/reference-sources/Data.List.cinch) · line 381
+[Source](/reference-sources/Data.List.cinch) · line 382
 
 <a id="value-7370616e"></a>
 
@@ -468,7 +468,7 @@ span :: forall a . ((a -> Bool) -> (List a -> (List a, List a)))
 
 The longest prefix whose elements satisfy `p`, and the rest.
 
-[Source](/reference-sources/Data.List.cinch) · line 208
+[Source](/reference-sources/Data.List.cinch) · line 209
 
 <a id="value-73706c69742d6174"></a>
 
@@ -481,7 +481,7 @@ split-at :: forall a . (Nat -> (List a -> (List a, List a)))
 The first `n` elements and the rest; the split clamps at the end,
 so `split-at n` of a shorter list is the whole list and `Nil`.
 
-[Source](/reference-sources/Data.List.cinch) · line 199
+[Source](/reference-sources/Data.List.cinch) · line 200
 
 <a id="value-73756273657175656e636573"></a>
 
@@ -497,7 +497,7 @@ Every subsequence, the empty one first, in `base`'s order:
 here whose result can dwarf its input; it still ends, because the
 input does.
 
-[Source](/reference-sources/Data.List.cinch) · line 483
+[Source](/reference-sources/Data.List.cinch) · line 484
 
 <a id="value-73756d2d6c697374"></a>
 
@@ -507,7 +507,7 @@ input does.
 sum-list :: forall a . using (add :: Add a) => (a -> (List a -> a))
 ```
 
-[Source](/reference-sources/Data.List.cinch) · line 500
+[Source](/reference-sources/Data.List.cinch) · line 501
 
 <a id="value-7461696c"></a>
 
@@ -517,7 +517,7 @@ sum-list :: forall a . using (add :: Add a) => (a -> (List a -> a))
 tail :: forall a . (List a -> Option (List a))
 ```
 
-[Source](/reference-sources/Data.List.cinch) · line 144
+[Source](/reference-sources/Data.List.cinch) · line 145
 
 <a id="value-74616b65"></a>
 
@@ -529,7 +529,7 @@ take :: forall a . (Nat -> (List a -> List a))
 
 The first `n` elements (fewer when the list is shorter).
 
-[Source](/reference-sources/Data.List.cinch) · line 98
+[Source](/reference-sources/Data.List.cinch) · line 99
 
 <a id="value-7472616e73706f7365"></a>
 
@@ -546,7 +546,7 @@ longest input row (`base`'s `transpose`). A rectangular `Matrix`
 record keeps its own row-level helper; this is the general list
 operation.
 
-[Source](/reference-sources/Data.List.cinch) · line 359
+[Source](/reference-sources/Data.List.cinch) · line 360
 
 <a id="value-756e666f6c64"></a>
 
@@ -561,7 +561,7 @@ next seed, or stops. `base` spells this `unfoldr`; the `r` suffix
 is historical (the walk is not a right fold), so the name here is
 the plain one.
 
-[Source](/reference-sources/Data.List.cinch) · line 289
+[Source](/reference-sources/Data.List.cinch) · line 290
 
 <a id="value-756e7a6970"></a>
 
@@ -574,7 +574,7 @@ unzip :: forall a b . (List (a, b) -> (List a, List b))
 The inverse of `zip`: the first components and the second
 components, each in order.
 
-[Source](/reference-sources/Data.List.cinch) · line 190
+[Source](/reference-sources/Data.List.cinch) · line 191
 
 <a id="value-7a6970"></a>
 
@@ -587,7 +587,7 @@ zip :: forall a b . (List a -> (List b -> List (a, b)))
 Pairing, truncated at the shorter side (so a length mismatch
 shortens the result, never faults).
 
-[Source](/reference-sources/Data.List.cinch) · line 173
+[Source](/reference-sources/Data.List.cinch) · line 174
 
 <a id="value-7a69702d77697468"></a>
 
@@ -599,7 +599,7 @@ zip-with :: forall a b c . ((a -> (b -> c)) -> (List a -> (List b -> List c)))
 
 `zip` with the pair built by `f`, truncated the same way.
 
-[Source](/reference-sources/Data.List.cinch) · line 181
+[Source](/reference-sources/Data.List.cinch) · line 182
 
 # Instances
 
@@ -619,4 +619,4 @@ These are checked exported instance entries. Law/sample-check status is separate
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/List.cinch`. Source SHA-256: `07bee14b1520df1e5a0de73e0faa956c03da610014f97773b101dfe463675575`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `compiler/prelude/Data/List.cinch`. Source SHA-256: `f765133818f3970e81d9b8838a80afd539fc852b9041945ecff2f4a171282f8d`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

@@ -194,7 +194,7 @@ between-p :: forall a open close . (JParser open -> (JParser close -> (JParser a
 canonical-bytes :: (Json -> Bytes)
 ```
 
-[Source](/reference-sources/Text.Json.cinch) · line 829
+[Source](/reference-sources/Text.Json.cinch) · line 834
 
 <a id="value-63616e6f6e6963616c2d68617368"></a>
 
@@ -207,7 +207,7 @@ canonical-hash :: (Json -> String)
 The content identity of a value: SHA-256 over its canonical bytes
 (the hex digest).
 
-[Source](/reference-sources/Text.Json.cinch) · line 834
+[Source](/reference-sources/Text.Json.cinch) · line 839
 
 <a id="value-63616e6f6e6963616c2d6a736f6e"></a>
 
@@ -219,7 +219,7 @@ canonical-json :: (Json -> String)
 
 The canonical form (the header's rules): object keys sorted.
 
-[Source](/reference-sources/Text.Json.cinch) · line 826
+[Source](/reference-sources/Text.Json.cinch) · line 831
 
 <a id="value-63686f6963652d70"></a>
 
@@ -281,7 +281,7 @@ json-eq :: (Json -> (Json -> Bool))
 Value equality (structural; object entry order is significant
 here, the canonical form is the order-free identity).
 
-[Source](/reference-sources/Text.Json.cinch) · line 945
+[Source](/reference-sources/Text.Json.cinch) · line 950
 
 <a id="value-6a736f6e2d76616c7565"></a>
 
@@ -295,7 +295,7 @@ json-value :: JParser Json
 anything unexpected, so `or-else` over fragments composes); each
 arm consumes its own syntax with consumed-failure errors.
 
-[Source](/reference-sources/Text.Json.cinch) · line 420
+[Source](/reference-sources/Text.Json.cinch) · line 422
 
 <a id="value-6c6162656c2d70"></a>
 
@@ -388,7 +388,7 @@ parse-json :: (String -> (Bytes -> ParseOutcome Json))
 The document runner: the toolkit's `ParseOutcome`, so
 `Text.Parse.render-bundle` renders the failure megaparsec-style.
 
-[Source](/reference-sources/Text.Json.cinch) · line 800
+[Source](/reference-sources/Text.Json.cinch) · line 805
 
 <a id="value-70617273652d70757265"></a>
 
@@ -419,7 +419,7 @@ whole suffix at every step, quadratic in the document's length.
 
 The total printer: object entries in spine order, no whitespace.
 
-[Source](/reference-sources/Text.Json.cinch) · line 822
+[Source](/reference-sources/Text.Json.cinch) · line 827
 
 <a id="value-72756e2d6a7061727365722d666e"></a>
 
@@ -474,4 +474,4 @@ These are checked exported instance entries. Law/sample-check status is separate
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Json.cinch`. Source SHA-256: `a80f141038155fcd58bf92ae57204f0b8c0b098c9144a90fced2f37606782876`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Json.cinch`. Source SHA-256: `461861b69d963202733c7016f571b393cfc048e45c04eaf92cef036fcfaeb47b`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

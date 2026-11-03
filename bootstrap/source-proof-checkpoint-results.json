@@ -1,0 +1,267 @@
+{
+  "recorded_at": "2026-11-02T00:35:42.783224+00:00",
+  "status": "all nine whole focused targets and Native preflight passed; full167+5 and fresh source-proof stages not run; superseded by separately validated decision checkpoint",
+  "source_sha256": "140f225d6303c3faabb484a1d46adf939df458aa6b9d66da9b4c0952862bcfd7",
+  "source_inputs": 592,
+  "compiler_named_source_sha256": "e2373cb1ad6bc78d8dedef5aa782cbc755c6123ef51ead557ea3f2544b7ef2ac",
+  "compiler_bundle_bytes_sha256": "0dc28d536f34e6200690008953f66798fb6e6147b05cdc8f6564241976ff02ca",
+  "owned_changes": [
+    "bootstrap/Bootstrap.Core.cinch",
+    "bootstrap/Bootstrap.Dictionary.cinch",
+    "bootstrap/Bootstrap.Global.cinch",
+    "bootstrap/Bootstrap.Infer.cinch",
+    "bootstrap/Bootstrap.Typing.cinch",
+    "bootstrap/programs/Run.ProofTerms.cinch",
+    "bootstrap/programs/Run.SourceProofs.cinch",
+    "compiler/tests/bootstrap_proof_terms.rs",
+    "compiler/tests/bootstrap_source_proofs.rs"
+  ],
+  "focused_results": [
+    {
+      "command": [
+        "/tmp/cinch-source-effects-stages-6/source/build/bootstrap/stage0/cinch",
+        "check",
+        "/tmp/cinch-source-proofs-validation-2/preflight/Main.cinch"
+      ],
+      "cwd": "/tmp/cinch-source-proofs-validation-2/preflight",
+      "exit_code": 0,
+      "finished": "2026-11-02T00:29:10.547814+00:00",
+      "name": "source-proof-preflight",
+      "started": "2026-11-02T00:27:39.013186+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-source-proofs-validation-2/cargo/compiler",
+        "--test",
+        "bootstrap_proof_terms",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cwd": "/tmp/cinch-source-proofs-validation-2/source/compiler",
+      "exit_code": 0,
+      "finished": "2026-11-02T00:31:05.000020+00:00",
+      "name": "bootstrap_proof_terms",
+      "started": "2026-11-02T00:29:10.548265+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-source-proofs-validation-2/cargo/compiler",
+        "--test",
+        "bootstrap_source_proofs",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cwd": "/tmp/cinch-source-proofs-validation-2/source/compiler",
+      "exit_code": 0,
+      "finished": "2026-11-02T00:33:23.050290+00:00",
+      "name": "bootstrap_source_proofs",
+      "started": "2026-11-02T00:31:05.000467+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-source-proofs-validation-2/cargo/compiler",
+        "--test",
+        "bootstrap_proof_arrows",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cwd": "/tmp/cinch-source-proofs-validation-2/source/compiler",
+      "exit_code": 0,
+      "finished": "2026-11-02T00:34:28.468888+00:00",
+      "name": "bootstrap_proof_arrows",
+      "started": "2026-11-02T00:33:23.050823+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-source-proofs-validation-2/cargo/compiler",
+        "--test",
+        "bootstrap_typing",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cwd": "/tmp/cinch-source-proofs-validation-2/source/compiler",
+      "exit_code": 0,
+      "finished": "2026-11-02T00:35:37.632565+00:00",
+      "name": "bootstrap_typing",
+      "started": "2026-11-02T00:34:28.469373+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-source-proofs-validation-2/cargo/compiler",
+        "--test",
+        "bootstrap_source_pi",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cwd": "/tmp/cinch-source-proofs-validation-2/source/compiler",
+      "exit_code": 0,
+      "finished": "2026-11-02T00:37:41.077890+00:00",
+      "name": "bootstrap_source_pi",
+      "started": "2026-11-02T00:35:37.632963+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-source-proofs-validation-2/cargo/compiler",
+        "--test",
+        "bootstrap_source_instances",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cwd": "/tmp/cinch-source-proofs-validation-2/source/compiler",
+      "exit_code": 0,
+      "finished": "2026-11-02T00:48:25.875740+00:00",
+      "name": "bootstrap_source_instances",
+      "started": "2026-11-02T00:37:41.078279+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-source-proofs-validation-2/cargo/compiler",
+        "--test",
+        "bootstrap_infer",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cwd": "/tmp/cinch-source-proofs-validation-2/source/compiler",
+      "exit_code": 0,
+      "finished": "2026-11-02T00:51:06.483141+00:00",
+      "name": "bootstrap_infer",
+      "started": "2026-11-02T00:48:25.876181+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-source-proofs-validation-2/cargo/compiler",
+        "--test",
+        "bootstrap_parse",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cwd": "/tmp/cinch-source-proofs-validation-2/source/compiler",
+      "exit_code": 0,
+      "finished": "2026-11-02T00:51:45.228122+00:00",
+      "name": "bootstrap_parse",
+      "started": "2026-11-02T00:51:06.483597+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-source-proofs-validation-2/cargo/compiler",
+        "--test",
+        "bootstrap_pipeline",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cwd": "/tmp/cinch-source-proofs-validation-2/source/compiler",
+      "exit_code": 0,
+      "finished": "2026-11-02T00:58:34.315736+00:00",
+      "name": "bootstrap_pipeline",
+      "started": "2026-11-02T00:51:45.228598+00:00",
+      "status": "passed"
+    }
+  ],
+  "source_cases": 16,
+  "runtime_identity_inputs": [
+    0,
+    1,
+    17,
+    129,
+    4096
+  ],
+  "runtime_identity_base": "340282366920938463463374607431768211456",
+  "implemented": [
+    "Prop quantifier universe and named/unnamed erased arrows",
+    "CPProof binders and scoped CProofRef operands with retained actual identities",
+    "CErasedApply preserves calls and latent effects",
+    "Actual named proof assumptions can discharge checked refinements",
+    "Separate proof/value-index contexts; no ordinary runtime elimination of proof references",
+    "Independent Core, global-reference and type/effect checks on the retained forms"
+  ],
+  "decisions_enabled": false,
+  "builtin_decision_constructors_enabled": false,
+  "proof_return_language_and_totality_complete": false,
+  "runtime_lowering": "existing fragment emitter refuses forall/non-runtime signatures; typed proof erasure/lowering still required",
+  "complete_current_suite": {
+    "status": "not run",
+    "integration_targets": 167,
+    "general_gates": 5,
+    "all_tests_passed": false,
+    "self_built_frontend": false
+  },
+  "prior_complete_suite": {
+    "status": "passed",
+    "source_sha256": "d6fbf3526a03fb95a0d4bcaec732d221481379c7e8cd298ddd428ea103f5b0cc",
+    "integration_targets": 164,
+    "general_gates": 5,
+    "compiler_units": 140,
+    "runtime_tests": 166,
+    "self_built_frontend": false,
+    "bootstrap_achieved": false,
+    "scope": "preceding kind/term/global implementation; does not establish this later implementation complete"
+  },
+  "fresh_stages": {
+    "status": "not run for source proof terms; ongoing proof-arrow stages belong to preceding implementation"
+  },
+  "runtime_abi": 5,
+  "interface_schema": 7,
+  "seed_unchanged": true,
+  "self_hosting_achieved": false,
+  "remaining": [
+    "Source decide and exact constructor metadata/erasure contracts",
+    "Checked total ordinary measure contracts",
+    "Complete independent declaration/proof/usage kernel and actual selected instance-body semantic authority",
+    "Handlers and typed shared-runtime closure/dictionary/effect/proof lowering",
+    "Genuine stage2/3 fixed point, changed-source behavior and full self-built frontend suite"
+  ]
+}

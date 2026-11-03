@@ -1,0 +1,297 @@
+-- Scope-checked lexical dictionary evidence. Instance selection is a
+-- separate step: a display instance target is never executable evidence.
+module Bootstrap.Dictionary where
+
+  import Bootstrap.Type
+  import Bootstrap.Core
+  import Bootstrap.Nominal (interface-global)
+  import Text.Lex (Span)
+
+  export resolve-dictionary-definition, resolve-dictionary-term
+  export resolve-dictionary-definition-with, resolve-dictionary-term-with, resolve-ready-term, check-instance-coherence
+
+  same :: String -> String -> Bool
+  same a b = string-compare a b == 0
+  find-kind :: String -> List (String, Kind) -> Option Kind
+  find-kind name classes = case classes of Nil -> None; Cons (id, kind) rest -> if same name id then Some kind else find-kind name rest
+  class-root :: UType -> Option (String, Kind)
+  class-root ty = case ty of UCon name kind -> Some (name, kind); UApp f x -> class-root f; other -> None
+  applications-valid :: UType -> Bool
+  applications-valid ty = case ty of
+    UApp f x -> applications-valid f && applications-valid x && (case type-kind f of KFun domain result -> kind-equal domain (type-kind x); other -> False)
+    UFun a b -> applications-valid a && applications-valid b && kind-equal (type-kind a) KType && kind-equal (type-kind b) KType
+    UFunEff a row b -> valid-type ty
+    UProofFun predicate row result -> valid-type ty
+    UTuple xs -> valid-type ty
+    UArg x rest -> applications-valid x && kind-equal (type-kind x) KType && applications-valid rest
+    UError -> False
+    other -> True
+  valid-goal :: List (String, Kind) -> UType -> Bool
+  valid-goal classes ty = kind-equal (type-kind ty) KType && applications-valid ty && (case class-root ty of
+    Some (name, kind) -> (case find-kind name classes of Some expected -> kind-equal kind expected; None -> False)
+    None -> False)
+  find-given :: String -> List CoreGiven -> Option CoreGiven
+  find-given name givens = case givens of Nil -> None; Cons given rest -> if same name (given-symbol given) then Some given else find-given name rest
+  clean :: Store -> Bool
+  clean st = case store-errors st of Nil -> True; other -> False
+  fail-evidence :: Span -> UType -> String -> Store -> (CoreEvidence, Store)
+  fail-evidence sp ty message st = (CENeeded sp ty Nil, add-error sp message st)
+
+  data Resolution where
+    MkResolution :: List (String, Kind) -> List (String, Scheme) -> Bool -> Nat -> Resolution
+  resolution-classes :: Resolution -> List (String, Kind)
+  resolution-classes context = case context of MkResolution kinds instances deferred fuel -> kinds
+  resolution-instances :: Resolution -> List (String, Scheme)
+  resolution-instances context = case context of MkResolution kinds instances deferred fuel -> instances
+  resolution-deferred :: Resolution -> Bool
+  resolution-deferred context = case context of MkResolution kinds instances deferred fuel -> deferred
+  resolution-fuel :: Resolution -> Nat
+  resolution-fuel context = case context of MkResolution kinds instances deferred fuel -> fuel
+  descend-resolution :: Resolution -> Resolution
+  descend-resolution context = case context of MkResolution kinds instances deferred fuel -> MkResolution kinds instances deferred (if fuel > 0 then fuel - 1 else 0)
+  resolve-dictionary-term :: List (String, Kind) -> List CoreGiven -> CoreTerm -> Store -> (CoreTerm, Store)
+  resolve-dictionary-term kinds scope term st = resolve-dictionary-term-in (MkResolution kinds Nil False 64) scope term st
+  resolve-dictionary-term-with :: List (String, Kind) -> List (String, Scheme) -> List CoreGiven -> CoreTerm -> Store -> (CoreTerm, Store)
+  resolve-dictionary-term-with kinds instances scope term st = case resolve-dictionary-term-in (MkResolution kinds instances False 64) scope term st of (out, done) -> (out, finish-numbers done)
+  resolve-ready-term :: List (String, Kind) -> List (String, Scheme) -> List CoreGiven -> CoreTerm -> Store -> (CoreTerm, Store)
+  resolve-ready-term kinds instances scope term st = resolve-dictionary-term-in (MkResolution kinds instances True 64) scope term st
+  resolve-dictionary-definition :: List (String, Kind) -> CoreDefinition -> Store -> (CoreDefinition, Store)
+  resolve-dictionary-definition kinds definition st = resolve-dictionary-definition-with kinds Nil definition st
+  resolve-dictionary-definition-with :: List (String, Kind) -> List (String, Scheme) -> CoreDefinition -> Store -> (CoreDefinition, Store)
+  resolve-dictionary-definition-with kinds instances definition st =
+    let level = store-level st in
+    case resolve-dictionary-definition-in (MkResolution kinds instances False 64) definition (enter-level st) of
+      (out, done) -> (out, restore-level level (finish-numbers done))
+
+  -- Candidate order is lexical, nearest first. A failed trial leaves the
+  -- caller's substitution untouched. Only symbols present in the current
+  -- definition's scope can be used, and their actual types come from that
+  -- scope rather than from a copied annotation on a request.
+  choose-given :: Resolution -> List CoreGiven -> Span -> UType -> List CoreGiven -> Store -> (CoreEvidence, Store)
+  choose-given context allowed sp wanted candidates st = case candidates of
+    Nil -> choose-instance context allowed sp wanted st
+    Cons candidate rest -> case find-given (given-symbol candidate) allowed of
+      None -> fail-evidence sp wanted "dictionary evidence refers to an out-of-scope binder" st
+      Some given ->
+        if not (valid-goal (resolution-classes context) (normalize st (given-type given))) then fail-evidence sp wanted "dictionary binder has no checked signature type" st
+        else let trial = unify sp wanted (given-type given) st in
+          if clean trial then (CEGiven sp (normalize trial wanted) (given-symbol given), trial)
+          else choose-given context allowed sp wanted rest st
+  resolve-evidence :: Resolution -> List CoreGiven -> CoreEvidence -> Store -> (CoreEvidence, Store)
+  resolve-evidence context allowed evidence st = case evidence of
+    CENeeded sp ty candidates -> if valid-goal (resolution-classes context) (normalize st ty) then
+      (if resolution-deferred context && list-length (free-metas st ty) > 0 then (evidence, st)
+       else choose-given context allowed sp ty candidates st)
+      else fail-evidence sp ty "dictionary request has no checked signature type" st
+    CEGiven sp ty name -> case find-given name allowed of
+      None -> fail-evidence sp ty "dictionary evidence refers to an out-of-scope binder" st
+      Some given -> if valid-goal (resolution-classes context) (normalize st ty) && valid-goal (resolution-classes context) (normalize st (given-type given)) then
+        let trial = unify sp ty (given-type given) st in
+        if clean trial then (CEGiven sp (normalize trial ty) name, trial) else fail-evidence sp ty "dictionary binder does not prove the requested constraint" st
+        else fail-evidence sp ty "dictionary evidence has no checked signature type" st
+    CEInstance sp ty name actuals args -> check-instance context allowed sp ty name actuals args st
+    other -> fail-evidence (Span 0 0 1 1) UError "dictionary argument spine is not an evidence value" st
+  resolve-evidences :: Resolution -> List CoreGiven -> List CoreEvidence -> Store -> (List CoreEvidence, Store)
+  resolve-evidences context scope evidence st = case evidence of
+    Nil -> (Nil, st)
+    Cons first rest -> case resolve-evidence context scope first st of
+      (resolved, checked) -> case resolve-evidences context scope rest checked of
+        (more, done) -> (Cons resolved more, done)
+
+  resolve-dictionary-term-in :: Resolution -> List CoreGiven -> CoreTerm -> Store -> (CoreTerm, Store)
+  resolve-dictionary-term-in context scope term st = if not (clean st) then (term, st) else resolve-term context scope term st
+  resolve-term :: Resolution -> List CoreGiven -> CoreTerm -> Store -> (CoreTerm, Store)
+  resolve-term context scope term st = case term of
+    CHandler sp ty returned operations -> case resolve-term context scope returned st of
+      (out, next) -> case resolve-term context scope operations next of (more, done) -> (CHandler sp ty out more, done)
+    CHandle sp ty label residual body handled-by -> case resolve-term context scope body st of
+      (out, next) -> case resolve-term context scope handled-by next of (more, done) -> (CHandle sp ty label residual out more, done)
+    CHandlerOperation sp slot openings row closure rest -> case resolve-term context scope closure st of
+      (out, next) -> case resolve-term context scope rest next of (more, done) -> (CHandlerOperation sp slot openings row out more, done)
+    CDecision sp ty predicate condition -> case resolve-term context scope condition st of (out, done) -> (CDecision sp ty predicate out, done)
+    CErasedApply sp ty row fun witness -> case resolve-term context scope fun st of (out, done) -> (CErasedApply sp ty row out witness, done)
+    CQualifiedUse sp ty name role actuals evidence -> case resolve-evidences context scope evidence st of
+      (resolved, checked) -> (CQualifiedUse sp ty name role actuals resolved, checked)
+    CMethod sp ty name owner slot actuals evidence -> case evidence of
+      Nil -> (CError sp, add-error sp "method projection has no class dictionary" st)
+      Cons first rest -> case class-root (normalize st (evidence-type first)) of
+        Some (class, kind) -> if same class owner then
+          (case resolve-evidences context scope evidence st of
+            (resolved, checked) -> (CMethod sp ty name owner slot actuals resolved, checked))
+          else (CError sp, add-error sp "method dictionary belongs to a different signature" st)
+        None -> (CError sp, add-error sp "method dictionary has no signature identity" st)
+    CApply sp ty fun arg -> case resolve-term context scope fun st of
+      (f, sf) -> case resolve-term context scope arg sf of (x, sx) -> (CApply sp ty f x, sx)
+    CApplyEff sp ty row fun arg -> case resolve-term context scope fun st of
+      (f, sf) -> case resolve-term context scope arg sf of (x, sx) -> (CApplyEff sp ty row f x, sx)
+    CWith sp ty given value body -> case resolve-term context scope value st of
+      (out, checked) -> if string-length (given-symbol given) == 0 || (case find-given (given-symbol given) scope of Some old -> True; None -> False) then
+        (CError sp, add-error sp "capability scope has an empty or duplicate binder symbol" checked)
+        else if valid-goal (resolution-classes context) (normalize checked (given-type given)) then
+        let supplied = unify sp (given-type given) (core-type value) checked in
+        case resolve-term context (Cons given scope) body supplied of (result, done) -> (CWith sp ty given out result, unify sp ty (core-type result) done)
+        else (CError sp, add-error sp "dictionary scope needs a checked signature value" checked)
+    CLambda sp ty pattern body -> case resolve-term context scope body st of (out, checked) -> (CLambda sp ty pattern out, checked)
+    CLet sp ty id name scheme rhs body -> case resolve-term context scope rhs st of
+      (value, sr) -> case resolve-term context scope body sr of (out, done) -> (CLet sp ty id name scheme value out, done)
+    CIf sp ty condition yes no -> case resolve-term context scope condition st of
+      (c, sc) -> case resolve-term context scope yes sc of
+        (a, sa) -> case resolve-term context scope no sa of (b, sb) -> (CIf sp ty c a b, sb)
+    CCase sp ty value alternatives -> case resolve-term context scope value st of
+      (out, checked) -> case resolve-term context scope alternatives checked of (alts, done) -> (CCase sp ty out alts, done)
+    CTuple sp ty fields -> case resolve-term context scope fields st of (out, checked) -> (CTuple sp ty out, checked)
+    CPrimitive sp ty name args -> case resolve-term context scope args st of (out, checked) -> (CPrimitive sp ty name out, checked)
+    CProved sp ty evidence body -> case resolve-term context scope body st of (out, checked) -> (CProved sp ty evidence out, checked)
+    CRefine sp ty evidence body -> case resolve-term context scope body st of (out, checked) -> (CRefine sp ty evidence out, checked)
+    CRefineProof sp ty witness body -> case resolve-term context scope body st of (out, checked) -> (CRefineProof sp ty witness out, checked)
+    CForget sp ty body -> case resolve-term context scope body st of (out, checked) -> (CForget sp ty out, checked)
+    CRequire sp ty body -> case resolve-term context scope body st of (out, checked) -> (CRequire sp ty out, checked)
+    CDischarge sp ty evidence body -> case resolve-term context scope body st of (out, checked) -> (CDischarge sp ty evidence out, checked)
+    CGuard sp ty guard rhs -> case resolve-term context scope guard st of
+      (condition, sg) -> case resolve-term context scope rhs sg of (out, sr) -> (CGuard sp ty condition out, sr)
+    CArgument sp arg rest -> case resolve-term context scope arg st of
+      (out, checked) -> case resolve-term context scope rest checked of (more, done) -> (CArgument sp out more, done)
+    CAlternative sp pattern rhs rest -> case resolve-term context scope rhs st of
+      (out, checked) -> case resolve-term context scope rest checked of (more, done) -> (CAlternative sp pattern out more, done)
+    other -> (term, st)
+
+  capability-type :: UType -> Bool
+  capability-type ty = case ty of UApp (UCon name kind) region -> same name "b.Io" && kind-equal (type-kind region) KRegion; other -> False
+
+  check-givens :: Resolution -> List Requirement -> List CoreGiven -> List String -> Store -> Store
+  check-givens context requirements givens seen st = case (requirements, givens) of
+    (Nil, Nil) -> st
+    (Cons requirement rest, Cons (CGiven sp name ty) more) ->
+      if string-length name == 0 || symbol-seen name seen then add-error sp "dictionary definition has duplicate binder symbols" st
+      else if not (valid-goal (resolution-classes context) (normalize st ty)) || not (valid-goal (resolution-classes context) (normalize st (requirement-type requirement))) then add-error sp "dictionary definition has an invalid signature constraint" st
+      else check-givens context rest more (Cons name seen) (unify sp ty (requirement-type requirement) st)
+    other -> add-error (Span 0 0 1 1) "dictionary definition does not bind its declared constraints" st
+  symbol-seen :: String -> List String -> Bool
+  symbol-seen name names = case names of Nil -> False; Cons first rest -> same name first || symbol-seen name rest
+  resolve-clauses :: Resolution -> List CoreGiven -> List CoreClause -> Store -> (List CoreClause, Store)
+  resolve-clauses context scope clauses st = case clauses of
+    Nil -> (Nil, st)
+    Cons (MkCoreClause sp patterns body) rest -> case resolve-dictionary-term-in context scope body st of
+      (out, checked) -> case resolve-clauses context scope rest checked of (more, done) -> (Cons (MkCoreClause sp patterns out) more, done)
+  resolve-dictionary-definition-in :: Resolution -> CoreDefinition -> Store -> (CoreDefinition, Store)
+  resolve-dictionary-definition-in context definition st = case definition of
+    MkCoreDefinition sp name scheme openings givens private clauses ->
+      let requirements = map-requirements (substitute-bound openings) (scheme-requirements scheme) in
+      let checked = check-givens context requirements givens Nil st in
+      case resolve-clauses context givens clauses checked of
+        (out, done) -> (MkCoreDefinition sp name scheme openings givens private out, done)
+
+  find-instance :: String -> List (String, Scheme) -> Option Scheme
+  find-instance name instances = case instances of Nil -> None; Cons (symbol, sc) rest -> if same name symbol then Some sc else find-instance name rest
+  instance-types :: List (Nat, UType) -> Store -> List UType
+  instance-types pairs st = case pairs of Nil -> Nil; Cons (id, ty) rest -> Cons (normalize st ty) (instance-types rest st)
+  instance-arguments :: Resolution -> List CoreGiven -> Span -> List Requirement -> Store -> (CoreEvidence, Store)
+  instance-arguments context allowed sp requirements st = case requirements of
+    Nil -> (CEArgumentsEnd sp, st)
+    Cons requirement rest -> case resolve-evidence context allowed (CENeeded sp (requirement-type requirement) allowed) st of
+      (first, sf) -> if not (clean sf) then (first, sf) else case instance-arguments context allowed sp rest sf of
+        (more, done) -> (CEArgument sp first more, done)
+  -- A factory may retain a type variable already present in the wanted
+  -- head. It cannot introduce an unaccounted existential type argument.
+  meta-in :: Nat -> List Nat -> Bool
+  meta-in id ids = case ids of Nil -> False; Cons first rest -> id == first || meta-in id rest
+  metas-in :: List Nat -> List Nat -> Bool
+  metas-in first second = case first of Nil -> True; Cons id rest -> meta-in id second && metas-in rest second
+  instance-parameters-scoped :: List UType -> UType -> Store -> Bool
+  instance-parameters-scoped parameters wanted st = case parameters of
+    Nil -> True
+    Cons ty rest -> valid-type (normalize st ty) && metas-in (free-metas st ty) (free-metas st wanted) && instance-parameters-scoped rest wanted st
+  -- Every candidate is tried from the same immutable caller store. Only
+  -- one successful factory can commit its substitution; unresolved factory
+  -- parameters must already occur in the wanted head.
+  instance-matches :: Resolution -> List CoreGiven -> Span -> UType -> List (String, Scheme) -> Store -> List (CoreEvidence, Store)
+  instance-matches context allowed sp wanted instances st = case instances of
+    Nil -> Nil
+    Cons (name, sc) rest ->
+      let more = instance-matches context allowed sp wanted rest st in
+      case open-qualified False sc st of
+        (head, requirements, pairs, opened) -> let trial = unify sp wanted head opened in
+          if not (clean trial && valid-goal (resolution-classes context) (normalize trial head) && instance-parameters-scoped (instance-types pairs trial) wanted trial) then more
+          else case instance-arguments (descend-resolution context) allowed sp (map-requirements (normalize trial) requirements) trial of
+            (args, done) -> if clean done then Cons (CEInstance sp (normalize done wanted) name (instance-types pairs done) args, done) more else more
+  matching-heads :: Resolution -> Span -> UType -> List (String, Scheme) -> Store -> List (String, Scheme)
+  matching-heads context sp wanted instances st = case instances of
+    Nil -> Nil
+    Cons (name, sc) rest -> let more = matching-heads context sp wanted rest st in
+      case open-qualified False sc st of
+        (head, requirements, pairs, opened) -> let trial = unify sp wanted head opened in
+          if clean trial && valid-goal (resolution-classes context) (normalize trial head)
+            && valid-instance-context (resolution-classes context) requirements trial
+            && instance-parameters-scoped (instance-types pairs trial) wanted trial then Cons (name, sc) more else more
+  valid-instance-context :: List (String, Kind) -> List Requirement -> Store -> Bool
+  valid-instance-context classes requirements st = case requirements of
+    Nil -> True
+    Cons first rest -> valid-goal classes (normalize st (requirement-type first)) && valid-instance-context classes rest st
+  collection-default :: UType -> Store -> Store
+  collection-default wanted st = case normalize st wanted of
+    UApp (UApp (UCon name kind) container) element -> if same name (interface-global "Data.FromList.FromList") then (case container of
+      UMeta id KType -> unify (Span 0 0 1 1) container (UApp (UCon (interface-global "Data.Core.List") (KFun KType KType)) element) st
+      other -> st) else st
+    other -> st
+  select-instance-head :: Resolution -> List CoreGiven -> Span -> UType -> List (String, Scheme) -> Store -> (CoreEvidence, Store)
+  select-instance-head context allowed sp wanted heads st = case heads of
+    Cons first Nil -> case instance-matches context allowed sp wanted heads st of
+      Cons (evidence, done) Nil -> (evidence, done)
+      other -> fail-evidence sp wanted (string-concat "dictionary instance resolution is required for " (type-text (normalize st wanted))) st
+    Nil -> fail-evidence sp wanted (string-concat "dictionary instance resolution is required for " (type-text (normalize st wanted))) st
+    other -> fail-evidence sp wanted "ambiguous implicit dictionary instances" st
+  choose-instance :: Resolution -> List CoreGiven -> Span -> UType -> Store -> (CoreEvidence, Store)
+  choose-instance context allowed sp wanted st =
+    if resolution-fuel context == 0 then fail-evidence sp wanted "dictionary instance resolution cycle or search depth exceeded" st
+    else let defaulted = collection-default wanted st in
+      let heads = matching-heads context sp wanted (resolution-instances context) defaulted in
+      case heads of
+        Cons first (Cons second rest) -> let numeric = default-numbers-for wanted defaulted in
+          select-instance-head context allowed sp wanted (matching-heads context sp wanted (resolution-instances context) numeric) numeric
+        other -> select-instance-head context allowed sp wanted heads defaulted
+  instance-actuals :: Span -> List Quant -> List UType -> List (Nat, UType) -> Store -> (List (Nat, UType), Store)
+  instance-actuals sp parameters actuals earlier st = case (parameters, actuals) of
+    (Nil, Nil) -> (earlier, st)
+    (Cons q rest, Cons actual more) -> if valid-type actual then
+      (let expected = map-kind-types (substitute-bound earlier) (quant-kind q) in
+       instance-actuals sp rest more (Cons (quant-id q, actual) earlier) (unify-kind sp expected (type-kind actual) st))
+      else (earlier, add-error sp "invalid instance type argument" st)
+    other -> (earlier, add-error sp "instance type argument arity mismatch" st)
+  check-instance-arguments :: Resolution -> List CoreGiven -> Span -> List Requirement -> CoreEvidence -> Store -> (CoreEvidence, Store)
+  check-instance-arguments context allowed sp requirements arguments st = case (requirements, arguments) of
+    (Nil, CEArgumentsEnd end) -> (arguments, st)
+    (Cons requirement rest, CEArgument at first more) -> let sorted = unify at (requirement-type requirement) (evidence-type first) st in
+      case resolve-evidence context allowed first sorted of
+        (checked, sf) -> case check-instance-arguments context allowed sp rest more sf of
+          (others, done) -> (CEArgument at checked others, done)
+    other -> (arguments, add-error sp "instance dictionary argument arity mismatch" st)
+  check-instance :: Resolution -> List CoreGiven -> Span -> UType -> String -> List UType -> CoreEvidence -> Store -> (CoreEvidence, Store)
+  check-instance context allowed sp wanted name actuals args st = case find-instance name (resolution-instances context) of
+    None -> fail-evidence sp wanted "instance evidence requires a checked instance environment" st
+    Some sc -> case instance-actuals sp (scheme-params sc) actuals Nil st of
+      (pairs, opened) ->
+        let head = substitute-bound pairs (scheme-body sc) in
+        let requirements = map-requirements (substitute-bound pairs) (scheme-requirements sc) in
+        let sorted = unify sp wanted head opened in
+        if not (valid-goal (resolution-classes context) (normalize sorted wanted)) then fail-evidence sp wanted "instance head has no checked signature type" sorted
+        else case check-instance-arguments (descend-resolution context) allowed sp requirements args sorted of
+          (checked, done) -> (CEInstance sp (normalize done wanted) name actuals checked, done)
+
+  same-head-class :: Scheme -> Scheme -> Bool
+  same-head-class left right = case (class-root (scheme-body left), class-root (scheme-body right)) of
+    (Some (a, ka), Some (b, kb)) -> same a b && kind-equal ka kb
+    other -> False
+  overlapping-heads :: Scheme -> Scheme -> Store -> Bool
+  overlapping-heads left right st = if not (same-head-class left right) then False else case open-qualified False left st of
+    (a, ca, pa, sa) -> case open-qualified False right sa of
+      (b, cb, pb, sb) -> clean (unify (Span 0 0 1 1) a b sb)
+  check-instance-pairs :: String -> Scheme -> List (String, Scheme) -> Store -> Store
+  check-instance-pairs name sc rest st = case rest of
+    Nil -> st
+    Cons (other, candidate) more ->
+      check-instance-pairs name sc more (if same name other || overlapping-heads sc candidate st then
+        add-error (Span 0 0 1 1) (string-concat-all ["overlapping implicit instance contracts: ", name, " and ", other]) st else st)
+  check-instance-coherence :: List (String, Scheme) -> Store -> Store
+  check-instance-coherence instances st = case instances of
+    Nil -> st
+    Cons (name, sc) rest -> check-instance-coherence rest (check-instance-pairs name sc rest st)

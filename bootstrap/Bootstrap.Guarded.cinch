@@ -1,0 +1,143 @@
+-- Body equations for closed Nat functions are conditional on the actual
+-- callable preconditions. There is no class-name or method-slot rule here.
+module Bootstrap.Guarded where
+  import Bootstrap.Type
+  import Bootstrap.Index
+  import Bootstrap.Proof
+  import Bootstrap.Nominal (interface-global)
+  import Data.Json
+  import Data.Nat (nat-from-int, nat-to-int)
+  import Text.Show (int-to-string)
+  import Text.Lex (Span)
+  import Algebra.Semigroup
+
+  export GuardedBinding, check-guarded-binding, guarded-name, guarded-native, guarded-scheme
+  export guarded-arity, guarded-index, guarded-reading, guarded-binding, guarded-matches, guarded-equal, guarded-bindings-closed
+  data GuardedExpr where
+    GuardedArgument :: Nat -> GuardedExpr
+    GuardedSubtract :: GuardedExpr -> GuardedExpr -> GuardedExpr
+  data GuardedBinding where
+    VerifiedGuarded :: String -> String -> Scheme -> Nat -> GuardedExpr -> GuardedBinding
+  same :: String -> String -> Bool
+  same first second = string-compare first second == 0
+  nat :: UType
+  nat = UCon "Nat" KType
+  nat-type :: UType -> Bool
+  nat-type ty = case ty of UCon name KType -> same name "Nat"; other -> False
+  equal-type :: UType -> UType -> Bool
+  equal-type first second = valid-type first && valid-type second && (case store-errors (unify (Span 0 0 1 1) (without-index-levels first) (without-index-levels second) (empty-store "guarded declaration")) of Nil -> True; other -> False)
+  field :: String -> Json -> Json
+  field name doc = case doc of JObj key value rest -> if same name key then value else field name rest; other -> JNull
+  formal :: Nat -> Arithmetic
+  formal slot = AVariable (string-concat "#guarded-argument:" (int-to-string (nat-to-int slot)))
+  bound-slot :: Nat -> List (Nat, Nat) -> Option Nat
+  bound-slot id scope = case scope of Nil -> None; Cons (key, slot) rest -> if id == key then Some slot else bound-slot id rest
+  predicate-index :: List (Nat, Nat) -> UType -> Option Arithmetic
+  predicate-index scope value = case value of
+    UBound id name kind -> (case (value-carrier kind, bound-slot id scope) of (Some carrier, Some slot) -> if nat-type carrier then Some (formal slot) else None; other -> None)
+    UIndex carrier (IBound id name) -> if nat-type carrier then (case bound-slot id scope of Some slot -> Some (formal slot); None -> None) else None
+    UIndex carrier (IInteger n) -> if integer-carrier carrier && integer-literal-valid carrier n then Some (AInteger n) else None
+    UIndexPromote input -> predicate-index scope input
+    UIndexMath operation a b -> (case (predicate-index scope a, predicate-index scope b) of
+      (Some first, Some second) -> if same operation "+" then Some (APlus first second) else if same operation "-" then Some (AMinus first second) else if same operation "*" then Some (ATimes first second) else None
+      other -> None)
+    other -> None
+  relation :: String -> Option Comparison
+  relation name = if same name "<" then Some Less else if same name "<=" then Some AtMost else if same name "==" then Some Equal
+    else if same name "/=" then Some Unequal else if same name ">=" then Some AtLeast else if same name ">" then Some Greater else None
+  predicate :: List (Nat, Nat) -> UType -> Option Proposition
+  predicate scope ty = case ty of
+    UPropLit value -> Some (if value then PTruth else PFalsehood)
+    UCompare name a b -> (case (relation name, predicate-index scope a, predicate-index scope b) of (Some op, Some first, Some second) -> Some (PCompare op first second); other -> None)
+    UPropNonZero value -> (case predicate-index scope value of Some n -> Some (PCompare Unequal n (AInteger 0)); None -> None)
+    UPropAnd a b -> (case (predicate scope a, predicate scope b) of (Some first, Some second) -> Some (PBoth first second); other -> None)
+    UPropOr a b -> (case (predicate scope a, predicate scope b) of (Some first, Some second) -> Some (PEither first second); other -> None)
+    UPropNot input -> (case predicate scope input of Some p -> Some (PNegate p); None -> None)
+    other -> None
+  -- Unrecognized assumptions are ignored, never strengthened. All callable
+  -- preconditions still have to be discharged independently at the call.
+  predicates :: List (Nat, Nat) -> UType -> List Proposition
+  predicates scope rows = case rows of
+    UArg first rest -> (case predicate scope first of Some p -> Cons p (predicates scope rest); None -> predicates scope rest)
+    other -> Nil
+  shape :: UType -> Nat -> List (Nat, Nat) -> Option (Nat, List Proposition)
+  shape ty next scope = case ty of
+    UFun domain result -> if nat-type domain then shape result (next + 1) scope else None
+    UFunEff domain (URow UEnd) result -> if nat-type domain then shape result (next + 1) scope else None
+    UPi id name domain (URow UEnd) result -> if nat-type domain then shape result (next + 1) (Cons (id, next) scope) else None
+    URequire required result -> (case shape result next scope of Some (count, facts) -> Some (count, predicates scope required <> facts); None -> None)
+    UCon name KType -> if same name "Nat" then Some (next, Nil) else None
+    other -> None
+  natural-facts :: Nat -> Nat -> List Proposition
+  natural-facts next count = if next < count then Cons (PCompare AtLeast (formal next) (AInteger 0)) (natural-facts (next + 1) count) else Nil
+  read-expression :: Nat -> Nat -> Json -> Option GuardedExpr
+  read-expression count depth doc = if depth > 64 then None else case field "node" doc of
+    JStr tag -> if same tag "argument" then (case field "slot" doc of JNum slot -> if slot >= 0 && nat-from-int slot < count then Some (GuardedArgument (nat-from-int slot)) else None; other -> None)
+      else if same tag "nat-subtract" then (case (read-expression count (depth + 1) (field "left" doc), read-expression count (depth + 1) (field "right" doc)) of
+        (Some first, Some second) -> Some (GuardedSubtract first second)
+        other -> None)
+      else None
+    other -> None
+  expression-arithmetic :: GuardedExpr -> Arithmetic
+  expression-arithmetic term = case term of GuardedArgument slot -> formal slot; GuardedSubtract first second -> AMinus (expression-arithmetic first) (expression-arithmetic second)
+  expression-total :: List Proposition -> GuardedExpr -> Bool
+  expression-total facts term = case term of
+    GuardedArgument slot -> True
+    GuardedSubtract first second -> expression-total facts first && expression-total facts second
+      && (let goal = PCompare AtMost (expression-arithmetic second) (expression-arithmetic first) in case prove facts goal of Some evidence -> check-proof facts goal evidence; None -> False)
+  check-guarded-binding :: String -> String -> Scheme -> Json -> Option GuardedBinding
+  check-guarded-binding name native sc doc = if not (same name (interface-global native)) || string-length native == 0 || not (valid-type (scheme-body sc)) then None else
+    case (scheme-params sc, scheme-requirements sc, field "schema" doc, field "parameters" doc) of
+      (Nil, Nil, JNum 1, JNum arity) -> if arity < 0 then None else (case shape (scheme-body sc) 0 Nil of
+        Some (count, facts) -> if count /= nat-from-int arity then None else (case read-expression count 0 (field "root" doc) of
+          Some body -> if expression-total (natural-facts 0 count <> facts) body then Some (VerifiedGuarded name native sc count body) else None
+          None -> None)
+        None -> None)
+      other -> None
+  guarded-name :: GuardedBinding -> String
+  guarded-name binding = case binding of VerifiedGuarded name native sc count body -> name
+  guarded-native :: GuardedBinding -> String
+  guarded-native binding = case binding of VerifiedGuarded name native sc count body -> native
+  guarded-scheme :: GuardedBinding -> Scheme
+  guarded-scheme binding = case binding of VerifiedGuarded name native sc count body -> sc
+  guarded-arity :: GuardedBinding -> Nat
+  guarded-arity binding = case binding of VerifiedGuarded name native sc count body -> count
+  guarded-matches :: String -> String -> Scheme -> GuardedBinding -> Bool
+  guarded-matches name role sc binding = same role "external" && same name (guarded-name binding)
+    && (case (scheme-params sc, scheme-requirements sc) of (Nil, Nil) -> equal-type (scheme-body sc) (scheme-body (guarded-scheme binding)); other -> False)
+  expression-equal :: GuardedExpr -> GuardedExpr -> Bool
+  expression-equal a b = case (a, b) of (GuardedArgument x, GuardedArgument y) -> x == y; (GuardedSubtract x y, GuardedSubtract p q) -> expression-equal x p && expression-equal y q; other -> False
+  guarded-equal :: GuardedBinding -> GuardedBinding -> Bool
+  guarded-equal a b = guarded-matches (guarded-name a) "external" (guarded-scheme a) b && same (guarded-native a) (guarded-native b)
+    && (case (a, b) of (VerifiedGuarded n native sc count body, VerifiedGuarded m other ty size term) -> count == size && expression-equal body term)
+  guarded-binding :: String -> List GuardedBinding -> Option GuardedBinding
+  guarded-binding name bindings = case bindings of Nil -> None; Cons first rest -> if same name (guarded-name first) then Some first else guarded-binding name rest
+  distinct :: GuardedBinding -> List GuardedBinding -> Bool
+  distinct binding rest = case rest of Nil -> True; Cons first more -> not (same (guarded-name binding) (guarded-name first)) && not (same (guarded-native binding) (guarded-native first)) && distinct binding more
+  guarded-bindings-closed :: List GuardedBinding -> Bool
+  guarded-bindings-closed bindings = case bindings of Nil -> True; Cons first rest -> distinct first rest && guarded-bindings-closed rest
+  argument :: Nat -> List UType -> Option UType
+  argument slot values = case values of Nil -> None; Cons first rest -> if slot == 0 then Some first else argument (slot - 1) rest
+  expression-index :: GuardedExpr -> List UType -> Option UType
+  expression-index term values = case term of
+    GuardedArgument slot -> argument slot values
+    GuardedSubtract first second -> (case (expression-index first values, expression-index second values) of
+      (Some a, Some b) -> let out = UIndexMath "-" a b in if typed-index-admissible out then Some out else None
+      other -> None)
+  arguments-valid :: List UType -> Bool
+  arguments-valid values = case values of Nil -> True; Cons first rest -> typed-index-admissible first && (case value-carrier (type-kind first) of Some carrier -> nat-type carrier; None -> False) && arguments-valid rest
+  guarded-index :: GuardedBinding -> List UType -> Option UType
+  guarded-index binding values = if list-length values /= guarded-arity binding || not (arguments-valid values) then None else case binding of VerifiedGuarded name native sc count body -> expression-index body values
+
+  -- Mathematical readings are proof data, not Nat type-level expressions.
+  -- Core supplies only checked Nat arguments after validating the call.
+  reading-argument :: Nat -> List Arithmetic -> Option Arithmetic
+  reading-argument slot values = case values of Nil -> None; Cons first rest -> if slot == 0 then Some first else reading-argument (slot - 1) rest
+  expression-reading :: GuardedExpr -> List Arithmetic -> Option Arithmetic
+  expression-reading term values = case term of
+    GuardedArgument slot -> reading-argument slot values
+    GuardedSubtract first second -> (case (expression-reading first values, expression-reading second values) of
+      (Some a, Some b) -> Some (AMinus a b)
+      other -> None)
+  guarded-reading :: GuardedBinding -> List Arithmetic -> Option Arithmetic
+  guarded-reading binding values = if list-length values /= guarded-arity binding then None else case binding of VerifiedGuarded name native sc count body -> expression-reading body values

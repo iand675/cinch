@@ -1,0 +1,107 @@
+-- Type-check real imported contracts in the Cinch frontend.
+module Main where
+  import Bootstrap.Ast
+  import Bootstrap.Inputs (read-interfaces)
+  import Bootstrap.Load (LoadedInterface)
+  import Bootstrap.Contracts (interface-headers)
+  import Bootstrap.Parse (parse-program-with)
+  import Bootstrap.Resolve (resolve-program-with)
+  import Bootstrap.Infer (elaborate-program, elaboration-errors, elaboration-core)
+  import Bootstrap.Core
+  import Bootstrap.Type (scheme-requirements)
+  import Bootstrap.Report (Diagnostic, diagnostic-message, render-diagnostics)
+  import Text.Parse (ParseOutcome, Parsed, Failed, render-bundle)
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-write)
+
+  errors-for :: List LoadedInterface -> String -> String
+  errors-for interfaces source = case parse-program-with "nominals" (string-to-bytes source) (interface-headers interfaces) of
+    Parsed program Nil -> case resolve-program-with program interfaces of
+      (resolved, Nil) -> let result = elaborate-program "bootstrap.check" resolved in
+        case elaboration-errors result of
+          Nil -> if contains "forward ::" source then
+            (if dictionary-core (elaboration-core result) then "" else "qualified call lost dictionary evidence") else ""
+          errors -> render-diagnostics errors
+      (resolved, errors) -> render-diagnostics errors
+    Failed bundle -> render-bundle bundle
+    other -> "recoverable parse errors"
+  starts :: List Char -> List Char -> Bool
+  starts needle haystack = case needle of Nil -> True; Cons n ns -> case haystack of Nil -> False; Cons h hs -> char-code n == char-code h && starts ns hs
+  contains-chars :: List Char -> List Char -> Bool
+  contains-chars needle haystack = starts needle haystack || (case haystack of Nil -> False; Cons h hs -> contains-chars needle hs)
+  contains :: String -> String -> Bool
+  contains needle haystack = contains-chars (unpack needle) (unpack haystack)
+  dictionary-core :: List CoreDefinition -> Bool
+  dictionary-core definitions = case definitions of
+    Nil -> False
+    Cons d rest -> (list-length (scheme-requirements (core-scheme d)) == 1 && list-length (core-givens d) == 1
+      && core-definition-closed d && dictionary-clauses (core-givens d) (core-clauses d)) || dictionary-core rest
+  dictionary-clauses :: List CoreGiven -> List CoreClause -> Bool
+  dictionary-clauses givens clauses = case clauses of
+    Cons (MkCoreClause s ps body) rest -> dictionary-term givens body || dictionary-clauses givens rest
+    Nil -> False
+  dictionary-term :: List CoreGiven -> CoreTerm -> Bool
+  dictionary-term givens term = case term of
+    CMethod s ty name owner slot actuals evidence -> slot == 1 && dictionary-evidence givens evidence
+    CQualifiedUse s ty name role actuals evidence -> dictionary-evidence givens evidence
+    CApply s ty fun arg -> dictionary-term givens fun || dictionary-term givens arg
+    CLet s ty id name sc rhs body -> dictionary-term givens rhs || dictionary-term givens body
+    other -> False
+  dictionary-evidence :: List CoreGiven -> List CoreEvidence -> Bool
+  dictionary-evidence givens evidence = case (givens, evidence) of
+    (Cons given Nil, Cons (CEGiven s ty symbol) Nil) -> string-compare (given-symbol given) symbol == 0
+    other -> False
+  cases :: List (String, String)
+  cases =
+    [ ("module Main where\n  import Facade (use, Label, Make)\n  main :: Int\n  main = case use Make of Make -> 0\n", "")
+    , ("module Main where\n  import Facade (opaque-use)\n  main :: Int\n  main = let hidden-function = opaque-use in 0\n", "")
+    , ("module Main where\n  import Facade (Container, Pack)\n  unbox :: forall a. Container a -> a\n  unbox (Pack x) = x\n  main :: Int\n  main = unbox (Pack 0)\n", "")
+    , ("module Main where\n  import Facade (Visible, Open)\n  choose :: Visible -> Bool\n  choose value = case value of Open -> True; _ -> False\n  main :: Int\n  main = 0\n", "")
+    , ("module Main where\n  import Facade (use)\n  import B as Other\n  main :: Int\n  main = let wrong = use Other.Mk in 0\n", "type mismatch")
+    , ("module Main where\n  import Facade (Visible, Open)\n  choose :: Visible -> Bool\n  choose Open = True\n  main :: Int\n  main = 0\n", "non-exhaustive")
+    , ("module Main where\n  import Facade (opaque-use)\n  leak :: HiddenToken -> HiddenToken\n  leak x = x\n  main :: Int\n  main = 0\n", "HiddenToken")
+    , ("module Main where\n  import Facade (Hide)\n  main :: Int\n  main = 0\n", "Hide")
+    , ("module Main where\n  import DisplayOnly (value)\n  main :: Int\n  main = let unused = value in (\\x -> x) 0\n", "defining-module type identities")
+    , ("module Main where\n  import Unbound (value)\n  main :: Int\n  main = let unused = value in 0\n", "unbound type name")
+    , ("module Main where\n  import Data.String (string-concat)\n  main :: Int\n  main = let text = string-concat \"a\" \"b\" in 0\n", "")
+    , ("module Main where\n  import B (keep-text)\n  main :: Int\n  main = let wrong = keep-text \"literal\" in 0\n", "type mismatch")
+    , ("module Main where\n  import UniversalCtor (Pack)\n  main :: Int\n  main = let make = Pack in 0\n", "existential or indexed")
+    , ("module Main where\n  import IndexedCtor (Pack)\n  main :: Int\n  main = let make = Pack in 0\n", "existential or indexed")
+    , ("module Main where\n  import A (Witness, witnessed)\n  forward :: forall a. using (witness :: Witness a) => a -> Bool\n  forward x = witnessed x\n  main :: Int\n  main = 0\n", "")
+    , ("module Main where\n  import A (Witness, witnessed)\n  forward :: forall a. using (witness :: Witness a) => a -> Bool\n  forward x = let witness = 0 in witnessed x\n  main :: Int\n  main = 0\n", "")
+    , ("module Main where\n  import A (Witness, context-api)\n  forward :: forall a. using (witness :: Witness a) => a -> a\n  forward x = context-api x\n  main :: Int\n  main = 0\n", "")
+    , ("module Main where\n  import A (Witness, witnessed)\n  forward :: forall a. using (witness :: Witness a) => a -> Bool\n  forward x = let result = witnessed x in result\n  main :: Int\n  main = 0\n", "")
+    , ("module Main where\n  import A (OtherWitness, witnessed)\n  forward :: forall a. using (other :: OtherWitness a) => a -> Bool\n  forward x = witnessed x\n  main :: Int\n  main = 0\n", "dictionary instance resolution")
+    , ("module Main where\n  import A (context-api)\n  main :: Int\n  main = context-api 0\n", "dictionary instance resolution")
+    , ("module Main where\n  import A (Witness, witnessed)\n  forward :: forall a. using (witness :: Witness a) => a -> Bool\n  forward x = witnessed x\n  leak :: forall a. a -> Bool\n  leak x = witnessed x\n  main :: Int\n  main = 0\n", "dictionary instance resolution")
+    , ("module Main where\n  import A (Witness)\n  import WrongArity (call)\n  forward :: forall a. using (witness :: Witness a) => a -> a\n  forward x = call x\n  main :: Int\n  main = 0\n", "imported arity disagrees")
+    , ("module Main where\n  import CarrierGeneric (value)\n  export value\n  main :: Int\n  main = 0\n", "")
+    , ("module Main where\n  import CarrierFunction (value)\n  export value\n  main :: Int\n  main = 0\n", "")
+    , ("module Main where\n  import CarrierNominal (value)\n  export value\n  main :: Int\n  main = 0\n", "")
+    , ("module Main where\n  import CarrierForward (value)\n  export value\n  main :: Int\n  main = 0\n", "unbound type name")
+    , ("module Main where\n  import CarrierSelf (value)\n  export value\n  main :: Int\n  main = 0\n", "unbound type name")
+    , ("module Main where\n  import CarrierMissing (value)\n  export value\n  main :: Int\n  main = 0\n", "unbound type name")
+    ]
+  -- Evaluate each frontend case once. Reporting and assertions share the
+  -- resulting diagnostics instead of repeating parsing and checking.
+  evaluate-cases :: List LoadedInterface -> List (String, String) -> List (String, String)
+  evaluate-cases interfaces tests = case tests of
+    Nil -> Nil
+    Cons (source, expected) rest -> Cons (errors-for interfaces source, expected) (evaluate-cases interfaces rest)
+  check-cases :: List (String, String) -> Int -> Int
+  check-cases results index = case results of
+    Nil -> 0
+    Cons (errors, expected) rest ->
+      if (if string-length expected == 0 then string-length errors == 0 else contains expected errors) then check-cases rest (index + 1)
+      else index
+  describe :: List (String, String) -> Int -> String
+  describe results index = case results of
+    Nil -> ""
+    Cons (errors, expected) rest -> string-concat-all ["case ", int-to-string index, ": ", errors, "\n", describe rest (index + 1)]
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case read-interfaces "interfaces.json" of
+    Err message -> case fs-write (path-from-string "nominal-report.txt") (string-to-bytes message) of Ok _ -> 254; Err error -> 255
+    Ok interfaces -> let results = evaluate-cases interfaces cases in
+      case fs-write (path-from-string "nominal-report.txt") (string-to-bytes (describe results 1)) of
+        Err error -> 255
+        Ok _ -> check-cases results 1

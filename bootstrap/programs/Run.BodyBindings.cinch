@@ -1,0 +1,117 @@
+module Main where
+  import Bootstrap.Type
+  import Bootstrap.Index
+  import Bootstrap.Core
+  import Bootstrap.Global
+  import Bootstrap.Typing
+  import Bootstrap.BodyContract
+  import Bootstrap.Total
+  import Text.Lex (Span)
+  import Text.Json (parse-json)
+  import Text.Parse (ParseOutcome, Parsed, Failed)
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read)
+  sp :: Span
+  sp = Span 0 0 1 1
+  nat :: UType
+  nat = UCon "Nat" KType
+  int :: UType
+  int = UCon "Int" KType
+  bounded :: Nat -> Int -> Int -> UType
+  bounded id low high = URefine id "result" nat (UPropAnd
+    (UCompare ">=" (UIndex nat (IBound id "result")) (UIndex nat (IInteger low)))
+    (UCompare "<=" (UIndex nat (IBound id "result")) (UIndex nat (IInteger high))))
+  missing :: Option BodyBinding -> Bool
+  missing value = case value of None -> True; other -> False
+  read-function :: Bytes -> Option TotalFunction
+  read-function source = case parse-json "body-binding" source of
+    Parsed doc Nil -> (case check-total-graph doc of Some graph -> total-function graph "Main.width"; None -> None)
+    other -> None
+  actual-call :: Nat -> BodyBinding -> CoreTerm
+  actual-call id binding = case scheme-body (binding-scheme binding) of
+    UFun domain result -> CApply sp result (CUse sp (scheme-body (binding-scheme binding)) (binding-name binding) (binding-role binding) Nil) (CLocal sp nat id "input" Nil)
+    other -> CError sp
+  checked-definition :: List CoreGlobal -> CoreDefinition -> Bool
+  checked-definition globals definition = case close-typing-context [("Nat", KType), ("Int", KType)] globals of Some context -> typing-definition-closed context definition; None -> False
+  test-proof :: Nat -> BodyBinding -> BodyBinding -> Bool
+  test-proof id binding changed =
+    let desired = bounded (id + 20) 1 4 in
+    let call = actual-call id binding in
+    let projected = CForget sp nat call in
+    let gamma = with-body-bindings [binding] (make-proof-scope [(id, nat)] Nil) in
+    let scheme = mono (UFun nat desired) in
+    case scoped-prove-refinement gamma Nil desired projected of
+      None -> False
+      Some evidence ->
+        let definition = MkCoreDefinition sp "consumer" scheme Nil Nil Nil [MkCoreClause sp [CPVar sp nat id "input"] (CRefine sp desired evidence projected)] in
+        let globals = [GlobalValue "consumer" "value" scheme, GlobalBody (GlobalValue "width" "external" (binding-scheme binding)) binding] in
+        let changed-call = CForget sp nat (actual-call id changed) in
+        let replaced = MkCoreDefinition sp "consumer" scheme Nil Nil Nil [MkCoreClause sp [CPVar sp nat id "input"] (CRefine sp desired evidence changed-call)] in
+        checked-definition globals definition
+          && checked-definition globals (seal-definition-with-bodies [binding] (empty-store "body sealing") definition)
+          && not (checked-definition globals (seal-definition (empty-store "no body authority") definition))
+          && not (core-definition-closed definition)
+          && not (checked-definition [GlobalValue "consumer" "value" scheme, GlobalValue "width" "external" (binding-scheme binding)] definition)
+          && not (checked-definition [GlobalValue "consumer" "value" scheme, GlobalBody (GlobalValue "width" "external" (binding-scheme changed)) changed] replaced)
+          && not (checked-definition globals replaced)
+  argument-identity :: Nat -> BodyBinding -> Bool
+  argument-identity id binding =
+    let other = id + 1 in let result = id + 30 in
+    let fn = binding-function binding in
+    let observed = UIndexCall fn (UArg (UIndex nat (IRigid id "input" 0)) UEnd) in
+    let exact = URefine result "out" nat (UCompare "==" (UIndex nat (IBound result "out")) observed) in
+    let gamma = with-body-bindings [binding] (make-proof-scope [(id, nat), (other, nat)] Nil) in
+    (case scoped-prove-refinement gamma Nil exact (CForget sp nat (actual-call id binding)) of Some evidence -> True; None -> False)
+      && (case scoped-prove-refinement gamma Nil exact (CForget sp nat (actual-call other binding)) of None -> True; other -> False)
+  hypothesis-bounds :: Nat -> BodyBinding -> BodyBinding -> Bool
+  hypothesis-bounds id binding changed =
+    let offset = id + 1 in let output = id + 2 in let binder = id + 3 in
+    let observed = UIndexCall (binding-function binding) (UArg (UIndex nat (IRigid id "input" 0)) UEnd) in
+    let start = UIndex nat (IRigid offset "offset" 0) in
+    let actual = URefine binder "out" nat (UCompare ">=" (UIndex nat (IBound binder "out")) (UIndexMath "+" start observed)) in
+    let wanted = URefine (id + 4) "result" nat (UCompare ">=" (UIndex nat (IBound (id + 4) "result")) start) in
+    let too-strong = URefine (id + 4) "result" nat (UCompare ">=" (UIndex nat (IBound (id + 4) "result")) (UIndexMath "+" start (UIndex nat (IInteger 5)))) in
+    let scope = make-proof-scope [(id, nat), (offset, nat), (output, actual)] Nil in
+    let value = CForget sp nat (CLocal sp actual output "out" Nil) in
+    (case scoped-prove-refinement (with-body-bindings [binding] scope) Nil wanted value of Some evidence -> True; None -> False)
+      && (case scoped-prove-refinement (with-body-bindings [binding] scope) Nil too-strong value of None -> True; other -> False)
+      && (case scoped-prove-refinement scope Nil wanted value of None -> True; other -> False)
+      && (case scoped-prove-refinement (with-body-bindings [changed] scope) Nil wanted value of None -> True; other -> False)
+  checks :: Nat -> TotalFunction -> TotalFunction -> List Bool
+  checks id function changed =
+    let original = mono (UFun nat (bounded (id + 10) 1 4)) in
+    let replacement = mono (UFun nat (bounded (id + 11) 5 7)) in
+    case (check-body-binding "width" "Main.width" "external" original function, check-body-binding "width" "Main.width" "external" replacement changed) of
+      (Some binding, Some next) ->
+        let local = UIndex nat (IRigid id "input" 0) in
+        let claimed = UIndexCall function (UArg local UEnd) in
+        let altered = UIndexCall changed (UArg local UEnd) in
+        [ test-proof id binding next
+        , hypothesis-bounds id binding next
+        , argument-identity id binding
+        , missing (check-body-binding "width" "Main.other" "external" original function)
+        , missing (check-body-binding "width" "Main.width" "external" original changed)
+        , missing (check-body-binding "width" "Main.width" "external" (mono (UFun int nat)) function)
+        , missing (check-body-binding "width" "Main.width" "external" (mono (UFun nat (UFun nat nat))) function)
+        , missing (check-body-binding "width" "Main.width" "constructor" original function)
+        , missing (check-body-binding "width" "Main.width" "value" original function)
+        , missing (check-body-binding "width" "Main.width" "intrinsic" original function)
+        , body-type-authorized [binding] claimed
+        , not (body-type-authorized [binding] altered)
+        , not (body-type-authorized Nil claimed)
+        , not (body-scheme-authorized Nil (qualified [MkQuant (id + 50) "carrier" (value-kind (URefine (id + 60) "value" nat (UCompare "==" (UIndex nat (IBound (id + 60) "value")) (UIndexCall function (UArg (UIndex nat (IInteger 7)) UEnd))))) False] Nil nat))
+        , not (body-scheme-authorized Nil (qualified Nil [MkRequirement "dictionary" (UApp (UCon "Witness" (KFun (value-kind nat) KType)) (UIndexCall function (UArg (UIndex nat (IInteger 7)) UEnd)))] nat))
+        , not (body-bindings-closed [binding, next])
+        , (case close-globals [GlobalBody (GlobalValue "other" "external" original) binding] of None -> True; other -> False)
+        , (case close-globals [GlobalBody (GlobalValue "width" "external" original) binding, GlobalValue "width" "external" original] of None -> True; other -> False)
+        , (case close-globals [GlobalValue "forged" "external" (mono (UFun nat (URequire (UArg (UCompare ">=" altered (UIndex nat (IInteger 5))) UEnd) nat))), GlobalBody (GlobalValue "width" "external" original) binding] of None -> True; other -> False)
+        ]
+      other -> [False]
+  verdict :: List Bool -> Int -> Int
+  verdict values next = case values of Nil -> 0; Cons True rest -> verdict rest (next + 1); Cons False rest -> next
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case (fs-read (path-from-string "bodies.json"), fs-read (path-from-string "changed.json"), fs-read (path-from-string "nonce.txt")) of
+    (Ok original, Ok replacement, Ok nonce) -> (case (read-function original, read-function replacement) of
+      (Some function, Some changed) -> verdict (checks (bytes-len nonce + 340282366920938463463374607431768211456) function changed) 1
+      other -> 91)
+    other -> 90

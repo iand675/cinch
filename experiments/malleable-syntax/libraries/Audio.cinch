@@ -1,0 +1,21 @@
+module Audio where
+  export Signal, mono, observe, gain, duplicate, mix, chain
+  data Signal (channels :: Nat) where
+    Mono :: Int -> Signal 1
+    Stereo :: Int -> Int -> Signal 2
+  mono :: Int -> Signal 1
+  mono x = Mono x
+  observe :: Signal 1 -> Int
+  observe signal = case signal of
+    Mono x -> x
+  gain :: Int -> Signal 1 -> Signal 1
+  gain factor signal = case signal of
+    Mono x -> Mono (factor * x)
+  duplicate :: Signal 1 -> Signal 2
+  duplicate signal = case signal of
+    Mono x -> Stereo x x
+  mix :: Signal 2 -> Signal 1
+  mix signal = case signal of
+    Stereo left right -> Mono (left + right)
+  chain :: forall a b c. (a -> b) -> (b -> c) -> a -> c
+  chain first next value = next (first value)

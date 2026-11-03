@@ -108,6 +108,25 @@ pub fn emit(program: &Program) -> Result<String> {
 /// (primitive types specification section 2), and the cooperative task
 /// ABI (section 7).
 pub fn emit_for(profile: &crate::core::TargetProfile, program: &Program) -> Result<String> {
+    Ok(emit_module(profile, program, false)?.ir)
+}
+
+/// A relocatable library module and its actual physical ABI. Its consumer
+/// must register a combined layout table containing this exact prefix before
+/// calling any unit; this object never registers an independent table.
+pub struct EmittedObject {
+    pub ir: String,
+    pub abi: String,
+}
+
+pub fn emit_object_for(profile: &crate::core::TargetProfile, program: &Program) -> Result<EmittedObject> {
+    if program.main.is_some() {
+        return err("object emission requires a library program without a process entry");
+    }
+    emit_module(profile, program, true)
+}
+
+fn emit_module(profile: &crate::core::TargetProfile, program: &Program, object: bool) -> Result<EmittedObject> {
     let cx = LowerCx {
         usize_bits: profile.word_size,
         coop_tasks: profile.artifact != crate::core::ArtifactProfile::Native,
@@ -122,6 +141,7 @@ pub fn emit_for(profile: &crate::core::TargetProfile, program: &Program) -> Resu
     // specification section 1; decision D65).
     let main_exit = match &program.main {
         Some(m) => Some(m),
+        None if object => None,
         None if program.foreigns.values().any(|p| p.export) => None,
         None => {
             return err(format!(
@@ -343,8 +363,13 @@ pub fn emit_for(profile: &crate::core::TargetProfile, program: &Program) -> Resu
         out.push_str(&format!("declare {w} @llvm.bitreverse.{w}({w})\n"));
     }
     out.push('\n');
-    out.push_str(APPLY_DEF);
-    out.push_str(MEMO_HELPERS);
+    if object {
+        out.push_str("declare i64 @__apply(i64, i64, ptr)\n");
+        out.push_str(&MEMO_HELPERS.replace("define ", "define weak_odr "));
+    } else {
+        out.push_str(APPLY_DEF);
+        out.push_str(MEMO_HELPERS);
+    }
 
     // Real foreign bindings (foreign function interface specification
     // section 2): the C symbol declarations (over the named by-value
@@ -456,6 +481,15 @@ pub fn emit_for(profile: &crate::core::TargetProfile, program: &Program) -> Resu
     for u in &units {
         let group = reg.attr_group(u.hints, &u.lang_facts, &classes[&u.name], cx.native);
         assemble_unit(&mut out, u, group);
+        if object && reg.arity.contains_key(&u.name) {
+            // Static closure aliases are module-local. Export an accessor
+            // instead of relying on a platform linker to expose an alias
+            // into private storage.
+            out.push_str(&format!(
+                "define i64 @{}() {{\nentry:\n  ret i64 ptrtoint (ptr @{} to i64)\n}}\n",
+                quote(&format!("{}.object-closure", u.name)), quote(&format!("{}.clo", u.name))
+            ));
+        }
     }
     // The C-callable entries (foreign function interface specification
     // section 2).
@@ -495,11 +529,14 @@ pub fn emit_for(profile: &crate::core::TargetProfile, program: &Program) -> Resu
     }
     // The constructor layout table, complete now that every unit has
     // asked for its descriptors.
-    out.push_str(&reg.layouts.borrow().finish(reg.reclaim)?);
+    if !object {
+        out.push_str(&reg.layouts.borrow().finish(reg.reclaim)?);
+    }
     // Function attribute groups and metadata nodes (the branch weights
     // of attribute annotations specification section 3.1).
     out.push_str(&reg.finish_meta());
-    Ok(out)
+    let abi = if object { reg.object_abi(program, profile, &out)? } else { String::new() };
+    Ok(EmittedObject { ir: out, abi })
 }
 
 fn err<T>(msg: impl Into<String>) -> Result<T> {
@@ -547,6 +584,10 @@ struct InstInfo {
     method_count: usize,
     /// Method unit name with the arity of its `FnDef` (subdicts included).
     methods: Vec<(String, usize)>,
+    /// Actual stored word classes, including eager value-method results.
+    fields: Vec<Class>,
+    /// Actual initialized value slots captured ahead of the factory context.
+    values: Vec<Vec<usize>>,
 }
 
 /// Unit name to arity map plus resolved instances.
@@ -604,6 +645,109 @@ struct Registry {
 }
 
 impl Registry {
+    /// Physical facts about the units just emitted. This is deliberately
+    /// separate from source exports: a private layout does not make its
+    /// constructor available to an importing source module.
+    fn object_abi(&self, p: &Program, profile: &crate::core::TargetProfile, ir: &str) -> Result<String> {
+        use crate::interface::JsonValue as J;
+        fn class(c: Class) -> Result<J> {
+            Ok(J::from(match c {
+                Class::Raw => "R", Class::Obj => "O", Class::TObj => "T",
+                Class::Param(_) => return err("object ABI contains an unresolved representation parameter"),
+            }))
+        }
+        fn classes(cs: &[Class]) -> Result<J> {
+            Ok(J::Arr(cs.iter().copied().map(class).collect::<Result<Vec<_>>>()?))
+        }
+        // The legacy emitter accepts hand-written Core without annotations,
+        // defaulting missing classes to Raw. Such a module cannot supply
+        // checked ownership authority to a separately compiled consumer.
+        for f in &p.fns {
+            let params = if f.ctor.is_some() { &f.repr.fields } else { &f.repr.params };
+            // A parameter-independent constructor (for example List.Nil)
+            // legitimately shares one unit across all type arguments.
+            if (f.repr.tparams != 0 && f.ctor.is_none()) || params.len() != f.arity() || params.iter().any(|c| c.is_param()) {
+                return err(format!("object ABI needs concrete checked parameter classes for {}", f.id));
+            }
+        }
+        let mut names: Vec<_> = self.arity.keys().collect();
+        names.sort();
+        let globals: HashSet<String> = names.iter().flat_map(|name|
+            ["", ".app", ".clo", ".blk", ".clo#h", ".blk#h", "#tail"].map(|suffix| format!("{name}{suffix}"))).collect();
+        for name in &names {
+            let accessor = format!("{name}.object-closure");
+            if globals.contains(&accessor) {
+                return err(format!("object closure accessor collides with a unit global: {accessor}"));
+            }
+        }
+        let mut units = Vec::new();
+        for name in names {
+            let params = self.unit_params.get(name).ok_or_else(|| crate::Error::plain(format!("missing object parameter classes for {name}")))?;
+            if params.len() != self.arity[name] {
+                return err(format!("object ABI parameter arity mismatch for {name}"));
+            }
+            let result = if self.insts.keys().any(|i| format!("{i}.mk") == *name) || self.ctors.contains_key(name) {
+                Some(Class::Obj)
+            } else {
+                p.fns.iter().find(|f| f.id.0 == *name).and_then(|f| f.repr.result)
+                    .or_else(|| self.prims.iter().find(|op| op.symbol() == *name)
+                        .and_then(|op| prim_sig(*op).map(|(_, ty)| sig_class(&ty))))
+            };
+            units.push(J::obj([
+                ("symbol", name.as_str().into()),
+                ("closure_entry", format!("{name}.object-closure").into()),
+                ("arity", (self.arity[name] as u64).into()),
+                ("params", classes(params)?),
+                ("result", result.map(class).transpose()?.unwrap_or(J::Null)),
+            ]));
+        }
+        let layouts = self.layouts.borrow();
+        let mut types = BTreeMap::new();
+        for (name, ids) in &layouts.types {
+            types.insert(name.clone(), match ids {
+                TypeIds::Group(group) => J::obj([("group", (*group).into())]),
+                TypeIds::Escaped { base, shared } => J::obj([("base", (*base).into()), ("shared", (*shared).into())]),
+            });
+        }
+        let mut ctors = BTreeMap::new();
+        for (name, (tag, fields)) in &self.ctors {
+            ctors.insert(name.clone(), J::obj([
+                ("tag", (*tag as u64).into()),
+                ("arity", (*fields as u64).into()),
+                ("descriptor", self.ctor_descs[name].into()),
+            ]));
+        }
+        let mut dictionaries = BTreeMap::new();
+        for inst in &p.instances {
+            let info = &self.insts[&inst.id.0];
+            dictionaries.insert(inst.id.0.clone(), J::obj([
+                ("class", inst.class.as_str().into()),
+                ("context_arity", (info.subdict_count as u64).into()),
+                ("methods", J::Arr(info.methods.iter().map(|(name, _)| J::from(name.as_str())).collect())),
+                ("fields", classes(&info.fields)?),
+            ]));
+        }
+        Ok(J::obj([
+            ("schema", 1u64.into()),
+            ("runtime_abi", crate::interface::RUNTIME_ABI_VERSION.into()),
+            ("target", profile.triple.as_str().into()),
+            ("word_size", profile.word_size.into()),
+            ("endian", profile.endian.as_str().into()),
+            ("reclaim", profile.reclaim.into()),
+            // The interface content hash is a deterministic cache identity,
+            // not a cryptographic artifact digest. Artifact admission must
+            // additionally hash the object and matching interface closure.
+            ("ir_content_hash", crate::interface::content_hash(ir).into()),
+            ("units", J::Arr(units)),
+            ("types", J::Obj(types)),
+            ("constructors", J::Obj(ctors)),
+            ("dictionaries", J::Obj(dictionaries)),
+            ("escaped_descriptors", layouts.escaped.into()),
+            ("layout_entries", (layouts.table.len() as u64).into()),
+            ("layout_words", J::Arr(layouts.words()?.into_iter().map(J::from).collect())),
+        ]).to_canonical_string())
+    }
+
     /// Register one module-level metadata node; returns its `!N`
     /// reference.
     fn meta_node(&self, def: String) -> String {
@@ -747,6 +891,15 @@ impl Registry {
                 InstInfo {
                     subdict_count: inst.subdict_count,
                     method_count: inst.method_count,
+                    fields: methods.iter().map(|(name, arity)| {
+                        let function = p.fns.iter().find(|f| f.id.0 == *name);
+                        let hidden = function.map_or(0, |f| f.repr.dictionary_values.len());
+                        if *arity == inst.subdict_count + hidden {
+                            function.and_then(|f| f.repr.result).unwrap_or(Class::Raw)
+                        } else { Class::Obj }
+                    }).collect(),
+                    values: methods.iter().map(|(name, _)| p.fns.iter().find(|f| f.id.0 == *name)
+                        .map(|f| f.repr.dictionary_values.clone()).unwrap_or_default()).collect(),
                     methods,
                 },
             );
@@ -966,13 +1119,11 @@ impl Registry {
         self.layouts.borrow_mut().shape(map)
     }
 
-    /// The shape descriptor of an instance's dictionary `{ nmeth;
-    /// methods... }`: a method slot holding a closure is counted, one
-    /// holding a value method's computed value (`mk_body`) is not, because
-    /// no unit records the class of a result.
+    /// Dictionary slots contain either closures or eagerly computed values;
+    /// the latter retain the result class recorded by the checker and collector.
     fn dict_desc(&self, info: &InstInfo) -> u64 {
         let mut map = vec![Class::Raw; block::DICT_PREFIX_WORDS as usize];
-        map.extend(info.methods.iter().map(|(_, arity)| if *arity == info.subdict_count { Class::Raw } else { Class::Obj }));
+        map.extend(info.fields.iter().copied());
         self.layouts.borrow_mut().shape(map)
     }
 
@@ -1332,7 +1483,7 @@ impl Layouts {
     /// that counts references (`reclaim`) also says so there
     /// (`cinch_reclaim_enable`), so the runtime marks task bodies and
     /// drops the task results nobody receives.
-    fn finish(&self, reclaim: bool) -> Result<String> {
+    fn words(&self) -> Result<Vec<u64>> {
         if self.late_escape {
             return err("internal error: a constructor shape escaped after the tag reads were emitted without escapes");
         }
@@ -1360,6 +1511,11 @@ impl Layouts {
             }
         }
         entries.extend(ext);
+        Ok(entries)
+    }
+
+    fn finish(&self, reclaim: bool) -> Result<String> {
+        let entries = self.words()?;
         let n = entries.len();
         let words: Vec<String> = entries.iter().map(|e| format!("i64 {}", *e as i64)).collect();
         let enable = if reclaim { "  call void @cinch_reclaim_enable()\n" } else { "" };
@@ -4877,74 +5033,62 @@ fn export_entry(out: &mut String, plan: &ForeignPlan, reg: &Registry, cx: &Lower
 /// method word is the method function's static closure (when the instance
 /// has no subdicts) or a fresh closure filled with the subdict parameters.
 fn mk_body(b: &mut Builder, reg: &Registry, info: &InstInfo) {
-    let mc = info.method_count;
-    // The subdictionaries are owned parameters, and every method takes
-    // each of them once (a value method's call consumes them, a method
-    // closure stores them): one reference per method, the unit's own
-    // being the last, or a drop when the class has no methods.
     let uses = info.methods.len();
     for j in 0..info.subdict_count {
-        let w = format!("%p{j}");
-        if uses == 0 {
-            rc_op(b, reg.rc_debug, true, &w, Class::Obj);
-        }
-        for _ in 1..uses {
-            rc_op(b, reg.rc_debug, false, &w, Class::Obj);
-        }
+        let word = format!("%p{j}");
+        let class = info.methods.first().and_then(|(method, _)| reg.unit_params.get(method))
+            .and_then(|params| params.get(info.values.first().map_or(0, Vec::len) + j)).copied().unwrap_or(Class::Obj);
+        if uses == 0 { rc_op(b, reg.rc_debug, true, &word, class); }
+        for _ in 1..uses { rc_op(b, reg.rc_debug, false, &word, class); }
     }
-    let bytes = (1 + mc) * 8;
-    let p = b.reg();
-    b.line(&shaped_alloc_call(&p, bytes, block::KIND_DICT, reg.dict_desc(info)));
-    b.store_at(&p, 0, &mc.to_string());
-    for (i, (method, m_arity)) in info.methods.iter().enumerate() {
-        let w = if *m_arity == info.subdict_count {
-            // A method with no value parameters stores its computed value
-            // in the dictionary (`mempty :: a` round trip): the call site
-            // projects the word directly instead of applying a closure.
-            let args: Vec<String> =
-                (0..info.subdict_count).map(|j| format!("i64 %p{j}")).collect();
-            let w = b.reg();
-            b.line(&format!(
-                "{w} = call i64 @{}({})",
-                quote(method),
-                args.join(", ")
-            ));
-            w
-        } else if info.subdict_count == 0 {
-            let w = b.reg();
-            b.line(&format!(
-                "{w} = ptrtoint ptr @{clo} to i64",
-                clo = quote(&format!("{method}.clo"))
-            ));
-            w
+    let pointer = b.reg();
+    b.line(&shaped_alloc_call(&pointer, (1 + info.method_count) * 8, block::KIND_DICT, reg.dict_desc(info)));
+    b.store_at(&pointer, 0, &info.method_count.to_string());
+    for i in 0..info.method_count { b.store_at(&pointer, (1 + i) * 8, "0"); }
+    let strict: Vec<bool> = info.methods.iter().enumerate().map(|(i, (_, arity))| *arity == info.subdict_count + info.values[i].len()).collect();
+    let mut pending: Vec<usize> = strict.iter().enumerate().filter_map(|(i, strict)| strict.then_some(i)).collect();
+    let mut initialized = std::collections::HashSet::new();
+    let mut order = Vec::new();
+    while !pending.is_empty() {
+        let index = pending.iter().position(|i| info.values[*i].iter().all(|slot| initialized.contains(slot)))
+            .expect("dictionary initialization cycles were rejected before code generation");
+        let slot = pending.remove(index); order.push(slot); initialized.insert(slot);
+    }
+    order.extend(strict.iter().enumerate().filter_map(|(i, strict)| (!strict).then_some(i)));
+    for i in order {
+        let (method, arity) = &info.methods[i];
+        let mut saved = Vec::new();
+        for slot in &info.values[i] {
+            let value = b.load_at(&pointer, (1 + slot) * 8);
+            rc_op(b, reg.rc_debug, false, &value, info.fields[*slot]);
+            saved.push(value);
+        }
+        saved.extend((0..info.subdict_count).map(|j| format!("%p{j}")));
+        let word = if strict[i] {
+            let value = b.reg();
+            b.line(&format!("{value} = call i64 @{}({})", quote(method), saved.iter().map(|w| format!("i64 {w}")).collect::<Vec<_>>().join(", ")));
+            value
+        } else if saved.is_empty() {
+            let value = b.reg();
+            b.line(&format!("{value} = ptrtoint ptr @{} to i64", quote(&format!("{method}.clo"))));
+            value
         } else {
-            let cb = (3 + info.subdict_count) * 8;
-            let c = b.reg();
-            b.line(&shaped_alloc_call(&c, cb, block::KIND_CLOSURE, reg.closure_desc(method)));
-            let cw = b.reg();
-            b.line(&format!(
-                "{cw} = ptrtoint ptr @{app} to i64",
-                app = quote(&format!("{method}.app"))
-            ));
-            b.store_at(&c, 0, &cw);
-            b.store_at(&c, 8, &m_arity.to_string());
-            b.store_at(&c, 16, &info.subdict_count.to_string());
-            for j in 0..info.subdict_count {
-                b.store_at(&c, 24 + 8 * j, &format!("%p{j}"));
-            }
-            let w = b.reg();
-            b.line(&format!("{w} = ptrtoint ptr {c} to i64"));
-            w
+            let closure = b.reg();
+            b.line(&shaped_alloc_call(&closure, (3 + saved.len()) * 8, block::KIND_CLOSURE, reg.closure_desc(method)));
+            let code = b.reg();
+            b.line(&format!("{code} = ptrtoint ptr @{} to i64", quote(&format!("{method}.app"))));
+            b.store_at(&closure, 0, &code);
+            b.store_at(&closure, 8, &arity.to_string());
+            b.store_at(&closure, 16, &saved.len().to_string());
+            for (j, value) in saved.iter().enumerate() { b.store_at(&closure, 24 + 8 * j, value); }
+            let value = b.reg();
+            b.line(&format!("{value} = ptrtoint ptr {closure} to i64")); value
         };
-        b.store_at(&p, (1 + i) * 8, &w);
+        b.store_at(&pointer, (1 + i) * 8, &word);
     }
-    let w = b.reg();
-    b.line(&format!("{w} = ptrtoint ptr {p} to i64"));
-    b.line(&format!("ret i64 {w}"));
+    let word = b.reg(); b.line(&format!("{word} = ptrtoint ptr {pointer} to i64")); b.line(&format!("ret i64 {word}"));
 }
 
-/// Lower a [`FnDef`] body from [`Core`] into a unit taking `width`
-/// parameters: the definition's arity, or its group's width for a
 /// widened worker (the trailing parameters unused).
 fn core_body(b: &mut Builder, reg: &Registry, f: &FnDef, width: usize) -> Result<()> {
     let mut bound: Vec<LocalId> = (0..f.arity()).map(LocalId).collect();
@@ -6110,6 +6254,7 @@ mod tests {
     fn main_prog(mut fns: Vec<FnDef>, body: Core) -> Program {
         fns.push(thunk("program.main", body));
         Program {
+            total_bodies: crate::total::CheckedGraph::empty(),
             rewrites: Vec::new(),
             fns,
             instances: vec![],
@@ -6119,6 +6264,297 @@ mod tests {
             prims: Vec::new(),
             laws: Vec::new(),
         }
+    }
+
+    #[test]
+    fn object_rejects_process_entries_and_unchecked_representations() {
+        let profile = crate::core::TargetProfile::native();
+        let mut p = main_prog(vec![], n(0));
+        assert!(emit_object_for(&profile, &p).err().unwrap().message.contains("process entry"));
+        p.main = None;
+        p.fns = vec![fndef("Library.unchecked", &["x"], v(0))];
+        assert!(emit_object_for(&profile, &p).err().unwrap().message.contains("checked parameter classes"));
+        p.fns[0].repr.params = vec![Class::Param(0)];
+        assert!(emit_object_for(&profile, &p).err().unwrap().message.contains("checked parameter classes"));
+        p.fns = vec![thunk("Library.value", n(1)), thunk("Library.value.object-closure", n(2))];
+        assert!(emit_object_for(&profile, &p).err().unwrap().message.contains("accessor collides"));
+    }
+
+    #[test]
+    fn object_links_with_one_consumer_layout_table() {
+        std::thread::Builder::new().stack_size(64 * 1024 * 1024).spawn(|| {
+            use crate::interface::{parse_json, JsonValue as J};
+            let profile = crate::core::TargetProfile { rc_debug: true, ..crate::core::TargetProfile::native() };
+            let source = "module Library where\n  data Payload where\n    Payload :: Int -> Payload\n  data Packet where\n    Packet :: Bool -> Payload -> Int -> Packet\n  capture :: Packet -> Unit -> Packet\n  capture x u = x\n  raw :: I64 -> I64\n  raw x = x\n  tagged :: Int -> Int\n  tagged x = x\n  signature Identity a where\n    pick :: a -> a\n  instance IdentityPacket :: Identity Packet where\n    pick x = x\n";
+            let source = format!("{source}  make-vec :: Int -> Vec 1 Int\n  make-vec x = Cons x Nil\n  data Indexed (n :: Nat) a where\n    Indexed :: a -> Indexed n a\n  make-indexed :: Int -> Indexed 1 Int\n  make-indexed x = Indexed x\n");
+            let checked = crate::driver::check_sources(&source, "<object-library>").unwrap();
+            let (mut p, _) = crate::specialize::optimize(&checked, &profile).unwrap();
+            // This fixture has no library dependencies: retain the actual
+            // checked user units rather than shipping the embedded prelude.
+            p.fns.retain(|f| f.id.0.starts_with("Library.") || (f.id.0.starts_with("<builtin>.") && f.ctor.is_some()));
+            p.instances.retain(|i| i.id.0.starts_with("Library."));
+            let p = crate::rc::insert(p, &profile).unwrap();
+            let object = emit_object_for(&profile, &p).unwrap();
+            assert!(!object.ir.contains("define i32 @main("));
+            assert!(!object.ir.contains("@llvm.global_ctors"));
+            assert!(!object.ir.contains("call void @cinch_layouts_register"));
+            assert!(!object.ir.contains("define i64 @__apply("));
+            assert_eq!(emit_object_for(&profile, &p).unwrap().abi, object.abi);
+            let manifest = parse_json(&object.abi).unwrap();
+            let m = manifest.as_object().unwrap();
+            assert_eq!(m["ir_content_hash"].as_str().unwrap(), crate::interface::content_hash(&object.ir));
+            let units = m["units"].as_array().unwrap();
+            let unit = |name: &str| units.iter().find(|u| u.as_object().unwrap()["symbol"].as_str().unwrap() == name).unwrap().as_object().unwrap();
+            assert_eq!(unit("Library.Packet")["params"].to_canonical_string(), "[\"R\",\"O\",\"T\"]");
+            assert_eq!(unit("Library.capture")["params"].to_canonical_string(), "[\"O\",\"R\"]");
+            assert_eq!(unit("Library.raw")["result"].as_str().unwrap(), "R");
+            assert_eq!(unit("Library.tagged")["result"].as_str().unwrap(), "T");
+            let desc = m["constructors"].as_object().unwrap()["Library.Packet"].as_object().unwrap()["descriptor"].as_num().unwrap();
+            let mut words: Vec<u64> = m["layout_words"].as_array().unwrap().iter().map(|w| w.as_num().unwrap()).collect();
+            let packet_entry = words[desc as usize];
+            assert_eq!(packet_entry, block::layout_entry(3, block::scan_slot(scan_code(Class::Obj), 1) | block::scan_slot(scan_code(Class::TObj), 2)));
+            // New consumer-owned layouts follow the entire finalized prefix.
+            // This must include extension words, not merely descriptor rows.
+            let consumer_index = words.len().div_ceil(64) * 64;
+            words.resize(consumer_index, 0);
+            words.push(block::layout_entry(1, block::scan_slot(scan_code(Class::Obj), 0)));
+            let mut consumer = format!("@table = internal constant [{} x i64] [{}]\ndeclare void @cinch_layouts_register(ptr, i64)\ndeclare void @cinch_reclaim_enable()\n", words.len(), words.iter().map(|w| format!("i64 {}", *w as i64)).collect::<Vec<_>>().join(", "));
+            consumer.push_str(APPLY_DEF);
+            consumer.push_str(&format!("define void @install() {{\n call void @cinch_reclaim_enable()\n call void @cinch_layouts_register(ptr @table, i64 {})\n ret void\n}}\n", words.len()));
+            for (alias, name, arity) in [("payload", "Library.Payload", 1), ("packet", "Library.Packet", 3)] {
+                let params = (0..arity).map(|i| format!("i64 %a{i}")).collect::<Vec<_>>().join(", ");
+                consumer.push_str(&format!("declare i64 @\"{name}\"({})\ndefine i64 @{alias}({params}) {{\n %r = call i64 @\"{name}\"({params})\n ret i64 %r\n}}\n", vec!["i64"; arity].join(", ")));
+            }
+            let capture_entry = unit("Library.capture")["closure_entry"].as_str().unwrap();
+            consumer.push_str(&format!("declare i64 @\"{capture_entry}\"()\ndefine i64 @capture_closure() {{\n %r = call i64 @\"{capture_entry}\"()\n ret i64 %r\n}}\n"));
+            consumer.push_str("declare i64 @\"Library.make-vec\"(i64)\ndefine i64 @make_vec(i64 %x) {\n %r = call i64 @\"Library.make-vec\"(i64 %x)\n ret i64 %r\n}\n");
+            consumer.push_str("declare i64 @\"Library.make-indexed\"(i64)\ndefine i64 @make_indexed(i64 %x) {\n %r = call i64 @\"Library.make-indexed\"(i64 %x)\n ret i64 %r\n}\n");
+            let dict = m["dictionaries"].as_object().unwrap().keys().next().unwrap();
+            assert_eq!(m["dictionaries"].as_object().unwrap()[dict].as_object().unwrap()["fields"].to_canonical_string(), "[\"O\"]");
+            consumer.push_str(&format!("declare i64 @\"{dict}.mk\"()\ndefine i64 @dictionary() {{\n %r = call i64 @\"{dict}.mk\"()\n ret i64 %r\n}}\n"));
+            let dir = std::env::temp_dir().join(format!("cinch_object_{}", std::process::id()));
+            std::fs::create_dir_all(&dir).unwrap();
+            std::fs::write(dir.join("library.ll"), &object.ir).unwrap();
+            std::fs::write(dir.join("library.abi.json"), &object.abi).unwrap();
+            std::fs::write(dir.join("consumer.ll"), consumer).unwrap();
+            std::fs::write(dir.join("main.c"), format!(r#"#include <stdint.h>
+extern void install(void), cinch_dup(uint64_t), cinch_drop(uint64_t);
+extern uint64_t payload(uint64_t), packet(uint64_t,uint64_t,uint64_t), capture_closure(void), dictionary(void);
+extern uint64_t make_vec(uint64_t);
+extern uint64_t make_indexed(uint64_t);
+extern uint64_t __apply(uint64_t,uint64_t,uint64_t*), cinch_int_from_decimal(const char*,uint64_t);
+extern void *cinch_alloc_ctor(uint64_t,uint64_t);
+extern int64_t cinch_int_cmp(uint64_t,uint64_t), cinch_exit_check(int64_t);
+int main(void) {{
+  install();
+  uint64_t big = cinch_int_from_decimal("18446744073709551616",20);
+  cinch_dup(big);
+  uint64_t inner = payload(big), value = packet(1,inner,big);
+  if (((uint64_t*)value)[0] != 1) return 1;
+  uint64_t captured = __apply(capture_closure(),1,&value);
+  uint64_t unit = 0, restored = __apply(captured,1,&unit);
+  if (restored != value) return 2;
+  uint64_t d = dictionary(), method = ((uint64_t*)d)[{dict_prefix}];
+  cinch_dup(method); cinch_drop(d);
+  restored = __apply(method,1,&restored);
+  uint64_t *fields = (uint64_t*)restored;
+  if (cinch_int_cmp(((uint64_t*)fields[1])[0],fields[2]) != 0) return 3;
+  uint64_t *own = cinch_alloc_ctor(8,{consumer_index});
+  own[0] = restored;
+  cinch_drop((uint64_t)own);
+  uint64_t vector_big = cinch_int_from_decimal("18446744073709551616",20);
+  cinch_dup(vector_big);
+  uint64_t indexed = make_indexed(vector_big);
+  uint64_t vector = make_vec(vector_big);
+  cinch_drop(vector);
+  cinch_drop(indexed);
+  return cinch_exit_check(0);
+}}
+"#, dict_prefix = block::DICT_PREFIX_WORDS)).unwrap();
+            let clang = std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into());
+            let compile = Command::new(&clang).arg("-c").arg(dir.join("library.ll")).arg("-o").arg(dir.join("library.o")).output().unwrap();
+            assert!(compile.status.success(), "{}", String::from_utf8_lossy(&compile.stderr));
+            let link = Command::new(&clang).arg(dir.join("consumer.ll")).arg(dir.join("main.c")).arg(dir.join("library.o")).arg(runtime_lib()).arg("-o").arg(dir.join("program")).output().unwrap();
+            assert!(link.status.success(), "{}", String::from_utf8_lossy(&link.stderr));
+            let run = Command::new(dir.join("program")).env("CINCH_LEAK_CHECK", "1").env("CINCH_RC_DEBUG", "1").env("CINCH_HEAP_LIMIT", "32M").output().unwrap();
+            assert_eq!(run.status.code(), Some(0), "{}", String::from_utf8_lossy(&run.stderr));
+            assert!(String::from_utf8_lossy(&run.stderr).split_whitespace().any(|w| w == "leaked=0"));
+            // The manifest really is canonical JSON, including u64 words.
+            assert_eq!(manifest.to_canonical_string(), object.abi);
+            assert!(matches!(m["layout_words"], J::Arr(_)));
+        }).unwrap().join().unwrap();
+    }
+
+    #[test]
+    fn object_layout_prefix_preserves_extended_pointer_maps() {
+        let mut layouts = Layouts::default();
+        let map: Vec<Class> = (0..40).map(|i| [Class::Raw, Class::Obj, Class::TObj][i % 3]).collect();
+        layouts.add_type("Wide", &[map.clone()]).unwrap();
+        let desc = layouts.desc("Wide", 0).unwrap();
+        let words = layouts.words().unwrap();
+        assert!(words.len() > layouts.table.len());
+        let ext = words[desc as usize] >> block::LAYOUT_ENTRY_WORDS_BITS;
+        for (i, class) in map.iter().enumerate() {
+            let w = words[ext as usize + i / block::SCAN_EXT_WORDS as usize];
+            assert_eq!((w >> (2 * (i % block::SCAN_EXT_WORDS as usize))) & 3, scan_code(*class));
+        }
+    }
+
+    #[test]
+    fn object_driver_records_checked_interface_closure() {
+        std::thread::Builder::new().stack_size(64 * 1024 * 1024).spawn(|| {
+            use crate::interface::parse_json;
+            let dir = std::env::temp_dir().join(format!("cinch_object_driver_{}", std::process::id()));
+            std::fs::create_dir_all(&dir).unwrap();
+            let input = dir.join("Library.cinch");
+            std::fs::write(&input, "module Library where\n  export library-string\n  library-string :: Unit -> String\n  library-string u = \"boundaries\"\n").unwrap();
+            let out = dir.join("base.o");
+            crate::driver::driver(crate::driver::Mode::EmitObject, &input, Some(&out)).unwrap();
+            let text = std::fs::read_to_string(out.with_extension("abi.json")).unwrap();
+            let manifest = parse_json(&text).unwrap();
+            let m = manifest.as_object().unwrap();
+            let mut ifaces = Vec::new();
+            for row in m["interfaces"].as_array().unwrap() {
+                let row = row.as_object().unwrap();
+                let iface = crate::interface::Iface::from_json(&row["interface"].to_canonical_string()).unwrap();
+                assert_eq!(iface.module, row["module"].as_str().unwrap());
+                assert_eq!(iface.iface_hash(), row["iface_hash"].as_str().unwrap());
+                ifaces.push(iface);
+            }
+            crate::interface::verify_chain(&ifaces).unwrap();
+            crate::interface::check_coherence(&ifaces).unwrap();
+            let library = ifaces.iter().find(|i| i.module == "Library").unwrap();
+            assert_eq!(library.exports.values.len(), 1);
+            assert_eq!(library.exports.values[0].name, "library-string");
+            assert!(ifaces.iter().any(|i| i.module == "Data.String"));
+            assert!(ifaces.iter().all(|i| !i.module.starts_with("Bootstrap.")));
+            assert_eq!(m["object_content_hash"].as_str().unwrap(), crate::interface::content_hash_bytes(&std::fs::read(&out).unwrap()));
+            let ir = std::fs::read_to_string(out.with_extension("ll")).unwrap();
+            assert_eq!(m["ir_content_hash"].as_str().unwrap(), crate::interface::content_hash(&ir));
+            assert!(!ir.contains("@llvm.global_ctors"));
+            assert!(m["constructors"].as_object().unwrap().keys().any(|k| k.contains("StrBuf")));
+            assert_eq!(manifest.to_canonical_string(), text);
+            let string_iface = ifaces.iter().find(|i| i.module == "Data.String").unwrap();
+            assert!(string_iface.exports.types.iter().all(|t| t.ctors.iter().all(|c| c.name != "StrBuf")));
+            let words = m["layout_words"].as_array().unwrap();
+            let mut consumer = format!("@table = internal constant [{} x i64] [{}]\ndeclare void @cinch_layouts_register(ptr, i64)\ndeclare void @cinch_reclaim_enable()\n", words.len(), words.iter().map(|w| format!("i64 {}", w.as_num().unwrap() as i64)).collect::<Vec<_>>().join(", "));
+            consumer.push_str(APPLY_DEF);
+            consumer.push_str(&format!("define void @install() {{\n call void @cinch_reclaim_enable()\n call void @cinch_layouts_register(ptr @table, i64 {})\n ret void\n}}\n", words.len()));
+            consumer.push_str("declare i64 @\"Library.library-string\"(i64)\ndefine i64 @library_string() {\n %r = call i64 @\"Library.library-string\"(i64 0)\n ret i64 %r\n}\n");
+            std::fs::write(dir.join("consumer.ll"), consumer).unwrap();
+            std::fs::write(dir.join("main.c"), r#"#include <stdint.h>
+extern void install(void), cinch_drop(uint64_t);
+extern uint64_t library_string(void), cinch_bytes_len(uint64_t), cinch_bytes_get(uint64_t,uint64_t);
+extern int64_t cinch_exit_check(int64_t);
+int main(void) {
+  install();
+  uint64_t string = library_string(), bytes = ((uint64_t*)string)[0];
+  if (cinch_bytes_len(bytes) != 10 || cinch_bytes_get(bytes,0) != 'b' || cinch_bytes_get(bytes,9) != 's') return 1;
+  cinch_drop(string);
+  return cinch_exit_check(0);
+}
+"#).unwrap();
+            let clang = std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into());
+            let link = Command::new(&clang).arg(dir.join("consumer.ll")).arg(dir.join("main.c")).arg(&out).arg(runtime_lib()).arg("-o").arg(dir.join("program")).output().unwrap();
+            assert!(link.status.success(), "{}", String::from_utf8_lossy(&link.stderr));
+            let run = Command::new(dir.join("program")).env("CINCH_LEAK_CHECK", "1").env("CINCH_RC_DEBUG", "1").env("CINCH_HEAP_LIMIT", "32M").output().unwrap();
+            assert_eq!(run.status.code(), Some(0), "{}", String::from_utf8_lossy(&run.stderr));
+            assert!(String::from_utf8_lossy(&run.stderr).split_whitespace().any(|w| w == "leaked=0"));
+        }).unwrap().join().unwrap();
+    }
+
+    #[test]
+    fn object_explicit_roots_and_method_families_link() {
+        std::thread::Builder::new().stack_size(64 * 1024 * 1024).spawn(|| {
+            use crate::interface::parse_json;
+            use crate::specialize::{parse_object_roots, ObjectRoot};
+            let dir = std::env::temp_dir().join(format!("cinch_object_roots_{}", std::process::id()));
+            std::fs::create_dir_all(&dir).unwrap();
+            let input = dir.join("Library.cinch");
+            std::fs::write(&input, "module Library where\n  export choose, Poly, keep, PolyInt, PolyBool\n  choose :: forall a. a -> Unit -> a\n  choose x u = x\n  signature Poly a where\n    keep :: forall b. a -> b -> Unit -> b\n  instance PolyInt :: Poly Int where\n    keep anchor value unit = value\n  instance PolyBool :: Poly Bool where\n    keep anchor value unit = value\n").unwrap();
+            let roots = parse_object_roots(r#"{"schema":1,"units":[{"symbol":"Library.choose","classes":"T"},{"symbol":"Library.choose","classes":"R"}],"dictionaries":[{"symbol":"Library.PolyInt","classes":""},{"symbol":"Library.PolyBool","classes":""}],"methods":[{"class":"Library.Poly","slot":0,"own":"T"},{"class":"Library.Poly","slot":0,"own":"R"}]}"#).unwrap();
+            let profile = crate::core::TargetProfile { rc_debug: true, ..crate::core::TargetProfile::native() };
+            let opts = crate::driver::DriverOptions { object_roots: roots.clone(), ..Default::default() };
+            let out = dir.join("library.o");
+            crate::driver::driver_with_profile_opts(crate::driver::Mode::EmitObject, crate::driver::StageMode::Refresh, &input, Some(&out), &profile, &opts).unwrap();
+            let manifest = parse_json(&std::fs::read_to_string(out.with_extension("abi.json")).unwrap()).unwrap();
+            let m = manifest.as_object().unwrap();
+            let choose: Vec<_> = m["units"].as_array().unwrap().iter().filter_map(|u| {
+                let name = u.as_object().unwrap()["symbol"].as_str().unwrap();
+                name.starts_with("Library.choose@").then_some(name)
+            }).collect();
+            assert_eq!(choose, ["Library.choose@R", "Library.choose@T"]);
+            let family = m["method_families"].as_array().unwrap().iter().find(|f| f.as_object().unwrap()["class"].as_str().unwrap() == "Library.Poly").unwrap().as_object().unwrap();
+            assert_eq!(family["declared_methods"].as_num().unwrap(), 1);
+            assert_eq!(family["slots"].to_canonical_string(), "[{\"logical\":0,\"own\":\"R\",\"physical\":0},{\"logical\":0,\"own\":\"T\",\"physical\":1}]");
+            let dictionaries = m["dictionaries"].as_object().unwrap();
+            for name in ["Library.PolyInt", "Library.PolyBool"] {
+                let d = dictionaries[name].as_object().unwrap();
+                assert_eq!(d["class"].as_str().unwrap(), "Library.Poly");
+                assert_eq!(d["methods"].as_array().unwrap().len(), 2);
+            }
+            let words = m["layout_words"].as_array().unwrap();
+            let mut consumer = format!("@table = internal constant [{} x i64] [{}]\ndeclare void @cinch_layouts_register(ptr, i64)\ndeclare void @cinch_reclaim_enable()\n", words.len(), words.iter().map(|w| format!("i64 {}", w.as_num().unwrap() as i64)).collect::<Vec<_>>().join(", "));
+            consumer.push_str(APPLY_DEF);
+            consumer.push_str(&format!("define void @install() {{\n call void @cinch_reclaim_enable()\n call void @cinch_layouts_register(ptr @table, i64 {})\n ret void\n}}\n", words.len()));
+            for (alias, symbol) in [("raw_choose", "Library.choose@R"), ("tagged_choose", "Library.choose@T")] {
+                consumer.push_str(&format!("declare i64 @\"{symbol}\"(i64,i64)\ndefine i64 @{alias}(i64 %x) {{\n %r = call i64 @\"{symbol}\"(i64 %x,i64 0)\n ret i64 %r\n}}\n"));
+            }
+            for (alias, symbol) in [("int_dict", "Library.PolyInt"), ("bool_dict", "Library.PolyBool")] {
+                consumer.push_str(&format!("declare i64 @\"{symbol}.mk\"()\ndefine i64 @{alias}() {{\n %r = call i64 @\"{symbol}.mk\"()\n ret i64 %r\n}}\n"));
+            }
+            std::fs::write(dir.join("consumer.ll"), consumer).unwrap();
+            std::fs::write(dir.join("main.c"), format!(r#"#include <stdint.h>
+extern void install(void), cinch_dup(uint64_t), cinch_drop(uint64_t);
+extern uint64_t raw_choose(uint64_t), tagged_choose(uint64_t), int_dict(void), bool_dict(void);
+extern uint64_t __apply(uint64_t,uint64_t,uint64_t*), cinch_int_from_decimal(const char*,uint64_t);
+extern int64_t cinch_int_cmp(uint64_t,uint64_t), cinch_exit_check(int64_t);
+int main(void) {{
+  install();
+  if (raw_choose(19) != 19) return 1;
+  uint64_t big = cinch_int_from_decimal("18446744073709551616",20);
+  cinch_dup(big);
+  uint64_t tagged = tagged_choose(big);
+  if (cinch_int_cmp(big,tagged)) return 2;
+  cinch_drop(tagged);
+  for (int which = 0; which < 2; ++which) {{
+    uint64_t d = which ? bool_dict() : int_dict();
+    uint64_t raw = ((uint64_t*)d)[{prefix}], heap = ((uint64_t*)d)[{next}];
+    cinch_dup(raw); cinch_dup(heap); cinch_drop(d);
+    uint64_t raw_args[] = {{which ? 1 : 3, 23, 0}};
+    if (__apply(raw,3,raw_args) != 23) return 3;
+    cinch_dup(big);
+    uint64_t heap_args[] = {{which ? 1 : 3, big}};
+    uint64_t partial = __apply(heap,2,heap_args), unit = 0;
+    uint64_t result = __apply(partial,1,&unit);
+    if (cinch_int_cmp(result,big)) return 4;
+    cinch_drop(result);
+  }}
+  cinch_drop(big);
+  return cinch_exit_check(0);
+}}
+"#, prefix=block::DICT_PREFIX_WORDS, next=block::DICT_PREFIX_WORDS+1)).unwrap();
+            let clang = std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into());
+            let link = Command::new(&clang).arg(dir.join("consumer.ll")).arg(dir.join("main.c")).arg(&out).arg(runtime_lib()).arg("-o").arg(dir.join("program")).output().unwrap();
+            assert!(link.status.success(), "{}", String::from_utf8_lossy(&link.stderr));
+            let run = Command::new(dir.join("program")).env("CINCH_LEAK_CHECK", "1").env("CINCH_RC_DEBUG", "1").env("CINCH_HEAP_LIMIT", "32M").output().unwrap();
+            assert_eq!(run.status.code(), Some(0), "{}", String::from_utf8_lossy(&run.stderr));
+            assert!(String::from_utf8_lossy(&run.stderr).split_whitespace().any(|w| w == "leaked=0"));
+            let checked = crate::driver::check_sources(&std::fs::read_to_string(&input).unwrap(), "<roots>").unwrap();
+            for root in [ObjectRoot::Unit { symbol: "Missing.unit".into(), classes: vec![] },
+                ObjectRoot::Unit { symbol: "Library.choose".into(), classes: vec![] },
+                ObjectRoot::Unit { symbol: "Library.choose".into(), classes: vec![Class::Param(0)] },
+                ObjectRoot::Method { class: "Library.Poly".into(), slot: 7, own: vec![Class::Raw] }] {
+                assert!(crate::specialize::optimize_object(&checked, &profile, &[root]).is_err());
+            }
+            for invalid in [r#"{"schema":2}"#, r#"{"schema":1,"units":[{"symbol":"x","classes":"P"}]}"#,
+                r#"{"schema":1,"methods":[{"class":"x","slot":0,"own":"R","guess":true}]}"#] {
+                assert!(parse_object_roots(invalid).is_err());
+            }
+            let mut incomplete = checked.clone();
+            incomplete.fns.push(thunk("Library.incomplete", g("Library.choose")));
+            assert!(crate::specialize::optimize_object(&incomplete, &profile, &roots).err().unwrap().message.contains("unrecorded representation"));
+        }).unwrap().join().unwrap();
     }
 
     #[test]

@@ -1,0 +1,1107 @@
+{
+  "date": "2026-11-01",
+  "recorded_at": "2026-11-01T20:55:24.548551+00:00",
+  "status": "work in progress; focused machine checks passed; complete Native-assisted suite still running; self-hosting not achieved",
+  "previous_fully_validated_commit": "cf1f49189fe910db5083ffe9cb8c8e76a1863961",
+  "previous_checkpoint_report": "bootstrap/checkpoint-results.json",
+  "native_seed": {
+    "description": "Pinned Rust seed with schema-7 definition-site nominal, class, Region and closed kernel effect contracts, dictionary slots, dependency-ordered source family overrides, dependency-sensitive pattern field names and conditional instance method proof contracts, integer conversion fixes, definition-owned fixities, guarded heap defaults and serial build/test settings and enforced optimizer residual growth bounds, portable checked numeric preconditions and dependent argument identities, checked structural NonZero precondition exports with actual argument identities, schema-7 defining refinement payloads and literal index contracts, checked anonymous refinements with actual argument/result identities and refined-argument numeric projections, semantic byte-length primitive identity, executable primitive index witnesses and actual signature-telescope observation carrier validation, closed byte-observation signature predicates and private named buffer-refinement contracts, portable checked machine-integer value comparisons with exact defining carrier scopes and opaque machine arithmetic; changed only by an intentional seed update.",
+    "patch": "bootstrap/seed/stage0.patch",
+    "patch_sha256": "655dfb04a042df9cd0aff5abebbbcd23510fb35efc92567e2d9ae8cfb9dedd5d",
+    "revision": "275de4f05b230c010aeb4b10265a04b97fb4eb1c",
+    "runtime_abi": 5,
+    "schema": 1,
+    "source_sha256": "81bb6e364f45201360e11d5b32e2b3f22cd4719a9dcb018551da034416e725e9"
+  },
+  "interface_schema": 7,
+  "focus_source_sha256": "eaa5d0e0e8e52b2ef0e6e9dae8a4cbc7843ee97ceb6fa35226cc2c0541d124f2",
+  "stage_source_sha256": "9d8c0744b1cef256ac9dd36d72afa354ced0fa4398633ee7f160d7ec3ba0d10a",
+  "snapshot_input_count": 573,
+  "publication_matches_frozen_implementation": true,
+  "seed_archive_patch_exact_bytes_verified": true,
+  "focused_gates": [
+    {
+      "name": "machine_value_source",
+      "target": "bootstrap_machine_values",
+      "filter": "source_machine_literals_and_refinements_keep_range_and_carrier",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:39:32.406964+00:00",
+      "finished": "2026-11-01T20:42:46.892613+00:00"
+    },
+    {
+      "name": "machine_value_core",
+      "target": "bootstrap_machine_values",
+      "filter": "type_and_core_recheck_machine_ranges_and_actual_typed_scope",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:42:46.893056+00:00",
+      "finished": "2026-11-01T20:43:38.917983+00:00"
+    },
+    {
+      "name": "native_machine_export",
+      "target": "interface_machine_contracts",
+      "filter": "checked_machine_comparisons_export_but_machine_arithmetic_stays_opaque",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:43:38.918420+00:00",
+      "finished": "2026-11-01T20:43:41.734354+00:00"
+    },
+    {
+      "name": "interface_preconditions",
+      "target": "interface_preconditions",
+      "filter": null,
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:43:41.734754+00:00",
+      "finished": "2026-11-01T20:43:43.842421+00:00"
+    },
+    {
+      "name": "interface_anonymous_contracts",
+      "target": "interface_anonymous_contracts",
+      "filter": null,
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:43:43.842863+00:00",
+      "finished": "2026-11-01T20:43:46.152964+00:00"
+    },
+    {
+      "name": "machine_contract_consumer",
+      "target": "interface_machine_contracts",
+      "filter": "compiled_cinch_consumer_rechecks_conversion_bounds_and_result_carriers",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:43:46.153382+00:00",
+      "finished": "2026-11-01T20:50:49.452958+00:00"
+    },
+    {
+      "name": "bootstrap_imported_nonzero",
+      "target": "bootstrap_imported_nonzero",
+      "filter": null,
+      "status": "running",
+      "started": "2026-11-01T20:50:49.453468+00:00"
+    },
+    {
+      "name": "primitive_length_identity",
+      "target": "primitive_length_identity",
+      "filter": null,
+      "status": "pending"
+    },
+    {
+      "name": "bootstrap_typed_indices",
+      "target": "bootstrap_typed_indices",
+      "filter": null,
+      "status": "pending"
+    },
+    {
+      "name": "bootstrap_source_refinements",
+      "target": "bootstrap_source_refinements",
+      "filter": null,
+      "status": "pending"
+    },
+    {
+      "name": "bootstrap_refinement_core",
+      "target": "bootstrap_refinement_core",
+      "filter": null,
+      "status": "pending"
+    },
+    {
+      "name": "bootstrap_core",
+      "target": "bootstrap_core",
+      "filter": null,
+      "status": "pending"
+    },
+    {
+      "name": "bootstrap_byte_observations",
+      "target": "bootstrap_byte_observations",
+      "filter": null,
+      "status": "pending"
+    },
+    {
+      "name": "interface_byte_observations",
+      "target": "interface_byte_observations",
+      "filter": null,
+      "status": "pending"
+    }
+  ],
+  "complete_matrix": {
+    "plan": {
+      "filtered_full_target_coverage": {
+        "bootstrap_machine_values": [
+          "source_machine_literals_and_refinements_keep_range_and_carrier",
+          "type_and_core_recheck_machine_ranges_and_actual_typed_scope"
+        ],
+        "interface_machine_contracts": [
+          "checked_machine_comparisons_export_but_machine_arithmetic_stays_opaque",
+          "compiled_cinch_consumer_rechecks_conversion_bounds_and_result_carriers"
+        ]
+      },
+      "focused_exact_snapshot_targets": [
+        "bootstrap_byte_observations",
+        "bootstrap_core",
+        "bootstrap_imported_nonzero",
+        "bootstrap_machine_values",
+        "bootstrap_refinement_core",
+        "bootstrap_source_refinements",
+        "bootstrap_typed_indices",
+        "interface_anonymous_contracts",
+        "interface_byte_observations",
+        "interface_machine_contracts",
+        "interface_preconditions",
+        "primitive_length_identity"
+      ],
+      "fresh_matrix_gates": 153,
+      "integration_targets": 160,
+      "self_built_frontend": false,
+      "slot_policy": "all matrix/focus jobs share four global slots; fifth reserved only for one explicit staged build",
+      "source_sha256": "eaa5d0e0e8e52b2ef0e6e9dae8a4cbc7843ee97ceb6fa35226cc2c0541d124f2",
+      "workers": 4
+    },
+    "status": "superseded: obsolete guarded-arithmetic expectation failed; see validation_update for correction and resumed run",
+    "counts_at_recording": {
+      "passed": 10,
+      "waiting-shared-slot": 1,
+      "running": 3,
+      "pending": 139
+    },
+    "rows_at_recording": [
+      {
+        "name": "bootstrap_source_paths",
+        "status": "passed",
+        "exit_code": 0,
+        "started": "2026-11-01T20:47:16.144942+00:00",
+        "finished": "2026-11-01T20:47:17.822045+00:00"
+      },
+      {
+        "name": "bootstrap_check",
+        "status": "passed",
+        "exit_code": 0,
+        "started": "2026-11-01T20:47:16.146162+00:00",
+        "finished": "2026-11-01T20:49:40.790413+00:00"
+      },
+      {
+        "name": "bootstrap_pipeline",
+        "status": "passed",
+        "exit_code": 0,
+        "started": "2026-11-01T20:47:16.148753+00:00",
+        "finished": "2026-11-01T20:54:04.240405+00:00"
+      },
+      {
+        "name": "bootstrap_ladder",
+        "status": "waiting-shared-slot"
+      },
+      {
+        "name": "bootstrap_resolve",
+        "status": "passed",
+        "exit_code": 0,
+        "started": "2026-11-01T20:47:17.824655+00:00",
+        "finished": "2026-11-01T20:50:58.111007+00:00"
+      },
+      {
+        "name": "bootstrap_effects",
+        "status": "passed",
+        "exit_code": 0,
+        "started": "2026-11-01T20:49:40.794539+00:00",
+        "finished": "2026-11-01T20:52:09.975194+00:00"
+      },
+      {
+        "name": "bootstrap_function_preconditions",
+        "status": "passed",
+        "exit_code": 0,
+        "started": "2026-11-01T20:50:58.114579+00:00",
+        "finished": "2026-11-01T20:53:04.196140+00:00"
+      },
+      {
+        "name": "bootstrap_abstract_nonzero_methods",
+        "status": "running",
+        "started": "2026-11-01T20:52:09.986035+00:00"
+      },
+      {
+        "name": "alloc_accounting",
+        "status": "passed",
+        "exit_code": 0,
+        "started": "2026-11-01T20:53:04.198922+00:00",
+        "finished": "2026-11-01T20:53:56.415326+00:00"
+      },
+      {
+        "name": "argv",
+        "status": "passed",
+        "exit_code": 0,
+        "started": "2026-11-01T20:53:56.418423+00:00",
+        "finished": "2026-11-01T20:54:13.817140+00:00"
+      },
+      {
+        "name": "attributes",
+        "status": "passed",
+        "exit_code": 0,
+        "started": "2026-11-01T20:54:04.242783+00:00",
+        "finished": "2026-11-01T20:55:08.574376+00:00"
+      },
+      {
+        "name": "bootstrap_abstract_nonzero_types",
+        "status": "passed",
+        "exit_code": 0,
+        "started": "2026-11-01T20:54:13.820915+00:00",
+        "finished": "2026-11-01T20:55:07.522181+00:00"
+      },
+      {
+        "name": "bootstrap_anonymous_contracts",
+        "status": "running",
+        "started": "2026-11-01T20:55:07.525436+00:00"
+      },
+      {
+        "name": "bootstrap_buffer_aliases",
+        "status": "running",
+        "started": "2026-11-01T20:55:08.576979+00:00"
+      },
+      {
+        "name": "bootstrap_contract",
+        "status": "pending"
+      },
+      {
+        "name": "bootstrap_driver",
+        "status": "pending"
+      },
+      {
+        "name": "bootstrap_effect_types",
+        "status": "pending"
+      },
+      {
+        "name": "bootstrap_eval",
+        "status": "pending"
+      },
+      {
+        "name": "bootstrap_guarded_arithmetic",
+        "status": "pending"
+      },
+      {
+        "name": "bootstrap_imported_preconditions",
+        "status": "pending"
+      },
+      {
+        "name": "bootstrap_indices",
+        "status": "pending"
+      },
+      {
+        "name": "bootstrap_infer",
+        "status": "pending"
+      },
+      {
+        "name": "bootstrap_instance_resolution",
+        "status": "pending"
+      },
+      {
+        "name": "bootstrap_interface",
+        "status": "pending"
+      },
+      {
+        "name": "bootstrap_intrinsics",
+        "status": "pending"
+      },
+      {
+        "name": "bootstrap_ir",
+        "status": "pending"
+      },
+      {
+        "name": "bootstrap_lexer",
+        "status": "pending"
+      },
+      {
+        "name": "bootstrap_load",
+        "status": "pending"
+      },
+      {
+        "name": "bootstrap_manifest",
+        "status": "pending"
+      },
+      {
+        "name": "bootstrap_module_scopes",
+        "status": "pending"
+      },
+      {
+        "name": "bootstrap_named_refinements",
+        "status": "pending"
+      },
+      {
+        "name": "bootstrap_nominals",
+        "status": "pending"
+      },
+      {
+        "name": "bootstrap_nonzero_source",
+        "status": "pending"
+      },
+      {
+        "name": "bootstrap_nonzero_types",
+        "status": "pending"
+      },
+      {
+        "name": "bootstrap_parse",
+        "status": "pending"
+      },
+      {
+        "name": "bootstrap_pi",
+        "status": "pending"
+      },
+      {
+        "name": "bootstrap_proof",
+        "status": "pending"
+      },
+      {
+        "name": "bootstrap_proposition_types",
+        "status": "pending"
+      },
+      {
+        "name": "bootstrap_refinement_closure",
+        "status": "pending"
+      },
+      {
+        "name": "bootstrap_refinement_types",
+        "status": "pending"
+      },
+      {
+        "name": "bootstrap_source_pi",
+        "status": "pending"
+      },
+      {
+        "name": "bootstrap_test_runner",
+        "status": "pending"
+      },
+      {
+        "name": "bootstrap_type_syntax",
+        "status": "pending"
+      },
+      {
+        "name": "bootstrap_value_indices",
+        "status": "pending"
+      },
+      {
+        "name": "bootstrap_value_kinds",
+        "status": "pending"
+      },
+      {
+        "name": "canonical_artifacts",
+        "status": "pending"
+      },
+      {
+        "name": "case_evidence",
+        "status": "pending"
+      },
+      {
+        "name": "class_defaults",
+        "status": "pending"
+      },
+      {
+        "name": "codata",
+        "status": "pending"
+      },
+      {
+        "name": "concurrency",
+        "status": "pending"
+      },
+      {
+        "name": "dependent",
+        "status": "pending"
+      },
+      {
+        "name": "effects",
+        "status": "pending"
+      },
+      {
+        "name": "evidence_invalidation",
+        "status": "pending"
+      },
+      {
+        "name": "evolution",
+        "status": "pending"
+      },
+      {
+        "name": "exhaustion",
+        "status": "pending"
+      },
+      {
+        "name": "ffi",
+        "status": "pending"
+      },
+      {
+        "name": "fixity_interfaces",
+        "status": "pending"
+      },
+      {
+        "name": "guard_coverage",
+        "status": "pending"
+      },
+      {
+        "name": "hk",
+        "status": "pending"
+      },
+      {
+        "name": "incremental",
+        "status": "pending"
+      },
+      {
+        "name": "integration",
+        "status": "pending"
+      },
+      {
+        "name": "interface_class_contracts",
+        "status": "pending"
+      },
+      {
+        "name": "interface_kinds",
+        "status": "pending"
+      },
+      {
+        "name": "interface_nominals",
+        "status": "pending"
+      },
+      {
+        "name": "interface_prelude_overrides",
+        "status": "pending"
+      },
+      {
+        "name": "interface_refinement_closure",
+        "status": "pending"
+      },
+      {
+        "name": "interface_refinements",
+        "status": "pending"
+      },
+      {
+        "name": "interface_region_effects",
+        "status": "pending"
+      },
+      {
+        "name": "json",
+        "status": "pending"
+      },
+      {
+        "name": "lattice",
+        "status": "pending"
+      },
+      {
+        "name": "laws",
+        "status": "pending"
+      },
+      {
+        "name": "letrec",
+        "status": "pending"
+      },
+      {
+        "name": "lib_algebra",
+        "status": "pending"
+      },
+      {
+        "name": "lib_base64",
+        "status": "pending"
+      },
+      {
+        "name": "lib_benchmark",
+        "status": "pending"
+      },
+      {
+        "name": "lib_bigdecimal",
+        "status": "pending"
+      },
+      {
+        "name": "lib_builder",
+        "status": "pending"
+      },
+      {
+        "name": "lib_category",
+        "status": "pending"
+      },
+      {
+        "name": "lib_char_tuple",
+        "status": "pending"
+      },
+      {
+        "name": "lib_civil_time",
+        "status": "pending"
+      },
+      {
+        "name": "lib_complex",
+        "status": "pending"
+      },
+      {
+        "name": "lib_coverage",
+        "status": "pending"
+      },
+      {
+        "name": "lib_csv",
+        "status": "pending"
+      },
+      {
+        "name": "lib_digest",
+        "status": "pending"
+      },
+      {
+        "name": "lib_file_utils",
+        "status": "pending"
+      },
+      {
+        "name": "lib_find",
+        "status": "pending"
+      },
+      {
+        "name": "lib_foldable",
+        "status": "pending"
+      },
+      {
+        "name": "lib_function_ord",
+        "status": "pending"
+      },
+      {
+        "name": "lib_hash_keys",
+        "status": "pending"
+      },
+      {
+        "name": "lib_hashmap_real",
+        "status": "pending"
+      },
+      {
+        "name": "lib_http",
+        "status": "pending"
+      },
+      {
+        "name": "lib_list",
+        "status": "pending"
+      },
+      {
+        "name": "lib_map_set_ops",
+        "status": "pending"
+      },
+      {
+        "name": "lib_matrix",
+        "status": "pending"
+      },
+      {
+        "name": "lib_option_parser",
+        "status": "pending"
+      },
+      {
+        "name": "lib_option_result",
+        "status": "pending"
+      },
+      {
+        "name": "lib_pty",
+        "status": "pending"
+      },
+      {
+        "name": "lib_random",
+        "status": "pending"
+      },
+      {
+        "name": "lib_rational",
+        "status": "pending"
+      },
+      {
+        "name": "lib_resolv",
+        "status": "pending"
+      },
+      {
+        "name": "lib_shellwords",
+        "status": "pending"
+      },
+      {
+        "name": "lib_signal",
+        "status": "pending"
+      },
+      {
+        "name": "lib_string_io",
+        "status": "pending"
+      },
+      {
+        "name": "lib_test_runner",
+        "status": "pending"
+      },
+      {
+        "name": "lib_text_ops",
+        "status": "pending"
+      },
+      {
+        "name": "lib_toml",
+        "status": "pending"
+      },
+      {
+        "name": "lib_uri_ipaddr",
+        "status": "pending"
+      },
+      {
+        "name": "lib_yaml",
+        "status": "pending"
+      },
+      {
+        "name": "lib_zlib",
+        "status": "pending"
+      },
+      {
+        "name": "linear_facts",
+        "status": "pending"
+      },
+      {
+        "name": "llvm_contract",
+        "status": "pending"
+      },
+      {
+        "name": "lsp",
+        "status": "pending"
+      },
+      {
+        "name": "modules",
+        "status": "pending"
+      },
+      {
+        "name": "observability",
+        "status": "pending"
+      },
+      {
+        "name": "optimizer",
+        "status": "pending"
+      },
+      {
+        "name": "order_independence",
+        "status": "pending"
+      },
+      {
+        "name": "ownership",
+        "status": "pending"
+      },
+      {
+        "name": "package_manifest",
+        "status": "pending"
+      },
+      {
+        "name": "package_store",
+        "status": "pending"
+      },
+      {
+        "name": "params",
+        "status": "pending"
+      },
+      {
+        "name": "parsers",
+        "status": "pending"
+      },
+      {
+        "name": "pattern_field_names",
+        "status": "pending"
+      },
+      {
+        "name": "platform",
+        "status": "pending"
+      },
+      {
+        "name": "prelude_lib",
+        "status": "pending"
+      },
+      {
+        "name": "prelude_split",
+        "status": "pending"
+      },
+      {
+        "name": "prim",
+        "status": "pending"
+      },
+      {
+        "name": "primitives",
+        "status": "pending"
+      },
+      {
+        "name": "range_facts",
+        "status": "pending"
+      },
+      {
+        "name": "reclamation",
+        "status": "pending"
+      },
+      {
+        "name": "reclamation_tasks",
+        "status": "pending"
+      },
+      {
+        "name": "refinements",
+        "status": "pending"
+      },
+      {
+        "name": "regex",
+        "status": "pending"
+      },
+      {
+        "name": "repl",
+        "status": "pending"
+      },
+      {
+        "name": "repr_classes",
+        "status": "pending"
+      },
+      {
+        "name": "runtime_net_prims",
+        "status": "pending"
+      },
+      {
+        "name": "runtime_prims",
+        "status": "pending"
+      },
+      {
+        "name": "safe_bytes",
+        "status": "pending"
+      },
+      {
+        "name": "safe_division",
+        "status": "pending"
+      },
+      {
+        "name": "safe_subtraction",
+        "status": "pending"
+      },
+      {
+        "name": "safety",
+        "status": "pending"
+      },
+      {
+        "name": "small_nats",
+        "status": "pending"
+      },
+      {
+        "name": "staging",
+        "status": "pending"
+      },
+      {
+        "name": "string_literals",
+        "status": "pending"
+      },
+      {
+        "name": "surface",
+        "status": "pending"
+      },
+      {
+        "name": "sym",
+        "status": "pending"
+      },
+      {
+        "name": "tail_calls",
+        "status": "pending"
+      },
+      {
+        "name": "temporal",
+        "status": "pending"
+      },
+      {
+        "name": "wasm",
+        "status": "pending"
+      },
+      {
+        "name": "compiler-units",
+        "status": "pending"
+      },
+      {
+        "name": "compiler-bin",
+        "status": "pending"
+      },
+      {
+        "name": "compiler-docs",
+        "status": "pending"
+      },
+      {
+        "name": "runtime",
+        "status": "pending"
+      },
+      {
+        "name": "tooling",
+        "status": "pending"
+      }
+    ]
+  },
+  "stage_smokes": [
+    {
+      "name": "stage0-smoke",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:47:55.245188+00:00",
+      "finished": "2026-11-01T20:49:13.591860+00:00"
+    },
+    {
+      "name": "stage1-smoke",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:49:13.592537+00:00",
+      "finished": "2026-11-01T20:52:06.293945+00:00"
+    }
+  ],
+  "actual_stage2_boundary": {
+    "bundle_sha256": "8500b23e4fd519777f47c2f61c82c39ef290e0206df8f87aa622eacb20e1a46d",
+    "categories": {
+      "builtin constructor needs proposition instantiation and erasure checking: b.No": 1,
+      "builtin constructor needs proposition instantiation and erasure checking: b.Yes": 1,
+      "builtin syntax needs dependent predicate elaboration: b.decide": 1,
+      "effect declarations are not supported in this rung": 1,
+      "imported using context needs a defining signature contract": 1,
+      "instance declarations are not supported in this rung": 1
+    },
+    "diagnostics": 6,
+    "executable_exists": false,
+    "ir_exists": false,
+    "origins": {
+      "imported-or-synthetic": 4,
+      "source": 2
+    },
+    "snapshot_sha256": "9d8c0744b1cef256ac9dd36d72afa354ced0fa4398633ee7f160d7ec3ba0d10a",
+    "stage2_exit_code": 4,
+    "stage2_status": "failed"
+  },
+  "all_tests_passed": false,
+  "self_built_frontend_suite": false,
+  "root_working_checkout_remains_prior_byte_checkpoint": true,
+  "limitations": [
+    "Stage2 fails before body checking and produces no IR or compiler executable.",
+    "Independent global typing kernel and typed shared-runtime lowering remain required.",
+    "Stage2/3 fixed point, changed-source checks and full suite through self-built frontend remain unproven."
+  ],
+  "resources": "maximum five heavy jobs; four shared slots plus one staged-build lane; Cargo jobs 1 and test threads 1",
+  "validation_update": {
+    "recorded_at": "2026-11-01T21:09:54.757848+00:00",
+    "status": "prior full matrix found an obsolete machine-comparison refusal expectation; corrected runner passed, remaining matrix running",
+    "source_sha256": "1cd10f728dc82864948ac6d8eb852e186928d16efbc88d9dd15f569e6b023e05",
+    "changed_input": "bootstrap/programs/Run.GuardedArithmetic.cinch",
+    "guarded_runner_cases": 26,
+    "guarded_result": [
+      {
+        "command": [
+          "cargo",
+          "test",
+          "--target-dir",
+          "/tmp/cinch-machine-guarded-validation-19/cargo/compiler",
+          "--test",
+          "bootstrap_guarded_arithmetic",
+          "--",
+          "--include-ignored",
+          "--nocapture",
+          "--test-threads=1"
+        ],
+        "exit_code": 0,
+        "finished": "2026-11-01T21:07:50.778477+00:00",
+        "name": "bootstrap_guarded_arithmetic",
+        "pid": 60128,
+        "started": "2026-11-01T21:04:54.941733+00:00",
+        "status": "passed"
+      }
+    ],
+    "prior_matrix_failure": "bootstrap_guarded_arithmetic invariant expected all I64 comparisons to remain opaque",
+    "replacement_invariants": "checked machine-value comparison accepted; machine subtraction certificates and wrapping-arithmetic facts refused",
+    "resumed_matrix_plan": {
+      "focused_targets": [
+        "bootstrap_byte_observations",
+        "bootstrap_core",
+        "bootstrap_guarded_arithmetic",
+        "bootstrap_imported_nonzero",
+        "bootstrap_machine_values",
+        "bootstrap_refinement_core",
+        "bootstrap_source_refinements",
+        "bootstrap_typed_indices",
+        "interface_anonymous_contracts",
+        "interface_byte_observations",
+        "interface_machine_contracts",
+        "interface_preconditions",
+        "primitive_length_identity"
+      ],
+      "fresh_matrix_gates": 133,
+      "general_gates": 5,
+      "integration_targets": 160,
+      "reused_or_inflight_whole_targets": [
+        "alloc_accounting",
+        "argv",
+        "attributes",
+        "bootstrap_abstract_nonzero_methods",
+        "bootstrap_abstract_nonzero_types",
+        "bootstrap_anonymous_contracts",
+        "bootstrap_buffer_aliases",
+        "bootstrap_check",
+        "bootstrap_contract",
+        "bootstrap_driver",
+        "bootstrap_effect_types",
+        "bootstrap_effects",
+        "bootstrap_eval",
+        "bootstrap_function_preconditions",
+        "bootstrap_imported_preconditions",
+        "bootstrap_ladder",
+        "bootstrap_pipeline",
+        "bootstrap_resolve",
+        "bootstrap_source_paths"
+      ],
+      "self_built_frontend": false,
+      "slots": "four shared slots; source effects has the sole outside fifth lane",
+      "source_sha256": "1cd10f728dc82864948ac6d8eb852e186928d16efbc88d9dd15f569e6b023e05",
+      "workers": 4
+    },
+    "counts_at_recording": {
+      "passed": 1,
+      "running": 2,
+      "waiting-shared-slot": 2,
+      "pending": 128
+    },
+    "reuse_audit": {
+      "all_native_bootstrap_implementation_prelude_runtime_harness_and_other_fixtures_unchanged": true,
+      "changed_inputs": [
+        "bootstrap/programs/Run.GuardedArithmetic.cinch"
+      ],
+      "filtered_target_coverage": {
+        "source_sha256": "eaa5d0e0e8e52b2ef0e6e9dae8a4cbc7843ee97ceb6fa35226cc2c0541d124f2",
+        "status": "listed exact full target functions",
+        "targets": {
+          "bootstrap_machine_values": [
+            "source_machine_literals_and_refinements_keep_range_and_carrier",
+            "type_and_core_recheck_machine_ranges_and_actual_typed_scope"
+          ],
+          "interface_machine_contracts": [
+            "checked_machine_comparisons_export_but_machine_arithmetic_stays_opaque",
+            "compiled_cinch_consumer_rechecks_conversion_bounds_and_result_carriers"
+          ]
+        }
+      },
+      "focused_results": [
+        "/tmp/cinch-machine-contract-validation-18/results.json",
+        "/tmp/cinch-machine-guarded-validation-19/results.json"
+      ],
+      "from_source_sha256": "eaa5d0e0e8e52b2ef0e6e9dae8a4cbc7843ee97ceb6fa35226cc2c0541d124f2",
+      "old_results": "/tmp/cinch-machine-contract-validation-18/complete-matrix/results.json",
+      "previous_full_run_status": "failed obsolete machine-comparison refusal; not a full pass",
+      "status": "source inputs audited; only the guarded-arithmetic runner changed",
+      "to_source_sha256": "1cd10f728dc82864948ac6d8eb852e186928d16efbc88d9dd15f569e6b023e05",
+      "whole_targets": [
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T20:47:17.822045+00:00",
+          "name": "bootstrap_source_paths",
+          "started": "2026-11-01T20:47:16.144942+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T20:49:40.790413+00:00",
+          "name": "bootstrap_check",
+          "started": "2026-11-01T20:47:16.146162+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T20:54:04.240405+00:00",
+          "name": "bootstrap_pipeline",
+          "started": "2026-11-01T20:47:16.148753+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T21:04:57.794853+00:00",
+          "name": "bootstrap_ladder",
+          "started": "2026-11-01T21:01:45.551036+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T20:50:58.111007+00:00",
+          "name": "bootstrap_resolve",
+          "started": "2026-11-01T20:47:17.824655+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T20:52:09.975194+00:00",
+          "name": "bootstrap_effects",
+          "started": "2026-11-01T20:49:40.794539+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T20:53:04.196140+00:00",
+          "name": "bootstrap_function_preconditions",
+          "started": "2026-11-01T20:50:58.114579+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T21:01:15.699751+00:00",
+          "name": "bootstrap_abstract_nonzero_methods",
+          "started": "2026-11-01T20:52:09.986035+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T20:53:56.415326+00:00",
+          "name": "alloc_accounting",
+          "started": "2026-11-01T20:53:04.198922+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T20:54:13.817140+00:00",
+          "name": "argv",
+          "started": "2026-11-01T20:53:56.418423+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T20:55:08.574376+00:00",
+          "name": "attributes",
+          "started": "2026-11-01T20:54:04.242783+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T20:55:07.522181+00:00",
+          "name": "bootstrap_abstract_nonzero_types",
+          "started": "2026-11-01T20:54:13.820915+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T21:04:21.181781+00:00",
+          "name": "bootstrap_anonymous_contracts",
+          "started": "2026-11-01T20:55:07.525436+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T20:58:11.791546+00:00",
+          "name": "bootstrap_buffer_aliases",
+          "started": "2026-11-01T20:55:08.576979+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T20:58:17.700013+00:00",
+          "name": "bootstrap_contract",
+          "started": "2026-11-01T20:58:11.794032+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T20:58:27.725108+00:00",
+          "name": "bootstrap_driver",
+          "started": "2026-11-01T20:58:17.703274+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T20:59:23.433644+00:00",
+          "name": "bootstrap_effect_types",
+          "started": "2026-11-01T20:58:27.728567+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T20:59:40.314178+00:00",
+          "name": "bootstrap_eval",
+          "started": "2026-11-01T20:59:23.436103+00:00",
+          "status": "passed"
+        },
+        {
+          "name": "bootstrap_imported_preconditions",
+          "started": "2026-11-01T21:01:15.702399+00:00",
+          "status": "running"
+        }
+      ]
+    },
+    "all_tests_passed": false,
+    "source_effect_work": "separate unpublished candidate, not included in this checkpoint"
+  }
+}

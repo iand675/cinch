@@ -1,0 +1,153 @@
+-- Checked association between one actual global declaration and a total body.
+-- The final global environment supplies these declarations; term annotations
+-- cannot replace them. No source names or private callees are introduced here.
+module Bootstrap.BodyContract where
+  import Bootstrap.Type
+  import Bootstrap.Index
+  import Bootstrap.Total
+  import Bootstrap.Proof
+  import Text.Lex (Span)
+  import Algebra.Semigroup
+
+  export BodyBinding, check-body-binding, binding-name, binding-native, binding-role
+  export binding-scheme, binding-function, binding-equal, binding-matches
+  export body-bindings-closed, body-binding, body-function, body-type-authorized, body-kind-authorized, body-scheme-authorized
+
+  data BodyBinding where
+    VerifiedBody :: String -> String -> String -> Scheme -> TotalFunction -> BodyBinding
+  same :: String -> String -> Bool
+  same a b = string-compare a b == 0
+  equal-type :: UType -> UType -> Bool
+  equal-type a b = valid-type a && valid-type b && (case store-errors (unify (Span 0 0 1 1) (without-index-levels a) (without-index-levels b) (empty-store "body declaration")) of Nil -> True; other -> False)
+  binding-name :: BodyBinding -> String
+  binding-name binding = case binding of VerifiedBody name native role sc function -> name
+  binding-native :: BodyBinding -> String
+  binding-native binding = case binding of VerifiedBody name native role sc function -> native
+  binding-role :: BodyBinding -> String
+  binding-role binding = case binding of VerifiedBody name native role sc function -> role
+  binding-scheme :: BodyBinding -> Scheme
+  binding-scheme binding = case binding of VerifiedBody name native role sc function -> sc
+  binding-function :: BodyBinding -> TotalFunction
+  binding-function binding = case binding of VerifiedBody name native role sc function -> function
+  binding-matches :: String -> String -> Scheme -> BodyBinding -> Bool
+  binding-matches name role sc binding = same name (binding-name binding) && same role (binding-role binding)
+    && (case (scheme-params sc, scheme-requirements sc) of (Nil, Nil) -> equal-type (scheme-body sc) (scheme-body (binding-scheme binding)); other -> False)
+  binding-equal :: BodyBinding -> BodyBinding -> Bool
+  binding-equal first second = binding-matches (binding-name first) (binding-role first) (binding-scheme first) second
+    && same (binding-native first) (binding-native second) && total-function-equal (binding-function first) (binding-function second)
+  sort-type :: String -> UType -> Bool
+  sort-type sort ty = case ty of UCon name KType -> same name sort; other -> False
+  numeric :: UType -> Bool
+  numeric carrier = sort-type "Nat" carrier || sort-type "Int" carrier || sort-type "I64" carrier
+  comparison :: String -> Option Comparison
+  comparison name = if same name "<" then Some Less else if same name "<=" then Some AtMost else if same name "==" then Some Equal
+    else if same name "/=" then Some Unequal else if same name ">=" then Some AtLeast else if same name ">" then Some Greater else None
+  result-variable :: Arithmetic
+  result-variable = AVariable "#checked-body-result"
+  result-index :: Nat -> UType -> UType -> Option Arithmetic
+  result-index id carrier term = if not (valid-type term && typed-index-admissible term) then None else case term of
+    UIndex actual (IBound key name) -> if id == key && equal-type actual carrier then Some result-variable else None
+    UIndex actual (IInteger n) -> if numeric actual && integer-literal-valid actual n then Some (AInteger n) else None
+    UIndexPromote value -> result-index id carrier value
+    UIndexMath operation a b -> (case (result-index id carrier a, result-index id carrier b) of
+      (Some first, Some second) -> if same operation "+" then Some (APlus first second) else if same operation "-" then Some (AMinus first second) else if same operation "*" then Some (ATimes first second) else None
+      other -> None)
+    other -> None
+  result-predicate :: Nat -> UType -> UType -> Option Proposition
+  result-predicate id carrier predicate = if not (valid-type predicate && kind-equal (type-kind predicate) KProp) then None else case predicate of
+    UPropLit value -> Some (if value then PTruth else PFalsehood)
+    UCompare relation a b -> (case (comparison relation, result-index id carrier a, result-index id carrier b) of (Some op, Some first, Some second) -> Some (PCompare op first second); other -> None)
+    UPropAnd a b -> (case (result-predicate id carrier a, result-predicate id carrier b) of (Some first, Some second) -> Some (PBoth first second); other -> None)
+    UPropOr a b -> (case (result-predicate id carrier a, result-predicate id carrier b) of (Some first, Some second) -> Some (PEither first second); other -> None)
+    UPropNot body -> (case result-predicate id carrier body of Some p -> Some (PNegate p); None -> None)
+    UPropNonZero value -> (case result-index id carrier value of Some n -> Some (PCompare Unequal n (AInteger 0)); None -> None)
+    other -> None
+  result-facts :: TotalFunction -> List Proposition
+  result-facts function =
+    (if same (total-result function) "Nat" then [PCompare AtLeast result-variable (AInteger 0)]
+     else if same (total-result function) "I64" then [PCompare AtLeast result-variable (AInteger (-9223372036854775808)), PCompare AtMost result-variable (AInteger 9223372036854775807)] else Nil)
+    <> (case total-bounds function of Some (low, high) -> [PCompare AtLeast result-variable (AInteger low), PCompare AtMost result-variable (AInteger high)]; None -> Nil)
+  result-valid :: TotalFunction -> UType -> Bool
+  result-valid function result = if not (valid-type result) then False else case result of
+    UCon name KType -> same name (total-result function)
+    URefine id name carrier predicate -> sort-type (total-result function) carrier && numeric carrier
+      && (case result-predicate id carrier predicate of Some goal -> (case prove (result-facts function) goal of Some evidence -> check-proof (result-facts function) goal evidence; None -> False); None -> False)
+    other -> False
+  signature-valid :: TotalFunction -> List String -> UType -> Bool
+  signature-valid function parameters ty = case (parameters, ty) of
+    (Cons expected rest, UFun domain result) -> sort-type expected domain && signature-valid function rest result
+    (Cons expected rest, UFunEff domain (URow UEnd) result) -> sort-type expected domain && signature-valid function rest result
+    (Nil, result) -> result-valid function result
+    other -> False
+  -- Source definitions and intrinsic/method tags need their own body/ABI
+  -- reconstruction. This admission is for checked imported value records.
+  check-body-binding :: String -> String -> String -> Scheme -> TotalFunction -> Option BodyBinding
+  check-body-binding name native role sc function =
+    if string-length name == 0 || not (same native (total-identity function))
+      || not (same role "external") then None
+    else case (scheme-params sc, scheme-requirements sc) of
+      (Nil, Nil) -> if signature-valid function (total-parameters function) (scheme-body sc) then Some (VerifiedBody name native role sc function) else None
+      other -> None
+  body-binding :: String -> List BodyBinding -> Option BodyBinding
+  body-binding name bindings = case bindings of Nil -> None; Cons first rest -> if same name (binding-name first) then Some first else body-binding name rest
+  body-function :: TotalFunction -> List BodyBinding -> Option BodyBinding
+  body-function function bindings = case bindings of Nil -> None; Cons first rest -> if total-function-equal function (binding-function first) then Some first else body-function function rest
+  compatible :: BodyBinding -> List BodyBinding -> Bool
+  compatible binding bindings = case bindings of
+    Nil -> True
+    Cons first rest -> not (same (binding-name first) (binding-name binding))
+      && total-functions-compatible (binding-function first) (binding-function binding)
+      && (not (same (binding-native first) (binding-native binding)) || total-function-equal (binding-function first) (binding-function binding))
+      && compatible binding rest
+  body-bindings-closed :: List BodyBinding -> Bool
+  body-bindings-closed bindings = case bindings of Nil -> True; Cons first rest -> compatible first rest && body-bindings-closed rest
+
+  -- Carrier trees may contain calls too. Every claim is compared with the
+  -- actual context's function, not merely a body graph supplied by the type.
+  body-kind-authorized :: List BodyBinding -> Kind -> Bool
+  body-kind-authorized bindings kind = case kind of
+    KValue payload -> (case value-carrier kind of Some carrier -> body-type-authorized bindings carrier; None -> False)
+    KFun a b -> body-kind-authorized bindings a && body-kind-authorized bindings b
+    other -> True
+  body-type-authorized :: List BodyBinding -> UType -> Bool
+  body-type-authorized bindings ty = case ty of
+    UIndexCall function args -> (case body-function function bindings of Some binding -> True; None -> False) && body-type-authorized bindings args
+    UCon name kind -> body-kind-authorized bindings kind
+    UBound id name kind -> body-kind-authorized bindings kind
+    URigid id name level kind -> body-kind-authorized bindings kind
+    UMeta id kind -> body-kind-authorized bindings kind
+    UIndex carrier term -> body-type-authorized bindings carrier
+    UIndexForget input -> body-type-authorized bindings input
+    UIndexPromote input -> body-type-authorized bindings input
+    UIndexByteLength input -> body-type-authorized bindings input
+    UIndexMath operation a b -> body-type-authorized bindings a && body-type-authorized bindings b
+    UCompare relation a b -> body-type-authorized bindings a && body-type-authorized bindings b
+    UPropAnd a b -> body-type-authorized bindings a && body-type-authorized bindings b
+    UPropOr a b -> body-type-authorized bindings a && body-type-authorized bindings b
+    UPropNot input -> body-type-authorized bindings input
+    UPropNonZero input -> body-type-authorized bindings input
+    UPropNonZeroPending input -> body-type-authorized bindings input
+    URequire predicates body -> body-type-authorized bindings predicates && body-type-authorized bindings body
+    URefine id name carrier predicate -> body-type-authorized bindings carrier && body-type-authorized bindings predicate
+    UPi id name domain row result -> body-type-authorized bindings domain && body-type-authorized bindings row && body-type-authorized bindings result
+    UApp a b -> body-type-authorized bindings a && body-type-authorized bindings b
+    UFun a b -> body-type-authorized bindings a && body-type-authorized bindings b
+    UFunEff a row b -> body-type-authorized bindings a && body-type-authorized bindings row && body-type-authorized bindings b
+    UProofFun a row b -> body-type-authorized bindings a && body-type-authorized bindings row && body-type-authorized bindings b
+    URow labels -> body-type-authorized bindings labels
+    URowJoin a b -> body-type-authorized bindings a && body-type-authorized bindings b
+    UTuple fields -> body-type-authorized bindings fields
+    UArg a b -> body-type-authorized bindings a && body-type-authorized bindings b
+    other -> True
+
+  body-parameters-authorized :: List BodyBinding -> List Quant -> Bool
+  body-parameters-authorized bindings parameters = case parameters of
+    Nil -> True
+    Cons parameter rest -> body-kind-authorized bindings (quant-kind parameter) && body-parameters-authorized bindings rest
+  body-requirements-authorized :: List BodyBinding -> List Requirement -> Bool
+  body-requirements-authorized bindings requirements = case requirements of
+    Nil -> True
+    Cons requirement rest -> body-type-authorized bindings (requirement-type requirement) && body-requirements-authorized bindings rest
+  body-scheme-authorized :: List BodyBinding -> Scheme -> Bool
+  body-scheme-authorized bindings scheme = body-parameters-authorized bindings (scheme-params scheme)
+    && body-requirements-authorized bindings (scheme-requirements scheme) && body-type-authorized bindings (scheme-body scheme)

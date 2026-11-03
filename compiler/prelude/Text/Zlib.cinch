@@ -84,7 +84,6 @@ module Text.Zlib where
 
   import Algebra.Semigroup
 
-  infixr 6 <>
 
   export ZlibError, BadHeader, BadChecksum, InvalidCode, TruncatedStream
   export inflate, deflate, adler32, crc32

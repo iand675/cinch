@@ -7,15 +7,36 @@ where that chapter states obligations, this note fixes the mechanism.
 Status: design accepted for implementation (roadmap slice P3 in
 `compiler/CONFORMANCE.md`).
 
-The developing interface schema and pinned seed are now 6.
-Schema 5's class-contract producer/consumer focused gates pass. Both seed
-refreshes verified the applied patch and complete source hash. Schema 6's native region
-contract tests and Cinch loader contract/set tests pass. It adds explicit
-Region binders, the kernel Io context and closed kernel effect rows to
-resolved value schemes. Open rows and dependent obligations remain unresolved.
-The completed full regression gate belongs to the earlier frozen schema-4
-snapshot; a complete gate for the developing tree remains required.
-Schema 1 omitted signature proof
+The development interface schema is8 and the runtime ABI is5. Schema8 adds
+closed executable total-body payloads and complete defining measure declarations
+to the schema7 refinement and byte-observation contracts. The pinned seed was
+updated intentionally and its exact source and patch hashes are recorded in
+[the current checkpoint](../bootstrap/measure-contract-checkpoint-results.json).
+Stage0/1 pass six combined smokes; actual stage2 now reaches compiler body checking
+and fails there. The complete current Native-assisted suite is still running.
+
+A value's `total_body` is null or a version1 closed, sorted first-order graph.
+Only a supported monomorphic ordinary pure signature can advertise one. The
+consumer validates the exact defining root, domain/result carriers, arity,
+lexical scope, dependency closure and acyclicity. Supported numeric result
+refinements must follow from independently derived body bounds. A pure scheme
+alone supplies no executable semantics.
+
+A resolved scheme may carry `measures`, each with an `identity`, complete
+`resolved` defining scheme and `total_body`. These private declarations grant no
+source names. First-tier measure schemes cannot themselves reference further
+measure schemes; executable body dependencies remain closed in their graph.
+Consumers check declaring modules, checked import closure and agreement of every
+shared body dependency across roots. The payload affects interface identity,
+so changing a defining body invalidates its semantic consumers.
+
+Source reification and independent Core typing retain actual global association
+and argument identities. Numeric class/slot reflection still needs replacement
+with actual selected method authority. Full proof/usage/totality, general typed
+runtime lowering and self-hosting remain required. Definition-owned fixities
+remain part of the exported contract; importers cannot override them.
+
+Earlier format history follows. Schema 1 omitted signature proof
 preconditions and named refinements. Schema 2 added those facts but omitted
 declaration parameter kinds, constructor result schemes, and precise method
 visibility. Schema 3 records these, defining identities, constructor symbols
@@ -79,7 +100,7 @@ imports         [ { module, iface_hash } ] for each import consumed
 exports
   values        name -> scheme (quantifiers: type, value, proposition, row,
                 region; using class constraints and proof preconditions;
-                type with effect rows), plus symbol, arity, resolved
+                type with effect rows), plus symbol, arity, resolved, total_body
   types         name -> { identity, params,
                 parameters: [{ name, kind, implicit }],
                 kind: data|record|refinement|opaque|signature, constructors:

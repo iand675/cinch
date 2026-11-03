@@ -1,0 +1,126 @@
+{
+  "status": "passed four complete focused integration targets",
+  "source_sha256": "7e5a668114fbc49ab17188246a0ced2263d753120c808137ee62709796683e26",
+  "tests": [
+    {
+      "name": "bootstrap_handler_core",
+      "exit_code": 0
+    },
+    {
+      "name": "bootstrap_source_handlers",
+      "exit_code": 0
+    },
+    {
+      "name": "bootstrap_source_effects",
+      "exit_code": 0
+    },
+    {
+      "name": "bootstrap_typing",
+      "exit_code": 0
+    }
+  ],
+  "core_handler_checks": 34,
+  "core_identity_sizes": [
+    0,
+    1,
+    17,
+    129,
+    4096
+  ],
+  "core_identity_base": "2^128",
+  "source_handler_cases": 26,
+  "source_effect_cases": 20,
+  "features": [
+    "actual effect/operation declaration registry and exact ordered slots",
+    "polymorphic operation openings checked with fresh scoped rigids",
+    "first-class handler values and return/operation answer types",
+    "residual effect recomputation, rigid region identity and lexical D23 dispatch",
+    "one-shot use along branches and failed guard fallthrough",
+    "effects during handler construction and inside clauses preserved",
+    "recursive global, dictionary, type, proof and scope checks"
+  ],
+  "actual_stage_parent": {
+    "source_sha256": "a38a6008669a477850ba734d53d627532a9e26f395239e5dce07c1b2401a7f7c",
+    "newer_input_differences": [
+      "bootstrap/Bootstrap.Core.cinch",
+      "bootstrap/programs/Run.HandlerCore.cinch",
+      "design/bootstrap-handlers.md"
+    ],
+    "difference_meaning": "two Core effect-accounting cases, two direct Core creation-effect regressions, and documentation; the real stage run predates this final correction",
+    "stage0": "built;three smokes passed",
+    "stage1": "built;three smokes passed",
+    "stage2": {
+      "diagnostic_categories": {
+        "argument call needs checked pure total reification or a checked observation contract": 1,
+        "effect inclusion needs resolved rows": 12,
+        "invalid dependent application input": 12,
+        "invalid type in type inference": 6,
+        "malformed effect row": 12,
+        "non-exhaustive patterns": 1413,
+        "type mismatch: expected Nat, found Int": 1,
+        "with binding needs a checked signature value": 1
+      },
+      "diagnostics": 1458,
+      "exit_code": 4,
+      "first_diagnostics": [
+        "bootstrap.check:12194:63: argument call needs checked pure total reification or a checked observation contract",
+        "bootstrap.check:12194:7: non-exhaustive patterns",
+        "bootstrap.check:12200:23: non-exhaustive patterns",
+        "bootstrap.check:12217:24: non-exhaustive patterns",
+        "bootstrap.check:12219:15: non-exhaustive patterns",
+        "bootstrap.check:12226:10: non-exhaustive patterns",
+        "bootstrap.check:12232:18: non-exhaustive patterns",
+        "bootstrap.check:12237:18: non-exhaustive patterns",
+        "bootstrap.check:12267:20: non-exhaustive patterns",
+        "bootstrap.check:12285:10: non-exhaustive patterns"
+      ],
+      "inputs": {
+        "builder_sha256": "8c0b5131574e9a9c05277452191f1d970ce9dce4efcfda8065293f13200c9c01",
+        "built_by_stage": 1,
+        "host": {
+          "machine": "arm64",
+          "system": "Darwin"
+        },
+        "interface_set_sha256": "506a2f1ec78db88676c9e60aa9f9718a7bfe45259815c65148a7308be5601ce5",
+        "protocol": 2,
+        "source_sha256": "d8bafc94599407d40db1d337ea092ecdda5e725a6960f1a87f4ffb75b1bb1c6f"
+      },
+      "log": "/private/tmp/cinch-handler-source-validation-4/source/build/bootstrap/stage2/build.log",
+      "status": "failed"
+    }
+  },
+  "additional_parent_regressions": [
+    {
+      "name": "bootstrap_source_instances",
+      "status": "running"
+    },
+    {
+      "name": "bootstrap_instance_resolution",
+      "status": "passed"
+    },
+    {
+      "name": "bootstrap_globals",
+      "status": "passed"
+    },
+    {
+      "name": "bootstrap_parse",
+      "status": "passed"
+    },
+    {
+      "name": "bootstrap_guarded_calls",
+      "status": "running"
+    }
+  ],
+  "remaining": [
+    "typed closure/vtable/CPS runtime lowering",
+    "complete independent usage, linear continuation promotion and totality",
+    "richer continuation aliases and guarded operation forms",
+    "interface-only effect registry admission",
+    "stage2/stage3 fixed point and full self-built frontend suite"
+  ],
+  "runtime_abi": 5,
+  "interface_schema": 8,
+  "seed_source_sha256": "b16efd1d2213cf15505fa8a4b55ad3c71fd2f85635bfecaaf75c955193e041a5",
+  "self_built_frontend_suite": false,
+  "bootstrap_achieved": false
+}

@@ -1,0 +1,123 @@
+-- Interfaces and source are runtime inputs to this compiled Cinch checker.
+module Main where
+  import Bootstrap.Ast
+  import Data.Json
+  import Text.Json (parse-json)
+  import Text.Show (int-to-string)
+  import Bootstrap.Inputs (read-interfaces)
+  import Bootstrap.Load (LoadedInterface)
+  import Bootstrap.Contracts (interface-headers)
+  import Bootstrap.Parse (parse-program-with)
+  import Bootstrap.Resolve (resolve-program-with)
+  import Bootstrap.Infer (elaborate-program, elaboration-errors, elaboration-core, elaboration-bindings, CheckedBinding, checked-body-binding, checked-guarded-binding)
+  import Bootstrap.Core
+  import Bootstrap.Guarded
+  import Bootstrap.Type
+  import Bootstrap.Index
+  import Bootstrap.Global
+  import Bootstrap.Typing
+  import Text.Lex (Span)
+  import Bootstrap.Nominal (interface-global)
+  import Bootstrap.BodyContract (BodyBinding)
+  import Bootstrap.Report (render-diagnostics)
+  import Text.Parse (ParseOutcome, Parsed, Failed, render-bundle)
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read, fs-write)
+  bindings-bodies :: List CheckedBinding -> List BodyBinding
+  bindings-bodies bindings = case bindings of
+    Nil -> Nil
+    Cons binding rest -> (case checked-body-binding binding of Some body -> Cons body (bindings-bodies rest); None -> bindings-bodies rest)
+  bindings-guarded :: List CheckedBinding -> List GuardedBinding
+  bindings-guarded bindings = case bindings of Nil -> Nil; Cons first rest -> (case checked-guarded-binding first of Some body -> Cons body (bindings-guarded rest); None -> bindings-guarded rest)
+  closed :: List BodyBinding -> List GuardedBinding -> List CoreDefinition -> Bool
+  closed bodies guards definitions = case definitions of Nil -> True; Cons d rest -> core-definition-contracts-closed bodies guards d && closed bodies guards rest
+  run :: List LoadedInterface -> Bytes -> String -> (Int, String)
+  run interfaces source element = case parse-program-with "guarded-calls" source (interface-headers interfaces) of
+    Parsed program Nil -> case resolve-program-with program interfaces of
+      (resolved, Nil) -> let result = elaborate-program "guarded-calls" resolved in
+        case elaboration-errors result of
+          Nil -> if closed (bindings-bodies (elaboration-bindings result)) (bindings-guarded (elaboration-bindings result)) (elaboration-core result) then (0, "") else (94, "imported condition lost its Core evidence")
+          errors -> (4, render-diagnostics errors)
+      (resolved, errors) -> (4, render-diagnostics errors)
+    Failed bundle -> (2, render-bundle bundle)
+    other -> (2, "recoverable parse errors")
+  sp :: Span
+  sp = Span 0 0 1 1
+  nat :: UType
+  nat = UCon "Nat" KType
+  numeral :: Int -> UType
+  numeral n = UIndex nat (IInteger n)
+  required :: UType -> UType -> UType
+  required first second = URequire (UArg (UCompare "<=" second first) UEnd) nat
+  signature-type :: Nat -> UType
+  signature-type id = UPi id "x" nat (URow UEnd) (UPi (id + 1) "y" nat (URow UEnd)
+    (required (UIndex nat (IBound id "x")) (UIndex nat (IBound (id + 1) "y"))))
+  remaining-type :: Nat -> Int -> UType
+  remaining-type id first = UPi (id + 1) "y" nat (URow UEnd) (required (numeral first) (UIndex nat (IBound (id + 1) "y")))
+  call :: Nat -> Int -> Int -> CoreTerm
+  call id first second = CApply sp (required (numeral first) (numeral second))
+    (CApply sp (remaining-type id first) (CUse sp (signature-type id) "actual-conditional" "external" Nil) (CInt sp nat (int-to-string first)))
+    (CInt sp nat (int-to-string second))
+  definition :: CoreTerm -> CoreDefinition
+  definition body = MkCoreDefinition sp "caller" (mono nat) Nil Nil Nil [MkCoreClause sp Nil body]
+  typed :: UType -> CoreTerm -> Bool
+  typed actual body = case close-typing-context [("Nat", KType)]
+    [GlobalValue "actual-conditional" "external" (mono actual), GlobalValue "caller" "value" (mono nat)] of
+      Some context -> typing-definition-closed context (definition body)
+      None -> False
+  core-checks :: Nat -> Bool
+  core-checks id = case prove-predicates Nil Nil (required (numeral 3) (numeral 1)) of
+    None -> False
+    Some evidence ->
+      let actual = signature-type id in
+      let application = call id 3 1 in
+      let good = CDischarge sp nat evidence application in
+      let wrong = CDischarge sp nat evidence (call id 0 1) in
+      let unconditional = UFun nat (UFun nat nat) in
+      let forged = CApply sp nat (CApply sp (UFun nat nat) (CUse sp unconditional "actual-conditional" "external" Nil) (CInt sp nat "0")) (CInt sp nat "1") in
+      let stronger = UPi id "x" nat (URow UEnd) (UPi (id + 1) "y" nat (URow UEnd)
+        (required (UIndex nat (IBound id "x")) (UIndexMath "+" (UIndex nat (IBound (id + 1) "y")) (numeral 1)))) in
+      typed actual good
+      && not (typed actual wrong)
+      && not (typed actual forged)
+      && not (typed actual (CDischarge sp nat Nil application))
+      && not (typed actual application)
+      && not (typed stronger good)
+      && (case core-let-fact Nil Nil (id + 20) (mono nat) good of None -> True; Some invented -> False)
+      && not (typed actual (core-body (seal-definition (empty-store "conditional refresh") (definition wrong))))
+  core-body :: CoreDefinition -> CoreTerm
+  core-body d = case core-clauses d of Cons (MkCoreClause at patterns body) rest -> body; other -> CError sp
+  all-core-checks :: Nat -> Bool
+  all-core-checks id = core-checks id && core-checks (id + 101) && core-checks (id + 1009) && core-checks (id + 10007) && core-checks (id + 100003)
+  field :: String -> Json -> Json
+  field name doc = case doc of JObj key value rest -> if string-compare name key == 0 then value else field name rest; other -> JNull
+  cases :: List LoadedInterface -> List LoadedInterface -> List LoadedInterface -> List LoadedInterface -> Json -> (Int, String)
+  cases interfaces custom stronger measured rows = case rows of
+    JArr row rest -> (case (field "name" row, field "source" row, field "wanted" row) of
+      (JStr name, JStr source, JNum wanted) -> let element = case field "element" row of JStr name -> name; other -> "" in
+        let selected = if string-compare element "custom" == 0 then custom else if string-compare element "stronger" == 0 then stronger else if string-compare element "measure" == 0 then measured else interfaces in
+        let (actual, report) = run selected (string-to-bytes source) element in
+        (case cases interfaces custom stronger measured rest of
+          (failed, more) -> (failed + (if actual == wanted then 0 else 1), string-concat-all [name, ": wanted ", int-to-string wanted, ", actual ", int-to-string actual, "\n", report, "\n", more]))
+      other -> (1, "malformed collection case"))
+    JArrEnd -> (0, "")
+    other -> (1, "invalid collection cases")
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case read-interfaces "interfaces.json" of
+    Err message -> (case fs-write (path-from-string "guarded-call-report.txt") (string-to-bytes message) of Ok _ -> 90; Err error -> 92)
+    Ok interfaces -> (case read-interfaces "custom-interfaces.json" of
+      Err message -> 96
+      Ok custom -> (case read-interfaces "stronger-interfaces.json" of
+        Err message -> 97
+        Ok stronger -> (case read-interfaces "measure-interfaces.json" of
+          Err message -> 98
+          Ok measured -> execute-cases interfaces custom stronger measured unit)))
+  execute-cases :: forall r. using (io :: Io r) => List LoadedInterface -> List LoadedInterface -> List LoadedInterface -> List LoadedInterface -> Unit ->{IO r} Int
+  execute-cases interfaces custom stronger measured unit = case fs-read (path-from-string "cases.json") of
+      Err error -> 91
+      Ok contents -> (case parse-json "guarded-call-cases" contents of
+        Parsed document Nil -> let (failed, report) = cases interfaces custom stronger measured document in
+          (case fs-write (path-from-string "guarded-call-report.txt") (string-to-bytes report) of
+            Err error -> 92
+            Ok _ -> if failed == 0 && all-core-checks (340282366920938463463374607431768211456 + bytes-len contents) then 0 else 1)
+        other -> 93)

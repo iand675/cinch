@@ -1,0 +1,111 @@
+{
+  "version": 1,
+  "name": "circuit",
+  "entry": "root",
+  "rules": {
+    "root": {
+      "pattern": [
+        {
+          "capture": "body",
+          "of": {
+            "ref": "expr"
+          }
+        },
+        "}"
+      ],
+      "emit": "${body}"
+    },
+    "expr": {
+      "pattern": {
+        "choice": [
+          {
+            "ref": "input"
+          },
+          {
+            "ref": "register"
+          },
+          {
+            "ref": "add"
+          },
+          {
+            "ref": "multiply"
+          }
+        ]
+      }
+    },
+    "input": {
+      "pattern": [
+        "input",
+        {
+          "capture": "samples",
+          "of": {
+            "host": true
+          }
+        }
+      ],
+      "emit": "(${@input} (${samples}))"
+    },
+    "register": {
+      "pattern": [
+        "register",
+        "(",
+        {
+          "capture": "body",
+          "of": {
+            "ref": "expr"
+          }
+        },
+        ")"
+      ],
+      "emit": "(${@register} ${body})"
+    },
+    "add": {
+      "pattern": [
+        "add",
+        "(",
+        {
+          "capture": "left",
+          "of": {
+            "ref": "expr"
+          }
+        },
+        ",",
+        {
+          "capture": "right",
+          "of": {
+            "ref": "expr"
+          }
+        },
+        ")"
+      ],
+      "emit": "(${@add} ${left} ${right})"
+    },
+    "multiply": {
+      "pattern": [
+        "multiply",
+        "(",
+        {
+          "capture": "left",
+          "of": {
+            "ref": "expr"
+          }
+        },
+        ",",
+        {
+          "capture": "right",
+          "of": {
+            "ref": "expr"
+          }
+        },
+        ")"
+      ],
+      "emit": "(${@multiply} ${left} ${right})"
+    }
+  },
+  "helpers": {
+    "input": "Circuit.input",
+    "register": "Circuit.register",
+    "add": "Circuit.add",
+    "multiply": "Circuit.multiply"
+  }
+}

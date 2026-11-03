@@ -1,0 +1,70 @@
+module Main where
+  import Tensor (Matrix, matrix22, flatten, matrix, matmul as matrix-matmul, multiply as matrix-multiply, sum as matrix-sum)
+  import TensorAD
+  import syntax "../syntax/tensor-ad.syntax.json" as tensor-ad
+
+  weights :: Matrix 2 2
+  weights = Tensor.matrix22 5 6 7 8
+  inputs :: Matrix 2 2
+  inputs = Tensor.matrix22 1 2 3 4
+  weight-loss :: Diff 1 1 2 2
+  weight-loss = tensor-ad!{ at {weights} of sum (({inputs} @ x) * ({inputs} @ x)) }
+  input-loss :: Diff 1 1 2 2
+  input-loss = tensor-ad!{ at {inputs} of sum ((x @ {weights}) * (x @ {weights})) }
+
+  direct-loss :: Matrix 2 2 -> Int
+  direct-loss value =
+    let output = matrix-matmul inputs value in
+    matrix-sum (matrix-multiply output output)
+  finite-differences :: Bool
+  finite-differences = case Tensor.flatten (TensorAD.gradient weight-loss) of
+    [a, b, c, d] ->
+      direct-loss (Tensor.matrix22 6 6 7 8) - direct-loss (Tensor.matrix22 4 6 7 8) == 2 * a &&
+      direct-loss (Tensor.matrix22 5 7 7 8) - direct-loss (Tensor.matrix22 5 5 7 8) == 2 * b &&
+      direct-loss (Tensor.matrix22 5 6 8 8) - direct-loss (Tensor.matrix22 5 6 6 8) == 2 * c &&
+      direct-loss (Tensor.matrix22 5 6 7 9) - direct-loss (Tensor.matrix22 5 6 7 7) == 2 * d
+    _ -> False
+  rectangular :: Bool
+  rectangular = case Tensor.matrix 1 3 [[1, 2, 3]] of
+    None -> False
+    Some row -> case Tensor.matrix 3 1 [[4], [5], [6]] of
+      None -> False
+      Some column ->
+        let result = tensor-ad!{ at {row} of sum (x @ {column}) } in
+        let transposed = tensor-ad!{ at {row} of sum (transpose (x) + transpose (x)) } in
+        case Tensor.flatten (TensorAD.gradient result) of
+          [4, 5, 6] -> case Tensor.flatten (TensorAD.gradient transposed) of
+            [2, 2, 2] -> TensorAD.loss result == 32 && TensorAD.loss transposed == 12
+            _ -> False
+          _ -> False
+  zero-axis :: Bool
+  zero-axis = case Tensor.matrix 2 0 [[], []] of
+    None -> False
+    Some left -> case Tensor.matrix 0 3 [] of
+      None -> False
+      Some right ->
+        let result = tensor-ad!{ at {left} of sum (x @ {right}) } in
+        case Tensor.flatten (matrix-matmul left right) of
+          [0, 0, 0, 0, 0, 0] -> case Tensor.flatten (TensorAD.gradient result) of
+            Nil -> TensorAD.loss result == 0
+            _ -> False
+          _ -> False
+  constant-gradient :: Bool
+  constant-gradient =
+    let result = tensor-ad!{ at {weights} of sum ({inputs}) } in
+    case Tensor.flatten (TensorAD.gradient result) of
+      [0, 0, 0, 0] -> TensorAD.loss result == 10
+      _ -> False
+  rejects-ragged :: Bool
+  rejects-ragged = case Tensor.matrix 2 2 [[1], [2, 3]] of
+    None -> True
+    Some invalid -> False
+
+  main :: Int
+  main =
+    if TensorAD.loss weight-loss /= 5194 || not finite-differences || not rectangular || not zero-axis || not rejects-ragged || not constant-gradient then 1
+    else case Tensor.flatten (TensorAD.gradient weight-loss) of
+      [296, 344, 420, 488] -> case Tensor.flatten (TensorAD.gradient input-loss) of
+        [454, 618, 1030, 1402] -> 0
+        _ -> 2
+      _ -> 3

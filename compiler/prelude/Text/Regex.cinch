@@ -84,7 +84,6 @@ module Text.Regex where
   import Algebra.Semigroup
   import Algebra.Monoid
 
-  infixr 6 <>
 
   export Regex, parse-regex, regex-escape
   export Match, match-start, match-end, match-text, match-group, match-group-count

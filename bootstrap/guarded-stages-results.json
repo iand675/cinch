@@ -1,0 +1,21 @@
+{
+  "bootstrap_achieved": false,
+  "first_diagnostics": [
+    "bootstrap.check:18813:17: argument call needs checked pure total reification or a checked observation contract",
+    "bootstrap.check:18813:17: ill-sorted, partial or unchecked typed source index",
+    "bootstrap.check:18813:17: ill-sorted, partial or unchecked typed source index"
+  ],
+  "first_remaining_blocker": "Text.Lex.chars-bytes-from repeats char-code c inside a dependent Nat index; conversion has no checked symbolic reification contract",
+  "previous_Text_Builder_copy_bound": "cleared",
+  "scope": "695ab0e compiler and bootstrap code, preceding syntax/tactic integration",
+  "seed_source_sha256": "f88d6a49cd8fed562f3639165310c2caef228797de2127a9edd0bc8e5502b2a0",
+  "self_built_frontend": false,
+  "source_sha256": "407a708b70beb735d525ed5ea649813228ebbe625c61ff8b0638a8d4a3ee6fd3",
+  "stage0_smokes": 3,
+  "stage1_smokes": 3,
+  "stage2_compiler": false,
+  "stage2_diagnostics": 1709,
+  "stage2_exit_code": 4,
+  "stage3_fixed_point": false,
+  "status": "self-hosting incomplete"
+}

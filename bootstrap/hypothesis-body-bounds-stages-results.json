@@ -1,0 +1,44 @@
+{
+  "bootstrap_achieved": false,
+  "cleared": [
+    "Text.Builder byte-copy guard",
+    "Text.Lex.chars-bytes-from character buffer bound",
+    "later Text.Lex byte comparisons previously affected by the first Store error"
+  ],
+  "compiler_source_sha256": "cbb54786e068c16989a46e2ac3692340e97e8bc79ba901af78c4c87b2064cab2",
+  "diagnostic_categories": {
+    "a type cannot be used as a predicate value": 1,
+    "argument call needs checked pure total reification or a checked observation contract": 1,
+    "decision test does not establish its scoped predicate": 1,
+    "effect inclusion needs resolved rows": 12,
+    "expression needs effect, dictionary or dependent elaboration": 1,
+    "invalid dependent application input": 17,
+    "invalid type in type inference": 12,
+    "kind mismatch in type inference": 1,
+    "malformed effect row": 17,
+    "non-exhaustive patterns": 1584,
+    "type mismatch: expected Nat, found Int": 1,
+    "with binding needs a checked signature value": 1
+  },
+  "first_diagnostics": [
+    "bootstrap.check:19695:47: argument call needs checked pure total reification or a checked observation contract",
+    "bootstrap.check:19695:21: non-exhaustive patterns",
+    "bootstrap.check:19705:22: invalid dependent application input",
+    "bootstrap.check:19705:30: non-exhaustive patterns",
+    "bootstrap.check:19705:30: malformed effect row",
+    "bootstrap.check:19718:24: non-exhaustive patterns",
+    "bootstrap.check:19744:7: non-exhaustive patterns",
+    "bootstrap.check:19753:17: invalid dependent application input"
+  ],
+  "first_remaining_blocker": "Text.Lex.attr-name-valid repeats string-length name as a dependent Nat subtraction operand; no checked symbolic call reification contract",
+  "pinned_seed_source_sha256": "f88d6a49cd8fed562f3639165310c2caef228797de2127a9edd0bc8e5502b2a0",
+  "self_built_frontend_suite": false,
+  "source_sha256": "3ecd572f81e7a7edd32fcebc2310c1fb1660955e80ae219eeee78ec8e95fd64a",
+  "stage0_smokes": 3,
+  "stage1_smokes": 3,
+  "stage2_compiler": false,
+  "stage2_diagnostics": 1649,
+  "stage2_exit_code": 4,
+  "stage3_fixed_point": false,
+  "status": "self-hosting incomplete"
+}

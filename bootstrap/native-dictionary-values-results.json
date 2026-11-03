@@ -1,0 +1,275 @@
+{
+  "actual_native_executables": 21,
+  "bootstrap_achieved": false,
+  "evidence_directories": [
+    "/tmp/cinch-native-dictionary-values-regressions-1",
+    "/tmp/cinch-native-dictionary-values-boundaries-1",
+    "/tmp/cinch-native-dictionary-values-incremental-3"
+  ],
+  "incremental": "Actual Session IR links and runs cold197, unchanged197 and body-edit199 with zero leaks; unchanged IR is byte-identical and no declarations rechecked",
+  "invalid_or_out_of_scope_uses_rejected": 5,
+  "limitations": [
+    "Materializing full self evidence with strict values still needs a shared recursive environment and receives a named refusal",
+    "Self projection of method-local polymorphic value fields still needs representation-indexed value environments and receives a named refusal",
+    "Cyclic strict initialization receives a named refusal",
+    "Complete current Native/self-built test-suite and Stage2/3 bootstrap success are not established"
+  ],
+  "meaning": "Rust strict dictionary fields initialize once in dependency order; methods and escaped closures capture actual initialized values without rebuilding self dictionaries",
+  "physical_abi": "Duplicate and stored fields have the same actual Box pointer; escaping method closure preserves that Box after the containing tuple and dictionary are dropped; bignum contents preserved; zero leaks",
+  "production_source_sha256": "91e7da19ba4936ec4c786069a5c5758b93eb2ac7b36f5cce868e39cb0e171807",
+  "published_file_hashes": {
+    "compiler/src/check.rs": "665397f70859db1dff8d4f98bba208284eed7c1b52be62f620b545c87244d96d",
+    "compiler/src/check_decls.rs": "99c30f5a14d5f40ec87f5e161ca75195a7f1b2e633034965c05c697fabdf2a54",
+    "compiler/src/check_terms.rs": "af00b7dc504896ba9f9447f66a25d15878a14b0e5ea03f33f559f7741d368be0",
+    "compiler/src/check_total.rs": "3d55e3080889af572581fba3cd04ce0f6331a7bbea2c3ee2391611e265975952",
+    "compiler/src/codegen.rs": "c788e38875e26e064aafee75ff1fc36703ae33b0b296aae83533f32200028785",
+    "compiler/src/core.rs": "a1836e2ba21e0d47aa1143dcc021cb54f9f06c8f9bf1a960c751f3b6b36c4b27",
+    "compiler/src/dictionary_values.rs": "8599ae1e65bddefaeba65e6fc015078fdb4f002904fd4f89c6b3c9d057bc17da",
+    "compiler/src/lib.rs": "6eb7cb57dc6b5a046a182249d0bae87b272a1dd59bfcce3bed9395dc4beeff06",
+    "compiler/tests/native_dictionary_checks.rs": "15834199d22d68da5c94f6209e4b266808b5ed6eb09e107423d1e1de6d1d6209"
+  },
+  "reproduced_before": "Public 249f847 SharedBox strict self projection recursively reconstructed dictionaries and exhausted a 32M heap (exit73)",
+  "seed_changed": false,
+  "status": "passed",
+  "supplemental_source_sha256": "0869c99504d414e5b8eabac91191c908804aec46080d96fd55b4509117a4067c",
+  "whole_targets": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-native-dictionary-values-regressions-1/cargo",
+        "--lib",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T04:00:43.346930+00:00",
+      "name": "lib",
+      "pid": 62966,
+      "started": "2026-11-03T03:59:54.160257+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-native-dictionary-values-regressions-1/cargo",
+        "--test",
+        "native_dictionary_checks",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T04:02:13.071499+00:00",
+      "name": "native_dictionary_checks",
+      "pid": 64229,
+      "started": "2026-11-03T04:00:43.347534+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-native-dictionary-values-regressions-1/cargo",
+        "--test",
+        "ownership",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T04:02:46.149875+00:00",
+      "name": "ownership",
+      "pid": 65332,
+      "started": "2026-11-03T04:02:13.071959+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-native-dictionary-values-regressions-1/cargo",
+        "--test",
+        "reclamation",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T04:03:55.413286+00:00",
+      "name": "reclamation",
+      "pid": 65860,
+      "started": "2026-11-03T04:02:46.150410+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-native-dictionary-values-regressions-1/cargo",
+        "--test",
+        "effects",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T04:04:36.086270+00:00",
+      "name": "effects",
+      "pid": 67038,
+      "started": "2026-11-03T04:03:55.413860+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-native-dictionary-values-regressions-1/cargo",
+        "--test",
+        "repr_classes",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T04:04:43.840707+00:00",
+      "name": "repr_classes",
+      "pid": 67716,
+      "started": "2026-11-03T04:04:36.086861+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-native-dictionary-values-regressions-1/cargo",
+        "--test",
+        "class_defaults",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T04:04:52.909689+00:00",
+      "name": "class_defaults",
+      "pid": 67825,
+      "started": "2026-11-03T04:04:43.841309+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-native-dictionary-values-regressions-1/cargo",
+        "--test",
+        "surface",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T04:05:27.926346+00:00",
+      "name": "surface",
+      "pid": 67987,
+      "started": "2026-11-03T04:04:52.910263+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-native-dictionary-values-regressions-1/cargo",
+        "--test",
+        "incremental",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T04:13:26.652336+00:00",
+      "name": "incremental",
+      "pid": 72707,
+      "started": "2026-11-03T04:12:37.210899+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-native-dictionary-values-regressions-1/cargo",
+        "--test",
+        "modules",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T04:13:42.272755+00:00",
+      "name": "modules",
+      "pid": 73187,
+      "started": "2026-11-03T04:13:26.653087+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-native-dictionary-values-regressions-1/cargo",
+        "--test",
+        "interface_class_contracts",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T04:13:44.815390+00:00",
+      "name": "interface_class_contracts",
+      "pid": 73452,
+      "started": "2026-11-03T04:13:42.273337+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-native-dictionary-values-incremental-3/cargo",
+        "--test",
+        "native_dictionary_checks",
+        "--",
+        "incremental_sessions_keep_captured_dictionary_values_current",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T04:23:04.131646+00:00",
+      "name": "native_dictionary_checks",
+      "pid": 79526,
+      "started": "2026-11-03T04:22:02.389762+00:00",
+      "status": "passed"
+    }
+  ]
+}

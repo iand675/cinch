@@ -1,0 +1,490 @@
+{
+  "actual_dictionary_checks": [
+    "Actual List and Bytes factories have complete resolved schemes.",
+    "Retained Core selects actual Int evidence on numeric ambiguity.",
+    "Lexical FromList (List Nat) Bool retains actual Bool evidence and takes priority.",
+    "Custom container, polymorphic/generalized empties, nested lists/tuples, constructor/application expectations, refined elements, range rejection, list pattern coverage and element effects exercised."
+  ],
+  "actual_pre_tuple_fix_stages": {
+    "diagnostic_categories": {
+      "a type cannot be used as a predicate value": 1,
+      "decision test does not establish its scoped predicate": 1,
+      "dictionary instance resolution is required for (i.65_108_103_101_98_114_97_46_65_114_105_116_104_109_101_116_105_99_46_83_117_98_ Nat)": 1,
+      "effect inclusion needs resolved rows": 159,
+      "expression needs effect, dictionary or dependent elaboration": 1,
+      "invalid dependent application input": 22,
+      "invalid type in type inference": 1,
+      "kind mismatch in type inference": 1,
+      "malformed effect row": 22,
+      "non-exhaustive patterns": 5,
+      "unbound variable or constructor: i.65_108_103_101_98_114_97_46_65_114_105_116_104_109_101_116_105_99_46_78_111_110_90_101_114_111_": 1
+    },
+    "differences_to_published_source": [
+      "bootstrap/Bootstrap.Infer.cinch",
+      "compiler/tests/bootstrap_collections.rs"
+    ],
+    "directory": "/tmp/cinch-collections-stages-1",
+    "preceding_body_diagnostics": 597,
+    "results": [
+      {
+        "command": [
+          "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "tooling/bootstrap.py",
+          "smoke",
+          "--stage",
+          "0"
+        ],
+        "exit_code": 0,
+        "finished": "2026-11-02T06:25:10.146356+00:00",
+        "log": "/tmp/cinch-collections-stages-1/stage0-smoke.log",
+        "name": "stage0-smoke",
+        "pid": 26905,
+        "started": "2026-11-02T06:24:12.645987+00:00",
+        "status": "passed"
+      },
+      {
+        "command": [
+          "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "tooling/bootstrap.py",
+          "smoke",
+          "--stage",
+          "1"
+        ],
+        "exit_code": 0,
+        "finished": "2026-11-02T06:29:02.759224+00:00",
+        "log": "/tmp/cinch-collections-stages-1/stage1-smoke.log",
+        "name": "stage1-smoke",
+        "pid": 27494,
+        "started": "2026-11-02T06:25:10.146703+00:00",
+        "status": "passed"
+      },
+      {
+        "command": [
+          "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "tooling/bootstrap.py",
+          "check"
+        ],
+        "exit_code": 1,
+        "finished": "2026-11-02T06:32:46.378818+00:00",
+        "log": "/tmp/cinch-collections-stages-1/self-hosting.log",
+        "name": "self-hosting",
+        "pid": 32439,
+        "started": "2026-11-02T06:29:02.759599+00:00",
+        "status": "failed"
+      }
+    ],
+    "scope": "Stage0/1 six smokes pass; actual stage2 refuses compiler bodies. This is earlier than final tuple fix, and is not final-source stage parity.",
+    "source_sha256": "2d6191b349d3779199f5e61a16abffc1416f97967012ca12e02f95a2d389c25f",
+    "stage2_body_diagnostics": 215,
+    "stage2_ir_or_compiler": false,
+    "unsupported_expression_diagnostics": 1
+  },
+  "complete_matrix": {
+    "directory": "/tmp/cinch-collections-full-2/complete-matrix",
+    "general_gates": 5,
+    "integration_targets": 178,
+    "observed_counts": {
+      "passed": 23,
+      "pending": 155,
+      "running": 4
+    },
+    "self_built_frontend": false,
+    "source_sha256": "b8c6f6ac22a3efcfc4316a3c38ae0b43b026f43b7f393943c27f2ac7f0144935",
+    "status": "running; no complete pass claimed"
+  },
+  "implementation": [
+    "Implicit literal dependencies retain actual defining FromList method and Nil/Cons constructors.",
+    "List patterns resolve to ordinary actual constructors; no lexical name grants.",
+    "Numeric checks defer until actual dictionary/type choice, preserve Int ambiguity default and reject wrong carriers/ranges.",
+    "Tuple and constructor expected types propagate before fields; final refinements are independently proved.",
+    "Data.FromList imports Data.Core; Data.List imports Data.FromList explicitly, closing usable factory metadata without a dependency cycle."
+  ],
+  "isolated_probes": {
+    "directory": "/tmp/cinch-builder-dependent-repro-2",
+    "interpretation": [
+      "Three ordinary dependent result contracts and imported NonZero decision pass Native and Cinch source/Core checks, then reach named unsupported typed lowering.",
+      "Imported conditional Nat subtraction and explicit NonZero value/proof construction are Native-accepted and Cinch source-checking failures.",
+      "The fourth refined-Bytes input is Native-refused because its anonymous byte operand has no carrier in scope; Cinch independently checks it and reaches lowering. This is an elaboration difference to investigate, not evidence of Native parity."
+    ],
+    "results": [
+      {
+        "command": [
+          "/tmp/cinch-collections-stages-1/source/build/bootstrap/stage1/cinch",
+          "--interfaces",
+          "/tmp/cinch-collections-stages-1/source/build/bootstrap/stage2/base-interfaces.json",
+          "/tmp/cinch-builder-dependent-repro-2/byte-result/Main.cinch",
+          "/tmp/cinch-builder-dependent-repro-2/byte-result/program.ll",
+          "/tmp/cinch-builder-dependent-repro-2/byte-result/program",
+          "/tmp/cinch-builder-dependent-repro-2/byte-result/link-report.txt"
+        ],
+        "diagnostics": "bootstrap.ir:1:1: imported value needs the shared uniform-word ABI and layout registry before lowering: i.68_97_116_97_46_66_121_116_101_115_46_98_121_116_101_115_45_108_101_110_\nbootstrap.ir:1:1: imported value needs the shared uniform-word ABI and layout registry before lowering: i.68_97_116_97_46_66_121_116_101_115_46_98_121_116_101_115_45_110_101_119_\nbootstrap.ir:3:3: signature for `m.77_97_105_110_.109_97_107_101_` carries a type without a fragment representation\nbootstrap.ir:4:12: `i.68_97_116_97_46_66_121_116_101_115_46_98_121_116_101_115_45_110_101_119_` is applied but is not a fragment function\n",
+        "exit_code": 5,
+        "finished": "2026-11-02T06:46:37.516585+00:00",
+        "name": "byte-result",
+        "native_code": 0,
+        "pid": 44498,
+        "started": "2026-11-02T06:46:11.666616+00:00",
+        "status": "terminal"
+      },
+      {
+        "command": [
+          "/tmp/cinch-collections-stages-1/source/build/bootstrap/stage1/cinch",
+          "--interfaces",
+          "/tmp/cinch-collections-stages-1/source/build/bootstrap/stage2/base-interfaces.json",
+          "/tmp/cinch-builder-dependent-repro-2/byte-result-curried/Main.cinch",
+          "/tmp/cinch-builder-dependent-repro-2/byte-result-curried/program.ll",
+          "/tmp/cinch-builder-dependent-repro-2/byte-result-curried/program",
+          "/tmp/cinch-builder-dependent-repro-2/byte-result-curried/link-report.txt"
+        ],
+        "diagnostics": "bootstrap.ir:1:1: imported value needs the shared uniform-word ABI and layout registry before lowering: i.68_97_116_97_46_66_121_116_101_115_46_98_121_116_101_115_45_108_101_110_\nbootstrap.ir:1:1: imported value needs the shared uniform-word ABI and layout registry before lowering: i.68_97_116_97_46_66_121_116_101_115_46_98_121_116_101_115_45_110_101_119_\nbootstrap.ir:3:3: signature for `m.77_97_105_110_.109_97_107_101_` carries a type without a fragment representation\nbootstrap.ir:4:17: `i.68_97_116_97_46_66_121_116_101_115_46_98_121_116_101_115_45_110_101_119_` is applied but is not a fragment function\n",
+        "exit_code": 5,
+        "finished": "2026-11-02T06:47:03.849235+00:00",
+        "name": "byte-result-curried",
+        "native_code": 0,
+        "pid": 44760,
+        "started": "2026-11-02T06:46:38.824967+00:00",
+        "status": "terminal"
+      },
+      {
+        "command": [
+          "/tmp/cinch-collections-stages-1/source/build/bootstrap/stage1/cinch",
+          "--interfaces",
+          "/tmp/cinch-collections-stages-1/source/build/bootstrap/stage2/base-interfaces.json",
+          "/tmp/cinch-builder-dependent-repro-2/nat-result-curried/Main.cinch",
+          "/tmp/cinch-builder-dependent-repro-2/nat-result-curried/program.ll",
+          "/tmp/cinch-builder-dependent-repro-2/nat-result-curried/program",
+          "/tmp/cinch-builder-dependent-repro-2/nat-result-curried/link-report.txt"
+        ],
+        "diagnostics": "bootstrap.ir:3:3: signature for `m.77_97_105_110_.109_97_107_101_` carries a type without a fragment representation\n",
+        "exit_code": 5,
+        "finished": "2026-11-02T06:47:29.869896+00:00",
+        "name": "nat-result-curried",
+        "native_code": 0,
+        "pid": 45009,
+        "started": "2026-11-02T06:47:05.039134+00:00",
+        "status": "terminal"
+      },
+      {
+        "command": [
+          "/tmp/cinch-collections-stages-1/source/build/bootstrap/stage1/cinch",
+          "--interfaces",
+          "/tmp/cinch-collections-stages-1/source/build/bootstrap/stage2/base-interfaces.json",
+          "/tmp/cinch-builder-dependent-repro-2/byte-result-refined/Main.cinch",
+          "/tmp/cinch-builder-dependent-repro-2/byte-result-refined/program.ll",
+          "/tmp/cinch-builder-dependent-repro-2/byte-result-refined/program",
+          "/tmp/cinch-builder-dependent-repro-2/byte-result-refined/link-report.txt"
+        ],
+        "diagnostics": "bootstrap.ir:1:1: imported value needs the shared uniform-word ABI and layout registry before lowering: i.68_97_116_97_46_66_121_116_101_115_46_98_121_116_101_115_45_108_101_110_\nbootstrap.ir:3:3: signature for `m.77_97_105_110_.107_101_101_112_` carries a type without a fragment representation\n",
+        "exit_code": 5,
+        "finished": "2026-11-02T06:47:54.782876+00:00",
+        "name": "byte-result-refined",
+        "native_code": 1,
+        "pid": 45369,
+        "started": "2026-11-02T06:47:29.914193+00:00",
+        "status": "terminal"
+      },
+      {
+        "command": [
+          "/tmp/cinch-collections-stages-1/source/build/bootstrap/stage1/cinch",
+          "--interfaces",
+          "/tmp/cinch-collections-stages-1/source/build/bootstrap/stage2/base-interfaces.json",
+          "/tmp/cinch-builder-dependent-repro-2/imported-conditional-subtraction/Main.cinch",
+          "/tmp/cinch-builder-dependent-repro-2/imported-conditional-subtraction/program.ll",
+          "/tmp/cinch-builder-dependent-repro-2/imported-conditional-subtraction/program",
+          "/tmp/cinch-builder-dependent-repro-2/imported-conditional-subtraction/link-report.txt"
+        ],
+        "diagnostics": "bootstrap.check:4:38: dictionary instance resolution is required for (i.65_108_103_101_98_114_97_46_65_114_105_116_104_109_101_116_105_99_46_83_117_98_ Nat)\n",
+        "exit_code": 4,
+        "finished": "2026-11-02T06:48:20.788458+00:00",
+        "name": "imported-conditional-subtraction",
+        "native_code": 0,
+        "pid": 45641,
+        "started": "2026-11-02T06:47:55.950158+00:00",
+        "status": "terminal"
+      },
+      {
+        "command": [
+          "/tmp/cinch-collections-stages-1/source/build/bootstrap/stage1/cinch",
+          "--interfaces",
+          "/tmp/cinch-collections-stages-1/source/build/bootstrap/stage2/base-interfaces.json",
+          "/tmp/cinch-builder-dependent-repro-2/imported-nonzero-decision/Main.cinch",
+          "/tmp/cinch-builder-dependent-repro-2/imported-nonzero-decision/program.ll",
+          "/tmp/cinch-builder-dependent-repro-2/imported-nonzero-decision/program",
+          "/tmp/cinch-builder-dependent-repro-2/imported-nonzero-decision/link-report.txt"
+        ],
+        "diagnostics": "bootstrap.ir:1:1: imported builtin-syntax needs the shared uniform-word ABI and layout registry before lowering: b.decide\nbootstrap.ir:1:1: imported builtin-constructor needs the shared uniform-word ABI and layout registry before lowering: b.Yes\nbootstrap.ir:1:1: imported builtin-constructor needs the shared uniform-word ABI and layout registry before lowering: b.No\nbootstrap.ir:4:16: the emitter cannot lower this case\n",
+        "exit_code": 5,
+        "finished": "2026-11-02T06:48:46.500543+00:00",
+        "name": "imported-nonzero-decision",
+        "native_code": 0,
+        "pid": 45892,
+        "started": "2026-11-02T06:48:21.904720+00:00",
+        "status": "terminal"
+      },
+      {
+        "command": [
+          "/tmp/cinch-collections-stages-1/source/build/bootstrap/stage1/cinch",
+          "--interfaces",
+          "/tmp/cinch-collections-stages-1/source/build/bootstrap/stage2/base-interfaces.json",
+          "/tmp/cinch-builder-dependent-repro-2/imported-nonzero-construction/Main.cinch",
+          "/tmp/cinch-builder-dependent-repro-2/imported-nonzero-construction/program.ll",
+          "/tmp/cinch-builder-dependent-repro-2/imported-nonzero-construction/program",
+          "/tmp/cinch-builder-dependent-repro-2/imported-nonzero-construction/link-report.txt"
+        ],
+        "diagnostics": "bootstrap.check:4:67: unbound variable or constructor: i.65_108_103_101_98_114_97_46_65_114_105_116_104_109_101_116_105_99_46_78_111_110_90_101_114_111_\nbootstrap.check:4:77: kind mismatch in type inference\n",
+        "exit_code": 4,
+        "finished": "2026-11-02T06:49:12.092280+00:00",
+        "name": "imported-nonzero-construction",
+        "native_code": 0,
+        "pid": 46194,
+        "started": "2026-11-02T06:48:47.604196+00:00",
+        "status": "terminal"
+      }
+    ],
+    "status": "seven diagnostic probes terminal; not seven passing Native-parity tests"
+  },
+  "limits": [
+    "No stage2 compiler, stage3/fixed point or changed-source success.",
+    "Current complete178+5 suite and full self-built frontend suite remain unproven.",
+    "Imported conditional Nat subtraction methods need actual declaration/implementation authority; no unconditional fake dictionary may be created.",
+    "Canonical numeric class/slot reflection has not been replaced by actual selected-body association.",
+    "Remaining kernel NonZero association, handler elaboration, independent proof/usage/totality and typed runtime lowering remain unfinished."
+  ],
+  "native_oracle": "All32 acceptance/refusal expectations checked before compiling/running independent Cinch checker. Oracle results do not implement Cinch source checking.",
+  "native_precondition_fixture": {
+    "command": [
+      "cargo",
+      "test",
+      "--target-dir",
+      "/tmp/cinch-collections-full-2/cargo/compiler",
+      "--test",
+      "interface_preconditions",
+      "--",
+      "--include-ignored",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "cwd": "/tmp/cinch-collections-full-2/source/compiler",
+    "exit_code": 0,
+    "finished": "2026-11-02T06:31:37.746260+00:00",
+    "name": "interface_preconditions",
+    "pid": 33932,
+    "started": "2026-11-02T06:30:50.098705+00:00",
+    "status": "passed"
+  },
+  "native_same_seed_inputs_passes": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-collections-validation-5/cargo",
+        "--lib",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-02T06:18:47.999456+00:00",
+      "name": "compiler-units",
+      "pid": 5055,
+      "source_sha256": "b789e8f23cadec2cf465f270132e0a0554a93693c15e99990f55468ac2a2c423",
+      "started": "2026-11-02T06:18:03.454095+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-collections-validation-5/cargo",
+        "--test",
+        "prelude_split",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-02T06:19:01.795785+00:00",
+      "name": "prelude_split",
+      "pid": 5052,
+      "source_sha256": "b789e8f23cadec2cf465f270132e0a0554a93693c15e99990f55468ac2a2c423",
+      "started": "2026-11-02T06:18:03.453331+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-collections-validation-5/cargo",
+        "--test",
+        "interface_nominals",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-02T06:18:29.337282+00:00",
+      "name": "interface_nominals",
+      "pid": 5054,
+      "source_sha256": "b789e8f23cadec2cf465f270132e0a0554a93693c15e99990f55468ac2a2c423",
+      "started": "2026-11-02T06:18:03.453949+00:00",
+      "status": "passed"
+    }
+  ],
+  "owned_changes": [
+    "bootstrap/Bootstrap.Contracts.cinch",
+    "bootstrap/Bootstrap.Resolve.cinch",
+    "bootstrap/Bootstrap.Type.cinch",
+    "bootstrap/Bootstrap.Dictionary.cinch",
+    "bootstrap/Bootstrap.Infer.cinch",
+    "bootstrap/Bootstrap.Core.cinch",
+    "bootstrap/programs/Run.Collections.cinch",
+    "compiler/tests/bootstrap_collections.rs",
+    "compiler/tests/interface_preconditions.rs",
+    "compiler/prelude/Data/FromList.cinch",
+    "compiler/prelude/Data/List.cinch",
+    "bootstrap/stage0.lock.json",
+    "bootstrap/seed/stage0.patch"
+  ],
+  "prior_collection5": {
+    "failed": "tuple numeric element defaulted Int before outer dictionary fixed Nat",
+    "fixed_in_this_snapshot": true,
+    "passed": 30,
+    "runtime_cases": 31
+  },
+  "recorded_at": "2026-11-02T06:53:15.835676+00:00",
+  "seed_update": {
+    "native_prelude_and_nominals": "passed",
+    "native_units": 140,
+    "patch_bytes": 228725,
+    "patch_sha256": "150cc897d3638f051bbac62f9a1ecfe09b934d135e99ae905f6b63733b81fe3f",
+    "previous_seed_source_sha256": "650001a8c2aa2f7b49fc7ab9c9c6542890294a662663a453eb7a6d1d24ba587a",
+    "seed_source_sha256": "8c1bfb54673babf60601eb3bc594cd6a19c44d1fff5688d4f58d5a8c32bddff5",
+    "status": "installed only in private mutable collection work; frozen validations unchanged",
+    "validation_source": "/tmp/cinch-collections-validation-5/source",
+    "validation_source_sha256": "b789e8f23cadec2cf465f270132e0a0554a93693c15e99990f55468ac2a2c423"
+  },
+  "self_hosting_achieved": false,
+  "source_cases": 32,
+  "source_refinement_whole_target": {
+    "command": [
+      "cargo",
+      "test",
+      "--target-dir",
+      "/tmp/cinch-collections-full-2/cargo/compiler",
+      "--test",
+      "bootstrap_source_refinements",
+      "--",
+      "--include-ignored",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "cwd": "/tmp/cinch-collections-full-2/source/compiler",
+    "exit_code": 0,
+    "finished": "2026-11-02T06:35:44.497932+00:00",
+    "name": "bootstrap_source_refinements",
+    "pid": 33933,
+    "started": "2026-11-02T06:30:50.100302+00:00",
+    "status": "passed"
+  },
+  "source_sha256": "b8c6f6ac22a3efcfc4316a3c38ae0b43b026f43b7f393943c27f2ac7f0144935",
+  "status": "independent compiled Cinch collection target passes32runtime-fed source cases; full suite and tuple-fixed actual stages running",
+  "tuple_fixed_actual_stages": {
+    "diagnostic_categories": {
+      "a type cannot be used as a predicate value": 1,
+      "decision test does not establish its scoped predicate": 1,
+      "dictionary instance resolution is required for (i.65_108_103_101_98_114_97_46_65_114_105_116_104_109_101_116_105_99_46_83_117_98_ Nat)": 1,
+      "effect inclusion needs resolved rows": 159,
+      "expression needs effect, dictionary or dependent elaboration": 1,
+      "invalid dependent application input": 22,
+      "invalid type in type inference": 1,
+      "kind mismatch in type inference": 1,
+      "malformed effect row": 22,
+      "non-exhaustive patterns": 5,
+      "unbound variable or constructor: i.65_108_103_101_98_114_97_46_65_114_105_116_104_109_101_116_105_99_46_78_111_110_90_101_114_111_": 1
+    },
+    "directory": "/tmp/cinch-collections-stages-2",
+    "results": [
+      {
+        "command": [
+          "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "tooling/bootstrap.py",
+          "smoke",
+          "--stage",
+          "0"
+        ],
+        "exit_code": 0,
+        "finished": "2026-11-02T06:43:34.160953+00:00",
+        "log": "/tmp/cinch-collections-stages-2/stage0-smoke.log",
+        "name": "stage0-smoke",
+        "pid": 42715,
+        "started": "2026-11-02T06:43:29.304751+00:00",
+        "status": "passed"
+      },
+      {
+        "command": [
+          "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "tooling/bootstrap.py",
+          "smoke",
+          "--stage",
+          "1"
+        ],
+        "exit_code": 0,
+        "finished": "2026-11-02T06:47:13.719894+00:00",
+        "log": "/tmp/cinch-collections-stages-2/stage1-smoke.log",
+        "name": "stage1-smoke",
+        "pid": 42808,
+        "started": "2026-11-02T06:43:34.161308+00:00",
+        "status": "passed"
+      },
+      {
+        "command": [
+          "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "tooling/bootstrap.py",
+          "check"
+        ],
+        "exit_code": 1,
+        "finished": "2026-11-02T06:50:53.155880+00:00",
+        "log": "/tmp/cinch-collections-stages-2/self-hosting.log",
+        "name": "self-hosting",
+        "pid": 45143,
+        "started": "2026-11-02T06:47:13.720279+00:00",
+        "status": "failed"
+      }
+    ],
+    "seed_reuse": {
+      "executable_sha256": "0bbfe415d660b22f35dd52ac983832c11526436d33cb63c6cbf3bf6e20ebab5d",
+      "scope": "exact same pinned Native seed only; stage1 and later compilers built fresh from tuple-fixed source6",
+      "source": "/tmp/cinch-collections-stages-1/source/build/bootstrap/stage0",
+      "source_sha256": "8c1bfb54673babf60601eb3bc594cd6a19c44d1fff5688d4f58d5a8c32bddff5"
+    },
+    "self_hosting_achieved": false,
+    "source_sha256": "b8c6f6ac22a3efcfc4316a3c38ae0b43b026f43b7f393943c27f2ac7f0144935",
+    "stage2_body_diagnostics": 215,
+    "stage2_ir_or_compiler": false,
+    "status": "terminal failure at actual stage2 body checking; stage0/1 pass all six smokes"
+  },
+  "whole_collection_target": {
+    "command": [
+      "cargo",
+      "test",
+      "--no-fail-fast",
+      "--target-dir",
+      "/tmp/cinch-collections-validation-6/cargo",
+      "--test",
+      "bootstrap_collections",
+      "--",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit_code": 0,
+    "finished": "2026-11-02T06:39:23.103628+00:00",
+    "lane": "sole named outside fifth worker; all matrix, stage and measure gates use four shared slots",
+    "pid": 29491,
+    "source_sha256": "b8c6f6ac22a3efcfc4316a3c38ae0b43b026f43b7f393943c27f2ac7f0144935",
+    "started": "2026-11-02T06:27:11.352942+00:00",
+    "status": "passed"
+  }
+}

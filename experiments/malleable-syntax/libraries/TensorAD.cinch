@@ -1,0 +1,24 @@
+module TensorAD where
+  import Tensor
+  record Diff (r :: Nat) (c :: Nat) (xr :: Nat) (xc :: Nat) where
+    primal :: Matrix r c
+    pullback :: Matrix r c -> Matrix xr xc
+
+  variable :: forall (r :: Nat) (c :: Nat). Matrix r c -> Diff r c r c
+  variable point = Diff { primal = point, pullback = \seed -> seed }
+  constant :: forall (r :: Nat) (c :: Nat) (xr :: Nat) (xc :: Nat). Matrix xr xc -> Matrix r c -> Diff r c xr xc
+  constant point value = Diff { primal = value, pullback = \seed -> Tensor.fill-like point 0 }
+  add :: forall (r :: Nat) (c :: Nat) (xr :: Nat) (xc :: Nat). Diff r c xr xc -> Diff r c xr xc -> Diff r c xr xc
+  add left right = Diff { primal = Tensor.add left.primal right.primal, pullback = \seed -> Tensor.add (left.pullback seed) (right.pullback seed) }
+  multiply :: forall (r :: Nat) (c :: Nat) (xr :: Nat) (xc :: Nat). Diff r c xr xc -> Diff r c xr xc -> Diff r c xr xc
+  multiply left right = Diff { primal = Tensor.multiply left.primal right.primal, pullback = \seed -> Tensor.add (left.pullback (Tensor.multiply seed right.primal)) (right.pullback (Tensor.multiply seed left.primal)) }
+  matmul :: forall (r :: Nat) (k :: Nat) (c :: Nat) (xr :: Nat) (xc :: Nat). Diff r k xr xc -> Diff k c xr xc -> Diff r c xr xc
+  matmul left right = Diff { primal = Tensor.matmul left.primal right.primal, pullback = \seed -> Tensor.add (left.pullback (Tensor.matmul seed (Tensor.transpose right.primal))) (right.pullback (Tensor.matmul (Tensor.transpose left.primal) seed)) }
+  transpose :: forall (r :: Nat) (c :: Nat) (xr :: Nat) (xc :: Nat). Diff r c xr xc -> Diff c r xr xc
+  transpose value = Diff { primal = Tensor.transpose value.primal, pullback = \seed -> value.pullback (Tensor.transpose seed) }
+  sum :: forall (r :: Nat) (c :: Nat) (xr :: Nat) (xc :: Nat). Diff r c xr xc -> Diff 1 1 xr xc
+  sum value = Diff { primal = Tensor.scalar (Tensor.sum value.primal), pullback = \seed -> value.pullback (Tensor.fill-like value.primal (Tensor.scalar-value seed)) }
+  loss :: forall (r :: Nat) (c :: Nat). Diff 1 1 r c -> Int
+  loss value = Tensor.scalar-value value.primal
+  gradient :: forall (r :: Nat) (c :: Nat). Diff 1 1 r c -> Matrix r c
+  gradient value = value.pullback (Tensor.scalar 1)

@@ -1,0 +1,171 @@
+{
+  "additional_interoperability": [
+    {
+      "compiler_exit": 0,
+      "compiler_output": "",
+      "executable_exit": 0,
+      "name": "imported",
+      "output": ""
+    },
+    {
+      "compiler_exit": 0,
+      "compiler_output": "",
+      "executable_exit": 0,
+      "name": "instance",
+      "output": ""
+    }
+  ],
+  "additional_interoperability_evidence_directory": "/tmp/cinch-native-returned-function-interop-1",
+  "additional_interoperability_inputs": {
+    "imported": {
+      "Lib.cinch": "29357941fc314b9164864dd32f45284f27cf20c1bb3b6dba65fa07f92039e2e3",
+      "Main.cinch": "8a177e21869093b032369063dd60c0e998f2f5d81c1f6ca1afa20aa8732803a1"
+    },
+    "instance": {
+      "Main.cinch": "3880b593103d4647341533e164d1de461d32da2620e7fb956faef8becc3cded5"
+    }
+  },
+  "bootstrap_achieved": false,
+  "case_results": [
+    "lambda-argument: exit199; cinch-leak: live=0 immortal=0 leaked=0",
+    "escaping-capture: exit201; cinch-leak: live=0 immortal=0 leaked=0",
+    "shared-closure: exit203; cinch-leak: live=0 immortal=0 leaked=0",
+    "global-function-value: exit205; cinch-leak: live=0 immortal=0 leaked=0",
+    "partial-function: exit207; cinch-leak: live=0 immortal=0 leaked=0",
+    "dynamic-partial-application: exit209; cinch-leak: live=0 immortal=0 leaked=0",
+    "partial-constructor: exit211; cinch-leak: live=0 immortal=0 leaked=0",
+    "nested-escaping-closures: exit213; cinch-leak: live=0 immortal=0 leaked=0",
+    "unused-capture: exit215; cinch-leak: live=0 immortal=0 leaked=0",
+    "shadowed-capture: exit217; cinch-leak: live=0 immortal=0 leaked=0",
+    "generic-capture-classes: exit219; cinch-leak: live=0 immortal=0 leaked=0",
+    "higher-order-generic-map: exit221; cinch-leak: live=0 immortal=0 leaked=0",
+    "borrowed-field-capture: exit223; cinch-leak: live=0 immortal=0 leaked=0",
+    "closure-constructor-field: exit225; cinch-leak: live=0 immortal=0 leaked=0",
+    "branch-returned-closure: exit227; cinch-leak: live=0 immortal=0 leaked=0",
+    "generic-object-capture: exit229; cinch-leak: live=0 immortal=0 leaked=0",
+    "lambda-tuple-pattern: exit231; cinch-leak: live=0 immortal=0 leaked=0",
+    "function-captures: exit233; cinch-leak: live=0 immortal=0 leaked=0"
+  ],
+  "changes": [
+    "remaining signature arrows are checked as the equation result instead of rejecting non-nullary closure returns",
+    "structural lambda patterns use the existing exhaustive match compiler; erased parameters preserve their restricted spelling",
+    "duplicate lambda binders use the existing pattern binder check"
+  ],
+  "implementation_paths": [
+    "compiler/src/check_decls.rs",
+    "compiler/src/check_terms.rs",
+    "compiler/tests/native_closure_checks.rs"
+  ],
+  "negative_cases": [
+    "non-exhaustive Bool lambda pattern refused",
+    "duplicate tuple lambda binders refused",
+    "wrong returned function result refused",
+    "too many equation parameters refused"
+  ],
+  "scope": "development Rust checker repair; no full latest Native/self-built suite or bootstrap completion claim",
+  "source_sha256": "05a41ce72a69133922fc44e313d558b402a14468c5a9f4e26b9d34cc159a472b",
+  "source_unchanged": true,
+  "stage0_pin_changed": false,
+  "status": "Rust returned-function declarations and lambda patterns validated",
+  "whole_gates": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-native-closure-check-validation-1/cargo",
+        "--test",
+        "native_closure_checks",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T01:03:42.033439+00:00",
+      "name": "native_closure_checks",
+      "pid": 52332,
+      "started": "2026-11-03T01:02:18.509425+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-native-closure-check-validation-1/cargo",
+        "--lib",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T01:06:22.396472+00:00",
+      "name": "units",
+      "pid": 55704,
+      "started": "2026-11-03T01:05:37.730399+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-native-closure-check-validation-1/cargo",
+        "--test",
+        "ownership",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T01:06:33.800536+00:00",
+      "name": "ownership",
+      "pid": 55705,
+      "started": "2026-11-03T01:05:37.730898+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-native-closure-check-validation-1/cargo",
+        "--test",
+        "reclamation",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T01:07:11.954197+00:00",
+      "name": "reclamation",
+      "pid": 55706,
+      "started": "2026-11-03T01:05:37.733403+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-native-closure-check-validation-1/cargo",
+        "--test",
+        "surface",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-03T01:06:57.532370+00:00",
+      "name": "surface",
+      "pid": 57342,
+      "started": "2026-11-03T01:06:22.397020+00:00",
+      "status": "passed"
+    }
+  ]
+}

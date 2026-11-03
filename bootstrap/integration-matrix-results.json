@@ -1,0 +1,1469 @@
+{
+  "status": "passed",
+  "integration_targets": 158,
+  "general_gates": 5,
+  "source_sha256": "db363ca63a9fc22322ad420233ff206d00ffa879d7761a66c56a962e029ebe52",
+  "source_inputs": 570,
+  "fresh_matrix_gates": 132,
+  "matrix_gates": [
+    {
+      "name": "interface_preconditions",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:07:48.329888+00:00",
+      "finished": "2026-11-01T20:08:41.523727+00:00"
+    },
+    {
+      "name": "bootstrap_source_paths",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:07:48.330865+00:00",
+      "finished": "2026-11-01T20:08:39.066766+00:00"
+    },
+    {
+      "name": "bootstrap_manifest",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:07:48.334188+00:00",
+      "finished": "2026-11-01T20:09:18.313375+00:00"
+    },
+    {
+      "name": "bootstrap_indices",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:18:03.842819+00:00",
+      "finished": "2026-11-01T20:18:14.383647+00:00"
+    },
+    {
+      "name": "bootstrap_instance_resolution",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:08:39.070014+00:00",
+      "finished": "2026-11-01T20:09:41.159634+00:00"
+    },
+    {
+      "name": "bootstrap_interface",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:08:41.526795+00:00",
+      "finished": "2026-11-01T20:08:55.238174+00:00"
+    },
+    {
+      "name": "bootstrap_intrinsics",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:08:55.241867+00:00",
+      "finished": "2026-11-01T20:11:06.787821+00:00"
+    },
+    {
+      "name": "bootstrap_ir",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:09:18.317249+00:00",
+      "finished": "2026-11-01T20:09:50.743594+00:00"
+    },
+    {
+      "name": "bootstrap_lexer",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:09:41.162310+00:00",
+      "finished": "2026-11-01T20:10:10.322797+00:00"
+    },
+    {
+      "name": "bootstrap_load",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:09:50.746328+00:00",
+      "finished": "2026-11-01T20:11:13.751502+00:00"
+    },
+    {
+      "name": "bootstrap_module_scopes",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:10:10.325459+00:00",
+      "finished": "2026-11-01T20:12:36.829214+00:00"
+    },
+    {
+      "name": "bootstrap_nominals",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:11:06.791361+00:00",
+      "finished": "2026-11-01T20:20:22.579498+00:00"
+    },
+    {
+      "name": "bootstrap_nonzero_source",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:11:13.755502+00:00",
+      "finished": "2026-11-01T20:18:20.501035+00:00"
+    },
+    {
+      "name": "bootstrap_nonzero_types",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:12:36.832994+00:00",
+      "finished": "2026-11-01T20:14:05.556088+00:00"
+    },
+    {
+      "name": "bootstrap_parse",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:15:03.965265+00:00",
+      "finished": "2026-11-01T20:15:47.618055+00:00"
+    },
+    {
+      "name": "bootstrap_pi",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:15:47.621343+00:00",
+      "finished": "2026-11-01T20:17:01.228536+00:00"
+    },
+    {
+      "name": "bootstrap_proof",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:17:01.231173+00:00",
+      "finished": "2026-11-01T20:17:13.150053+00:00"
+    },
+    {
+      "name": "bootstrap_proposition_types",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:17:13.153090+00:00",
+      "finished": "2026-11-01T20:18:12.577581+00:00"
+    },
+    {
+      "name": "bootstrap_refinement_closure",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:18:12.580223+00:00",
+      "finished": "2026-11-01T20:24:09.125852+00:00"
+    },
+    {
+      "name": "bootstrap_refinement_types",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:18:14.386389+00:00",
+      "finished": "2026-11-01T20:19:16.765563+00:00"
+    },
+    {
+      "name": "bootstrap_resolve",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:18:20.504942+00:00",
+      "finished": "2026-11-01T20:21:48.392531+00:00"
+    },
+    {
+      "name": "bootstrap_test_runner",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:20:22.364935+00:00",
+      "finished": "2026-11-01T20:20:36.369461+00:00"
+    },
+    {
+      "name": "bootstrap_type_syntax",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:20:22.582268+00:00",
+      "finished": "2026-11-01T20:22:46.132442+00:00"
+    },
+    {
+      "name": "bootstrap_value_indices",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:20:36.373372+00:00",
+      "finished": "2026-11-01T20:22:13.578887+00:00"
+    },
+    {
+      "name": "bootstrap_value_kinds",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:21:48.397480+00:00",
+      "finished": "2026-11-01T20:23:08.582678+00:00"
+    },
+    {
+      "name": "canonical_artifacts",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:22:13.582900+00:00",
+      "finished": "2026-11-01T20:22:46.923525+00:00"
+    },
+    {
+      "name": "case_evidence",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:22:46.135524+00:00",
+      "finished": "2026-11-01T20:24:03.138104+00:00"
+    },
+    {
+      "name": "class_defaults",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:22:46.926147+00:00",
+      "finished": "2026-11-01T20:23:18.135007+00:00"
+    },
+    {
+      "name": "codata",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:23:08.586105+00:00",
+      "finished": "2026-11-01T20:23:19.906797+00:00"
+    },
+    {
+      "name": "concurrency",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:23:18.139475+00:00",
+      "finished": "2026-11-01T20:23:49.636082+00:00"
+    },
+    {
+      "name": "dependent",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:23:19.909628+00:00",
+      "finished": "2026-11-01T20:23:50.247542+00:00"
+    },
+    {
+      "name": "effects",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:23:49.639023+00:00",
+      "finished": "2026-11-01T20:24:44.890104+00:00"
+    },
+    {
+      "name": "evidence_invalidation",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:23:50.250006+00:00",
+      "finished": "2026-11-01T20:23:56.369842+00:00"
+    },
+    {
+      "name": "evolution",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:23:56.372559+00:00",
+      "finished": "2026-11-01T20:24:19.060340+00:00"
+    },
+    {
+      "name": "exhaustion",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:27:29.973033+00:00",
+      "finished": "2026-11-01T20:27:43.646421+00:00"
+    },
+    {
+      "name": "ffi",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:24:09.129341+00:00",
+      "finished": "2026-11-01T20:24:32.648350+00:00"
+    },
+    {
+      "name": "fixity_interfaces",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:24:19.063457+00:00",
+      "finished": "2026-11-01T20:24:23.029838+00:00"
+    },
+    {
+      "name": "guard_coverage",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:24:23.033061+00:00",
+      "finished": "2026-11-01T20:25:04.337176+00:00"
+    },
+    {
+      "name": "hk",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:24:32.651349+00:00",
+      "finished": "2026-11-01T20:24:56.719920+00:00"
+    },
+    {
+      "name": "incremental",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:24:44.893965+00:00",
+      "finished": "2026-11-01T20:25:54.375120+00:00"
+    },
+    {
+      "name": "integration",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:24:56.723909+00:00",
+      "finished": "2026-11-01T20:26:26.452514+00:00"
+    },
+    {
+      "name": "interface_class_contracts",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:25:04.340453+00:00",
+      "finished": "2026-11-01T20:25:07.536637+00:00"
+    },
+    {
+      "name": "interface_kinds",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:25:07.539488+00:00",
+      "finished": "2026-11-01T20:25:10.724165+00:00"
+    },
+    {
+      "name": "interface_nominals",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:25:10.727968+00:00",
+      "finished": "2026-11-01T20:25:13.756909+00:00"
+    },
+    {
+      "name": "interface_prelude_overrides",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:25:13.759586+00:00",
+      "finished": "2026-11-01T20:25:19.474153+00:00"
+    },
+    {
+      "name": "interface_refinements",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:25:19.476983+00:00",
+      "finished": "2026-11-01T20:25:23.745622+00:00"
+    },
+    {
+      "name": "interface_region_effects",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:25:23.748656+00:00",
+      "finished": "2026-11-01T20:25:26.602079+00:00"
+    },
+    {
+      "name": "json",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:25:26.606178+00:00",
+      "finished": "2026-11-01T20:27:06.937258+00:00"
+    },
+    {
+      "name": "lattice",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:25:54.379374+00:00",
+      "finished": "2026-11-01T20:26:25.345039+00:00"
+    },
+    {
+      "name": "laws",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:26:25.350727+00:00",
+      "finished": "2026-11-01T20:26:36.407345+00:00"
+    },
+    {
+      "name": "letrec",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:26:26.458193+00:00",
+      "finished": "2026-11-01T20:27:02.336130+00:00"
+    },
+    {
+      "name": "lib_algebra",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:26:36.414327+00:00",
+      "finished": "2026-11-01T20:27:55.098942+00:00"
+    },
+    {
+      "name": "lib_base64",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:27:02.341248+00:00",
+      "finished": "2026-11-01T20:27:29.970445+00:00"
+    },
+    {
+      "name": "lib_benchmark",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:27:06.940754+00:00",
+      "finished": "2026-11-01T20:27:17.889909+00:00"
+    },
+    {
+      "name": "lib_bigdecimal",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:27:17.892684+00:00",
+      "finished": "2026-11-01T20:27:54.561571+00:00"
+    },
+    {
+      "name": "lib_builder",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:36:55.612141+00:00",
+      "finished": "2026-11-01T20:37:15.831462+00:00"
+    },
+    {
+      "name": "lib_category",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:27:43.648998+00:00",
+      "finished": "2026-11-01T20:28:16.305131+00:00"
+    },
+    {
+      "name": "lib_char_tuple",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:27:54.564749+00:00",
+      "finished": "2026-11-01T20:28:05.695011+00:00"
+    },
+    {
+      "name": "lib_civil_time",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:27:55.101910+00:00",
+      "finished": "2026-11-01T20:28:27.798092+00:00"
+    },
+    {
+      "name": "lib_complex",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:28:05.698838+00:00",
+      "finished": "2026-11-01T20:28:09.709810+00:00"
+    },
+    {
+      "name": "lib_coverage",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:28:09.714218+00:00",
+      "finished": "2026-11-01T20:28:22.481350+00:00"
+    },
+    {
+      "name": "lib_csv",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:28:16.307823+00:00",
+      "finished": "2026-11-01T20:28:47.276386+00:00"
+    },
+    {
+      "name": "lib_digest",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:28:22.485210+00:00",
+      "finished": "2026-11-01T20:28:25.801547+00:00"
+    },
+    {
+      "name": "lib_file_utils",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:28:25.804059+00:00",
+      "finished": "2026-11-01T20:28:47.721308+00:00"
+    },
+    {
+      "name": "lib_find",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:28:27.802254+00:00",
+      "finished": "2026-11-01T20:28:34.420931+00:00"
+    },
+    {
+      "name": "lib_foldable",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:28:34.424532+00:00",
+      "finished": "2026-11-01T20:29:16.973515+00:00"
+    },
+    {
+      "name": "lib_function_ord",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:28:47.279536+00:00",
+      "finished": "2026-11-01T20:29:13.948002+00:00"
+    },
+    {
+      "name": "lib_hash_keys",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:28:47.723794+00:00",
+      "finished": "2026-11-01T20:29:08.430258+00:00"
+    },
+    {
+      "name": "lib_hashmap_real",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:29:08.433406+00:00",
+      "finished": "2026-11-01T20:29:19.581855+00:00"
+    },
+    {
+      "name": "lib_http",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:29:13.951492+00:00",
+      "finished": "2026-11-01T20:29:21.237198+00:00"
+    },
+    {
+      "name": "lib_list",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:29:16.976094+00:00",
+      "finished": "2026-11-01T20:29:43.173357+00:00"
+    },
+    {
+      "name": "lib_map_set_ops",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:29:19.586326+00:00",
+      "finished": "2026-11-01T20:29:43.768480+00:00"
+    },
+    {
+      "name": "lib_matrix",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:29:21.239993+00:00",
+      "finished": "2026-11-01T20:29:44.379565+00:00"
+    },
+    {
+      "name": "lib_option_parser",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:29:43.177846+00:00",
+      "finished": "2026-11-01T20:30:01.657582+00:00"
+    },
+    {
+      "name": "lib_option_result",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:29:43.772042+00:00",
+      "finished": "2026-11-01T20:30:04.895970+00:00"
+    },
+    {
+      "name": "lib_pty",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:29:44.382465+00:00",
+      "finished": "2026-11-01T20:29:51.519350+00:00"
+    },
+    {
+      "name": "lib_random",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:29:51.522912+00:00",
+      "finished": "2026-11-01T20:30:03.439115+00:00"
+    },
+    {
+      "name": "lib_rational",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:30:01.661682+00:00",
+      "finished": "2026-11-01T20:30:14.655515+00:00"
+    },
+    {
+      "name": "lib_resolv",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:30:03.441983+00:00",
+      "finished": "2026-11-01T20:30:16.308218+00:00"
+    },
+    {
+      "name": "lib_shellwords",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:30:04.898863+00:00",
+      "finished": "2026-11-01T20:30:27.235618+00:00"
+    },
+    {
+      "name": "lib_signal",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:30:14.658279+00:00",
+      "finished": "2026-11-01T20:30:24.290353+00:00"
+    },
+    {
+      "name": "lib_string_io",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:30:16.311286+00:00",
+      "finished": "2026-11-01T20:30:38.282292+00:00"
+    },
+    {
+      "name": "lib_test_runner",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:30:24.294318+00:00",
+      "finished": "2026-11-01T20:30:38.298975+00:00"
+    },
+    {
+      "name": "lib_text_ops",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:30:27.238987+00:00",
+      "finished": "2026-11-01T20:30:43.895235+00:00"
+    },
+    {
+      "name": "lib_toml",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:30:38.286687+00:00",
+      "finished": "2026-11-01T20:31:04.591564+00:00"
+    },
+    {
+      "name": "lib_uri_ipaddr",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:30:38.302156+00:00",
+      "finished": "2026-11-01T20:32:01.859290+00:00"
+    },
+    {
+      "name": "lib_yaml",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:30:43.899157+00:00",
+      "finished": "2026-11-01T20:31:34.719961+00:00"
+    },
+    {
+      "name": "lib_zlib",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:31:04.595541+00:00",
+      "finished": "2026-11-01T20:31:33.226635+00:00"
+    },
+    {
+      "name": "linear_facts",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:31:33.230165+00:00",
+      "finished": "2026-11-01T20:32:02.997785+00:00"
+    },
+    {
+      "name": "llvm_contract",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:31:34.722904+00:00",
+      "finished": "2026-11-01T20:31:44.723673+00:00"
+    },
+    {
+      "name": "lsp",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:31:44.727583+00:00",
+      "finished": "2026-11-01T20:31:51.042481+00:00"
+    },
+    {
+      "name": "modules",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:31:51.046615+00:00",
+      "finished": "2026-11-01T20:32:11.284954+00:00"
+    },
+    {
+      "name": "observability",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:32:01.862100+00:00",
+      "finished": "2026-11-01T20:32:47.057881+00:00"
+    },
+    {
+      "name": "optimizer",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:32:03.001533+00:00",
+      "finished": "2026-11-01T20:32:53.568797+00:00"
+    },
+    {
+      "name": "order_independence",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:32:11.287422+00:00",
+      "finished": "2026-11-01T20:32:21.994159+00:00"
+    },
+    {
+      "name": "ownership",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:32:21.997345+00:00",
+      "finished": "2026-11-01T20:32:57.685438+00:00"
+    },
+    {
+      "name": "package_manifest",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:32:47.061338+00:00",
+      "finished": "2026-11-01T20:32:48.290260+00:00"
+    },
+    {
+      "name": "package_store",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:32:48.292966+00:00",
+      "finished": "2026-11-01T20:32:57.129313+00:00"
+    },
+    {
+      "name": "params",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:32:53.572335+00:00",
+      "finished": "2026-11-01T20:33:15.581244+00:00"
+    },
+    {
+      "name": "parsers",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:32:57.131892+00:00",
+      "finished": "2026-11-01T20:35:05.483615+00:00"
+    },
+    {
+      "name": "pattern_field_names",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:32:57.688101+00:00",
+      "finished": "2026-11-01T20:33:05.266558+00:00"
+    },
+    {
+      "name": "platform",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:33:05.270632+00:00",
+      "finished": "2026-11-01T20:33:30.078923+00:00"
+    },
+    {
+      "name": "prelude_lib",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:33:15.584278+00:00",
+      "finished": "2026-11-01T20:33:49.071340+00:00"
+    },
+    {
+      "name": "prelude_split",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:33:30.081820+00:00",
+      "finished": "2026-11-01T20:34:18.579419+00:00"
+    },
+    {
+      "name": "prim",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:33:49.075610+00:00",
+      "finished": "2026-11-01T20:34:27.383004+00:00"
+    },
+    {
+      "name": "primitives",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:34:18.582670+00:00",
+      "finished": "2026-11-01T20:35:46.326603+00:00"
+    },
+    {
+      "name": "range_facts",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:34:27.385693+00:00",
+      "finished": "2026-11-01T20:34:59.696274+00:00"
+    },
+    {
+      "name": "reclamation",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:34:59.700345+00:00",
+      "finished": "2026-11-01T20:36:40.884602+00:00"
+    },
+    {
+      "name": "reclamation_tasks",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:35:05.488376+00:00",
+      "finished": "2026-11-01T20:35:28.739819+00:00"
+    },
+    {
+      "name": "refinements",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:35:28.744507+00:00",
+      "finished": "2026-11-01T20:35:56.873451+00:00"
+    },
+    {
+      "name": "regex",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:35:46.331124+00:00",
+      "finished": "2026-11-01T20:36:18.295454+00:00"
+    },
+    {
+      "name": "repl",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:35:56.876930+00:00",
+      "finished": "2026-11-01T20:36:07.014505+00:00"
+    },
+    {
+      "name": "repr_classes",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:36:07.018511+00:00",
+      "finished": "2026-11-01T20:36:18.944046+00:00"
+    },
+    {
+      "name": "runtime_net_prims",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:36:18.299762+00:00",
+      "finished": "2026-11-01T20:36:25.291064+00:00"
+    },
+    {
+      "name": "runtime_prims",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:36:18.946910+00:00",
+      "finished": "2026-11-01T20:36:38.821841+00:00"
+    },
+    {
+      "name": "safe_bytes",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:36:25.294379+00:00",
+      "finished": "2026-11-01T20:36:47.558967+00:00"
+    },
+    {
+      "name": "safe_division",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:36:38.824537+00:00",
+      "finished": "2026-11-01T20:36:51.507185+00:00"
+    },
+    {
+      "name": "safe_subtraction",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:36:40.887628+00:00",
+      "finished": "2026-11-01T20:37:08.857711+00:00"
+    },
+    {
+      "name": "safety",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:36:47.563567+00:00",
+      "finished": "2026-11-01T20:37:26.677085+00:00"
+    },
+    {
+      "name": "small_nats",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:36:51.510418+00:00",
+      "finished": "2026-11-01T20:37:19.884479+00:00"
+    },
+    {
+      "name": "staging",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:37:08.860734+00:00",
+      "finished": "2026-11-01T20:37:54.285682+00:00"
+    },
+    {
+      "name": "string_literals",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:37:15.835002+00:00",
+      "finished": "2026-11-01T20:37:44.256193+00:00"
+    },
+    {
+      "name": "surface",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:37:19.887738+00:00",
+      "finished": "2026-11-01T20:38:01.566360+00:00"
+    },
+    {
+      "name": "sym",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:37:26.680853+00:00",
+      "finished": "2026-11-01T20:37:46.576755+00:00"
+    },
+    {
+      "name": "tail_calls",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:37:44.259217+00:00",
+      "finished": "2026-11-01T20:37:56.543505+00:00"
+    },
+    {
+      "name": "temporal",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:37:46.579458+00:00",
+      "finished": "2026-11-01T20:37:54.214833+00:00"
+    },
+    {
+      "name": "wasm",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:37:54.219050+00:00",
+      "finished": "2026-11-01T20:38:09.736937+00:00"
+    },
+    {
+      "name": "compiler-units",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:37:54.288733+00:00",
+      "finished": "2026-11-01T20:38:39.206303+00:00"
+    },
+    {
+      "name": "compiler-bin",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:37:56.546553+00:00",
+      "finished": "2026-11-01T20:38:18.623789+00:00"
+    },
+    {
+      "name": "compiler-docs",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:38:01.569818+00:00",
+      "finished": "2026-11-01T20:38:19.035264+00:00"
+    },
+    {
+      "name": "runtime",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:38:09.740020+00:00",
+      "finished": "2026-11-01T20:38:20.498478+00:00"
+    },
+    {
+      "name": "tooling",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:38:18.627183+00:00",
+      "finished": "2026-11-01T20:38:19.071168+00:00"
+    }
+  ],
+  "same_code_focused_gates": [
+    {
+      "name": "interface_anonymous_contracts",
+      "target": "interface_anonymous_contracts",
+      "filter": null,
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T19:30:31.566202+00:00",
+      "finished": "2026-11-01T19:31:01.193311+00:00"
+    },
+    {
+      "name": "core_alias_certificates",
+      "target": "bootstrap_byte_observations",
+      "filter": "byte_observations_recheck_typed_input_scope_and_runtime_identity",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T19:31:01.193762+00:00",
+      "finished": "2026-11-01T19:33:10.526075+00:00"
+    },
+    {
+      "name": "buffer_alias_source",
+      "target": "bootstrap_buffer_aliases",
+      "filter": null,
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T19:33:10.528969+00:00",
+      "finished": "2026-11-01T19:40:30.056072+00:00"
+    },
+    {
+      "name": "observation_source_and_imports",
+      "target": "bootstrap_byte_observations",
+      "filter": null,
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T19:40:30.057119+00:00",
+      "finished": "2026-11-01T19:58:01.099244+00:00"
+    },
+    {
+      "name": "bootstrap_refinement_core",
+      "target": "bootstrap_refinement_core",
+      "filter": null,
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T19:58:01.099735+00:00",
+      "finished": "2026-11-01T19:59:50.312297+00:00"
+    },
+    {
+      "name": "bootstrap_typed_indices",
+      "target": "bootstrap_typed_indices",
+      "filter": null,
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T19:59:50.312973+00:00",
+      "finished": "2026-11-01T20:01:38.303168+00:00"
+    },
+    {
+      "name": "bootstrap_function_preconditions",
+      "target": "bootstrap_function_preconditions",
+      "filter": null,
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:01:38.303635+00:00",
+      "finished": "2026-11-01T20:05:06.762590+00:00"
+    },
+    {
+      "name": "bootstrap_source_pi",
+      "target": "bootstrap_source_pi",
+      "filter": null,
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:05:06.763077+00:00",
+      "finished": "2026-11-01T20:09:06.923792+00:00"
+    },
+    {
+      "name": "bootstrap_source_refinements",
+      "target": "bootstrap_source_refinements",
+      "filter": null,
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:09:06.924248+00:00",
+      "finished": "2026-11-01T20:14:48.087583+00:00"
+    },
+    {
+      "name": "bootstrap_core",
+      "target": "bootstrap_core",
+      "filter": null,
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:14:48.088060+00:00",
+      "finished": "2026-11-01T20:19:05.008801+00:00"
+    },
+    {
+      "name": "interface_byte_observations",
+      "target": "interface_byte_observations",
+      "filter": null,
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:19:05.009447+00:00",
+      "finished": "2026-11-01T20:27:28.168374+00:00"
+    }
+  ],
+  "revised_nonzero_gate": [
+    {
+      "name": "bootstrap_imported_nonzero",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T19:59:02.781533+00:00",
+      "finished": "2026-11-01T20:18:03.704572+00:00"
+    }
+  ],
+  "reused_evidence": {
+    "changed_files": [
+      "compiler/tests/bootstrap_imported_nonzero.rs",
+      "compiler/tests/interface_preconditions.rs"
+    ],
+    "compiler_and_bootstrap_code_identical": true,
+    "native_assisted": true,
+    "not_self_built_frontend": true,
+    "original_source_sha256": "e1f2c42360a44b5b282789886e1391e9fe1e28b00729da1644075dbb8ad47c03",
+    "reused_matrix_targets": [
+      "alloc_accounting",
+      "argv",
+      "attributes",
+      "bootstrap_abstract_nonzero_methods",
+      "bootstrap_abstract_nonzero_types",
+      "bootstrap_anonymous_contracts",
+      "bootstrap_check",
+      "bootstrap_contract",
+      "bootstrap_driver",
+      "bootstrap_effect_types",
+      "bootstrap_effects",
+      "bootstrap_eval",
+      "bootstrap_guarded_arithmetic",
+      "bootstrap_imported_preconditions",
+      "bootstrap_infer",
+      "bootstrap_ladder",
+      "bootstrap_named_refinements",
+      "bootstrap_pipeline",
+      "interface_refinement_closure",
+      "primitive_length_identity"
+    ],
+    "same_code_focused_targets": [
+      "bootstrap_buffer_aliases",
+      "bootstrap_byte_observations",
+      "bootstrap_core",
+      "bootstrap_function_preconditions",
+      "bootstrap_refinement_core",
+      "bootstrap_source_pi",
+      "bootstrap_source_refinements",
+      "bootstrap_typed_indices",
+      "interface_anonymous_contracts",
+      "interface_byte_observations"
+    ],
+    "shared_harness_identical": true,
+    "source_sha256": "db363ca63a9fc22322ad420233ff206d00ffa879d7761a66c56a962e029ebe52",
+    "source_unchanged_audits": "checked before reuse and again at completion"
+  },
+  "self_built_frontend": false,
+  "bootstrap_achieved": false,
+  "previous_checkpoint": {
+    "commit": "6d67ed6",
+    "scope": "historical evidence for prior sources only",
+    "matrix": {
+      "status": "passed",
+      "integration_targets": 155,
+      "covered_targets": [
+        "alloc_accounting",
+        "argv",
+        "attributes",
+        "bootstrap_abstract_nonzero_methods",
+        "bootstrap_abstract_nonzero_types",
+        "bootstrap_anonymous_contracts",
+        "bootstrap_check",
+        "bootstrap_contract",
+        "bootstrap_core",
+        "bootstrap_driver",
+        "bootstrap_effect_types",
+        "bootstrap_effects",
+        "bootstrap_eval",
+        "bootstrap_function_preconditions",
+        "bootstrap_guarded_arithmetic",
+        "bootstrap_imported_nonzero",
+        "bootstrap_imported_preconditions",
+        "bootstrap_indices",
+        "bootstrap_infer",
+        "bootstrap_instance_resolution",
+        "bootstrap_interface",
+        "bootstrap_intrinsics",
+        "bootstrap_ir",
+        "bootstrap_ladder",
+        "bootstrap_lexer",
+        "bootstrap_load",
+        "bootstrap_manifest",
+        "bootstrap_module_scopes",
+        "bootstrap_named_refinements",
+        "bootstrap_nominals",
+        "bootstrap_nonzero_source",
+        "bootstrap_nonzero_types",
+        "bootstrap_parse",
+        "bootstrap_pi",
+        "bootstrap_pipeline",
+        "bootstrap_proof",
+        "bootstrap_proposition_types",
+        "bootstrap_refinement_closure",
+        "bootstrap_refinement_core",
+        "bootstrap_refinement_types",
+        "bootstrap_resolve",
+        "bootstrap_source_paths",
+        "bootstrap_source_pi",
+        "bootstrap_source_refinements",
+        "bootstrap_test_runner",
+        "bootstrap_type_syntax",
+        "bootstrap_typed_indices",
+        "bootstrap_value_indices",
+        "bootstrap_value_kinds",
+        "canonical_artifacts",
+        "case_evidence",
+        "class_defaults",
+        "codata",
+        "concurrency",
+        "dependent",
+        "effects",
+        "evidence_invalidation",
+        "evolution",
+        "exhaustion",
+        "ffi",
+        "fixity_interfaces",
+        "guard_coverage",
+        "hk",
+        "incremental",
+        "integration",
+        "interface_anonymous_contracts",
+        "interface_class_contracts",
+        "interface_kinds",
+        "interface_nominals",
+        "interface_preconditions",
+        "interface_prelude_overrides",
+        "interface_refinement_closure",
+        "interface_refinements",
+        "interface_region_effects",
+        "json",
+        "lattice",
+        "laws",
+        "letrec",
+        "lib_algebra",
+        "lib_base64",
+        "lib_benchmark",
+        "lib_bigdecimal",
+        "lib_builder",
+        "lib_category",
+        "lib_char_tuple",
+        "lib_civil_time",
+        "lib_complex",
+        "lib_coverage",
+        "lib_csv",
+        "lib_digest",
+        "lib_file_utils",
+        "lib_find",
+        "lib_foldable",
+        "lib_function_ord",
+        "lib_hash_keys",
+        "lib_hashmap_real",
+        "lib_http",
+        "lib_list",
+        "lib_map_set_ops",
+        "lib_matrix",
+        "lib_option_parser",
+        "lib_option_result",
+        "lib_pty",
+        "lib_random",
+        "lib_rational",
+        "lib_resolv",
+        "lib_shellwords",
+        "lib_signal",
+        "lib_string_io",
+        "lib_test_runner",
+        "lib_text_ops",
+        "lib_toml",
+        "lib_uri_ipaddr",
+        "lib_yaml",
+        "lib_zlib",
+        "linear_facts",
+        "llvm_contract",
+        "lsp",
+        "modules",
+        "observability",
+        "optimizer",
+        "order_independence",
+        "ownership",
+        "package_manifest",
+        "package_store",
+        "params",
+        "parsers",
+        "pattern_field_names",
+        "platform",
+        "prelude_lib",
+        "prelude_split",
+        "prim",
+        "primitive_length_identity",
+        "primitives",
+        "range_facts",
+        "reclamation",
+        "reclamation_tasks",
+        "refinements",
+        "regex",
+        "repl",
+        "repr_classes",
+        "runtime_net_prims",
+        "runtime_prims",
+        "safe_bytes",
+        "safe_division",
+        "safe_subtraction",
+        "safety",
+        "small_nats",
+        "staging",
+        "string_literals",
+        "surface",
+        "sym",
+        "tail_calls",
+        "temporal",
+        "wasm"
+      ],
+      "source_sha256": "321673612da1f7a3c2df37f9d82b4e47dbc7cf235bbc50f39f063f241a09a195",
+      "source_inputs": 566,
+      "fresh_matrix_gates": 159,
+      "focused_exact_input_gate": "primitive_length_identity (8 cases passed)",
+      "general_gates": [
+        {
+          "name": "compiler-units",
+          "status": "passed",
+          "exit_code": 0
+        },
+        {
+          "name": "compiler-bin",
+          "status": "passed",
+          "exit_code": 0
+        },
+        {
+          "name": "compiler-docs",
+          "status": "passed",
+          "exit_code": 0
+        },
+        {
+          "name": "runtime",
+          "status": "passed",
+          "exit_code": 0
+        },
+        {
+          "name": "tooling",
+          "status": "passed",
+          "exit_code": 0
+        }
+      ],
+      "source_unchanged": true,
+      "self_built_frontend": false,
+      "bootstrap_achieved": false
+    }
+  },
+  "superseded_failed_matrix": {
+    "source_sha256": "e1f2c42360a44b5b282789886e1391e9fe1e28b00729da1644075dbb8ad47c03",
+    "failure": "bootstrap_imported_nonzero still expected the now-supported byte-length predicate export to be absent; changed fixture rerun and passed41caller cases",
+    "whole_suite_pass": false
+  },
+  "covered_targets": [
+    "alloc_accounting",
+    "argv",
+    "attributes",
+    "bootstrap_abstract_nonzero_methods",
+    "bootstrap_abstract_nonzero_types",
+    "bootstrap_anonymous_contracts",
+    "bootstrap_buffer_aliases",
+    "bootstrap_byte_observations",
+    "bootstrap_check",
+    "bootstrap_contract",
+    "bootstrap_core",
+    "bootstrap_driver",
+    "bootstrap_effect_types",
+    "bootstrap_effects",
+    "bootstrap_eval",
+    "bootstrap_function_preconditions",
+    "bootstrap_guarded_arithmetic",
+    "bootstrap_imported_nonzero",
+    "bootstrap_imported_preconditions",
+    "bootstrap_indices",
+    "bootstrap_infer",
+    "bootstrap_instance_resolution",
+    "bootstrap_interface",
+    "bootstrap_intrinsics",
+    "bootstrap_ir",
+    "bootstrap_ladder",
+    "bootstrap_lexer",
+    "bootstrap_load",
+    "bootstrap_manifest",
+    "bootstrap_module_scopes",
+    "bootstrap_named_refinements",
+    "bootstrap_nominals",
+    "bootstrap_nonzero_source",
+    "bootstrap_nonzero_types",
+    "bootstrap_parse",
+    "bootstrap_pi",
+    "bootstrap_pipeline",
+    "bootstrap_proof",
+    "bootstrap_proposition_types",
+    "bootstrap_refinement_closure",
+    "bootstrap_refinement_core",
+    "bootstrap_refinement_types",
+    "bootstrap_resolve",
+    "bootstrap_source_paths",
+    "bootstrap_source_pi",
+    "bootstrap_source_refinements",
+    "bootstrap_test_runner",
+    "bootstrap_type_syntax",
+    "bootstrap_typed_indices",
+    "bootstrap_value_indices",
+    "bootstrap_value_kinds",
+    "canonical_artifacts",
+    "case_evidence",
+    "class_defaults",
+    "codata",
+    "concurrency",
+    "dependent",
+    "effects",
+    "evidence_invalidation",
+    "evolution",
+    "exhaustion",
+    "ffi",
+    "fixity_interfaces",
+    "guard_coverage",
+    "hk",
+    "incremental",
+    "integration",
+    "interface_anonymous_contracts",
+    "interface_byte_observations",
+    "interface_class_contracts",
+    "interface_kinds",
+    "interface_nominals",
+    "interface_preconditions",
+    "interface_prelude_overrides",
+    "interface_refinement_closure",
+    "interface_refinements",
+    "interface_region_effects",
+    "json",
+    "lattice",
+    "laws",
+    "letrec",
+    "lib_algebra",
+    "lib_base64",
+    "lib_benchmark",
+    "lib_bigdecimal",
+    "lib_builder",
+    "lib_category",
+    "lib_char_tuple",
+    "lib_civil_time",
+    "lib_complex",
+    "lib_coverage",
+    "lib_csv",
+    "lib_digest",
+    "lib_file_utils",
+    "lib_find",
+    "lib_foldable",
+    "lib_function_ord",
+    "lib_hash_keys",
+    "lib_hashmap_real",
+    "lib_http",
+    "lib_list",
+    "lib_map_set_ops",
+    "lib_matrix",
+    "lib_option_parser",
+    "lib_option_result",
+    "lib_pty",
+    "lib_random",
+    "lib_rational",
+    "lib_resolv",
+    "lib_shellwords",
+    "lib_signal",
+    "lib_string_io",
+    "lib_test_runner",
+    "lib_text_ops",
+    "lib_toml",
+    "lib_uri_ipaddr",
+    "lib_yaml",
+    "lib_zlib",
+    "linear_facts",
+    "llvm_contract",
+    "lsp",
+    "modules",
+    "observability",
+    "optimizer",
+    "order_independence",
+    "ownership",
+    "package_manifest",
+    "package_store",
+    "params",
+    "parsers",
+    "pattern_field_names",
+    "platform",
+    "prelude_lib",
+    "prelude_split",
+    "prim",
+    "primitive_length_identity",
+    "primitives",
+    "range_facts",
+    "reclamation",
+    "reclamation_tasks",
+    "refinements",
+    "regex",
+    "repl",
+    "repr_classes",
+    "runtime_net_prims",
+    "runtime_prims",
+    "safe_bytes",
+    "safe_division",
+    "safe_subtraction",
+    "safety",
+    "small_nats",
+    "staging",
+    "string_literals",
+    "surface",
+    "sym",
+    "tail_calls",
+    "temporal",
+    "wasm"
+  ],
+  "source_unchanged": true,
+  "summary": {
+    "all_focused_passed": true,
+    "fresh_failed": 0,
+    "fresh_passed": 132,
+    "fresh_pending": 0,
+    "reused_matrix_targets": 20,
+    "self_built_frontend": false,
+    "source_sha256": "db363ca63a9fc22322ad420233ff206d00ffa879d7761a66c56a962e029ebe52",
+    "source_unchanged": true,
+    "status": "passed"
+  }
+}

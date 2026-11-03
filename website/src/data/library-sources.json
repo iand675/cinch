@@ -189,7 +189,7 @@
     {
       "module": "Data.FromList",
       "path": "compiler/prelude/Data/FromList.cinch",
-      "sha256": "79adbec390aabbf362dc551bdc475da29e2721656cd005dbf263bbab88ba17c4",
+      "sha256": "62cc79932ad61b2dc2a269fa592573ca8d514cc0f99ff34ddbf0be60160fd3d8",
       "embedded": true,
       "values": 0,
       "public_methods": 1
@@ -253,7 +253,7 @@
     {
       "module": "Data.List",
       "path": "compiler/prelude/Data/List.cinch",
-      "sha256": "07bee14b1520df1e5a0de73e0faa956c03da610014f97773b101dfe463675575",
+      "sha256": "f765133818f3970e81d9b8838a80afd539fc852b9041945ecff2f4a171282f8d",
       "embedded": true,
       "values": 41,
       "public_methods": 0
@@ -645,7 +645,7 @@
     {
       "module": "Text.Json",
       "path": "compiler/prelude/Text/Json.cinch",
-      "sha256": "a80f141038155fcd58bf92ae57204f0b8c0b098c9144a90fced2f37606782876",
+      "sha256": "461861b69d963202733c7016f571b393cfc048e45c04eaf92cef036fcfaeb47b",
       "embedded": false,
       "values": 25,
       "public_methods": 0
@@ -653,7 +653,7 @@
     {
       "module": "Text.Lex",
       "path": "compiler/prelude/Text/Lex.cinch",
-      "sha256": "aac19e1c9e6d49781285e77d5818d2d570a6e2a46f244495324495b71c921998",
+      "sha256": "c7cc9f8fe6373e93ad0c32ddf262e746da44015394f40548c3ba6d84352dc786",
       "embedded": false,
       "values": 18,
       "public_methods": 0

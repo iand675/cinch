@@ -1,0 +1,95 @@
+{
+  "additional_preserved_change": "Published legacy arity binding retained; separately checked in complete24module source closure and genuine complete-compiler Stage2 frontend acceptance",
+  "bootstrap_achieved": false,
+  "complete_self_built_suite": false,
+  "current_complete_native_suite": false,
+  "focused_and_ir": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-checked-pipeline-validation-2/cargo",
+        "--test",
+        "bootstrap_checked_program",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-02T22:24:12.794393+00:00",
+      "name": "bootstrap_checked_program",
+      "pid": 36272,
+      "started": "2026-11-02T22:17:52.637187+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-checked-pipeline-validation-2/cargo",
+        "--test",
+        "bootstrap_ir",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-02T22:31:58.136957+00:00",
+      "name": "bootstrap_ir",
+      "pid": 41049,
+      "started": "2026-11-02T22:24:12.795333+00:00",
+      "status": "passed"
+    }
+  ],
+  "focused_and_ir_source_sha256": "10d845fb3ec94548b708dda0dc0b4f7cb80340dc648d2c4701411c4b2236d92a",
+  "historical_failures": [
+    "snapshot1 negative fixture used unresolved name and was refused by resolver5 rather than expectedchecker4; snapshot2 uses real type error and passes",
+    "snapshot1 second scalar IR project omitted its new Check dependency; snapshot2 supplies dependency and both tests pass"
+  ],
+  "implementation_files_identical_between_test_snapshots": true,
+  "implementation_paths": [
+    "bootstrap/Bootstrap.Check.cinch",
+    "bootstrap/Bootstrap.Ir.cinch",
+    "bootstrap/Bootstrap.Pipeline.cinch",
+    "bootstrap/programs/Run.CheckedProgram.cinch",
+    "compiler/tests/bootstrap_checked_program.rs",
+    "compiler/tests/bootstrap_ir.rs"
+  ],
+  "implementation_sha256": {
+    "bootstrap/Bootstrap.Check.cinch": "ccdae3c03eaed31420da752ee2454a86c874ae63f4635693699319715a0808c4",
+    "bootstrap/Bootstrap.Ir.cinch": "f857443b743cc47125cef08fd0d463063372aa875ce2566a26448bd4bca385db",
+    "bootstrap/Bootstrap.Pipeline.cinch": "754796ecfa9d85410b48129fe93f48347c1c21de383757e571a1dcf6e7d1fb55",
+    "bootstrap/programs/Run.CheckedProgram.cinch": "80573962b7fa4364e90c297c595ac4618f4be45b3008bfc3bedf369aecba6f70",
+    "compiler/tests/bootstrap_checked_program.rs": "b9191841ecb40e34a3970923a9810f16ae7c3d17ee4b7f3e4a057068415229e9",
+    "compiler/tests/bootstrap_ir.rs": "5bc986733329b3318ca98994ff0b46103ecea9d2fa25fd3a6abd83c29c3ca8dd"
+  },
+  "pipeline": {
+    "command": [
+      "cargo",
+      "test",
+      "--target-dir",
+      "/tmp/cinch-checked-pipeline-validation-1/cargo",
+      "--test",
+      "bootstrap_pipeline",
+      "--",
+      "--include-ignored",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit_code": 0,
+    "finished": "2026-11-02T22:27:07.354502+00:00",
+    "name": "bootstrap_pipeline",
+    "pid": 35478,
+    "started": "2026-11-02T22:16:48.134043+00:00",
+    "status": "passed"
+  },
+  "pipeline_source_sha256": "26356d59498d4634f727f0b4e5becce216168cf0d7a933e921bf9ce06f9f8173",
+  "stage2_executable": false,
+  "stage3_fixed_point": false,
+  "status": "checked Core handoff passes focused runtime, constructor privacy, complete scalar IR and whole pipeline regressions",
+  "typed_runtime_lowering": false
+}

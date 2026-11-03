@@ -8,8 +8,8 @@
 //!      which writes `build/Lib.cinchif`;
 //!   2. the artifact's bytes, the module's own source bytes, and the answers
 //!      computed from the compiler's own model of that artifact are handed to
-//!      `bootstrap/programs/Run.Interface.cinch` as literals;
-//!   3. the program, compiled and RUN through the real driver, exits 0 only
+//!      `bootstrap/programs/Run.Interface.cinch` as files and fixed expectations;
+//!   3. the program, compiled once through the real driver, exits 0 only
 //!      when every answer holds, and its report on standard output carries the
 //!      contract text the interface identity was recomputed over;
 //!   4. one byte of the artifact (or of the source, or of a second read of the
@@ -45,7 +45,7 @@ const RUN_SRC: &str = include_str!("../../bootstrap/programs/Run.Interface.cinch
 /// `\`-continuations would strip the indentation the language's layout needs.
 const LIB_SRC: &str = r#"module Lib where
   import Dep
-  export Token, Tok, describe, add
+  export Token, Tok, describe, add, (|+|)
   infixl 6 |+|
   data Token where
     Tok :: Int -> Token
@@ -212,16 +212,11 @@ struct Inputs {
     sha256: String,
 }
 
-/// The compiled program for these inputs, with the placeholder bindings
-/// substituted. Each placeholder must occur exactly once, so a rename in the
-/// artifact cannot silently skip a substitution.
-fn program_of(inputs: &Inputs, exp: &Expect) -> String {
-    let artifact = std::str::from_utf8(&inputs.artifact).expect("the artifact is UTF-8");
-    let copy = std::str::from_utf8(&inputs.copy).expect("the second read is UTF-8");
-    let subs: [(&str, String); 10] = [
-        ("artifact-text = \"\"", format!("artifact-text = {}", cinch_lit(artifact))),
-        ("artifact-copy-text = \"\"", format!("artifact-copy-text = {}", cinch_lit(copy))),
-        ("source-text = \"\"", format!("source-text = {}", cinch_lit(&inputs.source))),
+/// The reader program with the fixed expected answers substituted.
+/// Each placeholder must occur exactly once, so a rename in the program
+/// cannot silently skip a substitution.
+fn program_of(exp: &Expect) -> String {
+    let subs: [(&str, String); 6] = [
         ("expected-module = \"\"", format!("expected-module = {}", cinch_lit(&exp.module))),
         (
             "expected-source-hash = \"\"",
@@ -230,10 +225,6 @@ fn program_of(inputs: &Inputs, exp: &Expect) -> String {
         (
             "expected-iface-hash = \"\"",
             format!("expected-iface-hash = {}", cinch_lit(&exp.iface_hash)),
-        ),
-        (
-            "expected-sha256-hex = \"\"",
-            format!("expected-sha256-hex = {}", cinch_lit(&inputs.sha256)),
         ),
         ("expected-imports = Nil", format!("expected-imports = {}", cinch_list(&exp.imports))),
         (
@@ -257,23 +248,28 @@ fn program_of(inputs: &Inputs, exp: &Expect) -> String {
     src
 }
 
-fn rewrite(dir: &Path, program: &str) {
-    std::fs::write(dir.join("Main.cinch"), program).expect("write the program");
+fn write_inputs(dir: &Path, inputs: &Inputs) {
+    for (name, bytes) in [
+        ("artifact.json", inputs.artifact.as_slice()),
+        ("artifact-copy.json", inputs.copy.as_slice()),
+        ("source.txt", inputs.source.as_bytes()),
+        ("source.sha256", inputs.sha256.as_bytes()),
+    ] {
+        std::fs::write(dir.join(name), bytes).expect("write reader input");
+    }
 }
 
 // --------------------------------------------------------------- the run
 
-/// Compile the program with `common::build` and run the executable, so the
-/// program's own standard output (its report) is captured and not just its
-/// exit code.
-fn build_and_run(dir: &Path) -> (i32, String) {
-    let exe = common::build(dir, "Main.cinch", "program").expect("the program must build");
-    let out = Command::new(&exe)
+/// Capture the reader's report and require a normal exit even for a case
+/// expecting code 1: a signal must never count as the JSON refusal.
+fn run_reader(dir: &Path, exe: &Path) -> (i32, String) {
+    let out = Command::new(exe)
         .current_dir(dir)
         .output()
         .unwrap_or_else(|e| panic!("run {}: {e}", exe.display()));
     (
-        out.status.code().unwrap_or(1),
+        out.status.code().unwrap_or_else(|| panic!("reader terminated by signal: {}\n{}", out.status, String::from_utf8_lossy(&out.stderr))),
         String::from_utf8_lossy(&out.stdout).into_owned(),
     )
 }
@@ -429,19 +425,21 @@ fn the_interface_reader_answers_a_real_artifact() {
     };
 
     // The positive case: every answer holds, and the report says so.
-    rewrite(&dir, &program_of(&inputs, &exp));
-    let (code, report) = build_and_run(&dir);
+    std::fs::write(dir.join("Main.cinch"), program_of(&exp)).expect("write reader program");
+    let exe = common::build(&dir, "Main.cinch", "program").expect("the reader must build");
+    write_inputs(&dir, &inputs);
+    let (code, report) = run_reader(&dir, &exe);
     assert_eq!(
         code, 0,
         "every answer must hold; exit {code} names the first that did not.\n{report}"
     );
     assert_eq!(report_field(&report, "module"), "Lib");
-    assert_eq!(report_field(&report, "schema"), "1");
+    assert_eq!(report_field(&report, "schema"), cinch::interface::SCHEMA_VERSION.to_string());
     assert_eq!(report_field(&report, "source-hash-recorded"), exp.source_hash);
     assert_eq!(report_field(&report, "source-hash-fnv"), exp.source_hash);
     assert_eq!(report_field(&report, "source-sha256"), inputs.sha256);
     assert_eq!(report_field(&report, "imports"), "2");
-    assert_eq!(report_field(&report, "values"), "2");
+    assert_eq!(report_field(&report, "values"), "3");
     assert_eq!(report_field(&report, "fixities"), "1");
     assert_eq!(report_field(&report, "iface-hash"), exp.iface_hash);
     assert_eq!(report_field(&report, "schemes-stable"), "yes");
@@ -487,7 +485,7 @@ fn the_interface_reader_answers_a_real_artifact() {
     cases.push(("a changed module name", 2, bad_module));
 
     let mut bad_schema = inputs.clone();
-    bad_schema.artifact = fixed(&bad_schema.artifact, "\"schema\":1", "\"schema\":2");
+    bad_schema.artifact = fixed(&bad_schema.artifact, &format!("\"schema\":{}", cinch::interface::SCHEMA_VERSION), &format!("\"schema\":{}", cinch::interface::SCHEMA_VERSION + 1));
     cases.push(("a changed schema version", 3, bad_schema));
 
     let mut bad_source = inputs.clone();
@@ -499,19 +497,11 @@ fn the_interface_reader_answers_a_real_artifact() {
     cases.push(("a changed value name", 5, bad_name));
 
     let mut bad_scheme = inputs.clone();
-    bad_scheme.artifact = fixed(
-        &bad_scheme.artifact,
-        "\"scheme\":\"(Int -> (Int -> Int))\"",
-        "\"scheme\":\"\"",
-    );
+    bad_scheme.artifact = change_value(&bad_scheme.artifact, "add", |value| value.scheme.clear());
     cases.push(("an emptied scheme text", 6, bad_scheme));
 
     let mut bad_copy = inputs.clone();
-    bad_copy.copy = fixed(
-        &bad_copy.copy,
-        "\"scheme\":\"(Int -> (Int -> Int))\"",
-        "\"scheme\":\"(Int -> (Int -> Int!))\"",
-    );
+    bad_copy.copy = change_value(&bad_copy.copy, "add", |value| value.scheme = "(Int -> (Int -> Int!))".into());
     cases.push(("a second read with a different scheme", 7, bad_copy));
 
     let mut bad_import = inputs.clone();
@@ -523,7 +513,7 @@ fn the_interface_reader_answers_a_real_artifact() {
     cases.push(("a changed fixity precedence", 9, bad_fixity));
 
     let mut bad_arity = inputs.clone();
-    bad_arity.artifact = fixed(&bad_arity.artifact, "\"arity\":2", "\"arity\":3");
+    bad_arity.artifact = change_value(&bad_arity.artifact, "add", |value| value.arity = 3);
     cases.push(("a changed value arity (only the identity covers it)", 10, bad_arity));
 
     let mut bad_digest = inputs.clone();
@@ -535,14 +525,9 @@ fn the_interface_reader_answers_a_real_artifact() {
     cases.push(("an artifact without the compiler field", 12, no_compiler));
 
     for (what, expected, case) in cases {
-        rewrite(&dir, &program_of(&case, &exp));
-        // `common::run` drives the program through the real driver, which
-        // reports a process killed by a signal as exit 1 (the same number the
-        // program itself uses for "the artifact is not a JSON document"), so a
-        // killed run shows up here as a mismatched 1 rather than as a wrong
-        // answer.
-        let code = common::run(&dir, "Main.cinch");
-        assert_eq!(code, expected, "{what}: the exit code must name the failed answer");
+        write_inputs(&dir, &case);
+        let (code, report) = run_reader(&dir, &exe);
+        assert_eq!(code, expected, "{what}: the exit code must name the failed answer\n{report}");
     }
 
     common::cleanup(&dir);
@@ -555,4 +540,14 @@ fn fixed(bytes: &[u8], from: &str, to: &str) -> Vec<u8> {
     let text = std::str::from_utf8(bytes).expect("the artifact is UTF-8");
     assert_eq!(text.matches(from).count(), 1, "`{from}` must occur once");
     text.replace(from, to).into_bytes()
+}
+
+/// Several exports can share a display scheme or arity, and schema 4
+/// also stores a resolved scheme. Mutate the intended exported value
+/// without changing an unrelated contract containing the same text.
+fn change_value(bytes: &[u8], name: &str, change: impl FnOnce(&mut cinch::interface::ValueExport)) -> Vec<u8> {
+    let mut iface = cinch::interface::Iface::from_json(std::str::from_utf8(bytes).unwrap()).unwrap();
+    assert_eq!(iface.exports.values.iter().filter(|value| value.name == name).count(), 1);
+    change(iface.exports.values.iter_mut().find(|value| value.name == name).unwrap());
+    iface.to_json().into_bytes()
 }

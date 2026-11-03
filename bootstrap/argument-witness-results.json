@@ -1,0 +1,394 @@
+{
+  "status": "focused checks passed; broader argument regressions and actual Stage 2 pending at publication",
+  "recorded_at": "2026-11-02T20:17:17.708729+00:00",
+  "argument_source_sha256": "184b4931c0994b27b72f1a75289853a75500db937bff9d87c7b2d772fdb609f7",
+  "json_source_sha256": "2e677c5c0ff09f99dcfb1ee1e004283395b10cd35896937031586be92338dc43",
+  "published_implementation_files": {
+    "bootstrap/Bootstrap.Infer.cinch": "b6fef4cb808214f676691617766c28df537cabd9bf35a57247c1a9e867286bcd",
+    "compiler/tests/bootstrap_argument_scopes.rs": "f303e9ddad2a73b78897a3a9e8a0cb2b41b0b1aa7b9b651ec310080111e3ad3e",
+    "compiler/prelude/Text/Json.cinch": "461861b69d963202733c7016f571b393cfc048e45c04eaf92cef036fcfaeb47b"
+  },
+  "implementation": [
+    "Retain actual argument CLet witness scopes around the call; bind the original function first and preserve its effects and evaluation order. Hidden environment names prevent source capture.",
+    "When hoisting an actual witnessed binding out of let generalization, lower only its matching IRigid inference level. Preserve its identity, unrelated value scope boundaries and all type skolems. Independent Core scope/type checks still run.",
+    "Text.Json.peek-byte and scan-number-done bind the actual immutable offset and buffer before their original bounds guard. The origin start remains evaluated only inside the guarded branch. No accessor equations or assumed contracts are added."
+  ],
+  "focused_argument_checks": {
+    "directory": "/tmp/cinch-argument-lets-validation-2",
+    "source_cases": 7,
+    "existing_independent_core_checks": true,
+    "result": [
+      {
+        "command": [
+          "cargo",
+          "test",
+          "--target-dir",
+          "/tmp/cinch-argument-lets-validation-2/cargo",
+          "--test",
+          "bootstrap_argument_scopes",
+          "--",
+          "--include-ignored",
+          "--nocapture",
+          "--test-threads=1"
+        ],
+        "exit_code": 0,
+        "finished": "2026-11-02T19:51:11.461313+00:00",
+        "name": "bootstrap_argument_scopes",
+        "pid": 57712,
+        "started": "2026-11-02T19:41:41.104354+00:00",
+        "status": "passed"
+      }
+    ]
+  },
+  "whole_argument_regressions_at_publication": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-argument-lets-validation-2/cargo",
+        "--test",
+        "bootstrap_indices",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-02T19:52:28.910459+00:00",
+      "name": "bootstrap_indices",
+      "pid": 74032,
+      "started": "2026-11-02T19:52:18.080452+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-argument-lets-validation-2/cargo",
+        "--test",
+        "bootstrap_dependent_functions",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "finished": "2026-11-02T20:12:24.071676+00:00",
+      "name": "bootstrap_dependent_functions",
+      "pid": 25351,
+      "started": "2026-11-02T20:12:23.793245+00:00",
+      "status": "failed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-argument-lets-validation-2/cargo",
+        "--test",
+        "bootstrap_refinement_constructors",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "name": "bootstrap_refinement_constructors",
+      "pid": 30040,
+      "started": "2026-11-02T20:15:52.192354+00:00",
+      "status": "running"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-argument-lets-validation-2/cargo",
+        "--test",
+        "bootstrap_guarded_calls",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-02T20:12:23.774081+00:00",
+      "name": "bootstrap_guarded_calls",
+      "pid": 74817,
+      "started": "2026-11-02T19:52:28.911317+00:00",
+      "status": "passed"
+    }
+  ],
+  "separate_correct_dependent_target": {
+    "directory": "/tmp/cinch-argument-let-source-pi-2",
+    "results": [
+      {
+        "command": [
+          "cargo",
+          "test",
+          "--target-dir",
+          "/tmp/cinch-argument-lets-validation-2/cargo",
+          "--test",
+          "bootstrap_source_pi",
+          "--",
+          "--include-ignored",
+          "--nocapture",
+          "--test-threads=1"
+        ],
+        "name": "bootstrap_source_pi",
+        "status": "pending"
+      }
+    ]
+  },
+  "harness_error": "bootstrap_dependent_functions does not exist and exited101. This invocation is not a compiler regression or a passing gate; its original evidence is preserved. bootstrap_source_pi is the separately queued correct target.",
+  "json_source_probe": {
+    "directory": "/tmp/cinch-json-cursor-validation-1",
+    "before": {
+      "native_exit": 0,
+      "cinch_exit": 4,
+      "first_refusal": "peek-byte dependent argument lacks stable checked identity"
+    },
+    "after": {
+      "native_exit": 0,
+      "cinch_exit": 5,
+      "boundary": "source accepted; named uniform-word ABI/layout emitter refusals remain"
+    },
+    "checked_base_interfaces_only": true,
+    "native_compiler_implementation_interfaces_supplied": false
+  },
+  "whole_json_and_parser_regressions": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-json-cursor-validation-1/cargo",
+        "--test",
+        "json",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-02T20:14:56.120172+00:00",
+      "name": "json",
+      "pid": 25362,
+      "started": "2026-11-02T20:12:24.194186+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-json-cursor-validation-1/cargo",
+        "--test",
+        "bootstrap_parse",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-02T20:15:52.178236+00:00",
+      "name": "bootstrap_parse",
+      "pid": 28137,
+      "started": "2026-11-02T20:14:56.121278+00:00",
+      "status": "passed"
+    }
+  ],
+  "json_runtime_tests": 9,
+  "stage_smokes": {
+    "bootstrap_achieved": false,
+    "builder_sha256": "51be4c08fdf08bc3f31afcf9d799ca673de6df16181a3d4c5678af1f71b6df6a",
+    "source_sha256": "2e677c5c0ff09f99dcfb1ee1e004283395b10cd35896937031586be92338dc43",
+    "status": "six stage0/1 smokes passed"
+  },
+  "prior_actual_argument_stage2": {
+    "diagnostic_categories": {
+      "argument call needs checked pure total reification or a checked observation contract": 1,
+      "effect inclusion needs resolved rows": 11,
+      "invalid dependent application input": 9,
+      "invalid type in type inference": 1,
+      "malformed effect row": 9,
+      "non-exhaustive patterns": 1217,
+      "type mismatch: expected Nat, found Int": 1,
+      "with binding needs a checked signature value": 1
+    },
+    "diagnostics": 1250,
+    "exit_code": 4,
+    "first_diagnostics": [
+      "bootstrap.check:18553:68: argument call needs checked pure total reification or a checked observation contract",
+      "bootstrap.check:18593:15: non-exhaustive patterns",
+      "bootstrap.check:18605:7: non-exhaustive patterns",
+      "bootstrap.check:18632:33: non-exhaustive patterns",
+      "bootstrap.check:18652:34: non-exhaustive patterns",
+      "bootstrap.check:18674:5: non-exhaustive patterns",
+      "bootstrap.check:18680:28: non-exhaustive patterns",
+      "bootstrap.check:18684:7: non-exhaustive patterns",
+      "bootstrap.check:18694:28: non-exhaustive patterns",
+      "bootstrap.check:18699:19: non-exhaustive patterns"
+    ],
+    "inputs": {
+      "builder_sha256": "39b042368222addd8998cf85b22832698851873db916e4356509ce359f848b36",
+      "built_by_stage": 1,
+      "host": {
+        "machine": "arm64",
+        "system": "Darwin"
+      },
+      "interface_set_sha256": "b2eadab5e31445d6b009b928fbebd2851086cfaed84680eb487207ba4cc47b2f",
+      "protocol": 2,
+      "source_sha256": "32b0824bffb55704f20889d37477655043f001b2086b395c85fc4d19845da371"
+    },
+    "log": "/private/tmp/cinch-argument-lets-validation-2/source/build/bootstrap/stage2/build.log",
+    "status": "failed"
+  },
+  "latest_actual_stage_chain": {
+    "directory": "/tmp/cinch-json-cursor-actual-stages-1",
+    "results_at_publication": [
+      {
+        "command": [
+          "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "tooling/bootstrap.py",
+          "check"
+        ],
+        "name": "self-hosting",
+        "pid": 23879,
+        "started": "2026-11-02T20:11:58.998008+00:00",
+        "status": "running"
+      }
+    ],
+    "status": "running at publication; neither Stage 2 success nor its next refusal is claimed"
+  },
+  "full_matrix_scope": "The separate 191-integration plus six-general-gate Native-assisted matrix is still running on the earlier handler/parser/verifier snapshot. It predates these Infer/JSON changes and does not establish a complete current-source pass.",
+  "limitations": [
+    "No Stage 2 compiler or IR has yet been produced.",
+    "Typed shared-runtime lowering, complete independent usage/totality checks, Stage 2/3 fixed point and full self-built frontend tests remain required."
+  ],
+  "self_built_frontend_suite": false,
+  "bootstrap_achieved": false,
+  "subsequent_whole_argument_regressions": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-argument-lets-validation-2/cargo",
+        "--test",
+        "bootstrap_indices",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-02T19:52:28.910459+00:00",
+      "name": "bootstrap_indices",
+      "pid": 74032,
+      "started": "2026-11-02T19:52:18.080452+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-argument-lets-validation-2/cargo",
+        "--test",
+        "bootstrap_refinement_constructors",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-02T20:27:28.289407+00:00",
+      "name": "bootstrap_refinement_constructors",
+      "pid": 30040,
+      "started": "2026-11-02T20:15:52.192354+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-argument-lets-validation-2/cargo",
+        "--test",
+        "bootstrap_guarded_calls",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-02T20:12:23.774081+00:00",
+      "name": "bootstrap_guarded_calls",
+      "pid": 74817,
+      "started": "2026-11-02T19:52:28.911317+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-argument-lets-validation-2/cargo",
+        "--test",
+        "bootstrap_source_pi",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "finished": "2026-11-02T20:35:10.766733+00:00",
+      "name": "bootstrap_source_pi",
+      "pid": 72531,
+      "started": "2026-11-02T20:29:52.556634+00:00",
+      "status": "passed"
+    }
+  ],
+  "subsequent_whole_argument_status": "all four intended whole regressions passed; original nonexistent-target harness failure retained",
+  "subsequent_json_actual_stage2": {
+    "diagnostic_categories": {
+      "conditional argument needs checked defining body authority": 1,
+      "effect inclusion needs resolved rows": 3,
+      "ill-sorted, partial or unchecked typed source index": 2,
+      "invalid dependent application input": 5,
+      "malformed effect row": 5,
+      "non-exhaustive patterns": 1178,
+      "type mismatch: expected Nat, found Int": 1,
+      "with binding needs a checked signature value": 1
+    },
+    "diagnostics": 1196,
+    "exit_code": 4,
+    "first_diagnostics": [
+      "bootstrap.check:9377:17: conditional argument needs checked defining body authority",
+      "bootstrap.check:9377:17: ill-sorted, partial or unchecked typed source index",
+      "bootstrap.check:9377:17: ill-sorted, partial or unchecked typed source index",
+      "bootstrap.check:9421:21: invalid dependent application input",
+      "bootstrap.check:9421:27: malformed effect row",
+      "bootstrap.check:9428:18: invalid dependent application input",
+      "bootstrap.check:9428:20: malformed effect row",
+      "bootstrap.check:9428:22: effect inclusion needs resolved rows",
+      "bootstrap.check:9434:12: invalid dependent application input",
+      "bootstrap.check:9434:14: malformed effect row"
+    ],
+    "inputs": {
+      "builder_sha256": "51be4c08fdf08bc3f31afcf9d799ca673de6df16181a3d4c5678af1f71b6df6a",
+      "built_by_stage": 1,
+      "host": {
+        "machine": "arm64",
+        "system": "Darwin"
+      },
+      "interface_set_sha256": "246156fa1fa793af31c2a515755e7bb785feb7fa7c356e20816837f59dfacff3",
+      "protocol": 2,
+      "source_sha256": "5a1badd47e9aea605178ec42dfed298c563dd7cc724614ead5079d90bb2ef7f8"
+    },
+    "log": "/private/tmp/cinch-json-cursor-validation-1/source/build/bootstrap/stage2/build.log",
+    "status": "failed"
+  }
+}

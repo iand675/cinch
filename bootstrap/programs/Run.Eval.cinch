@@ -118,7 +118,7 @@ module Main where
       (Cons (DFun sp "fib" (Cons (Cons (pvar "n") Nil, fib-body) Nil))
         (Cons (DSig sp "main" int-type)
           (Cons (DFun sp "main" (Cons (Nil, main-body) Nil))
-            (Cons (DData sp "MaybeInt" (Cons ("MJust", TFun sp int-type maybe-int-type) (Cons ("MNothing", maybe-int-type) Nil)))
+            (Cons (DData sp "MaybeInt" Nil (Cons ("MJust", TFun sp int-type maybe-int-type) (Cons ("MNothing", maybe-int-type) Nil)))
               (Cons (DSig sp "un-wrap" (TFun sp maybe-int-type int-type))
                 (Cons (DFun sp "un-wrap" (Cons (Cons (pvar "m") Nil, unwrap-body) Nil))
                   (Cons (DSig sp "is-even" int-fun-type)
@@ -309,7 +309,7 @@ module Main where
   checks-b =
     Cons (check (refuses (eval-of prog no-match-expr) "case expression has no matching alternative") 6)
       (Cons (check (refuses (eval-of prog unbound-expr) "unbound variable: nowhere") 7)
-      (Cons (check (refuses (eval-of prog over-applied-expr) "arity mismatch: main applied to 1 argument(s), but its declaration has arity 0") 8)
+      (Cons (check (refuses (eval-of prog over-applied-expr) "cannot apply a non-function") 8)
       (Cons (check (refuses (eval-of bad-arity-program bad-arity-expr) "arity mismatch: f has 2 parameters in this clause but its declaration has arity 1") 9)
       (Cons (check (is-value (eval-of prog lam-expr) (VInt 42)) 10)
       (Cons (check (is-value (eval-of prog unwrap-just-expr) (VInt 7)) 11)
@@ -330,7 +330,49 @@ module Main where
       Nil)))))))))
 
   checks :: List Int
-  checks = ints-append checks-a (ints-append checks-b checks-c)
+  checks = ints-append checks-a (ints-append checks-b (ints-append checks-c checks-d))
+
+  -- Guard failure resumes with the original environment: the first
+  -- alternative's `n` must not replace the outer `n` in the second.
+  guarded-expr :: Expr
+  guarded-expr = ELet sp (binding-spine sp (Cons ("n", int "100") Nil))
+    (ECase sp (int "7") (alts
+      (Cons (alt (pvar "n") (EGuarded sp (binop "<" (var "n") (int "0")) (int "1")))
+      (Cons (alt (pvar "m") (EGuarded sp (binop "==" (var "n") (int "100")) (var "m")))
+      (Cons (alt pwild (int "9")) Nil)))))
+
+  bad-guard-expr :: Expr
+  bad-guard-expr = ECase sp (int "7") (alts (Cons (alt pwild (EGuarded sp (int "0") (int "1"))) Nil))
+
+  tuple-source :: String
+  tuple-source = "module Main where\n  main :: Int\n  main = let (a, (b, c)) = (1, (2, 3)) in a + b * c\n"
+
+  parsed-tuple :: Option Int
+  parsed-tuple = parse-main-value tuple-source
+
+  parse-main-value :: String -> Option Int
+  parse-main-value source = case parse-program "eval" (string-to-bytes source) of
+    Failed bundle -> None
+    Parsed program errors ->
+      if program-unmodeled-count program == 0 && list-length errors == 0 then eval-main program else None
+
+  parsed-answer-is :: String -> Int -> Bool
+  parsed-answer-is source expected = case parse-main-value source of
+    Some answer -> answer == expected
+    None -> False
+
+  right-associative-source :: String
+  right-associative-source = "module Main where\n  infixr 8 +, -\n  (+) :: Int -> Int -> Int\n  (+) a b = int-add a b\n  (-) :: Int -> Int -> Int\n  (-) a b = int-sub a b\n  main :: Int\n  main = 10 - 3 - 2\n"
+
+  guarded-source :: String
+  guarded-source = "module Main where\n  main :: Int\n  main = case 7 of\n    n | n < 0 -> 1\n    m | m == 7 -> m\n    _ -> 9\n"
+
+  checks-d :: List Int
+  checks-d = Cons (check (is-value (eval-of prog guarded-expr) (VInt 7)) 22)
+    (Cons (check (refuses (eval-of prog bad-guard-expr) "the guard of a case alternative is not a Bool") 23)
+    (Cons (check (case parsed-tuple of Some n -> n == 7; None -> False) 24)
+    (Cons (check (parsed-answer-is right-associative-source 9) 25)
+    (Cons (check (parsed-answer-is guarded-source 7) 26) Nil))))
 
   verdict :: Int
   verdict = first-failure checks

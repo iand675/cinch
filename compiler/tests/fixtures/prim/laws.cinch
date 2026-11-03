@@ -6,7 +6,6 @@ module LawLib where
 
   import Algebra.Semigroup
 
-  infixr 6 <>
 
   data Box where
     Box :: U32 -> Box

@@ -53,7 +53,7 @@ module Bootstrap.Eval where
   -- The value family is exported so a caller can build and compare the
   -- interpreter's answers (an oracle's surface), not only read them as
   -- text.
-  export Value, VInt, VBool, VUnit, VStr, VChr, VCon, VArgsEnd, VArg, VClosure, VFun, VEnvEnd, VBind
+  export Value, VInt, VBool, VUnit, VStr, VChr, VCon, VTuple, VArgsEnd, VArg, VClosure, VFun, VEnvEnd, VBind
   export eval-program, eval-main, eval-main-result, eval-expr-in-program, value-equal, render-value
 
   -- The rung's name in every diagnostic it renders.
@@ -82,6 +82,7 @@ module Bootstrap.Eval where
     VStr :: String -> Value
     VChr :: Char -> Value
     VCon :: String -> Value -> Value
+    VTuple :: Value -> Value
     VArgsEnd :: Value
     VArg :: Value -> Value -> Value
     VClosure :: List Pat -> Expr -> Value -> Value
@@ -213,6 +214,9 @@ module Bootstrap.Eval where
     VCon n a -> case r of
       VCon n2 b -> value-args-equal n n2 a b
       other -> None
+    VTuple xs -> case r of
+      VTuple ys -> value-list-equal (args-to-list xs) (args-to-list ys)
+      other -> None
     other -> None
 
   value-args-equal :: String -> String -> Value -> Value -> Option Bool
@@ -257,9 +261,15 @@ module Bootstrap.Eval where
         Some d -> if eq-char c d then MHit VEnvEnd else MMiss
       other -> MMiss
     PCon s n args -> case v of
+      VBool b -> case pats-of args of
+        Nil -> if (string-compare n "True" == 0 && b) || (string-compare n "False" == 0 && not b) then MHit VEnvEnd else MMiss
+        Cons first rest -> MMiss
       VCon n2 vargs -> case string-compare n n2 == 0 of
         False -> MMiss
         True -> pat-match-spine (pats-of args) (args-to-list vargs)
+      other -> MMiss
+    PTuple s args -> case v of
+      VTuple fields -> pat-match-spine (pats-of args) (args-to-list fields)
       other -> MMiss
     other -> MBad (pat-span other) "unsupported pattern: this pattern form is outside the eval fragment"
 
@@ -428,7 +438,19 @@ module Bootstrap.Eval where
     False -> fail s "malformed argument spine"
     True -> case eval-args globals env (exprs-of args) of
       Err ds -> Err ds
-      Ok vs -> Ok (VCon n (args-from-list vs))
+      Ok vs ->
+        if string-compare n "True" == 0 || string-compare n "False" == 0 then
+          case vs of
+            Nil -> Ok (VBool (string-compare n "True" == 0))
+            Cons first rest -> fail s "Boolean constructors take no arguments"
+        else Ok (VCon n (args-from-list vs))
+
+  eval-tuple :: Value -> Value -> Span -> Expr -> Result (List Diagnostic) Value
+  eval-tuple globals env s args = case spine-ok-exprs args of
+    False -> fail s "malformed tuple expression spine"
+    True -> case eval-args globals env (exprs-of args) of
+      Err ds -> Err ds
+      Ok values -> Ok (VTuple (args-from-list values))
 
   eval-app :: Value -> Value -> Span -> Expr -> Expr -> Result (List Diagnostic) Value
   eval-app globals env s f a = case eval-expr globals env f of
@@ -478,9 +500,17 @@ module Bootstrap.Eval where
     Nil -> fail s "case expression has no matching alternative"
     Cons a rest -> case a of
       (p, body) -> case pat-match p sv of
-        MHit bs -> eval-expr globals (env-merge bs env) body
+        MHit bs -> run-alt-body globals env (env-merge bs env) s sv rest body
         MMiss -> run-alts globals env s sv rest
         MBad sp msg -> Err (Cons (MkDiagnostic rung sp msg) Nil)
+
+  run-alt-body :: Value -> Value -> Value -> Span -> Value -> List (Pat, Expr) -> Expr -> Result (List Diagnostic) Value
+  run-alt-body globals env bound s sv rest body = case body of
+    EGuarded gs guard rhs -> case eval-expr globals bound guard of
+      Err ds -> Err ds
+      Ok (VBool flag) -> if flag then eval-expr globals bound rhs else run-alts globals env s sv rest
+      Ok other -> fail gs "the guard of a case alternative is not a Bool"
+    other -> eval-expr globals bound other
 
   eval-case :: Value -> Value -> Span -> Expr -> Expr -> Result (List Diagnostic) Value
   eval-case globals env s scrut alts = case spine-ok-alts alts of
@@ -493,7 +523,9 @@ module Bootstrap.Eval where
   eval-expr globals env e = case e of
     EVar s n -> case env-lookup n env of
       None -> fail s (string-concat "unbound variable: " n)
-      Some v -> Ok v
+      Some v -> case v of
+        VFun name arity clauses collected -> if arity == 0 then apply-fun globals s name arity clauses collected else Ok v
+        other -> Ok v
     ECon s n args -> eval-con globals env s n args
     ELitInt s text -> Ok (VInt (lit-int-value text))
     ELitStr s text -> Ok (VStr text)
@@ -508,15 +540,19 @@ module Bootstrap.Eval where
     ELet s bs body -> eval-let globals env s bs body
     EIf s c t f -> eval-if globals env s c t f
     ECase s scrut alts -> eval-case globals env s scrut alts
+    EGuarded s guard body -> fail s "a guarded body is valid only inside a case alternative"
     EAnn s x t -> eval-expr globals env x
     ELitFloat s text -> fail s "unsupported expression: float literal"
-    ETuple s xs -> fail s "unsupported expression: tuple"
+    ETuple s xs -> eval-tuple globals env s xs
     EList s xs -> fail s "unsupported expression: list literal"
     EForall s vs body -> fail s "unsupported expression: forall"
     EUsing s bounds body -> fail s "unsupported expression: implicit using"
     EBind s n rhs -> fail s "unsupported expression: bind statement"
     EDo s stmts -> fail s "unsupported expression: do block"
     EHandle s body h -> fail s "unsupported expression: handle"
+    EHandler s label clauses -> fail s "unsupported expression: handler"
+    EHandlerClause s name pats continuation body rest -> fail s "unsupported expression: handler clause"
+    EHandlerEnd s -> fail s "unsupported expression: handler clause end"
     EWith s bs body -> fail s "unsupported expression: with"
     EArg s x rest -> fail s "unsupported expression: argument spine cell"
     EArgsEnd s -> fail s "unsupported expression: argument spine end"
@@ -581,7 +617,7 @@ module Bootstrap.Eval where
     Nil -> env
     Cons d rest -> case d of
       DFun s n clauses -> globals-decls rest arities (VBind n (VFun n (fun-arity n clauses arities) clauses VArgsEnd) env)
-      DData s n ctors -> globals-decls rest arities (ctor-binds ctors env)
+      DData s n params ctors -> globals-decls rest arities (ctor-binds ctors env)
       other -> globals-decls rest arities env
 
   globals-modules :: List Module -> List (String, Nat) -> Value -> Value
@@ -612,6 +648,7 @@ module Bootstrap.Eval where
 
   decl-unmodeleds :: Decl -> List Diagnostic
   decl-unmodeleds d = case d of
+    DRefine s n params binder predicate -> Cons (MkDiagnostic rung s "named refinement declarations need proof checking, which is not supported in this rung") Nil
     DUnmodeled s text -> Cons (MkDiagnostic rung s (string-concat "unmodeled declaration: " text)) Nil
     other -> Nil
 
@@ -695,6 +732,7 @@ module Bootstrap.Eval where
     VStr s -> s
     VChr c -> char-string c
     VCon n args -> string-concat n (render-args (args-to-list args))
+    VTuple args -> string-concat "(" (string-concat (render-args (args-to-list args)) ")")
     VArgsEnd -> "()"
     VArg x rest -> render-args (args-to-list (VArg x rest))
     VClosure ps body env -> "<lambda>"

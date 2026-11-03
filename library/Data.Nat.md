@@ -144,7 +144,7 @@ nat-div :: (Nat -> (NonZero Nat -> Nat))
 ## `nat-from-i64`
 
 ```cinch
-nat-from-i64 :: using (0 <= arg0) => ((arg0 :: I64) -> refined (n == arg0) Nat)
+nat-from-i64 :: using (0 <= arg0) => ((arg0 :: I64) -> refined (r == arg0) Nat)
 ```
 
 The `I64` conversions keep the value (`n == x`), and each states
@@ -161,7 +161,7 @@ value may be out of range, `checked-nat-from-i64`/
 ## `nat-from-int`
 
 ```cinch
-nat-from-int :: using (0 <= arg0) => ((arg0 :: Int) -> refined (n == arg0) Nat)
+nat-from-int :: using (0 <= arg0) => ((arg0 :: Int) -> refined (r == arg0) Nat)
 ```
 
 [Source](/reference-sources/Data.Nat.cinch) · line 58
@@ -206,7 +206,7 @@ The exact difference: the caller proves it is a `Nat`.
 ## `nat-to-i64`
 
 ```cinch
-nat-to-i64 :: using (arg0 <= 9223372036854775807) => ((arg0 :: Nat) -> refined (x == arg0) I64)
+nat-to-i64 :: using (arg0 <= 9223372036854775807) => ((arg0 :: Nat) -> refined (r == arg0) I64)
 ```
 
 [Source](/reference-sources/Data.Nat.cinch) · line 53
@@ -216,7 +216,7 @@ nat-to-i64 :: using (arg0 <= 9223372036854775807) => ((arg0 :: Nat) -> refined (
 ## `nat-to-int`
 
 ```cinch
-nat-to-int :: ((a0 :: Nat) -> refined (x == a0) Int)
+nat-to-int :: ((a0 :: Nat) -> refined (r == a0) Int)
 ```
 
 The `Int` conversions: every `Nat` is an `Int`, and a non-negative

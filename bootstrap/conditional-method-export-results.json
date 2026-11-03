@@ -1,0 +1,89 @@
+{
+  "limits": [
+    "New c126 seed stage chain is not yet run.",
+    "The complete180+5 suite still runs on the older366/constructor7 snapshot; no complete current or self-built frontend suite pass is claimed.",
+    "Cinch selection, selected actual numeric body authority, handlers, full independent proof/usage/totality and typed runtime lowering remain unfinished."
+  ],
+  "native_units": 141,
+  "native_validation": {
+    "command": [
+      "cargo",
+      "test",
+      "--no-fail-fast",
+      "--target-dir",
+      "/tmp/cinch-conditional-wire-validation-4/cargo",
+      "--lib",
+      "--test",
+      "interface_conditional_methods",
+      "--test",
+      "interface_class_contracts",
+      "--",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit_code": 0,
+    "finished": "2026-11-02T10:22:47.837507+00:00",
+    "lane": "sole named fifth lane; full matrix/preflight share four slots",
+    "pid": 76421,
+    "source_sha256": "e88302211258d80b4cf7ae1fd9b98dde971fdfea0ba5ad5568fbd93a040767eb",
+    "started": "2026-11-02T10:21:02.197209+00:00",
+    "status": "passed"
+  },
+  "owned_code": [
+    "compiler/src/interface.rs",
+    "compiler/src/check_interface.rs",
+    "compiler/src/check_decls.rs",
+    "compiler/tests/interface_conditional_methods.rs",
+    "bootstrap/stage0.lock.json",
+    "bootstrap/seed/stage0.patch"
+  ],
+  "preceding_published_stages": {
+    "directory": "/tmp/cinch-dependent-refinement-stages-1",
+    "seed": "1056, before this wire addition",
+    "stage0_1_smokes": 6,
+    "stage2_body_diagnostics": 214,
+    "stage2_compiler": false,
+    "stage2_exit_code": 4
+  },
+  "private_consumer": {
+    "published": true,
+    "report": "bootstrap/conditional-method-consumer-results.json",
+    "status": "consumer19source/40Core and all7whole regressions pass; full182+5 running"
+  },
+  "recorded_at": "2026-11-02T10:41:17.572154+00:00",
+  "seed_update": {
+    "native_conditional_declaration_tests": 1,
+    "native_focus": "141units and whole class/conditional interface targets passed",
+    "native_units": 141,
+    "patch_bytes": 243611,
+    "patch_sha256": "fa3b960cc8fdf7f33b37880dcbd9e0134adae25d1d3a32765a01e794dd2da5be",
+    "previous_seed_source_sha256": "1056e489a96d34abcec7c244166fc6eb1f80e14f2dd0df0bcf0d2d1d70cbfc8b",
+    "seed_source_sha256": "c12617b095f00a74fec557d896137182de5c88590b45e66292052f2853d2bf5f",
+    "status": "archive plus patch reproduces exact tested Native sources; candidate only, not installed",
+    "validation_source": "/tmp/cinch-conditional-wire-validation-4/source",
+    "validation_source_sha256": "e88302211258d80b4cf7ae1fd9b98dde971fdfea0ba5ad5568fbd93a040767eb"
+  },
+  "self_hosting_achieved": false,
+  "source_regressions": [
+    "actual Sub Nat slot and complete dependent y<=x callable contract retained",
+    "conditional factory remains resolved:null",
+    "canonical roundtrip and checked-contract hash dependency",
+    "same-carrier implementation substitution outside actual slot rejected",
+    "older display-only method record accepted without new authority",
+    "Native guarded Nat predecessor accepted and unguarded predecessor refused"
+  ],
+  "source_sha256": "e88302211258d80b4cf7ae1fd9b98dde971fdfea0ba5ad5568fbd93a040767eb",
+  "status": "Native optional checked conditional implementation declarations pass whole Rust regression targets; Cinch selection consumer remains private",
+  "whole_targets": [
+    "interface_class_contracts",
+    "interface_conditional_methods"
+  ],
+  "wire": {
+    "authority": "Checked declaring class head, complete preconditioned callable scheme and actual InstanceDef slot/FnDef identity. No unrestricted dictionary factory or mathematical body equation.",
+    "compatibility": "Absent checked authority is omitted, preserving the encoding/hash of older display-only method records; older records remain opaque.",
+    "interface_schema": 8,
+    "optional_version": 1,
+    "runtime_abi": 5,
+    "scope": "Non-parameterized closed instance tier without captured dictionary/module context; unsupported declarations remain unresolved."
+  }
+}

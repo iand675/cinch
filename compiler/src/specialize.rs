@@ -32,6 +32,100 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 type Vector = Vec<Class>;
 
+/// Explicit representation demands from a separately compiled consumer.
+/// Vectors contain concrete word classes, never inferred fallback classes.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ObjectRoot {
+    Unit { symbol: String, classes: Vec<Class> },
+    Dictionary { symbol: String, classes: Vec<Class> },
+    Method { class: String, slot: usize, own: Vec<Class> },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MethodSlot {
+    pub logical: usize,
+    pub physical: usize,
+    pub own: Vec<Class>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MethodFamily {
+    pub class: String,
+    pub declared_methods: usize,
+    pub slots: Vec<MethodSlot>,
+}
+
+/// Read a bounded list of demanded variants, not a Cartesian expansion.
+pub fn parse_object_roots(text: &str) -> crate::Result<Vec<ObjectRoot>> {
+    use crate::interface::parse_json;
+    let invalid = |e| crate::Error::plain(format!("object roots: {e}"));
+    let doc = parse_json(text).map_err(invalid)?;
+    let obj = doc.as_object().map_err(invalid)?;
+    if obj.get("schema").and_then(|v| v.as_num().ok()) != Some(1)
+        || obj.keys().any(|k| !matches!(k.as_str(), "schema" | "units" | "dictionaries" | "methods")) {
+        return Err(crate::Error::plain("object roots require schema 1 and only units/dictionaries/methods arrays"));
+    }
+    let mut roots = Vec::new();
+    for key in ["units", "dictionaries", "methods"] {
+        let Some(rows) = obj.get(key) else { continue };
+        for row in rows.as_array().map_err(invalid)? {
+            let row = row.as_object().map_err(invalid)?;
+            let get = |key: &str| row.get(key).ok_or_else(|| crate::Error::plain(format!("object root is missing {key}")));
+            let text = |key: &str| -> crate::Result<String> { Ok(get(key)?.as_str().map_err(invalid)?.to_string()) };
+            let vector = |key: &str| -> crate::Result<Vec<Class>> {
+                text(key)?.chars().map(|c| match c {
+                    'R' => Ok(Class::Raw), 'O' => Ok(Class::Obj), 'T' => Ok(Class::TObj),
+                    _ => Err(crate::Error::plain("object root vectors contain only R/O/T")),
+                }).collect()
+            };
+            let allowed: &[&str] = if key == "methods" { &["class", "slot", "own"] } else { &["symbol", "classes"] };
+            if row.keys().any(|k| !allowed.contains(&k.as_str())) {
+                return Err(crate::Error::plain("unknown object root field"));
+            }
+            roots.push(if key == "methods" {
+                ObjectRoot::Method { class: text("class")?, slot: usize::try_from(get("slot")?.as_num().map_err(invalid)?)
+                    .map_err(|_| crate::Error::plain("object root method slot overflows the host"))?, own: vector("own")? }
+            } else if key == "units" {
+                ObjectRoot::Unit { symbol: text("symbol")?, classes: vector("classes")? }
+            } else {
+                ObjectRoot::Dictionary { symbol: text("symbol")?, classes: vector("classes")? }
+            });
+        }
+    }
+    roots.sort(); roots.dedup();
+    Ok(roots)
+}
+
+fn validate_object_roots(program: &Program, roots: &[ObjectRoot]) -> crate::Result<()> {
+    for root in roots {
+        let (symbol, vector, expected) = match root {
+            ObjectRoot::Unit { symbol, classes } => {
+                let f = program.fns.iter().find(|f| f.id.0 == *symbol)
+                    .ok_or_else(|| crate::Error::plain(format!("unknown object unit root {symbol}")))?;
+                (symbol, classes, f.repr.tparams)
+            }
+            ObjectRoot::Dictionary { symbol, classes } => {
+                let inst = program.instances.iter().find(|i| i.id.0 == *symbol)
+                    .ok_or_else(|| crate::Error::plain(format!("unknown object dictionary root {symbol}")))?;
+                (symbol, classes, inst.tparams)
+            }
+            ObjectRoot::Method { class, slot, own } => {
+                let insts: Vec<_> = program.instances.iter().filter(|i| i.class == *class).collect();
+                let first = insts.first().ok_or_else(|| crate::Error::plain(format!("unknown object method class {class}")))?;
+                if insts.iter().any(|i| i.own.len() != i.method_count || i.method_count != first.method_count || i.own != first.own) {
+                    return Err(crate::Error::plain(format!("inconsistent defining method family for {class}")));
+                }
+                let n = first.own.get(*slot).ok_or_else(|| crate::Error::plain(format!("unknown object method slot {class}:{slot}")))?;
+                (class, own, *n)
+            }
+        };
+        if vector.len() != expected || vector.iter().any(|c| c.is_param()) {
+            return Err(crate::Error::plain(format!("object root {symbol} needs {expected} concrete representation classes")));
+        }
+    }
+    Ok(())
+}
+
 /// A vector fitted to `n` parameters: concrete classes kept, a missing or
 /// non-concrete entry `Raw`. The flag says whether anything was filled.
 fn fit(v: &[Class], n: usize) -> (Vector, bool) {
@@ -306,6 +400,10 @@ fn inst_name(id: &str, iv: &[Class]) -> String {
 
 /// Collect and emit the reached copies; `report` records them.
 pub fn specialize(program: &Program, report: &mut OptReport) -> Program {
+    specialize_with_roots(program, report, &[], None)
+}
+
+fn specialize_with_roots(program: &Program, report: &mut OptReport, roots: &[ObjectRoot], families: Option<&mut Vec<MethodFamily>>) -> Program {
     let mut cx = Cx {
         fns: program.fns.iter().map(|f| (f.id.0.as_str(), f)).collect(),
         insts: program.instances.iter().map(|i| (i.id.0.as_str(), i)).collect(),
@@ -318,6 +416,22 @@ pub fn specialize(program: &Program, report: &mut OptReport) -> Program {
         work: Vec::new(),
         unrecorded: 0,
     };
+    for root in roots {
+        match root {
+            ObjectRoot::Unit { symbol, classes } => {
+                if cx.generic(symbol).is_some() { cx.reach_unit(symbol, classes.clone()); }
+                else { cx.reach_ctor(symbol, classes); }
+            }
+            ObjectRoot::Dictionary { symbol, classes } => {
+                if cx.inst_copies.entry(symbol.clone()).or_default().insert(classes.clone()) {
+                    cx.work.push(Item::Inst(symbol.clone(), classes.clone()));
+                }
+            }
+            ObjectRoot::Method { class, slot, own } => {
+                cx.own.entry((class.clone(), *slot)).or_default().insert(own.clone());
+            }
+        }
+    }
     for f in &program.fns {
         if cx.generic(&f.id.0).is_none() {
             cx.scan(&f.body);
@@ -344,6 +458,7 @@ pub fn specialize(program: &Program, report: &mut OptReport) -> Program {
                 subst_classes(&mut copy.body, v);
                 cx.rename(&mut copy.body, &slots);
                 copy.repr.params = crate::repr::subst_all(&copy.repr.params, v);
+                copy.repr.result = copy.repr.result.map(|c| c.subst(v));
                 copy.repr.tparams = 0;
                 out.fns.push(copy);
                 report.versions.push(spec_name(&f.id.0, v));
@@ -355,6 +470,7 @@ pub fn specialize(program: &Program, report: &mut OptReport) -> Program {
                 let mut copy = f.clone();
                 copy.id = GlobalId(spec_name(&f.id.0, v));
                 copy.repr.params = crate::repr::subst_all(&copy.repr.params, v);
+                copy.repr.result = copy.repr.result.map(|c| c.subst(v));
                 copy.repr.fields = crate::repr::subst_all(&copy.repr.fields, v);
                 copy.repr.tparams = 0;
                 out.fns.push(copy);
@@ -405,7 +521,33 @@ pub fn specialize(program: &Program, report: &mut OptReport) -> Program {
     }
     report.versions.sort();
     report.unrecorded = cx.unrecorded;
+    if let Some(families) = families {
+        let emitted: BTreeSet<_> = out.instances.iter().map(|i| &i.class).collect();
+        for class in emitted {
+            let inst = program.instances.iter().find(|i| &i.class == class).expect("emitted instance has a defining class");
+            let mut entries: Vec<_> = (0..inst.method_count).map(|i|
+                MethodSlot { logical: i, physical: i, own: cx.declared_own(inst, i) }).collect();
+            entries.extend(cx.extras(class).into_iter().enumerate().map(|(index, (logical, own))|
+                MethodSlot { logical, physical: inst.method_count + index, own }));
+            families.push(MethodFamily { class: class.clone(), declared_methods: inst.method_count, slots: entries });
+        }
+    }
     out
+}
+
+/// Specialize a library for demands recorded by its consumer, returning the
+/// exact logical-to-physical class method families used by the collector.
+pub fn optimize_object(program: &Program, profile: &crate::core::TargetProfile, roots: &[ObjectRoot])
+    -> crate::Result<(Program, OptReport, Vec<MethodFamily>)> {
+    validate_object_roots(program, roots)?;
+    let (residual, mut report) = crate::core::optimize(program, profile)?;
+    validate_object_roots(&residual, roots)?;
+    let mut families = Vec::new();
+    let out = specialize_with_roots(&residual, &mut report, roots, Some(&mut families));
+    if report.unrecorded != 0 {
+        return Err(crate::Error::plain(format!("object specialization has {} unrecorded representation arguments", report.unrecorded)));
+    }
+    Ok((out, report, families))
 }
 
 /// The driver's optimization step: driving and rewriting
