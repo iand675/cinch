@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "compiler_sha256": "3211512dde1d3779d31d2e61cae76eb16b27825db1a2e14a26ffb16622c7efb5",
+  "exit_code": 0,
+  "scope": "Complete class_identity target: two actual external Cinch frontend build/run cases, one direct Native wrong-evidence rejection. No Native frontend fallback. Not complete frontend parity.",
+  "source_sha256": "0e302a996f36f6279abeefbf8da8efac862a59b118a8e2dce801ccaa3b9e2823",
+  "status": "passed",
+  "test_runner_sha256": "3003b78721fdc337c8eb3e2ac47a2887b400dbbcdf55805141090aae7ec234c0",
+  "wrapper_sha256": "1b867a545edc029f14a3586b0fc24fd6014e597fbf39ad6feab6a77ac1835b8b",
+  "mechanism": "Portable common::build/run dispatch selects the explicit external wrapper. It invokes only the actual Cinch-built compiler --emit-ir with admitted base interfaces and the pinned library object, then clang with the matching runtime. Selected compiler errors never fall back to Native.",
+  "case_classification": [
+    {
+      "name": "a_local_data_type_can_shadow_a_legacy_signature_spelling",
+      "frontend": "actual self-built Cinch",
+      "artifact_exit_code": 37
+    },
+    {
+      "name": "distinct_declaring_classes_with_the_same_name_select_their_own_instances",
+      "frontend": "actual self-built Cinch",
+      "artifact_exit_code": 43
+    },
+    {
+      "name": "evidence_for_another_declaring_class_is_rejected",
+      "frontend": "Native API check_sources",
+      "expected": "reject"
+    }
+  ]
+}

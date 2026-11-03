@@ -1,0 +1,49 @@
+{
+  "schema": 1,
+  "status": "passed",
+  "source_sha256": "c6260e01e2fdab4397cd2d8087f835510fd80b4ad52d8729a6222a349b733703",
+  "runtime": {
+    "passed": 171,
+    "failed": 0,
+    "ignored": 0
+  },
+  "tooling": {
+    "passed": 41,
+    "failed": 0
+  },
+  "syntax_editor": {
+    "passed": 39,
+    "failed": 0,
+    "skipped": 0
+  },
+  "gates": [
+    {
+      "exit_code": 0,
+      "finished": "2026-11-03T19:47:16.083371+00:00",
+      "name": "runtime",
+      "pid": 75077,
+      "source_unchanged": true,
+      "started": "2026-11-03T19:47:02.444375+00:00",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "finished": "2026-11-03T19:47:16.731061+00:00",
+      "name": "tooling",
+      "pid": 75409,
+      "source_unchanged": true,
+      "started": "2026-11-03T19:47:16.164318+00:00",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "finished": "2026-11-03T19:48:35.222818+00:00",
+      "name": "malleable-syntax",
+      "pid": 75417,
+      "source_unchanged": true,
+      "started": "2026-11-03T19:47:16.804907+00:00",
+      "status": "passed"
+    }
+  ],
+  "scope": "Complete runtime, tooling and compiler/LSP/Tree-sitter syntax checks on exact frozen suite27 source. Full compiler test matrix and complete stage chain remain separate requirements."
+}
