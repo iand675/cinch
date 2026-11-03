@@ -2637,6 +2637,22 @@ impl Checker {
                                 .map_err(|m| Error::at(f.span, format!("intrinsic {} is declared {}, but {m}", f.symbol, s.ty)))?;
                         }
                         let rendered = render_scheme(&s);
+                        // A checked monomorphic intrinsic is also a callable
+                        // unit under its defining source name. Library-object
+                        // consumers request that exported value, rather than
+                        // guessing its private primitive implementation name.
+                        if expected.params.is_empty() {
+                            let (args, result) = op.sig();
+                            let repr_params = args.iter().map(|t| crate::repr::repr_of(t, &[], self, &mut |_| {})).collect();
+                            let repr_result = crate::repr::repr_of(&result, &[], self, &mut |_| {});
+                            self.fns.push(FnDef {
+                                id: fn_id(&module, &f.name.text),
+                                params: (0..args.len()).map(|i| format!("p{i}")).collect(),
+                                body: crate::core::Core::Unit, prim: Some(op), ctor: None,
+                                hints: Default::default(), meta: Default::default(),
+                                repr: crate::core::UnitRepr { tparams: 0, params: repr_params, result: Some(repr_result), ..Default::default() },
+                            });
+                        }
                         self.add_value(
                             ValueInfo {
                                 module: module.clone(),
