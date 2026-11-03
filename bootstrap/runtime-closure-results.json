@@ -71,9 +71,34 @@
     "compiler/tests/bootstrap_runtime_emit.rs"
   ],
   "genuine_stage2": {
+    "compiler_executable_exists": false,
     "compiler_executable_verified": false,
+    "diagnostic_count_scope": "collector stops at unsupported main; not a count of missing features",
+    "diagnostics": 3,
     "evidence_directory": "/tmp/cinch-runtime-closures-stages-1",
-    "status": "running at this checkpoint"
+    "exit_code": 5,
+    "first_diagnostics": [
+      "bootstrap.runtime-ir:18999:3: definition needs first-order runtime representation specialization",
+      "bootstrap.runtime-ir:1:1: runtime entry must be main :: Int",
+      "bootstrap.runtime-ir:1:1: declarations need shared runtime layout and dictionary lowering"
+    ],
+    "frontend_diagnostics": 0,
+    "inputs": {
+      "builder_sha256": "389598b84ba440bfbe02f440d7353bcf625626ce69cfcded6cc07a5ff17fb0a1",
+      "built_by_stage": 1,
+      "frontend_mode": "typed-ir",
+      "host": {
+        "machine": "arm64",
+        "system": "Darwin"
+      },
+      "interface_set_sha256": "790a13a5e22a3c34042ac69f100bb5fcbbbc36a405a0b40ce517cb884bc6b1f7",
+      "protocol": 3,
+      "runtime_archive_sha256": "99cdba1cf4f465e0dbb76b1e5035dc128f7fc79f4700314d0c3531a2edbb6b64",
+      "source_sha256": "64eff1235da4b23f3a5e1c35f246d2807b4ba292cbe265312e490bcdd047b86f"
+    },
+    "ir_bytes": 0,
+    "source_sha256": "d518c557bbb94e9ba4e9619552e5597fe60cb7002b313e2ddf08cdb16e2789ba",
+    "status": "complete compiler source accepted; emission refuses erased-region/IO/dictionary boundary"
   },
   "implementation_paths": [
     "bootstrap/Bootstrap.RuntimeIr.cinch",

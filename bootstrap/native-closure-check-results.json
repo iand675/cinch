@@ -15,6 +15,16 @@
       "output": ""
     }
   ],
+  "additional_interoperability_evidence_directory": "/tmp/cinch-native-returned-function-interop-1",
+  "additional_interoperability_inputs": {
+    "imported": {
+      "Lib.cinch": "29357941fc314b9164864dd32f45284f27cf20c1bb3b6dba65fa07f92039e2e3",
+      "Main.cinch": "8a177e21869093b032369063dd60c0e998f2f5d81c1f6ca1afa20aa8732803a1"
+    },
+    "instance": {
+      "Main.cinch": "3880b593103d4647341533e164d1de461d32da2620e7fb956faef8becc3cded5"
+    }
+  },
   "bootstrap_achieved": false,
   "case_results": [
     "lambda-argument: exit199; cinch-leak: live=0 immortal=0 leaked=0",
