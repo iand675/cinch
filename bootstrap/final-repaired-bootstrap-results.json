@@ -1,0 +1,89 @@
+{
+  "schema": 1,
+  "status": "passed",
+  "source_sha256": "c6260e01e2fdab4397cd2d8087f835510fd80b4ad52d8729a6222a349b733703",
+  "compiler_source_sha256": "e85a5d0ad1875429759da1619b9c60cf86c72e5d6213f1d3dac2430ebd9fd9dd",
+  "scope": "Complete fresh final repaired-source Stage0/1/2/3 chain, every smoke, compiler IR and all43 canonical interfaces fixed point, actual entry-interface consumption and changed-source behavior. Complete project tests and exact-final-Stage3 external acceptance remain separate requirements.",
+  "stages": [
+    {
+      "compiler_sha256": "cddbae33387034970a7e55130042220d4d02d4f02203af36627f8ac7aaa9f419",
+      "stage": 0,
+      "status": "passed"
+    },
+    {
+      "compiler_sha256": "ec14c46778c75ff5fd53b706cbf51aa1dc237e9fa94b53caa70e647c2da6462f",
+      "stage": 1,
+      "status": "passed"
+    },
+    {
+      "compiler_sha256": "1da1cf952dcca05824f46f29cbbbfb865268e8a6284a4fdb6b24eabcbe37b9dd",
+      "stage": 2,
+      "status": "passed"
+    },
+    {
+      "compiler_sha256": "1da1cf952dcca05824f46f29cbbbfb865268e8a6284a4fdb6b24eabcbe37b9dd",
+      "stage": 3,
+      "status": "passed"
+    }
+  ],
+  "compiler_executable_sha256": "1da1cf952dcca05824f46f29cbbbfb865268e8a6284a4fdb6b24eabcbe37b9dd",
+  "compiler_ir_sha256": "6a980370024fc6ead872c0782485bffabc54a4cde34f2ea04f8727a52271994d",
+  "compiler_interfaces_sha256": {
+    "compiler.ll.Bootstrap.Report.cinchif": "072dfc7e2f3b8d2ba4e99c9a5d6d5bd383d4de31a8756be25894d305aa23765a",
+    "compiler.ll.Bootstrap.Infer.cinchif": "c4e187dd4c10536567022c0cf10fdce45deaec731fd1e10515d7ec2cd92dfcb2",
+    "compiler.ll.Bootstrap.Driver.cinchif": "103907e5d142487e4dd6aea3d629c80413eee3de93050d684e8a831e7fc0dbac",
+    "compiler.ll.Bootstrap.Object.cinchif": "ab6e33b3760a499282c342ba0c42a9e2a458fac72d6c139c4d3dcc7b69843a86",
+    "compiler.ll.Text.Lex.cinchif": "33e42142a8ea3cffc48d357a7ae85f4bbdef118f01929de34731ac08b24c4a8e",
+    "compiler.ll.Text.Scan.cinchif": "a96acc006ddacd7d872517f7fb17715db3a6b72309d2d68612cac54763862bdd",
+    "compiler.ll.Bootstrap.Resolve.cinchif": "e386b8e2c2fceea7746e9ae0e850a76b3d5554fc6e65ebb06aea134687485aad",
+    "compiler.ll.Bootstrap.Load.cinchif": "5550ae15f03775c888782787e8920878f3c99b8eaf7df36ed0883ac9816cdf84",
+    "compiler.ll.Bootstrap.Export.cinchif": "e895c4f1fea749f119f7896291c886a6095584812886a83945d886f24bf3d94f",
+    "compiler.ll.Bootstrap.Interface.cinchif": "52fff22c629082e8bdb14a03639ed19bd6e2584d2affcc504ca09b14899428fb",
+    "compiler.ll.Bootstrap.Test.cinchif": "21cccffb9233dab4e6c0e7cfcde666afec1f93e480a9cccafe376e492723ecf3",
+    "compiler.ll.Bootstrap.Dictionary.cinchif": "cf794c169fcb5190edd619479575f33b0dac5650590b8047657202327e856454",
+    "compiler.ll.Bootstrap.Global.cinchif": "ccdc8736559b260a03bc89d390687e6bb9c2665d6a1c6b81f0484e9bdc81ff51",
+    "compiler.ll.Bootstrap.Guarded.cinchif": "c25e59c739abd209e0a8a3cbf03cf13bf87d659d54565c1fd29950a83aeb8a71",
+    "compiler.ll.Bootstrap.Typing.cinchif": "e0f4cf86f8e17d326d8eb44d954ca089ee9924dbe09f1eddaa10197a670e9833",
+    "compiler.ll.Bootstrap.Manifest.cinchif": "79860cf250e8868246cce340652e42ba55bba8998da7a56edcda55a7dacce81b",
+    "compiler.ll.Bootstrap.Pipeline.cinchif": "415097002e0b2b739fa87cb5f65c729676d4ccdeea6ecab4a28f05f1dce82f1c",
+    "compiler.ll.Bootstrap.ExportNominal.cinchif": "52bdc6e71e58aff4388fe09db3808b28d10410fa9ef030de9e9dc66bda3435ef",
+    "compiler.ll.Bootstrap.RuntimeIr.cinchif": "0b0ec1593fef60f115c5622965f5312a199a68129438d2d8ce3f6ab0b1a514a2",
+    "compiler.ll.Bootstrap.Inputs.cinchif": "629efe6f8124979986d0a6b788d980d0aa495021103382c6f9d5779e8a7d2e01",
+    "compiler.ll.Bootstrap.Core.cinchif": "dbeb3594ef704eac39d727dcce0b673e3a0c44094a51c7741ef13fd3531645b6",
+    "compiler.ll.Bootstrap.Kinds.cinchif": "55dd3b03c9a05d29b43264608048315473203913d58e9c3c824b2fdb4ce31185",
+    "compiler.ll.Bootstrap.ExportType.cinchif": "02128cbfa5931d0dd300c6ebb6d2f08640f4cb666bebd26e27985628751e6d4b",
+    "compiler.ll.Bootstrap.Nominal.cinchif": "56fe98f0b9c2891432ccacde89ffb6c760e76ce5dd824f7b1ac30b3584a2d4ac",
+    "compiler.ll.Text.Json.cinchif": "211310e8f51481209b92452b73b270475aa34f565c601ef4964934b74805d62c",
+    "compiler.ll.Bootstrap.Contracts.cinchif": "d6e288a6af48bd3b07b4438bea6b59e084dc976026ef09e7b41ac5d155622816",
+    "compiler.ll.Bootstrap.Type.cinchif": "deaa9d591e39e4fafef5b2225bcd4e9a96f1d76de894ef6b207ed732027b8e24",
+    "compiler.ll.Bootstrap.Proof.cinchif": "236d4f67d4e3abab0ba785658f801de1d4edc9665847d7600fdedaea3ba949a9",
+    "compiler.ll.Bootstrap.Parse.cinchif": "6c8a7c0ccb5209d1f52b421429cad9b89a38274c9557d377f2a9120cb17dc503",
+    "compiler.ll.Bootstrap.Total.cinchif": "65bc290ad8b45d51e92bb4187cef2f4eebc6d50d30fedfe45c3bd434709d7f39",
+    "compiler.ll.Bootstrap.Eval.cinchif": "d93a1b2fe5dff7bbea171e9f616d1c8944026ad0f45aa838dc84d9fc62b69bb4",
+    "compiler.ll.Bootstrap.Builtin.cinchif": "7e75f569331c5aa7b4359020b97d31ea4ff90f084b20f806d31ed25d04cff239",
+    "compiler.ll.Bootstrap.Index.cinchif": "b5937f1e98994375f6773a36e298c86f0a19f8dd774c84ac8b364fb326a9563b",
+    "compiler.ll.Text.Builder.cinchif": "814ad49f731d5daa885fd39bcf1fa5cd0e88cc0be69a9fc02408891d1ce34916",
+    "compiler.ll.Main.cinchif": "4d361a9a415ae2ff21e5eb009f8141c35c1bc52268c322ffdda8995b81c8ccc2",
+    "compiler.ll.Bootstrap.Ir.cinchif": "472de33f7727c54bacf0995042e79dadf81f63788748e07b7fb9f72e0c6e69ba",
+    "compiler.ll.Bootstrap.Instance.cinchif": "5284b1d8c448f95baa0d41136ef3f83a1972727077b2eade36bad978d4e8ac6f",
+    "compiler.ll.Bootstrap.TotalSemantics.cinchif": "379d3dbdec92940f25145a447d1807dc7852b7cf7e7f4155e8deba90aaf8a388",
+    "compiler.ll.Bootstrap.RuntimeAbi.cinchif": "824d2de2586dbd2c6a79d4f4f1006bc10b6a00197d6b696445e1e4513f447f0a",
+    "compiler.ll.Text.Parse.cinchif": "ce68d00f9c2934c797ff41baa4035dafeba07571d3222b62da3d751fa5e362b4",
+    "compiler.ll.Bootstrap.Ast.cinchif": "c7da06d43252a26d76ebd998c38ca51a53a0088393fe370226f4286e7cebbe53",
+    "compiler.ll.Bootstrap.BodyContract.cinchif": "d42e8aa8bea30cea599ddf911f815edf03bc108f47c6aae7ea96bf7796e0b58f",
+    "compiler.ll.Bootstrap.Check.cinchif": "67a49d0b134fb323d1cb33315a7cf07cb03c8e0044bb2bd987de0d8828ac0253"
+  },
+  "interface_consumer": {
+    "compiler_sha256": "1da1cf952dcca05824f46f29cbbbfb865268e8a6284a4fdb6b24eabcbe37b9dd",
+    "manifest_sha256": "d1691a07ee829779a8450151ff15b8cc3b94bc5c9236372785781037c45a4168",
+    "source_sha256": "5eb1e5581fa0fa526c5208f891a893fea3a5049ebb29fd70f4c94bdce3c6d6d4",
+    "status": "passed"
+  },
+  "changed_source": {
+    "compiler_sha256": "294ebb4c23eb786d25ec6061051d92e43427eabb97a71d08c4a1e640f2d80679",
+    "diagnostics_sha256": "f141beff8826d369b35167f6648aef03679bed8e6ff326446a1c8950fdb04b48",
+    "source_sha256": "c3bca0f52714e1ab9030705dd67428a0371b4d3914063dbab04cb768ae9a8529"
+  },
+  "changed_source_built_by_stage2_sha256": "1da1cf952dcca05824f46f29cbbbfb865268e8a6284a4fdb6b24eabcbe37b9dd",
+  "full_goal_complete": false
+}

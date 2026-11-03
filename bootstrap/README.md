@@ -20,7 +20,8 @@ Artifacts and logs live in `build/bootstrap/stageN/`. Stage 0 is pinned by
 of the patch and compiler sources. Editing the development Rust compiler
 does not silently replace the seed. Stages 2 and 3 read the same frozen
 compiler source bundle and use only their preceding Cinch compiler as frontend.
-That compiler emits typed shared-runtime LLVM with `--emit-ir --objects`;
+That compiler emits typed shared-runtime LLVM and checked interfaces with
+`--emit-ir-with-interfaces --interfaces MANIFEST --objects CONFIG`;
 the platform linker links its IR, the checked library dependency object and
 the matching runtime archive. The library-only producer is independently
 pinned in `bootstrap/library-provider.lock.json`; it never compiles
@@ -38,10 +39,13 @@ Each command freezes its compiler inputs once, so edits made during a
 stage build are picked up by the next command and cannot mix versions
 inside a bootstrap chain.
 
-The current stage-1 frontend is the ladder's fragment compiler. A stage-2
-refusal is an actual bootstrap blocker, recorded with its diagnostics;
-there is no fallback to the Rust frontend. `design/self-hosting.md` states
-what remains before that build and the complete bootstrap check can pass.
+The fresh repaired-source chain now builds all43 compiler modules through
+Stages1,2 and3. Stages2 and3 match in compiler IR, executable bytes and all43
+canonical interfaces; actual entry-interface consumption and changed-source
+behavior pass too. See [verified chain evidence](final-repaired-bootstrap-results.json).
+The complete project test sweep and exact-final-Stage3 external acceptance remain
+open, as tracked in `design/self-hosting.md`. A compiler refusal is recorded with
+its diagnostics and never falls back to the Rust frontend.
 The runner applies a positive heap cap of at most 2G to every program.
 Each stage chain runs one command at a time, with one build worker and one
 test thread. Independent validation jobs share a limit of five heavy jobs:
@@ -56,14 +60,16 @@ Choose a fresh evidence directory. This verifier copies the source files,
 uses private build caches, checks the test executables' source paths, and
 runs compiler, runtime, tooling and bootstrap checks sequentially at reduced
 priority. Its final gate requires stage 2, stage 3, their fixed point and
-the changed-source probe; the current stage-2 refusal therefore prevents a
-complete pass. The verifier's tooling unit tests pass. Earlier completed
-Native-assisted suites do not establish the final self-hosting gate.
+the changed-source probe. That complete stage chain now passes on the repaired
+snapshot. All41 tooling checks pass. Full compiler test and external acceptance
+results remain separate requirements; a partial sweep cannot establish them.
 
 The driver also has separate frontend and build modes:
 
     cinch --check [--interfaces MANIFEST] SOURCE DIAGNOSTICS_BASE
     cinch --emit-ir [--interfaces MANIFEST] SOURCE IR
+    cinch --emit-interfaces [--interfaces MANIFEST] SOURCE PREFIX
+    cinch --emit-ir-with-interfaces --interfaces MANIFEST --objects CONFIG SOURCE IR
     cinch --emit-ir --interfaces MANIFEST --objects CONFIG SOURCE IR
     cinch --compile-only [--interfaces MANIFEST] SOURCE IR EXECUTABLE REPORT
 
@@ -81,7 +87,7 @@ The manifest is JSON: `{"schema":1,"interfaces":[["Module","hash","path"]]}`.
 Paths are absolute or relative to the process's working directory. The
 loader verifies the entire dependency set before source parsing, so
 operator fixities come from checked public interfaces. Resolution retains
-full contracts and defining identities. Schema 7 carries definition-site
+full contracts and defining identities. Schema8 carries definition-site
 schemes, private nominal kinds, class contracts, Region and closed effect
 contexts, exact value-index carriers, refinements and byte observations.
 Pure polymorphic values and

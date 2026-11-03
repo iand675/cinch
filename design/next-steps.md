@@ -2,44 +2,43 @@
 
 ## Current bootstrap result and remaining gates
 
-Candidate23 builds a runnable Stage2 compiler, which builds Stage3
-with byte-for-byte identical LLVM IR and executable bytes. Both stages pass
-valid-program, precedence and invalid-source smoke checks. The self-built
-Stage2 also rebuilds modified compiler source, and that executable exhibits the
-intended changed diagnostic behavior. These results are recorded in
-[Stage2](../bootstrap/stage2-built-results.json),
-[Stage3](../bootstrap/stage3-code-fixed-point-results.json), and
-[changed-source behavior](../bootstrap/stage2-changed-source-results.json).
+The final repaired-source Stage0/1/2/3 chain passes. Stage2 and Stage3 have
+byte-identical compiler IR, executable bytes and all43 canonical compiler
+interfaces. Stage3 checks its actual entry using those emitted interfaces with
+compiler-module bodies absent. Stage2 rebuilds changed compiler source, and the
+resulting executable produces the requested changed diagnostic behavior.
+See [the complete fresh-chain evidence](../bootstrap/final-repaired-bootstrap-results.json).
 
-The compiler-code fixed point is established. The Cinch-built compiler also
-emits all43 actual compiler interfaces. Native independently checks canonical
-readback, dependency hashes and coherence across98 total modules, and all43
-source hashes match. The separate defining-entry correction and private-layout
-repair pass their focused gates. The rebuilt self-built compiler now checks its
-entry using those emitted APIs with implementation bodies absent.
+The chain and complete suite27 use frozen source
+`c6260e01e2fdab4397cd2d8087f835510fd80b4ad52d8729a6222a349b733703`;
+the rendered compiler source identity is
+`e85a5d0ad1875429759da1619b9c60cf86c72e5d6213f1d3dac2430ebd9fd9dd`.
+This snapshot includes the reexport-fixity, Rust class/data-name and isolated
+runtime-artifact repairs. Only the operator's declaring module may declare its
+fixity; reexports carry that admitted fact without introducing declarations.
 
-The complete goal remains open: the final repaired source must preserve the
-combined compiler/interface fixed point, and the full final-source suite must
-pass. The frozen-source combined chain below has now passed. The stronger check rejects placeholder or malformed contracts and requires
-actual interface consumption. The fresh pinned chain and final test sweep use
-the same frozen source (`6c6644d69b3b32aa04992f6793de634278c07fe717bce59d1d0dc05d24cd3b69`).
-The sweep compiles207 Rust runners and includes the documentation gate, for208
-target groups. The earlier205-group baseline finished with201 passing and four
-failures; all four have passing scoped repairs. Earlier evidence remains scoped,
-not a claim that the final entire suite is green.
+All127 ordinary compiler-facing target groups pass, including previously
+ignored tests. The same snapshot passes all171 runtime tests,41 tooling checks
+and39 syntax/editor tests, with none skipped or ignored. See
+[ordinary target evidence](../bootstrap/ordinary-compiler-groups-results.json)
+and [auxiliary gates](../bootstrap/final-source-auxiliary-results.json).
+The81 bootstrap-specific groups are still executing as part of the complete
+208-group compiler sweep. Exact final-Stage3 external acceptance is also running:
+the original test-runner programs, fixity/facade probes and portable class tests.
+These remaining gates must pass before the full goal is complete.
 
-The stage driver uses a separately pinned library-only producer and matching
-runtime, records artifact/interface hashes, invokes the preceding Cinch compiler
-with `--objects`, and links the actual emitted IR. The provider closure excludes
+The driver uses a separately pinned library-only producer and matching runtime,
+records artifact/interface hashes, invokes the preceding Cinch compiler with
+`--objects`, and links its actual emitted IR. The provider closure excludes
 compiler implementation modules. Prepared ABI5 stages remain separate from live
-ABI6 artifacts; the Stage0 seed is unchanged. The source compiler's array ABI6
-work remains an explicit compatibility boundary.
+ABI6 artifacts; the Stage0 seed is unchanged.
 
 The [progress dashboard](https://cinch-bootstrap-status.ian92821.chatgpt.site)
-reads the committed [status checkpoint](../bootstrap/progress.json). Update it
-when stages, blockers or verified results materially change.
+reads the committed [status checkpoint](../bootstrap/progress.json). It follows
+active verification results and publishes meaningful count, stage and failure
+changes. Its estimated percentage is not a measured test pass rate.
 
-## Fresh combined bootstrap fixed point
+## Earlier combined bootstrap checkpoint
 
 The fresh pinned Stage0/1/2/3 chain on frozen source
 `6c6644d69b3b32aa04992f6793de634278c07fe717bce59d1d0dc05d24cd3b69`
@@ -76,8 +75,8 @@ global text symbol. All171 runtime tests pass, with zero failures and zero
 ignored tests, in a fresh isolated directory. See
 [runtime evidence](../bootstrap/runtime-isolated-artifact-results.json).
 
-The next full suite and fresh stage chain capture this repair together with the
-operator reexport and Rust class/data-name repairs. The two superseded waiting
+The fresh passing stage chain and the running full suite capture this repair
+together with the operator reexport and Rust class/data-name repairs. The two superseded waiting
 runners had no test or stage children; their earlier results remain recorded.
 
 ## Definition-owned reexport fixities and imported value forwarding
@@ -94,8 +93,8 @@ CLI probes. Direct, renamed and separately compiled uses inherit precedence;
 identical and changed importer declarations are both refused. Independent schema,
 ABI and dependency-chain validation passes for the three actual artifacts.
 Both complete initial and expanded writer/parser/resolver/fixity runs pass.
-The complete suite27 and matching fresh stage chain are now running and
-remain required. See [before/after evidence](../bootstrap/reexport-fixity-results.json).
+The matching repaired-source stage chain now passes. The complete suite27
+and repeats through its exact final Stage3 executable are still running. See [before/after evidence](../bootstrap/reexport-fixity-results.json).
 
 ## Checked interface type printing
 
