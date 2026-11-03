@@ -1,11 +1,11 @@
 {
   "schema": 1,
-  "updatedAt": "2026-11-03T18:45:36.173007+00:00",
+  "updatedAt": "2026-11-03T18:46:15.196599+00:00",
   "estimate": 90,
   "estimateNote": "Rough engineering estimate. Remaining compiler bugs can change it; this is not a measured test pass rate.",
   "status": "Self-consumption works; final gates running",
   "summary": "The Cinch-built compiler emits all 43 compiler interfaces and the repaired compiler checks its real entry using those APIs. It also compiles and runs Cinch\u2019s own test runner with exact reports and zero leaks. Fresh stage-chain and full-suite verification remain.",
-  "activity": "The complete private-layout validation passed. The fresh pinned Stage0 build and all three smokes pass; Stage1 is building. The final 208-group suite is compiling on the exact same frozen source and will use three shared workers. The earlier sweep is draining without launching more old-source tests.",
+  "activity": "The fresh pinned Stage0 build and all three smokes pass; Stage1 is building. All 207 final-source test runners compiled successfully. Candidate25 now has 5 /208 groups passed, 3 running and 0 failed, with all groups retained. The older snapshot workers have drained.",
   "commit": "42fee2705b5fe4a1967d2fef6a76a0979ab6fab3",
   "stages": [
     {
@@ -61,7 +61,7 @@
     },
     {
       "title": "Final-source verification and repairs",
-      "detail": "Candidate25 uses the same frozen source as the fresh full stage chain. Its 207 test runners are compiling, with 208 groups including documentation. The previous candidate24 sweep is draining after the validated private-layout source change; its historical passes are not relabeled as final coverage.",
+      "detail": "Candidate25: all 207 runners compiled; 5 of 208 target groups passed, 3 running, 0 failed. It uses the exact frozen source of the fresh full stage chain. Three shared workers execute every group; runtime, tooling and syntax checks are separately queued.",
       "state": "running"
     },
     {
