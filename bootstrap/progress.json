@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "estimate": 90,
-  "commit": "3e14f1be6f548d095dd1c9ce4da9f1b40c892814",
+  "commit": "30962c29025e4dcc75d0e3df08d74c8128ba1379",
   "estimateNote": "Rough engineering estimate. Verified checks and remaining work are listed below.",
   "status": "Current-source verification running",
   "stages": [
@@ -58,8 +58,8 @@
     },
     {
       "title": "Current runtime, tooling and editor checks",
-      "detail": "runtime: passed; tooling: passed. All three complete matching-source gates are required.",
-      "state": "running"
+      "detail": "runtime: passed; tooling: passed; syntax-editor: passed. All three complete matching-source gates are required.",
+      "state": "passed"
     },
     {
       "title": "Exact final Stage3 acceptance",
@@ -78,20 +78,12 @@
       "detail": "3 of 4 complete groups passed; 1 running, 0 failed and 0 pending. library calls: running; runtime behavior: passed; parser: passed; typechecker: passed."
     },
     {
-      "title": "Publish the validated repair",
-      "detail": "The previous published compiler checkpoint remains linked below until the repair source is pushed."
-    },
-    {
       "title": "Finish the fresh bootstrap",
       "detail": "Stage2 and full Native execution wait for all four complete focused gates; Stage2/3 must then match and pass actual API/changed-source checks."
     },
     {
       "title": "Finish all current compiler tests",
       "detail": "3 of 208 complete groups passed; 0 running, 0 failed and 205 pending."
-    },
-    {
-      "title": "Finish matching runtime, tooling and editor checks",
-      "detail": "runtime: passed; tooling: passed."
     },
     {
       "title": "Finish the exact self-built compiler tests",
@@ -133,9 +125,9 @@
     }
   ],
   "candidateSource": "33f4dde5688c94aeb1f04dc6498a8ceb013ee51193dd471aca9c36f3c3b675e1",
-  "candidatePublished": false,
+  "candidatePublished": true,
   "fullGoalComplete": false,
-  "summary": "The repair candidate passes all 43 compiler-source checks. 3 of 4 complete groups passed; 1 running, 0 failed and 0 pending. library calls: running; runtime behavior: passed; parser: passed; typechecker: passed. The repair source remains local while its full focused validation finishes.",
+  "summary": "The repair candidate passes all 43 compiler-source checks. 3 of 4 complete groups passed; 1 running, 0 failed and 0 pending. library calls: running; runtime behavior: passed; parser: passed; typechecker: passed.",
   "activity": "Current compiler sweep: 3 of 208 complete groups passed; 0 running, 0 failed and 205 pending. Stage builds and smoke checks: 1 of 4; chain state: running-full-stage-chain. Repair gates: 3 of 4 complete groups passed; 1 running, 0 failed and 0 pending. library calls: running; runtime behavior: passed; parser: passed; typechecker: passed. Early Stage1 behavior: 0 of 8 complete groups passed; 0 running, 0 failed and 8 pending. Exact final Stage3 suite: 0 of 91 complete groups passed; 0 running, 0 failed and 91 pending.",
-  "updatedAt": "2026-11-04T03:54:43.432899+00:00"
+  "updatedAt": "2026-11-04T03:59:32.153921+00:00"
 }
