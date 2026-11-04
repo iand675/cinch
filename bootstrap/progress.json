@@ -1,5 +1,5 @@
 {
-  "activity": "Current source: all 127 ordinary target groups pass. Bootstrap-specific groups: 6 of 81 passed, 4 running and 0 failed. Matching runtime, tooling and syntax/editor gates are separate requirements. Fresh final-source stages built and smoke-tested: 2 of4; combined gate running-full-stage-chain. Additional Stage3 coverage: ordinary: 0 of 8 passed, 0 running, 0 failed (waiting-current-chain-and-runners); mixed: 0 of 4 passed, 0 running, 0 failed (waiting-current-chain-and-runners). Self-built portable bootstrap suite: 0 of 79 groups passed, 0 running, 0 failed; state waiting-current-chain-and-runners.",
+  "activity": "Current source: all 127 ordinary target groups pass. Bootstrap-specific groups: 6 of 81 passed, 4 running and 0 failed. Matching runtime, tooling and syntax/editor gates are separate requirements. Fresh final-source stages built and smoke-tested: 3 of4; combined gate running-full-stage-chain. Additional Stage3 coverage: ordinary: 0 of 8 passed, 0 running, 0 failed (waiting-current-chain-and-runners); mixed: 0 of 4 passed, 0 running, 0 failed (waiting-current-chain-and-runners). Self-built portable bootstrap suite: 0 of 79 groups passed, 0 running, 0 failed; state waiting-current-chain-and-runners.",
   "blockers": [
     {
       "title": "Validate the additional Stage3 repairs",
@@ -11,7 +11,7 @@
     },
     {
       "title": "Finish the fresh repaired-source bootstrap",
-      "detail": "2 of 4 stages are built and smoke-tested. Matching compiler IR and canonical interfaces, actual API consumption and changed-source rebuilding must all pass on this snapshot."
+      "detail": "3 of 4 stages are built and smoke-tested. Matching compiler IR and canonical interfaces, actual API consumption and changed-source rebuilding must all pass on this snapshot."
     },
     {
       "title": "Finish external acceptance through exact final Stage3",
@@ -234,18 +234,18 @@
     },
     {
       "name": "Stage 2",
-      "state": "pending",
-      "label": "Building",
+      "state": "passed",
+      "label": "Verified",
       "description": "Compiler source rebuilt by Cinch Stage1, including actual checked interfaces."
     },
     {
       "name": "Stage 3",
       "state": "pending",
-      "label": "Pending",
+      "label": "Building",
       "description": "Rebuilt by Stage2; the combined gate compares IR and 43 interfaces and checks API consumption and changed-source behavior."
     }
   ],
   "status": "Repair gates passed; fresh bootstrap underway",
   "summary": "All five complete repair gates pass and the tested Cinch/Rust changes are published. The fresh Stage0/1/2/3 build and complete matching suites are now required. Earlier baseline results remain separately scoped.",
-  "updatedAt": "2026-11-04T02:22:01.163272+00:00"
+  "updatedAt": "2026-11-04T02:24:44.206515+00:00"
 }
