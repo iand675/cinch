@@ -48,8 +48,8 @@
     },
     {
       "title": "Native sweep of the preceding checkpoint",
-      "detail": "208 of 208 complete groups passed; 0 running, 0 failed and 0 pending.Every group includes ignored tests. State: running.",
-      "state": "running"
+      "detail": "208 of 208 complete groups passed; 0 running, 0 failed and 0 pending.Every group includes ignored tests. State: finished.",
+      "state": "passed"
     },
     {
       "title": "Fresh compiler bootstrap",
@@ -98,10 +98,6 @@
       "detail": "self-built tests: case_evidence; early Stage1 checks: case_evidence"
     },
     {
-      "title": "Finish all current compiler tests",
-      "detail": "208 of 208 complete groups passed; 0 running, 0 failed and 0 pending."
-    },
-    {
       "title": "Finish the exact self-built compiler tests",
       "detail": "2 of 91 complete groups passed; 0 running, 1 failed and 88 pending."
     },
@@ -141,5 +137,5 @@
   "fullGoalComplete": false,
   "summary": "The fresh current-source compiler chain passes its smoke tests, matching Stage2/Stage3 IR, executable and all 43 canonical interfaces, actual API consumption and changed-source behavior. Complete tests and the final acceptance audit remain separate requirements.",
   "activity": "Native sweep of the preceding checkpoint: 208 of 208 complete groups passed; 0 running, 0 failed and 0 pending. Stage builds and smoke checks: 4 of 4; chain state: passed. Repair gates: 10 of 10 complete groups passed; 0 running, 0 failed and 0 pending. dependent arguments: passed; call preconditions: passed; refinements and effects: passed; runtime behavior: passed; index scope and representation: passed; independent type checker: passed; Core validation: passed; inference: passed; typechecker: passed; Rust optimizer behavior: passed. Early Stage1 behavior: 2 of 8 complete groups passed; 0 running, 1 failed and 5 pending. Exact final Stage3 suite: 2 of 91 complete groups passed; 0 running, 1 failed and 88 pending. Proposed compiler repair (separate unpublished source): running-twelve-complete-groups; 11 of 12 complete groups passed; 1 running, 0 failed and 0 pending.",
-  "updatedAt": "2026-11-04T07:59:04.595545+00:00"
+  "updatedAt": "2026-11-04T08:00:06.703766+00:00"
 }
