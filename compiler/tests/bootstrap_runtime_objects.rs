@@ -15,7 +15,15 @@ fn cinch_calls_actual_library_objects_with_checked_layout_authority() {
     let provider = common::project("object_library", &[("Library.cinch", r#"module Library where
   import Data.String (string-to-bytes)
   import Data.Bytes (bytes-compare)
+  import Data.Sym (intern, sym-name)
   export make-string, choose, identity, passthrough, Poly, keep, PolyInt, decimal-bytes, decimal-ok, raw-compare, Guarded, guarded
+  export make-symbol, symbol-name, same-symbol
+  make-symbol :: String -> Sym
+  make-symbol name = intern name
+  symbol-name :: Sym -> String
+  symbol-name value = sym-name value
+  same-symbol :: Sym -> Sym -> Bool
+  same-symbol left right = left == right
   make-string :: Unit -> String
   make-string unit = "library-owned string"
   choose :: Int -> Bool -> Int
@@ -96,6 +104,9 @@ fn cinch_calls_actual_library_objects_with_checked_layout_authority() {
         ("float-negative-zero", "module Main where\n  import Library (decimal-bytes, decimal-ok)\n  foreign import ccall \"cinch.runtime.textF64FromDecimal\" decode :: Bytes -> F64\n  foreign import ccall \"cinch.runtime.textF64ToDecimal\" encode :: F64 -> Bytes\n  main :: Int\n  main = if decimal-ok True (encode (decode (decimal-bytes True))) then 219 else 1\n", 219),
         ("float-first-class", "module Main where\n  import Library (decimal-bytes, decimal-ok)\n  foreign import ccall \"cinch.runtime.textF64FromDecimal\" decode :: Bytes -> F64\n  foreign import ccall \"cinch.runtime.textF64ToDecimal\" encode :: F64 -> Bytes\n  apply :: forall a b. (a -> b) -> a -> b\n  apply f value = f value\n  main :: Int\n  main = if decimal-ok False (apply encode (apply decode (decimal-bytes False))) then 221 else 1\n", 221),
         ("returned-function", "module Main where\n  import Library (identity)\n  import Data.Bool (not)\n  main :: Int\n  main = if identity not False then 237 else 1\n", 237),
+        ("symbol-word-abi", "module Main where\n  import Library (make-symbol, symbol-name, same-symbol)\n  main :: Int\n  main = if same-symbol (make-symbol \"alpha\") (make-symbol \"alpha\") && not (same-symbol (make-symbol \"beta\") (make-symbol \"alpha\")) && symbol-name (make-symbol \"beta\") == \"beta\" then 201 else 1\n", 201),
+        ("symbol-raw-specialization", "module Main where\n  import Library (make-symbol, same-symbol, identity)\n  main :: Int\n  main = if same-symbol (identity (make-symbol \"alpha\")) (make-symbol \"alpha\") then 203 else 1\n", 203),
+        ("symbol-first-class-and-field", "module Main where\n  import Library (make-symbol, same-symbol)\n  data Box where\n    Box :: Sym -> Int -> Box\n  apply :: (String -> Sym) -> String -> Sym\n  apply f name = f name\n  main :: Int\n  main = case Box (apply make-symbol \"alpha\") 18446744073709551616 of\n    Box value n -> if same-symbol value (make-symbol \"alpha\") && n == 18446744073709551616 then 205 else 1\n", 205),
     ];
     for (i, (_, source, _)) in cases.iter().enumerate() { std::fs::write(dir.join(format!("input-{i}.source")), source).unwrap(); }
     std::fs::write(dir.join("batch.count"), vec![b'x'; cases.len()]).unwrap();

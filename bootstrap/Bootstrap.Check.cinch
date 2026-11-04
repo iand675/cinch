@@ -475,16 +475,18 @@ module Bootstrap.Check where
       TyHole -> (TyHole, df)
       other -> (TyHole, df <> (fail s (string-concat "cannot apply a value of type " (ty-text other))))
 
-  -- The constructor application: its arguments are checked against the
-  -- declaration's argument types even when the count is wrong, so the
-  -- arity failure is reported once and by itself.
+  -- Constructor values may retain unapplied arrows, just like functions.
+  -- Check supplied arguments and return the remaining function type;
+  -- over-application remains an arity error. Patterns still require every
+  -- declared argument and use the exact ctor-arity-diag below.
   infer-con :: List (String, Ty) -> Span -> String -> Expr -> (Ty, List Diagnostic)
   infer-con env s n args = case env-lookup n env of
     None -> (TyHole, fail s (string-concat "unknown constructor: " n))
     Some ty -> case spine-ok-exprs args of
       False -> (TyHole, fail s "malformed argument spine")
-      True -> case check-args env (ty-arg-types ty) (exprs-of args) (ty-result ty) of
-        (r, ds) -> (r, ds <> (ctor-arity-diag s n (list-length (exprs-of args)) ty))
+      True -> let count = list-length (exprs-of args) in
+        case check-args env (ty-arg-types ty) (exprs-of args) (ty-after-args ty count) of
+          (r, ds) -> (r, ds <> (if count <= ty-arity ty then Nil else fail s (ctor-arity-message n count (ty-arity ty))))
 
   -- The arity failure for a constructor used with the wrong number of
   -- arguments, empty when the count matches its declaration.

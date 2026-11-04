@@ -1,71 +1,66 @@
 # Next steps (as of 2026-11-04)
 
-## Current-source verification
+## Current repair and verification
 
-An additional original allocation regression through the actual self-built
-Stage2 now fails: a70-constructor family needs escaped runtime descriptors,
-which the runtime supports but the Cinch backend has been refusing. The original
-assertions and diagnostic are retained in
-[the Stage2 failure evidence](../bootstrap/current-stage2-allocation-failure.json).
-The complete eight-case allocation group finishes with six passing and two
-failing cases, none ignored or filtered. Its second failure exposes an omitted
-`Sym` word representation: the checked library object ABI and Rust classifier
-both classify the immortal symbol handle as Raw. A separate immutable combined
-repair candidate adds that classification, escaped allocation and safe tag reads, with positive
-65-tag, recursive/first-class70-constructor and generic representation-class
-execution cases plus symbol object-call, roundtrip, generic and closure cases.
-The first two repair candidates fail while building their emitters because a
-new local constant defaults to Int where Nat is needed. The corrected candidate
-first checks all43 actual compiler modules, then must pass the complete object,
-runtime, parser and checker targets. Its shared-layout table retains the original
-capacity bound required by admitted objects with regular tag reads.
-The implementation remains unpublished until validated. This known source
-failure prevents final acceptance regardless of the ongoing stage chain.
+This change publishes the escaped-constructor and symbol-word repairs from
+frozen source `72a62361a93da731ea5fe5becb9dc9828db00dda3f9b87cfcb7caf67d3177dee`.
+The normalized Cinch compiler identity is
+`33f4dde5688c94aeb1f04dc6498a8ceb013ee51193dd471aca9c36f3c3b675e1`.
+All43 actual compiler modules pass Native source checking. The complete
+runtime-lowering, parser and checker targets pass, with no ignored or filtered
+cases. All92 runtime programs execute with the expected results and zero leaks,
+including65-tag families, recursive/first-class70-constructor families, generic
+Raw/Obj/TObj layouts and a partially applied constructor retaining an owned
+integer. The complete checked-object target is still running; its full positive
+and refusal assertions remain required. See
+[the scoped repair evidence](../bootstrap/escaped-constructor-symbol-repair-results.json).
+This checkpoint does not claim that final runtime-object validation, bootstrap
+or complete-suite acceptance has finished.
 
-The published Cinch checkpoint is `3e14f1b`, with the Rust optimizer repair in
-`8d6feac`. The current frozen verification snapshot is
-`f6e166c9ec48a7b30526db7d16f360c56204c5de4b6005f91ae54a350bd07808`;
-its Cinch compiler source identity is
-`0e2848ef342cc3fd82d78e2eec3894d410660c17538f7c0becdf55278d37ab0f`.
-All five complete focused repair gates pass. The current source also passes
-all171 runtime tests,41 tooling checks and39 compiler/editor/Tree-sitter checks,
-with no ignored, skipped or filtered cases. See
-[the current auxiliary evidence](../bootstrap/current-source-auxiliary-results.json).
-The [published-source audit](../bootstrap/current-published-source-audit.json)
-matches all200 production and380 test inputs in its stated scope to the frozen
-verification source. Documentation/status metadata and the independently checked
-test-only library roots are recorded separately.
+The backend uses the runtime's existing escaped-descriptor format and reads
+escaped tags safely. Direct and first-class constructor allocation share that
+format. Existing pointer-map and shared-table capacity guards remain. Primitive
+`Sym` values use the Raw class required by checked library metadata. The legacy
+checker now returns the remaining function type for a partially applied
+constructor expression; over-application is refused, and constructor patterns
+still require every field. New wrong-prefix-type and incomplete-pattern
+refusals retain those boundaries. The original allocation assertions are unchanged.
 
-All127 ordinary current-source compiler groups now pass, with no failures,
-ignored cases or filtered cases; see [the complete ordinary result](../bootstrap/current-ordinary-compiler-results.json).
-The full208-group sweep retains its completed results; unstarted old-source
-groups are deferred while active groups finish naturally and the necessary
-source repair is validated. Every group remains required on the eventual
-repaired-source sweep. A fresh staged
-compiler build has verified the unchanged pinned seed, rebuilt Stage1 and
-successfully compiled every compiler module through Stage1 into a new Stage2.
-All three Stage2 smoke programs pass, and all43 actual compiler interfaces pass
-independent schema and dependency validation. The Stage2 executable identity is
-`e40184b49fbccd70443e544e01bb99ea3553141638adb4fab4f0ab727f8b34a7`.
-The [current acceptance audit](../bootstrap/current-bootstrap-acceptance-audit.json)
-verifies Acceptance1 and2 against the actual sources and stage artifacts;
-Acceptance3-5 remain open. The unfinished Stage3 build on this known-failing
-source was stopped; Stage0/1/2 artifacts and their smoke results are retained.
-The fixed point and changed-source behavior require a fresh repaired-source
-chain and are not yet claimed. The separate
-91-group queue was stopped before execution after the actual Stage2 failure.
-It must run against the eventual repaired Stage3:79 bootstrap groups,eight ordinary
-program targets,three complete mixed consumers and the designed ABI5 array
-refusal. Exact new-Stage3 test reports,zero-leak execution,definition-owned
-fixities and class behavior are queued too. The [current coverage audit](../bootstrap/current-external-coverage-audit.json)
-recomputes all100 harness targets:91selected-frontend groups plus nine direct
-Native interface-API groups, which now pass. The explicit array boundary remains:
-all14Native array tests execute, while the pinned ABI5 self-built compiler must
-refuse its unimplemented array operations per the array design. Classification
-does not substitute for the queued exact new-Stage3 executions. All these gates and the unchanged
-Acceptance1-5 audit remain required. The live dashboard tracks this current
-attempt; the earlier successful compiler chain below retains its original
-source scope.
+The fresh Stage0/1/2/3 attempt uses this exact source. Stage0 and all three smoke
+checks pass; Stage1 is building. Only unchanged pinned seed and admitted
+library/runtime dependency artifacts are reused after revalidation. Every Cinch
+compiler stage is freshly rebuilt. Stage2 waits for all four complete focused
+gates to pass. The complete208-group Native inventory has compiled on the same
+source and private cache; full execution also waits for all four gates. Matching
+runtime, tooling and editor checks are queued, and the eight original ordinary
+behavior targets will run early through fresh Stage1 once its smokes pass.
+These diagnostics do not replace the required91-group exact final Stage3 suite:
+79 bootstrap groups, eight ordinary targets, three complete mixed consumers and
+the designed ABI5 array refusal. Exact final Stage3 runner reports, zero-leak
+execution, definition-owned fixities and class behavior remain required too.
+Stage2/3 IR, executable and all43 canonical interfaces must agree; actual API
+consumption and rebuilding changed compiler source remain separate gates.
+All of Acceptance1-5 remains required before completion.
+
+The earlier0e28 source successfully built Stage2 and passed its smokes, but its
+original eight-case allocation target finished with six passes and two failures:
+large constructor families and symbol-word classification. Its Native sweep
+retained138 passing groups and deferred70 after the necessary source repair was
+identified. Its unfinished Stage3 build and unstarted final-consumer queues were
+stopped; all completed artifacts, logs and original failures remain recorded.
+See [the complete original allocation result](../bootstrap/current-stage2-allocation-failure.json).
+An intermediate repair's runtime target executed65-tag and generic70-tag
+programs with zero leaks, then failed when the legacy checker rejected a bare
+constructor as a function. The current complete runtime target passes that case
+and the added owned partial-application case. Earlier results retain their
+source scope and do not count as completion on the current source.
+
+The [progress dashboard](https://cinch-bootstrap-status.ian92821.chatgpt.site)
+tracks this current attempt, including each focused gate and remaining blockers.
+Its percentage is a rough engineering estimate, not a test pass percentage.
+The unchanged array boundary is specified in [the array design](arrays.md):
+all14 Native ABI6 array tests must execute; the pinned ABI5 self-built compiler
+must refuse the unimplemented operations. No Native array assertion is removed.
 
 ## Earlier repaired-source bootstrap and remaining gates
 

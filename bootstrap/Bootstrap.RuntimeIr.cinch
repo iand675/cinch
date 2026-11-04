@@ -195,7 +195,8 @@ module Bootstrap.RuntimeIr where
   representation :: Nat -> List (Nat, Nat) -> Option Nat
   representation id entries = case entries of Nil -> None; Cons (key, code) rest -> if key == id then Some code else representation id rest
   word-class :: RuntimeContext -> UType -> Option Nat
-  word-class context ty = if number ty then Some 2 else if named ty "Bool" || named ty "Unit" || raw-integer ty || named ty "Char" || named ty "F32" || named ty "F64" then Some 0 else case context of
+  -- Sym is an immortal runtime handle, classified Raw by the object ABI.
+  word-class context ty = if number ty then Some 2 else if named ty "Bool" || named ty "Unit" || raw-integer ty || named ty "Char" || named ty "Sym" || named ty "F32" || named ty "F64" then Some 0 else case context of
     RuntimeContext datas bounds rigids pending done -> case base ty of
       UBound id name KType -> representation id bounds
       URigid id name level KType -> representation id rigids
@@ -389,11 +390,24 @@ module Bootstrap.RuntimeIr where
         let key = specialized-name (core-data-name d) classes in
         case named-layout key names of
           Some id -> (w, id)
-          None -> if list-length (core-data-constructors d) > 64 || groups >= 1022 then
-            (refuse w sp "data family needs an extended runtime descriptor", 0)
-            else let id = 64 * (groups + 1) in
-              let planned = Writer next globals code errors (LayoutPlan (groups + 1) tuples (Cons (key, id) names) cells) (writer-context w) in
-              (add-constructor-layouts (RuntimeContext datas bounds Nil pending done) d id 0 (core-data-constructors d) planned, id)
+          None -> let count = list-length (core-data-constructors d) in
+            let id = 64 * (groups + 1) in
+            if count >= 16777216 || id + count >= 16777216 then
+              (refuse w sp "data family exceeds the runtime descriptor tag or index capacity", 0)
+            else let reserved = if count == 0 then count + 1 else (count + 63) / 64 in
+              -- Preserve the existing shared-table bound: admitted objects
+              -- may have branch-free reads for their regular families.
+              if groups + reserved > 1022 then
+                (refuse w sp "data family exceeds the supported shared runtime layout table", 0)
+              else let planned = Writer next globals code errors (LayoutPlan (groups + reserved) tuples (Cons (key, id) names) cells) (writer-context w) in
+                (add-constructor-layouts (RuntimeContext datas bounds Nil pending done) d id 0 (core-data-constructors d) planned, id)
+  -- The runtime's escaped descriptor stores the table index in bits40..63
+  -- and the full tag in bits16..39; 65535 marks the header escape. Every
+  -- constructor of an escaped family uses it, including tags below64.
+  data-descriptor :: CoreData -> Nat -> Nat -> Nat
+  data-descriptor d base-id tag =
+    if list-length (core-data-constructors d) <= 64 && base-id < 65472 then base-id + tag
+    else (base-id + tag) * 1099511627776 + tag * 65536 + 65535
   constructor-in :: String -> Nat -> List CoreConstructor -> Option (Nat, CoreConstructor)
   constructor-in name index constructors = case constructors of
     Nil -> None
@@ -631,7 +645,7 @@ module Bootstrap.RuntimeIr where
               Some context -> if list-length args == list-length (core-constructor-fields c) then
                 (case request-data sp d classes w of
                   (planned, descriptor) -> case expressions definitions locals planned args of
-                    (ready, values) -> allocate ready (descriptor + tag) values)
+                    (ready, values) -> allocate ready (data-descriptor d descriptor tag) values)
                 else if list-length args < list-length (core-constructor-fields c) then
                   (case class-vector context (core-constructor-fields c) of
                     Some parameters -> case expressions definitions locals (request-demand (ConstructorDemand name classes) w) args of
@@ -1285,10 +1299,33 @@ module Bootstrap.RuntimeIr where
     let (two, slot) = fresh one "%ptr" in
     let (three, header) = fresh two "%v" in
     let (four, layout) = fresh three "%v" in
-    let (five, tag) = fresh four "%v" in
-    let address = line (line five (cat ["  ", pointer, " = inttoptr i64 ", value, " to ptr"])) (cat ["  ", slot, " = getelementptr i64, ptr ", pointer, ", i64 -1"]) in
+    let (five, escaped) = fresh four "%v" in
+    let (six, extended-label) = fresh five "escaped-tag" in
+    let (seven, regular-label) = fresh six "regular-tag" in
+    let (eight, joined-label) = fresh seven "tag-join" in
+    let (nine, extended-slot) = fresh eight "%ptr" in
+    let (ten, descriptor) = fresh nine "%v" in
+    let (eleven, shifted) = fresh ten "%v" in
+    let (twelve, extended-tag) = fresh eleven "%v" in
+    let (thirteen, regular-tag) = fresh twelve "%v" in
+    let (fourteen, tag) = fresh thirteen "%v" in
+    let address = line (line fourteen (cat ["  ", pointer, " = inttoptr i64 ", value, " to ptr"])) (cat ["  ", slot, " = getelementptr i64, ptr ", pointer, ", i64 -1"]) in
     let loaded = line address (cat ["  ", header, " = load atomic i64, ptr ", slot, " monotonic, align 8"]) in
-    (line (line loaded (cat ["  ", layout, " = lshr i64 ", header, ", 48"])) (cat ["  ", tag, " = and i64 ", layout, ", 63"]), tag)
+    (emit-lines loaded [
+      cat ["  ", layout, " = lshr i64 ", header, ", 48"],
+      cat ["  ", escaped, " = icmp eq i64 ", layout, ", 65535"],
+      cat ["  br i1 ", escaped, ", label %", extended-label, ", label %", regular-label],
+      cat [extended-label, ":"],
+      cat ["  ", extended-slot, " = getelementptr i64, ptr ", pointer, ", i64 -2"],
+      cat ["  ", descriptor, " = load i64, ptr ", extended-slot],
+      cat ["  ", shifted, " = lshr i64 ", descriptor, ", 16"],
+      cat ["  ", extended-tag, " = and i64 ", shifted, ", 16777215"],
+      cat ["  br label %", joined-label],
+      cat [regular-label, ":"],
+      cat ["  ", regular-tag, " = and i64 ", layout, ", 63"],
+      cat ["  br label %", joined-label],
+      cat [joined-label, ":"],
+      cat ["  ", tag, " = phi i64 [ ", extended-tag, ", %", extended-label, " ], [ ", regular-tag, ", %", regular-label, " ]"]], tag)
   match-pattern :: CorePattern -> String -> String -> Writer -> (Writer, List Local)
   match-pattern pattern value failed w = if not (word-type (writer-context w) (pattern-type pattern)) then
     (refuse w (Span 0 0 1 1) "pattern needs typed runtime match lowering", Nil)
@@ -1306,7 +1343,7 @@ module Bootstrap.RuntimeIr where
           (case compare-word w "eq" value (if same name "True" then "1" else "0") of
             (ready, condition) -> (continue-if ready condition failed, Nil))
         else case constructor name (writer-data w) of
-          Some (owner, tag, c) -> if list-length (core-constructor-fields c) <= 16 && tag < 64 then
+          Some (owner, tag, c) -> if list-length (core-constructor-fields c) <= 16 && tag < 16777216 then
             (case constructor-tag w value of
               (loaded, actual) -> case compare-word loaded "eq" actual (nat-to-string tag) of
                 (compared, condition) -> let (ready, pointer) = fresh (continue-if compared condition failed) "%ptr" in
@@ -1463,7 +1500,7 @@ module Bootstrap.RuntimeIr where
                 let count = list-length (core-constructor-fields c) in
                 let values = value-parameters count 0 in
                 let started = line (line planned (cat ["define i64 ", symbol (specialized-name name classes), "(", join (argument-words values), ") {"])) "entry:" in
-                case allocate started (descriptor + tag) values of
+                case allocate started (data-descriptor d descriptor tag) values of
                   (allocated, result) -> line (line allocated (cat ["  ret i64 ", result])) "}"
         None -> refuse w (Span 0 0 1 1) "constructor worker needs representation specialization"
       None -> refuse w (Span 0 0 1 1) "constructor worker has no defining data"

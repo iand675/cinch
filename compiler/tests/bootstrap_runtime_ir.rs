@@ -90,6 +90,43 @@ fn typed_runtime_numbers_preserve_exact_values_and_reclaim_owned_words() {
     assert!(runtime.is_file(), "the Native-built emitter must have built its shared runtime");
     let tag64 = format!("  data Tag where\n{}  main :: Int\n  main = case C63 of\n    C63 -> 137\n    _ -> 1\n",
         (0..64).map(|i| format!("    C{i} :: Tag\n")).collect::<String>());
+    let tag65 = format!("  data Tag where\n{}  main :: Int\n  main = case C64 of\n    C64 -> 139\n    _ -> 1\n", (0..65).map(|i| format!("    C{i} :: Tag\n")).collect::<String>());
+    let tag70 = format!(r#"  data Tag where
+{}    C69 :: Tag -> Tag
+  data Small where
+    Small :: Int -> Small
+  apply :: (Tag -> Tag) -> Tag -> Tag
+  apply f value = f value
+  build :: Int -> Tag -> Tag
+  build n value = if n == 0 then value else build (n - 1) (apply C69 value)
+  count :: Tag -> Int
+  count value = case value of
+    C69 rest -> 1 + count rest
+    C0 -> 0
+    _ -> -1
+  rank :: Tag -> Int
+  rank value = case value of
+    C0 -> 0
+    C63 -> 63
+    C64 -> 64
+    C68 -> 68
+    _ -> 99
+  main :: Int
+  main = case Small 18446744073709551616 of
+    Small n -> if n == 18446744073709551616 && count (build 12 C0) == 12 && rank C63 + rank C64 + rank C68 + rank (apply C69 C1) == 294 then 141 else 1
+"#, (0..69).map(|i| format!("    C{i} :: Tag\n")).collect::<String>());
+    let generic_tag70 = format!(r#"  data Wide a where
+{}  data Token where
+    Token :: Int -> Token
+  recover :: forall a. a -> Wide a -> a
+  recover fallback wide = case wide of
+    C64 value -> value
+    C69 value -> value
+    _ -> fallback
+  main :: Int
+  main = case recover (Token 0) (C69 (Token 18446744073709551616)) of
+    Token n -> if recover False (C64 True) && recover 0 (C69 9223372036854775808) == 9223372036854775808 && n == 18446744073709551616 then 143 else 1
+"#, (0..70).map(|i| format!("    C{i} :: a -> Wide a\n")).collect::<String>());
     let cases = [
         ("function-valued-prefix", "  keep :: Int -> Int\n  keep value = value\n  return-keep :: Int -> Int -> Int\n  return-keep ignored = keep\n  main :: Int\n  main = if return-keep 10 42 == 42 then 245 else 1\n", 245),
         ("pure-unit-entry", "  main :: Unit -> Int\n  main unit = 83\n", 83),
@@ -120,6 +157,10 @@ fn typed_runtime_numbers_preserve_exact_values_and_reclaim_owned_words() {
         ("failed-case-guard", "  data Box where\n    Box :: Int -> Box\n  main :: Int\n  main = case Box 18446744073709551616 of\n    Box n | n < 0 -> 1\n    Box n -> if n == 18446744073709551616 then 127 else 2\n", 127),
         ("natural-literal-pattern", "  classify :: Nat -> Int\n  classify 340282366920938463463374607431768211456 = 131\n  classify _ = 1\n  main :: Int\n  main = classify 340282366920938463463374607431768211456\n", 131),
         ("last-regular-tag", tag64.as_str(), 137),
+        ("partially-applied-constructor", "  data Parcel where\n    Parcel :: Int -> Bool -> Parcel\n  make :: Int -> Bool -> Parcel\n  make value = Parcel value\n  apply :: (Bool -> Parcel) -> Bool -> Parcel\n  apply f flag = f flag\n  main :: Int\n  main = case apply (make 18446744073709551616) True of\n    Parcel value flag -> if flag && value == 18446744073709551616 then 147 else 1\n", 147),
+        ("first-escaped-tag", tag65.as_str(), 139),
+        ("escaped-recursive-and-first-class", tag70.as_str(), 141),
+        ("escaped-generic-representation-classes", generic_tag70.as_str(), 143),
         ("generic-identity-classes", "  data Token where\n    Token :: Int -> Token\n  identity :: forall a. a -> a\n  identity x = x\n  readToken :: Token -> Int\n  readToken (Token n) = n\n  main :: Int\n  main = if identity True && identity (readToken (identity (Token 18446744073709551616))) == 18446744073709551616 then 151 else 1\n", 151),
         ("generic-shared-tobj", "  identity :: forall a. a -> a\n  identity x = x\n  keepNat :: Nat -> Nat\n  keepNat n = identity n\n  main :: Int\n  main = if keepNat 340282366920938463463374607431768211456 == 340282366920938463463374607431768211456 && identity (-18446744073709551616) == -18446744073709551616 then 157 else 1\n", 157),
         ("generic-shared-obj", "  data LeftBox where\n    LeftBox :: Int -> LeftBox\n  data RightBox where\n    RightBox :: Bool -> RightBox\n  identity :: forall a. a -> a\n  identity x = x\n  main :: Int\n  main = case identity (LeftBox 18446744073709551616) of LeftBox n -> case identity (RightBox True) of RightBox flag -> if flag && n == 18446744073709551616 then 163 else 1\n", 163),
@@ -186,6 +227,8 @@ fn typed_runtime_numbers_preserve_exact_values_and_reclaim_owned_words() {
     std::fs::write(dir.join(format!("input-{}.source", cases.len())), "module Main where\n  import RuntimeClasses\n  data Box where\n    Box :: Int -> Box\n  instance RawValue :: Value Bool where\n    value = True\n  instance TaggedValue :: Value Int where\n    value = 340282366920938463463374607431768211456\n  instance ObjectValue :: Value Box where\n    value = Box 18446744073709551616\n  instance FunctionValue :: Value (Int -> Int) where\n    value = let n = 18446744073709551616 in \\x -> x + n\n  getRaw :: Value Bool\n  getRaw = RawValue\n  getTagged :: Value Int\n  getTagged = TaggedValue\n  getObject :: Value Box\n  getObject = ObjectValue\n  getFunction :: Value (Int -> Int)\n  getFunction = FunctionValue\n  instance SharedBox :: Shared Box where\n    duplicate = stored\n    stored = Box 18446744073709551616\n    observe u = stored\n    escape-value u = \\v -> observe v\n  getShared :: Shared Box\n  getShared = SharedBox\n  main :: Int\n  main = case (getRaw, getTagged, getObject, getFunction, getShared) of _ -> 0\n").unwrap();
     std::fs::write(dir.join(format!("input-{}.source", cases.len() + 1)), "module Main where\n  import RuntimeClasses\n  package :: PrivateEnvelope\n  package = PublicEnvelope 18446744073709551616\n  main :: Int\n  main = case package of PublicEnvelope n -> 0; _ -> 1\n").unwrap();
     let invalid_source_signatures = [
+        "module Main where\n  data Box where\n    Box :: Int -> Box\n  main :: Int\n  main = case Box 1 of\n    Box -> 0\n",
+        "module Main where\n  data Pair where\n    Pair :: Int -> Bool -> Pair\n  bad :: Bool -> Pair\n  bad = Pair True\n  main :: Int\n  main = 0\n",
         "module Main where\n  missing :: Int -> Int\n  missing = 0\n  main :: Int\n  main = 0\n",
         "module Main where\n  keep :: Int -> Int\n  keep value = value\n  mixed :: Int -> Int\n  mixed = keep\n  mixed value = value\n  main :: Int\n  main = 0\n",
         "module Main where\n  wrong :: Unit -> Int\n  wrong = False\n  main :: Int\n  main = 0\n",
@@ -407,12 +450,8 @@ int main(void) {
     assert_eq!(output.status.code(), Some(5), "{}", String::from_utf8_lossy(&output.stderr));
     assert!(common::read_output(&dir, "output.diagnostics").contains("extended"));
     assert!(common::read_output(&dir, "output.ll").is_empty());
-    let source = format!("module Main where\n  data Tag where\n{}  main :: Int\n  main = case C64 of\n    C64 -> 1\n    _ -> 2\n", (0..65).map(|i| format!("    C{i} :: Tag\n")).collect::<String>());
-    std::fs::write(dir.join("input.source"), source).unwrap();
-    let output = Command::new(&compiler).current_dir(&dir).output().unwrap();
-    assert_eq!(output.status.code(), Some(5), "{}", String::from_utf8_lossy(&output.stderr));
-    assert!(common::read_output(&dir, "output.diagnostics").contains("extended"));
-    assert!(common::read_output(&dir, "output.ll").is_empty());
+    // The former C64 refusal is now the positive first-escaped-tag case,
+    // executed and leak-checked alongside the recursive and generic cases.
     common::cleanup(&producer);
     common::cleanup(&dir);
 }
