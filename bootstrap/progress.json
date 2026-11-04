@@ -3,11 +3,11 @@
   "blockers": [
     {
       "title": "Self-built bootstrap regression needs its test-library variant",
-      "detail": "Failed groups: bootstrap_abstract_nonzero_types. Original failure logs remain recorded. The diagnostic requests missing test-library factory Data.List.FromList_List[R]. Library-only rebuild: passed; unchanged complete-target rerun using the same self-built compiler: running. This isolated retry does not complete the 79-group suite or validate the newer compiler candidate."
+      "detail": "Failed groups: bootstrap_abstract_nonzero_types. Original failure logs remain recorded. The diagnostic requests missing test-library factory Data.List.FromList_List[R]. Library-only rebuild: passed; unchanged complete-target rerun using the same self-built compiler: passed. This isolated retry does not complete the 79-group suite or validate the newer compiler candidate."
     },
     {
       "title": "Validate the additional Stage3 repairs",
-      "detail": "Allocation programs exposed missing I64 primitive contracts and pure Unit-entry rejection. Candidate2ran a pure Unitentry with zero leaks, then failed at a function-valued entry because legacy clause checking demanded all arguments. Candidate3also checks the body against the residual function type, with over-arity and wrong-body refusals retained. Focused tests: running; new compiler bootstrap: not started; current focused gates must pass. Earlier green bootstrap results remain scoped to their original source."
+      "detail": "Allocation programs exposed missing I64 primitive contracts and pure Unit-entry rejection. Candidate2ran a pure Unitentry with zero leaks, then failed at a function-valued entry because legacy clause checking demanded all arguments. Candidate3also checks the body against the residual function type, with over-arity and wrong-body refusals retained. Focused tests: passed; new compiler bootstrap: not started; current focused gates must pass. Earlier green bootstrap results remain scoped to their original source."
     },
     {
       "title": "Ordinary Stage3 verification needs investigation",
@@ -232,5 +232,5 @@
   ],
   "status": "Ordinary or mixed Stage3 verification needs investigation",
   "summary": "The earlier baseline compiler bootstraps and passes its exact Stage3 behavior checks. The current Rust optimizer repair passes all16 optimizer tests and the complete checker target; the remaining Cinch candidate gates are separate. The full 208-group Native-backed sweep and all 79 portable bootstrap groups through Stage3 are tracked separately. Native library fixture preparation is explicit; selected compiler failures never fall back.",
-  "updatedAt": "2026-11-04T00:52:35.355096+00:00"
+  "updatedAt": "2026-11-04T00:53:37.973587+00:00"
 }
