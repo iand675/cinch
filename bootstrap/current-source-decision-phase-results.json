@@ -1,0 +1,26 @@
+{
+  "status": "passed-test-only-decision-phase-correction",
+  "source": "/tmp/cinch-source-decision-expectation-validation-1/source",
+  "source_sha256": "dbe32074132937467376306d74783c1999380035f4095614657708db8cd64d27",
+  "changed_paths": [
+    "compiler/tests/bootstrap_source_decisions.rs"
+  ],
+  "scope": "Complete source-decisions group including all existing semantic and cached-kernel controls; opaque Prop resolves, then is refused at checker phase4 with the precise missing executable decision authority diagnostic. All43 compiler modules checked. Production compiler inputs byte-identical to published fee2b21. Actual Stage3 rerun remains pending.",
+  "test": {
+    "binary": "/tmp/cinch-source-decision-expectation-validation-1/cargo/debug/deps/bootstrap_source_decisions-eddd9e52d4861934",
+    "binary_sha256": "5b5dd1266be7389964616f73e320eb95ad9b6936ca1169475eb2c21cbb318d6e",
+    "exit_code": 0,
+    "log_sha256": "09b66e956c7d4272bb7634e89623951f2a013bc97ff8ade47fc975043a8da20c",
+    "name": "bootstrap_source_decisions",
+    "status": "passed"
+  },
+  "source_check": {
+    "compiler": "/tmp/cinch-source-decision-expectation-validation-1/cargo/debug/cinch",
+    "compiler_modules": 43,
+    "compiler_sha256": "17703eed8b3fe05c286c89c120fcb6f2514bf471cd6989911294201dce456288",
+    "exit_code": 0,
+    "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "status": "passed"
+  },
+  "full_goal_complete": false
+}

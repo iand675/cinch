@@ -41,7 +41,7 @@ fn source_decisions_preserve_predicates_and_check_authority() {
         ("changed value cannot retain proof", "choose :: (n :: Int) -> (m :: Int) -> Dec (NonZero m)\n  choose n m = decide (NonZero n)", 4),
         ("changed comparison cannot retain proof", "choose :: (n :: Int) -> Dec (n < 0)\n  choose n = decide (n > 0)", 4),
         ("runtime Bool is not predicate syntax", "choose :: Bool -> Dec True\n  choose condition = decide condition", 4),
-        ("opaque Prop needs procedure", "choose :: forall (p :: Prop). Dec p\n  choose = decide p", 3),
+        ("opaque Prop needs procedure", "choose :: forall (p :: Prop). Dec p\n  choose = decide p", 4),
         ("proof reference is not procedure", "choose :: forall (p :: Prop). (h :: p) -> Dec p\n  choose h = decide h", 4),
         ("first class decide is rejected", "choose = decide", 4),
         ("arbitrary predicate function", "predicate :: Int -> Bool\n  predicate n = True\n  choose :: Int -> Int\n  choose n = case decide (predicate n) of Yes _ -> 1; No _ -> 0", 4),
@@ -57,6 +57,10 @@ fn source_decisions_preserve_predicates_and_check_authority() {
         let output = std::process::Command::new(&exe).current_dir(&dir).output().unwrap();
         let report = common::read_output(&dir, "source-decisions-report.txt");
         assert_eq!(output.status.code(), Some(expected), "case {name}; project {}\n{source}\n{report}\n{}", dir.display(), String::from_utf8_lossy(&output.stderr));
+        if name == "opaque Prop needs procedure" {
+            assert!(report.contains("predicate needs an executable checked decision procedure"), "{name}: {report}");
+            assert!(!report.contains("bootstrap.resolve:"), "opaque propositions must resolve before their missing decision authority is refused: {report}");
+        }
     }
     for (body, diagnostic) in [
         ("choose :: U8 -> Int\n  choose n = case decide (n + 1 > 0) of Yes _ -> 1; No _ -> 0", "decision arithmetic needs checked mathematical semantics"),
