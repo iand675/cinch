@@ -333,6 +333,7 @@ module Bootstrap.Resolve where
   -- still resolves to its real defining module.
   rename-predicate :: List Binding -> List String -> TypeExpr -> TypeExpr
   rename-predicate visible locals syntax = case syntax of
+    TName s name -> if same name "NonZero" then syntax else rename-type visible locals syntax
     TApp s (TName at name) (TArg arg input (TArgsEnd end)) ->
       if same name "NonZero" then TApp s (TName at name) (TArg arg (rename-type visible locals input) (TArgsEnd end))
       else rename-type visible locals syntax

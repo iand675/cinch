@@ -2221,7 +2221,11 @@ module Bootstrap.Parse where
               else PBad
             Nil -> PBad
           PBad -> PBad
-      else PBad
+      else case parse-type-atom toks src of
+        POk predicate rest2 -> case parse-type-app rest2 src of
+          POk carrier rest3 -> POk (TRefined (span-join sp (type-expr-span carrier)) predicate carrier) rest3
+          PBad -> PBad
+        PBad -> PBad
     Nil -> PBad
 
   type-name-atom :: Span -> List LToken -> List String -> Ps TypeExpr

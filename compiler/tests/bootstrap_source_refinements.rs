@@ -15,6 +15,12 @@ fn source_refinements_check_actual_values_and_preserve_effects() {
     ]);
     let exe = common::build(&dir, "Main.cinch", "source-refinements").expect("build the Cinch source refinement checker");
     let cases = [
+        ("bare structural NonZero", "positive :: refined NonZero Nat\n  positive = 1", 0, ""),
+        ("parenthesized structural NonZero", "positive :: refined (NonZero) Nat\n  positive = 1", 0, ""),
+        ("bare structural NonZero signed", "negative :: refined NonZero Int\n  negative = -1", 0, ""),
+        ("bare NonZero cannot accept zero", "bad :: refined NonZero Nat\n  bad = 0", 4, "refinement predicate is not established"),
+        ("bare NonZero does not capture argument", "bad :: (n :: Nat) -> refined NonZero Nat\n  bad n = 0", 4, "refinement predicate is not established"),
+        ("bare NonZero rejects Boolean carrier", "bad :: refined NonZero Bool\n  bad = True", 4, "NonZero needs a checked mathematical carrier"),
         ("certified refined argument dependent result", "below :: (d :: refined (n > 0) Nat) -> refined (out < d) Nat\n  below d = 0\n  use :: refined (r < 3) Nat\n  use = below 3", 0, ""),
         ("certified argument witness survives result let", "below :: (d :: refined (n > 0) Nat) -> refined (out < d) Nat\n  below d = 0\n  use :: refined (r < 3) Nat\n  use = let value = below 3 in value", 0, ""),
         ("certified argument result projects to carrier", "below :: (d :: refined (n > 0) Nat) -> refined (out < d) Nat\n  below d = 0\n  use :: Nat\n  use = below 3", 0, ""),

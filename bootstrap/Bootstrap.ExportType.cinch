@@ -56,6 +56,17 @@ module Bootstrap.ExportType where
     Cons (key, name) rest -> if id == key then Ok name else local id rest
   fresh-name :: String -> Nat -> String
   fresh-name prefix id = string-concat prefix (nat-to-string id)
+  scope-name-used :: String -> List (Nat, String) -> Bool
+  scope-name-used wanted scope = case scope of
+    Nil -> False
+    Cons (id, name) rest -> same wanted name || scope-name-used wanted rest
+  fresh-scoped-name :: String -> List (Nat, String) -> String
+  fresh-scoped-name name scope = if scope-name-used name scope then fresh-scoped-name (string-concat name "-r") scope else name
+  argument-name :: String -> List (Nat, String) -> String
+  argument-name name scope = let fallback = fresh-name "p" (list-length scope) in
+    fresh-scoped-name (case unpack name of
+      Nil -> fallback
+      Cons first rest -> if char-code first == 35 || char-code first == 36 then fallback else name) scope
   kind-in :: List (Nat, String) -> Kind -> Result String String
   kind-in scope kind = case kind of
     KType -> Ok "Type"
@@ -165,8 +176,8 @@ module Bootstrap.ExportType where
     UPropNot value -> join [Ok "(Not ", type-in scope value, Ok ")"]
     UPropNonZero value -> join [Ok "(NonZero ", type-in scope value, Ok ")"]
     URequire predicates body -> Err "nested function preconditions have no portable interface syntax"
-    URefine id name carrier predicate -> join [Ok "(refined (", type-in (Cons (id, "cinch-result") scope) predicate, Ok ") ", type-in scope carrier, Ok ")"]
-    UPi id name domain row result -> let binder = fresh-name "p" (list-length scope) in let bound = Cons (id, binder) scope in
+    URefine id name carrier predicate -> let binder = fresh-scoped-name "cinch-result" scope in join [Ok "(refined (", type-in (Cons (id, binder) scope) predicate, Ok ") ", type-in scope carrier, Ok ")"]
+    UPi id name domain row result -> let binder = argument-name name scope in let bound = Cons (id, binder) scope in
       join [Ok "((", Ok binder, Ok " :: ", type-in scope domain, Ok ") ->", row-in bound row, Ok " ", type-in bound result, Ok ")"]
     UApp f x -> join [Ok "(", type-in scope f, Ok " ", type-in scope x, Ok ")"]
     UFun a b -> join [Ok "(", type-in scope a, Ok " -> ", type-in scope b, Ok ")"]
@@ -197,7 +208,7 @@ module Bootstrap.ExportType where
   -- arguments still identify the exact variables used by each obligation.
   scheme-result :: List (Nat, String) -> UType -> Result String (String, List String)
   scheme-result scope ty = case ty of
-    UPi id name domain row result -> let binder = fresh-name "p" (list-length scope) in let bound = Cons (id, binder) scope in
+    UPi id name domain row result -> let binder = argument-name name scope in let bound = Cons (id, binder) scope in
       with-result [Ok "((", Ok binder, Ok " :: ", type-in scope domain, Ok ") ->", row-in bound row, Ok " "] (scheme-result bound result)
     UFun domain result -> with-result [Ok "(", type-in scope domain, Ok " -> "] (scheme-result scope result)
     UFunEff domain row result -> with-result [Ok "(", type-in scope domain, Ok " ->", row-in scope row, Ok " "] (scheme-result scope result)

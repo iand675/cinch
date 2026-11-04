@@ -169,10 +169,31 @@ fn interface_output(dir: &Path, exe: &Path) {
     assert!(!prefix.exists(), "interface-only mode emitted IR");
     assert_eq!(std::fs::read_to_string(dir.join("interfaces-only.diagnostics")).unwrap(), "");
 
-    std::fs::write(&source, "module Main where\n  type Positive = refine (n :: Nat) with n > 0\n  main :: Int\n  main = 0\n").unwrap();
+    // Refinement definitions are supported now: require the actual checked
+    // template and private closure instead of the former blanket refusal.
+    std::fs::write(&source, "module Main where\n  export Positive, one\n  type Positive = refine (n :: Nat) with n > 0\n  one :: Positive\n  one = 1\n  main :: Int\n  main = 0\n").unwrap();
+    let prefix = dir.join("refinement-interface");
+    let args = vec!["--emit-interfaces".into(), source.display().to_string(), prefix.display().to_string()];
+    let (code, stderr) = run_built(exe, dir, &args);
+    assert_eq!(code, Some(0), "{stderr}; {}", common::read_output(dir, "refinement-interface.diagnostics"));
+    let bytes = common::read_output(dir, "refinement-interface.Main.cinchif");
+    let interface = cinch::interface::Iface::from_json(&bytes).expect("independent refinement interface readback");
+    assert_eq!(interface.to_json(), bytes, "canonical refinement interface");
+    let positive = interface.exports.types.iter().find(|row| row.name == "Positive").unwrap();
+    assert_eq!((positive.identity.as_str(), positive.kind.as_str()), ("Main.Positive", "refinement"));
+    let template = positive.refinement.as_ref().unwrap();
+    assert_eq!((template.binder.as_str(), template.carrier.as_str(), template.predicate.as_str()), ("n", "Nat", "n > 0"));
+    let one = interface.exports.values.iter().find(|row| row.name == "one").unwrap().resolved.as_ref().unwrap();
+    assert!(one.nominals.iter().any(|row| row.identity == "Main.Positive" && row.refinement.as_ref() == Some(template)), "value lost its defining refinement contract");
+    assert_eq!(common::read_output(dir, "refinement-interface.diagnostics"), "");
+    assert!(!prefix.exists(), "interface-only refinement output emitted IR");
+
+    // Unmodeled external assumptions still require an explicit refusal and
+    // must never leave a checked interface behind.
+    std::fs::write(&source, "module Main where\n  foreign import ccall \"external_identity\" external-identity :: Nat -> Nat\n  main :: Int\n  main = 0\n").unwrap();
     let args = vec!["--emit-interfaces".into(), source.display().to_string(), dir.join("unsupported-interface").display().to_string()];
-    assert_eq!(run_built(exe, dir, &args).0, Some(5));
-    assert!(common::read_output(dir, "unsupported-interface.diagnostics").contains("defining refinement interface production is incomplete"));
+    assert_eq!(run_built(exe, dir, &args).0, Some(4));
+    assert!(common::read_output(dir, "unsupported-interface.diagnostics").contains("foreign declarations are not supported without a checked runtime intrinsic contract"));
     assert!(!dir.join("unsupported-interface.Main.cinchif").exists(), "unsupported contract silently produced an interface");
     let args = vec!["--emit-ir-with-interfaces".into(), source.display().to_string(), dir.join("missing-object").display().to_string()];
     assert_eq!(run_built(exe, dir, &args).0, Some(1), "combined IR/interface output requires the checked object configuration");

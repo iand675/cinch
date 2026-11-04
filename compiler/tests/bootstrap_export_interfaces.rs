@@ -54,6 +54,58 @@ fn source_interfaces_preserve_private_nominals_and_defining_fixities() {
             assert!(resolved.scheme.contains(if name == "inspect-scope" { "Scope" } else { "Task" }));
         }
     }
+    let public = a.exports.types.iter().find(|t| t.name == "PublicPositive").expect("public defining refinement");
+    assert_eq!(public.kind, "refinement");
+    let template = public.refinement.as_ref().unwrap();
+    assert_eq!((template.binder.as_str(), template.carrier.as_str(), template.predicate.as_str()), ("x", "I64", "0 < x"));
+    let renamed = b.exports.types.iter().find(|t| t.name == "Positive").unwrap();
+    assert_eq!(renamed.identity, "A.PublicPositive");
+    assert_eq!(renamed.refinement, public.refinement);
+    assert!(!a.exports.types.iter().any(|t| t.name == "Window" || t.name == "Positive"));
+    assert!(!b.exports.types.iter().any(|t| t.name == "Window"));
+    let contract = |iface: &cinch::interface::Iface, name: &str| iface.exports.values.iter().find(|v| v.name == name).unwrap().resolved.clone().unwrap();
+    let capped = contract(a, "capped");
+    assert_eq!(capped, contract(b, "capped"));
+    assert!(capped.scheme.contains("cinch-result <= limit"), "{}", capped.scheme);
+    let collide = contract(a, "collide");
+    assert_eq!(collide, contract(b, "collide"));
+    assert!(collide.scheme.contains("cinch-result-r == cinch-result"), "{}", collide.scheme);
+    let bounded = contract(a, "bounded");
+    assert_eq!(bounded, contract(b, "one"));
+    assert_eq!(contract(a, "widen"), contract(b, "wide"));
+    assert_eq!(contract(a, "positive"), contract(b, "pos"));
+    assert_eq!(bounded.nominals.len(), 1);
+    let window = &bounded.nominals[0];
+    assert_eq!(window.identity, "A.Window");
+    assert_eq!(window.kind, "refinement");
+    assert!(window.constructors.is_none());
+    assert_eq!(window.parameters.iter().map(|p| (p.name.as_str(), p.kind.as_str())).collect::<Vec<_>>(), [("lo", "Int"), ("hi", "Int"), ("a", "Type")]);
+    let template = window.refinement.as_ref().unwrap();
+    assert_eq!((template.binder.as_str(), template.carrier.as_str()), ("x", "a"));
+    assert!(template.predicate.contains("lo <= x") && template.predicate.contains("x <= hi"));
+    let positive = contract(b, "pos");
+    assert_eq!(positive.nominals.len(), 1);
+    assert_eq!(positive.nominals[0].identity, "A.Positive");
+    let parcel = a.exports.types.iter().find(|t| t.name == "PositiveParcel").unwrap();
+    let field_contract = parcel.ctors[0].resolved.as_ref().unwrap();
+    assert!(field_contract.nominals.iter().any(|n| n.identity == "A.Positive" && n.kind == "refinement"), "constructor field lost private defining refinement");
+    let defining = a.exports.signatures.iter().find(|s| s.identity == "A.Refined").unwrap();
+    let reexported = b.exports.signatures.iter().find(|s| s.identity == "A.Refined").unwrap();
+    let method = defining.methods.iter().find(|m| m.name == "refine").unwrap().resolved.as_ref().unwrap();
+    assert!(method.nominals.iter().any(|n| n.identity == "A.Positive" && n.kind == "refinement"), "class method lost private defining refinement");
+    assert_eq!(defining.methods[0].resolved, reexported.methods[0].resolved);
+    let instance = a.exports.instances.iter().find(|i| i.id == "A.HasWindowBounded").unwrap();
+    let instance_contract = instance.resolved.as_ref().unwrap();
+    assert!(instance_contract.nominals.iter().any(|n| n.identity == "A.Window" && n.kind == "refinement"), "instance head lost its private defining refinement");
+    let mut changed = b.clone();
+    changed.exports.values.iter_mut().find(|v| v.name == "one").unwrap().resolved.as_mut().unwrap().nominals[0].refinement.as_mut().unwrap().predicate = "lo < x && x < hi".into();
+    assert_ne!(changed.iface_hash(), b.iface_hash(), "private predicate changes invalidate consumers");
+    for mutation in 0..4 {
+        let mut malformed = b.clone();
+        let row = &mut malformed.exports.values.iter_mut().find(|v| v.name == "one").unwrap().resolved.as_mut().unwrap().nominals[0];
+        match mutation { 0 => row.refinement = None, 1 => row.constructors = Some(vec![]), 2 => row.refinement.as_mut().unwrap().binder = "lo".into(), _ => row.kind = "opaque".into() }
+        assert!(cinch::interface::Iface::from_json(&malformed.to_json()).is_err(), "malformed defining template {mutation}");
+    }
     assert_eq!(a.assumptions.primitives, ["cinch.runtime.textSha256"]);
     assert!(b.assumptions.primitives.is_empty());
     assert!(!a.exports.types.iter().any(|t| t.name == "Local"));

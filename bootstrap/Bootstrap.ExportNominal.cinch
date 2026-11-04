@@ -9,13 +9,18 @@ module Bootstrap.ExportNominal where
   import Bootstrap.Nominal (kernel-type-name)
   import Bootstrap.Instance (CoreClass, class-name, class-params)
   import Data.Json
+  import Bootstrap.Ast (Decl, DRefine, DSig, DMethod, DFun, DData, DClass, DInstance, DForeign, decls-of, TypeExpr, TName, TIndex, TNegate, TInfix, TFun, TApp, TArg, TArgsEnd, TypeParam, param-name, param-kind, param-implicit, decl-name, type-expr-span)
+  import Bootstrap.Contracts (declaration-references)
+  import Text.Json (json-eq)
 
-  export scheme-nominals, data-nominal, parameter-json, parameter-names
+  export source-refinement, binding-refinements, merge-nominals, scheme-nominals, data-nominal, parameter-json, parameter-names
 
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
   field :: String -> Json -> Json
   field name doc = case doc of JObj key value rest -> if same name key then value else field name rest; other -> JNull
+  text :: Json -> String
+  text doc = case doc of JStr value -> value; other -> ""
   present :: String -> Json -> Bool
   present name doc = case doc of JObj key value rest -> same name key || present name rest; other -> False
   parameter-json :: List (String, String, Bool) -> Json
@@ -147,3 +152,118 @@ module Bootstrap.ExportNominal where
     (combine (requirement-references (scheme-requirements scheme)) (type-references (scheme-body scheme))) of
       Err error -> Err error
       Ok names -> nominal-rows (sorted names Nil) datas classes interfaces
+
+  defining-refinement :: String -> List Decl -> Option Decl
+  defining-refinement name declarations = case declarations of
+    Nil -> None
+    Cons (DRefine sp actual params binder predicate) rest -> if same name actual then Some (DRefine sp actual params binder predicate) else defining-refinement name rest
+    Cons other rest -> defining-refinement name rest
+  has-name :: String -> List String -> Bool
+  has-name name names = case names of Nil -> False; Cons first rest -> same name first || has-name name rest
+  source-parameter-names :: List TypeParam -> List String
+  source-parameter-names params = case params of Nil -> Nil; Cons p rest -> Cons (param-name p) (source-parameter-names rest)
+  primitive-observer :: String -> List Decl -> Bool
+  primitive-observer name declarations = case declarations of
+    Nil -> False
+    Cons (DForeign sp direction abi symbol actual ty) rest -> (same name actual && same direction "import" && same abi "ccall" && same symbol "cinch.runtime.bytesLen") || primitive-observer name rest
+    Cons other rest -> primitive-observer name rest
+  template-text :: List Decl -> List String -> TypeExpr -> Result String String
+  template-text declarations locals syntax = case syntax of
+    TName sp name -> if has-name name locals || kernel-type-name name || has-name name ["Type", "Prop", "Region", "Effect", "Row", "True", "False", "NonZero"] then Ok name else export-global name
+    TIndex sp literal -> Ok literal
+    TNegate sp body -> case template-text declarations locals body of Ok text -> Ok (string-concat "-" text); Err error -> Err error
+    TInfix sp op first second -> if has-name op ["+", "-", "*", "<", "<=", ">", ">=", "==", "/=", "&&", "||"] then
+      (case (template-text declarations locals first, template-text declarations locals second) of
+        (Ok a, Ok b) -> Ok (string-concat-all ["(", a, " ", op, " ", b, ")"])
+        (Err error, other) -> Err error
+        (other, Err error) -> Err error)
+      else Err "refinement predicate has no portable checked operator"
+    TFun sp first second -> (case (template-text declarations locals first, template-text declarations locals second) of
+      (Ok a, Ok b) -> Ok (string-concat-all ["(", a, " -> ", b, ")"])
+      (Err error, other) -> Err error
+      (other, Err error) -> Err error)
+    TApp sp (TName at name) (TArg arg input (TArgsEnd end)) -> if same name "NonZero" || same name "#kernel.bytes-length" || primitive-observer name declarations then
+      (case template-text declarations locals input of
+        Ok value -> Ok (string-concat-all ["(", if same name "NonZero" then "NonZero" else "b.bytesLen", " ", value, ")"])
+        Err error -> Err error)
+      else Err "refinement application needs its retained defining contract"
+    other -> Err "refinement template has no portable checked representation"
+  template-predicate :: List Decl -> List String -> TypeExpr -> Result String String
+  template-predicate declarations locals syntax = case syntax of
+    TInfix sp op first second -> case (template-text declarations locals first, template-text declarations locals second) of
+      (Ok a, Ok b) -> Ok (string-concat-all [a, " ", op, " ", b])
+      (Err error, other) -> Err error
+      (other, Err error) -> Err error
+    other -> template-text declarations locals syntax
+  template-parameters :: List Decl -> List String -> List TypeParam -> Result String (List (String, String, Bool))
+  template-parameters declarations locals params = case params of
+    Nil -> Ok Nil
+    Cons p rest -> let name = param-name p in
+      case ((case param-kind p of None -> Ok "Type"; Some syntax -> template-text declarations locals syntax),
+        template-parameters declarations (Cons name locals) rest) of
+        (Ok kind, Ok more) -> Ok (Cons (name, kind, param-implicit p) more)
+        (Err error, other) -> Err error
+        (other, Err error) -> Err error
+  refinement-nominal :: List Decl -> Decl -> Result String Json
+  refinement-nominal declarations declaration = case declaration of
+    DRefine sp name params binder predicate -> case param-kind binder of
+      None -> Err "checked refinement lost its declared carrier"
+      Some carrier -> let locals = source-parameter-names params in
+        case (export-global name, template-parameters declarations Nil params,
+          template-text declarations locals carrier, template-predicate declarations (Cons (param-name binder) locals) predicate) of
+          (Ok identity, Ok parameters, Ok base, Ok condition) -> Ok (JObj "identity" (JStr identity)
+            (JObj "kind" (JStr "refinement") (JObj "params" (parameter-names parameters)
+              (JObj "parameters" (parameter-json parameters) (JObj "constructors" JNull
+                (JObj "refinement" (JObj "binder" (JStr (param-name binder))
+                  (JObj "carrier" (JStr base) (JObj "predicate" (JStr condition) JObjEnd))) JObjEnd))))))
+          (Err error, other, more, last) -> Err error
+          (other, Err error, more, last) -> Err error
+          (other, more, Err error, last) -> Err error
+          (other, more, last, Err error) -> Err error
+    other -> Err "missing defining refinement declaration"
+  source-refinement :: List Decl -> String -> Option (Result String Json)
+  source-refinement declarations name = case defining-refinement name declarations of None -> None; Some declaration -> Some (refinement-nominal declarations declaration)
+  insert-nominal :: Json -> Json -> Result String Json
+  insert-nominal row rows = case rows of
+    JArr first rest -> let order = string-compare (text (field "identity" row)) (text (field "identity" first)) in
+      if order == 0 then (if json-eq row first then Ok rows else Err "conflicting defining nominal contracts")
+      else if order < 0 then Ok (JArr row rows)
+      else case insert-nominal row rest of Ok more -> Ok (JArr first more); Err error -> Err error
+    JArrEnd -> Ok (JArr row JArrEnd)
+    other -> Err "invalid defining nominal closure"
+  merge-nominals :: Json -> Json -> Result String Json
+  merge-nominals first second = case first of
+    JArr row rest -> (case insert-nominal row second of Ok next -> merge-nominals rest next; Err error -> Err error)
+    JArrEnd -> Ok second
+    other -> Err "invalid defining nominal closure"
+  referenced-refinements :: List Decl -> List String -> List String -> Result String Json
+  referenced-refinements declarations names seen = case names of
+    Nil -> Ok JArrEnd
+    Cons name rest -> if has-name name seen then referenced-refinements declarations rest seen else
+      (case defining-refinement name declarations of
+        None -> referenced-refinements declarations rest (Cons name seen)
+        Some declaration -> case declaration of
+          DRefine sp actual params binder predicate -> let refs = (declaration-references [DData sp actual params Nil, DSig sp actual predicate] <>
+            (case param-kind binder of Some carrier -> declaration-references [DSig sp actual carrier]; None -> Nil)) in
+            case (refinement-nominal declarations declaration, referenced-refinements declarations (refs <> rest) (Cons name seen)) of
+              (Ok row, Ok more) -> insert-nominal row more
+              (Err error, other) -> Err error
+              (other, Err error) -> Err error
+          other -> Err "invalid checked refinement provenance")
+  constructor-reference-names :: String -> List (String, TypeExpr) -> List String
+  constructor-reference-names name constructors = case constructors of
+    Nil -> Nil
+    Cons (actual, syntax) rest -> if same name actual then declaration-references [DSig (type-expr-span syntax) actual syntax] else constructor-reference-names name rest
+  binding-reference-names :: String -> List Decl -> List String
+  binding-reference-names name declarations = case declarations of
+    Nil -> Nil
+    Cons declaration rest -> (case declaration of
+      DClass sp actual params members -> binding-reference-names name (decls-of members)
+      DInstance sp flag actual params head-type members ->
+        (if same actual name then declaration-references [DData sp actual params Nil, DSig sp actual head-type] else Nil) <> binding-reference-names name (decls-of members)
+      DData sp actual params constructors -> constructor-reference-names name constructors
+      other -> case decl-name declaration of
+        Some actual -> if same actual name then declaration-references [declaration] else Nil
+        None -> Nil) <> binding-reference-names name rest
+  binding-refinements :: List Decl -> String -> Result String Json
+  binding-refinements declarations name = referenced-refinements declarations (binding-reference-names name declarations) Nil

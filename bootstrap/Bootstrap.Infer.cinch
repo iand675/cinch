@@ -30,7 +30,7 @@ module Bootstrap.Infer where
   export needs-inference, infer-program, elaborate-program
   export Elaboration, elaboration-errors, elaboration-bindings, elaboration-contexts, elaboration-core
   export CheckedBinding, checked-name, checked-scheme, checked-role, checked-body-binding, checked-guarded-binding, checked-method-matches, checked-conditional-target
-  export elaboration-data, elaboration-effects, elaboration-classes, elaboration-class-context, elaboration-instances
+  export elaboration-declarations, elaboration-data, elaboration-effects, elaboration-classes, elaboration-class-context, elaboration-instances
 
   -- Surface templates live only in this elaboration context. Checked
   -- Core and the type engine continue to contain typed terms exclusively.
@@ -93,28 +93,33 @@ module Bootstrap.Infer where
   checked-body-binding :: CheckedBinding -> Option BodyBinding
   checked-body-binding binding = case binding of MkBodyBinding body -> Some body; other -> None
   data Elaboration where
-    MkElaboration :: List Diagnostic -> List CheckedBinding -> List Json -> List CoreDefinition -> List CoreData -> List CoreEffect -> CoreClassContext -> List CoreInstance -> Elaboration
+    MkElaboration :: List Diagnostic -> List CheckedBinding -> List Json -> List CoreDefinition -> List CoreData -> List CoreEffect -> CoreClassContext -> List CoreInstance -> List Decl -> Elaboration
   elaboration-errors :: Elaboration -> List Diagnostic
-  elaboration-errors e = case e of MkElaboration errors bindings contexts core datas effects descriptions instances -> errors
+  elaboration-errors e = case e of MkElaboration errors bindings contexts core datas effects descriptions instances declarations -> errors
   elaboration-bindings :: Elaboration -> List CheckedBinding
-  elaboration-bindings e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances -> bindings; other -> Nil
+  elaboration-bindings e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations -> bindings; other -> Nil
   elaboration-contexts :: Elaboration -> List Json
-  elaboration-contexts e = case e of MkElaboration errors bindings contexts core datas effects descriptions instances -> contexts
+  elaboration-contexts e = case e of MkElaboration errors bindings contexts core datas effects descriptions instances declarations -> contexts
   elaboration-core :: Elaboration -> List CoreDefinition
-  elaboration-core e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances -> core; other -> Nil
+  elaboration-core e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations -> core; other -> Nil
+
+  -- Only a successful elaboration exposes its defining declarations.
+  -- Interface provenance comes from these resolved, checked definitions.
+  elaboration-declarations :: Elaboration -> List Decl
+  elaboration-declarations e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations -> declarations; other -> Nil
 
   elaboration-data :: Elaboration -> List CoreData
-  elaboration-data e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances -> datas; other -> Nil
+  elaboration-data e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations -> datas; other -> Nil
 
   elaboration-effects :: Elaboration -> List CoreEffect
-  elaboration-effects e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances -> effects; other -> Nil
+  elaboration-effects e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations -> effects; other -> Nil
 
   elaboration-classes :: Elaboration -> List CoreClass
-  elaboration-classes e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances -> context-classes descriptions; other -> Nil
+  elaboration-classes e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations -> context-classes descriptions; other -> Nil
   elaboration-class-context :: Elaboration -> CoreClassContext
-  elaboration-class-context e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances -> descriptions; other -> MkCoreClassContext Nil Nil
+  elaboration-class-context e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations -> descriptions; other -> MkCoreClassContext Nil Nil
   elaboration-instances :: Elaboration -> List CoreInstance
-  elaboration-instances e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances -> instances; other -> Nil
+  elaboration-instances e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations -> instances; other -> Nil
 
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
@@ -453,7 +458,15 @@ module Bootstrap.Infer where
   unique-names :: List String -> List String -> List String
   unique-names names seen = case names of Nil -> Nil; Cons name rest -> if has name seen then unique-names rest seen else Cons name (unique-names rest (Cons name seen))
   convert-refined :: Bool -> TypeContext -> List (String, UType) -> Span -> TypeExpr -> TypeExpr -> Store -> (UType, Store)
-  convert-refined external kinds locals sp predicate syntax st = case convert external kinds locals syntax st of
+  convert-refined external kinds locals sp predicate syntax st =
+    -- A bare closed predicate applies to this refinement's own fresh value,
+    -- never to a same-spelled source binding or surrounding argument.
+    let applied = case predicate of
+          TName at name -> if same name "NonZero" then TApp at predicate (TArg at (TName at "#result") (TArgsEnd at)) else predicate
+          other -> predicate in
+    convert-refined-predicate external kinds locals sp applied syntax st
+  convert-refined-predicate :: Bool -> TypeContext -> List (String, UType) -> Span -> TypeExpr -> TypeExpr -> Store -> (UType, Store)
+  convert-refined-predicate external kinds locals sp predicate syntax st = case convert external kinds locals syntax st of
     (carrier, checked) -> case fresh-for-types (Cons carrier (local-types locals)) (expect-type sp carrier checked) of
       (id, prepared) -> case refinement-free-names kinds locals predicate of
         Nil -> finish-refinement external kinds locals sp id "#result" carrier predicate prepared
@@ -3108,12 +3121,12 @@ module Bootstrap.Infer where
     let (datas, sd) = case store-errors nominal-store of Nil -> complete-runtime-data ds classes linked-kinds nominal-data nominal-store; other -> (nominal-data, nominal-store) in
     let finished = case store-errors sd of Nil -> check-data-closed datas (check-global-core linked-kinds env instances datas core sd); other -> sd in
     let retained-classes = case store-errors finished of Nil -> checked-imported-classes rows rows classes linked-kinds descriptions; other -> descriptions in
-    MkElaboration (store-errors finished) (finish-bindings finished env) (contexts ds) core datas effects (MkCoreClassContext classes retained-classes) instances
+    MkElaboration (store-errors finished) (finish-bindings finished env) (contexts ds) core datas effects (MkCoreClassContext classes retained-classes) instances ds
   elaborate-modules :: String -> List Module -> Elaboration
   elaborate-modules label ms = case ms of
-    Nil -> MkElaboration Nil Nil Nil Nil Nil Nil (MkCoreClassContext Nil Nil) Nil
+    Nil -> MkElaboration Nil Nil Nil Nil Nil Nil (MkCoreClassContext Nil Nil) Nil Nil
     Cons m rest -> case (elaborate-module label m, elaborate-modules label rest) of
-      (MkElaboration errors bindings ctx core datas effects descriptions instances, MkElaboration more others scopes other-core other-data other-effects other-classes other-instances) -> MkElaboration (errors <> more) (bindings <> others) (ctx <> scopes) (core <> other-core) (datas <> other-data) (effects <> other-effects) (merge-class-contexts descriptions other-classes) (instances <> other-instances)
+      (MkElaboration errors bindings ctx core datas effects descriptions instances declarations, MkElaboration more others scopes other-core other-data other-effects other-classes other-instances other-declarations) -> MkElaboration (errors <> more) (bindings <> others) (ctx <> scopes) (core <> other-core) (datas <> other-data) (effects <> other-effects) (merge-class-contexts descriptions other-classes) (instances <> other-instances) (declarations <> other-declarations)
   elaborate-program :: String -> Program -> Elaboration
   elaborate-program label p = elaborate-modules label (program-modules p)
   infer-program :: String -> Program -> List Diagnostic

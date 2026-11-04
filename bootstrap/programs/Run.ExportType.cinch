@@ -27,6 +27,8 @@ module Main where
     row "task" (export-scheme (MkScheme [MkQuant 8 "s" KRegion True, MkQuant 9 "e" KType False, MkQuant 10 "a" KType False] (UFun unit (UApp (UApp (UApp (UCon "b.Task" (KFun KRegion (KFun KType (KFun KType KType)))) (UBound 8 "s" KRegion)) (UBound 9 "e" KType)) (UBound 10 "a" KType))))) <>
     row "dependent" (export-scheme (mono (UPi 4 "n" nat empty (URequire (UArg (UCompare "<=" (variable 4 "n") (UIndex nat (IInteger 5))) UEnd) nat)))) <>
     row "refinement" (export-scheme (mono (UPi 4 "n" nat empty (URefine 9 "out" nat (UCompare ">=" (variable 9 "out") (variable 4 "n")))))) <>
+    row "result-collision" (export-scheme (mono (UPi 4 "cinch-result" nat empty (URefine 9 "out" nat (UCompare "==" (variable 9 "out") (variable 4 "cinch-result")))))) <>
+    row "argument-name" (export-scheme (mono (UPi 4 "limit" nat empty (URefine 9 "out" nat (UCompare "<=" (variable 9 "out") (variable 4 "limit")))))) <>
     row "nominal" (export-scheme (mono (UFun (UCon (interface-global "A.Token") KType) (UCon (interface-global "A.Token") KType)))) <>
     row "alpha-stable" (case (export-scheme (MkScheme [MkQuant 7 "a" KType False] (UFun (UBound 7 "a" KType) (UBound 7 "a" KType))), export-scheme (MkScheme [MkQuant 997 "renamed" KType False] (UFun (UBound 997 "renamed" KType) (UBound 997 "renamed" KType)))) of
       (Ok first, Ok second) -> if string-compare first second == 0 then Ok "yes" else Err "inference identities changed the exported contract"

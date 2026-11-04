@@ -1,5 +1,34 @@
 # Next steps (as of 2026-11-04)
 
+## Cinch refinement interfaces preserve defining contracts
+
+The Cinch interface writer now retains public refinement templates and the
+private defining aliases used by exported values, constructors, methods and
+instance heads. Renamed and separately emitted facades retain those identities
+without publishing private names. Independent schema, canonical serialization,
+hash, malformed-contract and safe/unsafe consumer checks pass.
+
+Named `refined NonZero Nat` syntax now reaches the existing checked predicate
+path. Dependent exports preserve argument names, and result binders avoid
+capturing an argument named `cinch-result`. The pipeline requires actual public
+refinement output instead of its former blanket refusal; unsupported foreign
+assumptions remain explicit errors.
+
+All43 compiler modules,27 complete focused groups,139 runtime programs with
+expected results and zero leaks, and335 independent Core assertions pass.
+Compiler identity: `80413b5dccb1f43943acec2b0c38b8764481417cb2663289d3eee6e75810b470`.
+See [the independent scoped audit](../bootstrap/current-defining-refinement-interface-results.json).
+The frozen executions identify their exact Native producer; the later verified
+Rust opaque-kind repair is separate evidence. A final matching bootstrap and
+complete suites are still required.
+
+Eleven original interface-source fixtures were also exercised through the actual
+ABI6 diagnostic Cinch frontend: five emit structurally valid artifacts, six
+still refuse. This is diagnostic evidence, not final Stage3 or full semantic
+parity proof. Opaque declarations, constructor-local quantifiers, total-call
+contracts, open effect rows and prelude source overrides remain work. The opaque
+follow-up is isolated; Acceptance5 and the full goal remain open.
+
 ## Rust opaque parameter kinds retain checked contracts
 
 Opaque declarations now retain their checked value and higher-kinded parameter
