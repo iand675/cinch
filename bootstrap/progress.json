@@ -3,7 +3,7 @@
   "estimate": 90,
   "commit": "30962c29025e4dcc75d0e3df08d74c8128ba1379",
   "estimateNote": "Rough engineering estimate. Verified checks and remaining work are listed below.",
-  "status": "Verification found a failure; correction required",
+  "status": "Current-source verification running",
   "stages": [
     {
       "name": "Stage 0",
@@ -13,15 +13,15 @@
     },
     {
       "name": "Stage 1",
-      "state": "passed",
-      "label": "Verified",
+      "state": "pending",
+      "label": "Building",
       "description": "Fresh Cinch compiler built from the seed; all three smoke checks."
     },
     {
       "name": "Stage 2",
       "state": "pending",
       "label": "Pending",
-      "description": "Every compiler module is being freshly rebuilt by Stage1; all four repair gates passed."
+      "description": "Every compiler module will be freshly rebuilt by Stage1 after all repair gates pass."
     },
     {
       "name": "Stage 3",
@@ -33,22 +33,22 @@
   "checks": [
     {
       "title": "Current repair gates",
-      "detail": "4 of 4 complete groups passed; 0 running, 0 failed and 0 pending. library calls: passed; runtime behavior: passed; parser: passed; typechecker: passed. All43 source-module check: passed.",
-      "state": "passed"
+      "detail": "0 of 6 complete groups passed; 0 running, 0 failed and 6 pending. dependent arguments: pending; call preconditions: pending; refinements and effects: pending; runtime behavior: pending; typechecker: pending; Rust optimizer behavior: pending. All43 source-module check: pending.",
+      "state": "running"
     },
     {
       "title": "Complete current compiler sweep",
-      "detail": "118 of 208 complete groups passed; 1 running, 0 failed and 89 pending.Every group includes ignored tests. State: running.",
+      "detail": "0 of 208 complete groups passed; 0 running, 0 failed and 208 pending.Every group includes ignored tests. State: waiting-current-repair-source-check.",
       "state": "running"
     },
     {
       "title": "Fresh compiler bootstrap",
-      "detail": "2 of 4 stages built and smoke-tested. Fixed point, 43 interfaces, API consumption and changed-source behavior are required.",
+      "detail": "1 of 4 stages built and smoke-tested. Fixed point, 43 interfaces, API consumption and changed-source behavior are required.",
       "state": "running"
     },
     {
       "title": "Early behavior through fresh Stage1",
-      "detail": "1 of 8 complete groups passed; 0 running, 1 failed and 6 pending.These original eight ordinary targets give early feedback and do not replace final Stage3 acceptance.",
+      "detail": "0 of 8 complete groups passed; 0 running, 0 failed and 8 pending.These original eight ordinary targets give early feedback and do not replace final Stage3 acceptance.",
       "state": "running"
     },
     {
@@ -58,12 +58,12 @@
     },
     {
       "title": "Current runtime, tooling and editor checks",
-      "detail": "runtime: passed; tooling: passed; syntax-editor: passed. All three complete matching-source gates are required.",
-      "state": "passed"
+      "detail": "runtime: pending; tooling: pending; syntax-editor: pending. All three complete matching-source gates are required.",
+      "state": "running"
     },
     {
       "title": "Exact final Stage3 acceptance",
-      "detail": "Test-runner reports, 32M zero-leak runs, definition-owned fixities, separate facades and class behavior: failed.",
+      "detail": "Test-runner reports, 32M zero-leak runs, definition-owned fixities, separate facades and class behavior: waiting-for-final-chain.",
       "state": "running"
     },
     {
@@ -72,23 +72,35 @@
       "state": "passed"
     },
     {
-      "title": "Proposed opaque-argument repair",
-      "detail": "Separate unpublished source: running. All 43 compiler modules: pending. 0 of 6 complete groups passed; 0 running, 0 failed and 6 pending. This does not replace current-source or final Stage3 acceptance.",
-      "state": "running"
+      "title": "Previous 33f4 source: retained results",
+      "detail": "120 of 208 complete groups passed; 0 running, 0 failed and 88 pending. Its Stage1 allocation target passed all eight cases; argv finished one passed and two failed. Its incomplete Stage2 build was intentionally retired for the necessary source repair. These results do not count toward this new source.",
+      "state": "passed"
     }
   ],
   "blockers": [
     {
-      "title": "Investigate the recorded failure",
-      "detail": "early Stage1 checks: argv; stage chain: stage2 did not build (exit -15).\n\nEvidence: /tmp/cinch-final-bootstrap-chain-6/source/build/bootstrap/stage2/build.log"
+      "title": "Verify the argument-test repair",
+      "detail": "The previous compiler failed two original argv cases. The new compiler must pass the complete unchanged group; its result is still pending."
+    },
+    {
+      "title": "Finish the repair gates",
+      "detail": "0 of 6 complete groups passed; 0 running, 0 failed and 6 pending. dependent arguments: pending; call preconditions: pending; refinements and effects: pending; runtime behavior: pending; typechecker: pending; Rust optimizer behavior: pending."
+    },
+    {
+      "title": "Publish the validated repair",
+      "detail": "The previous published compiler checkpoint remains linked below until the repair source is pushed."
     },
     {
       "title": "Finish the fresh bootstrap",
-      "detail": "All four repair gates passed. Stage2 is rebuilding the compiler; Stage3, matching code/interfaces, actual API consumption and changed-source checks remain."
+      "detail": "Stage2 waits for all repair gates; Stage2/3 must then match and pass actual API/changed-source checks."
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "118 of 208 complete groups passed; 1 running, 0 failed and 89 pending."
+      "detail": "0 of 208 complete groups passed; 0 running, 0 failed and 208 pending."
+    },
+    {
+      "title": "Finish matching runtime, tooling and editor checks",
+      "detail": "runtime: pending; tooling: pending; syntax-editor: pending."
     },
     {
       "title": "Finish the exact self-built compiler tests",
@@ -96,7 +108,7 @@
     },
     {
       "title": "Finish final external acceptance",
-      "detail": "failed."
+      "detail": "waiting-for-final-chain."
     },
     {
       "title": "Complete the coverage and acceptance audit",
@@ -129,10 +141,10 @@
       "title": "Earlier source: Changed-source rebuilding verified"
     }
   ],
-  "candidateSource": "33f4dde5688c94aeb1f04dc6498a8ceb013ee51193dd471aca9c36f3c3b675e1",
-  "candidatePublished": true,
+  "candidateSource": "39ad7f79e757ab8ceff9cfa2ad35368679c3887c405feea55e67ad5dd0cc19e4",
+  "candidatePublished": false,
   "fullGoalComplete": false,
-  "summary": "All 43 compiler-source checks: passed. 4 of 4 complete groups passed; 0 running, 0 failed and 0 pending. library calls: passed; runtime behavior: passed; parser: passed; typechecker: passed.",
-  "activity": "Current compiler sweep: 118 of 208 complete groups passed; 1 running, 0 failed and 89 pending. Stage builds and smoke checks: 2 of 4; chain state: failed. Repair gates: 4 of 4 complete groups passed; 0 running, 0 failed and 0 pending. library calls: passed; runtime behavior: passed; parser: passed; typechecker: passed. Early Stage1 behavior: 1 of 8 complete groups passed; 0 running, 1 failed and 6 pending. Exact final Stage3 suite: 0 of 91 complete groups passed; 0 running, 0 failed and 91 pending. Proposed opaque-argument repair (separate unpublished source): running; 0 of 6 complete groups passed; 0 running, 0 failed and 6 pending.",
-  "updatedAt": "2026-11-04T05:03:09.218145+00:00"
+  "summary": "All 43 compiler-source checks: pending. 0 of 6 complete groups passed; 0 running, 0 failed and 6 pending. dependent arguments: pending; call preconditions: pending; refinements and effects: pending; runtime behavior: pending; typechecker: pending; Rust optimizer behavior: pending. The repair source remains local while its full focused validation finishes.",
+  "activity": "Current compiler sweep: 0 of 208 complete groups passed; 0 running, 0 failed and 208 pending. Stage builds and smoke checks: 1 of 4; chain state: running-full-stage-chain. Repair gates: 0 of 6 complete groups passed; 0 running, 0 failed and 6 pending. dependent arguments: pending; call preconditions: pending; refinements and effects: pending; runtime behavior: pending; typechecker: pending; Rust optimizer behavior: pending. Early Stage1 behavior: 0 of 8 complete groups passed; 0 running, 0 failed and 8 pending. Exact final Stage3 suite: 0 of 91 complete groups passed; 0 running, 0 failed and 91 pending.",
+  "updatedAt": "2026-11-04T05:05:22.877688+00:00"
 }
