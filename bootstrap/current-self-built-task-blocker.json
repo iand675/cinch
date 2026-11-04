@@ -8,7 +8,7 @@
   "log_sha256": "cabe9ea5839f4f64ff4a5ac0c77bb429309a304efb9c783484f13ce52cc1ac88",
   "passed": 3,
   "reason": "withScope and direct do unsupported; original task stack exhaustion test cannot compile",
-  "repair": "Direct do changes pass all43 source checks; focused tests running. Structured task typing, lifetime/consumption checks and runtime lowering remain required.",
+  "repair": "Direct do and polymorphic local function lowering now validated on compiler 85f7cb2b0a6f7bd6e8989659be5ee5071b44a74d775bf7510010a76ee9e45bc8 (eight complete focused groups). Structured task types, scope lifetimes, linear handles and actual runtime lowering remain required; the recorded failure is from the018a compiler.",
   "required_behavior": "Actual runtime task exits73 with cinch: exhausted: stack; no synchronous substitute, Native fallback or weakened test.",
   "status": "confirmed-self-built-frontend-gap"
 }

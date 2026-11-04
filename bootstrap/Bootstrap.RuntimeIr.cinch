@@ -477,6 +477,44 @@ module Bootstrap.RuntimeIr where
   -- semantics stay on checked Core; a TObj parameter is never assumed Int.
   scheme-supported :: RuntimeContext -> Scheme -> Bool
   scheme-supported context sc = function-type context (scheme-body sc)
+  -- Generalized function values are instantiated at each checked local use,
+  -- as in the Native frontend. Only values are copied: a strict computation
+  -- must keep its original once-evaluated let and cannot enter this path.
+  local-function-value :: CoreTerm -> Bool
+  local-function-value value = case value of
+    CLambda sp ty pattern body -> True
+    CLocal sp ty id name actuals -> True
+    CUse sp ty name role actuals -> True
+    CQualifiedUse sp ty name role actuals evidence -> True
+    CMethod sp ty name owner slot actuals evidence -> True
+    other -> False
+  specialize-local :: Nat -> Scheme -> CoreTerm -> CoreTerm -> CoreTerm
+  specialize-local id scheme value term = case term of
+    CLocal sp ty key name actuals -> if id == key then map-term-types (substitute-bound (actual-pairs (scheme-params scheme) actuals)) value else term
+    CApply sp ty f x -> CApply sp ty (specialize-local id scheme value f) (specialize-local id scheme value x)
+    CApplyEff sp ty row f x -> CApplyEff sp ty row (specialize-local id scheme value f) (specialize-local id scheme value x)
+    CErasedApply sp ty row f x -> CErasedApply sp ty row (specialize-local id scheme value f) (specialize-local id scheme value x)
+    CDecision sp ty predicate condition -> CDecision sp ty predicate (specialize-local id scheme value condition)
+    CWith sp ty given rhs body -> CWith sp ty given (specialize-local id scheme value rhs) (specialize-local id scheme value body)
+    CHandler sp ty returned operations -> CHandler sp ty (specialize-local id scheme value returned) (specialize-local id scheme value operations)
+    CHandle sp ty label residual body handled-by -> CHandle sp ty label residual (specialize-local id scheme value body) (specialize-local id scheme value handled-by)
+    CHandlerOperation sp slot openings row closure rest -> CHandlerOperation sp slot openings row (specialize-local id scheme value closure) (specialize-local id scheme value rest)
+    CLambda sp ty pattern body -> if pattern-binds id pattern then term else CLambda sp ty pattern (specialize-local id scheme value body)
+    CLet sp ty key name sc rhs body -> CLet sp ty key name sc (specialize-local id scheme value rhs) (if id == key then body else specialize-local id scheme value body)
+    CIf sp ty condition yes no -> CIf sp ty (specialize-local id scheme value condition) (specialize-local id scheme value yes) (specialize-local id scheme value no)
+    CCase sp ty input alternatives -> CCase sp ty (specialize-local id scheme value input) (specialize-local id scheme value alternatives)
+    CTuple sp ty fields -> CTuple sp ty (specialize-local id scheme value fields)
+    CPrimitive sp ty name args -> CPrimitive sp ty name (specialize-local id scheme value args)
+    CProved sp ty certificate body -> CProved sp ty certificate (specialize-local id scheme value body)
+    CRefine sp ty certificate body -> CRefine sp ty certificate (specialize-local id scheme value body)
+    CRefineProof sp ty witness body -> CRefineProof sp ty (specialize-local id scheme value witness) (specialize-local id scheme value body)
+    CForget sp ty body -> CForget sp ty (specialize-local id scheme value body)
+    CRequire sp ty body -> CRequire sp ty (specialize-local id scheme value body)
+    CDischarge sp ty evidence body -> CDischarge sp ty evidence (specialize-local id scheme value body)
+    CGuard sp ty condition body -> CGuard sp ty (specialize-local id scheme value condition) (specialize-local id scheme value body)
+    CArgument sp first rest -> CArgument sp (specialize-local id scheme value first) (specialize-local id scheme value rest)
+    CAlternative sp pattern body rest -> CAlternative sp pattern (if pattern-binds id pattern then body else specialize-local id scheme value body) (specialize-local id scheme value rest)
+    other -> term
   expression :: List CoreDefinition -> List Local -> Writer -> CoreTerm -> (Writer, String)
   expression definitions locals w term = case term of
     CInt sp ty text -> if number ty then decimal w ty text else if raw-integer ty then (w, text) else unsupported w sp "integer carrier needs runtime lowering"
@@ -499,7 +537,9 @@ module Bootstrap.RuntimeIr where
     CApplyEff sp ty row f x -> application definitions locals w sp term f x
     CApply sp ty f x -> application definitions locals w sp term f x
     CLambda sp ty pattern body -> lambda definitions locals w sp pattern body
-    CLet sp ty id name sc rhs body -> if (case scheme-params sc of Nil -> True; other -> False) && scheme-supported (writer-context w) sc && word-type (writer-context w) (scheme-body sc) then
+    CLet sp ty id name sc rhs body -> if (case scheme-params sc of Nil -> False; other -> True) && local-function-value rhs && (case scheme-requirements sc of Nil -> True; other -> False) then
+      expression definitions locals w (specialize-local id sc rhs body)
+      else if (case scheme-params sc of Nil -> True; other -> False) && scheme-supported (writer-context w) sc && word-type (writer-context w) (scheme-body sc) then
       (case expression definitions locals w rhs of
         (bound, value) -> case expression definitions (Cons (Local id (scheme-body sc) value) locals) bound body of
           (done, result) -> (count-op False (scheme-body sc) value done, result))

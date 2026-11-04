@@ -474,6 +474,18 @@ module Bootstrap.Resolve where
     EArg sp first rest -> (case rename-decision-syntax visible locals first of (value, errors) -> case rename-decision-syntax visible locals rest of (more, others) -> (EArg sp value more, errors <> others))
     EArgsEnd sp -> (syntax, Nil)
     other -> rename-expr visible locals syntax
+  rename-do :: List Binding -> List String -> Expr -> (Expr, List Diagnostic)
+  rename-do visible locals statements = case statements of
+    EArgsEnd sp -> (statements, Nil)
+    EArg sp (EBind at name rhs) rest -> (case rename-expr visible locals rhs of
+      (value, errors) -> case rename-do visible (if same name "_" then locals else Cons name locals) rest of
+        (more, others) -> (EArg sp (EBind at name value) more, errors <> others))
+    EArg sp (ELet at bindings (EUnit end)) rest -> (case rename-bindings visible locals bindings of
+      (values, names, errors) -> case rename-do visible names rest of
+        (more, others) -> (EArg sp (ELet at values (EUnit end)) more, errors <> others))
+    EArg sp first rest -> (case rename-expr visible locals first of
+      (value, errors) -> case rename-do visible locals rest of (more, others) -> (EArg sp value more, errors <> others))
+    other -> (other, fail (expr-span other) "malformed do statement spine")
   rename-expr :: List Binding -> List String -> Expr -> (Expr, List Diagnostic)
   rename-expr visible locals e = case e of
     EVar s name -> case resolve-use s False visible locals name of
@@ -510,6 +522,7 @@ module Bootstrap.Resolve where
     ELet s bs body -> case rename-bindings visible locals bs of
       (bindings, names, errors) -> case rename-expr visible names body of
         (rhs, more) -> (ELet s bindings rhs, errors <> more)
+    EDo sp statements -> (case rename-do visible locals statements of (renamed, errors) -> (EDo sp renamed, errors))
     EWith s bs body -> case rename-bindings visible locals bs of
       (bindings, names, errors) -> case rename-expr visible names body of
         (rhs, more) -> (EWith s bindings rhs, errors <> more)

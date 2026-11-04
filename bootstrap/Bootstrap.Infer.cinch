@@ -179,6 +179,7 @@ module Bootstrap.Infer where
     ECon s name args -> expression-needs args
     ELet s bs body -> expression-needs bs || expression-needs body
     EWith s bs body -> True
+    EDo sp statements -> True
     EHandle s body handled-by -> True
     EHandler s label clauses -> True
     EIf s c a b -> expression-needs c || expression-needs a || expression-needs b
@@ -1819,6 +1820,7 @@ module Bootstrap.Infer where
         (fun, sf) -> apply-argument classes kinds families env locals s fun x sf)
     ELam s ps body -> case infer-lambda classes kinds families env locals ps body (duplicate-names s (patterns-names ps) Nil st) of
       (term, ss) -> (term, ensure-coverage s families env (take-types (list-length ps) (domains (normalize ss (core-type term)))) [ps] ss)
+    EDo sp statements -> (case fresh-meta KType st of (result, ready) -> check-do classes kinds families env locals sp statements result ready)
     ELet s bindings body -> infer-let classes kinds families env locals s bindings body st
     EWith s bindings body -> infer-with classes kinds families env locals bindings body None st
     EHandle sp body handled-by -> infer-handle classes kinds families env locals sp body handled-by st
@@ -1848,6 +1850,7 @@ module Bootstrap.Infer where
     other -> check-unrefined classes kinds families env locals expr expected st
   check-unrefined :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> UType -> Store -> (CoreTerm, Store)
   check-unrefined classes kinds families env locals expr expected st = case expr of
+    EDo sp statements -> check-do classes kinds families env locals sp statements expected st
     ELet sp bindings body -> infer-let-with-expected classes kinds families env locals sp bindings body (Some expected) st
     ETuple sp fields -> (case normalize st expected of
       UTuple types -> (case check-tuple-elements classes kinds families env locals sp fields types st of (values, checked) -> (CTuple sp expected values, checked))
@@ -1951,6 +1954,7 @@ module Bootstrap.Infer where
     other -> let value = project-comparison sp term st in (value, unify sp (core-type value) expected st)
   check-refined :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> UType -> UType -> Store -> (CoreTerm, Store)
   check-refined classes kinds families env locals expr expected carrier st = case expr of
+    EDo sp statements -> check-do classes kinds families env locals sp statements expected st
     EIf s condition yes no -> check-unrefined classes kinds families env locals expr expected st
     ECase s value alternatives -> case infer classes kinds families env locals value st of
       (scrutinee, checked) -> case check-alternatives classes kinds families env locals scrutinee expected alternatives (ensure-coverage s families env [core-type scrutinee] (alternative-rows alternatives) checked) of
@@ -2437,6 +2441,42 @@ module Bootstrap.Infer where
           (final, patterns, ss) -> (final, CPField s pattern patterns, ss)
       other -> (env, CPWild sp UError, add-error sp "too many constructor pattern arguments" st)
     other -> (env, CPWild sp UError, add-error sp "malformed constructor pattern spine" st)
+
+  check-do :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> UType -> Store -> (CoreTerm, Store)
+  check-do classes kinds families env locals sp statements expected st = case statements of
+    EArg at first (EArgsEnd end) -> (case first of
+      EBind at name rhs -> term-error at "a do block must end in an expression" st
+      ELet at bindings (EUnit end) -> term-error at "a do block must end in an expression" st
+      other -> check classes kinds families env locals other expected st)
+    EArg at (EBind location name rhs) rest -> (case infer classes kinds families env locals rhs st of
+      (value, checked) -> bind-do-value classes kinds families env locals sp location name value rest expected checked)
+    EArg at (ELet location bindings (EUnit end)) rest -> check-do-lets classes kinds families env locals sp bindings rest expected st
+    EArg at first rest -> (case infer classes kinds families env locals first st of
+      (value, checked) -> bind-do-value classes kinds families env locals sp at "_" value rest expected checked)
+    EArgsEnd at -> term-error at "a do block must contain a final expression" st
+    other -> term-error sp "malformed do statement spine" st
+  bind-do-value :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Span -> String -> CoreTerm -> Expr -> UType -> Store -> (CoreTerm, Store)
+  bind-do-value classes kinds families env locals sp at name value rest expected st = case value of
+    CLet location ty id display scheme rhs inner -> if let-result-escapes value then
+      (case bind-do-value classes kinds families (proof-let-env env (MkLocalBinding display scheme id (store-level st)) id scheme rhs st) locals sp at name inner rest expected st of
+        (body, done) -> (CLet location expected id display scheme rhs body, done))
+      else finish-do-value classes kinds families env locals sp at name value rest expected st
+    other -> finish-do-value classes kinds families env locals sp at name value rest expected st
+  finish-do-value :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Span -> String -> CoreTerm -> Expr -> UType -> Store -> (CoreTerm, Store)
+  finish-do-value classes kinds families env locals sp at name value rest expected st = case fresh-id st of
+    (id, ready) -> let scheme = mono (normalize ready (core-type value)) in
+      let bound = proof-let-env env (MkLocalBinding name scheme id (store-level ready)) id scheme value ready in
+      case check-do classes kinds families (if same name "_" then env else bound) locals sp rest expected ready of
+        (body, done) -> (CLet at expected id name scheme value body, done)
+  check-do-lets :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Expr -> UType -> Store -> (CoreTerm, Store)
+  check-do-lets classes kinds families env locals sp bindings rest expected st = case bindings of
+    EBindingsEnd at -> check-do classes kinds families env locals sp rest expected st
+    EBinding at name rhs more -> let level = store-level st in
+      (case infer classes kinds families env locals rhs (enter-level st) of
+        (value, checked) -> let checked-pure = include-effects at (core-effects value) (URow UEnd) checked in
+          let continuation = EDo sp (case more of EBindingsEnd end -> rest; other -> EArg sp (ELet sp more (EUnit sp)) rest) in
+          check-refined-binding classes kinds families env locals sp at name (EBindingsEnd at) continuation expected level value checked-pure)
+    other -> term-error sp "malformed do let binding group" st
 
   check-alternatives :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> CoreTerm -> UType -> Expr -> Store -> (CoreTerm, Store)
   check-alternatives classes kinds families env locals scrut result alts st = case alts of

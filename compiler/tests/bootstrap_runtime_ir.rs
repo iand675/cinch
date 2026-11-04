@@ -128,6 +128,12 @@ fn typed_runtime_numbers_preserve_exact_values_and_reclaim_owned_words() {
     Token n -> if recover False (C64 True) && recover 0 (C69 9223372036854775808) == 9223372036854775808 && n == 18446744073709551616 then 143 else 1
 "#, (0..70).map(|i| format!("    C{i} :: a -> Wide a\n")).collect::<String>());
     let cases = [
+        ("direct-do-effect-order-once", "  foreign import ccall \"cinch.runtime.bytesNew\" allocate :: Nat -> Bytes\n  step :: forall r. using (io :: Io r) => Nat ->{IO r} Nat\n  step n = case ioWrite (allocate n) of _ -> n + 1\n  main :: Unit ->{IO r} Int\n  main unit = with (io = newIO ()) in do\n    x <- step 1\n    y <- step x\n    if y == 3 then 193 else 1\n", 193),
+        ("direct-do-polymorphic-capture", "  main :: Int\n  main = do { n <- 340282366920938463463374607431768211456; let { keep ignored = n }; if keep True == n && keep (0 :: Int) == n then 195 else 1 }\n", 195),
+        ("direct-do-polymorphic-nested-alias", "  make :: Unit -> Bool -> Int\n  make unit = do { n <- 18446744073709551616; let { identity x = x; alias = identity }; \\flag -> if alias flag && alias n == n then 197 else 1 }\n  main :: Int\n  main = make () True\n", 197),
+        ("direct-do-owned-alias", "  main :: Int\n  main = do { x <- 340282366920938463463374607431768211456; y <- x + 7; if y - x == 7 then 187 else 1 }\n", 187),
+        ("direct-do-pure-polymorphic-let", "  main :: Int\n  main = do { let { identity x = x }; if identity True then identity 189 else 1 }\n", 189),
+        ("direct-do-layout-shadow", "  main :: Int\n  main = do\n    x <- 18446744073709551616\n    x <- x + 3\n    if x == 18446744073709551619 then 191 else 1\n", 191),
         ("function-valued-prefix", "  keep :: Int -> Int\n  keep value = value\n  return-keep :: Int -> Int -> Int\n  return-keep ignored = keep\n  main :: Int\n  main = if return-keep 10 42 == 42 then 245 else 1\n", 245),
         ("pure-unit-entry", "  main :: Unit -> Int\n  main unit = 83\n", 83),
         ("pure-unit-closure-entry", "  finish :: Unit -> Int\n  finish unit = 85\n  main :: Unit -> Int\n  main = finish\n", 85),
@@ -305,7 +311,9 @@ fn typed_runtime_numbers_preserve_exact_values_and_reclaim_owned_words() {
         assert!(output.status.success(), "{name}: {}", String::from_utf8_lossy(&output.stderr));
         let output = Command::new(&exe).env("CINCH_RC_DEBUG", "1").env("CINCH_LEAK_CHECK", "1").env("CINCH_HEAP_LIMIT", "32M").output().unwrap();
         assert_eq!(output.status.code(), Some(expected), "{name}: {}", String::from_utf8_lossy(&output.stderr));
-        if name == "io-observable-bytes" {
+        if name == "direct-do-effect-order-once" {
+            assert_eq!(output.stdout, vec![0u8; 3], "do statements must perform their dependent writes exactly once");
+        } else if name == "io-observable-bytes" {
             assert_eq!(output.stdout, vec![0u8; 4], "IO writes must reach stdout twice");
         } else {
             assert!(output.stdout.is_empty(), "unexpected stdout for {name}");

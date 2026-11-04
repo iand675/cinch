@@ -1551,12 +1551,53 @@ module Bootstrap.Parse where
         else if string-compare w "let" == 0 then parse-let (sp-of t) rest src fix
         else if string-compare w "letrec" == 0 then parse-letrec (sp-of t) rest src fix
         else if string-compare w "case" == 0 then parse-case (sp-of t) rest src fix
-        else if string-compare w "do" == 0 then parse-unmodeled-expr toks src
+        else if string-compare w "do" == 0 then parse-do (sp-of t) rest src fix
         else if string-compare w "handle" == 0 then parse-handle (sp-of t) rest src fix
         else if string-compare w "with" == 0 then parse-with (sp-of t) rest src fix
         else PBad
       _ -> PBad
     Nil -> PBad
+
+  parse-do :: Span -> List LToken -> Bytes -> List (String, Fix) -> Ps Expr
+  parse-do sp toks src fix = case expect-punct-t toks "{" of
+    POk at rest -> parse-do-statements sp rest src fix Nil
+    PBad -> PBad
+  parse-do-statements :: Span -> List LToken -> Bytes -> List (String, Fix) -> List Expr -> Ps Expr
+  parse-do-statements sp toks src fix previous = case toks of
+    Cons token rest -> if is-punct-t (lt-token token) "}" then POk (EDo sp (expr-spine sp (reverse previous))) rest
+      else if is-punct-t (lt-token token) ";" then parse-do-statements sp rest src fix previous else
+        (case parse-do-statement toks src fix of
+          POk statement remaining -> case remaining of
+            Cons separator tail -> if is-punct-t (lt-token separator) ";" || is-punct-t (lt-token separator) "}" then parse-do-statements sp remaining src fix (Cons statement previous) else PBad
+            Nil -> PBad
+          PBad -> PBad)
+    Nil -> PBad
+  parse-do-statement :: List LToken -> Bytes -> List (String, Fix) -> Ps Expr
+  parse-do-statement toks src fix = case toks of
+    Cons token rest -> if is-word-t (lt-token token) "let" then
+      (case expect-punct-t rest "{" of
+        POk at bindings -> (case parse-bindings bindings src fix Nil of
+          POk values remaining -> POk (ELet (sp-of token) (binding-spine (sp-of token) (do-binding-names values)) (EUnit (sp-of token))) remaining
+          PBad -> PBad)
+        PBad -> PBad)
+      else (case parse-pat toks src of
+        POk pattern remaining -> (case expect-punct-t remaining "<-" of
+          POk at rhs -> (case parse-expr rhs src fix of
+            POk value tail -> (case pattern of
+              PVar sp name -> POk (EBind sp name value) tail
+              PWild sp -> POk (EBind sp "_" value) tail
+              other -> POk (EUnmodeled (pat-span pattern) "refutable do binding needs a typed provider failure operation") tail)
+            PBad -> PBad)
+          PBad -> parse-expr toks src fix)
+        PBad -> parse-expr toks src fix)
+    Nil -> PBad
+  do-binding-names :: List (Pat, Expr) -> List (String, Expr)
+  do-binding-names values = case values of
+    Nil -> Nil
+    Cons (pattern, rhs) rest -> case pattern of
+      PVar sp name -> Cons (name, rhs) (do-binding-names rest)
+      PWild sp -> Cons ("_", rhs) (do-binding-names rest)
+      other -> Cons ("#unsupported-do-pattern", EUnmodeled (pat-span pattern) "do let currently requires named or wildcard bindings") (do-binding-names rest)
 
   parse-handle :: Span -> List LToken -> Bytes -> List (String, Fix) -> Ps Expr
   parse-handle sp toks src fix = case parse-expr toks src fix of

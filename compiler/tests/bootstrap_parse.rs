@@ -24,7 +24,7 @@
 //!     name with no unmodeled node is the silent drop this catches.
 //!
 //! What is still unmodeled (named, so the boundary is honest): class `law`
-//! members, the remaining `do`/`with` terms, and any
+//! members, provider-specific sequencing forms, and any
 //! form only `examples/source` (the surface proposals, "not compiled")
 //! uses. `EXPECTED_UNMODELED` is the measured residual per module.
 
@@ -112,7 +112,7 @@ const EXPECTED_UNMODELED: &[(&str, usize)] = &[
     ("Data.Path", 0),
     ("Effect.Sequencing", 0),
     ("Effect.Concurrent", 0),
-    ("Effect.Clock", 4),
+    ("Effect.Clock", 3),
     ("Effect.Fs", 0),
     ("Effect.Process", 0),
     ("Effect.Io", 0),
@@ -151,9 +151,11 @@ const EXPECTED_UNMODELED: &[(&str, usize)] = &[
     ("07-rejected-programs", 2),
     ("08-platform-simd", 1),
     ("09-foreign-codec", 2),
-    ("10-wasm-component", 2),
-    ("11-structured-tasks", 1),
-    ("12-runtime-effects", 2),
+    // Parsing the do body exposes the record-construction alternative as
+    // a pattern/body recovery pair, beside the unmodeled record declaration.
+    ("10-wasm-component", 3),
+    ("11-structured-tasks", 0),
+    ("12-runtime-effects", 1),
 ];
 
 /// A corpus module: its declared name, the path the test writes it under,

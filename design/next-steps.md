@@ -1,11 +1,42 @@
 # Next steps (as of 2026-11-04)
 
+## Direct sequencing validated; structured tasks remain open
+
+Direct `do` now parses explicit and layout blocks, scopes bindings in order,
+retains effects and keeps statement binds monomorphic. Pure local let groups
+retain checked polymorphism. The runtime backend specializes generalized local
+function values at their checked type arguments, including owned captures and
+aliases inside another closure. Strict computed initializers retain their
+once-evaluated path and existing refusals.
+
+All 43 compiler modules and eight complete focused groups pass. All 125 runtime
+programs return their expected values with zero leaks. Twelve new source
+cases agree with the Rust frontend. An observable effect-order case writes
+exactly three bytes, evaluates each dependent statement once and returns 193;
+both frontends execute it with zero leaks. Original tests and object
+ABI/refusal/allocation checks remain. See [sequencing evidence](../bootstrap/current-direct-sequencing-results.json).
+
+The preceding Rust-witness/Cinch 018a snapshot also completes all 208 compiler
+groups, totaling 1,274 tests, with no ignored or filtered cases. Every test
+executable and full log was independently audited. See [the complete Native
+sweep](../bootstrap/current-native-witness-sweep-results.json). Its Rust,
+prelude and runtime inputs match this sequencing snapshot; its tests do not
+replace full verification of the changed Cinch compiler.
+
+The new Cinch compiler identity is 85f7cb2b0a6f7bd6e8989659be5ee5071b44a74d775bf7510010a76ee9e45bc8. A fresh final
+bootstrap is still required. The previous 018a chain below remains historical
+evidence for its exact sources. The recorded self-built task-exhaustion test
+still requires structured task typing, lifetime and handle-consumption checks,
+and actual task runtime lowering. Result/Option provider selection and broader
+ownership parity are not established here. Acceptance 1-5 is not complete.
+
 ## Current acceptance blocker: structured tasks
 
 The exact final Stage3 compiler passes the complete original argv, allocation,
-case-evidence and class-identity groups. The complete exhaustion group passes
-three tests and fails its task stack-exhaustion case: `withScope` and direct
-`do` sequencing are not yet supported by the Cinch frontend. The original
+case-evidence and class-identity groups. The recorded 018a exhaustion group passes
+three tests and fails its task stack-exhaustion case because that compiler
+lacks `withScope` and direct `do`. The newer sequencing repair is documented
+above; structured tasks still need implementation. The original
 assertion remains unchanged; the fix must create a real runtime task and
 retain scope lifetimes, handle consumption, effects and cancellation.
 See [the recorded failure](../bootstrap/current-self-built-task-blocker.json).
@@ -19,7 +50,7 @@ after its exhaustion failure, with 86 groups still pending. Acceptance5 is
 open. Sequencing changes are local and under focused validation; they require
 a fresh bootstrap chain after validation.
 
-## Current case-repaired compiler bootstraps
+## Previous018a case-repaired bootstrap checkpoint
 
 The repaired Cinch compiler now completes a fresh Stage0/1/2/3 chain.
 All stages pass their three smoke checks. Stage2 and Stage3 have identical
@@ -131,7 +162,7 @@ This result does not claim that the complete compiler suite has passed.
 The Cinch dependent-argument repair now passes all ten complete focused groups
 on frozen source `96d9b6692f40a517c3b3172da6ee0cb39e0e05d4deaa442b79476998ce5465be`
 (Cinch compiler identity `2ea1460a5a1f426cf65b16767ed96e97dff1ffb2d3ee022b4ca1724bf2e6075c`).
-All43 actual compiler modules pass Native checking. Complete source Pi,
+All 43 actual compiler modules pass Native checking. Complete source Pi,
 guarded calls, source refinements/effects, runtime lowering, fragment checker,
 optimizer, inference, Core, independent typing and typed-index targets pass,
 with no ignored or filtered cases. All93 runtime programs execute with expected
@@ -160,7 +191,7 @@ A fresh Stage0/1/2/3 chain and complete208-group Native sweep now use the exact
 current source. Stage0 has passed its three smokes and fresh Stage1 is building.
 The other stages, all43 canonical interfaces and code fixed point, actual API
 consumer, changed-source rebuilding, exact final Stage3's91 selected groups and
-external checks, complete100-target coverage audit and Acceptance1-5 remain
+external checks, complete100-target coverage audit and Acceptance 1-5 remain
 required. The original array ABI boundary and all original refusal assertions
 remain in force. Passing focused tests is not a whole-bootstrap claim.
 
@@ -170,7 +201,7 @@ This change publishes the escaped-constructor and symbol-word repairs from
 frozen source `72a62361a93da731ea5fe5becb9dc9828db00dda3f9b87cfcb7caf67d3177dee`.
 The normalized Cinch compiler identity is
 `33f4dde5688c94aeb1f04dc6498a8ceb013ee51193dd471aca9c36f3c3b675e1`.
-All43 actual compiler modules pass Native source checking. The complete
+All 43 actual compiler modules pass Native source checking. The complete
 runtime-lowering, checked-object, parser and checker targets pass, with no ignored or filtered
 cases. All92 runtime programs execute with the expected results and zero leaks,
 including65-tag families, recursive/first-class70-constructor families, generic
