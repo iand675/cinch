@@ -7,11 +7,11 @@
     },
     {
       "title": "Validate a Rust compiler performance repair",
-      "detail": "A live profile shows whole-program function-table cloning inside each optimizer unit. The working repair borrows the read-only table and preserves between-unit updates. Complete existing optimizer and checker targets: waiting-shared-slot. Original frozen compiler validations remain intact; final Native verification must use the new Rust source if this repair passes."
+      "detail": "A live profile shows whole-program function-table cloning inside each optimizer unit. The working repair borrows the read-only table and preserves between-unit updates. Complete existing optimizer and checker targets: waiting-compile-slot. Original frozen compiler validations remain intact; final Native verification must use the new Rust source if this repair passes."
     },
     {
       "title": "Validate the additional Stage3 repairs",
-      "detail": "Allocation programs exposed missing I64 primitive contracts and pure Unit-entry rejection. Candidate2ran a pure Unitentry with zero leaks, then failed at a function-valued entry because legacy clause checking demanded all arguments. Candidate3also checks the body against the residual function type, with over-arity and wrong-body refusals retained. Focused tests: superseded-after-complete-checker-pass; new compiler bootstrap: not started; current focused gates must pass. Earlier green bootstrap results remain scoped to their original source."
+      "detail": "Allocation programs exposed missing I64 primitive contracts and pure Unit-entry rejection. Candidate2ran a pure Unitentry with zero leaks, then failed at a function-valued entry because legacy clause checking demanded all arguments. Candidate3also checks the body against the residual function type, with over-arity and wrong-body refusals retained. Focused tests: waiting-compile-slot; new compiler bootstrap: not started; current focused gates must pass. Earlier green bootstrap results remain scoped to their original source."
     },
     {
       "title": "Ordinary Stage3 verification needs investigation",
@@ -236,5 +236,5 @@
   ],
   "status": "Ordinary or mixed Stage3 verification needs investigation",
   "summary": "The repaired compiler bootstraps and passes exact final-Stage3 behavior checks. The full 208-group Native-backed sweep and all 79 portable bootstrap groups through Stage3 are tracked separately. Native library fixture preparation is explicit; selected compiler failures never fall back.",
-  "updatedAt": "2026-11-04T00:19:30.226492+00:00"
+  "updatedAt": "2026-11-04T00:21:02.070507+00:00"
 }
