@@ -1,6 +1,10 @@
 {
-  "activity": "Current source: all 127 ordinary target groups pass. Bootstrap-specific groups: 9 of 81 passed, 2 running and 0 failed. Matching runtime, tooling and syntax/editor gates are separate requirements. Fresh final-source stages built and smoke-tested: 3 of4; combined gate running-full-stage-chain. Additional Stage3 coverage: ordinary: 0 of 8 passed, 0 running, 0 failed (waiting-current-chain-and-runners); mixed: 0 of 4 passed, 0 running, 0 failed (waiting-current-chain-and-runners). Self-built portable bootstrap suite: 0 of 79 groups passed, 0 running, 0 failed; state waiting-current-chain-and-runners.",
+  "activity": "Current source: all 127 ordinary target groups pass. Bootstrap-specific groups: 9 of 81 passed, 2 running and 0 failed. Matching runtime, tooling and syntax/editor gates are separate requirements. Fresh final-source stages built and smoke-tested: 3 of4; combined gate running-full-stage-chain. Additional Stage3 coverage: ordinary: 0 of 8 passed, 0 running, 0 failed (stopped-before-execution-after-known-source-failure); mixed: 0 of 4 passed, 0 running, 0 failed (stopped-before-execution-after-known-source-failure). Self-built portable bootstrap suite: 0 of 79 groups passed, 0 running, 0 failed; state stopped-before-execution-after-known-source-failure.",
   "blockers": [
+    {
+      "title": "Complete escaped constructor support",
+      "detail": "Original failing assertions: escaped_constructors_match_and_carry_one_descriptor_word. The complete original allocation group continues to record all results. Unstarted old-source verification is deferred; every required gate must pass on the eventual repaired source."
+    },
     {
       "title": "Validate the additional Stage3 repairs",
       "detail": "Allocation programs exposed missing I64 primitive contracts and pure Unit-entry rejection. Candidate2ran a pure Unitentry with zero leaks, then failed at a function-valued entry because legacy clause checking demanded all arguments. Candidate3also checks the body against the residual function type, with over-arity and wrong-body refusals retained. Focused tests: passed; new compiler bootstrap: running-full-stage-chain. Earlier green bootstrap results remain scoped to their original source."
@@ -28,6 +32,11 @@
   ],
   "checks": [
     {
+      "title": "Escaped constructor repair",
+      "detail": "The current Stage2 allocation regression exposed unsupported70constructor families. The repair uses the existing runtime descriptor format and adds actual65tag, recursive first-class and generic representation-class executions. Complete runtime/parser/checker validation: waiting-shared-slot. This repair is not yet a verified fresh bootstrap.",
+      "state": "running"
+    },
+    {
       "title": "Early checks through current Stage2",
       "detail": "0 of 8 complete ordinary targets passed, 1 running and 0 failed through the current self-built Stage2. Original allocation, argument, evidence, class, exhaustion, ownership, map and primitive-identity assertions remain intact. Uses one existing shared slot; these are early diagnostics and do not replace final Stage3 acceptance.",
       "state": "running"
@@ -54,7 +63,7 @@
     },
     {
       "title": "Additional behavior through current Stage3",
-      "detail": "ordinary: 0 of 8 passed, 0 running, 0 failed (waiting-current-chain-and-runners); mixed: 0 of 4 passed, 0 running, 0 failed (waiting-current-chain-and-runners). Mixed coverage runs three complete consumer targets and the designed array-intrinsic refusal check. Positive ABI6 array behavior remains in its complete Native gate per design/arrays.md.",
+      "detail": "ordinary: 0 of 8 passed, 0 running, 0 failed (stopped-before-execution-after-known-source-failure); mixed: 0 of 4 passed, 0 running, 0 failed (stopped-before-execution-after-known-source-failure). Mixed coverage runs three complete consumer targets and the designed array-intrinsic refusal check. Positive ABI6 array behavior remains in its complete Native gate per design/arrays.md.",
       "state": "running"
     },
     {
@@ -250,7 +259,7 @@
       "description": "Rebuilt by Stage2; the combined gate compares IR and 43 interfaces and checks API consumption and changed-source behavior."
     }
   ],
-  "status": "Repair gates passed; fresh bootstrap underway",
-  "summary": "All five complete repair gates pass and the tested Cinch/Rust changes are published. The fresh Stage0/1/2/3 build and complete matching suites are now required. Earlier baseline results remain separately scoped.",
-  "updatedAt": "2026-11-04T02:41:21.942239+00:00"
+  "status": "Stage2 allocation regression requires repair",
+  "summary": "The current source builds Stage2 and passes its smoke checks, but an actual external allocation test fails: the Cinch backend refuses the existing escaped-constructor runtime representation. A separate source repair is queued for full focused validation. Final acceptance remains open.",
+  "updatedAt": "2026-11-04T02:43:43.564628+00:00"
 }
