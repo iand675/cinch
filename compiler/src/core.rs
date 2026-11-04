@@ -6020,7 +6020,11 @@ impl Driver<'_> {
             self.site("unfold", Some("opaque boundary: a replaceable dispatch boundary residualizes".to_string()));
             return None;
         }
-        let f = self.defs.get(&g.0)?;
+        // The definition table belongs to the caller of this driver.
+        // Copy its reference out so updating driver state does not require
+        // cloning the callee and its entire Core body before unfolding.
+        let definitions = self.defs;
+        let f = definitions.get(&g.0)?;
         if f.prim.is_some() || f.ctor.is_some() || f.meta.prim_body || args.len() != f.params.len() {
             return None;
         }
@@ -6031,7 +6035,6 @@ impl Driver<'_> {
             self.site("unfold", Some("whistle: the callee exceeds the residual measure bound".to_string()));
             return None;
         }
-        let f = f.clone();
         if self.stack.iter().any(|s| s == &g.0) {
             self.site("unfold", Some("whistle: a repeated configuration folds to a residual call".to_string()));
             return None;

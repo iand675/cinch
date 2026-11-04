@@ -1,6 +1,28 @@
 # Next steps (as of 2026-11-04)
 
-## Current repair and verification
+## Latest follow-up: dependent arguments and Rust unfolding
+
+The Rust optimizer now borrows a callee definition from its read-only table
+instead of cloning the entire Core body before deciding whether to unfold it.
+All16 tests in the complete optimizer target pass, including the fuel, effect
+order, linearity and rewrite barriers; none were ignored or filtered. See
+[the scoped Rust optimizer evidence](../bootstrap/current-rust-unfold-borrow-results.json).
+This result does not claim that the complete compiler suite has passed.
+
+The Cinch dependent-argument repair is still unpublished. Its first candidate
+passed all43 Native compiler-source checks and produced a fresh Stage1 passing
+all three smokes, but a new generic-consumer regression failed Core closure.
+Stage2 correctly remained gated. The next candidate retains strict function
+and argument evaluation order while keeping private argument identities out
+of earlier function annotations, and scopes local value quantifiers to their
+own right-hand sides. Ten complete compiler/Core/proof/ownership gates and
+explicit positive and escaping-scope regressions are under validation on
+frozen source `96d9b6692f40a517c3b3172da6ee0cb39e0e05d4deaa442b79476998ce5465be`
+(Cinch compiler identity `2ea1460a5a1f426cf65b16767ed96e97dff1ffb2d3ee022b4ca1724bf2e6075c`).
+The complete208-group Native run, actual final Stage3 consumers, auxiliary
+checks and Acceptance1-5 audit remain required on the final repaired source.
+
+## Constructor and symbol repair checkpoint
 
 This change publishes the escaped-constructor and symbol-word repairs from
 frozen source `72a62361a93da731ea5fe5becb9dc9828db00dda3f9b87cfcb7caf67d3177dee`.
