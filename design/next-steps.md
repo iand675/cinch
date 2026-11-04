@@ -1,5 +1,24 @@
 # Next steps (as of 2026-11-04)
 
+## Value-index compiler completes the genuine bootstrap
+
+The published value-index/byte-contract compiler completes a fresh
+Stage0/1/2/3 chain. Every stage passes all three smoke tests. Stage2 and Stage3
+have identical compiler IR, executables and all43 canonical checked interfaces.
+The final compiler checks its entry through the emitted APIs without compiler
+bodies. Stage2 also rebuilds actually changed compiler source; that executable
+produces the changed diagnostic. Only the unchanged pinned seed and admitted
+base dependencies were reused.
+
+[The independent bootstrap audit](../bootstrap/current-value-index-bootstrap-results.json)
+proves Acceptance1-4 for compiler
+`ef4f399642a225f45acf5bc95dc6b41816390b8b00393446870349c2752431d4`.
+Acceptance5 remains open: complete matching suites38 and the100-target behavior
+and API coverage audit must finish. The diagnostic follow-up passes all9
+unchanged original byte tests through its diagnostic Cinch frontend, but that
+later source needs its own matching final chain and suites. Interface repair
+work remains isolated; none of its results proves the published source.
+
 ## Executable value indices and byte contracts
 
 Implicit value parameters now have checked lexical/type/proof/task scopes and
