@@ -265,5 +265,5 @@
   ],
   "status": "Stage2 allocation regression requires repair",
   "summary": "The current source builds Stage2 and passes its smoke checks, but an actual external allocation test fails: the Cinch backend refuses wide constructor descriptors and omits the checkedSym word representation. A corrected combined source repair is undergoing full source and focused validation. Final acceptance remains open.",
-  "updatedAt": "2026-11-04T03:08:09.673052+00:00"
+  "updatedAt": "2026-11-04T03:10:12.595664+00:00"
 }
