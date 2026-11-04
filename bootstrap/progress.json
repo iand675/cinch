@@ -43,7 +43,7 @@
     },
     {
       "title": "Complete current compiler sweep",
-      "detail": "165 of 208 complete groups passed; 2 running, 0 failed and 41 pending.Every group includes ignored tests. State: running.",
+      "detail": "165 of 208 complete groups passed; 4 running, 0 failed and 39 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -58,7 +58,7 @@
     },
     {
       "title": "Complete behavior through exact final Stage3",
-      "detail": "0 of 91 complete groups passed; 1 running, 0 failed and 90 pending.79 bootstrap groups, eight ordinary targets, three complete mixed consumers and the designed ABI5 array refusal. Native library fixtures remain explicit; selected compiler failures never fall back.",
+      "detail": "1 of 91 complete groups passed; 1 running, 0 failed and 89 pending.79 bootstrap groups, eight ordinary targets, three complete mixed consumers and the designed ABI5 array refusal. Native library fixtures remain explicit; selected compiler failures never fall back.",
       "state": "running"
     },
     {
@@ -83,7 +83,7 @@
     },
     {
       "title": "Proposed opaque-argument repair",
-      "detail": "Separate unpublished source: running. All 43 compiler modules: pending. 3 of 6 complete groups passed; 1 running, 0 failed and 2 pending. This does not replace current-source or final Stage3 acceptance.",
+      "detail": "Separate unpublished source: running. All 43 compiler modules: pending. 4 of 6 complete groups passed; 0 running, 0 failed and 2 pending. This does not replace current-source or final Stage3 acceptance.",
       "state": "running"
     }
   ],
@@ -94,11 +94,11 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "165 of 208 complete groups passed; 2 running, 0 failed and 41 pending."
+      "detail": "165 of 208 complete groups passed; 4 running, 0 failed and 39 pending."
     },
     {
       "title": "Finish the exact self-built compiler tests",
-      "detail": "0 of 91 complete groups passed; 1 running, 0 failed and 90 pending."
+      "detail": "1 of 91 complete groups passed; 1 running, 0 failed and 89 pending."
     },
     {
       "title": "Complete the coverage and acceptance audit",
@@ -135,6 +135,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "The fresh current-source compiler chain passes its smoke tests, matching Stage2/Stage3 IR, executable and all 43 canonical interfaces, actual API consumption and changed-source behavior. Complete tests and the final acceptance audit remain separate requirements.",
-  "activity": "Current compiler sweep: 165 of 208 complete groups passed; 2 running, 0 failed and 41 pending. Stage builds and smoke checks: 4 of 4; chain state: passed. Repair gates: 10 of 10 complete groups passed; 0 running, 0 failed and 0 pending. dependent arguments: passed; call preconditions: passed; refinements and effects: passed; runtime behavior: passed; index scope and representation: passed; independent type checker: passed; Core validation: passed; inference: passed; typechecker: passed; Rust optimizer behavior: passed. Early Stage1 behavior: 2 of 8 complete groups passed; 0 running, 1 failed and 5 pending. Exact final Stage3 suite: 0 of 91 complete groups passed; 1 running, 0 failed and 90 pending. Proposed opaque-argument repair (separate unpublished source): running; 3 of 6 complete groups passed; 1 running, 0 failed and 2 pending.",
-  "updatedAt": "2026-11-04T06:59:43.504406+00:00"
+  "activity": "Current compiler sweep: 165 of 208 complete groups passed; 4 running, 0 failed and 39 pending. Stage builds and smoke checks: 4 of 4; chain state: passed. Repair gates: 10 of 10 complete groups passed; 0 running, 0 failed and 0 pending. dependent arguments: passed; call preconditions: passed; refinements and effects: passed; runtime behavior: passed; index scope and representation: passed; independent type checker: passed; Core validation: passed; inference: passed; typechecker: passed; Rust optimizer behavior: passed. Early Stage1 behavior: 2 of 8 complete groups passed; 0 running, 1 failed and 5 pending. Exact final Stage3 suite: 1 of 91 complete groups passed; 1 running, 0 failed and 89 pending. Proposed opaque-argument repair (separate unpublished source): running; 4 of 6 complete groups passed; 0 running, 0 failed and 2 pending.",
+  "updatedAt": "2026-11-04T07:00:45.796744+00:00"
 }
