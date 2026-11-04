@@ -33,7 +33,7 @@
   "checks": [
     {
       "title": "Current repair gates",
-      "detail": "0 of 10 complete groups passed; 0 running, 0 failed and 10 pending. dependent arguments: pending; call preconditions: pending; refinements and effects: pending; runtime behavior: pending; typechecker: pending; Rust optimizer behavior: pending; inference: pending; Core validation: pending; independent type checker: pending; index scope and representation: pending. All43 source-module check: passed.",
+      "detail": "0 of 10 complete groups passed; 1 running, 0 failed and 9 pending. dependent arguments: running; call preconditions: pending; refinements and effects: pending; runtime behavior: pending; typechecker: pending; Rust optimizer behavior: pending; inference: pending; Core validation: pending; independent type checker: pending; index scope and representation: pending. All43 source-module check: passed.",
       "state": "running"
     },
     {
@@ -89,7 +89,7 @@
     },
     {
       "title": "Finish the repair gates",
-      "detail": "0 of 10 complete groups passed; 0 running, 0 failed and 10 pending. dependent arguments: pending; call preconditions: pending; refinements and effects: pending; runtime behavior: pending; typechecker: pending; Rust optimizer behavior: pending; inference: pending; Core validation: pending; independent type checker: pending; index scope and representation: pending."
+      "detail": "0 of 10 complete groups passed; 1 running, 0 failed and 9 pending. dependent arguments: running; call preconditions: pending; refinements and effects: pending; runtime behavior: pending; typechecker: pending; Rust optimizer behavior: pending; inference: pending; Core validation: pending; independent type checker: pending; index scope and representation: pending."
     },
     {
       "title": "Publish the validated repair",
@@ -149,7 +149,7 @@
   "candidateSource": "2ea1460a5a1f426cf65b16767ed96e97dff1ffb2d3ee022b4ca1724bf2e6075c",
   "candidatePublished": false,
   "fullGoalComplete": false,
-  "summary": "All 43 compiler-source checks: passed. 0 of 10 complete groups passed; 0 running, 0 failed and 10 pending. dependent arguments: pending; call preconditions: pending; refinements and effects: pending; runtime behavior: pending; typechecker: pending; Rust optimizer behavior: pending; inference: pending; Core validation: pending; independent type checker: pending; index scope and representation: pending. The repair source remains local while its full focused validation finishes.",
-  "activity": "Current compiler sweep: 0 of 208 complete groups passed; 0 running, 0 failed and 208 pending. Stage builds and smoke checks: 0 of 4; chain state: waiting-focused-repair-before-scheduling. Repair gates: 0 of 10 complete groups passed; 0 running, 0 failed and 10 pending. dependent arguments: pending; call preconditions: pending; refinements and effects: pending; runtime behavior: pending; typechecker: pending; Rust optimizer behavior: pending; inference: pending; Core validation: pending; independent type checker: pending; index scope and representation: pending. Early Stage1 behavior: 0 of 8 complete groups passed; 0 running, 0 failed and 8 pending. Exact final Stage3 suite: 0 of 91 complete groups passed; 0 running, 0 failed and 91 pending.",
-  "updatedAt": "2026-11-04T05:39:14.828934+00:00"
+  "summary": "All 43 compiler-source checks: passed. 0 of 10 complete groups passed; 1 running, 0 failed and 9 pending. dependent arguments: running; call preconditions: pending; refinements and effects: pending; runtime behavior: pending; typechecker: pending; Rust optimizer behavior: pending; inference: pending; Core validation: pending; independent type checker: pending; index scope and representation: pending. The repair source remains local while its full focused validation finishes.",
+  "activity": "Current compiler sweep: 0 of 208 complete groups passed; 0 running, 0 failed and 208 pending. Stage builds and smoke checks: 0 of 4; chain state: waiting-focused-repair-before-scheduling. Repair gates: 0 of 10 complete groups passed; 1 running, 0 failed and 9 pending. dependent arguments: running; call preconditions: pending; refinements and effects: pending; runtime behavior: pending; typechecker: pending; Rust optimizer behavior: pending; inference: pending; Core validation: pending; independent type checker: pending; index scope and representation: pending. Early Stage1 behavior: 0 of 8 complete groups passed; 0 running, 0 failed and 8 pending. Exact final Stage3 suite: 0 of 91 complete groups passed; 0 running, 0 failed and 91 pending.",
+  "updatedAt": "2026-11-04T05:40:17.108969+00:00"
 }
