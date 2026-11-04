@@ -1,21 +1,13 @@
 {
-  "activity": "Earlier baseline: all 127 ordinary target groups pass. Bootstrap-specific groups: 40 of 81 passed, 0 running and 0 failed. Runtime171, tooling41 and syntax/editor39 pass on this same source. Fresh final-source stages built and smoke-tested: 1 of4; combined gate running-full-stage-chain. Additional Stage3 coverage: ordinary: 0 of 8 passed, 0 running, 1 failed (stopped-after-failure); mixed: 4 of 4 passed, 0 running, 0 failed (passed). Self-built portable bootstrap suite: 2 of 79 groups passed, 0 running, 1 failed; state stopped-after-failure.",
+  "activity": "Current full suite: 5 of 208 groups passed, 3 running and 0 failed. Runtime171, tooling41 and syntax/editor39 already pass on this exact snapshot. Fresh final-source stage chain: 1 of 4 stages built and smoke-tested; combined fixed-point gate running-full-stage-chain. Additional Stage3 coverage: ordinary: 0 of 8 passed, 0 running, 0 failed (waiting-current-chain-and-runners); mixed: 0 of 4 passed, 0 running, 0 failed (waiting-current-chain-and-runners). Self-built portable bootstrap suite: 0 of 79 groups passed, 0 running, 0 failed; state waiting-current-chain-and-runners.",
   "blockers": [
-    {
-      "title": "Complete portable verification after library recovery",
-      "detail": "Failed groups: bootstrap_abstract_nonzero_types. Original failure logs remain recorded. The diagnostic requests missing test-library factory Data.List.FromList_List[R]. Library-only rebuild: passed; unchanged complete-target rerun using the same self-built compiler: passed. This isolated retry does not complete the 79-group suite or validate the newer compiler candidate."
-    },
     {
       "title": "Validate the additional Stage3 repairs",
       "detail": "Allocation programs exposed missing I64 primitive contracts and pure Unit-entry rejection. Candidate2ran a pure Unitentry with zero leaks, then failed at a function-valued entry because legacy clause checking demanded all arguments. Candidate3also checks the body against the residual function type, with over-arity and wrong-body refusals retained. Focused tests: passed; new compiler bootstrap: running-full-stage-chain. Earlier green bootstrap results remain scoped to their original source."
     },
     {
-      "title": "Ordinary Stage3 verification needs investigation",
-      "detail": "Failed groups: alloc_accounting; state stopped-after-failure. Retained logs are authoritative."
-    },
-    {
       "title": "Finish every current-source compiler test",
-      "detail": "The earlier baseline passed 167 of 208 groups; its remaining queued work is deferred while current repairs are checked. The newer Rust and Cinch sources still require a complete matching suite. Earlier auxiliary results retain their exact source scope."
+      "detail": "Current source: 5 of 208 complete groups pass. The complete matching sweep is required; earlier baseline outcomes are not counted here."
     },
     {
       "title": "Finish the fresh repaired-source bootstrap",
@@ -27,11 +19,15 @@
     },
     {
       "title": "Finish all portable bootstrap groups through Cinch",
-      "detail": "2 of 79 groups pass. This suite verifies the existing bootstrap programs through the exact self-built Stage3 compiler. Fixture preparation remains an explicit Native library stage; it does not replace or rescue a selected compiler invocation."
+      "detail": "0 of 79 groups pass. This suite verifies the existing bootstrap programs through the exact self-built Stage3 compiler. Fixture preparation remains an explicit Native library stage; it does not replace or rescue a selected compiler invocation."
     },
     {
       "title": "Complete external compiler coverage audit",
       "detail": "The harness inventory finds 100 targets: 79 bootstrap groups and 21 ordinary groups. The source review maps all 100 targets: 9 Native interface API targets already pass, while 79 bootstrap groups, 8 ordinary program targets and 3 mixed consumers plus the designed array-refusal case require Stage3 execution. The 79-group queue alone does not close this gate."
+    },
+    {
+      "title": "Finish current runtime, tooling and editor checks",
+      "detail": "Complete matching auxiliary gates: waiting-final-runner-build. Earlier-source green results do not close this gate."
     }
   ],
   "checks": [
@@ -42,7 +38,17 @@
     },
     {
       "title": "Portable bootstrap suite through earlier Stage3",
-      "detail": "2 of 79 existing portable target groups passed, 0 running and 1 failed. The tested fixture harness makes 14 Native library producers explicit; the actual compiler source check/build/run path selects final Stage3 and never falls back. All four harness checks and the complete initial type-syntax control pass.",
+      "detail": "0 of 79 existing portable target groups passed, 0 running and 0 failed. The tested fixture harness makes 14 Native library producers explicit; the actual compiler source check/build/run path selects final Stage3 and never falls back. All four harness checks and the complete initial type-syntax control pass.",
+      "state": "running"
+    },
+    {
+      "title": "Current compiler full test sweep",
+      "detail": "5 of 208 complete target groups passed; 3 running and 0 failed. Every group includes ignored tests. Exact current f6e1 snapshot, Cinch0e28 and published Rust optimizer repair; matching source and private cache.",
+      "state": "running"
+    },
+    {
+      "title": "Additional behavior through earlier Stage3",
+      "detail": "ordinary: 0 of 8 passed, 0 running, 0 failed (waiting-current-chain-and-runners); mixed: 0 of 4 passed, 0 running, 0 failed (waiting-current-chain-and-runners). Mixed coverage runs three complete consumer targets and the designed array-intrinsic refusal check. Positive ABI6 array behavior remains in its complete Native gate per design/arrays.md.",
       "state": "running"
     },
     {
@@ -53,11 +59,6 @@
     {
       "title": "Earlier baseline compiler sweep",
       "detail": "167 of 208 complete target groups passed; 0 running and 0 failed. Every group includes ignored tests. Source snapshot c6260e01; results apply to the earlier baseline, before the new Rust optimizer repair.",
-      "state": "running"
-    },
-    {
-      "title": "Additional behavior through earlier Stage3",
-      "detail": "ordinary: 0 of 8 passed, 0 running, 1 failed (stopped-after-failure); mixed: 4 of 4 passed, 0 running, 0 failed (passed). Mixed coverage runs three complete consumer targets and the designed array-intrinsic refusal check. Positive ABI6 array behavior remains in its complete Native gate per design/arrays.md.",
       "state": "running"
     },
     {
@@ -179,6 +180,11 @@
       "detail": "Candidate23 passes the entire proof certificate regression. Its fresh Stage1 accepts the reduced outer-guard case and complete builder, while refusing an out-of-bounds write.",
       "state": "passed",
       "title": "Direct proof reuse and complete builder checks pass"
+    },
+    {
+      "title": "Complete current-source auxiliary gates",
+      "detail": "Runtime, tooling and syntax/editor verification: waiting-final-runner-build. Each complete gate uses the exact frozen f6e1 source; earlier auxiliary results are separate.",
+      "state": "running"
     }
   ],
   "commit": "3e14f1be6f548d095dd1c9ce4da9f1b40c892814",
@@ -240,5 +246,5 @@
   ],
   "status": "Repair gates passed; fresh bootstrap underway",
   "summary": "All five complete repair gates pass and the tested Cinch/Rust changes are published. The fresh Stage0/1/2/3 build and complete matching suites are now required. Earlier baseline results remain separately scoped.",
-  "updatedAt": "2026-11-04T01:03:38.695016+00:00"
+  "updatedAt": "2026-11-04T01:06:04.370395+00:00"
 }
