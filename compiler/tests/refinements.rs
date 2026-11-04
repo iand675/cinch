@@ -880,3 +880,22 @@ fn later_argument_write_invalidates_an_inline_result_contract() {
     expect_checks("fresh inline result contract", &source.replace("(writer u)", "()"));
     expect_err("inline contract staleness", source, &["stale evidence"]);
 }
+
+#[test]
+fn anonymous_numeric_literals_use_the_checked_refinement_binder() {
+    expect_checks("anonymous-numerals", r#"module Main where
+  positive :: refined NonZero Nat
+  positive = 7
+  parenthesized :: refined (NonZero) Nat
+  parenthesized = 3
+  negative :: refined NonZero Int
+  negative = -5
+  main :: Int
+  main = 0
+"#);
+    expect_err("anonymous-zero", "module Main where\n  bad :: refined NonZero Nat\n  bad = 0\n", &["predicate", "false"]);
+    expect_err("anonymous-capture", "module Main where\n  bad :: (n :: Nat) -> refined NonZero Nat\n  bad n = 0\n", &["predicate", "false"]);
+    expect_err("anonymous-wrong-carrier", "module Main where\n  bad :: refined NonZero Bool\n  bad = True\n", &["NonZero", "Bool"]);
+    expect_err("anonymous-negative-natural", "module Main where\n  bad :: refined NonZero Nat\n  bad = -1\n", &["out of range", "Nat"]);
+    expect_err("anonymous-machine-overflow", "module Main where\n  bad :: refined NonZero U8\n  bad = 256\n", &["out of range", "U8"]);
+}

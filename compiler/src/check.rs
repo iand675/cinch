@@ -4753,14 +4753,10 @@ impl Checker {
         let not_numeric = || {
             Error::at(span, format!("integer literal cannot have type {ty}"))
         };
-        let Ty::Adt(name, _) = ty else { return Err(not_numeric()) };
-        let binder = self
-            .types
-            .get(name)
-            .and_then(|ks| ks.iter().find_map(|k| k.refine.as_ref()))
-            .map(|r| r.binder.clone())
-            .ok_or_else(not_numeric)?;
-        let Some(RefineView { base: Some(base), pred, .. }) = self.refine_view(ty) else {
+        // Anonymous and named refinements already carry the actual checked
+        // binder in their view. Looking it up only in the named-type table
+        // loses the binder of `refined P T` and rejects valid literals.
+        let Some(RefineView { base: Some(base), pred, binder }) = self.refine_view(ty) else {
             return Err(not_numeric());
         };
         // The container's own literal rules apply first (a negative

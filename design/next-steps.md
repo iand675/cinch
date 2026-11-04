@@ -1,5 +1,21 @@
 # Next steps (as of 2026-11-04)
 
+## Rust anonymous refinement literals repaired
+
+The Rust compiler now checks numeric literals using the binder in the actual
+refinement view. Anonymous forms such as `refined NonZero Nat` no longer depend
+on a named-alias table entry. Carrier range checks and the static predicate
+proof remain required: zero, the wrong carrier, negative naturals and machine
+overflow are still rejected.
+
+All82 tests across six complete affected groups pass, with none ignored or
+filtered. The newly built Native compiler checks all43 Cinch compiler modules;
+all six original CLI reproductions agree. See [the independent scoped audit](../bootstrap/current-rust-anonymous-refinement-literal-results.json).
+Cinch compiler sources retain identity
+`ffee20f54e9b9b34b039104b4142b0454f28ead43adfec29753f3a8977fa2d11`.
+A complete matching Native sweep and final Cinch-built suites remain required;
+the preceding compiler's stage-chain proof does not close Acceptance5.
+
 ## Refinement obligation diagnostics repaired
 
 Failed refinement checks now name the undischarged obligation while preserving

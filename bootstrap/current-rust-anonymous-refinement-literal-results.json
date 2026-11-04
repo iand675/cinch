@@ -1,0 +1,125 @@
+{
+  "compiler_source_sha256": "ffee20f54e9b9b34b039104b4142b0454f28ead43adfec29753f3a8977fa2d11",
+  "full_goal_complete": false,
+  "limitations": "Scoped Rust repair only. No claim of full matching Native/self-built/runtime/tool/editor/external suites or Acceptance1-5 completion. Cinch source unchanged from diagnostic12; unpublished interface candidates remain separate.",
+  "original_oracle": [
+    {
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "bare structural NonZero",
+      "source_sha256": "d696e9071e17a11f863401e32e90803d69525f0d771d4e1d2734396e03a4bb01",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "parenthesized structural NonZero",
+      "source_sha256": "74553fd44a08d17e53a8fe4046a79fbfc4608d00c0a3c445e31594aec16f8786",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "bare structural NonZero signed",
+      "source_sha256": "84f9dd46a4c4b1f63a99812cc15a573254742a8ac013785c5e46e9b52d403917",
+      "status": "passed"
+    },
+    {
+      "exit_code": 1,
+      "log_sha256": "87343e3bdc7bf374bf22c8d9f51fa6b6c2b8e3501f25d327b3805c6216f685c3",
+      "name": "bare NonZero cannot accept zero",
+      "source_sha256": "cc524ff15ba4196836d3844db21ddd6dd9de302fb457e74e49603570f701d432",
+      "status": "passed"
+    },
+    {
+      "exit_code": 1,
+      "log_sha256": "e8946dae861ba3a789ae1782496a201b5968424caaef98c4f7056e7dd09dfaf7",
+      "name": "bare NonZero does not capture argument",
+      "source_sha256": "7e62569d984c3703dcd9f9bc736e2593dab698960a065d591df9749a6758a318",
+      "status": "passed"
+    },
+    {
+      "exit_code": 1,
+      "log_sha256": "2a770341a7f22d93baa33536bc0ce42bf1350c1d96f8c7d20b20813765817291",
+      "name": "bare NonZero rejects Boolean carrier",
+      "source_sha256": "e5c4d9261dc3dd837c201bbacc5a410a7be916ba96f39ea1051228971bad28c1",
+      "status": "passed"
+    }
+  ],
+  "rows": [
+    {
+      "binary": "/tmp/cinch-rust-refined-literal-validation-1/cargo/debug/deps/refinements-a5d52b8b1d94cbe9",
+      "binary_sha256": "14c6b3e12cedca3e3741d9c4642f6104fd0b3f3f9550812931f72d6ccfb00073",
+      "exit_code": 0,
+      "log": "/tmp/cinch-rust-refined-literal-validation-1/refinements.log",
+      "log_sha256": "03866ef9db0ab3f66bbf800da27433f83cff3466031bf076823f1b743dd68c4f",
+      "name": "refinements",
+      "status": "passed",
+      "tests": 23
+    },
+    {
+      "binary": "/tmp/cinch-rust-refined-literal-validation-1/cargo/debug/deps/primitives-7b69acf6d6c44d28",
+      "binary_sha256": "2c0149834bfb46635bdfefb55acb4908cd9092eeadea718c72d6d22e270fec39",
+      "exit_code": 0,
+      "log": "/tmp/cinch-rust-refined-literal-validation-1/primitives.log",
+      "log_sha256": "3f72cff73d5fabde09a803e4e37789688f3c2d53d09e2d79cafaa19e2f91f882",
+      "name": "primitives",
+      "status": "passed",
+      "tests": 37
+    },
+    {
+      "binary": "/tmp/cinch-rust-refined-literal-validation-1/cargo/debug/deps/range_facts-0d2bfcd66fc5df2d",
+      "binary_sha256": "35fc82c0cb3afede817fbe6c4ab27b17affb42e4283264bfaebe8fd71696fece",
+      "exit_code": 0,
+      "log": "/tmp/cinch-rust-refined-literal-validation-1/range_facts.log",
+      "log_sha256": "fa2ac584a27a44460e115d220d95946b8f955f0493cd2bb892e1e46213a2b009",
+      "name": "range_facts",
+      "status": "passed",
+      "tests": 10
+    },
+    {
+      "binary": "/tmp/cinch-rust-refined-literal-validation-1/cargo/debug/deps/primitive_length_identity-ce45e6581770590d",
+      "binary_sha256": "2a25688128414175ffaba7731225562b7cc2a85956ece4981cd5bbfdfff496ab",
+      "exit_code": 0,
+      "log": "/tmp/cinch-rust-refined-literal-validation-1/primitive_length_identity.log",
+      "log_sha256": "3a4e36904d81c551b4e1ee3ace7f8202736725beb492ed946d482d91ff37be3c",
+      "name": "primitive_length_identity",
+      "status": "passed",
+      "tests": 9
+    },
+    {
+      "binary": "/tmp/cinch-rust-refined-literal-validation-1/cargo/debug/deps/interface_anonymous_contracts-032b18cec176645b",
+      "binary_sha256": "03453df09ea7827d804920d9d521781388ade20f406d61dd71f12ca8b5365d68",
+      "exit_code": 0,
+      "log": "/tmp/cinch-rust-refined-literal-validation-1/interface_anonymous_contracts.log",
+      "log_sha256": "4733a25693df2a6818769b86aa441593bc3b0f8ac21000c433886c46415819a9",
+      "name": "interface_anonymous_contracts",
+      "status": "passed",
+      "tests": 1
+    },
+    {
+      "binary": "/tmp/cinch-rust-refined-literal-validation-1/cargo/debug/deps/folded_literal_ownership-23570bceab500c16",
+      "binary_sha256": "593f61e46996fee9a36709491ad5a154c5211dd9bfa5de4535dbf5cf17487f07",
+      "exit_code": 0,
+      "log": "/tmp/cinch-rust-refined-literal-validation-1/folded_literal_ownership.log",
+      "log_sha256": "ce1e9f9c46c22eee8bfd1101e2f6e339dc6589caec1c030eab3420a7f4d78bf1",
+      "name": "folded_literal_ownership",
+      "status": "passed",
+      "tests": 2
+    }
+  ],
+  "scope": "Use the binder from the actual checked refinement view for numeric literals, for both named and anonymous refinements. Existing literal carrier/range checks and static predicate decision still apply. All six complete affected groups include ignored tests; the regression retains valid bare/parenthesized/signed cases and zero/capture/wrong-carrier/negative-Nat/machine-overflow refusals. All43 compiler modules pass through the newly built actual Native CLI; the original six CLI repros now agree.",
+  "source": "/tmp/cinch-rust-refined-literal-validation-1/source",
+  "source_check": {
+    "compiler": "/tmp/cinch-rust-refined-literal-validation-1/cargo/debug/cinch",
+    "compiler_modules": 43,
+    "compiler_sha256": "1d1aabaa98cbc191ceea0b09e44ea1af0be5fa6a34d188d58248e4c1d14b0807",
+    "exit_code": 0,
+    "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "status": "passed"
+  },
+  "source_sha256": "fa2f5022337c86afbe339a30da85ab1a7b18173b5169641dbaf212cf1bd20b39",
+  "status": "passed-scoped-rust-anonymous-refinement-literals",
+  "total_tests": 82,
+  "verified_at": "2026-11-04T18:26:39.335565+00:00"
+}
