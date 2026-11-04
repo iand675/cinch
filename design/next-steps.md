@@ -43,7 +43,11 @@ the designed ABI5 array refusal. Exact final Stage3 runner reports, zero-leak
 execution, definition-owned fixities and class behavior remain required too.
 Stage2/3 IR, executable and all43 canonical interfaces must agree; actual API
 consumption and rebuilding changed compiler source remain separate gates.
-All of Acceptance1-5 remains required before completion.
+The [current acceptance audit](../bootstrap/current-bootstrap-acceptance-audit.json)
+verifies Acceptance1 against the actual current Stage0/1 source and artifacts;
+Acceptance2-5 remain open. The coverage audit also records complete passes for
+all nine direct Native interface-API targets on this source; all91 selected
+final-Stage3 groups and the complete execution audit remain required.
 
 The earlier0e28 source successfully built Stage2 and passed its smokes, but its
 original eight-case allocation target finished with six passes and two failures:

@@ -1,6 +1,6 @@
 {
   "status": "open-current-source-coverage-audit",
-  "checked_at": "2026-11-04T04:06:41.553327+00:00",
+  "checked_at": "2026-11-04T04:30:50.639206+00:00",
   "requirement": "design/self-hosting.md Acceptance5; no completed-goal claim",
   "source_snapshot_sha256": "72a62361a93da731ea5fe5becb9dc9828db00dda3f9b87cfcb7caf67d3177dee",
   "compiler_source_sha256": "33f4dde5688c94aeb1f04dc6498a8ceb013ee51193dd471aca9c36f3c3b675e1",
@@ -25,15 +25,15 @@
     "interface_region_effects"
   ],
   "native_api_execution_at_checkpoint": {
-    "interface_anonymous_contracts": "pending-current-full-sweep",
-    "interface_class_contracts": "pending-current-full-sweep",
-    "interface_kinds": "pending-current-full-sweep",
-    "interface_nominals": "pending-current-full-sweep",
-    "interface_preconditions": "pending-current-full-sweep",
-    "interface_prelude_overrides": "pending-current-full-sweep",
-    "interface_refinement_closure": "pending-current-full-sweep",
-    "interface_refinements": "pending-current-full-sweep",
-    "interface_region_effects": "pending-current-full-sweep"
+    "interface_anonymous_contracts": "passed",
+    "interface_class_contracts": "passed",
+    "interface_kinds": "passed",
+    "interface_nominals": "passed",
+    "interface_preconditions": "passed",
+    "interface_prelude_overrides": "passed",
+    "interface_refinement_closure": "passed",
+    "interface_refinements": "passed",
+    "interface_region_effects": "passed"
   },
   "array_boundary": {
     "design": "design/arrays.md:119-157",
@@ -1047,5 +1047,196 @@
       ]
     }
   },
-  "scope": "Current source-call set equals all100 original harness targets.91selected groups+9directNativeAPI groups account for every target. Actual matching Stage3 execution and full Native completion remain required; classification is not execution proof."
+  "scope": "Current source-call set equals all100 original harness targets.91selected groups+9directNativeAPI groups account for every target. Actual matching Stage3 execution and full Native completion remain required; classification is not execution proof.",
+  "native_api_execution_proof": [
+    {
+      "command": [
+        "/tmp/cinch-escaped-constructors-validation-4/cargo/debug/deps/interface_anonymous_contracts-032b18cec176645b",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "executable": "/tmp/cinch-escaped-constructors-validation-4/cargo/debug/deps/interface_anonymous_contracts-032b18cec176645b",
+      "exit_code": 0,
+      "finished": "2026-11-04T04:22:15.712395+00:00",
+      "kind": "integration",
+      "name": "interface_anonymous_contracts",
+      "pid": 81566,
+      "sha256": "77e23c5da00791fa11f0b2b1c81f4409a41bf9c8f134fdc428f9b09ef3d406c0",
+      "source_unchanged": true,
+      "started": "2026-11-04T04:22:13.742973+00:00",
+      "status": "passed",
+      "worker": 2,
+      "log": "/tmp/cinch-full-native-30/interface_anonymous_contracts.log",
+      "log_sha256": "7c1975b93cdaeaa0c89a675102478e1bf4a2ef578066b494ce14d9ce7ed62a1b"
+    },
+    {
+      "command": [
+        "/tmp/cinch-escaped-constructors-validation-4/cargo/debug/deps/interface_class_contracts-c7f87e16317c47a0",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "executable": "/tmp/cinch-escaped-constructors-validation-4/cargo/debug/deps/interface_class_contracts-c7f87e16317c47a0",
+      "exit_code": 0,
+      "finished": "2026-11-04T04:24:08.652609+00:00",
+      "kind": "integration",
+      "name": "interface_class_contracts",
+      "pid": 83000,
+      "sha256": "2d5ea32433f9a6d384e035c75efbb0408ece015fe5de21949300ad37618076b0",
+      "source_unchanged": true,
+      "started": "2026-11-04T04:24:06.364241+00:00",
+      "status": "passed",
+      "worker": 0,
+      "log": "/tmp/cinch-full-native-30/interface_class_contracts.log",
+      "log_sha256": "dd9b5c082c542256c9b10482877a1d493d269b336c7f969e7f58a2ea772c2341"
+    },
+    {
+      "command": [
+        "/tmp/cinch-escaped-constructors-validation-4/cargo/debug/deps/interface_kinds-50a2c803475e0226",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "executable": "/tmp/cinch-escaped-constructors-validation-4/cargo/debug/deps/interface_kinds-50a2c803475e0226",
+      "exit_code": 0,
+      "finished": "2026-11-04T04:24:17.619429+00:00",
+      "kind": "integration",
+      "name": "interface_kinds",
+      "pid": 83099,
+      "sha256": "45c320512ec0c6b13209f9d7c5203e4318f89de826564dc061a7f98341a3b178",
+      "source_unchanged": true,
+      "started": "2026-11-04T04:24:15.449242+00:00",
+      "status": "passed",
+      "worker": 0,
+      "log": "/tmp/cinch-full-native-30/interface_kinds.log",
+      "log_sha256": "42872a0dde27c5c2b0d06f9077e01c7397a23240ea6ebe07c944cb80e437d093"
+    },
+    {
+      "command": [
+        "/tmp/cinch-escaped-constructors-validation-4/cargo/debug/deps/interface_nominals-b971c55610e05eee",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "executable": "/tmp/cinch-escaped-constructors-validation-4/cargo/debug/deps/interface_nominals-b971c55610e05eee",
+      "exit_code": 0,
+      "finished": "2026-11-04T04:25:12.775995+00:00",
+      "kind": "integration",
+      "name": "interface_nominals",
+      "pid": 83662,
+      "sha256": "3d5a2e0f742e62869154a4d6b77d69b4e7a61906b3b8bd1b6199d3edf0ec372f",
+      "source_unchanged": true,
+      "started": "2026-11-04T04:25:10.300677+00:00",
+      "status": "passed",
+      "worker": 1,
+      "log": "/tmp/cinch-full-native-30/interface_nominals.log",
+      "log_sha256": "2a1f867fbc0427f58d639d1e766d1e74522a8dccf0bb9ff9bb24fda0f5c37946"
+    },
+    {
+      "command": [
+        "/tmp/cinch-escaped-constructors-validation-4/cargo/debug/deps/interface_preconditions-13b54d963ed22d8d",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "executable": "/tmp/cinch-escaped-constructors-validation-4/cargo/debug/deps/interface_preconditions-13b54d963ed22d8d",
+      "exit_code": 0,
+      "finished": "2026-11-04T04:25:15.269057+00:00",
+      "kind": "integration",
+      "name": "interface_preconditions",
+      "pid": 83700,
+      "sha256": "4738db8c5fa822719019b1595ee0dc162976c5e20c95a933a41ae87240021980",
+      "source_unchanged": true,
+      "started": "2026-11-04T04:25:13.106954+00:00",
+      "status": "passed",
+      "worker": 1,
+      "log": "/tmp/cinch-full-native-30/interface_preconditions.log",
+      "log_sha256": "216beae037b422210745ed7d51a2f0129278b87b71a575ed08b1675e47fb3d53"
+    },
+    {
+      "command": [
+        "/tmp/cinch-escaped-constructors-validation-4/cargo/debug/deps/interface_prelude_overrides-5828e7970823fa26",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "executable": "/tmp/cinch-escaped-constructors-validation-4/cargo/debug/deps/interface_prelude_overrides-5828e7970823fa26",
+      "exit_code": 0,
+      "finished": "2026-11-04T04:25:19.494721+00:00",
+      "kind": "integration",
+      "name": "interface_prelude_overrides",
+      "pid": 83725,
+      "sha256": "7f2ac700923f02c2e92ffce0191ac3750bd03c6e4110eb30a4a7ab29083b7147",
+      "source_unchanged": true,
+      "started": "2026-11-04T04:25:15.592065+00:00",
+      "status": "passed",
+      "worker": 1,
+      "log": "/tmp/cinch-full-native-30/interface_prelude_overrides.log",
+      "log_sha256": "61c9c0e0041d15a0c08cb64ef80ea48fff0110ff2084028a252be784bbcb0ae9"
+    },
+    {
+      "command": [
+        "/tmp/cinch-escaped-constructors-validation-4/cargo/debug/deps/interface_refinement_closure-44edd08c3fc749fa",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "executable": "/tmp/cinch-escaped-constructors-validation-4/cargo/debug/deps/interface_refinement_closure-44edd08c3fc749fa",
+      "exit_code": 0,
+      "finished": "2026-11-04T04:25:22.292727+00:00",
+      "kind": "integration",
+      "name": "interface_refinement_closure",
+      "pid": 83794,
+      "sha256": "95f38b1e8ffbf79f052fc5fef701beba46538abc198f8f652c08b7e7b258250c",
+      "source_unchanged": true,
+      "started": "2026-11-04T04:25:19.815435+00:00",
+      "status": "passed",
+      "worker": 1,
+      "log": "/tmp/cinch-full-native-30/interface_refinement_closure.log",
+      "log_sha256": "a17e07dbebe581a1510b3af44c70e0da45155e5b86974e92d876ba517b7b52cc"
+    },
+    {
+      "command": [
+        "/tmp/cinch-escaped-constructors-validation-4/cargo/debug/deps/interface_refinements-b3123d039a85b94b",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "executable": "/tmp/cinch-escaped-constructors-validation-4/cargo/debug/deps/interface_refinements-b3123d039a85b94b",
+      "exit_code": 0,
+      "finished": "2026-11-04T04:25:27.310940+00:00",
+      "kind": "integration",
+      "name": "interface_refinements",
+      "pid": 83844,
+      "sha256": "88392093dc12cf3e826b9f0db3d8c8e47f02286a95c5f6d1a4bd85706f67bfa8",
+      "source_unchanged": true,
+      "started": "2026-11-04T04:25:22.617289+00:00",
+      "status": "passed",
+      "worker": 1,
+      "log": "/tmp/cinch-full-native-30/interface_refinements.log",
+      "log_sha256": "56907b1a54766977ae90213bbac57363dde4245c218edc8fdd9b48557d36b234"
+    },
+    {
+      "command": [
+        "/tmp/cinch-escaped-constructors-validation-4/cargo/debug/deps/interface_region_effects-a40a0643bee06bcc",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "executable": "/tmp/cinch-escaped-constructors-validation-4/cargo/debug/deps/interface_region_effects-a40a0643bee06bcc",
+      "exit_code": 0,
+      "finished": "2026-11-04T04:25:29.881745+00:00",
+      "kind": "integration",
+      "name": "interface_region_effects",
+      "pid": 83891,
+      "sha256": "658bad5d0bded5bb6dba823b22f6a5adeb2c3b9d9fad8887e2324bcb2bf47b09",
+      "source_unchanged": true,
+      "started": "2026-11-04T04:25:27.640512+00:00",
+      "status": "passed",
+      "worker": 1,
+      "log": "/tmp/cinch-full-native-30/interface_region_effects.log",
+      "log_sha256": "52452d030039ea7e79bb0498c8d266a2f6490e2b7209c30b335b8e53aa5d6bad"
+    }
+  ]
 }

@@ -1,81 +1,81 @@
 {
-  "checked_at": "2026-11-04T02:25:23.178161+00:00",
-  "compiler_source_sha256": "0e2848ef342cc3fd82d78e2eec3894d410660c17538f7c0becdf55278d37ab0f",
-  "complete_native_groups": false,
-  "complete_selected_stage3_groups": false,
+  "audit_script_sha256": "2e4a241d080ee4d041b7dd1d7d567ec562196850d161b726074f4e38a607ad90",
+  "checked_at": "2026-11-04T04:34:43.366675+00:00",
+  "compiler_source_sha256": "33f4dde5688c94aeb1f04dc6498a8ceb013ee51193dd471aca9c36f3c3b675e1",
   "full_goal_complete": false,
-  "note": "Read-only evidence audit. Requirement5 needs final per-target executable/log/source verification and the complete coverage audit; counts and coordinator status alone cannot close it.",
+  "note": "Passing counts cannot close requirement5. Final execution logs, exact binaries, complete coverage, source publication and requirement-by-requirement verification remain required.",
+  "observations": {
+    "early_stage1_8": {
+      "counts": {
+        "pending": 7,
+        "running": 1
+      },
+      "status": "running"
+    },
+    "final_stage3_91": {
+      "counts": {},
+      "status": "waiting-current-chain-and-runners"
+    },
+    "native208": {
+      "counts": {
+        "passed": 48,
+        "pending": 157,
+        "running": 3
+      },
+      "status": "running"
+    }
+  },
+  "publication_audit": {
+    "all_other_frozen_inputs_match": true,
+    "frozen_inputs_compared": 876,
+    "metadata_differences": [
+      "README.md",
+      "bootstrap/current-external-coverage-audit.json",
+      "bootstrap/current-source-auxiliary-results.json",
+      "bootstrap/progress.json",
+      "design/next-steps.md"
+    ]
+  },
   "requirements": [
     {
-      "evidence": [
-        {
-          "executable_sha256": "cddbae33387034970a7e55130042220d4d02d4f02203af36627f8ac7aaa9f419",
-          "stage": 0,
-          "stage_record_sha256": "c633b223302ec7852e2b7db6dbede8d27b04cd2bc9c5492cd6a670358cc6f60c"
-        },
-        {
-          "executable_sha256": "9ffcd9e02217656abfd023f94409465b71ad5e4ff2f2a02144742e63251a958e",
-          "stage": 1,
-          "stage_record_sha256": "39f5509c7f1595d3e4eb771f3fe8cac0bfef4bb71d438f3acc7f1c10e721de8b"
-        }
-      ],
       "number": 1,
-      "requirement": "Pinned Rust seed compiles all current compiler sources into Stage1",
+      "requirement": "Pinned Rust seed builds all current compiler sources into Stage1; executable smokes pass",
       "status": "proved"
     },
     {
-      "evidence": [
-        {
-          "executable_sha256": "e40184b49fbccd70443e544e01bb99ea3553141638adb4fab4f0ab727f8b34a7",
-          "stage": 2,
-          "stage_record_sha256": "3961c8f870f735264b42a13bc226bbd4f7f6cc9a57528c43686d4b203eed5abd"
-        }
-      ],
       "number": 2,
-      "requirement": "Stage1 freshly rebuilds every compiler module into Stage2 using checked library/runtime dependencies",
-      "status": "proved"
+      "requirement": "Stage1 freshly compiles every compiler module into Stage2 without a Rust frontend or prebuilt compiler code",
+      "status": "pending"
     },
     {
-      "evidence": "/tmp/cinch-final-bootstrap-chain-5/result.json",
       "number": 3,
-      "requirement": "Stage2 rebuilds Stage3; emitted IR and all43 canonical interfaces agree; actual executable smokes and interface consumer pass",
+      "requirement": "Fresh Stage3, matching IR and43canonical interfaces, executable smokes and actual API consumer",
       "status": "pending"
     },
     {
-      "evidence": "/tmp/cinch-final-bootstrap-chain-5/source/build/bootstrap/changed-source/stage2/probe/checked.json",
       "number": 4,
-      "requirement": "Stage2 rebuilds changed compiler source and the changed executable changes actual refusal behavior",
+      "requirement": "Stage2 rebuilds changed compiler source and changed executable behavior is observed",
       "status": "pending"
     },
     {
-      "evidence": {
-        "exact_stage3_external": "waiting-for-final-chain",
-        "native_counts": {
-          "passed": 133,
-          "pending": 71,
-          "running": 4
-        },
-        "ordinary_cases": 1173,
-        "ordinary_groups": 127,
-        "runtime_tooling_editor": "passed",
-        "selected_counts": {}
-      },
       "number": 5,
-      "requirement": "Complete compiler/runtime suites including ignored cases, actual selected Stage3 external behavior and coverage audit",
+      "requirement": "Complete compiler/runtime suites including ignored cases and actual final self-built frontend coverage",
       "status": "pending"
     }
   ],
   "schema": 1,
-  "source_audit": {
-    "frozen_inputs": 867,
-    "publication_metadata_deltas": [
-      "README.md",
-      "bootstrap/progress.json",
-      "bootstrap/test-support-object-roots.json",
-      "design/next-steps.md"
-    ]
-  },
-  "source_sha256": "f6e166c9ec48a7b30526db7d16f360c56204c5de4b6005f91ae54a350bd07808",
-  "status": "open-acceptance-audit",
-  "audit_script_sha256": "fc911d2adc69a586b3094a174e63b78d20bdf3da19a83f689f020f2ab84c6cb1"
+  "source_sha256": "72a62361a93da731ea5fe5becb9dc9828db00dda3f9b87cfcb7caf67d3177dee",
+  "stages": [
+    {
+      "compiler_sha256": "cddbae33387034970a7e55130042220d4d02d4f02203af36627f8ac7aaa9f419",
+      "stage": 0,
+      "status": "passed"
+    },
+    {
+      "compiler_sha256": "3960407e69a778e20b83525b70b484b6c1fddc22b8010d9dd5527198d7c150ac",
+      "stage": 1,
+      "status": "passed"
+    }
+  ],
+  "status": "open-current-source-acceptance-audit"
 }
