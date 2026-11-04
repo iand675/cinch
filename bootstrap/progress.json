@@ -1,5 +1,5 @@
 {
-  "activity": "Current source: all 127 ordinary target groups pass. Bootstrap-specific groups: 11 of 81 passed, 0 running and 0 failed. Matching runtime, tooling and syntax/editor gates are separate requirements. Fresh final-source stages built and smoke-tested: 3 of4; combined gate running-full-stage-chain. Additional Stage3 coverage: ordinary: 0 of 8 passed, 0 running, 0 failed (stopped-before-execution-after-known-source-failure); mixed: 0 of 4 passed, 0 running, 0 failed (stopped-before-execution-after-known-source-failure). Self-built portable bootstrap suite: 0 of 79 groups passed, 0 running, 0 failed; state stopped-before-execution-after-known-source-failure.",
+  "activity": "Current source: all 127 ordinary target groups pass. Bootstrap-specific groups: 11 of 81 passed, 0 running and 0 failed. Matching runtime, tooling and syntax/editor gates are separate requirements. Fresh final-source stages built and smoke-tested: 3 of4; combined gate stopped-after-known-source-behavior-failure. Additional Stage3 coverage: ordinary: 0 of 8 passed, 0 running, 0 failed (stopped-before-execution-after-known-source-failure); mixed: 0 of 4 passed, 0 running, 0 failed (stopped-before-execution-after-known-source-failure). Self-built portable bootstrap suite: 0 of 79 groups passed, 0 running, 0 failed; state stopped-before-execution-after-known-source-failure.",
   "blockers": [
     {
       "title": "Complete escaped constructor support",
@@ -7,7 +7,7 @@
     },
     {
       "title": "Validate the additional Stage3 repairs",
-      "detail": "Allocation programs exposed missing I64 primitive contracts and pure Unit-entry rejection. Candidate2ran a pure Unitentry with zero leaks, then failed at a function-valued entry because legacy clause checking demanded all arguments. Candidate3also checks the body against the residual function type, with over-arity and wrong-body refusals retained. Focused tests: passed; new compiler bootstrap: running-full-stage-chain. Earlier green bootstrap results remain scoped to their original source."
+      "detail": "Allocation programs exposed missing I64 primitive contracts and pure Unit-entry rejection. Candidate2ran a pure Unitentry with zero leaks, then failed at a function-valued entry because legacy clause checking demanded all arguments. Candidate3also checks the body against the residual function type, with over-arity and wrong-body refusals retained. Focused tests: passed; new compiler bootstrap: stopped-after-known-source-behavior-failure. Earlier green bootstrap results remain scoped to their original source."
     },
     {
       "title": "Finish every current-source compiler test",
@@ -255,11 +255,11 @@
     {
       "name": "Stage 3",
       "state": "pending",
-      "label": "Building",
+      "label": "Pending",
       "description": "Rebuilt by Stage2; the combined gate compares IR and 43 interfaces and checks API consumption and changed-source behavior."
     }
   ],
   "status": "Stage2 allocation regression requires repair",
   "summary": "The current source builds Stage2 and passes its smoke checks, but an actual external allocation test fails: the Cinch backend refuses the existing escaped-constructor runtime representation. A separate source repair is queued for full focused validation. Final acceptance remains open.",
-  "updatedAt": "2026-11-04T02:47:52.458518+00:00"
+  "updatedAt": "2026-11-04T02:54:55.124674+00:00"
 }
