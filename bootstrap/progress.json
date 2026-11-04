@@ -33,7 +33,7 @@
   "checks": [
     {
       "title": "Escaped constructor repair",
-      "detail": "The current Stage2 allocation regression exposed unsupported70constructor families. The repair uses the existing runtime descriptor format and adds actual65tag, recursive first-class and generic representation-class executions. Complete runtime/parser/checker validation: running. This repair is not yet a verified fresh bootstrap.",
+      "detail": "The current Stage2 allocation regression exposed unsupported70constructor families. The repair uses the existing runtime descriptor format and adds actual65tag, recursive first-class and generic representation-class executions. Complete runtime/parser/checker validation: failed. This repair is not yet a verified fresh bootstrap.",
       "state": "running"
     },
     {
@@ -261,5 +261,5 @@
   ],
   "status": "Stage2 allocation regression requires repair",
   "summary": "The current source builds Stage2 and passes its smoke checks, but an actual external allocation test fails: the Cinch backend refuses the existing escaped-constructor runtime representation. A separate source repair is queued for full focused validation. Final acceptance remains open.",
-  "updatedAt": "2026-11-04T02:54:55.124674+00:00"
+  "updatedAt": "2026-11-04T02:55:57.611006+00:00"
 }
