@@ -21,7 +21,7 @@
       "name": "Stage 2",
       "state": "pending",
       "label": "Pending",
-      "description": "Every compiler module is being freshly rebuilt by Stage1; all repair gates passed."
+      "description": "Every compiler module will be freshly rebuilt by Stage1 after all repair gates pass."
     },
     {
       "name": "Stage 3",
@@ -33,8 +33,8 @@
   "checks": [
     {
       "title": "Current repair gates",
-      "detail": "6 of 6 complete groups passed; 0 running, 0 failed and 0 pending. independent type checker: passed; Core validation: passed; typechecker: passed; inference: passed; runtime behavior: passed; library calls: passed. All 43 source-module check: passed.",
-      "state": "passed"
+      "detail": "0 of 6 complete groups passed; 4 running, 0 failed and 2 pending. independent type checker: running; Core validation: running; typechecker: running; inference: running; runtime behavior: pending; library calls: pending. All 43 source-module check: passed.",
+      "state": "running"
     },
     {
       "title": "Published Rust improvement: 16 tests passed",
@@ -105,11 +105,19 @@
   "blockers": [
     {
       "title": "Implement structured tasks in the self-built compiler",
-      "detail": "Direct do and the fresh scoped-region Core foundation are published and validated.23 scope/evidence/escape checks pass at five large identifier sizes; all125 runtime programs pass with zero leaks. Source withScope/spawn/joinAllOrCancel, exact-once task handles, capture lifetimes and physical task lowering remain unfinished. The original task-exhaustion test is unchanged."
+      "detail": "Structured task frontend, ownership/lifetime checks and real runtime lowering are implemented locally; all43 compiler modules check. Six complete regression groups are running, including seven real task programs and twelve safety refusals. A new Rust hidden-closure scope-escape bug is reproduced and its fix is under independent validation. Original task exhaustion and a fresh full bootstrap are still required."
+    },
+    {
+      "title": "Finish the repair gates",
+      "detail": "0 of 6 complete groups passed; 4 running, 0 failed and 2 pending. independent type checker: running; Core validation: running; typechecker: running; inference: running; runtime behavior: pending; library calls: pending."
+    },
+    {
+      "title": "Publish the validated repair",
+      "detail": "The previous published compiler checkpoint remains linked below until the repair source is pushed."
     },
     {
       "title": "Finish the fresh bootstrap",
-      "detail": "All repair gates passed. Stage2 is rebuilding the compiler; Stage3, matching code/interfaces, actual API consumption and changed-source checks remain."
+      "detail": "Stage2 waits for all repair gates; Stage2/3 must then match and pass actual API/changed-source checks."
     },
     {
       "title": "Finish all current compiler tests",
@@ -158,10 +166,10 @@
       "title": "Earlier source: Changed-source rebuilding verified"
     }
   ],
-  "candidateSource": "6cb4a980e5d7a90ffdb621d456092233ae4e3d8c113c3ea953d37b45b08441c5",
-  "candidatePublished": true,
+  "candidateSource": "c8ef1213d82ebf23787582b76f26762449280f75b3960651aced5ca159c221fc",
+  "candidatePublished": false,
   "fullGoalComplete": false,
-  "summary": "All 43 compiler-source checks: passed. 6 of 6 complete groups passed; 0 running, 0 failed and 0 pending. independent type checker: passed; Core validation: passed; typechecker: passed; inference: passed; runtime behavior: passed; library calls: passed.",
-  "activity": "Complete sweep of the new Cinch source: 0 of 208 complete groups passed; 0 running, 0 failed and 208 pending. Stage builds and smoke checks: 0 of 4; chain state: pending. Repair gates: 6 of 6 complete groups passed; 0 running, 0 failed and 0 pending. independent type checker: passed; Core validation: passed; typechecker: passed; inference: passed; runtime behavior: passed; library calls: passed. Early Stage1 behavior: 0 of 8 complete groups passed; 0 running, 0 failed and 8 pending. Exact final Stage3 suite: 0 of 91 complete groups passed; 0 running, 0 failed and 91 pending.",
-  "updatedAt": "2026-11-04T10:54:21.906439+00:00"
+  "summary": "All 43 compiler-source checks: passed. 0 of 6 complete groups passed; 4 running, 0 failed and 2 pending. independent type checker: running; Core validation: running; typechecker: running; inference: running; runtime behavior: pending; library calls: pending. The repair source remains local while its full focused validation finishes.",
+  "activity": "Complete sweep of the new Cinch source: 0 of 208 complete groups passed; 0 running, 0 failed and 208 pending. Stage builds and smoke checks: 0 of 4; chain state: pending. Repair gates: 0 of 6 complete groups passed; 4 running, 0 failed and 2 pending. independent type checker: running; Core validation: running; typechecker: running; inference: running; runtime behavior: pending; library calls: pending. Early Stage1 behavior: 0 of 8 complete groups passed; 0 running, 0 failed and 8 pending. Exact final Stage3 suite: 0 of 91 complete groups passed; 0 running, 0 failed and 91 pending.",
+  "updatedAt": "2026-11-04T11:56:38.747412+00:00"
 }
