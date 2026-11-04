@@ -13,8 +13,8 @@
     },
     {
       "name": "Stage 1",
-      "state": "pending",
-      "label": "Building",
+      "state": "passed",
+      "label": "Verified",
       "description": "Fresh Cinch compiler built from the seed; all three smoke checks."
     },
     {
@@ -43,12 +43,12 @@
     },
     {
       "title": "Fresh compiler bootstrap",
-      "detail": "1 of 4 stages built and smoke-tested. Fixed point, 43 interfaces, API consumption and changed-source behavior are required.",
+      "detail": "2 of 4 stages built and smoke-tested. Fixed point, 43 interfaces, API consumption and changed-source behavior are required.",
       "state": "running"
     },
     {
       "title": "Early behavior through fresh Stage1",
-      "detail": "0 of 8 complete groups passed; 0 running, 0 failed and 8 pending.These original eight ordinary targets give early feedback and do not replace final Stage3 acceptance.",
+      "detail": "0 of 8 complete groups passed; 1 running, 0 failed and 7 pending.These original eight ordinary targets give early feedback and do not replace final Stage3 acceptance.",
       "state": "running"
     },
     {
@@ -128,6 +128,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "The repair candidate passes all 43 compiler-source checks. 3 of 4 complete groups passed; 1 running, 0 failed and 0 pending. library calls: running; runtime behavior: passed; parser: passed; typechecker: passed.",
-  "activity": "Current compiler sweep: 3 of 208 complete groups passed; 0 running, 0 failed and 205 pending. Stage builds and smoke checks: 1 of 4; chain state: running-full-stage-chain. Repair gates: 3 of 4 complete groups passed; 1 running, 0 failed and 0 pending. library calls: running; runtime behavior: passed; parser: passed; typechecker: passed. Early Stage1 behavior: 0 of 8 complete groups passed; 0 running, 0 failed and 8 pending. Exact final Stage3 suite: 0 of 91 complete groups passed; 0 running, 0 failed and 91 pending.",
-  "updatedAt": "2026-11-04T04:01:34.806860+00:00"
+  "activity": "Current compiler sweep: 3 of 208 complete groups passed; 0 running, 0 failed and 205 pending. Stage builds and smoke checks: 2 of 4; chain state: waiting-all-focused-gates-before-stage2. Repair gates: 3 of 4 complete groups passed; 1 running, 0 failed and 0 pending. library calls: running; runtime behavior: passed; parser: passed; typechecker: passed. Early Stage1 behavior: 0 of 8 complete groups passed; 1 running, 0 failed and 7 pending. Exact final Stage3 suite: 0 of 91 complete groups passed; 0 running, 0 failed and 91 pending.",
+  "updatedAt": "2026-11-04T04:06:17.614234+00:00"
 }
