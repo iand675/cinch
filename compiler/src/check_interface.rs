@@ -355,11 +355,17 @@ impl Checker {
                     || matches!(name.as_str(), "Int" | "Nat" | "Bool" | "Unit" | "Bytes" | "Sym" | "Array" | "Tensor" | "Columnar")) { name }
                 else {
                     let info = self.lookup_type(&parts).ok()?;
-                    // Kernel modalities and application units need richer
-                    // identities than a source data/opaque declaration.
-                    if info.module == "<builtin>" { return None }
-                    references.insert((info.module.clone(), info.name.clone()));
-                    format!("{}.{}", info.module, info.name)
+                    // Scope and Task are owned kernel type constructors,
+                    // not nominal declarations in a fabricated module. Resolve
+                    // the actual declaration before recognizing them, so a
+                    // source type with the same spelling retains its owner.
+                    if info.module == "<builtin>" {
+                        if matches!(info.name.as_str(), "Scope" | "Task") { info.name.clone() }
+                        else { return None }
+                    } else {
+                        references.insert((info.module.clone(), info.name.clone()));
+                        format!("{}.{}", info.module, info.name)
+                    }
                 }
             }
             ast::Type::Var(name, _) if vars.contains(&name.text) => name.text.clone(),

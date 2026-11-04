@@ -1,5 +1,27 @@
 # Self-hosting
 
+## Published task compiler rebuilds itself; API export follow-up open
+
+The published structured-task compiler completes a fresh Stage0/1/2/3 chain.
+All stage smoke tests pass. Stage2 and Stage3 have identical compiler IR,
+executables and all43 checked interfaces. The final compiler consumes those
+actual emitted APIs without compiler bodies; Stage2 rebuilds changed compiler
+source and the rebuilt executable exhibits the changed diagnostic.
+See [the independent chain proof](../bootstrap/current-structured-task-bootstrap-results.json).
+The original four-test exhaustion group also passes through fresh Stage1,
+including actual task stack exhaustion. Complete final Stage3 tests remain open.
+
+A separate module-boundary probe found Scope/Task interface export refusals.
+The local Cinch repair passes real writer/reexport/reader/client and pipeline
+checks. Its type-export oracle exposed a Rust producer gap: checked Scope/Task
+signatures omitted resolved metadata. That Rust repair now passes nine tests
+across six complete groups, including source Shadow.Scope retaining its owner.
+See [the scoped Rust proof](../bootstrap/current-rust-task-interface-results.json).
+All43 compiler sources check through the repaired host. The combined Cinch/API
+repair is in a new nine-group run; it requires a fresh final source chain and
+all matching suites. Acceptance1-4 above applies to published6b task source;
+Acceptance5 and the full goal remain open.
+
 ## Structured task execution verified
 
 The Cinch compiler now elaborates withScope, spawn and joinAllOrCancel into

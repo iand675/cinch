@@ -1,0 +1,90 @@
+{
+  "full_goal_complete": false,
+  "groups": 6,
+  "limitations": "Scoped Rust producer proof only. The local Cinch two-file API export repair is in a fresh nine-group regression run. Full final-source bootstrap and matching suites remain required.",
+  "mechanism": "Resolve the actual type declaration before serializing builtin Scope/Task as kernel identities. Emit full checked binder kinds with no fabricated builtin module/nominal declarations. A source-defined Shadow.Scope remains a definition-owned nominal.",
+  "regressions": "Native real interface production/canonical schema8 readback and dependency checks cover Scope and Task with Region binders, plus an identically named source Scope preserving its owning module. All previous interface/kind/class/refinement/identity checks remain.",
+  "rows": [
+    {
+      "binary": "/tmp/cinch-rust-task-interface-validation-1/cargo/debug/deps/interface_region_effects-a40a0643bee06bcc",
+      "binary_sha256": "05d859fbf049877b93a39949ed6349198ef87c1d52c51a2f4d6b676f9e2d3de0",
+      "exit_code": 0,
+      "log": "/tmp/cinch-rust-task-interface-validation-1/interface_region_effects.log",
+      "log_sha256": "5d78841d720a755e35a6a3157b3d913dc8cf3aa5a215aedf7388ad32f7d7fc3a",
+      "name": "interface_region_effects",
+      "status": "passed",
+      "tests": 2
+    },
+    {
+      "binary": "/tmp/cinch-rust-task-interface-validation-1/cargo/debug/deps/interface_nominals-b971c55610e05eee",
+      "binary_sha256": "9423c4bd0ff935eeeb797f52b60c4a5e8035b9f7f25b0011f77206b0a169779c",
+      "exit_code": 0,
+      "log": "/tmp/cinch-rust-task-interface-validation-1/interface_nominals.log",
+      "log_sha256": "60a4533b2f0f1d4de5abed0041f69f7c52dd756544a479505f43659418b61e4d",
+      "name": "interface_nominals",
+      "status": "passed",
+      "tests": 1
+    },
+    {
+      "binary": "/tmp/cinch-rust-task-interface-validation-1/cargo/debug/deps/interface_kinds-50a2c803475e0226",
+      "binary_sha256": "7e3a30c0e45fc43d2032283e3126f7436e3ad6e955325fec210a754d288c6b24",
+      "exit_code": 0,
+      "log": "/tmp/cinch-rust-task-interface-validation-1/interface_kinds.log",
+      "log_sha256": "9fe1e4129ba4f2959ff43da5a3b9c9ab4b633429627bfd5965df1a41e6826464",
+      "name": "interface_kinds",
+      "status": "passed",
+      "tests": 1
+    },
+    {
+      "binary": "/tmp/cinch-rust-task-interface-validation-1/cargo/debug/deps/interface_class_contracts-c7f87e16317c47a0",
+      "binary_sha256": "c930dffd40009e0095817e607a9adf106e8ac8bbf4a10f3bd606858add7779e2",
+      "exit_code": 0,
+      "log": "/tmp/cinch-rust-task-interface-validation-1/interface_class_contracts.log",
+      "log_sha256": "0c8ce3b9afab9c124b4dd4b151fe4ab257f5ed6e932f14df7bf7044d4ff3a1c5",
+      "name": "interface_class_contracts",
+      "status": "passed",
+      "tests": 1
+    },
+    {
+      "binary": "/tmp/cinch-rust-task-interface-validation-1/cargo/debug/deps/interface_refinement_closure-44edd08c3fc749fa",
+      "binary_sha256": "84720c0e93d0f04a231ecff7e0e4539825113d0cc8895b3b6d04faf23c0df1f2",
+      "exit_code": 0,
+      "log": "/tmp/cinch-rust-task-interface-validation-1/interface_refinement_closure.log",
+      "log_sha256": "7e92c9ecc216da1a75534c6b3dfde1027e20703be1026bf2ef9be32fe6b7d092",
+      "name": "interface_refinement_closure",
+      "status": "passed",
+      "tests": 1
+    },
+    {
+      "binary": "/tmp/cinch-rust-task-interface-validation-1/cargo/debug/deps/class_identity-debaf7dd07d1a288",
+      "binary_sha256": "7b4517952821291c675afa70d93476ea6823661e78e702b7d36193d51c56f5ba",
+      "exit_code": 0,
+      "log": "/tmp/cinch-rust-task-interface-validation-1/class_identity.log",
+      "log_sha256": "a4f707eae6fcbc70b170c2e341e4a69b6ddb5719ef8f89163e6e819b212d7591",
+      "name": "class_identity",
+      "status": "passed",
+      "tests": 3
+    }
+  ],
+  "schema": 1,
+  "source": "/tmp/cinch-rust-task-interface-validation-1/source",
+  "source_check": {
+    "compiler_source_sha256": "a93c6a7eef3a95be2d1fbac87794cb08eb6b0fcc00d293a521c9fb568186cc27",
+    "exit_code": 0,
+    "full_goal_complete": false,
+    "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "pid": 65518,
+    "preflight_native": {
+      "authority": "Actual Native CLI with Rust hidden-scope-capture fix; exact Rust/prelude/runtime/Cargo input identities checked. No Cargo cache reuse across paths.",
+      "path": "/tmp/cinch-rust-task-interface-validation-1/cargo/debug/cinch",
+      "sha256": "c5a11888e8dfb0e3a700cf41552ecbd7cb182ddf7230a77b855cbbe6044ac059"
+    },
+    "source": "/tmp/cinch-task-source-check-13/source",
+    "source_sha256": "1d75a2ca891b0344383f66ce25c30bb6ca22b094208c8d3c14b543e9c5a41d6f",
+    "status": "passed"
+  },
+  "source_sha256": "954c579ca8e5b8ac72be0aa68cf45fbed2406a46436878596c138590125ce88b",
+  "status": "passed-rust-kernel-task-interface-repair",
+  "tests": 9,
+  "verified_at": "2026-11-04T13:36:43.427617+00:00"
+}

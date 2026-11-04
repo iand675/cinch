@@ -52,3 +52,37 @@ fn resolved_contracts_keep_region_binders_and_closed_kernel_effects() {
     assert!(Iface::from_json(&a.to_json().replace(&format!("\"schema\":{SCHEMA_VERSION}"), "\"schema\":5")).is_err());
     common::cleanup(&dir);
 }
+
+#[test]
+fn scope_and_task_contracts_preserve_kernel_and_source_type_owners() {
+    let source = r#"module Scoped where
+  inspect :: forall r s. Scope r s -> Int
+  inspect token = 7
+  pending :: forall s e a. Unit -> Task s e a
+  pending unit = pending unit
+module Shadow where
+  data Scope where
+    ScopeValue :: Scope
+  identity :: Shadow.Scope -> Shadow.Scope
+  identity value = value
+module Main where
+  main :: Int
+  main = 0
+"#;
+    let (_, interfaces) = cinch::driver::check_sources_ifaces(source, "scope-task-interface.cinch").unwrap();
+    let scoped = interfaces.iter().find(|i| i.module == "Scoped").unwrap();
+    let readback = Iface::from_json(&scoped.to_json()).expect("real schema8 kernel-contract readback");
+    assert_eq!(readback.to_json(), scoped.to_json());
+    for (name, kernel) in [("inspect", "Scope"), ("pending", "Task")] {
+        let value = readback.exports.values.iter().find(|v| v.name == name).unwrap();
+        let resolved = value.resolved.as_ref().unwrap_or_else(|| panic!("missing {name}: {}", value.scheme));
+        assert!(resolved.scheme.contains(kernel) && resolved.scheme.contains(":: Region"));
+        assert!(resolved.nominals.is_empty(), "kernel carriers must not invent module-owned nominal contracts");
+        assert!(!resolved.scheme.contains("<builtin>."));
+    }
+    let shadow = interfaces.iter().find(|i| i.module == "Shadow").unwrap();
+    let identity = shadow.exports.values.iter().find(|v| v.name == "identity").unwrap().resolved.as_ref().unwrap();
+    assert!(identity.scheme.contains("Shadow.Scope"));
+    assert!(identity.nominals.iter().any(|n| n.identity == "Shadow.Scope"));
+    cinch::interface::verify_chain(&interfaces).expect("actual source owners and dependencies");
+}
