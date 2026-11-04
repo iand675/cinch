@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "estimate": 90,
-  "commit": "036d58a",
+  "commit": "fc20289",
   "estimateNote": "Rough engineering estimate. Verified checks and remaining work are listed below.",
   "status": "Verification found a failure; correction required",
   "stages": [
@@ -53,7 +53,7 @@
     },
     {
       "title": "Preceding value-index compiler: complete Native sweep",
-      "detail": "50 of 208 complete groups passed; 0 running, 0 failed and 158 pending.Every group includes ignored tests. State: running. Earlier API checkpoint; the published intrinsic repair still needs its own final matching run.",
+      "detail": "67 of 208 complete groups passed; 0 running, 0 failed and 141 pending.Every group includes ignored tests. State: stopped-superseded-source. Earlier API checkpoint; the published intrinsic repair still needs its own final matching run.",
       "state": "running"
     },
     {
@@ -82,6 +82,11 @@
       "state": "passed"
     },
     {
+      "title": "Published Rust literal repair: 82 tests passed",
+      "detail": "All six complete affected groups, all 43 compiler modules and all six original CLI reproductions passed independently. Numeric literals use the actual checked refinement binder; failed predicates and invalid carriers/ranges remain rejected. Full matching suites are still required.",
+      "state": "passed"
+    },
+    {
       "title": "Previous compiler: all 1,274 Native tests passed",
       "detail": "All 208 groups passed on the preceding 018a Cinch compiler with the same Rust, prelude and runtime inputs. Exact binaries, full logs and source were independently audited. The new Cinch source still needs its complete sweep.",
       "state": "passed"
@@ -103,14 +108,14 @@
     },
     {
       "title": "Proposed compiler repair",
-      "detail": "Separate unpublished source: waiting-reserved-compile-slot. All 43 compiler modules: pending. 0 of 8 complete groups passed; 0 running, 0 failed and 8 pending. This does not replace current-source or final Stage3 acceptance.",
+      "detail": "Separate unpublished source: waiting-reserved-compile-slot. All 43 compiler modules: pending. 0 of 27 complete groups passed; 0 running, 0 failed and 27 pending. This does not replace current-source or final Stage3 acceptance.",
       "state": "running"
     }
   ],
   "blockers": [
     {
-      "title": "Verify published diagnostic compiler and complete interface parity",
-      "detail": "Diagnostic repair036d58a is pushed to main: all43sourcechecks,21complete affectedgroups,139runtime programs and335Coreassertions pass independently. All9original byte diagnostic tests pass; previous ef4Stage3 confirms the corrected8/9diagnostic issue. This new source still needs matching finalchain/full suites. Refinement interface candidates pass defining/private template, constructor, method and instance-head export readback; broadergroups continue. NamedNonZero parser repair passes all43sourcechecks and8affectedgroups are queued. Rust anonymous numeric refinement literals incorrectly required named-type metadata; a separate repair with6fullgroups and43sourcechecks is queued. Remaining API parity and100target/Acceptance1-5audit remainopen."
+      "title": "Finish combined interface validation and final matching suites",
+      "detail": "Rust literal repair fc20289 is pushed: all82tests in6complete groups,43compiler modules and6originalCLI repros independently pass. DiagnosticCinch ffee retains21complete groups and9originalbyte diagnostic passes. Latest interface candidate10 combines this exact Rust source with namedNonZero syntax, defining/private refinement closures and capture-free dependent/result binder exports;27completegroups follow its fresh43modulecheck. Corrected pipeline8passes. Superseded candidates drain their active children; previous Native38 retired only at an observed idle boundary, preserving completed evidence. All final matching Native/self-built/runtime/tool/editor/external suites and100target/Acceptance1-5audit remain required."
     },
     {
       "title": "Investigate the recorded failure",
@@ -122,7 +127,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "50 of 208 complete groups passed; 0 running, 0 failed and 158 pending. Earlier API checkpoint; the published intrinsic repair still needs its own final matching run."
+      "detail": "67 of 208 complete groups passed; 0 running, 0 failed and 141 pending. Earlier API checkpoint; the published intrinsic repair still needs its own final matching run."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -171,6 +176,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "All 43 compiler-source checks: passed. 21 of 21 complete groups passed; 0 running, 0 failed and 0 pending. independent type checker: passed; bootstrap_globals: passed; inference: passed; typechecker: passed; bootstrap_byte_observations: passed; bootstrap_resolve: passed; Core validation: passed; index scope and representation: passed; bootstrap_value_indices: passed; bootstrap_pipeline: passed; runtime behavior: passed; library calls: passed; bootstrap_function_preconditions: passed; bootstrap_refinement_closure: passed; bootstrap_refinement_constructors: passed; bootstrap_imported_preconditions: passed; refinements and effects: passed; bootstrap_refinement_core: passed; bootstrap_refinement_types: passed; bootstrap_nonzero_source: passed; bootstrap_named_refinements: passed.",
-  "activity": "Preceding value-index compiler: complete Native sweep: 50 of 208 complete groups passed; 0 running, 0 failed and 158 pending. Stage builds and smoke checks: 4 of 4; chain state: passed; earlier API source, not the published repair. Repair gates: 21 of 21 complete groups passed; 0 running, 0 failed and 0 pending. independent type checker: passed; bootstrap_globals: passed; inference: passed; typechecker: passed; bootstrap_byte_observations: passed; bootstrap_resolve: passed; Core validation: passed; index scope and representation: passed; bootstrap_value_indices: passed; bootstrap_pipeline: passed; runtime behavior: passed; library calls: passed; bootstrap_function_preconditions: passed; bootstrap_refinement_closure: passed; bootstrap_refinement_constructors: passed; bootstrap_imported_preconditions: passed; refinements and effects: passed; bootstrap_refinement_core: passed; bootstrap_refinement_types: passed; bootstrap_nonzero_source: passed; bootstrap_named_refinements: passed. Early Stage1 behavior: 7 of 8 complete groups passed; 0 running, 1 failed and 0 pending. Exact final Stage3 suite: 7 of 91 complete groups passed; 0 running, 1 failed and 83 pending. Proposed compiler repair (separate unpublished source): waiting-reserved-compile-slot; 0 of 8 complete groups passed; 0 running, 0 failed and 8 pending.",
-  "updatedAt": "2026-11-04T18:28:08.172182+00:00"
+  "activity": "Preceding value-index compiler: complete Native sweep: 67 of 208 complete groups passed; 0 running, 0 failed and 141 pending. Stage builds and smoke checks: 4 of 4; chain state: passed; earlier API source, not the published repair. Repair gates: 21 of 21 complete groups passed; 0 running, 0 failed and 0 pending. independent type checker: passed; bootstrap_globals: passed; inference: passed; typechecker: passed; bootstrap_byte_observations: passed; bootstrap_resolve: passed; Core validation: passed; index scope and representation: passed; bootstrap_value_indices: passed; bootstrap_pipeline: passed; runtime behavior: passed; library calls: passed; bootstrap_function_preconditions: passed; bootstrap_refinement_closure: passed; bootstrap_refinement_constructors: passed; bootstrap_imported_preconditions: passed; refinements and effects: passed; bootstrap_refinement_core: passed; bootstrap_refinement_types: passed; bootstrap_nonzero_source: passed; bootstrap_named_refinements: passed. Early Stage1 behavior: 7 of 8 complete groups passed; 0 running, 1 failed and 0 pending. Exact final Stage3 suite: 7 of 91 complete groups passed; 0 running, 1 failed and 83 pending. Proposed compiler repair (separate unpublished source): waiting-reserved-compile-slot; 0 of 27 complete groups passed; 0 running, 0 failed and 27 pending.",
+  "updatedAt": "2026-11-04T18:33:39.723861+00:00"
 }
