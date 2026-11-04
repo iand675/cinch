@@ -58,7 +58,7 @@
     },
     {
       "title": "Complete suite on newly published Rust and Cinch source",
-      "detail": "171 of 208 complete groups passed; 3 running, 0 failed and 34 pending.Every group includes ignored tests. State: running.",
+      "detail": "173 of 208 complete groups passed; 4 running, 0 failed and 31 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -73,7 +73,7 @@
     },
     {
       "title": "Complete behavior through exact final Stage3",
-      "detail": "8 of 91 complete groups passed; 1 running, 0 failed and 82 pending.79 bootstrap groups, eight ordinary targets, three complete mixed consumers and the designed ABI5 array refusal. Native library fixtures remain explicit; selected compiler failures never fall back.",
+      "detail": "9 of 91 complete groups passed; 1 running, 0 failed and 81 pending.79 bootstrap groups, eight ordinary targets, three complete mixed consumers and the designed ABI5 array refusal. Native library fixtures remain explicit; selected compiler failures never fall back.",
       "state": "running"
     },
     {
@@ -128,7 +128,7 @@
     },
     {
       "title": "Proposed compiler repair",
-      "detail": "Separate unpublished source: failed. All 43 compiler modules: pending. 3 of 15 complete groups passed; 0 running, 1 failed and 11 pending. This does not replace current-source or final Stage3 acceptance.",
+      "detail": "Separate unpublished source: waiting-compile-slot. All 43 compiler modules: pending. 0 of 15 complete groups passed; 0 running, 0 failed and 15 pending. This does not replace current-source or final Stage3 acceptance.",
       "state": "running"
     },
     {
@@ -140,7 +140,7 @@
   "blockers": [
     {
       "title": "Finish final suites, proof soundness, and ABI6 arrays",
-      "detail": "Published 791acbc: current compiler has independently verified Stage0\u20133 bootstrapping, matching Stage2/3 code and 43 interfaces, actual API consumption and changed-source rebuilding. All 171 runtime, 41 tooling and 39 editor tests pass; all 14 final Stage3 external checks and the complete corrected decision-authority group pass independently. Complete Native and Stage3 sweeps continue. The current unpublished ABI6 array candidate has now passed the entire 15-test array group: all 31 Cinch-emitted programs return expected values with zero leaks; all 12 type/kind/range negatives and all three malformed List/Option layout refusals pass. Its remaining 14 complete groups continue. A separate exact-bit nonempty F32/F64 regression is queued, covering signed zero, infinities, NaN payloads, subnormals, persistence, slices and mixed-format appends. A valid Native source replacement of Data.Core exposed a Rust collection-order bug; a fix preserving the defining manifest slot plus Core/Ordering regressions is queued for nine complete suites. No Native ABI-safety conclusion is drawn from probes with failed controls. Current Rust still accepts a recursive false-proof counterexample; the peer repair remains isolated. Proof soundness, intentional ABI6 stage pin/new chain, original API parity and full Acceptance 5 remain open."
+      "detail": "Published 791acbc still has verified Stage0\u20133 fixed-point bootstrapping, all 251 auxiliary tests, all 14 exact Stage3 external checks, and the complete corrected decision-authority group. Complete Native and Stage3 sweeps continue. The unpublished array candidate passed its complete array group: 31 expected runtime results with zero leaks, 12 type/kind/range negatives and three malformed-layout refusals. Its decision and nominal groups also passed, then an isolated effect-type fixture exposed a missing new Nominal-to-Builtin dependency. That fixture dependency is corrected; a fresh 15-group sweep starts with actual array interface roundtrips and the originally failing effect group. Nonempty float-array tests initially refused the C fixture because its effects were omitted; those effects are now declared and propagated, and the corrected bit-pattern test is running. Rust\u2019s unchanged Core source replacement ordering bug is independently reproduced. The manifest-position fix passes Core/Ordering plus existing family-override controls, prelude split, prelude library and Native arrays so far; the remaining five complete affected groups and source checks continue. Proof soundness, positive ABI6 stage pin/new chain, original API parity and full Acceptance 5 remain open."
     },
     {
       "title": "Investigate the recorded failure",
@@ -148,11 +148,11 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "171 of 208 complete groups passed; 3 running, 0 failed and 34 pending."
+      "detail": "173 of 208 complete groups passed; 4 running, 0 failed and 31 pending."
     },
     {
       "title": "Finish the exact self-built compiler tests",
-      "detail": "8 of 91 complete groups passed; 1 running, 0 failed and 82 pending."
+      "detail": "9 of 91 complete groups passed; 1 running, 0 failed and 81 pending."
     },
     {
       "title": "Complete the coverage and acceptance audit",
@@ -189,6 +189,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "The fresh current-source compiler chain passes its smoke tests, matching Stage2/Stage3 IR, executable and all 43 canonical interfaces, actual API consumption and changed-source behavior. Complete tests and the final acceptance audit remain separate requirements.",
-  "activity": "Complete suite on newly published Rust and Cinch source: 171 of 208 complete groups passed; 3 running, 0 failed and 34 pending. Stage builds and smoke checks: 4 of 4; chain state: passed. Repair gates: 9 of 9 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_nominals: passed; bootstrap_export_interfaces: passed; bootstrap_pipeline: passed; interface_region_effects: passed; bootstrap_source_effects: passed; effects: passed; hk: passed; params: passed; folded_literal_ownership: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 8 of 91 complete groups passed; 1 running, 0 failed and 82 pending. Proposed compiler repair (separate unpublished source): failed; 3 of 15 complete groups passed; 0 running, 1 failed and 11 pending.",
-  "updatedAt": "2026-11-04T23:49:53.187100+00:00"
+  "activity": "Complete suite on newly published Rust and Cinch source: 173 of 208 complete groups passed; 4 running, 0 failed and 31 pending. Stage builds and smoke checks: 4 of 4; chain state: passed. Repair gates: 9 of 9 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_nominals: passed; bootstrap_export_interfaces: passed; bootstrap_pipeline: passed; interface_region_effects: passed; bootstrap_source_effects: passed; effects: passed; hk: passed; params: passed; folded_literal_ownership: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 9 of 91 complete groups passed; 1 running, 0 failed and 81 pending. Proposed compiler repair (separate unpublished source): waiting-compile-slot; 0 of 15 complete groups passed; 0 running, 0 failed and 15 pending.",
+  "updatedAt": "2026-11-04T23:50:54.942910+00:00"
 }
