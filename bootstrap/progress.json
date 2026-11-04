@@ -1,5 +1,5 @@
 {
-  "activity": "Current full suite: 5 of 208 groups passed, 3 running and 0 failed. Runtime171, tooling41 and syntax/editor39 already pass on this exact snapshot. Fresh final-source stage chain: 1 of 4 stages built and smoke-tested; combined fixed-point gate running-full-stage-chain. Additional Stage3 coverage: ordinary: 0 of 8 passed, 0 running, 0 failed (waiting-current-chain-and-runners); mixed: 0 of 4 passed, 0 running, 0 failed (waiting-current-chain-and-runners). Self-built portable bootstrap suite: 0 of 79 groups passed, 0 running, 0 failed; state waiting-current-chain-and-runners.",
+  "activity": "Current full suite: 5 of 208 groups passed, 3 running and 0 failed. Matching runtime, tooling and syntax/editor gates are tracked separately. Fresh final-source stage chain: 1 of 4 stages built and smoke-tested; combined fixed-point gate running-full-stage-chain. Additional Stage3 coverage: ordinary: 0 of 8 passed, 0 running, 0 failed (waiting-current-chain-and-runners); mixed: 0 of 4 passed, 0 running, 0 failed (waiting-current-chain-and-runners). Self-built portable bootstrap suite: 0 of 79 groups passed, 0 running, 0 failed; state waiting-current-chain-and-runners.",
   "blockers": [
     {
       "title": "Validate the additional Stage3 repairs",
@@ -246,5 +246,5 @@
   ],
   "status": "Repair gates passed; fresh bootstrap underway",
   "summary": "All five complete repair gates pass and the tested Cinch/Rust changes are published. The fresh Stage0/1/2/3 build and complete matching suites are now required. Earlier baseline results remain separately scoped.",
-  "updatedAt": "2026-11-04T01:06:04.370395+00:00"
+  "updatedAt": "2026-11-04T01:06:52.521882+00:00"
 }
