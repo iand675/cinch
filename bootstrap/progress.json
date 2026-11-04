@@ -110,7 +110,7 @@
   "blockers": [
     {
       "title": "Complete matching suites and repair remaining interface parity",
-      "detail": "Published value-index source completes its independently verified fresh Stage0/1/2/3 chain; proof pushed in 47a07bf. Matching full Native and exact Stage3 suites38 continue; runtime/tool/editor and all14 external checks pass. Diagnostic12 passes all9 original byte tests through an actual diagnostic Cinch frontend; its21 affected groups continue before publication. Interface candidates pass actual defining/private refinement and facade export checks, but an older complete pipeline still asserts the former blanket refusal: replace that obsolete expectation with actual exported-template readback while preserving unsupported-contract refusals. Remaining API behavior and all100target/Acceptance1-5 audit stay open."
+      "detail": "Published value-index compiler completes independently verified Stage0/1/2/3 chain (47a07bf). Exact Stage3 suites38 now stop at the known byte-reader diagnostic: original primitive_length_identity 8pass/1fail, unsafe mutable reader correctly refused but missing obligation marker and cascading errors. Seven prior groups pass, including both full HashMap tests at32000keys and exhaustion. Diagnostic12 passes all9unchanged original byte tests through an actual diagnosticCinch frontend;20of21 affected groups pass, lastgroup running. FullNative38 continues, runtime/tool/editor and14externalchecks pass. Refinement interface work passes real export checks; corrected pipeline tests and named NonZero syntax repair are validating on separate snapshots. Remaining sourceAPI parity and full100target/Acceptance1-5audit remainopen."
     },
     {
       "title": "Investigate the recorded failure",
@@ -160,5 +160,5 @@
   "fullGoalComplete": false,
   "summary": "The fresh current-source compiler chain passes its smoke tests, matching Stage2/Stage3 IR, executable and all 43 canonical interfaces, actual API consumption and changed-source behavior. Complete tests and the final acceptance audit remain separate requirements.",
   "activity": "Published value-index compiler: complete Native sweep: 40 of 208 complete groups passed; 0 running, 0 failed and 168 pending. Stage builds and smoke checks: 4 of 4; chain state: passed. Repair gates: 12 of 12 complete groups passed; 0 running, 0 failed and 0 pending. independent type checker: passed; bootstrap_globals: passed; inference: passed; typechecker: passed; bootstrap_byte_observations: passed; bootstrap_resolve: passed; Core validation: passed; index scope and representation: passed; bootstrap_value_indices: passed; bootstrap_pipeline: passed; runtime behavior: passed; library calls: passed. Early Stage1 behavior: 7 of 8 complete groups passed; 0 running, 1 failed and 0 pending. Exact final Stage3 suite: 7 of 91 complete groups passed; 0 running, 1 failed and 83 pending. Proposed compiler repair (separate unpublished source): running-twenty-one-complete-groups; 20 of 21 complete groups passed; 1 running, 0 failed and 0 pending.",
-  "updatedAt": "2026-11-04T18:10:47.990102+00:00"
+  "updatedAt": "2026-11-04T18:12:30.151184+00:00"
 }
