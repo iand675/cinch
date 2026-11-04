@@ -37,7 +37,7 @@
   "checks": [
     {
       "title": "Escaped constructor repair",
-      "detail": "The complete original Stage2 allocation group has6passing and2failing cases:70constructor descriptors and omittedSymRaw word classification. The corrected repair adds actual wide-tag and symbol roundtrip/generic/closure/field executions, preserving the shared-table capacity. All43source checks plus complete object/runtime/parser/checker validation: compiling-complete-repair-runners. This repair is not yet a verified fresh bootstrap.",
+      "detail": "The complete original Stage2 allocation group has6passing and2failing cases:70constructor descriptors and omittedSymRaw word classification. The corrected repair adds actual wide-tag and symbol roundtrip/generic/closure/field executions, preserving the shared-table capacity. All43source checks plus complete object/runtime/parser/checker validation: running. This repair is not yet a verified fresh bootstrap.",
       "state": "running"
     },
     {
@@ -265,5 +265,5 @@
   ],
   "status": "Stage2 allocation regression requires repair",
   "summary": "The current source builds Stage2 and passes its smoke checks, but an actual external allocation test fails: the Cinch backend refuses wide constructor descriptors and omits the checkedSym word representation. A corrected combined source repair is undergoing full source and focused validation. Final acceptance remains open.",
-  "updatedAt": "2026-11-04T03:06:07.284559+00:00"
+  "updatedAt": "2026-11-04T03:08:09.673052+00:00"
 }
