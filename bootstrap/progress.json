@@ -38,7 +38,7 @@
     },
     {
       "title": "Complete current compiler sweep",
-      "detail": "0 of 208 complete groups passed; 0 running, 0 failed and 208 pending.Every group includes ignored tests. State: compiling-test-runners.",
+      "detail": "3 of 208 complete groups passed; 0 running, 0 failed and 205 pending.Every group includes ignored tests. State: waiting-all-focused-gates-before-execution.",
       "state": "running"
     },
     {
@@ -58,7 +58,7 @@
     },
     {
       "title": "Current runtime, tooling and editor checks",
-      "detail": "waiting-final-runner-build. All three complete matching-source gates are required.",
+      "detail": "running. All three complete matching-source gates are required.",
       "state": "running"
     },
     {
@@ -87,11 +87,11 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "0 of 208 complete groups passed; 0 running, 0 failed and 208 pending."
+      "detail": "3 of 208 complete groups passed; 0 running, 0 failed and 205 pending."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
-      "detail": "waiting-final-runner-build."
+      "detail": "running."
     },
     {
       "title": "Finish the exact self-built compiler tests",
@@ -136,6 +136,6 @@
   "candidatePublished": false,
   "fullGoalComplete": false,
   "summary": "The repair candidate passes all 43 compiler-source checks. 3 of 4 complete groups passed; 1 running, 0 failed and 0 pending. library calls: running; runtime behavior: passed; parser: passed; typechecker: passed. The repair source remains local while its full focused validation finishes.",
-  "activity": "Current compiler sweep: 0 of 208 complete groups passed; 0 running, 0 failed and 208 pending. Stage builds and smoke checks: 1 of 4; chain state: running-full-stage-chain. Repair gates: 3 of 4 complete groups passed; 1 running, 0 failed and 0 pending. library calls: running; runtime behavior: passed; parser: passed; typechecker: passed. Early Stage1 behavior: 0 of 8 complete groups passed; 0 running, 0 failed and 8 pending. Exact final Stage3 suite: 0 of 91 complete groups passed; 0 running, 0 failed and 91 pending.",
-  "updatedAt": "2026-11-04T03:52:18.007660+00:00"
+  "activity": "Current compiler sweep: 3 of 208 complete groups passed; 0 running, 0 failed and 205 pending. Stage builds and smoke checks: 1 of 4; chain state: running-full-stage-chain. Repair gates: 3 of 4 complete groups passed; 1 running, 0 failed and 0 pending. library calls: running; runtime behavior: passed; parser: passed; typechecker: passed. Early Stage1 behavior: 0 of 8 complete groups passed; 0 running, 0 failed and 8 pending. Exact final Stage3 suite: 0 of 91 complete groups passed; 0 running, 0 failed and 91 pending.",
+  "updatedAt": "2026-11-04T03:53:40.674664+00:00"
 }
