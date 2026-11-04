@@ -1,0 +1,125 @@
+{
+  "artifacts": {
+    "fixity/contract.A.cinchif": "7cdd6f8ca5dea2db1ba8f8882091e697bc46f15d4695a3ccd3833e2b2ccadf87",
+    "fixity/contract.B.cinchif": "4d3489f0302a62aa807bb1920d66adee0fdfdffb96b20b851c6290559ab69c3a",
+    "fixity/contract.Main.cinchif": "2368de171e8c22b932c5f1934b34658c5670bdbddd88c9221b9de2d1034c3cbf",
+    "fixity/facade.Facade.cinchif": "bb77a5b2348c5aec957e5dec096fc60fdab9c5d6b51c08bdb6cd9a3a4436c443"
+  },
+  "compiler": "/tmp/cinch-final-bootstrap-chain-15/source/build/bootstrap/stage3/cinch",
+  "compiler_sha256": "d16d1daf4562e8e9ad1fc1e1b9c803e241d4f712959c05697213d8cbf6dc7c2e",
+  "compiler_source_sha256": "e861abb04f804a94b1dfe6f65fcddab57005fdc24837b3abfedb5482dfde0208",
+  "full_goal_complete": false,
+  "limitations": "Existing external subset only. Complete matching Native/finalStage3/runtime/tool/editor suites, confirmed recursive-proof soundness defect, original100-target/positive-array behavior and fullAcceptance5 audit remain open.",
+  "logs": {
+    "class-identity.log": "be33a2db06f84086a921ba6c7c1c085b30d94838b8873dd6468c01a6759d4671",
+    "fixity/changed-redeclaration.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "fixity/direct.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "fixity/identical-redeclaration.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "fixity/produce.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "fixity/renamed-reexport.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "fixity/separate-facade.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "fixity/separate-renamed.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "mixed/emit.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "mixed/link.log": "6021f33487b85f8a9c5f9471588485ff4234e50e83be3e5c4c6e23dd0c32b455",
+    "mixed/run.log": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+    "passing/emit.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "passing/link.log": "6021f33487b85f8a9c5f9471588485ff4234e50e83be3e5c4c6e23dd0c32b455",
+    "passing/run.log": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+  },
+  "rows": [
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "mixed",
+      "phase": "emit",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "mixed",
+      "phase": "link",
+      "status": "passed"
+    },
+    {
+      "exit_code": 2,
+      "expected": 2,
+      "name": "mixed",
+      "phase": "run",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "passing",
+      "phase": "emit",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "passing",
+      "phase": "link",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "passing",
+      "phase": "run",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "produce",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "separate-facade",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "direct",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "renamed-reexport",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "separate-renamed",
+      "status": "passed"
+    },
+    {
+      "exit_code": 3,
+      "expected": 3,
+      "name": "identical-redeclaration",
+      "status": "passed"
+    },
+    {
+      "exit_code": 3,
+      "expected": 3,
+      "name": "changed-redeclaration",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "class-identity",
+      "status": "passed"
+    }
+  ],
+  "scope": "Exact genuine finalStage3 selected after full independently verified Acceptance1-4 chain. All14 original external checks pass: both runner programs exact reports and32M zero leaks; defining-module-only fixities, renamed/reexported/separate-facade behavior, identical and changed importer redeclaration refusals; full3-case class_identity group (2 actual Cinch build/runs,1 explicit Native API negative). No frontend fallback.",
+  "source_sha256": "43dfeafbd1b387a755dec4b63850b6758e97ef5f1a554856eefb475236848e17",
+  "status": "passed-exact-stage3-external-acceptance",
+  "verified_at": "2026-11-04T21:36:23.305122+00:00"
+}

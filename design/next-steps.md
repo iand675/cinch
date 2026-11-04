@@ -1,5 +1,29 @@
 # Next steps (as of 2026-11-04)
 
+## Verified opaque/HK bootstrap chain and Stage3 acceptance (2026-11-04)
+
+Compiler e861 now has an independently verified full Stage0/1/2/3 chain.
+Stage1 rebuilds all 43 compiler modules into Stage2; Stage2 rebuilds Stage3.
+All stage smokes pass. Stage2 and Stage3 have byte-identical IR, executable
+and 43 checked interfaces. Stage3 checks its entry against those interfaces
+without compiler bodies. Stage2 also rebuilds changed compiler source into
+a different executable that exhibits the changed diagnostic. This proves
+Acceptance 1-4 for the published opaque/HK snapshot, with the unchanged
+pinned seed and admitted base dependencies. The locked ABI5 chain alone
+does not prove positive live-ABI array lowering.
+
+All 14 original final-Stage3 external checks pass independently: exact mixed
+and passing runner reports, 32M zero leaks, defining-module-only fixities,
+renamed and separate facades, identical and changed importer redeclaration
+refusals, and the full class_identity group with its explicit Native fixture.
+Evidence is `bootstrap/current-opaque-bootstrap-results.json` and
+`bootstrap/current-opaque-stage3-external-results.json`.
+
+Acceptance 5 remains open: the complete matching suites, original target
+coverage and the confirmed recursive-proof soundness defect still require
+completion. The joined-row source and its resolved-contract follow-up are
+separate unpublished candidates; these receipts do not prove their bootstrap.
+
 ## Genuine Stage2 build; recursive-evidence blocker (2026-11-04)
 
 The published opaque/HK Cinch compiler now builds a genuine Stage2 compiler
