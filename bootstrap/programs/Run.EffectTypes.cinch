@@ -115,11 +115,32 @@ module Main where
       clean solved && equal (normalize solved joined) (row [io r, divergence])
         && not (clean (include-effects sp (normalize solved joined) (row [io r]) solved))
 
+  open-rows :: Nat -> UType -> UType -> Bool
+  open-rows id r s =
+    let e = URigid (id + 2) "e" 0 KRow in
+    let f = URigid (id + 3) "f" 0 KRow in
+    let left = URowJoin (row [io r]) e in
+    let both = URowJoin (row [io r, divergence]) e in
+    equal left left
+      && equal left (URowJoin e (row [io r]))
+      && equal both (URowJoin (URowJoin (row [divergence]) e) (row [io r]))
+      && equal both (URowJoin (row [divergence, io r]) e)
+      && equal (URowJoin e e) e
+      && equal (URowJoin (URowJoin e f) e) (URowJoin f e)
+      && equal (UFunEff (UCon "Unit" KType) both (UCon "Unit" KType)) (UFunEff (UCon "Unit" KType) (URowJoin e (row [divergence, io r])) (UCon "Unit" KType))
+      && not (equal left (URowJoin (row [io r]) f))
+      && not (equal left (URowJoin (row [io s]) e))
+      && not (equal left e)
+      && not (equal e left)
+      && not (equal left (row [io r]))
+      && not (equal (URowJoin (row [io r]) (UCon "Unit" KType)) left)
+      && clean (include-effects sp left both (empty-store "open-row-subset"))
+      && not (clean (include-effects sp both left (empty-store "open-row-subset")))
   tests :: Nat -> Bool
   tests id =
     let r = URigid id "r" 0 KRegion in
     let s = URigid (id + 1) "s" 0 KRegion in
-    basic r s && transactional r s && coalescing r s && scope-check id && opening r && generalization && core-check r && joined-meta r
+    basic r s && transactional r s && coalescing r s && scope-check id && opening r && generalization && core-check r && joined-meta r && open-rows id r s
 
   main :: Unit ->{IO r} Int
   main unit = with (io = newIO ()) in case fs-read (path-from-string "case.txt") of

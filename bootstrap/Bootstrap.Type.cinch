@@ -9,6 +9,7 @@ module Bootstrap.Type where
   import Bootstrap.Index
   import Bootstrap.Total (TotalFunction, check-total-graph, total-function, total-identity, total-parameters, total-result, total-function-document, total-function-equal)
   import Text.Show (int-to-string)
+  import Algebra.Semigroup
 
   export Kind, KType, KProp, KRegion, KEffect, KRow, KFun, KValue, kind-equal, kind-text
   export valid-kind, map-kind-types, value-kind, value-carrier
@@ -764,6 +765,9 @@ module Bootstrap.Type where
         (case match-effects sp True labels effects labels effects st of Some solved -> solved; None -> mismatch sp a b st)
         else add-error sp "malformed closed effect row" st
       other -> mismatch sp a b st
+    URowJoin first second -> if valid-type a && valid-type b && kind-equal (type-kind b) KRow then
+      include-effects sp b a (include-effects sp a b st)
+      else add-error sp "malformed open effect row" st
     UTuple xs -> case b of UTuple ys -> unify sp xs ys st; other -> mismatch sp a b st
     UArg x rest -> case b of UArg y tail -> unify sp rest tail (unify sp x y st); other -> mismatch sp a b st
     UEnd -> case b of UEnd -> st; other -> mismatch sp a b st
@@ -835,12 +839,28 @@ module Bootstrap.Type where
     other -> None
   append-effects :: UType -> UType -> UType
   append-effects first second = case first of UEnd -> second; UArg label rest -> UArg label (append-effects rest second); other -> UError
+  -- Keep every known label together, independently of join association.
+  -- Abstract tails retain their identities; no label is assumed to be in one.
+  row-tail-present :: UType -> List UType -> Bool
+  row-tail-present row tails = case tails of Nil -> False; Cons first rest -> same-shape row first || row-tail-present row rest
+  merge-row-tails :: List UType -> List UType -> List UType
+  merge-row-tails first second = case second of
+    Nil -> first
+    Cons tail rest -> merge-row-tails (if row-tail-present tail first then first else first <> [tail]) rest
+  effect-row-parts :: UType -> (UType, List UType)
+  effect-row-parts row = case row of
+    URow labels -> (labels, Nil)
+    URowJoin a b -> case (effect-row-parts a, effect-row-parts b) of
+      ((first, left), (second, right)) -> (append-effects first second, merge-row-tails left right)
+    other -> (UEnd, [other])
+  joined-row-tails :: List UType -> UType
+  joined-row-tails tails = case tails of Nil -> URow UEnd; Cons first Nil -> first; Cons first rest -> URowJoin first (joined-row-tails rest)
   union-effects :: UType -> UType -> UType
-  union-effects first second = case (first, second) of
-    (URow UEnd, other) -> second
-    (other, URow UEnd) -> first
-    (URow a, URow b) -> URow (unique-effects (append-effects a b))
-    other -> if same-shape first second then first else URowJoin first second
+  union-effects first second = case (effect-row-parts first, effect-row-parts second) of
+    ((a, left), (b, right)) -> let labels = unique-effects (append-effects a b) in let tails = merge-row-tails left right in
+      case labels of
+        UEnd -> joined-row-tails tails
+        other -> case tails of Nil -> URow labels; more -> URowJoin (URow labels) (joined-row-tails tails)
   include-effects :: Span -> UType -> UType -> Store -> Store
   include-effects sp actual allowed st =
     let a = normalize st actual in

@@ -24,6 +24,16 @@ fn source_effect_declarations_and_calls_retain_checked_contracts() {
         ("direct do refutable binding rejected", "effect Marker where\n    marker :: Unit ->{Marker} Unit\n  value :: Int\n  value = do { True <- False; 42 }", 4),
         ("direct do must end in expression", "effect Marker where\n    marker :: Unit ->{Marker} Unit\n  value :: Int\n  value = do { x <- 41 }", 4),
         ("direct do empty block rejected", "effect Marker where\n    marker :: Unit ->{Marker} Unit\n  value :: Int\n  value = do {}", 4),
+        ("inferred open effect row", "call :: forall e. (Unit ->{|e} Unit) ->{|e} Unit\n  call f = f ()", 0),
+        ("explicit open effect row", "call :: forall (e :: Row). (Unit ->{|e} Unit) ->{|e} Unit\n  call f = f ()", 0),
+        ("open effect row with labels", "effect Signal where\n    signal :: Unit ->{Signal} Unit\n  call :: forall e. (Unit ->{|e} Unit) ->{Signal|e} Unit\n  call f = do { signal (); f () }", 0),
+        ("open effect row cannot erase tail", "call :: forall e. (Unit ->{|e} Unit) -> Unit\n  call f = f ()", 4),
+        ("open effect row cannot substitute identity", "call :: forall e f. (Unit ->{|e} Unit) ->{|f} Unit\n  call f = f ()", 4),
+        ("open effect row explicit Type refused", "call :: forall (e :: Type). (Unit ->{|e} Unit) ->{|e} Unit\n  call f = f ()", 4),
+        ("open effect row explicit Region refused", "call :: forall (e :: Region). (Unit ->{|e} Unit) ->{|e} Unit\n  call f = f ()", 4),
+        ("open effect row unbound refused", "call :: (Unit ->{|e} Unit) ->{|e} Unit\n  call f = f ()", 4),
+        ("open effect row conflicting type use refused", "call :: forall e. e -> (Unit ->{|e} Unit) ->{|e} Unit\n  call x f = f ()", 4),
+        ("open effect row cannot hide named effect", "effect Signal where\n    signal :: Unit ->{Signal} Unit\n  call :: forall e. (Unit ->{|e} Unit) ->{|e} Unit\n  call f = do { signal (); f () }", 4),
         ("simple operation", "effect Signal where\n    signal :: Unit ->{Signal} Unit\n  call :: Unit ->{Signal} Unit\n  call u = signal u", 0),
         ("polymorphic parse operation", "effect Parse where\n    fail :: forall a. Int ->{Parse} a\n    note :: Int ->{Parse} Unit\n  call :: Unit ->{Parse} Int\n  call u = fail 1", 0),
         ("curried operation", "effect Log where\n    log :: Int -> Unit ->{Log} Unit\n  call :: Unit ->{Log} Unit\n  call u = log 1 u", 0),
@@ -45,8 +55,13 @@ fn source_effect_declarations_and_calls_retain_checked_contracts() {
         ("duplicate operation quantifier", "effect State a where\n    get :: forall a. a ->{State a} a", 4),
         ("wrong region identity", "effect State (r :: Region) where\n    get :: Unit ->{State r} Int\n  bad :: forall (r :: Region) (s :: Region). (Unit ->{State r} Int) -> Unit ->{State s} Int\n  bad f u = f u", 4),
     ] {
+        // This runner independently requires a retained source effect declaration.
+        // Row-only callbacks still need that fixture invariant, even when pure.
+        let body = if name.starts_with("inferred open") || name.starts_with("explicit open") || name.starts_with("open effect row") {
+            format!("effect FixtureMarker where\n    fixture-marker :: Unit ->{{FixtureMarker}} Unit\n  {body}")
+        } else { body.to_owned() };
         let source = format!("module Main where\n  {body}\n  main :: Int\n  main = 0\n");
-        if name.starts_with("direct do") {
+        if name.starts_with("direct do") || name.starts_with("inferred open") || name.starts_with("explicit open") || name.starts_with("open effect row") {
             let reference = cinch::driver::check_sources(&source, "native-direct-do-oracle.cinch");
             assert_eq!(reference.is_ok(), wanted == 0, "Native reference {name}: {reference:?}");
         }

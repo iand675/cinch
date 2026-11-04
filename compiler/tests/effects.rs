@@ -786,3 +786,51 @@ fn row_parameter_annotations_and_names_preserve_their_kind() {
         assert!(error.contains(expected), "{scheme}: {error}");
     }
 }
+
+#[test]
+fn operation_values_are_pure_and_preserve_handler_boundaries() {
+    expect_ok("operation value passed without performing its effect", r#"module Main where
+  effect Poke where
+    poke :: Unit ->{Poke} Int
+  ignore :: forall e. (Unit ->{|e} Int) -> Int
+  ignore f = 43
+  main :: Int
+  main = ignore poke
+"#, 43);
+    expect_ok("operation alias construction before a handler stays pure", r#"module Main where
+  effect Poke where
+    poke :: Unit ->{Poke} Int
+  main :: Int
+  main = let operation = poke in handle poke () with (handler Poke where
+    return x -> x
+    poke unit resume k -> k 44)
+"#, 44);
+    // Preserve the existing D23 rule. Operation values do not grant dynamic
+    // dispatch across a called computation in the bootstrap handler calculus.
+    expect_err("first class call retains D23 dispatch boundary", r#"module Main where
+  effect Poke where
+    poke :: Unit ->{Poke} Int
+  apply :: forall e. (Unit ->{|e} Int) ->{|e} Int
+  apply f = f ()
+  main :: Int
+  main = handle apply poke with (handler Poke where
+    return x -> x
+    poke unit resume k -> k 43)
+"#, "performed through a called computation");
+    expect_err("operation alias call retains D23 dispatch boundary", r#"module Main where
+  effect Poke where
+    poke :: Unit ->{Poke} Int
+  main :: Int
+  main = let operation = poke in handle operation () with (handler Poke where
+    return x -> x
+    poke unit resume k -> k 44)
+"#, "performed through a called computation");
+    expect_err("operation value cannot erase effect", r#"module Main where
+  effect Poke where
+    poke :: Unit ->{Poke} Int
+  apply :: (Unit -> Int) -> Int
+  apply f = f ()
+  main :: Int
+  main = apply poke
+"#, "effect");
+}

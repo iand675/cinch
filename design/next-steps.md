@@ -1,5 +1,40 @@
 # Next steps (as of 2026-11-04)
 
+## Checked open rows, imported tails and operation values (2026-11-04)
+
+The Cinch compiler now elaborates implicit and explicit Row parameters,
+retains each abstract tail's identity, and normalizes joined rows without
+losing known labels. Imported resolved schemes preserve their checked bound
+row tails. Actual separately emitted interfaces and a renamed reexport accept
+safe propagation and reject erasure and substitution of a different tail.
+Wrong-kind and unbound imported tails remain refused.
+
+Rust now accepts a bare effect operation as a function value using a checked
+forwarding lambda. Pure construction stays pure, including renamed facade
+aliases; the existing D23 refusal for handling effects through a called
+computation is retained. This does not add dynamic handler dispatch or direct
+partial-operation application.
+
+All nine complete matching suites pass independently: 57 Rust test cases,
+all 43 compiler modules, six writer/import/canonical-readback checks and three
+actual renamed-facade consumer checks. See
+`bootstrap/current-open-row-operation-results.json`, compiler
+`e2f15c51f24f38e74ddf61943d96d828cade2e60f2cdc7db67c6eafdefd3f0a5`.
+The broader 33-group, 139 zero-leak runtime program and 60 row-semantic
+assertion receipt is retained separately as source5 evidence in
+`bootstrap/current-open-row-source-results.json`; it was not rerun on this
+combined nominal/Rust-operation source. Rust's independent four-group,
+51-case and 15-oracle repair is in
+`bootstrap/current-rust-operation-value-results.json`.
+
+The direct recursive-evidence counterexample is still independently accepted
+by this exact Rust candidate. Its receipt is updated; proof soundness remains
+a completion blocker. The e861 stage-chain and complete-suite receipts below
+belong to the preceding source. This row compiler needs its own fresh chain
+and complete matching suites, original API/positive ABI6 array behavior and
+full Acceptance 1-5 audit. The array implementation remains isolated and
+unpublished while actual runtime failures are corrected.
+
 ## Current proof audit and complete auxiliary gates (2026-11-04)
 
 The exact published Rust row-kind compiler still accepts four invalid proof

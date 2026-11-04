@@ -1,0 +1,258 @@
+{
+  "actual_pipeline_compiler": {
+    "actual_original_executable": "/private/var/folders/8w/44rf3zr512nd0pd0bwb70vfm0000gn/T/cinch_boot_pipeline_fib_59817_0/pipeline",
+    "bootstrap_inputs": {
+      "Bootstrap.Ast.cinch": "28b933db97141c76a833d7eb8256e96210e6518cf4f71ecfbada8fd447e88047",
+      "Bootstrap.BodyContract.cinch": "94846b0abfb9b5e1b5c854f9abf7cabf6f0a8331fde6f5db5ff38b537262ce12",
+      "Bootstrap.Builtin.cinch": "1c49a1ac4d4c4eb6404a0d151f22c581cc4468ed03ec863044b2c94419bb91b5",
+      "Bootstrap.Check.cinch": "8ca6f862ae07cf984015b612b0606e68218adf08c7ce9ceefcce2f325b48b574",
+      "Bootstrap.Contracts.cinch": "a858ab3fbafd7ead92df2892f99c9896efea42c44d0964f3556ecc95b0b56cd0",
+      "Bootstrap.Core.cinch": "0060e26b6316be5a564a149379ac87624f0c7f3a40f25299fa53564a7a03b71e",
+      "Bootstrap.Dictionary.cinch": "d26a57426fe4cc32696c42378f7db6fffdc4684754069f509d3d61e4be6a4012",
+      "Bootstrap.Driver.cinch": "a9350fe510c1dd5a785e5f805a0da632d343a2cd8699f838d9bb3a2b22cab533",
+      "Bootstrap.Export.cinch": "c50e1ee49c1bba9820792129fc25adf0df118ef77525a50df3dcb68de6134222",
+      "Bootstrap.ExportNominal.cinch": "822d01885764d241f99f845c756dc73d71be6d33b249657be7dc2c4d7dab6662",
+      "Bootstrap.ExportType.cinch": "5fe4969ca54a5628326a260f8cd53fce4c0c1d834b420b2c974a45e9bb1d2a2b",
+      "Bootstrap.Global.cinch": "cdcb00d55df4a6051f3fd4cae8ff9fe02ffe4c2a4ce483b9ae143bf079e93abf",
+      "Bootstrap.Guarded.cinch": "024615db9bfcfc432cb0ee943f9390756cb43d1f52b1de36cd8584ce53dd6d98",
+      "Bootstrap.Index.cinch": "dcb92174c01a96faaf66bc7d550c4e443bfa2d4cdc88376f899eb547c5bf166f",
+      "Bootstrap.Infer.cinch": "bc1e1eaf239cf947fe11f157545ab8ea4de68442163896b45aca2bbce31515de",
+      "Bootstrap.Inputs.cinch": "0b69e6f9667acf7e5659741aeac32ba9c0dbe231204d297fbf7b9c88eed2b03c",
+      "Bootstrap.Instance.cinch": "f15e8149f76dcdcaf4cecb02a837af3e586dfe2d861aa1eee9f6b220581ec3ac",
+      "Bootstrap.Interface.cinch": "176ecc8db40bf583ac2b711f6f77029cc81d24fe0bfe3a50a9188ceccb2e632e",
+      "Bootstrap.Ir.cinch": "ba8d97f7916cee341d70c49d6e994386e5ead3920c0075680d75cb176cd67b82",
+      "Bootstrap.Kinds.cinch": "43ef88263ca7d810b9caa28aa8f2c89c2e87285d98421cb2c9b3658a5b018ee4",
+      "Bootstrap.Load.cinch": "7ca358b69f71d7f1a63cb0e23bedf100cff7471205fa6187e690a09d9d05933f",
+      "Bootstrap.Nominal.cinch": "38562a9f6effeea78b566be770ab315115a0bb4e137b450c050bce9c7fea1a5e",
+      "Bootstrap.Object.cinch": "e88596e377442ba603ababb109976343b10ee1e00a1b05acdc190b852003f3b3",
+      "Bootstrap.Parse.cinch": "ee1f2bfdc048468a4fc1324f5932feb45791fb0b55a1983b44d75955cd584cfb",
+      "Bootstrap.Pipeline.cinch": "6ba27e87417bfeb0b57356edea4eea4fd5e2fbfa8769d07be9cbef671dbac87c",
+      "Bootstrap.Proof.cinch": "d8cc2e3b314dccd4314245ee56efe1ecc763346df1d7ab51d3ad55f61a65fb2b",
+      "Bootstrap.Report.cinch": "38e4a34dc34ddfed70ff7348874b0c16b2ae41b23c7026c0b2e10129c9e94d5b",
+      "Bootstrap.Resolve.cinch": "a3262ae1494c2ccc3dba2e552477cd6e7bb974357b006f5662547072ec3ffee4",
+      "Bootstrap.RuntimeAbi.cinch": "a7f25347ef8b5be6baf048cd3339a913e15623d2717961d272e22a7ff34cddd1",
+      "Bootstrap.RuntimeIr.cinch": "a2d3fe6f3bcf9b0c5e6092ccf552c34303d274e02c3480eaa86e0da552ad5d2c",
+      "Bootstrap.Total.cinch": "63a655358dd9042526eb19666bfd75d33d159fb11dc1fd904fe73f8ca96d1623",
+      "Bootstrap.Type.cinch": "41f6458298ed12f896add709d0173ebe54dd550cd7c9e1187bceafea74f130c3",
+      "Bootstrap.Typing.cinch": "46ad2f7b4938bfb7930a69363b2dca4b0817377607501c46ccc81c2a8ac5a290"
+    },
+    "compiler": "/tmp/cinch-row-pipeline-capture-8/diagnostic-cinch",
+    "compiler_sha256": "e94c3b62547c6099c80d3490e6064f8927970ba15775b0fe6aba1dfeb8a495fb",
+    "compiler_source_sha256": "e2f15c51f24f38e74ddf61943d96d828cade2e60f2cdc7db67c6eafdefd3f0a5",
+    "observed_executing_children": [
+      "65395 59817 /var/folders/8w/44rf3zr512nd0pd0bwb70vfm0000gn/T/cinch_boot_pipeline_fib_59817_0/pipeline"
+    ],
+    "original_inode": 231871544,
+    "producer_group_status": "passed",
+    "producer_log_sha256": "e4ec305536925adaa074cb4919ffaa09cc6cd84cfd2a378581edff378c100f83",
+    "producer_test_binary": "/tmp/cinch-row-operation-validation-8/cargo/debug/deps/bootstrap_pipeline-3ec6fede78ff695e",
+    "producer_test_binary_sha256": "9872b248f15d14008e9580682e2cf8d7ebf3e9303d8aaf3538f18641085c8e81",
+    "scope": "Retained actual compiler inode before original project cleanup, read only after complete pipeline group passed. All actual Bootstrap compiler inputs matched immutable source5; complete producer group binary/log hashes independently audited. ABI6 Native-built diagnostic, not finalStage3 proof.",
+    "source_sha256": "854d5b5294baffb19d6f34383a32c5d1fd23039d401dfa7b76bf44e0fbac5390"
+  },
+  "compiler_source_sha256": "e2f15c51f24f38e74ddf61943d96d828cade2e60f2cdc7db67c6eafdefd3f0a5",
+  "consumer": {
+    "compiler": "/tmp/cinch-row-pipeline-capture-8/diagnostic-cinch",
+    "compiler_sha256": "e94c3b62547c6099c80d3490e6064f8927970ba15775b0fe6aba1dfeb8a495fb",
+    "full_goal_complete": false,
+    "interface_sha256": "c6425b403eb1eb78de9cb6ea7727ed2ccc14b5aeafcff65909d7230debefc09d",
+    "native_library": "/tmp/cinch-row-operation-validation-8/cargo/debug/deps/libcinch-2311f26e82e13825.rlib",
+    "native_library_sha256": "b402580711bf96eb009d56289a6703f94a8cd90fff8d1c3d6d8e26ff7d9e5bb3",
+    "rows": [
+      {
+        "exit_code": 0,
+        "log_sha256": "acd83f847fb1f3bd10d353f3f1cc646cce7a9055ef5707f29c581c76da51d7eb",
+        "name": "independent Native canonical row interface readback",
+        "status": "passed"
+      },
+      {
+        "diagnostic": "",
+        "exit_code": 0,
+        "expected_exit": 0,
+        "name": "safe-row-propagation",
+        "source_sha256": "9f33b079b8ec1ba20c5cef584d3ca3c4d8e0039ca41fe112e989fc41e7f60043",
+        "status": "passed"
+      },
+      {
+        "diagnostic": "bootstrap.check:4:13: effect inclusion needs resolved rows\n",
+        "exit_code": 4,
+        "expected_exit": 4,
+        "name": "row-cannot-be-erased",
+        "source_sha256": "82991c87e8a90caaabadf2100085b1ee906aa49cf66ffae606eafbc372dee4f8",
+        "status": "passed"
+      },
+      {
+        "diagnostic": "bootstrap.check:4:13: effect inclusion needs resolved rows\n",
+        "exit_code": 4,
+        "expected_exit": 4,
+        "name": "row-cannot-change-identity",
+        "source_sha256": "c20ba93ddfa0717de5f2efc6f94b121c0681ffccd851e095db2a148d121a7a69",
+        "status": "passed"
+      },
+      {
+        "exit_code": 0,
+        "name": "separate-row-facade",
+        "status": "passed"
+      },
+      {
+        "exit_code": 0,
+        "log_sha256": "a96dc6206640a22c8a98689f9cf3e9ebe92566045ed7cf9e6200acd7dd2ad371",
+        "name": "independent Native facade readback",
+        "status": "passed"
+      }
+    ],
+    "scope": "Actual source5 Cinch writer row contract checked by independently linked exact-input Native library; actual Cinch separate-interface safe and unsafe row consumers and renamed facade. Native library artifact reused after frozen-source audit; no Cargo cache copied or reused across checkout paths. Semantic type checking/readback only, not effect-handler runtime or finalStage3 proof.",
+    "source_sha256": "854d5b5294baffb19d6f34383a32c5d1fd23039d401dfa7b76bf44e0fbac5390",
+    "status": "passed"
+  },
+  "full_goal_complete": false,
+  "limitations": "Scoped diagnostic implementation proof, not Stage3. Prior33group evidence is source5, separately identified. No generalized dynamic dispatch, positive ABI6 array lowering, full original API parity or full Acceptance5 claim. Confirmed recursive-proof Native soundness blocker remains open; complete matching final suites and genuine newCinch Stage0-3 chain required.",
+  "prior_broader_row_proof": {
+    "compiler_source_sha256": "35d25272fa9d31e8d6da2e453c6e3d1d0634316812531d8b7eace8a8c7f620c3",
+    "groups": 33,
+    "note": "Earlier source5 only; unchanged Type/Infer/row-semantic implementation inputs individually verified. Those33groups were not rerun on this combined Nominal/Rust-operation candidate.",
+    "path": "/tmp/cinch-row-tail-focused-validation-6/verified-results.json"
+  },
+  "rows": [
+    {
+      "binary": "/tmp/cinch-row-operation-validation-8/cargo/debug/deps/bootstrap_nominals-5acc866a564e9bba",
+      "binary_sha256": "70e21561ab80da13e785691a17f7bc4ed67a124457e8888fef330f21a7c1f30c",
+      "exit_code": 0,
+      "log": "/tmp/cinch-row-operation-validation-8/bootstrap_nominals.log",
+      "log_sha256": "0eb91d1e83bdbb46f294b2df17e7001bf6b6a839c9af4bbd488df370da2077aa",
+      "name": "bootstrap_nominals",
+      "status": "passed",
+      "tests": 1
+    },
+    {
+      "binary": "/tmp/cinch-row-operation-validation-8/cargo/debug/deps/bootstrap_export_interfaces-0b22c590abe401bf",
+      "binary_sha256": "47f0ac32542261f00b1ba16b74574e63556cf5ec127091acb62c45e23273e65f",
+      "exit_code": 0,
+      "log": "/tmp/cinch-row-operation-validation-8/bootstrap_export_interfaces.log",
+      "log_sha256": "4aeaddedec623664091af4bc3a2617f0201dbe7c798e30f49460f0a9d1d79716",
+      "name": "bootstrap_export_interfaces",
+      "status": "passed",
+      "tests": 1
+    },
+    {
+      "binary": "/tmp/cinch-row-operation-validation-8/cargo/debug/deps/bootstrap_pipeline-3ec6fede78ff695e",
+      "binary_sha256": "9872b248f15d14008e9580682e2cf8d7ebf3e9303d8aaf3538f18641085c8e81",
+      "exit_code": 0,
+      "log": "/tmp/cinch-row-operation-validation-8/bootstrap_pipeline.log",
+      "log_sha256": "e4ec305536925adaa074cb4919ffaa09cc6cd84cfd2a378581edff378c100f83",
+      "name": "bootstrap_pipeline",
+      "status": "passed",
+      "tests": 1
+    },
+    {
+      "binary": "/tmp/cinch-row-operation-validation-8/cargo/debug/deps/interface_region_effects-a40a0643bee06bcc",
+      "binary_sha256": "cc7a18e5cdccb569b8a022bafa9c4bb793c867b2bceb22f6f2aaf2afe59981bb",
+      "exit_code": 0,
+      "log": "/tmp/cinch-row-operation-validation-8/interface_region_effects.log",
+      "log_sha256": "e24f83460d5b21b2d86e2a635c1b59c7f1ce1098c04c746b4461f03e9dab0129",
+      "name": "interface_region_effects",
+      "status": "passed",
+      "tests": 2
+    },
+    {
+      "binary": "/tmp/cinch-row-operation-validation-8/cargo/debug/deps/bootstrap_source_effects-bd39416eba00b11b",
+      "binary_sha256": "512c0bc7df83078828ea90835e1c3b611b572114e3120e6b92b5a18fa5a7fb5b",
+      "exit_code": 0,
+      "log": "/tmp/cinch-row-operation-validation-8/bootstrap_source_effects.log",
+      "log_sha256": "5aa26ce3e9b8bd2ec780d82c8671295987fd7e9fee5dde99693e3c5c757007ab",
+      "name": "bootstrap_source_effects",
+      "status": "passed",
+      "tests": 1
+    },
+    {
+      "binary": "/tmp/cinch-row-operation-validation-8/cargo/debug/deps/effects-f07c4c070b8aa2b3",
+      "binary_sha256": "89028dddcb875b46da443988db767217defd1d8e1cad204a362b522aac95ed93",
+      "exit_code": 0,
+      "log": "/tmp/cinch-row-operation-validation-8/effects.log",
+      "log_sha256": "d9e9c1645938f686f12335cc69443a9f72ca4bf1151c40a05295a4582314f923",
+      "name": "effects",
+      "status": "passed",
+      "tests": 18
+    },
+    {
+      "binary": "/tmp/cinch-row-operation-validation-8/cargo/debug/deps/hk-22807fe2e1c4223e",
+      "binary_sha256": "0e1229a174053d8fb8176e9c46b4f29a4a5da8a9c9109c76a33077b7ce5d1ba5",
+      "exit_code": 0,
+      "log": "/tmp/cinch-row-operation-validation-8/hk.log",
+      "log_sha256": "9ed346ecafd91e3717994e02c88fb5d112a8b03c92cc947fb45024611817a47c",
+      "name": "hk",
+      "status": "passed",
+      "tests": 24
+    },
+    {
+      "binary": "/tmp/cinch-row-operation-validation-8/cargo/debug/deps/params-d3037ea95f2da87b",
+      "binary_sha256": "b3fde941042bed3e0da940be924789de4b0871516b162136b887711737b540eb",
+      "exit_code": 0,
+      "log": "/tmp/cinch-row-operation-validation-8/params.log",
+      "log_sha256": "60290bf4bc6216988586c79973a6aa5be914db5409a336c3dddaadf476c534d3",
+      "name": "params",
+      "status": "passed",
+      "tests": 7
+    },
+    {
+      "binary": "/tmp/cinch-row-operation-validation-8/cargo/debug/deps/folded_literal_ownership-23570bceab500c16",
+      "binary_sha256": "51a51dcd46b69388b0a6603c009e1d984fc14e980d1d10781749e097745af527",
+      "exit_code": 0,
+      "log": "/tmp/cinch-row-operation-validation-8/folded_literal_ownership.log",
+      "log_sha256": "b4b0b21792e07dad5138e665c76865469d40de9f12f839b538d3655dae48a654",
+      "name": "folded_literal_ownership",
+      "status": "passed",
+      "tests": 2
+    }
+  ],
+  "scope": "All9 complete matching candidate suites including51 Native operation-value/HK/parameter/ownership tests and actual Cinch nominal/import/pipeline/effect clients. All43 modules check. Actual admitted pipeline compiler consumes actual emitted open-row interface with safe propagation, rejects erasure and distinct tail, and reexports an unchanged renamed facade. Independent exact Native library canonical readback of writer and facade is required. Six new imported-row synthetic cases retain wrong-kind and unbound-tail refusals. Original D23 handler boundaries remain unchanged.",
+  "separate_renamed_facade_consumers": {
+    "compiler_sha256": "e94c3b62547c6099c80d3490e6064f8927970ba15775b0fe6aba1dfeb8a495fb",
+    "facade_sha256": "bd01e2b895abc568bc35ac9b9bd7d2400efd082d9cbf727a4891f1027a2e1583",
+    "full_goal_complete": false,
+    "rows": [
+      {
+        "diagnostic": "",
+        "exit_code": 0,
+        "expected_exit": 0,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "name": "safe-renamed-facade",
+        "source_sha256": "51f6ac148067b50987278fd962667c3585b24515370985ac2bc80e3f21d92816",
+        "status": "passed"
+      },
+      {
+        "diagnostic": "bootstrap.check:4:13: effect inclusion needs resolved rows\n",
+        "exit_code": 4,
+        "expected_exit": 4,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "name": "facade-row-cannot-be-erased",
+        "source_sha256": "9e5272d061584ca4c4d9c325db2dde29375b405d84d2d0378075d227f3f72cc5",
+        "status": "passed"
+      },
+      {
+        "diagnostic": "bootstrap.check:4:13: effect inclusion needs resolved rows\n",
+        "exit_code": 4,
+        "expected_exit": 4,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "name": "facade-row-cannot-change-identity",
+        "source_sha256": "b83c5716db2200612d4c389f5ea0afda405f213135c3763b6dc2aab988ddd57b",
+        "status": "passed"
+      }
+    ],
+    "scope": "Actual separately emitted and canonically reread renamed facade consumed through checked interface only; valid row propagation retained, erasure and distinct tail refused semantically. No original module/facade source supplied. Diagnostic pipeline compiler, not finalStage3.",
+    "source_sha256": "854d5b5294baffb19d6f34383a32c5d1fd23039d401dfa7b76bf44e0fbac5390",
+    "status": "passed"
+  },
+  "source": "/tmp/cinch-row-operation-validation-8/source",
+  "source_check": {
+    "compiler": "/tmp/cinch-row-operation-validation-8/cargo/debug/cinch",
+    "compiler_modules": 43,
+    "compiler_sha256": "84a8f3d5b637bfb53d3edcc1442cf0d052a103154d8f86d4873dc79c3bf5c70d",
+    "exit_code": 0,
+    "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "status": "passed"
+  },
+  "source_sha256": "854d5b5294baffb19d6f34383a32c5d1fd23039d401dfa7b76bf44e0fbac5390",
+  "status": "passed-scoped-combined-rows-operation-values",
+  "verified_at": "2026-11-04T22:38:40.884544+00:00"
+}

@@ -634,6 +634,9 @@ impl Checker {
                     }
                 }
                 let v = self.resolve_var(p, p.span())?;
+                if matches!(v.kind, ValueKind::EffectOp { .. }) {
+                    return self.operation_function_value(env, p, &v, p.span());
+                }
                 self.value_use(&v, p.span(), env)
             }
             ast::Term::Con(p) => {
@@ -5812,6 +5815,38 @@ impl Checker {
 
     /// Instantiate a resolved value: dictionary constraints become wants and
     /// methods elaborate to dictionary projection.
+    // An operation value forwards its arguments through the same checked
+    // application path as an explicit lambda. Keep the caller's resolved
+    // spelling, including facade aliases, and use unspellable fresh locals.
+    fn operation_function_value(
+        &mut self, env: &mut Env, path: &ast::VarPath, value: &ValueInfo, span: ast::Span,
+    ) -> Result<(ECore, Ty)> {
+        let (ty, context, _, _) = self.instantiate_at(&value.scheme);
+        if !context.is_empty() {
+            return Err(Error::at(span, "effect operation values cannot carry class constraints"));
+        }
+        let mut result = &ty;
+        let mut patterns = Vec::new();
+        let mut arguments = Vec::new();
+        loop {
+            result = match result {
+                Ty::Fun(_, _, _, output) => output,
+                Ty::Pi { cod, .. } => cod,
+                _ => break,
+            };
+            let name = ast::Name::new(self.fresh_param("$operation-argument"), span);
+            patterns.push(ast::Pat::Var(name.clone(), span));
+            arguments.push(ast::Term::Var(ast::VarPath { quals: Vec::new(), name }));
+        }
+        if patterns.is_empty() {
+            return Err(Error::at(span, "effect operations must have an argument"));
+        }
+        let body = ast::Term::App(Box::new(ast::Term::Var(path.clone())), arguments, span);
+        let lambda = ast::Term::Lam(patterns, Box::new(body), span);
+        let core = self.check(env, &lambda, &ty)?;
+        Ok((core, ty))
+    }
+
     fn value_use(&mut self, v: &ValueInfo, span: ast::Span, env: &mut Env) -> Result<(ECore, Ty)> {
         // `eval` uses are profile-gated and recorded wherever they
         // appear (supercompilation and JIT specification section 7).

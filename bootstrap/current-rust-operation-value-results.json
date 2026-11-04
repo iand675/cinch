@@ -1,0 +1,190 @@
+{
+  "full_goal_complete": false,
+  "known_recursive_evidence": {
+    "compiler": "/tmp/cinch-rust-operation-value-validation-2/cargo/debug/cinch",
+    "compiler_sha256": "bc9f68ea7d2269512377a5afc8518a79262c1783f4480a0180fcfd3441d0b8d0",
+    "exit_code": 0,
+    "expected_acceptance": false,
+    "full_goal_complete": false,
+    "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "scope": "Known recursive-proof blocker rechecked on this operation-value candidate. Not a passing soundness claim.",
+    "source": "/tmp/cinch-operation-value-original-oracles-2/recursive-evidence/Main.cinch",
+    "source_sha256": "4ec0606ebde90b4e51001afc11a0f7caf3f4bc99daad19d4f1fc0d7f00c795fb",
+    "status": "confirmed-current-native-recursive-evidence-unsoundness"
+  },
+  "limitations": "Scoped implementation proof only. No generalized dynamic handler dispatch or direct partial-operation application claim. Confirmed recursive-proof soundness blocker remains open. Matching complete final compiler/runtime/tool/editor/external suites, original100-target parity and Acceptance1-5 remain required.",
+  "original_oracles": [
+    {
+      "exit_code": 0,
+      "expected_acceptance": true,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "inferred open effect row",
+      "source_sha256": "f8b082c14703814eed854b09767ac9a4c2e026c2c96a3c81af9d09b1c7ba197e",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected_acceptance": true,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "explicit open effect row",
+      "source_sha256": "d4429db56906ba52b603fb820fcf5c174836f21d4b48b6afe734c7972da15fab",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected_acceptance": true,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "open effect row with labels",
+      "source_sha256": "ca36465ed0fa88f38ed3dbf044c034fbcd04a803476f185be835874ea8fffd42",
+      "status": "passed"
+    },
+    {
+      "exit_code": 1,
+      "expected_acceptance": false,
+      "log_sha256": "6dd31160fce61aed444989ea98d0f06f30367e1ea59e25070ac87d093bafa12f",
+      "name": "open effect row cannot erase tail",
+      "source_sha256": "f869c55c96d7dfad7b06ae24f1172fc27e8fa52ccdf243969b2af67cea5e2699",
+      "status": "passed"
+    },
+    {
+      "exit_code": 1,
+      "expected_acceptance": false,
+      "log_sha256": "5620721c358f440eaf48e95875d360b45af21a072d24a50461b03d5ec14cdccc",
+      "name": "open effect row cannot substitute identity",
+      "source_sha256": "1ae743be7bd30d98e098725569f05929b0b9468ea6582660d14a2cae88c58a9c",
+      "status": "passed"
+    },
+    {
+      "exit_code": 1,
+      "expected_acceptance": false,
+      "log_sha256": "4c6c1727016e027ea352393d4815f6e902ad66fb6d7668d0db5f70b2deccf01e",
+      "name": "open effect row explicit Type refused",
+      "source_sha256": "fc696f7f9735a43bed22c6a9ed5e6917c7fd1f3c3f9f1b9a405b452902585e34",
+      "status": "passed"
+    },
+    {
+      "exit_code": 1,
+      "expected_acceptance": false,
+      "log_sha256": "20841f45dadbb9b2745d3d5ebd35c48b862a2175389e590b89ad81e7aba423bf",
+      "name": "open effect row explicit Region refused",
+      "source_sha256": "dca1d886edbf0de05627e2eb9ca1382999dff3819cb475a45b5c521e2336659c",
+      "status": "passed"
+    },
+    {
+      "exit_code": 1,
+      "expected_acceptance": false,
+      "log_sha256": "80a7285dcf8a2d4fa9c106bbe75cfe927fa9eb05ccd39cedcbdb82cbc873313e",
+      "name": "open effect row unbound refused",
+      "source_sha256": "994a98951c67ec32f1e4e8deeeeee02968dfbe98bb009d46a636cd73da5c8499",
+      "status": "passed"
+    },
+    {
+      "exit_code": 1,
+      "expected_acceptance": false,
+      "log_sha256": "8a4da1c961badc529e4de4b030114dea482c4976b3b2c4f383f96ad923def6a0",
+      "name": "open effect row conflicting type use refused",
+      "source_sha256": "c00fde000ddf003d7e9a51147b72d777c340ff8887688153ea6bbc2ae76a122c",
+      "status": "passed"
+    },
+    {
+      "exit_code": 1,
+      "expected_acceptance": false,
+      "log_sha256": "663daa246c0f17c67dc395f85b2210a97a4a2bb48d6151e53f8024ace9969c90",
+      "name": "open effect row cannot hide named effect",
+      "source_sha256": "5af4e403c30a295fb1af90eef6602e75fb7c53d7b8c3e908be258ac68cfad12e",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected_acceptance": true,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "call row-polymorphic function with actual effect",
+      "source_sha256": "c65cb04cf3a1fc862c482ccd258f885d9832a1c40d088a62e0021e6b6a0ba276",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected_acceptance": true,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "call named-label wrapper with pure callback",
+      "source_sha256": "eee8fbbed69839a0312b2474d0596bcd4ee2a7865354ab2fb855bf2389ace559",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected_acceptance": true,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "open row label permutation",
+      "source_sha256": "6517a5a492edb6643a6ad09f73f345413f51084319be5658fd089a9fd2782068",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected_acceptance": true,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "call row-polymorphic function with applied-effect callback",
+      "source_sha256": "507562d410a5e936d745176f21e047ddc009e7697fe3039af9af03a45b18fe07",
+      "status": "passed"
+    },
+    {
+      "exit_code": 45,
+      "expected_exit": 45,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "renamed facade operation value remains pure",
+      "source_sha256": "a88f2c26acd9f44b67e70430bc872b90fd1bff666724d615bc7f56149d1860af",
+      "status": "passed"
+    }
+  ],
+  "rows": [
+    {
+      "binary": "/tmp/cinch-rust-operation-value-validation-2/cargo/debug/deps/effects-f07c4c070b8aa2b3",
+      "binary_sha256": "7ab88ab5269d4cc7653baf18bdc6eeeaa7c7856c317f6a3168169c779bf5d7b2",
+      "exit_code": 0,
+      "log_sha256": "1517cd0beca3b23326e5b7404f007cbe0610e01f033535d7b9c9f95b0d6f17f1",
+      "name": "effects",
+      "status": "passed",
+      "tests": 18
+    },
+    {
+      "binary": "/tmp/cinch-rust-operation-value-validation-2/cargo/debug/deps/hk-22807fe2e1c4223e",
+      "binary_sha256": "d4933e4e492ba4691b092afe2b5bfe0e2cccaf759705e2424d92e72a8e7ecee0",
+      "exit_code": 0,
+      "log_sha256": "436d9138c92590b68393f7cd0cd32ffef183d1d2bfcbb2cc4989b0b78fa39cfb",
+      "name": "hk",
+      "status": "passed",
+      "tests": 24
+    },
+    {
+      "binary": "/tmp/cinch-rust-operation-value-validation-2/cargo/debug/deps/params-d3037ea95f2da87b",
+      "binary_sha256": "9a9d65b5deffca793db0ca8e9dad89c5892fccf3966f123edef3dbaf712e3339",
+      "exit_code": 0,
+      "log_sha256": "0989144fa55c1a349f4b3e894d202915ab5829966fb1acbeff26dd4d1d7655f7",
+      "name": "params",
+      "status": "passed",
+      "tests": 7
+    },
+    {
+      "binary": "/tmp/cinch-rust-operation-value-validation-2/cargo/debug/deps/folded_literal_ownership-23570bceab500c16",
+      "binary_sha256": "48eef0c70400946776a66764952b28a9f13233d61197c3c59d7944cf972b3544",
+      "exit_code": 0,
+      "log_sha256": "e50f5269dc7ad4bf8ad6d7b9ffef0a621c2c285dabcb21d1f7c57c80125c21ba",
+      "name": "folded_literal_ownership",
+      "status": "passed",
+      "tests": 2
+    }
+  ],
+  "scope": "All4 complete affected Native suites,51tests,43 compiler modules,14 exact original row client programs and actual renamed-facade operation-value runtime execution. Operation values use a checked forwarding lambda with fresh unspellable argument names and the actual caller alias. Pure creation is tested; effects cannot be erased. Original D23 handled-through-called-computation refusals remain intact.",
+  "source": "/tmp/cinch-rust-operation-value-validation-2/source",
+  "source_check": {
+    "compiler": "/tmp/cinch-rust-operation-value-validation-2/cargo/debug/cinch",
+    "compiler_modules": 43,
+    "compiler_sha256": "bc9f68ea7d2269512377a5afc8518a79262c1783f4480a0180fcfd3441d0b8d0",
+    "exit_code": 0,
+    "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "status": "passed"
+  },
+  "source_sha256": "1e10316ae895cc12b562356fd429f7bd4b6266f7180f6df49274e40cc96be358",
+  "status": "passed-scoped-rust-operation-values",
+  "tests": 51,
+  "verified_at": "2026-11-04T21:35:01.895868+00:00"
+}

@@ -194,6 +194,9 @@ module Bootstrap.Nominal where
   qualify-row :: List String -> TypeExpr -> (TypeExpr, List Diagnostic)
   qualify-row locals row = case row of
     TRow s labels None -> case qualify-effects locals labels of (out, errors) -> (TRow s out None, errors)
+    TRow s labels (Some name) -> if has name locals then
+      (case qualify-effects locals labels of (out, errors) -> (TRow s out (Some name), errors))
+      else fail s "unbound resolved effect row tail"
     other -> fail (type-expr-span row) "resolved effect row needs open-row elaboration"
   qualify-effects :: List String -> TypeExpr -> (TypeExpr, List Diagnostic)
   qualify-effects locals labels = case labels of

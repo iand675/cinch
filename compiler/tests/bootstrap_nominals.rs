@@ -67,6 +67,9 @@ fn imported_nominals_are_checked_with_defining_identities_in_cinch() {
     // scope. These synthetic contracts exercise the consumer independently
     // of the seed's producer; importing them does not execute a body.
     for (module, scheme, nominal) in [
+        ("OpenRow", "forall (e :: Row). (Unit ->{|e} Unit) ->{|e} Unit", false),
+        ("WrongRowKind", "forall (e :: Type). (Unit ->{|e} Unit) ->{|e} Unit", false),
+        ("UnboundRow", "(Unit ->{|missing} Unit) ->{|missing} Unit", false),
         ("CarrierGeneric", "forall (a :: Type) (x :: a). (Int -> Int)", false),
         ("CarrierFunction", "forall (a :: Type) (f :: a -> a). (Int -> Int)", false),
         ("CarrierNominal", "forall (x :: A.Token). (Int -> Int)", true),

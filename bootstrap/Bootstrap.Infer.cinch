@@ -822,8 +822,14 @@ module Bootstrap.Infer where
   expect-type sp ty st = if kind-equal (type-kind ty) KType then st else add-error sp "a value type must have kind Type" st
   convert-row :: TypeContext -> List (String, UType) -> TypeExpr -> Store -> (UType, Store)
   convert-row kinds locals row st = case row of
-    TRow s labels None -> case convert-effects kinds locals labels st of (out, checked) -> (URow out, checked)
-    other -> bad (type-expr-span row) "open effect rows need row-tail elaboration" st
+    TRow s labels tail -> case convert-effects kinds locals labels st of
+      (out, checked) -> case tail of
+        None -> (URow out, checked)
+        Some name -> case lookup-local name locals of
+          Some rest -> if kind-equal (type-kind rest) KRow then (union-effects (URow out) rest, checked)
+            else bad s "effect row tail must have kind Row" checked
+          None -> bad s "effect row tail is not bound by this scheme" checked
+    other -> bad (type-expr-span row) "malformed effect row syntax" st
   convert-effects :: TypeContext -> List (String, UType) -> TypeExpr -> Store -> (UType, Store)
   convert-effects kinds locals labels st = case labels of
     TArgsEnd s -> (UEnd, st)
@@ -908,13 +914,33 @@ module Bootstrap.Infer where
       other -> max-arity (constructor-arity-in kinds locals params sought 0 first) (constructor-arity-arguments kinds locals params sought None rest)
   constructor-kind-syntax :: Span -> Nat -> TypeExpr
   constructor-kind-syntax sp arity = if arity == 0 then TName sp "Type" else TFun sp (TName sp "Type") (constructor-kind-syntax sp (arity - 1))
+  -- Only lexical row-tail occurrences determine an unannotated Row binder.
+  -- Explicit kinds still pass through the ordinary conversion checks.
+  row-parameter-names :: TypeExpr -> List String
+  row-parameter-names syntax = case syntax of
+    TRow sp labels tail -> row-parameter-names labels <> (case tail of None -> Nil; Some name -> [name])
+    TFun sp a b -> row-parameter-names a <> row-parameter-names b
+    TFunEff sp a row b -> row-parameter-names a <> row-parameter-names row <> row-parameter-names b
+    TApp sp f xs -> row-parameter-names f <> row-parameter-names xs
+    TArg sp first rest -> row-parameter-names first <> row-parameter-names rest
+    TTuple sp fields -> row-parameter-names fields
+    TUsing sp bounds body -> row-parameter-names bounds <> row-parameter-names body
+    TBound sp name annotation rest -> row-parameter-names annotation <> row-parameter-names rest
+    TRefined sp predicate carrier -> row-parameter-names carrier
+    TForall sp binders body -> remove-row-parameters (parameter-names-for-check (forall-params-of binders)) (row-parameter-names body)
+    other -> Nil
+  remove-row-parameters :: List String -> List String -> List String
+  remove-row-parameters bound names = case names of
+    Nil -> Nil
+    Cons name rest -> if has name bound then remove-row-parameters bound rest else Cons name (remove-row-parameters bound rest)
   inferred-forall-parameters :: TypeContext -> List (String, UType) -> List TypeParam -> TypeExpr -> List TypeParam
   inferred-forall-parameters kinds locals params body = infer-forall-parameters kinds locals params params body
   infer-forall-parameters :: TypeContext -> List (String, UType) -> List TypeParam -> List TypeParam -> TypeExpr -> List TypeParam
   infer-forall-parameters kinds locals all remaining body = case remaining of
     Nil -> Nil
     Cons p rest -> Cons (case p of
-      MkTypeParam sp name None only -> let arity = constructor-arity-in kinds locals all name 0 body in
+      MkTypeParam sp name None only -> if has name (row-parameter-names body) then MkTypeParam sp name (Some (TName sp "Row")) only else
+        let arity = constructor-arity-in kinds locals all name 0 body in
         if arity == 0 then p else MkTypeParam sp name (Some (constructor-kind-syntax sp arity)) only
       other -> p) (infer-forall-parameters kinds locals all rest body)
 
