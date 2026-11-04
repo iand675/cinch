@@ -41,6 +41,13 @@ The complete original allocation target now passes all eight cases through this
 fresh Stage1, including the two earlier failures. Its custom C-probe case remains
 a direct Native API check; portable compiler builds select Stage1. See
 [the scoped allocation recovery](../bootstrap/current-stage1-allocation-recovery.json).
+The next complete early target, command-line arguments, finished with one pass
+and two failures. The first diagnostic rejects a computed Nat passed to the
+dependent result contract of `nat-to-int`; later diagnostics cascade. The
+[original complete argv failure](../bootstrap/current-stage1-argv-failure.json)
+records this exact Stage1 and log identity. A separate unpublished candidate
+extends strict private witness binding to ordinary computed arguments. Its
+source and full proof/effect/ownership gates are still under validation.
 These diagnostics do not replace the required91-group exact final Stage3 suite:
 79 bootstrap groups, eight ordinary targets, three complete mixed consumers and
 the designed ABI5 array refusal. Exact final Stage3 runner reports, zero-leak

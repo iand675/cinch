@@ -1,0 +1,35 @@
+{
+  "status": "failed-complete-original-argv-target",
+  "source_sha256": "72a62361a93da731ea5fe5becb9dc9828db00dda3f9b87cfcb7caf67d3177dee",
+  "compiler_stage": 1,
+  "compiler_sha256": "3960407e69a778e20b83525b70b484b6c1fddc22b8010d9dd5527198d7c150ac",
+  "target": {
+    "command": [
+      "/tmp/cinch-escaped-constructors-validation-4/cargo/debug/deps/argv-1b2cdec3fc67fe4f",
+      "--include-ignored",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "elapsed_seconds": 561.70342725,
+    "executable": "/tmp/cinch-escaped-constructors-validation-4/cargo/debug/deps/argv-1b2cdec3fc67fe4f",
+    "exit_code": 101,
+    "finished": "2026-11-04T04:52:05.895038+00:00",
+    "kind": "integration",
+    "log_sha256": "8f10549c460bc3eccdacfac4afbfafa55fb45d707001e9c47a4e2c4d87138ec0",
+    "name": "argv",
+    "pid": 97827,
+    "sha256": "d250695bf6847cde49d7c9665680d4deb3be74f425381418c66a566b87e5d1c0",
+    "source_unchanged": true,
+    "started": "2026-11-04T04:42:44.198965+00:00",
+    "status": "failed"
+  },
+  "counts": {
+    "passed": 1,
+    "failed": 2,
+    "ignored": 0,
+    "filtered_out": 0
+  },
+  "first_diagnostic": "bootstrap.check:472:27: argument method needs checked mathematical semantics",
+  "log": "/tmp/cinch-current-stage1-ordinary-diagnostic-30/argv.log",
+  "scope": "Whole original target unchanged; early diagnostic on current fresh Stage1. Cannot count as finalStage3 acceptance. Proposed witness-materialization repair remains unverified."
+}
