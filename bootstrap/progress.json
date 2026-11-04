@@ -3,7 +3,7 @@
   "estimate": 90,
   "commit": "32a8045",
   "estimateNote": "Rough engineering estimate. Verified checks and remaining work are listed below.",
-  "status": "Current-source verification running",
+  "status": "Verification found a failure; correction required",
   "stages": [
     {
       "name": "Stage 0",
@@ -33,7 +33,7 @@
   "checks": [
     {
       "title": "Current repair gates",
-      "detail": "2 of 6 complete groups passed; 4 running, 0 failed and 0 pending. independent type checker: passed; Core validation: passed; typechecker: running; inference: running; runtime behavior: running; library calls: running. All 43 source-module check: passed.",
+      "detail": "3 of 6 complete groups passed; 2 running, 1 failed and 0 pending. independent type checker: passed; Core validation: passed; typechecker: passed; inference: running; runtime behavior: failed; library calls: running. All 43 source-module check: passed.",
       "state": "running"
     },
     {
@@ -108,8 +108,12 @@
       "detail": "Local structured task syntax, ownership/lifetime checks and real runtime lowering now pass all43 source checks through the repaired Rust host. First whole regression run passed5 groups and failed runtime task sources at resolver scheme materialization; that integration fix and14 independent task-kernel checks are in the new six-group run. Rust scope-escape repair is pushed as32a8045:59 tests across5 whole groups pass. Original self-built task exhaustion, fresh full bootstrap and all matching suites remain required."
     },
     {
+      "title": "Investigate the recorded failure",
+      "detail": "repair checks: bootstrap_runtime_ir"
+    },
+    {
       "title": "Finish the repair gates",
-      "detail": "2 of 6 complete groups passed; 4 running, 0 failed and 0 pending. independent type checker: passed; Core validation: passed; typechecker: running; inference: running; runtime behavior: running; library calls: running."
+      "detail": "3 of 6 complete groups passed; 2 running, 1 failed and 0 pending. independent type checker: passed; Core validation: passed; typechecker: passed; inference: running; runtime behavior: failed; library calls: running."
     },
     {
       "title": "Publish the validated repair",
@@ -169,7 +173,7 @@
   "candidateSource": "160174f288eddc2a262e7f748043bd4ee1b5718295d33caa124bd7821372caf9",
   "candidatePublished": false,
   "fullGoalComplete": false,
-  "summary": "All 43 compiler-source checks: passed. 2 of 6 complete groups passed; 4 running, 0 failed and 0 pending. independent type checker: passed; Core validation: passed; typechecker: running; inference: running; runtime behavior: running; library calls: running. The repair source remains local while its full focused validation finishes.",
-  "activity": "Complete sweep of the new Cinch source: 0 of 208 complete groups passed; 0 running, 0 failed and 208 pending. Stage builds and smoke checks: 0 of 4; chain state: pending. Repair gates: 2 of 6 complete groups passed; 4 running, 0 failed and 0 pending. independent type checker: passed; Core validation: passed; typechecker: running; inference: running; runtime behavior: running; library calls: running. Early Stage1 behavior: 0 of 8 complete groups passed; 0 running, 0 failed and 8 pending. Exact final Stage3 suite: 0 of 91 complete groups passed; 0 running, 0 failed and 91 pending.",
-  "updatedAt": "2026-11-04T12:08:31.104693+00:00"
+  "summary": "All 43 compiler-source checks: passed. 3 of 6 complete groups passed; 2 running, 1 failed and 0 pending. independent type checker: passed; Core validation: passed; typechecker: passed; inference: running; runtime behavior: failed; library calls: running. The repair source remains local while its full focused validation finishes.",
+  "activity": "Complete sweep of the new Cinch source: 0 of 208 complete groups passed; 0 running, 0 failed and 208 pending. Stage builds and smoke checks: 0 of 4; chain state: pending. Repair gates: 3 of 6 complete groups passed; 2 running, 1 failed and 0 pending. independent type checker: passed; Core validation: passed; typechecker: passed; inference: running; runtime behavior: failed; library calls: running. Early Stage1 behavior: 0 of 8 complete groups passed; 0 running, 0 failed and 8 pending. Exact final Stage3 suite: 0 of 91 complete groups passed; 0 running, 0 failed and 91 pending.",
+  "updatedAt": "2026-11-04T12:09:33.163491+00:00"
 }
