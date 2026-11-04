@@ -53,7 +53,7 @@
     },
     {
       "title": "Complete sweep of the new Cinch source",
-      "detail": "117 of 208 complete groups passed; 2 running, 0 failed and 89 pending.Every group includes ignored tests. State: running.",
+      "detail": "127 of 208 complete groups passed; 2 running, 0 failed and 79 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -63,7 +63,7 @@
     },
     {
       "title": "Early behavior through fresh Stage1",
-      "detail": "1 of 8 complete groups passed; 1 running, 0 failed and 6 pending.These original eight ordinary targets give early feedback and do not replace final Stage3 acceptance.",
+      "detail": "2 of 8 complete groups passed; 1 running, 0 failed and 5 pending.These original eight ordinary targets give early feedback and do not replace final Stage3 acceptance.",
       "state": "running"
     },
     {
@@ -113,7 +113,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "117 of 208 complete groups passed; 2 running, 0 failed and 89 pending."
+      "detail": "127 of 208 complete groups passed; 2 running, 0 failed and 79 pending."
     },
     {
       "title": "Finish the exact self-built compiler tests",
@@ -158,6 +158,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "All 43 compiler-source checks: passed. 6 of 6 complete groups passed; 0 running, 0 failed and 0 pending. independent type checker: passed; Core validation: passed; typechecker: passed; inference: passed; runtime behavior: passed; library calls: passed.",
-  "activity": "Complete sweep of the new Cinch source: 117 of 208 complete groups passed; 2 running, 0 failed and 89 pending. Stage builds and smoke checks: 2 of 4; chain state: running-full-stage-chain. Repair gates: 6 of 6 complete groups passed; 0 running, 0 failed and 0 pending. independent type checker: passed; Core validation: passed; typechecker: passed; inference: passed; runtime behavior: passed; library calls: passed. Early Stage1 behavior: 1 of 8 complete groups passed; 1 running, 0 failed and 6 pending. Exact final Stage3 suite: 0 of 91 complete groups passed; 0 running, 0 failed and 91 pending.",
-  "updatedAt": "2026-11-04T13:09:47.907687+00:00"
+  "activity": "Complete sweep of the new Cinch source: 127 of 208 complete groups passed; 2 running, 0 failed and 79 pending. Stage builds and smoke checks: 2 of 4; chain state: running-full-stage-chain. Repair gates: 6 of 6 complete groups passed; 0 running, 0 failed and 0 pending. independent type checker: passed; Core validation: passed; typechecker: passed; inference: passed; runtime behavior: passed; library calls: passed. Early Stage1 behavior: 2 of 8 complete groups passed; 1 running, 0 failed and 5 pending. Exact final Stage3 suite: 0 of 91 complete groups passed; 0 running, 0 failed and 91 pending.",
+  "updatedAt": "2026-11-04T13:10:49.961313+00:00"
 }
