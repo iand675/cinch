@@ -1,0 +1,64 @@
+{
+  "compiler_sha256": "928d88e8dc063d02723637e7c1686c8df0f224701fc7288eed609f89a391c6fe",
+  "rows": [
+    {
+      "exit_code": 0,
+      "log_sha256": "ac55a8a37b43c5edaf0b2c69e3c2bee8be51a8fc9381da865a605ee3e0d89d1f",
+      "name": "runtime",
+      "source_unchanged": true,
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "da69f1a54c9814c6c3d01d918496f072f5fd793b1bb0959864c50a1264924961",
+      "name": "tooling",
+      "source_unchanged": true,
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "08517ed84067176dd01941526715ed5a65c078e68a5b90bd581e31770094863c",
+      "name": "syntax-editor",
+      "source_unchanged": true,
+      "status": "passed"
+    }
+  ],
+  "scope": "Complete fresh runtime suite includingignored, complete tooling unittest discovery and complete compiler/editor syntax gate, exact currentf6e1source (Cinch0e28 plus published Rust optimizer fix). Runtimecache private tothis same source; Native compilerbinary hash fixed throughout. No goalcompletionclaim.",
+  "source": "/tmp/cinch-native-optimizer-borrow-validation-1/source",
+  "source_sha256": "f6e166c9ec48a7b30526db7d16f360c56204c5de4b6005f91ae54a350bd07808",
+  "status": "passed",
+  "checked_at": "2026-11-04T01:16:56.065294+00:00",
+  "tests": {
+    "runtime": 171,
+    "tooling": 41,
+    "syntax_editor": 39,
+    "failed": 0,
+    "ignored_or_skipped": 0
+  },
+  "syntax_editor_receipt": {
+    "bootstrap_achieved": false,
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+      "-m",
+      "unittest",
+      "discover",
+      "-s",
+      "/private/tmp/cinch-final-source-auxiliary-29/syntax-editor/work/experiments/malleable-syntax/tests",
+      "-v"
+    ],
+    "compiler": "/private/tmp/cinch-native-optimizer-borrow-validation-1/cargo/debug/cinch",
+    "compiler_sha256": "928d88e8dc063d02723637e7c1686c8df0f224701fc7288eed609f89a391c6fe",
+    "exit_code": 0,
+    "negative_programs": 21,
+    "positive_programs": 13,
+    "skipped": 0,
+    "source_sha256": "f6e166c9ec48a7b30526db7d16f360c56204c5de4b6005f91ae54a350bd07808",
+    "source_unchanged": true,
+    "status": "passed",
+    "syntax_libraries": 14,
+    "tests": 39
+  },
+  "syntax_editor_full_receipt_sha256": "f586b105597dca9a847a0d5f26c6a277d8c649d6fe5a759616e28ed9fbba96f7",
+  "compiler_source_sha256": "0e2848ef342cc3fd82d78e2eec3894d410660c17538f7c0becdf55278d37ab0f",
+  "not_proven": "Full208 compiler groups, new Stage1/2/3 bootstrap and all91 selected-frontend groups, exactStage3acceptance and final requirement audit remain open."
+}

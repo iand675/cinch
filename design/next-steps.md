@@ -1,8 +1,35 @@
-# Next steps (as of 2026-11-03)
+# Next steps (as of 2026-11-04)
 
-## Current bootstrap result and remaining gates
+## Current-source verification
 
-The final repaired-source Stage0/1/2/3 chain passes. Stage2 and Stage3 have
+The published Cinch checkpoint is `3e14f1b`, with the Rust optimizer repair in
+`8d6feac`. The current frozen verification snapshot is
+`f6e166c9ec48a7b30526db7d16f360c56204c5de4b6005f91ae54a350bd07808`;
+its Cinch compiler source identity is
+`0e2848ef342cc3fd82d78e2eec3894d410660c17538f7c0becdf55278d37ab0f`.
+All five complete focused repair gates pass. The current source also passes
+all171 runtime tests,41 tooling checks and39 compiler/editor/Tree-sitter checks,
+with no ignored, skipped or filtered cases. See
+[the current auxiliary evidence](../bootstrap/current-source-auxiliary-results.json).
+The [published-source audit](../bootstrap/current-published-source-audit.json)
+matches all200 production and380 test inputs in its stated scope to the frozen
+verification source. Documentation/status metadata and the independently checked
+test-only library roots are recorded separately.
+
+The full208-group current-source compiler sweep is running. A fresh staged
+compiler build has verified the unchanged pinned seed and its smoke checks;
+the new Stage1/2/3 artifacts and fixed point are not yet claimed. A separate
+91-group queue waits for the exact new Stage3:79 bootstrap groups,eight ordinary
+program targets,three complete mixed consumers and the designed ABI5 array
+refusal. Exact new-Stage3 test reports,zero-leak execution,definition-owned
+fixities and class behavior are queued too. All these gates and the unchanged
+Acceptance1-5 audit remain required. The live dashboard tracks this current
+attempt; the earlier successful compiler chain below retains its original
+source scope.
+
+## Earlier repaired-source bootstrap and remaining gates
+
+The earlier repaired-source Stage0/1/2/3 chain passes. Stage2 and Stage3 have
 byte-identical compiler IR, executable bytes and all43 canonical compiler
 interfaces. Stage3 checks its actual entry using those emitted interfaces with
 compiler-module bodies absent. Stage2 rebuilds changed compiler source, and the

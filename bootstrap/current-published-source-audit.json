@@ -1,0 +1,19 @@
+{
+  "changed_production_or_test_inputs": [],
+  "checked_at": "2026-11-04T01:14:45.249018+00:00",
+  "compiler_source_sha256": "0e2848ef342cc3fd82d78e2eec3894d410660c17538f7c0becdf55278d37ab0f",
+  "other_changed_inputs": [
+    "README.md",
+    "bootstrap/progress.json",
+    "bootstrap/test-support-object-roots.json",
+    "design/next-steps.md"
+  ],
+  "production_inputs_compared": 200,
+  "published_cinch_checkpoint": "3e14f1b",
+  "published_rust_checkpoint": "8d6feac",
+  "scope": "Source identity and immutability only. This does not establish completion of running full suites or the current staged compiler build.",
+  "status": "passed-scoped-published-source-audit",
+  "test_inputs_compared": 380,
+  "test_support_roots": "Published roots match the independently validated external provider3 exactly as JSON. This test-only bundle is separately validated and recorded by final self-built execution; production roots and seed pins match the frozen source.",
+  "verification_snapshot_sha256": "f6e166c9ec48a7b30526db7d16f360c56204c5de4b6005f91ae54a350bd07808"
+}
