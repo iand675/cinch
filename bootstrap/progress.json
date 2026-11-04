@@ -53,7 +53,7 @@
     },
     {
       "title": "Complete sweep of the new Cinch source",
-      "detail": "86 of 208 complete groups passed; 3 running, 0 failed and 119 pending.Every group includes ignored tests. State: running.",
+      "detail": "96 of 208 complete groups passed; 3 running, 0 failed and 109 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -113,7 +113,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "86 of 208 complete groups passed; 3 running, 0 failed and 119 pending."
+      "detail": "96 of 208 complete groups passed; 3 running, 0 failed and 109 pending."
     },
     {
       "title": "Finish the exact self-built compiler tests",
@@ -158,6 +158,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "All 43 compiler-source checks: passed. 6 of 6 complete groups passed; 0 running, 0 failed and 0 pending. independent type checker: passed; Core validation: passed; typechecker: passed; inference: passed; runtime behavior: passed; library calls: passed.",
-  "activity": "Complete sweep of the new Cinch source: 86 of 208 complete groups passed; 3 running, 0 failed and 119 pending. Stage builds and smoke checks: 2 of 4; chain state: running-full-stage-chain. Repair gates: 6 of 6 complete groups passed; 0 running, 0 failed and 0 pending. independent type checker: passed; Core validation: passed; typechecker: passed; inference: passed; runtime behavior: passed; library calls: passed. Early Stage1 behavior: 1 of 8 complete groups passed; 1 running, 0 failed and 6 pending. Exact final Stage3 suite: 0 of 91 complete groups passed; 0 running, 0 failed and 91 pending.",
-  "updatedAt": "2026-11-04T13:05:39.414569+00:00"
+  "activity": "Complete sweep of the new Cinch source: 96 of 208 complete groups passed; 3 running, 0 failed and 109 pending. Stage builds and smoke checks: 2 of 4; chain state: running-full-stage-chain. Repair gates: 6 of 6 complete groups passed; 0 running, 0 failed and 0 pending. independent type checker: passed; Core validation: passed; typechecker: passed; inference: passed; runtime behavior: passed; library calls: passed. Early Stage1 behavior: 1 of 8 complete groups passed; 1 running, 0 failed and 6 pending. Exact final Stage3 suite: 0 of 91 complete groups passed; 0 running, 0 failed and 91 pending.",
+  "updatedAt": "2026-11-04T13:06:41.689006+00:00"
 }
