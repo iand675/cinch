@@ -1,0 +1,63 @@
+{
+  "compiler_source_sha256": "e2f15c51f24f38e74ddf61943d96d828cade2e60f2cdc7db67c6eafdefd3f0a5",
+  "full_goal_complete": false,
+  "native_compiler": {
+    "path": "/tmp/cinch-final-source-auxiliary-44/native-cinch",
+    "sha256": "bc9f68ea7d2269512377a5afc8518a79262c1783f4480a0180fcfd3441d0b8d0"
+  },
+  "rows": [
+    {
+      "exit_code": 0,
+      "log_sha256": "2e73b9e36847008ed81d382b7bc920ad8a6c876b0ba1fa9053ecf5bbc8fc2808",
+      "name": "runtime",
+      "source_unchanged": true,
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "6066fb5b49a6170778ab408c04a7220cbb361d4e0a8bcebcb5dfbf140aacd041",
+      "name": "tooling",
+      "source_unchanged": true,
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "17b303a45c12159cd8e5492ad073a2b36324a40812f7ae9f73d537eacb267179",
+      "name": "syntax-editor",
+      "source_unchanged": true,
+      "status": "passed"
+    }
+  ],
+  "runtime_executables": [
+    {
+      "path": "/tmp/cinch-final-source-auxiliary-44/cargo-runtime/debug/deps/cinchruntime-f1f7fdfb0e7e1fcb",
+      "sha256": "c98ddf4547225e5b4d56929d62c1cfb310efd80df0678f4bcedaba11176b37aa"
+    },
+    {
+      "path": "/tmp/cinch-final-source-auxiliary-44/cargo-runtime/debug/deps/coopsched-d9b2947cc9eb873a",
+      "sha256": "617c03f6d4560bdcf9e25c7c839ab730f94fcff4ca45ea885c2d96eb250c6e09"
+    },
+    {
+      "path": "/tmp/cinch-final-source-auxiliary-44/cargo-runtime/debug/deps/evalvm-93adc45ee796dca6",
+      "sha256": "644b5770a4c61c021134c0f59692f3d7d4c048c909908d4c9c3bf05f2932422b"
+    },
+    {
+      "path": "/tmp/cinch-final-source-auxiliary-44/cargo-runtime/debug/deps/reference_model-dc3e4e0c9e41553b",
+      "sha256": "b85792792203e740295e9e4e7b33574862e3ec7cae9924a59969c2fd42f09e40"
+    },
+    {
+      "path": "/tmp/cinch-final-source-auxiliary-44/cargo-runtime/debug/deps/tasks-e53f80da61cd7490",
+      "sha256": "086b235a219f51cb70bc3baed7e26df1d7bbca232a15c6550c85e3b8d5ac65e3"
+    }
+  ],
+  "scope": "Complete fresh runtime/tool/editor checks on the published e2f row/import compiler and exact Rust operation-value producer. Source43-module identity, complete unfiltered logs and runtime executable identities independently checked. Production unchanged by c7d6c62 test-only decision-phase correction. Does not close full compiler/self-built suites, original API/ABI6 array behavior, proof soundness or Acceptance5.",
+  "source": "/tmp/cinch-current-native-source-check-44/source",
+  "source_sha256": "d5d979aeeb8fff715155bd68e93406ed745de5afa730e0735680d2b8c4ed561d",
+  "status": "passed-verified-row-operation-auxiliary",
+  "tests": {
+    "runtime": 171,
+    "syntax_editor": 39,
+    "tooling": 41
+  },
+  "verified_at": "2026-11-04T23:23:55.923316+00:00"
+}

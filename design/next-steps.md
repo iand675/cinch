@@ -1,4 +1,41 @@
-# Next steps (as of 2026-11-04)
+# Next steps (as of 2026-11-05)
+
+## Current row compiler reaches a genuine fixed point (2026-11-05)
+
+The published row/import compiler e2f now has its own independently audited
+Stage0/1/2/3 bootstrap. Stage1 freshly rebuilds all 43 compiler modules into
+Stage2, which rebuilds Stage3. All stage smokes pass; Stage2 and Stage3 have
+byte-identical IR, executable and 43 checked interfaces. Stage3 checks its
+entry using those interfaces without compiler source bodies. Stage2 also
+rebuilds changed compiler source into a changed executable whose diagnostic
+proves the changed behavior. The unchanged pinned seed and admitted base
+artifacts are recorded explicitly; no previous Cinch compiler stage was reused.
+See `bootstrap/current-open-row-bootstrap-results.json`. This proves
+Acceptance 1-4 for compiler
+`e2f15c51f24f38e74ddf61943d96d828cade2e60f2cdc7db67c6eafdefd3f0a5`.
+
+All matching auxiliary gates also pass independently: 171 runtime, 41 tooling
+and 39 editor tests, with no failures, ignored cases or filtering. Complete
+logs, frozen source and actual executable identities are audited in
+`bootstrap/current-open-row-auxiliary-results.json`.
+
+The source-decisions regression now expects opaque propositions to resolve
+successfully before the checker rejects their missing executable decision
+procedure. It demands that precise diagnostic and forbids a generic resolver
+failure. The complete group and all 43 compiler modules pass independently;
+production compiler inputs are unchanged. See
+`bootstrap/current-source-decision-phase-results.json`. Its actual Stage3 rerun
+and the complete Native/final-Stage3 sweeps remain in progress. Older frozen
+runs retain their original expected-phase failure rather than being relabelled.
+
+Acceptance 5 remains open. The exact published Rust compiler still accepts the
+recursive false-proof counterexample; the isolated repair is not integrated.
+Positive ABI6 array lowering, original API/target coverage and complete matching
+final suites remain required. The separate array candidate has executed all
+31 runtime programs with expected results and zero leaks, but its corrected
+ABI fixtures and defining intrinsic interface roundtrips still need full
+validation. None of that unpublished candidate is claimed by this bootstrap.
+
 
 ## Checked open rows, imported tails and operation values (2026-11-04)
 
