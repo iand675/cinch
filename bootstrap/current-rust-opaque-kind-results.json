@@ -1,0 +1,172 @@
+{
+  "compiler_source_sha256": "ffee20f54e9b9b34b039104b4142b0454f28ead43adfec29753f3a8977fa2d11",
+  "full_goal_complete": false,
+  "limitations": "Scoped Rust repair only. No claim of full matching Native/self-built/runtime/tool/editor/external suites or Acceptance1-5 completion. Cinch source unchanged from diagnostic12; unpublished interface candidates remain separate.",
+  "original_oracle": [
+    {
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "opaque abstract identity",
+      "source_sha256": "f043489288377e6c95e3dafa8aff69aaf987ed7c52bb69ae34494b400936a68f",
+      "status": "passed"
+    },
+    {
+      "exit_code": 1,
+      "log_sha256": "575ccc0f5a86967aa505783b4eda2c3db37d413dbd222b706102a14210e06631",
+      "name": "opaque carrier is not a literal",
+      "source_sha256": "25350276d090718dfd665aa4a64c4627248518d06e8ced691c500fe9fc9e2586",
+      "status": "passed"
+    },
+    {
+      "exit_code": 1,
+      "log_sha256": "8729d7a99308629c5408a2371d9d1679b9dd6718e947997c8c6aa82f2bb34fad",
+      "name": "opaque carrier cannot justify empty case",
+      "source_sha256": "f61ebbc92cb7cd863b7198633134174ff8ee0e07363090886885fbb18b1e3a94",
+      "status": "passed"
+    },
+    {
+      "exit_code": 1,
+      "log_sha256": "f31e3260dbe4260fc77863790033b09b9b1ec5a6f0d262fc0f30855f635bbf1d",
+      "name": "opaque identities remain distinct",
+      "source_sha256": "abd3aa4c73c10b8f195815a07de1bd123cc046b195547af075b6ddadd54d15d5",
+      "status": "passed"
+    },
+    {
+      "exit_code": 1,
+      "log_sha256": "dc242e914abd9e129de7a77034387547862f581190794196b41a7e119f5b98d6",
+      "name": "opaque application checks parameter kind",
+      "source_sha256": "9faf57b9a68a929fb9c92ada54090c5eea4f4cc245bc66d2ea7b357462983a19",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "opaque value parameter",
+      "source_sha256": "ac5bee2747525c138f796c58aa558d29a3f1e7ef0c62c6eb0308e321ca6683cd",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "opaque higher kind parameter",
+      "source_sha256": "f0b6afdb70db363abc5f266081594db944101302a9d830fda2d4ce56579767f8",
+      "status": "passed"
+    }
+  ],
+  "rows": [
+    {
+      "binary": "/tmp/cinch-rust-opaque-kind-validation-2/cargo/debug/deps/interface_kinds-50a2c803475e0226",
+      "binary_sha256": "b1625ca04489c5210a08f8d5f45dd2a2ef23a2d810df3b02fccb828b51878083",
+      "exit_code": 0,
+      "log": "/tmp/cinch-rust-opaque-kind-validation-2/interface_kinds.log",
+      "log_sha256": "9994d578066d0fd92eb380d61a3ec2f4ac03628e8255e9899c08398684f2ecad",
+      "name": "interface_kinds",
+      "status": "passed",
+      "tests": 2
+    },
+    {
+      "binary": "/tmp/cinch-rust-opaque-kind-validation-2/cargo/debug/deps/ffi-1eb5262e9fb991f5",
+      "binary_sha256": "0eb7acaeee0e78b31dfff6ad5b84c53da900e529b490d2783de5ca2af950c606",
+      "exit_code": 0,
+      "log": "/tmp/cinch-rust-opaque-kind-validation-2/ffi.log",
+      "log_sha256": "05eb8ef10d87f849960f1675a55ff7905ff0eabee9df6c42a1fff20f27e73534",
+      "name": "ffi",
+      "status": "passed",
+      "tests": 12
+    },
+    {
+      "binary": "/tmp/cinch-rust-opaque-kind-validation-2/cargo/debug/deps/interface_nominals-b971c55610e05eee",
+      "binary_sha256": "593ad23c59dfc1f05b56ff8247d5b5f09bfec2a4a68c0151dd6bb9416338dc2b",
+      "exit_code": 0,
+      "log": "/tmp/cinch-rust-opaque-kind-validation-2/interface_nominals.log",
+      "log_sha256": "97d9bf5d02d482f7529f60a54aea65f24c633b0fd0aae9414ff0130666543fbe",
+      "name": "interface_nominals",
+      "status": "passed",
+      "tests": 1
+    },
+    {
+      "binary": "/tmp/cinch-rust-opaque-kind-validation-2/cargo/debug/deps/interface_class_contracts-c7f87e16317c47a0",
+      "binary_sha256": "bfcb65a1e3695331f465e1dc01a883e8d8d73c1b27c7ec7c12c60442604de871",
+      "exit_code": 0,
+      "log": "/tmp/cinch-rust-opaque-kind-validation-2/interface_class_contracts.log",
+      "log_sha256": "f7b257fb6769674d99b9ad1fa8212276847e0bb1a3275279ef222f8c016256f9",
+      "name": "interface_class_contracts",
+      "status": "passed",
+      "tests": 1
+    },
+    {
+      "binary": "/tmp/cinch-rust-opaque-kind-validation-2/cargo/debug/deps/hk-22807fe2e1c4223e",
+      "binary_sha256": "515381373d8c982bd439e8b2daeab2e549688c9d449ade36ca70cffa7d978985",
+      "exit_code": 0,
+      "log": "/tmp/cinch-rust-opaque-kind-validation-2/hk.log",
+      "log_sha256": "cf37ce1afcdc60d42c6fa84d67b4faf4fc72b2544d8827ee65c09f464493728f",
+      "name": "hk",
+      "status": "passed",
+      "tests": 24
+    },
+    {
+      "binary": "/tmp/cinch-rust-opaque-kind-validation-2/cargo/debug/deps/primitives-7b69acf6d6c44d28",
+      "binary_sha256": "44ddac2766a0afd199732a95473d19c0a153fb45d51b6e16f1fb5e86a235b161",
+      "exit_code": 0,
+      "log": "/tmp/cinch-rust-opaque-kind-validation-2/primitives.log",
+      "log_sha256": "e95b7bec88a0e69a290517a8a7e424bea306142b2bdf16d1c956cf519ed864ae",
+      "name": "primitives",
+      "status": "passed",
+      "tests": 37
+    },
+    {
+      "binary": "/tmp/cinch-rust-opaque-kind-validation-2/cargo/debug/deps/interface_anonymous_contracts-032b18cec176645b",
+      "binary_sha256": "fb7a1a65fd55a1231953886ac941fdb774c31a94b66c531ad755b652035b9f8e",
+      "exit_code": 0,
+      "log": "/tmp/cinch-rust-opaque-kind-validation-2/interface_anonymous_contracts.log",
+      "log_sha256": "4733a25693df2a6818769b86aa441593bc3b0f8ac21000c433886c46415819a9",
+      "name": "interface_anonymous_contracts",
+      "status": "passed",
+      "tests": 1
+    },
+    {
+      "binary": "/tmp/cinch-rust-opaque-kind-validation-2/cargo/debug/deps/primitive_length_identity-ce45e6581770590d",
+      "binary_sha256": "512735d3234f7c17051780de956b878f0fafbf2e31698288c9d28355dd571f14",
+      "exit_code": 0,
+      "log": "/tmp/cinch-rust-opaque-kind-validation-2/primitive_length_identity.log",
+      "log_sha256": "b3d76340b6cdfa112c47d941ec9762ca8cb01836ee57c7c70dddc92923d05e29",
+      "name": "primitive_length_identity",
+      "status": "passed",
+      "tests": 9
+    },
+    {
+      "binary": "/tmp/cinch-rust-opaque-kind-validation-2/cargo/debug/deps/interface_refinement_closure-44edd08c3fc749fa",
+      "binary_sha256": "acb5d67474d62d1891231ea85151bda46ce7f66952dee1f4a32bc6a23d88d47d",
+      "exit_code": 0,
+      "log": "/tmp/cinch-rust-opaque-kind-validation-2/interface_refinement_closure.log",
+      "log_sha256": "01fabb8aaeec747a4781c27ffb6fe649f4e3001e260812bdad713cf06acc84a5",
+      "name": "interface_refinement_closure",
+      "status": "passed",
+      "tests": 1
+    },
+    {
+      "binary": "/tmp/cinch-rust-opaque-kind-validation-2/cargo/debug/deps/bootstrap_value_kinds-9d92b2ce91928935",
+      "binary_sha256": "98835c90b90f7d3d549c08f91bbf9330106469c8851650c81e8217a6e381a99f",
+      "exit_code": 0,
+      "log": "/tmp/cinch-rust-opaque-kind-validation-2/bootstrap_value_kinds.log",
+      "log_sha256": "4935964af77f748a749298e206e348bd49d4718c286d32e7b428bf50e5c66f64",
+      "name": "bootstrap_value_kinds",
+      "status": "passed",
+      "tests": 1
+    }
+  ],
+  "scope": "Opaque nominal declarations retain their actual checked parameter kinds, including Nat values and higher-kinded constructors. Values, fields and constructors remain hidden. Portable closed value binders use the actual checked Nat/Int/Bytes carrier; definition-owned opaque nominal closures retain those kinds. All ten complete affected groups, new metadata/facade/wrong-kind tests, all43 compiler modules, and all seven original CLI acceptance/refusal repros pass.",
+  "source": "/tmp/cinch-rust-opaque-kind-validation-2/source",
+  "source_check": {
+    "compiler": "/tmp/cinch-rust-opaque-kind-validation-2/cargo/debug/cinch",
+    "compiler_modules": 43,
+    "compiler_sha256": "7b47ad37ffcc4d6fcf460fd9d1800e8728e5f72aae1593339bc9b5ed6b1299cf",
+    "exit_code": 0,
+    "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "status": "passed"
+  },
+  "source_sha256": "01d641cadb39399022090d52cefae438710299839a77b51b934a62d9c9330c7a",
+  "status": "passed-scoped-rust-opaque-parameter-kinds",
+  "total_tests": 89,
+  "verified_at": "2026-11-04T19:05:08.194580+00:00"
+}

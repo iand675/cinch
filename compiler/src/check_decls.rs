@@ -2880,12 +2880,9 @@ impl Checker {
                             Some(ann) => self.binder_kind(ann, &params)?,
                             None => ParamKind::Type,
                         };
-                        if !matches!(k, ParamKind::Type) {
-                            return Err(Error::at(
-                                b.name.span,
-                                "an opaque type's parameters are type parameters in this slice",
-                            ));
-                        }
+                        // Keep the checked carrier/function kind just as for
+                        // other nominal declarations; opacity hides values
+                        // and layouts, not parameter kinds.
                         params.push(b.name.text.clone());
                         param_kinds.push(k);
                     }

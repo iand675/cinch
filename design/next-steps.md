@@ -1,5 +1,21 @@
 # Next steps (as of 2026-11-04)
 
+## Rust opaque parameter kinds retain checked contracts
+
+Opaque declarations now retain their checked value and higher-kinded parameter
+kinds. Portable closed value binders use their actual Nat, Int or Bytes carrier;
+opaque nominal closures preserve those kinds through checked interfaces and
+renamed facades. Opaque types still have no constructors or projected fields,
+and wrong argument kinds remain errors.
+
+All89 tests across ten complete affected groups pass, including the existing FFI
+runtime cases. The rebuilt Native compiler checks all43 Cinch compiler modules;
+all seven original opaque CLI cases now agree. See [the independent scoped audit](../bootstrap/current-rust-opaque-kind-results.json).
+Cinch sources retain identity
+`ffee20f54e9b9b34b039104b4142b0454f28ead43adfec29753f3a8977fa2d11`.
+The Cinch opaque/interface implementation remains an isolated candidate.
+Matching final complete suites and Acceptance1-5 remain open.
+
 ## Rust anonymous refinement literals repaired
 
 The Rust compiler now checks numeric literals using the binder in the actual

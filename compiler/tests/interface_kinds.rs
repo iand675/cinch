@@ -77,3 +77,49 @@ fn interfaces_preserve_indexed_constructors_and_method_visibility() {
     assert!(Iface::from_json(&old).is_err(), "schema 2 cannot supply these contracts");
     common::cleanup(&dir);
 }
+
+#[test]
+fn opaque_parameter_kinds_survive_checked_interfaces_and_facades() {
+    let source = r#"module A where
+  export Mark, Wrap, keep-mark, keep-wrap
+  opaque type Mark (n :: Nat) :: Type
+  opaque type Wrap (f :: Type -> Type) :: Type
+  keep-mark :: forall (n :: Nat). Mark n -> Mark n
+  keep-mark x = x
+  keep-wrap :: forall (f :: Type -> Type). Wrap f -> Wrap f
+  keep-wrap x = x
+module Facade where
+  import A (Mark as M, Wrap as W, keep-mark, keep-wrap)
+  export M, W, keep-mark, keep-wrap
+module Main where
+  import Facade
+  main :: Int
+  main = 0
+"#;
+    let (_, interfaces) = cinch::driver::check_sources_ifaces(source, "opaque-kinds.cinch").unwrap();
+    let a = interfaces.iter().find(|i| i.module == "A").unwrap();
+    let facade = interfaces.iter().find(|i| i.module == "Facade").unwrap();
+    for (name, alias, kind) in [("Mark", "M", "Nat"), ("Wrap", "W", "Type -> Type")] {
+        let original = a.exports.types.iter().find(|t| t.name == name).unwrap();
+        let renamed = facade.exports.types.iter().find(|t| t.name == alias).unwrap();
+        assert_eq!(original.kind, "opaque");
+        assert!(original.ctors.is_empty() && original.fields.is_empty());
+        assert_eq!(original.parameters[0].kind, kind);
+        assert_eq!(renamed.identity, original.identity);
+        assert_eq!(renamed.parameters, original.parameters);
+        assert_eq!(Iface::from_json(&facade.to_json()).unwrap(), *facade);
+    }
+    for name in ["keep-mark", "keep-wrap"] {
+        let original = a.exports.values.iter().find(|v| v.name == name).unwrap().resolved.as_ref().unwrap();
+        let renamed = facade.exports.values.iter().find(|v| v.name == name).unwrap().resolved.as_ref().unwrap();
+        assert_eq!(renamed, original);
+        assert!(original.nominals.iter().any(|n| n.kind == "opaque" && n.constructors.is_none()), "opaque kind lost its definition-owned abstract contract");
+    }
+    for body in [
+        "bad :: Mark Nat -> Nat\n  bad x = 0",
+        "bad :: Wrap Nat -> Nat\n  bad x = 0",
+    ] {
+        let wrong = format!("module Main where\n  opaque type Mark (n :: Nat) :: Type\n  opaque type Wrap (f :: Type -> Type) :: Type\n  {body}\n");
+        assert!(cinch::driver::check_sources(&wrong, "bad-opaque-kind.cinch").is_err(), "opaque parameter kind was erased: {body}");
+    }
+}

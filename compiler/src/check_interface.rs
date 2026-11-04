@@ -207,7 +207,8 @@ impl Checker {
         &mut self, module: &str, name: &str, source: &ast::Type,
         scheme: &Scheme, inherited: &[ast::TypeBinder], class: Option<&SigInfo>, class_target: bool,
     ) {
-        if !scheme.idx_params.is_empty() || !scheme.val_params.is_empty()
+        if !scheme.idx_params.is_empty()
+            || scheme.val_params.iter().any(|(_, ty)| !matches!(ty, Ty::Nat | Ty::Int | Ty::Bytes))
             || !scheme.prop_params.is_empty() || !scheme.row_params.is_empty() { return }
         let mut references = std::collections::BTreeSet::new();
         let mut vars = Vec::new();
@@ -331,7 +332,9 @@ impl Checker {
             // Explicit annotations were checked by the source checker;
             // inferred kinds come from its resulting scheme.
             let kind = if scheme.region_params.contains(name) { "Region".to_string() }
-                else if scheme.params.contains(name) {
+                else if let Some((_, carrier)) = scheme.val_params.iter().find(|(n, _)| n == name) {
+                    match carrier { Ty::Nat | Ty::Int | Ty::Bytes => carrier.to_string(), _ => return None }
+                } else if scheme.params.contains(name) {
                     let arity = scheme.con_params.iter().find(|(n, _)| n == name).map(|(_, n)| *n).unwrap_or(0);
                     vec!["Type"; arity + 1].join(" -> ")
                 } else { return None };
@@ -607,7 +610,7 @@ impl Checker {
             let refined = info.refine.is_some();
             if info.param_kinds.iter().any(|k| match k {
                 ParamKind::Type | ParamKind::Con(_) => false,
-                ParamKind::Val(ty) if refined => !matches!(ty, Ty::Nat | Ty::Int | Ty::Bytes),
+                ParamKind::Val(ty) if refined || info.opaque => !matches!(ty, Ty::Nat | Ty::Int | Ty::Bytes),
                 _ => true,
             }) { return None }
             let refinement = if refined { Some(self.resolved_refinement_template(info)?) } else { None };
