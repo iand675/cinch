@@ -43,7 +43,7 @@
     },
     {
       "title": "Complete current compiler sweep",
-      "detail": "148 of 208 complete groups passed; 4 running, 0 failed and 56 pending.Every group includes ignored tests. State: running.",
+      "detail": "149 of 208 complete groups passed; 4 running, 0 failed and 55 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -83,7 +83,7 @@
     },
     {
       "title": "Proposed opaque-argument repair",
-      "detail": "Separate unpublished source: failed. All 43 compiler modules: pending. 0 of 6 complete groups passed; 0 running, 1 failed and 5 pending. This does not replace current-source or final Stage3 acceptance.",
+      "detail": "Separate unpublished source: waiting-compile-slot. All 43 compiler modules: pending. 0 of 6 complete groups passed; 0 running, 0 failed and 6 pending. This does not replace current-source or final Stage3 acceptance.",
       "state": "running"
     }
   ],
@@ -94,7 +94,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "148 of 208 complete groups passed; 4 running, 0 failed and 56 pending."
+      "detail": "149 of 208 complete groups passed; 4 running, 0 failed and 55 pending."
     },
     {
       "title": "Finish the exact self-built compiler tests",
@@ -139,6 +139,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "All 43 compiler-source checks: passed. 10 of 10 complete groups passed; 0 running, 0 failed and 0 pending. dependent arguments: passed; call preconditions: passed; refinements and effects: passed; runtime behavior: passed; index scope and representation: passed; independent type checker: passed; Core validation: passed; inference: passed; typechecker: passed; Rust optimizer behavior: passed.",
-  "activity": "Current compiler sweep: 148 of 208 complete groups passed; 4 running, 0 failed and 56 pending. Stage builds and smoke checks: 4 of 4; chain state: running-full-stage-chain. Repair gates: 10 of 10 complete groups passed; 0 running, 0 failed and 0 pending. dependent arguments: passed; call preconditions: passed; refinements and effects: passed; runtime behavior: passed; index scope and representation: passed; independent type checker: passed; Core validation: passed; inference: passed; typechecker: passed; Rust optimizer behavior: passed. Early Stage1 behavior: 2 of 8 complete groups passed; 0 running, 0 failed and 6 pending. Exact final Stage3 suite: 0 of 91 complete groups passed; 0 running, 0 failed and 91 pending. Proposed opaque-argument repair (separate unpublished source): failed; 0 of 6 complete groups passed; 0 running, 1 failed and 5 pending.",
-  "updatedAt": "2026-11-04T06:48:25.801151+00:00"
+  "activity": "Current compiler sweep: 149 of 208 complete groups passed; 4 running, 0 failed and 55 pending. Stage builds and smoke checks: 4 of 4; chain state: running-full-stage-chain. Repair gates: 10 of 10 complete groups passed; 0 running, 0 failed and 0 pending. dependent arguments: passed; call preconditions: passed; refinements and effects: passed; runtime behavior: passed; index scope and representation: passed; independent type checker: passed; Core validation: passed; inference: passed; typechecker: passed; Rust optimizer behavior: passed. Early Stage1 behavior: 2 of 8 complete groups passed; 0 running, 0 failed and 6 pending. Exact final Stage3 suite: 0 of 91 complete groups passed; 0 running, 0 failed and 91 pending. Proposed opaque-argument repair (separate unpublished source): waiting-compile-slot; 0 of 6 complete groups passed; 0 running, 0 failed and 6 pending.",
+  "updatedAt": "2026-11-04T06:49:47.975621+00:00"
 }
