@@ -1,5 +1,25 @@
 # Next steps (as of 2026-11-04)
 
+## Genuine Stage2 build; recursive-evidence blocker (2026-11-04)
+
+The published opaque/HK Cinch compiler now builds a genuine Stage2 compiler
+through Stage1, rebuilding all 43 compiler modules. Stage2 passes all three
+smoke checks. Independent checks verify the actual Stage1 builder hash,
+Stage2 executable hash, frozen source and all 43 emitted compiler interfaces.
+See `bootstrap/current-opaque-stage2-results.json`. Stage3, fixed-point code
+and interfaces, API consumption and changed-source checks remain open.
+
+A separate check against the exact current published Rust implementation
+confirms that an ordinary recursive proposition-returning function can be
+accepted as evidence for the false refinement Zero at value 9. The complete
+source and compiler/input identities are in
+`bootstrap/current-recursive-evidence-blocker.json`. This current reproduction
+checks acceptance only; it does not execute the unsafe program. A related
+isolated repair is in progress. Existing passing suites do not close this
+soundness defect, which must be repaired and verified before goal completion.
+The complete matching suites, remaining original API/array behavior and the
+full Acceptance 1-5 audit are still required.
+
 ## Verified Rust row-parameter annotations (2026-11-04)
 
 Rust now retains explicit `forall (e :: Row)` binders and rejects a row tail

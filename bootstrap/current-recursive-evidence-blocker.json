@@ -1,0 +1,16 @@
+{
+  "compiler": "/tmp/cinch-rust-row-kind-validation-2/cargo/debug/cinch",
+  "compiler_sha256": "12726209fbc8f4d09231a6d94ab979d6674dd283d33ab928f361b6d2d815282b",
+  "exact_published_rust_inputs": true,
+  "exit_code": 0,
+  "expected_acceptance": false,
+  "full_goal_complete": false,
+  "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "repair_status": "Related repair remains isolated and in progress; not yet integrated. This is an open blocker, not a passing soundness check.",
+  "reproducer_source": "module Main where\n  cycle :: (value :: Nat) -> Eq value 0\n  cycle value = cycle value\n  type Zero = refine (value :: Nat) with Eq value 0\n  make :: Nat -> Zero\n  make value = Zero value (cycle value)\n  main :: Int\n  main = if unrefine (make 9) == 9 then 42 else 0\n",
+  "required_result": "Reject nonterminating proposition evidence; retain valid terminating evidence and stage/hygiene rules.",
+  "scope": "Exact incoming independently reported false Zero9 recursive-evidence program checked against actual published Rust2CLI. Checking only; no execution or fixture modification. Passing earlier suites is not a proof-soundness completion claim. Related repair remains isolated in cinch-malleable-bootstrap-integration and must be verified/integrated before final goal completion.",
+  "source_sha256": "4ec0606ebde90b4e51001afc11a0f7caf3f4bc99daad19d4f1fc0d7f00c795fb",
+  "status": "confirmed-current-native-recursive-evidence-unsoundness",
+  "verified_at": "2026-11-04T20:55:32.983500+00:00"
+}
