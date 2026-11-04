@@ -1,0 +1,121 @@
+{
+  "compiler_sha256": "d9e7208b6820eb469f57984421e8861ec3817b03b4a89c49c6c230b536aab7d1",
+  "compiler_source_sha256": "2ea1460a5a1f426cf65b16767ed96e97dff1ffb2d3ee022b4ca1724bf2e6075c",
+  "heap_limit": "32M",
+  "leak_check": "both runs live=0 immortal=0 leaked=0",
+  "rows": [
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "mixed",
+      "phase": "emit",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "mixed",
+      "phase": "link",
+      "status": "passed"
+    },
+    {
+      "exit_code": 2,
+      "expected": 2,
+      "name": "mixed",
+      "phase": "run",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "passing",
+      "phase": "emit",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "passing",
+      "phase": "link",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "passing",
+      "phase": "run",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "produce",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "separate-facade",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "direct",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "renamed-reexport",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "separate-renamed",
+      "status": "passed"
+    },
+    {
+      "exit_code": 3,
+      "expected": 3,
+      "name": "identical-redeclaration",
+      "status": "passed"
+    },
+    {
+      "exit_code": 3,
+      "expected": 3,
+      "name": "changed-redeclaration",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "class-identity",
+      "status": "passed"
+    }
+  ],
+  "scope": "Exact final Stage3, selected only after the complete chain passes: both original runner programs with exact reports and 32M zero leaks, seven fixity/separate-facade probes, and complete class_identity target (two actual Cinch build/run cases and one direct Native API negative). No compiler frontend fallback.",
+  "source_sha256": "96d9b6692f40a517c3b3172da6ee0cb39e0e05d4deaa442b79476998ce5465be",
+  "source_unchanged": true,
+  "status": "passed",
+  "verified_at": "2026-11-04T06:55:36.331921+00:00",
+  "full_goal_complete": false,
+  "log_sha256": {
+    "class-identity.log": "eba56d2905faae34318bd50969aec4a6aecbcb44ffabf4d360067d930fc0dc97",
+    "fixity/direct.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "fixity/identical-redeclaration.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "fixity/separate-renamed.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "fixity/changed-redeclaration.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "fixity/separate-facade.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "fixity/produce.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "fixity/renamed-reexport.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "mixed/run.log": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+    "mixed/emit.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "mixed/link.log": "6021f33487b85f8a9c5f9471588485ff4234e50e83be3e5c4c6e23dd0c32b455",
+    "passing/run.log": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+    "passing/emit.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "passing/link.log": "6021f33487b85f8a9c5f9471588485ff4234e50e83be3e5c4c6e23dd0c32b455"
+  },
+  "verifier_scope": "Independent checks of exact final-stage identity, all14 expected row exits, both exact original test reports, zero leaks, five consumer diagnostics and complete3-case class identity test summary. Original execution coordinator also validates checked fixity/interface contracts."
+}

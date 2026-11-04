@@ -11,9 +11,11 @@ and the resulting executable exhibits the changed diagnostic. The independently
 checked [current bootstrap receipt](../bootstrap/current-opaque-witness-bootstrap-results.json)
 proves Acceptance1-4 for this source.
 
+All14 [exact final Stage3 external acceptance rows](../bootstrap/current-opaque-witness-stage3-external-results.json)
+now pass: original runner reports and zero leaks, definition-owned fixities
+through separate facades and renames, and complete class identity checks.
 Acceptance5 remains open: the complete208-group Native sweep,91-group final
-Stage3 suite,14 external acceptance rows and final100-target coverage audit
-must finish. The matching171 runtime,41 tooling and39 editor checks already
+Stage3 suite and final100-target coverage audit must finish. The matching171 runtime,41 tooling and39 editor checks already
 pass. A separately reproduced Rust inline-refined-argument bug has an
 unpublished repair under regression testing; it does not change these43 Cinch
 compiler sources. Neither the working self-build nor these scoped checks claim
