@@ -1,5 +1,5 @@
 {
-  "activity": "Current source: all 127 ordinary target groups pass. Bootstrap-specific groups: 6 of 81 passed, 4 running and 0 failed. Matching runtime, tooling and syntax/editor gates are separate requirements. Fresh final-source stages built and smoke-tested: 3 of4; combined gate running-full-stage-chain. Additional Stage3 coverage: ordinary: 0 of 8 passed, 0 running, 0 failed (waiting-current-chain-and-runners); mixed: 0 of 4 passed, 0 running, 0 failed (waiting-current-chain-and-runners). Self-built portable bootstrap suite: 0 of 79 groups passed, 0 running, 0 failed; state waiting-current-chain-and-runners.",
+  "activity": "Current source: all 127 ordinary target groups pass. Bootstrap-specific groups: 7 of 81 passed, 3 running and 0 failed. Matching runtime, tooling and syntax/editor gates are separate requirements. Fresh final-source stages built and smoke-tested: 3 of4; combined gate running-full-stage-chain. Additional Stage3 coverage: ordinary: 0 of 8 passed, 0 running, 0 failed (waiting-current-chain-and-runners); mixed: 0 of 4 passed, 0 running, 0 failed (waiting-current-chain-and-runners). Self-built portable bootstrap suite: 0 of 79 groups passed, 0 running, 0 failed; state waiting-current-chain-and-runners.",
   "blockers": [
     {
       "title": "Validate the additional Stage3 repairs",
@@ -7,7 +7,7 @@
     },
     {
       "title": "Finish every current-source compiler test",
-      "detail": "Current source: 133 of 208 complete groups pass. The complete matching sweep is required; earlier baseline outcomes are not counted here."
+      "detail": "Current source: 134 of 208 complete groups pass. The complete matching sweep is required; earlier baseline outcomes are not counted here."
     },
     {
       "title": "Finish the fresh repaired-source bootstrap",
@@ -39,12 +39,12 @@
     },
     {
       "title": "Current ordinary compiler groups passed",
-      "detail": "All 127 non-bootstrap target groups pass, including compiler units, library, ownership, interface, LSP and documentation checks. The 81 bootstrap-specific groups remain separate; 6 have passed so far.",
+      "detail": "All 127 non-bootstrap target groups pass, including compiler units, library, ownership, interface, LSP and documentation checks. The 81 bootstrap-specific groups remain separate; 7 have passed so far.",
       "state": "passed"
     },
     {
       "title": "Current compiler full test sweep",
-      "detail": "133 of 208 complete target groups passed; 4 running and 0 failed. Every group includes ignored tests. Exact current f6e1 snapshot, Cinch0e28 and published Rust optimizer repair; matching source and private cache.",
+      "detail": "134 of 208 complete target groups passed; 3 running and 0 failed. Every group includes ignored tests. Exact current f6e1 snapshot, Cinch0e28 and published Rust optimizer repair; matching source and private cache.",
       "state": "running"
     },
     {
@@ -247,5 +247,5 @@
   ],
   "status": "Repair gates passed; fresh bootstrap underway",
   "summary": "All five complete repair gates pass and the tested Cinch/Rust changes are published. The fresh Stage0/1/2/3 build and complete matching suites are now required. Earlier baseline results remain separately scoped.",
-  "updatedAt": "2026-11-04T02:26:24.991279+00:00"
+  "updatedAt": "2026-11-04T02:30:47.493690+00:00"
 }
