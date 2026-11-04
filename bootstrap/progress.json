@@ -53,7 +53,7 @@
     },
     {
       "title": "Complete sweep of the published task compiler",
-      "detail": "150 of 208 complete groups passed; 2 running, 0 failed and 56 pending.Every group includes ignored tests. State: running.",
+      "detail": "151 of 208 complete groups passed; 2 running, 0 failed and 55 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -68,7 +68,7 @@
     },
     {
       "title": "Complete behavior through exact final Stage3",
-      "detail": "4 of 91 complete groups passed; 1 running, 0 failed and 86 pending.79 bootstrap groups, eight ordinary targets, three complete mixed consumers and the designed ABI5 array refusal. Native library fixtures remain explicit; selected compiler failures never fall back.",
+      "detail": "5 of 91 complete groups passed; 0 running, 0 failed and 86 pending.79 bootstrap groups, eight ordinary targets, three complete mixed consumers and the designed ABI5 array refusal. Native library fixtures remain explicit; selected compiler failures never fall back.",
       "state": "running"
     },
     {
@@ -103,7 +103,7 @@
     },
     {
       "title": "Proposed compiler repair",
-      "detail": "Separate unpublished source: running-six-complete-groups. All 43 compiler modules: passed. 6 of 9 complete groups passed; 1 running, 0 failed and 2 pending. This does not replace current-source or final Stage3 acceptance.",
+      "detail": "Separate unpublished source: running-six-complete-groups. All 43 compiler modules: passed. 6 of 9 complete groups passed; 2 running, 0 failed and 1 pending. This does not replace current-source or final Stage3 acceptance.",
       "state": "running"
     }
   ],
@@ -114,11 +114,11 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "150 of 208 complete groups passed; 2 running, 0 failed and 56 pending."
+      "detail": "151 of 208 complete groups passed; 2 running, 0 failed and 55 pending."
     },
     {
       "title": "Finish the exact self-built compiler tests",
-      "detail": "4 of 91 complete groups passed; 1 running, 0 failed and 86 pending."
+      "detail": "5 of 91 complete groups passed; 0 running, 0 failed and 86 pending."
     },
     {
       "title": "Complete the coverage and acceptance audit",
@@ -155,6 +155,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "The fresh current-source compiler chain passes its smoke tests, matching Stage2/Stage3 IR, executable and all 43 canonical interfaces, actual API consumption and changed-source behavior. Complete tests and the final acceptance audit remain separate requirements.",
-  "activity": "Complete sweep of the published task compiler: 150 of 208 complete groups passed; 2 running, 0 failed and 56 pending. Stage builds and smoke checks: 4 of 4; chain state: passed. Repair gates: 6 of 6 complete groups passed; 0 running, 0 failed and 0 pending. independent type checker: passed; Core validation: passed; typechecker: passed; inference: passed; runtime behavior: passed; library calls: passed. Early Stage1 behavior: 6 of 8 complete groups passed; 1 running, 0 failed and 1 pending. Exact final Stage3 suite: 4 of 91 complete groups passed; 1 running, 0 failed and 86 pending. Proposed compiler repair (separate unpublished source): running-six-complete-groups; 6 of 9 complete groups passed; 1 running, 0 failed and 2 pending.",
-  "updatedAt": "2026-11-04T13:54:13.951083+00:00"
+  "activity": "Complete sweep of the published task compiler: 151 of 208 complete groups passed; 2 running, 0 failed and 55 pending. Stage builds and smoke checks: 4 of 4; chain state: passed. Repair gates: 6 of 6 complete groups passed; 0 running, 0 failed and 0 pending. independent type checker: passed; Core validation: passed; typechecker: passed; inference: passed; runtime behavior: passed; library calls: passed. Early Stage1 behavior: 6 of 8 complete groups passed; 1 running, 0 failed and 1 pending. Exact final Stage3 suite: 5 of 91 complete groups passed; 0 running, 0 failed and 86 pending. Proposed compiler repair (separate unpublished source): running-six-complete-groups; 6 of 9 complete groups passed; 2 running, 0 failed and 1 pending.",
+  "updatedAt": "2026-11-04T13:55:16.357055+00:00"
 }
