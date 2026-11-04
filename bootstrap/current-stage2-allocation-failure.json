@@ -1,6 +1,6 @@
 {
   "status": "failed-original-external-behavior-case",
-  "checked_at": "2026-11-04T02:43:13.610458+00:00",
+  "checked_at": "2026-11-04T03:03:56.538383+00:00",
   "source_sha256": "f6e166c9ec48a7b30526db7d16f360c56204c5de4b6005f91ae54a350bd07808",
   "compiler_source_sha256": "0e2848ef342cc3fd82d78e2eec3894d410660c17538f7c0becdf55278d37ab0f",
   "compiler_stage": 2,
@@ -8,7 +8,16 @@
   "target": "alloc_accounting",
   "case": "escaped_constructors_match_and_carry_one_descriptor_word",
   "observed_selected_compiler_exit": 5,
-  "full_original_eight_case_group": "Still running at checkpoint; no complete-group aggregate or terminal exit claimed.",
+  "full_original_eight_case_group": {
+    "status": "failed",
+    "passed": 6,
+    "failed": 2,
+    "ignored": 0,
+    "filtered_out": 0,
+    "exit_code": 101,
+    "log_sha256": "ffcad9a139ed9f8b3c71806cab6e706dff06dc93e634d2bdfa67137e30555f63",
+    "elapsed_seconds": 1566.317441458
+  },
   "diagnostics": "bootstrap.runtime-ir:530:20: runtime local is absent from its lexical scope\nbootstrap.runtime-ir:530:5: constructor pattern needs a specialized runtime representation\nbootstrap.runtime-ir:526:37: data family needs an extended runtime descriptor\nbootstrap.runtime-ir:539:5: constructor pattern needs a specialized runtime representation\nbootstrap.runtime-ir:538:5: constructor pattern needs a specialized runtime representation\nbootstrap.runtime-ir:544:89: data family needs an extended runtime descriptor\nbootstrap.runtime-ir:544:89: data family needs an extended runtime descriptor\nbootstrap.runtime-ir:544:73: data family needs an extended runtime descriptor\nbootstrap.runtime-ir:544:54: data family needs an extended runtime descriptor\nbootstrap.runtime-ir:544:43: data family needs an extended runtime descriptor\nbootstrap.runtime-ir:543:41: data family needs an extended runtime descriptor\n",
   "artifacts": {
     "source.cinch": {
@@ -29,7 +38,20 @@
   },
   "source_test_sha256": "04f37006581907117365664f0713e531943a59015125ff1260634c1d410a89c2",
   "planned_repair": "Implement existing runtime escaped descriptors in Cinch allocation and tag matching; validate original allocation accounting without changing its assertions.",
-  "candidate_validation": "/tmp/cinch-escaped-constructors-validation-1/state.json",
-  "candidate_compiler_source_sha256": "8916b149f34db607b6c711bc10ca1f3ec0c5efe8a933fcbbf4134f3593dd4923",
-  "completion_claim": false
+  "candidate_validation": "/tmp/cinch-escaped-constructors-validation-3/state.json",
+  "candidate_compiler_source_sha256": "dfe2d6491ca50fc0f64d989b042f1b586bdb6eff59fad4c350e729055f2acc23",
+  "completion_claim": false,
+  "failed_cases": [
+    "escaped_constructors_match_and_carry_one_descriptor_word",
+    "interned_symbols_are_counted_immortal_once_per_name"
+  ],
+  "additional_symbol_failure": {
+    "diagnostics": "bootstrap.runtime-ir:453:45: external function lacks concrete checked word representations\nbootstrap.runtime-ir:453:28: external function lacks concrete checked word representations\nbootstrap.runtime-ir:451:42: external function lacks concrete checked word representations\nbootstrap.runtime-ir:451:25: external function lacks concrete checked word representations\nbootstrap.runtime-ir:450:42: external function lacks concrete checked word representations\nbootstrap.runtime-ir:450:24: external function lacks concrete checked word representations\n",
+    "checked_object_abi": "Provider3 Data.Sym.intern returnsR; Data.Sym.Eq_Sym.== takesR,R and returnsR. Current Rust repr.rs classifiesSymRaw; Cinch word-class omitted it."
+  },
+  "repair_validation_failures": {
+    "candidate1": "Complete runtimeIR target failswhilebuildingemitter: Nat expected, local1 defaultedInt. Retained state /tmp/cinch-escaped-constructors-validation-1/state.json",
+    "candidate2": "Complete runtimeobjects target sameNatlocaldefaultingerror. Retained state /tmp/cinch-escaped-constructors-validation-2/state.json",
+    "candidate3": "CorrectedlocalNatbranch, preservesoriginalsharedtablebound, includesescaped+SymRawrepairs; all43compiler-sourcecheckrunning before4completefocusedtargets. No successfulrepair claim yet."
+  }
 }

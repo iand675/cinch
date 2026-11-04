@@ -7,11 +7,18 @@ Stage2 now fails: a70-constructor family needs escaped runtime descriptors,
 which the runtime supports but the Cinch backend has been refusing. The original
 assertions and diagnostic are retained in
 [the Stage2 failure evidence](../bootstrap/current-stage2-allocation-failure.json).
-The complete eight-case allocation group continues to record its results;
-this checkpoint does not claim its aggregate outcome. A separate immutable
-repair candidate adds escaped allocation and safe tag reads, with positive
+The complete eight-case allocation group finishes with six passing and two
+failing cases, none ignored or filtered. Its second failure exposes an omitted
+`Sym` word representation: the checked library object ABI and Rust classifier
+both classify the immortal symbol handle as Raw. A separate immutable combined
+repair candidate adds that classification, escaped allocation and safe tag reads, with positive
 65-tag, recursive/first-class70-constructor and generic representation-class
-execution cases. Its complete runtime/parser/checker validation is queued.
+execution cases plus symbol object-call, roundtrip, generic and closure cases.
+The first two repair candidates fail while building their emitters because a
+new local constant defaults to Int where Nat is needed. The corrected candidate
+first checks all43 actual compiler modules, then must pass the complete object,
+runtime, parser and checker targets. Its shared-layout table retains the original
+capacity bound required by admitted objects with regular tag reads.
 The implementation remains unpublished until validated. This known source
 failure prevents final acceptance regardless of the ongoing stage chain.
 
@@ -42,8 +49,10 @@ independent schema and dependency validation. The Stage2 executable identity is
 `e40184b49fbccd70443e544e01bb99ea3553141638adb4fab4f0ab727f8b34a7`.
 The [current acceptance audit](../bootstrap/current-bootstrap-acceptance-audit.json)
 verifies Acceptance1 and2 against the actual sources and stage artifacts;
-Acceptance3-5 remain open. Stage3 is building; the fixed point and changed-source
-behavior are not yet claimed. The separate
+Acceptance3-5 remain open. The unfinished Stage3 build on this known-failing
+source was stopped; Stage0/1/2 artifacts and their smoke results are retained.
+The fixed point and changed-source behavior require a fresh repaired-source
+chain and are not yet claimed. The separate
 91-group queue was stopped before execution after the actual Stage2 failure.
 It must run against the eventual repaired Stage3:79 bootstrap groups,eight ordinary
 program targets,three complete mixed consumers and the designed ABI5 array
