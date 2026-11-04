@@ -63,7 +63,7 @@
     },
     {
       "title": "Exact final Stage3 acceptance",
-      "detail": "Test-runner reports, 32M zero-leak runs, definition-owned fixities, separate facades and class behavior: pending.",
+      "detail": "Test-runner reports, 32M zero-leak runs, definition-owned fixities, separate facades and class behavior: waiting-for-final-chain.",
       "state": "running"
     },
     {
@@ -91,7 +91,7 @@
     },
     {
       "title": "Finish final external acceptance",
-      "detail": "pending."
+      "detail": "waiting-for-final-chain."
     },
     {
       "title": "Complete the coverage and acceptance audit",
@@ -129,5 +129,5 @@
   "fullGoalComplete": false,
   "summary": "The repair candidate passes all 43 compiler-source checks. 3 of 4 complete groups passed; 1 running, 0 failed and 0 pending. library calls: running; runtime behavior: passed; parser: passed; typechecker: passed.",
   "activity": "Current compiler sweep: 3 of 208 complete groups passed; 0 running, 0 failed and 205 pending. Stage builds and smoke checks: 1 of 4; chain state: running-full-stage-chain. Repair gates: 3 of 4 complete groups passed; 1 running, 0 failed and 0 pending. library calls: running; runtime behavior: passed; parser: passed; typechecker: passed. Early Stage1 behavior: 0 of 8 complete groups passed; 0 running, 0 failed and 8 pending. Exact final Stage3 suite: 0 of 91 complete groups passed; 0 running, 0 failed and 91 pending.",
-  "updatedAt": "2026-11-04T03:59:32.153921+00:00"
+  "updatedAt": "2026-11-04T04:01:34.806860+00:00"
 }
