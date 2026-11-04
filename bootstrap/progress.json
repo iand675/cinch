@@ -1,65 +1,65 @@
 {
-  "activity": "All 127 ordinary target groups pass. Bootstrap-specific groups: 40 of 81 passed, 0 running and 0 failed. Runtime171, tooling41 and syntax/editor39 pass on this same source. Fresh final-source stages built and smoke-tested: 4 of4; combined gate passed. Additional Stage3 coverage: ordinary: 0 of 8 passed, 0 running, 1 failed (stopped-after-failure); mixed: 3 of 4 passed, 1 running, 0 failed (running). Self-built portable bootstrap suite: 2 of 79 groups passed, 0 running, 1 failed; state stopped-after-failure.",
+  "activity": "Earlier baseline: all 127 ordinary target groups pass. Bootstrap-specific groups: 40 of 81 passed, 0 running and 0 failed. Runtime171, tooling41 and syntax/editor39 pass on this same source. Fresh final-source stages built and smoke-tested: 4 of4; combined gate passed. Additional Stage3 coverage: ordinary: 0 of 8 passed, 0 running, 1 failed (stopped-after-failure); mixed: 3 of 4 passed, 1 running, 0 failed (running). Self-built portable bootstrap suite: 2 of 79 groups passed, 0 running, 1 failed; state stopped-after-failure.",
   "blockers": [
     {
-      "detail": "Failed groups: bootstrap_abstract_nonzero_types. Original failure logs remain recorded. The diagnostic requests missing test-library factory Data.List.FromList_List[R]. Library-only rebuild: passed; unchanged complete-target rerun using the same self-built compiler: waiting-reserved-lane. This isolated retry does not complete the 79-group suite or validate the newer compiler candidate.",
-      "title": "Self-built bootstrap regression needs its test-library variant"
+      "title": "Self-built bootstrap regression needs its test-library variant",
+      "detail": "Failed groups: bootstrap_abstract_nonzero_types. Original failure logs remain recorded. The diagnostic requests missing test-library factory Data.List.FromList_List[R]. Library-only rebuild: passed; unchanged complete-target rerun using the same self-built compiler: waiting-reserved-lane. This isolated retry does not complete the 79-group suite or validate the newer compiler candidate."
     },
     {
-      "detail": "A live profile shows whole-program function-table cloning inside each optimizer unit. The working repair borrows the read-only table and preserves between-unit updates. Complete existing optimizer and checker targets: running. Original frozen compiler validations remain intact; final Native verification must use the new Rust source if this repair passes.",
-      "title": "Validate a Rust compiler performance repair"
+      "title": "Validate a Rust compiler performance repair",
+      "detail": "A live profile shows whole-program function-table cloning inside each optimizer unit. The working repair borrows the read-only table and preserves between-unit updates. Complete existing optimizer and checker targets: running. Original frozen compiler validations remain intact; final Native verification must use the new Rust source if this repair passes."
     },
     {
-      "detail": "Allocation programs exposed missing I64 primitive contracts and pure Unit-entry rejection. Candidate2ran a pure Unitentry with zero leaks, then failed at a function-valued entry because legacy clause checking demanded all arguments. Candidate3also checks the body against the residual function type, with over-arity and wrong-body refusals retained. Focused tests: running; new compiler bootstrap: not started; current focused gates must pass. Earlier green bootstrap results remain scoped to their original source.",
-      "title": "Validate the additional Stage3 repairs"
+      "title": "Validate the additional Stage3 repairs",
+      "detail": "Allocation programs exposed missing I64 primitive contracts and pure Unit-entry rejection. Candidate2ran a pure Unitentry with zero leaks, then failed at a function-valued entry because legacy clause checking demanded all arguments. Candidate3also checks the body against the residual function type, with over-arity and wrong-body refusals retained. Focused tests: running; new compiler bootstrap: not started; current focused gates must pass. Earlier green bootstrap results remain scoped to their original source."
     },
     {
-      "detail": "Failed groups: alloc_accounting; state stopped-after-failure. Retained logs are authoritative.",
-      "title": "Ordinary Stage3 verification needs investigation"
+      "title": "Ordinary Stage3 verification needs investigation",
+      "detail": "Failed groups: alloc_accounting; state stopped-after-failure. Retained logs are authoritative."
     },
     {
-      "detail": "167 of 208 groups have passed. A partial sweep does not establish the full suite. All final-source runtime, tooling and editor gates are already green.",
-      "title": "Finish every final-source compiler test"
+      "title": "Finish every current-source compiler test",
+      "detail": "The earlier baseline passed 167 of 208 groups; its remaining queued work is deferred while current repairs are checked. The newer Rust and Cinch sources still require a complete matching suite. Earlier auxiliary results retain their exact source scope."
     },
     {
-      "detail": "2 of 79 groups pass. This suite verifies the existing bootstrap programs through the exact self-built Stage3 compiler. Fixture preparation remains an explicit Native library stage; it does not replace or rescue a selected compiler invocation.",
-      "title": "Finish all portable bootstrap groups through Cinch"
+      "title": "Finish all portable bootstrap groups through Cinch",
+      "detail": "2 of 79 groups pass. This suite verifies the existing bootstrap programs through the exact self-built Stage3 compiler. Fixture preparation remains an explicit Native library stage; it does not replace or rescue a selected compiler invocation."
     },
     {
-      "detail": "The harness inventory finds 100 targets: 79 bootstrap groups and 21 ordinary groups. The source review maps all 100 targets: 9 Native interface API targets already pass, while 79 bootstrap groups, 8 ordinary program targets and 3 mixed consumers plus the designed array-refusal case require Stage3 execution. The 79-group queue alone does not close this gate.",
-      "title": "Complete external compiler coverage audit"
+      "title": "Complete external compiler coverage audit",
+      "detail": "The harness inventory finds 100 targets: 79 bootstrap groups and 21 ordinary groups. The source review maps all 100 targets: 9 Native interface API targets already pass, while 79 bootstrap groups, 8 ordinary program targets and 3 mixed consumers plus the designed array-refusal case require Stage3 execution. The 79-group queue alone does not close this gate."
     }
   ],
   "checks": [
     {
+      "title": "Portable bootstrap suite through earlier Stage3",
       "detail": "2 of 79 existing portable target groups passed, 0 running and 1 failed. The tested fixture harness makes 14 Native library producers explicit; the actual compiler source check/build/run path selects final Stage3 and never falls back. All four harness checks and the complete initial type-syntax control pass.",
-      "state": "running",
-      "title": "Portable bootstrap suite through earlier Stage3"
+      "state": "running"
     },
     {
+      "title": "Earlier Stage3 external acceptance passed",
       "detail": "Both original test-runner programs produce exact reports and zero leaks at 32M through the final compiler. All seven fixity/facade probes pass, including refusal of identical/changed importer declarations. Portable class builds return 37 and 43; the separate wrong-evidence case is a Native API check.",
-      "state": "passed",
-      "title": "Earlier Stage3 external acceptance passed"
+      "state": "passed"
     },
     {
+      "title": "Earlier baseline bootstrap passed",
       "detail": "Fresh four-stage chain on the exact suite27 snapshot: all smokes, byte-identical compiler IR/executables, all 43 canonical interfaces, actual entry consumption and changed-source executable behavior pass. This includes the latest fixity and Rust repairs.",
-      "state": "passed",
-      "title": "Earlier baseline bootstrap passed"
+      "state": "passed"
     },
     {
+      "title": "Earlier baseline ordinary compiler groups passed",
       "detail": "All 127 non-bootstrap target groups pass, including compiler units, library, ownership, interface, LSP and documentation checks. The 81 bootstrap-specific groups remain separate; 40 have passed so far.",
-      "state": "passed",
-      "title": "Earlier baseline ordinary compiler groups passed"
+      "state": "passed"
     },
     {
+      "title": "Earlier baseline compiler sweep",
       "detail": "167 of 208 complete target groups passed; 0 running and 0 failed. Every group includes ignored tests. Source snapshot c6260e01; results apply to the earlier baseline, before the new Rust optimizer repair.",
-      "state": "running",
-      "title": "Earlier baseline compiler sweep"
+      "state": "running"
     },
     {
+      "title": "Additional behavior through earlier Stage3",
       "detail": "ordinary: 0 of 8 passed, 0 running, 1 failed (stopped-after-failure); mixed: 3 of 4 passed, 1 running, 0 failed (running). Mixed coverage runs three complete consumer targets and the designed array-intrinsic refusal check. Positive ABI6 array behavior remains in its complete Native gate per design/arrays.md.",
-      "state": "running",
-      "title": "Additional behavior through earlier Stage3"
+      "state": "running"
     },
     {
       "detail": "Writer, parser, resolver and both Rust interface-fixity cases all pass on the expanded snapshot. All seven actual rebuilt Cinch probes pass too, including separate renamed forwarding and refusal of identical/changed importer declarations.",
@@ -210,31 +210,31 @@
   "schema": 1,
   "stages": [
     {
-      "description": "Pinned Rust seed compiler; all three smoke checks.",
-      "label": "Verified",
       "name": "Stage 0",
-      "state": "passed"
+      "state": "passed",
+      "label": "Verified",
+      "description": "Pinned Rust seed compiler; all three smoke checks."
     },
     {
-      "description": "Cinch compiler built from the verified seed; all three smoke checks.",
-      "label": "Verified",
       "name": "Stage 1",
-      "state": "passed"
-    },
-    {
-      "description": "Compiler source rebuilt by Cinch Stage1, including actual checked interfaces.",
+      "state": "passed",
       "label": "Verified",
-      "name": "Stage 2",
-      "state": "passed"
+      "description": "Cinch compiler built from the verified seed; all three smoke checks."
     },
     {
-      "description": "Rebuilt by Stage2; the combined gate compares IR and 43 interfaces and checks API consumption and changed-source behavior.",
-      "label": "Fixed point verified",
+      "name": "Stage 2",
+      "state": "passed",
+      "label": "Verified",
+      "description": "Compiler source rebuilt by Cinch Stage1, including actual checked interfaces."
+    },
+    {
       "name": "Stage 3",
-      "state": "passed"
+      "state": "passed",
+      "label": "Fixed point verified",
+      "description": "Rebuilt by Stage2; the combined gate compares IR and 43 interfaces and checks API consumption and changed-source behavior."
     }
   ],
   "status": "Ordinary or mixed Stage3 verification needs investigation",
-  "summary": "The repaired compiler bootstraps and passes exact final-Stage3 behavior checks. The full 208-group Native-backed sweep and all 79 portable bootstrap groups through Stage3 are tracked separately. Native library fixture preparation is explicit; selected compiler failures never fall back.",
-  "updatedAt": "2026-11-04T00:45:25.755554+00:00"
+  "summary": "The earlier baseline compiler bootstraps and passes its exact Stage3 behavior checks. The current Rust optimizer repair passes all16 optimizer tests and the complete checker target; the remaining Cinch candidate gates are separate. The full 208-group Native-backed sweep and all 79 portable bootstrap groups through Stage3 are tracked separately. Native library fixture preparation is explicit; selected compiler failures never fall back.",
+  "updatedAt": "2026-11-04T00:48:00.684676+00:00"
 }
