@@ -1,0 +1,1090 @@
+{
+  "compiler_source_sha256": "e861abb04f804a94b1dfe6f65fcddab57005fdc24837b3abfedb5482dfde0208",
+  "full_goal_complete": false,
+  "independent_core_assertions": 335,
+  "limitations": "Scoped implementation proof only. Inferred alias and parameter-kind provenance, contextual instance contracts, opaque and other original API fixtures require full audit. Original byte target and exact final matching Stage0-3/fullNative/self-built/runtime/tool/editor/external suites plus all100target/Acceptance1-5 audit remain required. No full goal completion claim.",
+  "rows": [
+    {
+      "binary": "/tmp/cinch-refinement-export-validation-20/cargo/debug/deps/bootstrap_source_instances-16fbe83967748f8d",
+      "binary_sha256": "25e7c87a13f6e850a72990b68feeab9430d6fa807f72decf14b762c51e018c4b",
+      "exit_code": 0,
+      "log": "/tmp/cinch-refinement-export-validation-20/bootstrap_source_instances.log",
+      "log_sha256": "c97f124def44c2fc6bf4766c5b8ac3d2b855361b78e2fc72a5419cb494475372",
+      "name": "bootstrap_source_instances",
+      "pid": 8951,
+      "status": "passed",
+      "tests": 2,
+      "worker_slot": 0
+    },
+    {
+      "binary": "/tmp/cinch-refinement-export-validation-20/cargo/debug/deps/bootstrap_source_refinements-405f961fa146e241",
+      "binary_sha256": "b21784f897014e487b9433a9de60a04cf204251a9a4ea69e86e275e4dff1348e",
+      "exit_code": 0,
+      "log": "/tmp/cinch-refinement-export-validation-20/bootstrap_source_refinements.log",
+      "log_sha256": "d7ee3dd68c238cd2dc940d09c7dee42f2998cb2499eba83f2737c765041c37bd",
+      "name": "bootstrap_source_refinements",
+      "pid": 8952,
+      "status": "passed",
+      "tests": 1,
+      "worker_slot": 1
+    },
+    {
+      "binary": "/tmp/cinch-refinement-export-validation-20/cargo/debug/deps/bootstrap_export_interfaces-0b22c590abe401bf",
+      "binary_sha256": "f3b7eba4cf94faa11f0f6d51769c86a154cfbfa60374963e8453cf42c2fe102d",
+      "exit_code": 0,
+      "log": "/tmp/cinch-refinement-export-validation-20/bootstrap_export_interfaces.log",
+      "log_sha256": "3510a8a589d5a8d401556236389716ad1a3d476963cbf63d3877c87a9d008dcc",
+      "name": "bootstrap_export_interfaces",
+      "pid": 8953,
+      "status": "passed",
+      "tests": 1,
+      "worker_slot": 2
+    },
+    {
+      "binary": "/tmp/cinch-refinement-export-validation-20/cargo/debug/deps/bootstrap_parse-88e7fe0973963d36",
+      "binary_sha256": "6a3b12033636e5f4c21a7c40c47986f82d9c71e0a5eaf024e0e6f68532c87ae2",
+      "exit_code": 0,
+      "log": "/tmp/cinch-refinement-export-validation-20/bootstrap_parse.log",
+      "log_sha256": "850cdad4df3d60400c1e0105d13361c95e1d3e1493f617d119c5431bc1216f3a",
+      "name": "bootstrap_parse",
+      "pid": 8954,
+      "status": "passed",
+      "tests": 1,
+      "worker_slot": 3
+    },
+    {
+      "binary": "/tmp/cinch-refinement-export-validation-20/cargo/debug/deps/bootstrap_export_types-71f999c77e0344e9",
+      "binary_sha256": "53e75018c5be538136d01d348322792b8e38b0a3d765146a1c2b318d1944e443",
+      "exit_code": 0,
+      "log": "/tmp/cinch-refinement-export-validation-20/bootstrap_export_types.log",
+      "log_sha256": "8c703166fd3cc1f273a6ca88ec1d17222f42099dfb6b75bd52aa912cce94220f",
+      "name": "bootstrap_export_types",
+      "pid": 9411,
+      "status": "passed",
+      "tests": 1,
+      "worker_slot": 3
+    },
+    {
+      "binary": "/tmp/cinch-refinement-export-validation-20/cargo/debug/deps/bootstrap_pipeline-3ec6fede78ff695e",
+      "binary_sha256": "2cc07e1745dd367a5828299650adba0f40a5fbf4cdcd1e6ee7c9741466d68ae5",
+      "exit_code": 0,
+      "log": "/tmp/cinch-refinement-export-validation-20/bootstrap_pipeline.log",
+      "log_sha256": "eba1929948dfe94dc305cf4e954b5fd95f159fea7ae327c529666dc23cf3e7a2",
+      "name": "bootstrap_pipeline",
+      "pid": 12337,
+      "status": "passed",
+      "tests": 1,
+      "worker_slot": 3
+    },
+    {
+      "binary": "/tmp/cinch-refinement-export-validation-20/cargo/debug/deps/interface_refinements-b3123d039a85b94b",
+      "binary_sha256": "0c45ee9b6b1994cba99629d12b649c02c9eeb61decdd2d8ab6e75944e421f34c",
+      "exit_code": 0,
+      "log": "/tmp/cinch-refinement-export-validation-20/interface_refinements.log",
+      "log_sha256": "95412a38c1ce1d57b0c9873c57ddc29a09b105f2cfe1fe6b52425ba81a7b029c",
+      "name": "interface_refinements",
+      "pid": 14661,
+      "status": "passed",
+      "tests": 1,
+      "worker_slot": 1
+    },
+    {
+      "binary": "/tmp/cinch-refinement-export-validation-20/cargo/debug/deps/interface_refinement_closure-44edd08c3fc749fa",
+      "binary_sha256": "d128dcb8837424b89cf1b0c8c40180e583f7676b60aae7ffe5c025e158d22f42",
+      "exit_code": 0,
+      "log": "/tmp/cinch-refinement-export-validation-20/interface_refinement_closure.log",
+      "log_sha256": "97ccd8fa40bfa927538e272fa3f7c36bcd474d1b28b10b4e769b6198551d6b7f",
+      "name": "interface_refinement_closure",
+      "pid": 15558,
+      "status": "passed",
+      "tests": 1,
+      "worker_slot": 1
+    },
+    {
+      "binary": "/tmp/cinch-refinement-export-validation-20/cargo/debug/deps/bootstrap_typing-07c645cc2da54f73",
+      "binary_sha256": "628e496328cf88b1e8f2068b182058cd1d69cbf6960566c524b32a7e1825e774",
+      "exit_code": 0,
+      "log": "/tmp/cinch-refinement-export-validation-20/bootstrap_typing.log",
+      "log_sha256": "95fbb494cde8d01a590f0ba45179ea3da1123ebe28cd9abe19b8e7797a927171",
+      "name": "bootstrap_typing",
+      "pid": 15571,
+      "status": "passed",
+      "tests": 1,
+      "worker_slot": 2
+    },
+    {
+      "binary": "/tmp/cinch-refinement-export-validation-20/cargo/debug/deps/bootstrap_globals-20c5175c23a3a255",
+      "binary_sha256": "07de389c652c9e57730a9dc06daa5475572b8cb901b50bc11f159c021a3a3f8c",
+      "exit_code": 0,
+      "log": "/tmp/cinch-refinement-export-validation-20/bootstrap_globals.log",
+      "log_sha256": "566203629f9b66474b45b9b8ecbc6bb35896f98814940ffcbd11972d0ff85eec",
+      "name": "bootstrap_globals",
+      "pid": 15583,
+      "status": "passed",
+      "tests": 1,
+      "worker_slot": 1
+    },
+    {
+      "binary": "/tmp/cinch-refinement-export-validation-20/cargo/debug/deps/bootstrap_infer-3d863cddd3a52f96",
+      "binary_sha256": "532a1b5513aad9d31f026fbecd3a50b13b2cbed9f07a37cdc4535d2bd1f80a85",
+      "exit_code": 0,
+      "log": "/tmp/cinch-refinement-export-validation-20/bootstrap_infer.log",
+      "log_sha256": "4ff3588ecc27c4b5fc6722a5132d4714505cb997735a66c16820b45bca55cfd4",
+      "name": "bootstrap_infer",
+      "pid": 17188,
+      "status": "passed",
+      "tests": 1,
+      "worker_slot": 1
+    },
+    {
+      "binary": "/tmp/cinch-refinement-export-validation-20/cargo/debug/deps/bootstrap_check-ed661b82d7219941",
+      "binary_sha256": "6271569759dc41fe1cb5b5b342347306c903eabdef2afac17302fab3b3416419",
+      "exit_code": 0,
+      "log": "/tmp/cinch-refinement-export-validation-20/bootstrap_check.log",
+      "log_sha256": "9542c20c901c40042af793c2532c92a5680bc653071ab916981e0036094bfa6d",
+      "name": "bootstrap_check",
+      "pid": 17211,
+      "status": "passed",
+      "tests": 1,
+      "worker_slot": 2
+    },
+    {
+      "binary": "/tmp/cinch-refinement-export-validation-20/cargo/debug/deps/bootstrap_byte_observations-f90159d1498bbd8f",
+      "binary_sha256": "0e620d65ddfa7b5e154884d5d8a566fca673effff369e832f2bc574153c711e8",
+      "exit_code": 0,
+      "log": "/tmp/cinch-refinement-export-validation-20/bootstrap_byte_observations.log",
+      "log_sha256": "a6a94818436587c8e0c5bf01fd313e6bdfdc3689d1dd92df1d4aa246bbc5c23d",
+      "name": "bootstrap_byte_observations",
+      "pid": 17703,
+      "status": "passed",
+      "tests": 3,
+      "worker_slot": 3
+    },
+    {
+      "binary": "/tmp/cinch-refinement-export-validation-20/cargo/debug/deps/bootstrap_resolve-cc0458e61aa8788b",
+      "binary_sha256": "00068a54aa6a8d6688c1f92bd8054bae6f40e182442465519d6219893e58e616",
+      "exit_code": 0,
+      "log": "/tmp/cinch-refinement-export-validation-20/bootstrap_resolve.log",
+      "log_sha256": "eedf418ff1ac1deeebd5caf83b31bab01c3e22876179a4f1240f3ec4ce308563",
+      "name": "bootstrap_resolve",
+      "pid": 17985,
+      "status": "passed",
+      "tests": 1,
+      "worker_slot": 0
+    },
+    {
+      "binary": "/tmp/cinch-refinement-export-validation-20/cargo/debug/deps/bootstrap_core-cfc7699e29c819d5",
+      "binary_sha256": "2e9c3db192208a8376c0345787bd018ec33e505a66870e5d4320d17944b8c5e9",
+      "exit_code": 0,
+      "log": "/tmp/cinch-refinement-export-validation-20/bootstrap_core.log",
+      "log_sha256": "c25231be42ae38c92300e1bfb2b85db679ad41f42e6d48d378936b23e650033c",
+      "name": "bootstrap_core",
+      "pid": 21211,
+      "status": "passed",
+      "tests": 1,
+      "worker_slot": 2
+    },
+    {
+      "binary": "/tmp/cinch-refinement-export-validation-20/cargo/debug/deps/bootstrap_typed_indices-374d5c00d8978d21",
+      "binary_sha256": "5a84c221bcbaa0fe7b70a37a5f8a7e19c54b0c8fffc9ffde2dc486450f3cb4c2",
+      "exit_code": 0,
+      "log": "/tmp/cinch-refinement-export-validation-20/bootstrap_typed_indices.log",
+      "log_sha256": "b940c6ebef9380e9de710785d2cf7da6e74521502ba7036230903d43081b4fc5",
+      "name": "bootstrap_typed_indices",
+      "pid": 22244,
+      "status": "passed",
+      "tests": 1,
+      "worker_slot": 1
+    },
+    {
+      "binary": "/tmp/cinch-refinement-export-validation-20/cargo/debug/deps/bootstrap_value_indices-33ef3182f8aa0187",
+      "binary_sha256": "096ec3d204b4f90e458c38ffbf2b3891c129f7551140657d48c8634b9c697e95",
+      "exit_code": 0,
+      "log": "/tmp/cinch-refinement-export-validation-20/bootstrap_value_indices.log",
+      "log_sha256": "4d69514c4e66d2630834888afa773bf845c502e36381a2cebff6a4ad567ecbf7",
+      "name": "bootstrap_value_indices",
+      "pid": 23610,
+      "status": "passed",
+      "tests": 1,
+      "worker_slot": 0
+    },
+    {
+      "binary": "/tmp/cinch-refinement-export-validation-20/cargo/debug/deps/bootstrap_runtime_ir-f3d238deebdeb860",
+      "binary_sha256": "2ce0814f00ed219bca8eb7f2324eef0c5d648e71a21e258f8286ccd6533cc174",
+      "exit_code": 0,
+      "log": "/tmp/cinch-refinement-export-validation-20/bootstrap_runtime_ir.log",
+      "log_sha256": "1ff4e412e60d16b26d81b451839c07c4f57c1eb6aaff710bd1b94ccc98a5332a",
+      "name": "bootstrap_runtime_ir",
+      "pid": 24413,
+      "status": "passed",
+      "tests": 1,
+      "worker_slot": 1
+    },
+    {
+      "binary": "/tmp/cinch-refinement-export-validation-20/cargo/debug/deps/bootstrap_runtime_objects-3f0ca8e79c6a5a13",
+      "binary_sha256": "b006deb32a9b7428b966992142054bb115a473e68bfbdf96a918c2a9cd7f31a6",
+      "exit_code": 0,
+      "log": "/tmp/cinch-refinement-export-validation-20/bootstrap_runtime_objects.log",
+      "log_sha256": "f589e77ea30f702c162cf09ea1f927be77762daa6fd3abb6e8d9e512c28f892e",
+      "name": "bootstrap_runtime_objects",
+      "pid": 24821,
+      "status": "passed",
+      "tests": 1,
+      "worker_slot": 2
+    },
+    {
+      "binary": "/tmp/cinch-refinement-export-validation-20/cargo/debug/deps/bootstrap_function_preconditions-23c41bf03633a44d",
+      "binary_sha256": "47ad94f72de65969e2ef27d8508875464091d14845afce9a33df9a400c0c0ff7",
+      "exit_code": 0,
+      "log": "/tmp/cinch-refinement-export-validation-20/bootstrap_function_preconditions.log",
+      "log_sha256": "f9c9bf502783963f5a6b19e0426d5a3798ba10474f3957f9ec6cff113739dc2b",
+      "name": "bootstrap_function_preconditions",
+      "pid": 25879,
+      "status": "passed",
+      "tests": 1,
+      "worker_slot": 0
+    },
+    {
+      "binary": "/tmp/cinch-refinement-export-validation-20/cargo/debug/deps/bootstrap_refinement_closure-1427f1f16e5f9c08",
+      "binary_sha256": "4071e672cf66ec432f196ea6a9e37005bb5e3e67c083693ad22bb7aaf6b43510",
+      "exit_code": 0,
+      "log": "/tmp/cinch-refinement-export-validation-20/bootstrap_refinement_closure.log",
+      "log_sha256": "716658ab984a0643d7186bbb61fbd4a2ba5f76e0f871826685b1fba2dbce3260",
+      "name": "bootstrap_refinement_closure",
+      "pid": 39848,
+      "status": "passed",
+      "tests": 1,
+      "worker_slot": 0
+    },
+    {
+      "binary": "/tmp/cinch-refinement-export-validation-20/cargo/debug/deps/bootstrap_refinement_constructors-2b1072a3264a3a97",
+      "binary_sha256": "603a4a60dfb870a75670f4b77862414fcdc16890e93aaab6d3527be7ffd4a93c",
+      "exit_code": 0,
+      "log": "/tmp/cinch-refinement-export-validation-20/bootstrap_refinement_constructors.log",
+      "log_sha256": "0e21d308a0bd076868af81d18de84084949f31bcf2336ea22d20d0faf47c44e0",
+      "name": "bootstrap_refinement_constructors",
+      "pid": 44900,
+      "status": "passed",
+      "tests": 1,
+      "worker_slot": 1
+    },
+    {
+      "binary": "/tmp/cinch-refinement-export-validation-20/cargo/debug/deps/bootstrap_imported_preconditions-b15fdfc004b11f9d",
+      "binary_sha256": "75b44785bd39b35fa4b7a974e7965a08f3ba2b75fd3414017b2f3ec7c1ef60f1",
+      "exit_code": 0,
+      "log": "/tmp/cinch-refinement-export-validation-20/bootstrap_imported_preconditions.log",
+      "log_sha256": "b54e86bd7ca7dc70cf37ce83eb0b52153fb037009b483f0226c098d26d8800f0",
+      "name": "bootstrap_imported_preconditions",
+      "pid": 46610,
+      "status": "passed",
+      "tests": 1,
+      "worker_slot": 3
+    },
+    {
+      "binary": "/tmp/cinch-refinement-export-validation-20/cargo/debug/deps/bootstrap_refinement_core-25e7fc4635ee3e65",
+      "binary_sha256": "29409b4819848af156fcfec4f52a080e20922ff603ae45847624461ed08744ae",
+      "exit_code": 0,
+      "log": "/tmp/cinch-refinement-export-validation-20/bootstrap_refinement_core.log",
+      "log_sha256": "6843e854f237ae5b6c8ecd2a3b1f6e93453d54c716d97e1e69c849bcbd2b4028",
+      "name": "bootstrap_refinement_core",
+      "pid": 48762,
+      "status": "passed",
+      "tests": 1,
+      "worker_slot": 0
+    },
+    {
+      "binary": "/tmp/cinch-refinement-export-validation-20/cargo/debug/deps/bootstrap_refinement_types-51a3c65c8956f5cc",
+      "binary_sha256": "74f1953c7e9ea97eab03cb7a6f848c569369e3adf73ada1fc26ee1c741c69355",
+      "exit_code": 0,
+      "log": "/tmp/cinch-refinement-export-validation-20/bootstrap_refinement_types.log",
+      "log_sha256": "f6cadd2123dd0f1bc112b1a4bfa0969c984d1e9d2e26ae6e654a58c1c9fb404b",
+      "name": "bootstrap_refinement_types",
+      "pid": 50655,
+      "status": "passed",
+      "tests": 1,
+      "worker_slot": 0
+    },
+    {
+      "binary": "/tmp/cinch-refinement-export-validation-20/cargo/debug/deps/bootstrap_nonzero_source-7b66fe5db3e12265",
+      "binary_sha256": "b3f78be443f6bd96a2b0fc820198c6ddb07511ae70fe17ab7e0837dd3a24ad04",
+      "exit_code": 0,
+      "log": "/tmp/cinch-refinement-export-validation-20/bootstrap_nonzero_source.log",
+      "log_sha256": "359bad98f46cabf70fe9602f4c2db7ad18dec360e4816b00caff0c4a7e3846c9",
+      "name": "bootstrap_nonzero_source",
+      "pid": 51557,
+      "status": "passed",
+      "tests": 1,
+      "worker_slot": 1
+    },
+    {
+      "binary": "/tmp/cinch-refinement-export-validation-20/cargo/debug/deps/bootstrap_named_refinements-7a068f80f5703725",
+      "binary_sha256": "ac7edebf86f65209b0d26e117ff4dd520ab54e8aa292e19c7e83a25a69da6754",
+      "exit_code": 0,
+      "log": "/tmp/cinch-refinement-export-validation-20/bootstrap_named_refinements.log",
+      "log_sha256": "3fbcfd2886a46a5b14d8f4e296fe96e4f325e6e09cfd1b0802bb94167cc1d977",
+      "name": "bootstrap_named_refinements",
+      "pid": 51965,
+      "status": "passed",
+      "tests": 1,
+      "worker_slot": 0
+    },
+    {
+      "binary": "/tmp/cinch-refinement-export-validation-20/cargo/debug/deps/interface_class_contracts-c7f87e16317c47a0",
+      "binary_sha256": "78cc94a5b4e73596e7c9ad5e71d1a01e5ce7d46a0deb1671d0d02336c90b6e37",
+      "exit_code": 0,
+      "log": "/tmp/cinch-refinement-export-validation-20/interface_class_contracts.log",
+      "log_sha256": "975b428de4a7ad07bfda42c3ce4fd167859b6430a37b4a15f354cd024750589e",
+      "name": "interface_class_contracts",
+      "pid": 52917,
+      "status": "passed",
+      "tests": 1,
+      "worker_slot": 2
+    },
+    {
+      "binary": "/tmp/cinch-refinement-export-validation-20/cargo/debug/deps/bootstrap_eval-10bf57868f1c1801",
+      "binary_sha256": "387191b58c7cb4bbbb220ccd561a2415e6aa2ba8fbed13ac085fa182982088c1",
+      "exit_code": 0,
+      "log": "/tmp/cinch-refinement-export-validation-20/bootstrap_eval.log",
+      "log_sha256": "0604e9d5700cf3a858a518fd62cef4781b4ad6855585931d0c6c73b70718d25a",
+      "name": "bootstrap_eval",
+      "pid": 64420,
+      "status": "passed",
+      "tests": 1,
+      "worker_slot": 2
+    },
+    {
+      "binary": "/tmp/cinch-refinement-export-validation-20/cargo/debug/deps/bootstrap_ir-118698df483a7a60",
+      "binary_sha256": "f789b64d47de6a3909e44d702543e4854abe2aabb23fd603fc850f5bf931d55b",
+      "exit_code": 0,
+      "log": "/tmp/cinch-refinement-export-validation-20/bootstrap_ir.log",
+      "log_sha256": "223b8b3ff7f5bacbdda79ee8c2aaec49f4a2b56ac8bff2e2b59fd07f5a0f4e19",
+      "name": "bootstrap_ir",
+      "pid": 68030,
+      "status": "passed",
+      "tests": 2,
+      "worker_slot": 1
+    }
+  ],
+  "runtime_programs": {
+    "bootstrap_runtime_ir": [
+      {
+        "exit_code": 231,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "mixed-indexed-owned-constructor"
+      },
+      {
+        "exit_code": 225,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "byte-index-witness-runtime"
+      },
+      {
+        "exit_code": 227,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "byte-index-witness-partial"
+      },
+      {
+        "exit_code": 229,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "owned-index-witness-closure"
+      },
+      {
+        "exit_code": 223,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "byte-allocation-primitive-promise"
+      },
+      {
+        "exit_code": 221,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "byte-primitive-get-alias"
+      },
+      {
+        "exit_code": 219,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "task-saturated-scoped-helper"
+      },
+      {
+        "exit_code": 205,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "task-empty-scope"
+      },
+      {
+        "exit_code": 207,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "task-single-join"
+      },
+      {
+        "exit_code": 209,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "task-pair-owned-raw"
+      },
+      {
+        "exit_code": 211,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "task-immutable-adt-capture"
+      },
+      {
+        "exit_code": 213,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "task-nested-scopes"
+      },
+      {
+        "exit_code": 215,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "task-failure-cancels-sibling"
+      },
+      {
+        "exit_code": 217,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "task-builtin-local-shadowing"
+      },
+      {
+        "exit_code": 193,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "direct-do-effect-order-once"
+      },
+      {
+        "exit_code": 195,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "direct-do-polymorphic-capture"
+      },
+      {
+        "exit_code": 197,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "direct-do-polymorphic-nested-alias"
+      },
+      {
+        "exit_code": 187,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "direct-do-owned-alias"
+      },
+      {
+        "exit_code": 189,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "direct-do-pure-polymorphic-let"
+      },
+      {
+        "exit_code": 191,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "direct-do-layout-shadow"
+      },
+      {
+        "exit_code": 245,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "function-valued-prefix"
+      },
+      {
+        "exit_code": 83,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "pure-unit-entry"
+      },
+      {
+        "exit_code": 85,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "pure-unit-closure-entry"
+      },
+      {
+        "exit_code": 239,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "machine-i64-overflow"
+      },
+      {
+        "exit_code": 241,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "machine-i64-first-class"
+      },
+      {
+        "exit_code": 243,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "machine-i64-owned-chain"
+      },
+      {
+        "exit_code": 37,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "huge"
+      },
+      {
+        "exit_code": 39,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "alias"
+      },
+      {
+        "exit_code": 41,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "call"
+      },
+      {
+        "exit_code": 43,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "branch"
+      },
+      {
+        "exit_code": 47,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "recursive"
+      },
+      {
+        "exit_code": 53,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "negative"
+      },
+      {
+        "exit_code": 59,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "natural"
+      },
+      {
+        "exit_code": 61,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "wildcard"
+      },
+      {
+        "exit_code": 67,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "tuple-field"
+      },
+      {
+        "exit_code": 71,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "tuple-case"
+      },
+      {
+        "exit_code": 73,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "nested-tuple"
+      },
+      {
+        "exit_code": 79,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "dropped-tuple"
+      },
+      {
+        "exit_code": 83,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "full-inline-map"
+      },
+      {
+        "exit_code": 89,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "nullary-constructors"
+      },
+      {
+        "exit_code": 97,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "recursive-tree"
+      },
+      {
+        "exit_code": 101,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "failed-nested-pattern"
+      },
+      {
+        "exit_code": 103,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "shared-constructor-root"
+      },
+      {
+        "exit_code": 107,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "raw-bool-patterns"
+      },
+      {
+        "exit_code": 109,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "numeric-equations"
+      },
+      {
+        "exit_code": 113,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "nested-case-guards"
+      },
+      {
+        "exit_code": 127,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "failed-case-guard"
+      },
+      {
+        "exit_code": 131,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "natural-literal-pattern"
+      },
+      {
+        "exit_code": 137,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "last-regular-tag"
+      },
+      {
+        "exit_code": 149,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "opaque-runtime-dependent-argument"
+      },
+      {
+        "exit_code": 147,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "partially-applied-constructor"
+      },
+      {
+        "exit_code": 139,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "first-escaped-tag"
+      },
+      {
+        "exit_code": 141,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "escaped-recursive-and-first-class"
+      },
+      {
+        "exit_code": 143,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "escaped-generic-representation-classes"
+      },
+      {
+        "exit_code": 151,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "generic-identity-classes"
+      },
+      {
+        "exit_code": 157,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "generic-shared-tobj"
+      },
+      {
+        "exit_code": 163,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "generic-shared-obj"
+      },
+      {
+        "exit_code": 167,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "generic-tuple-fields"
+      },
+      {
+        "exit_code": 173,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "polymorphic-recursion"
+      },
+      {
+        "exit_code": 179,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "class-swapping-recursion"
+      },
+      {
+        "exit_code": 181,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "generic-data-classes"
+      },
+      {
+        "exit_code": 191,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "generic-recursive-data"
+      },
+      {
+        "exit_code": 193,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "generic-data-growing-recursion"
+      },
+      {
+        "exit_code": 197,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "generic-owned-result"
+      },
+      {
+        "exit_code": 199,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "lambda-argument"
+      },
+      {
+        "exit_code": 201,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "escaping-capture"
+      },
+      {
+        "exit_code": 203,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "shared-closure"
+      },
+      {
+        "exit_code": 205,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "global-function-value"
+      },
+      {
+        "exit_code": 207,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "partial-function"
+      },
+      {
+        "exit_code": 209,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "dynamic-partial-application"
+      },
+      {
+        "exit_code": 211,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "partial-constructor"
+      },
+      {
+        "exit_code": 213,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "nested-escaping-closures"
+      },
+      {
+        "exit_code": 215,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "unused-capture"
+      },
+      {
+        "exit_code": 217,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "shadowed-capture"
+      },
+      {
+        "exit_code": 219,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "generic-capture-classes"
+      },
+      {
+        "exit_code": 221,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "higher-order-generic-map"
+      },
+      {
+        "exit_code": 223,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "borrowed-field-capture"
+      },
+      {
+        "exit_code": 225,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "closure-constructor-field"
+      },
+      {
+        "exit_code": 227,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "branch-returned-closure"
+      },
+      {
+        "exit_code": 229,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "generic-object-capture"
+      },
+      {
+        "exit_code": 231,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "lambda-tuple-pattern"
+      },
+      {
+        "exit_code": 233,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "function-captures"
+      },
+      {
+        "exit_code": 101,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "selected-dictionary"
+      },
+      {
+        "exit_code": 103,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "dictionary-slot-order"
+      },
+      {
+        "exit_code": 107,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "dictionary-value"
+      },
+      {
+        "exit_code": 109,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "dictionary-object-value"
+      },
+      {
+        "exit_code": 113,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "dictionary-factory-context"
+      },
+      {
+        "exit_code": 127,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "dictionary-self-method"
+      },
+      {
+        "exit_code": 131,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "dictionary-self-escaping"
+      },
+      {
+        "exit_code": 137,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "dictionary-evidence-capture"
+      },
+      {
+        "exit_code": 139,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "dictionary-extra-evidence"
+      },
+      {
+        "exit_code": 149,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "dictionary-raw-value"
+      },
+      {
+        "exit_code": 151,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "dictionary-shared-evidence"
+      },
+      {
+        "exit_code": 157,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "erased-region-identity"
+      },
+      {
+        "exit_code": 163,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "io-unit-entry"
+      },
+      {
+        "exit_code": 167,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "io-cancellation"
+      },
+      {
+        "exit_code": 173,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "io-evidence-capture"
+      },
+      {
+        "exit_code": 179,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "io-observable-bytes"
+      },
+      {
+        "exit_code": 181,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "imported-tagged-fields"
+      },
+      {
+        "exit_code": 191,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "imported-raw-fields"
+      },
+      {
+        "exit_code": 193,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "imported-object-fields"
+      },
+      {
+        "exit_code": 197,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "imported-nullary-tag"
+      },
+      {
+        "exit_code": 199,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "imported-declaration-order"
+      },
+      {
+        "exit_code": 201,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "imported-constructor-closure"
+      },
+      {
+        "exit_code": 203,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "source-signature"
+      },
+      {
+        "exit_code": 205,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "source-signature-order"
+      },
+      {
+        "exit_code": 207,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "source-signature-values"
+      },
+      {
+        "exit_code": 209,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "source-signature-factory"
+      },
+      {
+        "exit_code": 211,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "source-signature-operator"
+      },
+      {
+        "exit_code": 213,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "source-signature-module"
+      },
+      {
+        "exit_code": 215,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "source-signature-method-polymorphism"
+      },
+      {
+        "exit_code": 217,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "source-signature-method-families"
+      },
+      {
+        "exit_code": 219,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "source-signature-own-factory-context"
+      }
+    ],
+    "bootstrap_runtime_objects": [
+      {
+        "exit_code": 227,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "raw"
+      },
+      {
+        "exit_code": 229,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "closure"
+      },
+      {
+        "exit_code": 231,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "owned-result"
+      },
+      {
+        "exit_code": 233,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "partial-owned"
+      },
+      {
+        "exit_code": 235,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "combined-table"
+      },
+      {
+        "exit_code": 239,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "process-arguments"
+      },
+      {
+        "exit_code": 241,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "polymorphic-function"
+      },
+      {
+        "exit_code": 243,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "method-families"
+      },
+      {
+        "exit_code": 245,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "string-literal"
+      },
+      {
+        "exit_code": 247,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "empty-string"
+      },
+      {
+        "exit_code": 249,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "char-pattern"
+      },
+      {
+        "exit_code": 251,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "machine-pattern"
+      },
+      {
+        "exit_code": 253,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "string-pattern"
+      },
+      {
+        "exit_code": 225,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "conditional-slot"
+      },
+      {
+        "exit_code": 223,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "intrinsic-export"
+      },
+      {
+        "exit_code": 217,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "float-decimal"
+      },
+      {
+        "exit_code": 219,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "float-negative-zero"
+      },
+      {
+        "exit_code": 221,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "float-first-class"
+      },
+      {
+        "exit_code": 237,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "returned-function"
+      },
+      {
+        "exit_code": 201,
+        "leak_report": "live=2 immortal=2 leaked=0",
+        "name": "symbol-word-abi"
+      },
+      {
+        "exit_code": 203,
+        "leak_report": "live=1 immortal=1 leaked=0",
+        "name": "symbol-raw-specialization"
+      },
+      {
+        "exit_code": 205,
+        "leak_report": "live=1 immortal=1 leaked=0",
+        "name": "symbol-first-class-and-field"
+      },
+      {
+        "exit_code": 0,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "machine-evidence-plain"
+      },
+      {
+        "exit_code": 0,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "machine-evidence-if"
+      },
+      {
+        "exit_code": 0,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "machine-evidence-bool"
+      },
+      {
+        "exit_code": 0,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "machine-evidence-literal"
+      }
+    ]
+  },
+  "scope": "Combined exact independently verified Rust source and Cinch interface source. Source opaque kinds and private/public defining identities are retained without introducing values, constructors, fields or closed empty families. Independent Native schema/canonical/private/facade readback and acceptance of the complete actual producer source are required. Source cases retain no-forging, no-empty-case, distinct-identity, actual-kinds and builtin-protection invariants. The complete parser corpus accounts for the newly modeled opaque declaration, and full legacy evaluator/emitter gates retain explicit refusals. Named NonZero predicates bind the actual fresh result value. Dependent exports preserve argument names; result names avoid capture. Independent type readback, facade scheme equality and actual imported capped/colliding-argument consumers pass. The complete pipeline requires actual successful public refinement emission and named unsupported external-assumption refusal. Successful checked elaborations retain actual resolved declarations. Public/renamed refinement definitions and private value/constructor/method closures retain defining identities, names/kinds, carriers and predicates. Actual Cinch writer/reader/facade consumers, independent Native schema/canonical/hash readback and malformed metadata refusals are exercised by the complete interface group. Original Native refinement oracles remain complete. Diagnostic/recovery follow-up and all9 refinement/precondition groups retained. Instance heads retain their actual defining private refinement closure, independently checked.",
+  "source": "/tmp/cinch-refinement-export-validation-20/source",
+  "source_check": {
+    "compiler_source_sha256": "e861abb04f804a94b1dfe6f65fcddab57005fdc24837b3abfedb5482dfde0208",
+    "exit_code": 0,
+    "full_goal_complete": false,
+    "log": "/tmp/cinch-refinement-export-source-check-20/check.log",
+    "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "pid": 3078,
+    "preflight_native": {
+      "authority": "Actual Native CLI with Rust hidden-scope-capture fix; exact Rust/prelude/runtime/Cargo input identities checked. No Cargo cache reuse across paths.",
+      "path": "/tmp/cinch-rust-scoped-literal-validation-1/cargo/debug/cinch",
+      "sha256": "423ed48e8f5b9764d33c3c7c61fda0eecef356b4858d5e32cc07f15024f9fd0c"
+    },
+    "source": "/tmp/cinch-refinement-export-source-check-20/source",
+    "source_sha256": "f974f0bc4c213ed04e2a359a2e0997c11c11ef85b0d3479c23b9a93554f1e691",
+    "status": "passed"
+  },
+  "source_sha256": "f974f0bc4c213ed04e2a359a2e0997c11c11ef85b0d3479c23b9a93554f1e691",
+  "status": "passed-scoped-definition-owned-refinement-export",
+  "verified_at": "2026-11-04T20:28:05.866874+00:00"
+}

@@ -542,6 +542,7 @@ module Bootstrap.Ir where
   decl-refusal fns ds d = case d of
     DData s name (Cons p ps) ctors -> Cons (diag s "parameterized data needs typed constructor lowering") Nil
     DExternal s name kind scheme metadata -> Cons (diag s (cat ["imported ", kind, " needs the shared uniform-word ABI and layout registry before lowering: ", name])) Nil
+    DOpaque s name params kind -> Cons (diag s "opaque declarations require the typed nominal backend") Nil
     DRefine s name params binder predicate -> Cons (diag s "a named refinement needs proof checking before lowering") Nil
     DSig s name t -> sig-refusal s name t
     DFun s name clauses -> fun-refusal fns ds s name clauses

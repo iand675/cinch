@@ -923,6 +923,7 @@ module Bootstrap.Check where
     DData s n params ctors -> case params of
       Nil -> Nil
       Cons p rest -> fail s "parameterized data declarations are not supported in this rung"
+    DOpaque s name params kind -> fail s "opaque declarations require checked kind and nominal elaboration"
     DRefine s n params binder predicate -> fail s "named refinement declarations need proof checking, which is not supported in this rung"
     DClass s n params members -> fail s "class declarations are not supported in this rung"
     DInstance s is-implicit name params class-app members -> fail s "instance declarations are not supported in this rung"

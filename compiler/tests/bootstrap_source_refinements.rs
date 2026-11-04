@@ -15,6 +15,15 @@ fn source_refinements_check_actual_values_and_preserve_effects() {
     ]);
     let exe = common::build(&dir, "Main.cinch", "source-refinements").expect("build the Cinch source refinement checker");
     let cases = [
+        ("opaque cannot replace builtin Nat", "opaque type Nat :: Type", 4, "cannot redefine a builtin type"),
+        ("opaque cannot replace builtin Scope", "opaque type Scope :: Type", 4, "cannot redefine a builtin type"),
+        ("opaque abstract identity", "opaque type Handle a :: Type\n  keep :: forall a. Handle a -> Handle a\n  keep x = x", 0, ""),
+        ("opaque carrier is not a literal", "opaque type Handle :: Type\n  bad :: Handle\n  bad = 0", 4, "type mismatch"),
+        ("opaque carrier cannot justify empty case", "opaque type Handle :: Type\n  bad :: Handle -> Nat\n  bad h = case h of {}", 4, "non-exhaustive"),
+        ("opaque identities remain distinct", "opaque type First :: Type\n  opaque type Second :: Type\n  bad :: First -> Second\n  bad x = x", 4, "type mismatch"),
+        ("opaque application checks parameter kind", "opaque type Handle a :: Type\n  bad :: Handle 0 -> Nat\n  bad h = 0", 4, "kind"),
+        ("opaque value parameter", "opaque type Mark (n :: Nat) :: Type\n  keep :: forall (n :: Nat). Mark n -> Mark n\n  keep x = x", 0, ""),
+        ("opaque higher kind parameter", "opaque type Wrap (f :: Type -> Type) :: Type\n  keep :: forall (f :: Type -> Type). Wrap f -> Wrap f\n  keep x = x", 0, ""),
         ("bare structural NonZero", "positive :: refined NonZero Nat\n  positive = 1", 0, ""),
         ("parenthesized structural NonZero", "positive :: refined (NonZero) Nat\n  positive = 1", 0, ""),
         ("bare structural NonZero signed", "negative :: refined NonZero Int\n  negative = -1", 0, ""),

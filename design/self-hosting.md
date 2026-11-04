@@ -1,5 +1,29 @@
 # Self-hosting
 
+## Verified opaque declarations and inferred constructor kinds (2026-11-04)
+
+The Cinch checker now retains opaque declarations as abstract nominal identities
+with their checked parameter and result kinds. Public aliases and private value
+closures export the defining opaque identity; no constructors, layouts or empty
+closed data families are introduced. Builtin replacement, forged literals,
+empty-case elimination, wrong argument kinds and distinct-identity confusion
+remain rejected. The complete actual producer is also accepted by Native Rust.
+
+Unannotated forall parameters infer ordinary constructor arity from actual type
+applications and checked class argument kinds. Explicit kinds remain authoritative;
+conflicting arities and dictionary/application kinds remain rejected. Six new
+source cases exercise both accepted inference and these refusals.
+
+All 43 compiler modules and 30 complete affected groups pass independently, including
+all 139 runtime programs with expected results and zero leaks, plus 335 independent
+Core assertions. The original parser corpus now models its opaque declaration.
+The proof is `bootstrap/current-opaque-kind-inference-results.json`, for compiler
+`e861abb04f804a94b1dfe6f65fcddab57005fdc24837b3abfedb5482dfde0208`.
+Its exact Rust producer is recorded; later repairs need matching final suites.
+Fresh Stage1 built and passed all three smokes. Stage2/3 fixed-point verification,
+complete matching suites, remaining original API fixtures, positive live-ABI array
+lowering and the full 100-target/Acceptance 1-5 audit remain open.
+
 ## Rust numeral refinements use checked lexical facts
 
 Numeric literals and folded negative numerals retain their static predicate and

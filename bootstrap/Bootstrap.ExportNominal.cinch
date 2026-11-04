@@ -9,11 +9,11 @@ module Bootstrap.ExportNominal where
   import Bootstrap.Nominal (kernel-type-name)
   import Bootstrap.Instance (CoreClass, class-name, class-params)
   import Data.Json
-  import Bootstrap.Ast (Decl, DRefine, DSig, DMethod, DFun, DData, DClass, DInstance, DForeign, decls-of, TypeExpr, TName, TIndex, TNegate, TInfix, TFun, TApp, TArg, TArgsEnd, TypeParam, param-name, param-kind, param-implicit, decl-name, type-expr-span)
+  import Bootstrap.Ast (Decl, DRefine, DSig, DMethod, DFun, DData, DOpaque, DClass, DInstance, DForeign, decls-of, TypeExpr, TName, TIndex, TNegate, TInfix, TFun, TApp, TArg, TArgsEnd, TypeParam, param-name, param-kind, param-implicit, decl-name, type-expr-span)
   import Bootstrap.Contracts (declaration-references)
   import Text.Json (json-eq)
 
-  export source-refinement, binding-refinements, merge-nominals, scheme-nominals, data-nominal, parameter-json, parameter-names
+  export source-refinement, source-abstract-type, binding-refinements, merge-nominals, scheme-nominals, data-nominal, parameter-json, parameter-names
 
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
@@ -133,25 +133,25 @@ module Bootstrap.ExportNominal where
     Cons description rest -> case export-global (class-name description) of
       Ok identity -> if same name identity then class-nominal description else source-class-nominal name rest
       Err error -> Err error
-  source-nominal :: String -> List CoreData -> List CoreClass -> Result String Json
-  source-nominal name datas classes = case datas of
-    Nil -> source-class-nominal name classes
+  source-nominal :: String -> List Decl -> List CoreData -> List CoreClass -> Result String Json
+  source-nominal name declarations datas classes = case datas of
+    Nil -> case source-opaque declarations name of Some found -> found; None -> source-class-nominal name classes
     Cons declaration rest -> case export-global (core-data-name declaration) of
-      Ok identity -> if same identity name then data-nominal declaration else source-nominal name rest classes
+      Ok identity -> if same identity name then data-nominal declaration else source-nominal name declarations rest classes
       Err error -> Err error
-  nominal-rows :: List String -> List CoreData -> List CoreClass -> List LoadedInterface -> Result String Json
-  nominal-rows names datas classes interfaces = case names of
+  nominal-rows :: List String -> List Decl -> List CoreData -> List CoreClass -> List LoadedInterface -> Result String Json
+  nominal-rows names declarations datas classes interfaces = case names of
     Nil -> Ok JArrEnd
-    Cons name rest -> let actual = case imported-nominal name interfaces of Some row -> Ok row; None -> source-nominal name datas classes in
-      case (actual, nominal-rows rest datas classes interfaces) of
+    Cons name rest -> let actual = case imported-nominal name interfaces of Some row -> Ok row; None -> source-nominal name declarations datas classes in
+      case (actual, nominal-rows rest declarations datas classes interfaces) of
         (Ok row, Ok more) -> Ok (JArr row more)
         (Err error, other) -> Err error
         (other, Err error) -> Err error
-  scheme-nominals :: Scheme -> List CoreData -> List CoreClass -> List LoadedInterface -> Result String Json
-  scheme-nominals scheme datas classes interfaces = case combine (quant-references (scheme-params scheme))
+  scheme-nominals :: Scheme -> List Decl -> List CoreData -> List CoreClass -> List LoadedInterface -> Result String Json
+  scheme-nominals scheme declarations datas classes interfaces = case combine (quant-references (scheme-params scheme))
     (combine (requirement-references (scheme-requirements scheme)) (type-references (scheme-body scheme))) of
       Err error -> Err error
-      Ok names -> nominal-rows (sorted names Nil) datas classes interfaces
+      Ok names -> nominal-rows (sorted names Nil) declarations datas classes interfaces
 
   defining-refinement :: String -> List Decl -> Option Decl
   defining-refinement name declarations = case declarations of
@@ -221,6 +221,26 @@ module Bootstrap.ExportNominal where
           (other, more, Err error, last) -> Err error
           (other, more, last, Err error) -> Err error
     other -> Err "missing defining refinement declaration"
+  opaque-nominal :: List Decl -> Decl -> Result String Json
+  opaque-nominal declarations declaration = case declaration of
+    DOpaque sp name params kind -> case (export-global name, template-parameters declarations Nil params) of
+      (Ok identity, Ok parameters) -> Ok (JObj "identity" (JStr identity)
+        (JObj "kind" (JStr "opaque") (JObj "parameters" (parameter-json parameters)
+          (JObj "params" (parameter-names parameters) (JObj "constructors" JNull (JObj "refinement" JNull JObjEnd))))))
+      (Err error, other) -> Err error
+      (other, Err error) -> Err error
+    other -> Err "missing checked opaque declaration"
+  source-opaque :: List Decl -> String -> Option (Result String Json)
+  source-opaque declarations name = find-source-opaque declarations declarations name
+  find-source-opaque :: List Decl -> List Decl -> String -> Option (Result String Json)
+  find-source-opaque declarations remaining name = case remaining of
+    Nil -> None
+    Cons (DOpaque sp actual params kind) rest -> case export-global actual of
+      Ok identity -> if same name actual || same name identity then Some (opaque-nominal declarations (DOpaque sp actual params kind)) else find-source-opaque declarations rest name
+      Err error -> Some (Err error)
+    Cons other rest -> find-source-opaque declarations rest name
+  source-abstract-type :: List Decl -> String -> Option (Result String Json)
+  source-abstract-type declarations name = case source-refinement declarations name of Some found -> Some found; None -> source-opaque declarations name
   source-refinement :: List Decl -> String -> Option (Result String Json)
   source-refinement declarations name = case defining-refinement name declarations of None -> None; Some declaration -> Some (refinement-nominal declarations declaration)
   insert-nominal :: Json -> Json -> Result String Json

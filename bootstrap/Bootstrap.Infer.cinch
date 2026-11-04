@@ -166,6 +166,7 @@ module Bootstrap.Infer where
     Cons d rest -> (case d of
       DSig s name ty -> needs-type ty
       DClass s name ps members -> True
+      DOpaque s name params kind -> True
       DRefine s name params binder predicate -> True
       DEffect s name params ops -> True
       DInstance s flag name params head-type members -> True
@@ -281,6 +282,10 @@ module Bootstrap.Infer where
         (qs, sr) -> (Cons (MkQuant next name k (param-implicit p)) qs, sr)
   kind-arrow :: List Quant -> Kind
   kind-arrow qs = case qs of Nil -> KType; Cons q rest -> KFun (quant-kind q) (kind-arrow rest)
+  opaque-result-kind :: Span -> TypeExpr -> Store -> Store
+  opaque-result-kind sp syntax st = case syntax of
+    TName at name -> if same name "Type" then st else add-error sp "opaque declaration needs a Type result kind" st
+    other -> add-error sp "opaque declaration needs a Type result kind" st
   -- KFun cannot substitute an earlier declaration parameter into a later
   -- carrier. Refuse this path until a binder-aware declaration kind is
   -- available; forall/Pi schemes retain their binders and are unaffected.
@@ -438,6 +443,7 @@ module Bootstrap.Infer where
     TUsing s bounds body -> bad s "using contexts need dictionary and proof elaboration" st
     TFunEff s a row b -> convert-arrow external kinds locals s a (Some row) b st
     TRefined s predicate carrier -> convert-refined external kinds locals s predicate carrier st
+    TIndex s literal -> bad s "kind mismatch: a numeric index cannot be used as a proper type" st
     TBound s name kind rest -> bad s "dependent argument binders need index elaboration" st
     other -> bad (type-expr-span ty) "dependent or unmodeled type needs kernel elaboration" st
   unqualified-name :: String -> Bool
@@ -856,11 +862,67 @@ module Bootstrap.Infer where
     TArg s x rest -> case convert external kinds locals x st of
       (ty, sx) -> case convert-spine external kinds locals rest (expect-type s ty sx) of (ys, sy) -> (UArg ty ys, sy)
     other -> bad (type-expr-span xs) "malformed tuple type spine" st
+  -- Infer the ordinary Type -> ... -> Type constructor arity of an
+  -- unannotated forall parameter. Explicit kinds remain authoritative;
+  -- conversion below still checks every use against the inferred kind.
+  max-arity :: Nat -> Nat -> Nat
+  max-arity a b = if a > b then a else b
+  flat-kind-arity :: Kind -> Nat
+  flat-kind-arity kind = case kind of KFun KType rest -> 1 + flat-kind-arity rest; other -> 0
+  closed-annotation-kind :: TypeExpr -> Option Kind
+  closed-annotation-kind syntax = case syntax of
+    TName sp name -> if same name "Type" then Some KType else if same name "Region" then Some KRegion else if same name "Prop" then Some KProp else if same name "Row" then Some KRow else if same name "Effect" then Some KEffect else None
+    TFun sp a b -> case (closed-annotation-kind a, closed-annotation-kind b) of (Some first, Some second) -> Some (KFun first second); other -> None
+    other -> None
+  annotated-parameter-kind :: String -> List TypeParam -> Option Kind
+  annotated-parameter-kind name params = case params of
+    Nil -> None
+    Cons p rest -> if same name (param-name p) then (case param-kind p of Some kind -> closed-annotation-kind kind; None -> None) else annotated-parameter-kind name rest
+  known-head-kind :: TypeContext -> List (String, UType) -> List TypeParam -> TypeExpr -> Option Kind
+  known-head-kind kinds locals params syntax = case syntax of
+    TName sp name -> case lookup-local name locals of
+      Some value -> Some (type-kind value)
+      None -> case annotated-parameter-kind name params of Some kind -> Some kind; None -> context-kind name kinds
+    other -> None
+  constructor-arity-in :: TypeContext -> List (String, UType) -> List TypeParam -> String -> Nat -> TypeExpr -> Nat
+  constructor-arity-in kinds locals params sought expected syntax = case syntax of
+    TName sp name -> if same name sought then expected else 0
+    TApp sp head spine -> case source-type-application head spine of
+      (actual, argument-spine) -> let arguments = type-args-of argument-spine in let direct = case actual of TName at name -> if same name sought then list-length arguments + expected else 0; other -> constructor-arity-in kinds locals params sought 0 actual in
+        max-arity direct (constructor-arity-arguments kinds locals params sought (known-head-kind kinds locals params actual) arguments)
+    TFun sp a b -> max-arity (constructor-arity-in kinds locals params sought 0 a) (constructor-arity-in kinds locals params sought 0 b)
+    TFunEff sp a row b -> max-arity (constructor-arity-in kinds locals params sought 0 row) (max-arity (constructor-arity-in kinds locals params sought 0 a) (constructor-arity-in kinds locals params sought 0 b))
+    TUsing sp bounds body -> max-arity (constructor-arity-in kinds locals params sought 0 bounds) (constructor-arity-in kinds locals params sought 0 body)
+    TBound sp name annotation rest -> max-arity (constructor-arity-in kinds locals params sought 0 annotation) (constructor-arity-in kinds locals params sought 0 rest)
+    TArg sp first rest -> max-arity (constructor-arity-in kinds locals params sought 0 first) (constructor-arity-in kinds locals params sought 0 rest)
+    TTuple sp fields -> constructor-arity-in kinds locals params sought 0 fields
+    TRow sp labels tail -> constructor-arity-in kinds locals params sought 0 labels
+    TRefined sp predicate carrier -> constructor-arity-in kinds locals params sought 0 carrier
+    TForall sp binders body -> if has sought (parameter-names-for-check (forall-params-of binders)) then 0 else constructor-arity-in kinds locals params sought expected body
+    other -> 0
+  constructor-arity-arguments :: TypeContext -> List (String, UType) -> List TypeParam -> String -> Option Kind -> List TypeExpr -> Nat
+  constructor-arity-arguments kinds locals params sought head arguments = case arguments of
+    Nil -> 0
+    Cons first rest -> case head of
+      Some (KFun domain result) -> max-arity (constructor-arity-in kinds locals params sought (flat-kind-arity domain) first) (constructor-arity-arguments kinds locals params sought (Some result) rest)
+      other -> max-arity (constructor-arity-in kinds locals params sought 0 first) (constructor-arity-arguments kinds locals params sought None rest)
+  constructor-kind-syntax :: Span -> Nat -> TypeExpr
+  constructor-kind-syntax sp arity = if arity == 0 then TName sp "Type" else TFun sp (TName sp "Type") (constructor-kind-syntax sp (arity - 1))
+  inferred-forall-parameters :: TypeContext -> List (String, UType) -> List TypeParam -> TypeExpr -> List TypeParam
+  inferred-forall-parameters kinds locals params body = infer-forall-parameters kinds locals params params body
+  infer-forall-parameters :: TypeContext -> List (String, UType) -> List TypeParam -> List TypeParam -> TypeExpr -> List TypeParam
+  infer-forall-parameters kinds locals all remaining body = case remaining of
+    Nil -> Nil
+    Cons p rest -> Cons (case p of
+      MkTypeParam sp name None only -> let arity = constructor-arity-in kinds locals all name 0 body in
+        if arity == 0 then p else MkTypeParam sp name (Some (constructor-kind-syntax sp arity)) only
+      other -> p) (infer-forall-parameters kinds locals all rest body)
+
   make-scheme :: Bool -> List (String, Kind) -> TypeContext -> List Quant -> TypeExpr -> Store -> (Scheme, Store)
   make-scheme external classes kinds inherited ty st = case ty of
     TForall s binders body -> case inherited of
       Cons q rest -> (mono UError, add-error s "constructor-local quantifiers need existential/index elaboration" st)
-      Nil -> case parameters external kinds Nil (region-parameters (forall-params-of binders) (region-names body)) 0 Nil (if quantifiers-ok binders then st else add-error s "malformed quantified parameter spine" st) of
+      Nil -> case parameters external kinds Nil (inferred-forall-parameters kinds Nil (region-parameters (forall-params-of binders) (region-names body)) body) 0 Nil (if quantifiers-ok binders then st else add-error s "malformed quantified parameter spine" st) of
         (qs, sq) -> scheme-body-from external classes kinds (implicit-row-regions qs (latent-regions body)) body sq
     other -> scheme-body-from external classes kinds (case inherited of Nil -> implicit-row-regions Nil (latent-regions ty); more -> inherited) ty st
   scheme-body-from :: Bool -> List (String, Kind) -> TypeContext -> List Quant -> TypeExpr -> Store -> (Scheme, Store)
@@ -967,6 +1029,11 @@ module Bootstrap.Infer where
     Cons (DInterface sp owner hash metadata) rest -> case imported-byte-observers sp owner (field "foreign" (field "exports" metadata)) kinds st of
       (more, checked) -> collect-kinds rest more checked
     Cons d rest -> case d of
+      -- An abstract carrier supplies a checked kind, never a constructor
+      -- family. In particular it cannot justify an empty-case proof.
+      DOpaque s name ps result -> case parameters False kinds Nil ps 0 Nil st of
+        (qs, sq) -> case add-kind s name (kind-arrow qs) kinds (opaque-result-kind s result (declaration-kind-errors s qs sq)) of
+          (ks, sk) -> collect-kinds rest ks sk
       DRefine s name ps binder predicate -> case parameters False kinds Nil ps 0 Nil st of
         (qs, sq) -> case add-kind s name (kind-arrow qs) kinds (declaration-kind-errors s qs sq) of
           (ks, sk) -> collect-kinds rest (context-add-alias d ks) sk
@@ -1516,6 +1583,9 @@ module Bootstrap.Infer where
       DSource s name metadata -> register rows classes kinds rest env st
       DInterface s name hash metadata -> register rows classes kinds rest env st
       DFun s name clauses -> register rows classes kinds rest env st
+      -- Its kind was checked above. An opaque type introduces no value
+      -- binding, constructor, field or closed data family.
+      DOpaque s name params kind -> register rows classes kinds rest env st
       DRefine s name params binder predicate -> register rows classes kinds rest env st
       DExport s text items -> register rows classes kinds rest env st
       other -> register rows classes kinds rest env (add-error (decl-span d) (unsupported-decl d) st)
@@ -3048,7 +3118,7 @@ module Bootstrap.Infer where
   quant-names qs = case qs of Nil -> Nil; Cons q rest -> Cons (quant-name q) (quant-names rest)
   member-annotation-scheme :: List (String, Kind) -> TypeContext -> List Quant -> TypeExpr -> Store -> (Scheme, Store)
   member-annotation-scheme classes kinds inherited ty st = case ty of
-    TForall sp binders body -> case parameters False kinds (quant-locals inherited) (region-parameters (forall-params-of binders) (region-names body)) (quant-next inherited) (quant-names inherited) (if quantifiers-ok binders then st else add-error sp "malformed instance method quantifiers" st) of
+    TForall sp binders body -> case parameters False kinds (quant-locals inherited) (inferred-forall-parameters kinds (quant-locals inherited) (region-parameters (forall-params-of binders) (region-names body)) body) (quant-next inherited) (quant-names inherited) (if quantifiers-ok binders then st else add-error sp "malformed instance method quantifiers" st) of
       (local, checked) -> scheme-body-from False classes kinds (inherited <> local) body checked
     other -> scheme-body-from False classes kinds inherited ty st
   checked-member-annotation :: List (String, Kind) -> TypeContext -> Scheme -> Scheme -> Option TypeExpr -> Store -> (Scheme, Store)

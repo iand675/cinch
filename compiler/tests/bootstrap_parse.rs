@@ -150,7 +150,7 @@ const EXPECTED_UNMODELED: &[(&str, usize)] = &[
     ("06-counter-upgrade", 6),
     ("07-rejected-programs", 2),
     ("08-platform-simd", 1),
-    ("09-foreign-codec", 2),
+    ("09-foreign-codec", 1),
     // Parsing the do body exposes the record-construction alternative as
     // a pattern/body recovery pair, beside the unmodeled record declaration.
     ("10-wasm-component", 3),

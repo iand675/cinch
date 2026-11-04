@@ -208,6 +208,7 @@ module Bootstrap.Contracts where
     DMethod s label name ty -> type-references ty
     DClass s name params members -> param-references params <> declaration-references (decls-of members)
     DFun s name clauses -> clause-references clauses
+    DOpaque s name params kind -> param-references params <> type-references kind
     DData s name params ctors -> param-references params <> ctor-references ctors
     DEffect s name params ops -> param-references params <> ctor-references ops
     DInstance s only name params class-app members -> param-references params <> type-references class-app <> declaration-references (decls-of members)

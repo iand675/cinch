@@ -748,6 +748,7 @@ module Bootstrap.Parse where
     else if string-compare w "signature" == 0 then parse-signature toks src fix
     else if string-compare w "data" == 0 then parse-data toks src fix
     else if string-compare w "type" == 0 then parse-refinement toks src
+    else if string-compare w "opaque" == 0 then parse-opaque toks src
     else if string-compare w "record" == 0 then parse-record toks src fix
     else if string-compare w "effect" == 0 then parse-effect toks src fix
     else if string-compare w "foreign" == 0 then parse-foreign toks src
@@ -1080,6 +1081,23 @@ module Bootstrap.Parse where
             PBad -> PBad
           PBad -> PBad
       else PBad
+    Nil -> PBad
+
+  parse-opaque :: List LToken -> Bytes -> Ps Decl
+  parse-opaque toks src = case toks of
+    Cons start rest -> case expect-word-t rest "type" of
+      POk ignored tail -> case parse-ctor-name tail of
+        POk name more -> case parse-params more src Nil of
+          POk params after -> case after of
+            Cons colon input -> if is-punct-t (lt-token colon) "::" then
+              (case parse-type input src of
+                POk kind done -> POk (DOpaque (sp-of start) name params kind) done
+                PBad -> PBad)
+              else PBad
+            Nil -> PBad
+          PBad -> PBad
+        PBad -> PBad
+      PBad -> PBad
     Nil -> PBad
 
   parse-record :: List LToken -> Bytes -> List (String, Fix) -> Ps Decl

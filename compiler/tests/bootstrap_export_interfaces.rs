@@ -26,6 +26,8 @@ fn source_interfaces_preserve_private_nominals_and_defining_fixities() {
     }).collect();
     assert_eq!(interfaces.len(), 3);
     let source = std::fs::read_to_string(dir.join("export-fixture.cinch")).unwrap();
+    cinch::driver::check_sources(&source, "cinch-interface-producer-source.cinch")
+        .expect("independent Native acceptance of the complete actual producer fixture");
     for (index, interface) in interfaces.iter().enumerate() {
         let begin = source.find(&format!("module {} where", interface.module)).unwrap();
         let end = interfaces.get(index + 1)
@@ -64,6 +66,25 @@ fn source_interfaces_preserve_private_nominals_and_defining_fixities() {
     assert!(!a.exports.types.iter().any(|t| t.name == "Window" || t.name == "Positive"));
     assert!(!b.exports.types.iter().any(|t| t.name == "Window"));
     let contract = |iface: &cinch::interface::Iface, name: &str| iface.exports.values.iter().find(|v| v.name == name).unwrap().resolved.clone().unwrap();
+    let handle = a.exports.types.iter().find(|t| t.name == "Handle").expect("public opaque declaration");
+    assert_eq!((handle.identity.as_str(), handle.kind.as_str()), ("A.Handle", "opaque"));
+    assert_eq!(handle.parameters.iter().map(|p| (p.name.as_str(), p.kind.as_str())).collect::<Vec<_>>(), [("a", "Type")]);
+    assert!(handle.ctors.is_empty() && handle.fields.is_empty() && handle.refinement.is_none());
+    let renamed_handle = b.exports.types.iter().find(|t| t.name == "PublicHandle").unwrap();
+    assert_eq!(renamed_handle.identity, handle.identity);
+    assert_eq!(renamed_handle.parameters, handle.parameters);
+    assert_eq!(renamed_handle.kind, "opaque");
+    assert!(!a.exports.types.iter().any(|t| t.name == "PrivateHandle"));
+    let handle_contract = contract(a, "handle-id");
+    assert_eq!(handle_contract, contract(b, "keep-handle"));
+    let opaque = handle_contract.nominals.iter().find(|n| n.identity == "A.Handle").unwrap();
+    assert_eq!(opaque.kind, "opaque");
+    assert!(opaque.constructors.is_none() && opaque.refinement.is_none(), "opaque carrier acquired a closed constructor family");
+    let secret = contract(a, "echo-secret");
+    assert_eq!(secret, contract(b, "echo-secret"));
+    let private = secret.nominals.iter().find(|n| n.identity == "A.PrivateHandle").unwrap();
+    assert_eq!(private.kind, "opaque");
+    assert!(private.constructors.is_none());
     let capped = contract(a, "capped");
     assert_eq!(capped, contract(b, "capped"));
     assert!(capped.scheme.contains("cinch-result <= limit"), "{}", capped.scheme);

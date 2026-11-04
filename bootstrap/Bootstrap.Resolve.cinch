@@ -5,7 +5,7 @@
 module Bootstrap.Resolve where
 
   import Bootstrap.Ast
-  import Bootstrap.Nominal (interface-global)
+  import Bootstrap.Nominal (interface-global, kernel-type-name)
   import Bootstrap.Builtin (builtin-bindings, builtin-declarations)
   import Bootstrap.Report (Diagnostic, MkDiagnostic)
   import Bootstrap.Load (LoadedInterface, loaded-module, loaded-exports, validate-interface-set)
@@ -595,11 +595,20 @@ module Bootstrap.Resolve where
       (renamed, errors) -> (DFun s name renamed, errors)
     other -> (members, fail (decl-span members) "instance member requires further declaration elaboration")
 
+  opaque-name-reserved :: String -> Bool
+  opaque-name-reserved name = kernel-type-name name || has-name name
+    ["Array", "Tensor", "Columnar", "Type", "Prop", "Code", "Syntax", "Declarations", "Name", "Secret"
+    , "IoCap", "FileReadCap", "FileWriteCap", "ProcCap", "Scope", "Task", "RawPtr", "Borrowed", "Retained", "Owned", "Out", "MaybeNull"
+    , "CChar", "CUchar", "CShort", "CUshort", "CInt", "CUint", "CLong", "CULong", "CLongLong", "CULongLong", "CSize", "SizeT"
+    , "CSsize", "CFloat", "CDouble", "CVoid", "SchemaSnapshot", "Database", "SchemaRead"]
   rename-decl :: String -> List Binding -> List Decl -> Decl -> (List Decl, List Diagnostic)
   rename-decl home visible declarations d = case d of
     DSig s name ty -> (Cons (DSig s (global-name home name) (rename-type visible Nil ty)) Nil, Nil)
     DFun s name clauses -> case rename-member-clauses visible (instance-method-names name declarations) clauses of
       (body, errors) -> (Cons (DFun s (global-name home name) body) Nil, errors)
+    DOpaque s name params kind -> if opaque-name-reserved name then (Nil, fail s "an opaque declaration cannot redefine a builtin type") else
+      (Cons (DOpaque s (global-name home name) (rename-params visible Nil params)
+        (rename-type visible (parameter-names params) kind)) Nil, Nil)
     DData s name params ctors -> (Cons (DData s (global-name home name) (rename-params visible Nil params)
       (rename-ctors home visible (parameter-names params) ctors)) Nil, Nil)
     DClass s name params members ->

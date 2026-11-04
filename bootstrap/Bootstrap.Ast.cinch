@@ -369,6 +369,7 @@ module Bootstrap.Ast where
     DMethod :: Span -> String -> String -> TypeExpr -> Decl
     DFun :: Span -> String -> List (List Pat, Expr) -> Decl
     DData :: Span -> String -> List TypeParam -> List (String, TypeExpr) -> Decl
+    DOpaque :: Span -> String -> List TypeParam -> TypeExpr -> Decl
     DRefine :: Span -> String -> List TypeParam -> TypeParam -> TypeExpr -> Decl
     DClass :: Span -> String -> List TypeParam -> Decl -> Decl
     DInstance :: Span -> Bool -> String -> List TypeParam -> TypeExpr -> Decl -> Decl
@@ -402,6 +403,7 @@ module Bootstrap.Ast where
     DMethod s label name t -> s
     DFun s n clauses -> s
     DData s n params ctors -> s
+    DOpaque s n params kind -> s
     DRefine s n params binder predicate -> s
     DClass s n params members -> s
     DInstance s is-implicit name params class-app members -> s
@@ -425,6 +427,7 @@ module Bootstrap.Ast where
     DMethod s label name t -> Some name
     DFun s n clauses -> Some n
     DData s n params ctors -> Some n
+    DOpaque s n params kind -> Some n
     DRefine s n params binder predicate -> Some n
     DClass s n params members -> Some n
     DInstance s is-implicit name params class-app members -> Some name
@@ -614,6 +617,7 @@ module Bootstrap.Ast where
     DMethod s label name t -> type-unmodeled-count t
     DFun s n clauses -> clauses-unmodeled clauses
     DData s n params ctors -> params-unmodeled params + ctors-unmodeled ctors
+    DOpaque s n params kind -> params-unmodeled params + type-unmodeled-count kind
     DRefine s n params binder predicate -> params-unmodeled (Cons binder params) + type-unmodeled-count predicate
     DClass s n params members -> params-unmodeled params + decls-unmodeled (decls-of members)
     DInstance s is-implicit name params class-app members -> params-unmodeled params + type-unmodeled-count class-app + decls-unmodeled (decls-of members)

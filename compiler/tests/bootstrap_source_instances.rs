@@ -74,6 +74,12 @@ fn source_instances_build_checked_dictionaries_from_defining_class_interfaces() 
     for (name, body, wanted) in [
         ("imported class without source instance", "probe :: using (given :: Echo Int) => Int -> Int\n  probe x = echo x", 0),
         ("renamed imported class with method context", "probe :: using (pair :: Pair Int, extra :: Echo Bool) => Bool -> Int -> Int\n  probe b x = a-last b (z-first x)", 0),
+        ("inferred higher kind imported class", "probe :: forall f. using (given :: Mapper f) => Int -> f Int\n  probe x = make-one x", 0),
+        ("inferred constructor only from dictionary", "probe :: forall f. using (given :: Mapper f) => Int -> Int\n  probe x = x", 0),
+        ("inferred binary constructor", "signature PairCtor (f :: Type -> Type -> Type) where\n    pair :: forall a b. a -> b -> f a b\n  probe :: forall f. using (given :: PairCtor f) => Int -> Bool -> f Int Bool\n  probe x y = pair x y", 0),
+        ("explicit proper kind is authoritative", "probe :: forall (f :: Type). using (given :: Mapper f) => Int -> f Int\n  probe x = make-one x", 4),
+        ("inconsistent inferred constructor arity", "probe :: forall f. f Int -> f Int Bool -> f Int\n  probe x y = x", 4),
+        ("dictionary kind contradicts application", "probe :: forall f. using (given :: Mapper f) => f Int Bool -> f Int Bool\n  probe x = x", 4),
         ("higher kind imported class without instance", "probe :: forall (f :: Type -> Type). using (given :: Mapper f) => Int -> f Int\n  probe x = make-one x", 0),
         ("monomorphic dictionary and method call", "implicit instance EchoInt :: Echo Int where\n    echo x = x\n  answer :: Int\n  answer = echo 1", 0),
         ("machine carrier specialization", "implicit instance EchoI64 :: Echo I64 where\n    echo x = x\n  answer :: I64\n  answer = echo (-1 :: I64)", 0),
