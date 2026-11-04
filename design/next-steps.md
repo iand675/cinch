@@ -7,15 +7,14 @@ frozen source `72a62361a93da731ea5fe5becb9dc9828db00dda3f9b87cfcb7caf67d3177dee`
 The normalized Cinch compiler identity is
 `33f4dde5688c94aeb1f04dc6498a8ceb013ee51193dd471aca9c36f3c3b675e1`.
 All43 actual compiler modules pass Native source checking. The complete
-runtime-lowering, parser and checker targets pass, with no ignored or filtered
+runtime-lowering, checked-object, parser and checker targets pass, with no ignored or filtered
 cases. All92 runtime programs execute with the expected results and zero leaks,
 including65-tag families, recursive/first-class70-constructor families, generic
 Raw/Obj/TObj layouts and a partially applied constructor retaining an owned
-integer. The complete checked-object target is still running; its full positive
-and refusal assertions remain required. See
+integer. The complete checked-object target also passes all22 positive programs
+and every original ABI/admission refusal. See
 [the scoped repair evidence](../bootstrap/escaped-constructor-symbol-repair-results.json).
-This checkpoint does not claim that final runtime-object validation, bootstrap
-or complete-suite acceptance has finished.
+This checkpoint does not claim that bootstrap or complete-suite acceptance has finished.
 
 The backend uses the runtime's existing escaped-descriptor format and reads
 escaped tags safely. Direct and first-class constructor allocation share that
@@ -27,13 +26,17 @@ still require every field. New wrong-prefix-type and incomplete-pattern
 refusals retain those boundaries. The original allocation assertions are unchanged.
 
 The fresh Stage0/1/2/3 attempt uses this exact source. Stage0 and all three smoke
-checks pass; Stage1 is building. Only unchanged pinned seed and admitted
+checks pass; fresh Stage1 and all three of its smoke checks pass too. Only unchanged pinned seed and admitted
 library/runtime dependency artifacts are reused after revalidation. Every Cinch
-compiler stage is freshly rebuilt. Stage2 waits for all four complete focused
-gates to pass. The complete208-group Native inventory has compiled on the same
-source and private cache; full execution also waits for all four gates. Matching
-runtime, tooling and editor checks are queued, and the eight original ordinary
-behavior targets will run early through fresh Stage1 once its smokes pass.
+compiler stage is freshly rebuilt. All four complete focused gates now pass,
+unblocking Stage2 and the complete208-group Native sweep. Its full inventory has
+compiled on the same source and private cache. Matching auxiliary checks all pass:
+171 runtime tests,41 tooling checks and39 editor/syntax checks, none ignored or
+skipped; see [the current auxiliary result](../bootstrap/current-source-auxiliary-results.json).
+The [current coverage audit](../bootstrap/current-external-coverage-audit.json)
+recomputes all100 harness targets and remains open until their actual matching
+executions and final requirement audit complete. The eight original ordinary
+behavior targets are now running early through fresh Stage1.
 These diagnostics do not replace the required91-group exact final Stage3 suite:
 79 bootstrap groups, eight ordinary targets, three complete mixed consumers and
 the designed ABI5 array refusal. Exact final Stage3 runner reports, zero-leak

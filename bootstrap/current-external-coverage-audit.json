@@ -1,9 +1,9 @@
 {
   "status": "open-current-source-coverage-audit",
-  "checked_at": "2026-11-04T01:49:50.911560+00:00",
+  "checked_at": "2026-11-04T04:06:41.553327+00:00",
   "requirement": "design/self-hosting.md Acceptance5; no completed-goal claim",
-  "source_snapshot_sha256": "f6e166c9ec48a7b30526db7d16f360c56204c5de4b6005f91ae54a350bd07808",
-  "compiler_source_sha256": "0e2848ef342cc3fd82d78e2eec3894d410660c17538f7c0becdf55278d37ab0f",
+  "source_snapshot_sha256": "72a62361a93da731ea5fe5becb9dc9828db00dda3f9b87cfcb7caf67d3177dee",
+  "compiler_source_sha256": "33f4dde5688c94aeb1f04dc6498a8ceb013ee51193dd471aca9c36f3c3b675e1",
   "harness_targets": 100,
   "complete_native_groups_required": 208,
   "selected_stage3_groups": {
@@ -12,7 +12,7 @@
     "complete_mixed_consumers": 3,
     "exact_designed_array_refusal": 1
   },
-  "selected_queue": "/tmp/cinch-final-self-built-29/state.json",
+  "selected_queue": "/tmp/cinch-final-self-built-30/state.json",
   "native_api_targets": [
     "interface_anonymous_contracts",
     "interface_class_contracts",
@@ -25,15 +25,15 @@
     "interface_region_effects"
   ],
   "native_api_execution_at_checkpoint": {
-    "interface_anonymous_contracts": "passed",
-    "interface_class_contracts": "passed",
-    "interface_kinds": "passed",
-    "interface_nominals": "passed",
-    "interface_preconditions": "passed",
-    "interface_prelude_overrides": "passed",
-    "interface_refinement_closure": "passed",
-    "interface_refinements": "passed",
-    "interface_region_effects": "passed"
+    "interface_anonymous_contracts": "pending-current-full-sweep",
+    "interface_class_contracts": "pending-current-full-sweep",
+    "interface_kinds": "pending-current-full-sweep",
+    "interface_nominals": "pending-current-full-sweep",
+    "interface_preconditions": "pending-current-full-sweep",
+    "interface_prelude_overrides": "pending-current-full-sweep",
+    "interface_refinement_closure": "pending-current-full-sweep",
+    "interface_refinements": "pending-current-full-sweep",
+    "interface_region_effects": "pending-current-full-sweep"
   },
   "array_boundary": {
     "design": "design/arrays.md:119-157",
@@ -658,7 +658,7 @@
       ]
     },
     "bootstrap_runtime_ir": {
-      "source_sha256": "bc46cfacf4a97da1abac72fd7c63afc21d9b0335bd1df9bd2a9e899df0482839",
+      "source_sha256": "9196a316500acbd65e89d907f18071f3b1dd55f4f12aa8ffbb013e52d967f463",
       "calls": [
         {
           "line": 88,
@@ -667,10 +667,10 @@
       ]
     },
     "bootstrap_runtime_objects": {
-      "source_sha256": "12266125f65cc3ed9d8e385082212ffcea780c7e9f791a1a302e914d2807c6fb",
+      "source_sha256": "8b9facb07bad2176a6305c6a477812001f0ae7bd06ba696f0897b78902215ca4",
       "calls": [
         {
-          "line": 78,
+          "line": 86,
           "operation": "build"
         }
       ]

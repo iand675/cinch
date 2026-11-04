@@ -1,6 +1,6 @@
 {
-  "status": "source-checked-and-three-complete-gates-passed",
-  "checked_at": "2026-11-04T03:57:55.226916+00:00",
+  "status": "passed-all-four-complete-focused-targets",
+  "checked_at": "2026-11-04T04:19:19.666605+00:00",
   "compiler_source_sha256": "33f4dde5688c94aeb1f04dc6498a8ceb013ee51193dd471aca9c36f3c3b675e1",
   "source_snapshot_sha256": "72a62361a93da731ea5fe5becb9dc9828db00dda3f9b87cfcb7caf67d3177dee",
   "source_check": {
@@ -12,6 +12,26 @@
     "status": "passed"
   },
   "passed_complete_targets": [
+    {
+      "command": [
+        "/tmp/cinch-escaped-constructors-validation-4/cargo/debug/deps/bootstrap_runtime_objects-3f0ca8e79c6a5a13",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "elapsed_seconds": 2820.4786842089998,
+      "executable": "/tmp/cinch-escaped-constructors-validation-4/cargo/debug/deps/bootstrap_runtime_objects-3f0ca8e79c6a5a13",
+      "exit_code": 0,
+      "finished": "2026-11-04T04:17:38.039782+00:00",
+      "log_sha256": "9c343781ecf3fb8a89328b6fc9924a85d1a082a8b0575edb9a35bae5a6228977",
+      "name": "bootstrap_runtime_objects",
+      "sha256": "8d2015f471d93aa72e3e01872c15da52c33d812772809616880c7cc43bec54b7",
+      "source_unchanged": true,
+      "started": "2026-11-04T03:30:37.551851+00:00",
+      "status": "passed",
+      "worker_slot": 1,
+      "log": "/tmp/cinch-escaped-constructors-validation-4/bootstrap_runtime_objects.log"
+    },
     {
       "command": [
         "/tmp/cinch-escaped-constructors-validation-4/cargo/debug/deps/bootstrap_runtime_ir-f3d238deebdeb860",
@@ -73,12 +93,6 @@
       "log": "/tmp/cinch-escaped-constructors-validation-4/bootstrap_check.log"
     }
   ],
-  "remaining_focused_target": {
-    "name": "bootstrap_runtime_objects",
-    "status": "running",
-    "state": "/tmp/cinch-escaped-constructors-validation-4/state.json",
-    "requirement": "Complete target, all positive cases and all ABI/admission refusals must pass beforeStage2/fullNativeexecution. No passed claim from partial outputs."
-  },
   "runtime_positive_programs": 92,
   "runtime_positive_execution": [
     [
@@ -741,5 +755,163 @@
     ],
     "all_other_frozen_inputs_match_publication": true
   },
-  "bootstrap_achieved": false
+  "bootstrap_achieved": false,
+  "runtime_object_positive_programs": 22,
+  "runtime_object_executions": [
+    [
+      "raw",
+      "227",
+      "0",
+      "0",
+      "0"
+    ],
+    [
+      "closure",
+      "229",
+      "0",
+      "0",
+      "0"
+    ],
+    [
+      "owned-result",
+      "231",
+      "0",
+      "0",
+      "0"
+    ],
+    [
+      "partial-owned",
+      "233",
+      "0",
+      "0",
+      "0"
+    ],
+    [
+      "combined-table",
+      "235",
+      "0",
+      "0",
+      "0"
+    ],
+    [
+      "process-arguments",
+      "239",
+      "0",
+      "0",
+      "0"
+    ],
+    [
+      "polymorphic-function",
+      "241",
+      "0",
+      "0",
+      "0"
+    ],
+    [
+      "method-families",
+      "243",
+      "0",
+      "0",
+      "0"
+    ],
+    [
+      "string-literal",
+      "245",
+      "0",
+      "0",
+      "0"
+    ],
+    [
+      "empty-string",
+      "247",
+      "0",
+      "0",
+      "0"
+    ],
+    [
+      "char-pattern",
+      "249",
+      "0",
+      "0",
+      "0"
+    ],
+    [
+      "machine-pattern",
+      "251",
+      "0",
+      "0",
+      "0"
+    ],
+    [
+      "string-pattern",
+      "253",
+      "0",
+      "0",
+      "0"
+    ],
+    [
+      "conditional-slot",
+      "225",
+      "0",
+      "0",
+      "0"
+    ],
+    [
+      "intrinsic-export",
+      "223",
+      "0",
+      "0",
+      "0"
+    ],
+    [
+      "float-decimal",
+      "217",
+      "0",
+      "0",
+      "0"
+    ],
+    [
+      "float-negative-zero",
+      "219",
+      "0",
+      "0",
+      "0"
+    ],
+    [
+      "float-first-class",
+      "221",
+      "0",
+      "0",
+      "0"
+    ],
+    [
+      "returned-function",
+      "237",
+      "0",
+      "0",
+      "0"
+    ],
+    [
+      "symbol-word-abi",
+      "201",
+      "2",
+      "2",
+      "0"
+    ],
+    [
+      "symbol-raw-specialization",
+      "203",
+      "1",
+      "1",
+      "0"
+    ],
+    [
+      "symbol-first-class-and-field",
+      "205",
+      "1",
+      "1",
+      "0"
+    ]
+  ],
+  "complete_object_target": "All22positiveexecutions and all originalABI/admissionrefusalassertions PASS; noignored/filteredcases."
 }
