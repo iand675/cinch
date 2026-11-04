@@ -1615,7 +1615,7 @@ impl Checker {
                     self.elab_range(env, start, step.as_deref(), end, Some(expected), *span)?;
                 Ok(core)
             }
-            ast::Term::Int(v, span) => self.lit_check(expected, v, *span),
+            ast::Term::Int(v, span) => self.check_scoped_numeric_literal(env, term, expected, v, *span),
             ast::Term::Quote { body, span } => {
                 // Against a known `Code t`, check the template at `t`
                 // directly (better errors than infer-and-unify).
@@ -1638,9 +1638,11 @@ impl Checker {
                 // rejected for its missing `Neg` instance. A folded `-` at
                 // `Nat` is rejected as an out-of-range literal.
                 let t = self.uni.zonk(expected);
-                if matches!(t, Ty::Int | Ty::Nat | Ty::Prim(_)) {
+                let numeric_refinement = self.refine_view(&t).and_then(|view| view.base)
+                    .is_some_and(|base| matches!(base, Ty::Int | Ty::Nat | Ty::Prim(_)));
+                if matches!(t, Ty::Int | Ty::Nat | Ty::Prim(_)) || numeric_refinement {
                     if let Some(value) = neg_fold(inner) {
-                        return self.lit_check(&t, &value, *span);
+                        return self.check_scoped_numeric_literal(env, term, &t, &value, *span);
                     }
                 }
                 let (core, ty) = self.infer(env, term)?;
@@ -1791,6 +1793,29 @@ impl Checker {
     /// entailed by evidence in scope (a `Dec` binder or a branch
     /// condition's fact, D192 staleness included). Every other pair goes
     /// through the argument coercion.
+    // A dependent refinement can require the actual lexical facts (for
+    // example 0 <= limit for a Nat argument). Keep static literal/range
+    // checks first, then use the same checked subsumption as an ascription.
+    // Closed numeric carriers avoid trial inference or pending literal metas;
+    // a failed scoped check retains the original literal diagnostic.
+    fn check_scoped_numeric_literal(
+        &mut self, env: &mut Env, term: &ast::Term, expected: &Ty,
+        digits: &str, span: ast::Span,
+    ) -> Result<ECore> {
+        let original = self.lit_check(expected, digits, span);
+        if original.is_ok() { return original }
+        let Some(RefineView { base: Some(base), .. }) = self.refine_view(&self.uni.zonk(expected)) else {
+            return original;
+        };
+        let base = self.uni.zonk(&base);
+        if !matches!(base, Ty::Nat | Ty::Int | Ty::Prim(_)) { return original }
+        let Ok(core) = self.lit_check(&base, digits, span) else { return original };
+        match self.check_subsume(env, term, &base, expected) {
+            Ok(()) => Ok(core),
+            Err(_) => original,
+        }
+    }
+
     fn check_subsume(
         &mut self,
         env: &mut Env,

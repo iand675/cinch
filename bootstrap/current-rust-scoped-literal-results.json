@@ -1,0 +1,89 @@
+{
+  "compiler_source_sha256": "80413b5dccb1f43943acec2b0c38b8764481417cb2663289d3eee6e75810b470",
+  "full_goal_complete": false,
+  "limitations": "Scoped Rust repair only. No claim of full matching Native/self-built/runtime/tool/editor/external suites or Acceptance1-5 completion. Cinch source unchanged from the published defining-interface checkpoint; unpublished interface candidates remain separate.",
+  "original_oracle": [
+    {
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "actual-Cinch-interface-producer-source",
+      "source_sha256": "d62cd0bfd62fbef984bf934ee10c02ff1267d5faaaae87e0e317a7edf70a579c"
+    }
+  ],
+  "rows": [
+    {
+      "binary": "/tmp/cinch-rust-scoped-literal-validation-1/cargo/debug/deps/refinements-a5d52b8b1d94cbe9",
+      "binary_sha256": "75e6e59c244619d7dae577bb9a769e0269d10dea73ee1527534708bd6bfd26d3",
+      "exit_code": 0,
+      "log": "/tmp/cinch-rust-scoped-literal-validation-1/refinements.log",
+      "log_sha256": "7c47466711adbe15952d9ef3424803988dfed4712577a5d97c4bab1cdede3b41",
+      "name": "refinements",
+      "status": "passed",
+      "tests": 24
+    },
+    {
+      "binary": "/tmp/cinch-rust-scoped-literal-validation-1/cargo/debug/deps/primitives-7b69acf6d6c44d28",
+      "binary_sha256": "a10210f9494b12c000861e4631cef3badde6bad3acccf7bfb85fb46b3f6f632f",
+      "exit_code": 0,
+      "log": "/tmp/cinch-rust-scoped-literal-validation-1/primitives.log",
+      "log_sha256": "db76379f0501c145cfea94814cdc345eb2dfa7ddd7a0d9ae4f72fd18788a89af",
+      "name": "primitives",
+      "status": "passed",
+      "tests": 37
+    },
+    {
+      "binary": "/tmp/cinch-rust-scoped-literal-validation-1/cargo/debug/deps/range_facts-0d2bfcd66fc5df2d",
+      "binary_sha256": "67acd233950996bf0a9cdbab0f9c7c3c31652932ea47804842f98d4c84c661d7",
+      "exit_code": 0,
+      "log": "/tmp/cinch-rust-scoped-literal-validation-1/range_facts.log",
+      "log_sha256": "b2c6e3d9caa931690f5d3d2f1341b47db5c0a9c9a1627e5ac80a8629d2958d0b",
+      "name": "range_facts",
+      "status": "passed",
+      "tests": 10
+    },
+    {
+      "binary": "/tmp/cinch-rust-scoped-literal-validation-1/cargo/debug/deps/primitive_length_identity-ce45e6581770590d",
+      "binary_sha256": "af5564ff5ecd7b75b2c97664eea38b9f496dd30131fbf7ddacafaf9166d815fa",
+      "exit_code": 0,
+      "log": "/tmp/cinch-rust-scoped-literal-validation-1/primitive_length_identity.log",
+      "log_sha256": "4912f053dbc24c8499b0ad5e563d61a9ea32f8a3a1204a9f62faf6c19efb8467",
+      "name": "primitive_length_identity",
+      "status": "passed",
+      "tests": 9
+    },
+    {
+      "binary": "/tmp/cinch-rust-scoped-literal-validation-1/cargo/debug/deps/interface_anonymous_contracts-032b18cec176645b",
+      "binary_sha256": "851f32937d819665912d2b4e2bf5db18f11bf848eb6d5ab6c032c524cea09f3b",
+      "exit_code": 0,
+      "log": "/tmp/cinch-rust-scoped-literal-validation-1/interface_anonymous_contracts.log",
+      "log_sha256": "a1ee60084bce6221823ab6e1377af232921ccab338f884338279bbce6a8b8f22",
+      "name": "interface_anonymous_contracts",
+      "status": "passed",
+      "tests": 1
+    },
+    {
+      "binary": "/tmp/cinch-rust-scoped-literal-validation-1/cargo/debug/deps/folded_literal_ownership-23570bceab500c16",
+      "binary_sha256": "eb27e98f42bce6f5653b12c491b9f3d13c7a168745514cc8165931d165583a62",
+      "exit_code": 0,
+      "log": "/tmp/cinch-rust-scoped-literal-validation-1/folded_literal_ownership.log",
+      "log_sha256": "45a02d39119aeddff0abbaeff1456e89343c8a77ae37ffeac0df9443ee444143",
+      "name": "folded_literal_ownership",
+      "status": "passed",
+      "tests": 2
+    }
+  ],
+  "scope": "Numeric literals and folded negative numerals first retain their existing static/range checks, then may use the actual lexical facts through the same checked subsumption as an ascription. Failing scoped checks retain the original literal diagnostic. Six complete affected suites, positive and negative scoped regressions, the rebuilt Native CLI checking all43 compiler modules and independent acceptance of the actual opaque Cinch interface producer fixture are verified.",
+  "source": "/tmp/cinch-rust-scoped-literal-validation-1/source",
+  "source_check": {
+    "compiler": "/tmp/cinch-rust-scoped-literal-validation-1/cargo/debug/cinch",
+    "compiler_modules": 43,
+    "compiler_sha256": "423ed48e8f5b9764d33c3c7c61fda0eecef356b4858d5e32cc07f15024f9fd0c",
+    "exit_code": 0,
+    "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "status": "passed"
+  },
+  "source_sha256": "c0b169fde86db1163343a7a25c34835eab4a34e78d3ee96004b6d7f45bcd66e3",
+  "status": "passed-scoped-rust-literal-refinement-facts",
+  "total_tests": 83,
+  "verified_at": "2026-11-04T19:44:07.013864+00:00"
+}

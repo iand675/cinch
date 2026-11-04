@@ -899,3 +899,21 @@ fn anonymous_numeric_literals_use_the_checked_refinement_binder() {
     expect_err("anonymous-negative-natural", "module Main where\n  bad :: refined NonZero Nat\n  bad = -1\n", &["out of range", "Nat"]);
     expect_err("anonymous-machine-overflow", "module Main where\n  bad :: refined NonZero U8\n  bad = 256\n", &["out of range", "U8"]);
 }
+
+#[test]
+fn numeric_literals_use_actual_scoped_refinement_facts() {
+    expect_checks("scoped-numeral-facts", r#"module Main where
+  capped :: (limit :: Nat) -> refined (out <= limit) Nat
+  capped limit = 0
+  positive-bound :: using (limit > 0) => (limit :: Nat) -> refined (out < limit) Nat
+  positive-bound limit = 0
+  negative-bound :: using (limit >= 0) => (limit :: I64) -> refined (out < limit) I64
+  negative-bound limit = -1
+  main :: Int
+  main = 0
+"#);
+    expect_err("unproved-strict-numeral", "module Main where\n  bad :: (limit :: Nat) -> refined (out < limit) Nat\n  bad limit = 0\n", &["predicate", "cannot be decided"]);
+    expect_err("ignored-unproved-numeral", "module Main where\n  bad :: (limit :: Nat) -> Int\n  bad limit = let ignored = (0 :: refined (out < limit) Nat) in 0\n", &["predicate", "cannot be decided"]);
+    expect_err("scoped-negative-natural", "module Main where\n  bad :: (limit :: Nat) -> refined (out <= limit) Nat\n  bad limit = -1\n", &["out of range", "Nat"]);
+    expect_err("scoped-machine-overflow", "module Main where\n  bad :: (limit :: U8) -> refined (out >= limit) U8\n  bad limit = 256\n", &["out of range", "U8"]);
+}

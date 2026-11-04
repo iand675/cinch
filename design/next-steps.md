@@ -1,5 +1,23 @@
 # Next steps (as of 2026-11-04)
 
+## Rust numeral refinements use checked lexical facts
+
+Numeric literals and folded negative numerals retain their static predicate and
+carrier-range checks. If a closed numeric refinement instead needs the actual
+lexical facts, checking uses the same scoped subsumption as an ascription.
+This admits `0 <= limit` for a Nat argument and declared ordering assumptions;
+false or unproved promises, ignored invalid literals and overflow still fail.
+Failed scoped checks retain the original literal diagnostic.
+
+All83 tests across six complete affected suites pass, with none ignored or
+filtered. The rebuilt compiler checks all43 Cinch compiler modules. Independent
+checking of the complete actual opaque-interface producer source also passes,
+including the direct numeral that exposed this bug. See [the scoped audit](../bootstrap/current-rust-scoped-literal-results.json).
+Cinch source identity stays
+`80413b5dccb1f43943acec2b0c38b8764481417cb2663289d3eee6e75810b470`.
+The Cinch opaque/constructor-kind follow-up and matching final complete suites
+remain separate work; Acceptance5 and the full goal stay open.
+
 ## Cinch refinement interfaces preserve defining contracts
 
 The Cinch interface writer now retains public refinement templates and the
