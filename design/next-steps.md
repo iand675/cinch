@@ -16,13 +16,20 @@ matches all200 production and380 test inputs in its stated scope to the frozen
 verification source. Documentation/status metadata and the independently checked
 test-only library roots are recorded separately.
 
-The full208-group current-source compiler sweep is running. A fresh staged
+All127 ordinary current-source compiler groups now pass, with no failures,
+ignored cases or filtered cases; see [the complete ordinary result](../bootstrap/current-ordinary-compiler-results.json).
+The full208-group sweep continues with its81bootstrap-specific groups. A fresh staged
 compiler build has verified the unchanged pinned seed and its smoke checks;
 the new Stage1/2/3 artifacts and fixed point are not yet claimed. A separate
 91-group queue waits for the exact new Stage3:79 bootstrap groups,eight ordinary
 program targets,three complete mixed consumers and the designed ABI5 array
 refusal. Exact new-Stage3 test reports,zero-leak execution,definition-owned
-fixities and class behavior are queued too. All these gates and the unchanged
+fixities and class behavior are queued too. The [current coverage audit](../bootstrap/current-external-coverage-audit.json)
+recomputes all100 harness targets:91selected-frontend groups plus nine direct
+Native interface-API groups, which now pass. The explicit array boundary remains:
+all14Native array tests execute, while the pinned ABI5 self-built compiler must
+refuse its unimplemented array operations per the array design. Classification
+does not substitute for the queued exact new-Stage3 executions. All these gates and the unchanged
 Acceptance1-5 audit remain required. The live dashboard tracks this current
 attempt; the earlier successful compiler chain below retains its original
 source scope.
