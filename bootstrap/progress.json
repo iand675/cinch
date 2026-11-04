@@ -110,7 +110,7 @@
   "blockers": [
     {
       "title": "Finish byte-length parity and final matching bootstrap",
-      "detail": "The intrinsic alias repair is now published: all43 source modules, seven complete regression groups and133 runtime programs pass; six new independent Core checks run at five nonces. The running chain11 and suites36 are the preceding API compiler a93 and cannot establish this new source. Its Stage0/1/2 builds and smokes have passed; Stage3 remains live. New byte reads, typed identity-helper normalization and allocator refinement proofs are local and queued together in eight complete affected groups. Allocation promises must follow from actual kernel length facts; false promises are tested as refusals. Executable forall index witnesses remain a separate implementation gap. Final matching suites and the full Acceptance1-5 audit remain open."
+      "detail": "The intrinsic alias repair is now published: all43 source modules, seven complete regression groups and133 runtime programs pass; six new independent Core checks run at five nonces. The running chain11 and suites36 are the preceding API compiler a93 and cannot establish this new source. Its Stage0/1/2 builds and smokes have passed; Stage3 remains live. New byte reads, typed identity-helper normalization and allocator refinement proofs are local and queued together in eight complete affected groups. Allocation promises must follow from actual kernel length facts; false promises are tested as refusals. Executable forall index witnesses remain a separate implementation gap. The direct interface audit also found that original opaque-type declarations are rejected before export; that source behavior needs implementation too. Final matching suites and the full Acceptance1-5 audit remain open."
     },
     {
       "title": "Finish the fresh bootstrap",
@@ -168,5 +168,5 @@
   "fullGoalComplete": false,
   "summary": "All 43 compiler-source checks: passed. 7 of 7 complete groups passed; 0 running, 0 failed and 0 pending. independent type checker: passed; bootstrap_globals: passed; inference: passed; typechecker: passed; bootstrap_pipeline: passed; runtime behavior: passed; library calls: passed.",
   "activity": "Earlier API compiler: complete Native sweep: 33 of 208 complete groups passed; 0 running, 0 failed and 175 pending. Stage builds and smoke checks: 4 of 4; chain state: passed; earlier API source, not the published repair. Repair gates: 7 of 7 complete groups passed; 0 running, 0 failed and 0 pending. independent type checker: passed; bootstrap_globals: passed; inference: passed; typechecker: passed; bootstrap_pipeline: passed; runtime behavior: passed; library calls: passed. Early Stage1 behavior: 3 of 8 complete groups passed; 1 running, 0 failed and 4 pending. Exact final Stage3 suite: 2 of 91 complete groups passed; 1 running, 0 failed and 88 pending. Proposed compiler repair (separate unpublished source): running-six-complete-groups; 4 of 8 complete groups passed; 1 running, 0 failed and 3 pending.",
-  "updatedAt": "2026-11-04T15:07:41.317187+00:00"
+  "updatedAt": "2026-11-04T15:08:43.717167+00:00"
 }
