@@ -91,8 +91,12 @@ candidate checks a clause body against the function type remaining after its
 actual patterns. Too many arguments, inconsistent clause arities and wrong body
 types retain refusal checks. Its complete checker, intrinsic, runtime and parser
 gates are tracked on the frozen current-source repair snapshot. The checker,
-intrinsic and parser targets now pass; runtime lowering remains open before
-publishing the Cinch implementation and rebuilding the staged compiler. The earlier green bootstrap remains evidence for its original
+intrinsic, parser and complete runtime-lowering targets now pass, along with
+all16 Rust optimizer tests. The Cinch implementation and its regressions are now
+published; the fresh staged compiler build is running. The previously failing
+function-valued entry, pure Unit entry, I64 overflow, first-class operation and
+owned-data cases all return the expected results with zero leaks at32M. See
+[the complete focused repair evidence](../bootstrap/current-compiler-repair-results.json). The earlier green bootstrap remains evidence for its original
 e85a5d0 source.
 
 The portable bootstrap sweep separately passes type-syntax and abstract NonZero
@@ -100,9 +104,10 @@ methods, then stops in the abstract NonZero type/Core target. Its retained
 diagnostic requests the missing test-library factory `Data.List.FromList_List[R]`.
 The library-only rebuild and independent artifact checks pass for that exact
 variant. All55 admitted base interfaces, plus the trivial library root interface,
-match the previous bundle byte for byte. The unchanged complete target is queued
-through the same Stage3 compiler and runner; neither its success nor the
-complete79-group suite is claimed. See [the raw-list library artifact receipt](../bootstrap/test-library-list-variant-results.json). See [the retained failures and candidate scope](../bootstrap/additional-stage3-verification-results.json).
+match the previous bundle byte for byte. The unchanged complete target now
+passes through the same Stage3 compiler and runner, exercising all five nonce
+sizes. The original failed sweep remains recorded; this isolated recovery does
+not establish the complete79-group suite. See [the unchanged target recovery](../bootstrap/stage3-nonzero-types-recovery-results.json). See [the raw-list library artifact receipt](../bootstrap/test-library-list-variant-results.json). See [the retained failures and candidate scope](../bootstrap/additional-stage3-verification-results.json).
 
 ## Rust optimizer definition-table borrowing
 
@@ -114,8 +119,8 @@ All16 optimizer tests and the complete exact-report checker test pass on the
 frozen repair snapshot, with no failures, ignored tests or filtered cases. See
 [the focused Rust result](../bootstrap/native-optimizer-borrow-results.json).
 This is a Rust-only implementation checkpoint. The test snapshot also contains
-the separately unpublished Cinch candidate; its intrinsic and parser targets
-now also pass, while runtime lowering remains open. Earlier full-suite and bootstrap evidence retains its
+the Cinch candidate whose complete intrinsic, parser and runtime-lowering
+targets now also pass. Its fresh staged build and full suites remain required. Earlier full-suite and bootstrap evidence retains its
 original source scope. The new Rust source requires the final full Native sweep.
 
 ## Earlier combined bootstrap checkpoint

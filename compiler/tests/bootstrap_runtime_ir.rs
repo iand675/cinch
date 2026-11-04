@@ -91,6 +91,12 @@ fn typed_runtime_numbers_preserve_exact_values_and_reclaim_owned_words() {
     let tag64 = format!("  data Tag where\n{}  main :: Int\n  main = case C63 of\n    C63 -> 137\n    _ -> 1\n",
         (0..64).map(|i| format!("    C{i} :: Tag\n")).collect::<String>());
     let cases = [
+        ("function-valued-prefix", "  keep :: Int -> Int\n  keep value = value\n  return-keep :: Int -> Int -> Int\n  return-keep ignored = keep\n  main :: Int\n  main = if return-keep 10 42 == 42 then 245 else 1\n", 245),
+        ("pure-unit-entry", "  main :: Unit -> Int\n  main unit = 83\n", 83),
+        ("pure-unit-closure-entry", "  finish :: Unit -> Int\n  finish unit = 85\n  main :: Unit -> Int\n  main = finish\n", 85),
+        ("machine-i64-overflow", "  foreign import ccall \"cinch.prim.eqI64\" equal :: I64 -> I64 -> Bool\n  foreign import ccall \"cinch.prim.wrappingAddI64\" plus :: I64 -> I64 -> I64\n  foreign import ccall \"cinch.prim.wrappingSubI64\" minus :: I64 -> I64 -> I64\n  main :: Int\n  main = let top = (9223372036854775807 :: I64) in let bottom = plus top 1 in if equal bottom (-9223372036854775808) && equal (minus bottom 1) top && equal (plus (-1) 1) 0 then 239 else 1\n", 239),
+        ("machine-i64-first-class", "  foreign import ccall \"cinch.prim.eqI64\" equal :: I64 -> I64 -> Bool\n  foreign import ccall \"cinch.prim.wrappingAddI64\" plus :: I64 -> I64 -> I64\n  foreign import ccall \"cinch.prim.wrappingSubI64\" minus :: I64 -> I64 -> I64\n  apply :: (I64 -> I64 -> I64) -> I64 -> I64 -> I64\n  apply operation x y = operation x y\n  main :: Int\n  main = let underflow = minus (-9223372036854775808) in if equal (apply plus 41 1) 42 && equal (underflow 1) 9223372036854775807 then 241 else 1\n", 241),
+        ("machine-i64-owned-chain", "  foreign import ccall \"cinch.prim.eqI64\" equal :: I64 -> I64 -> Bool\n  foreign import ccall \"cinch.prim.wrappingAddI64\" plus :: I64 -> I64 -> I64\n  foreign import ccall \"cinch.prim.wrappingSubI64\" minus :: I64 -> I64 -> I64\n  data Chain where\n    End :: Chain\n    Link :: I64 -> Chain -> Chain\n  build :: I64 -> Chain -> Chain\n  build n acc = if equal n 0 then acc else build (minus n 1) (Link n acc)\n  count :: Chain -> I64 -> I64\n  count chain n = case chain of\n    End -> n\n    Link value rest -> count rest (plus n 1)\n  main :: Int\n  main = if equal (count (build 40 End) 0) 40 then 243 else 1\n", 243),
         ("huge", "  main :: Int\n  main = if 340282366920938463463374607431768211456 + 7 == 340282366920938463463374607431768211463 then 37 else 1\n", 37),
         ("alias", "  main :: Int\n  main = let x = 9223372036854775808 in let y = x * x in if y - x * x == 0 then 39 else 1\n", 39),
         ("call", "  identity :: Int -> Int\n  identity x = x\n  main :: Int\n  main = if identity 340282366920938463463374607431768211456 == 340282366920938463463374607431768211456 then 41 else 1\n", 41),
@@ -180,6 +186,9 @@ fn typed_runtime_numbers_preserve_exact_values_and_reclaim_owned_words() {
     std::fs::write(dir.join(format!("input-{}.source", cases.len())), "module Main where\n  import RuntimeClasses\n  data Box where\n    Box :: Int -> Box\n  instance RawValue :: Value Bool where\n    value = True\n  instance TaggedValue :: Value Int where\n    value = 340282366920938463463374607431768211456\n  instance ObjectValue :: Value Box where\n    value = Box 18446744073709551616\n  instance FunctionValue :: Value (Int -> Int) where\n    value = let n = 18446744073709551616 in \\x -> x + n\n  getRaw :: Value Bool\n  getRaw = RawValue\n  getTagged :: Value Int\n  getTagged = TaggedValue\n  getObject :: Value Box\n  getObject = ObjectValue\n  getFunction :: Value (Int -> Int)\n  getFunction = FunctionValue\n  instance SharedBox :: Shared Box where\n    duplicate = stored\n    stored = Box 18446744073709551616\n    observe u = stored\n    escape-value u = \\v -> observe v\n  getShared :: Shared Box\n  getShared = SharedBox\n  main :: Int\n  main = case (getRaw, getTagged, getObject, getFunction, getShared) of _ -> 0\n").unwrap();
     std::fs::write(dir.join(format!("input-{}.source", cases.len() + 1)), "module Main where\n  import RuntimeClasses\n  package :: PrivateEnvelope\n  package = PublicEnvelope 18446744073709551616\n  main :: Int\n  main = case package of PublicEnvelope n -> 0; _ -> 1\n").unwrap();
     let invalid_source_signatures = [
+        "module Main where\n  missing :: Int -> Int\n  missing = 0\n  main :: Int\n  main = 0\n",
+        "module Main where\n  keep :: Int -> Int\n  keep value = value\n  mixed :: Int -> Int\n  mixed = keep\n  mixed value = value\n  main :: Int\n  main = 0\n",
+        "module Main where\n  wrong :: Unit -> Int\n  wrong = False\n  main :: Int\n  main = 0\n",
         "module Main where\n  signature Copy a where\n    identity :: a -> a\n  main :: Int\n  main = 0\n",
         "module Main where\n  signature Share a where\n    identity :: a -> a\n  main :: Int\n  main = 0\n",
         "module Main where\n  signature Broken a where\n    same :: a -> a\n    same :: a -> a\n  main :: Int\n  main = 0\n",
@@ -189,7 +198,16 @@ fn typed_runtime_numbers_preserve_exact_values_and_reclaim_owned_words() {
     for (index, input) in invalid_source_signatures.iter().enumerate() {
         std::fs::write(dir.join(format!("input-{}.source", cases.len() + 2 + index)), input).unwrap();
     }
-    std::fs::write(dir.join("batch.count"), vec![b'x'; cases.len() + 2 + invalid_source_signatures.len()]).unwrap();
+    let invalid_runtime_entries = [
+        "module Main where\n  main :: I64 -> Int\n  main value = 0\n",
+        "module Main where\n  main :: Unit -> Bool\n  main unit = True\n",
+        "module Main where\n  main :: Unit -> Unit -> Int\n  main unit other = 0\n",
+    ];
+    let entry_error_start = cases.len() + 2 + invalid_source_signatures.len();
+    for (index, input) in invalid_runtime_entries.iter().enumerate() {
+        std::fs::write(dir.join(format!("input-{}.source", entry_error_start + index)), input).unwrap();
+    }
+    std::fs::write(dir.join("batch.count"), vec![b'x'; entry_error_start + invalid_runtime_entries.len()]).unwrap();
     let output = Command::new(&compiler).current_dir(&dir).output().unwrap();
     assert_eq!(output.status.code(), Some(0), "batch input/output: {}", String::from_utf8_lossy(&output.stderr));
     std::fs::remove_file(dir.join("batch.count")).unwrap();
@@ -199,6 +217,12 @@ fn typed_runtime_numbers_preserve_exact_values_and_reclaim_owned_words() {
         assert_eq!(common::read_output(&dir, &format!("output-{}.status", cases.len() + 2 + index)), "4", "invalid source signature {index}");
         assert!(common::read_output(&dir, &format!("output-{}.ll", cases.len() + 2 + index)).is_empty());
     }
+    for index in 0..invalid_runtime_entries.len() {
+        let offset = entry_error_start + index;
+        assert_eq!(common::read_output(&dir, &format!("output-{offset}.status")), "5", "invalid runtime entry {index}");
+        assert!(common::read_output(&dir, &format!("output-{offset}.ll")).is_empty());
+        assert!(common::read_output(&dir, &format!("output-{offset}.diagnostics")).contains("runtime entry must be"));
+    }
     // Following ABI/refusal probes need no class interfaces.
     std::fs::write(dir.join("interfaces.json"), "{\"schema\":1,\"interfaces\":[]}").unwrap();
     for (index, (name, _, expected)) in cases.into_iter().enumerate() {
@@ -207,6 +231,16 @@ fn typed_runtime_numbers_preserve_exact_values_and_reclaim_owned_words() {
         let ir = common::read_output(&dir, &format!("output-{index}.ll"));
         std::fs::write(dir.join("output.ll"), &ir).unwrap();
         let identity_worker = |line: &&str| line.starts_with("define i64 ") && line.contains("105_100_101_110_116_105_116_121_") && line.contains(".r");
+        if name == "machine-i64-overflow" {
+            assert!(ir.contains(" = add i64 %arg0, %arg1"));
+            assert!(ir.contains(" = sub i64 %arg0, %arg1"));
+            for primitive in ["eqI64", "wrappingAddI64", "wrappingSubI64"] {
+                let header = format!("define i64 @\"cinch.typed.cinch.prim.{primitive}\"(");
+                let body = ir.split(&header).nth(1).expect("machine primitive worker").split('}').next().unwrap();
+                assert!(!body.contains("@cinch_dup") && !body.contains("@cinch_drop"), "raw machine arguments must not be reference counted: {body}");
+                assert!(!body.contains(" nsw ") && !body.contains(" nuw "), "wrapping operations must preserve overflow: {body}");
+            }
+        }
         if name == "generic-identity-classes" {
             assert_eq!(ir.lines().filter(identity_worker).count(), 3, "one worker per reached Raw/Obj/TObj class");
             let raw_header = ir.lines().find(|line| line.starts_with("define i64 ") && line.contains("105_100_101_110_116_105_116_121_.r0")).expect("raw identity worker");

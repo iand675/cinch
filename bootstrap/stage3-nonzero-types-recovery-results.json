@@ -1,0 +1,22 @@
+{
+  "command": [
+    "/tmp/cinch-explicit-fixture-harness-validation-1/cargo/debug/deps/bootstrap_abstract_nonzero_types-1d209e0ed67e9bdd",
+    "--include-ignored",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "compiler_sha256": "1da1cf952dcca05824f46f29cbbbfb865268e8a6284a4fdb6b24eabcbe37b9dd",
+  "executable": "/tmp/cinch-explicit-fixture-harness-validation-1/cargo/debug/deps/bootstrap_abstract_nonzero_types-1d209e0ed67e9bdd",
+  "executable_sha256": "05d06d1f9336d4c4ced078d5ae3c539401f2f03e35afaa9ac220df7f5266e3cb",
+  "exit_code": 0,
+  "finished": "2026-11-04T00:52:47.086934+00:00",
+  "log_sha256": "ddf53a04e491f216d07a3345c8e8d46d5b143c8af47326f2592d2c8407b34ebb",
+  "original_failure": "/tmp/cinch-self-built-bootstrap-suite-1/bootstrap_abstract_nonzero_types.log",
+  "pid": 5620,
+  "scope": "Exact originally failed complete target, unchanged frozen source and runner, same self-built Stage3. Only test-library FromList_List[R] variant added. No compiler fallback. Does not prove candidate3 or the complete portable suite.",
+  "source": "/tmp/cinch-explicit-fixture-harness-validation-1/source",
+  "source_sha256": "3444e097b8a6f8043cb8b819aa9c6147bc14e623b59f0c03f450ea8a541fad8e",
+  "source_unchanged": true,
+  "started": "2026-11-04T00:48:48.053659+00:00",
+  "status": "passed"
+}

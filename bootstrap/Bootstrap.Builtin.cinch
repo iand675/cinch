@@ -15,7 +15,12 @@ module Bootstrap.Builtin where
   -- The extern is retained separately from the language-level identity.
   intrinsic-contract :: String -> Option (String, String)
   intrinsic-contract symbol =
-    if string-compare symbol "cinch.runtime.textSha256" == 0 then Some ("Bytes -> Bytes", "cinch_text_sha256")
+    -- Machine primitives retain their canonical operation identity. They
+    -- lower directly to LLVM, rather than naming an unchecked C function.
+    if string-compare symbol "cinch.prim.eqI64" == 0 then Some ("I64 -> I64 -> Bool", symbol)
+    else if string-compare symbol "cinch.prim.wrappingAddI64" == 0 then Some ("I64 -> I64 -> I64", symbol)
+    else if string-compare symbol "cinch.prim.wrappingSubI64" == 0 then Some ("I64 -> I64 -> I64", symbol)
+    else if string-compare symbol "cinch.runtime.textSha256" == 0 then Some ("Bytes -> Bytes", "cinch_text_sha256")
     else if string-compare symbol "cinch.runtime.textSha512" == 0 then Some ("Bytes -> Bytes", "cinch_text_sha512")
     else if string-compare symbol "cinch.runtime.textSha1" == 0 then Some ("Bytes -> Bytes", "cinch_text_sha1")
     else if string-compare symbol "cinch.runtime.textMd5" == 0 then Some ("Bytes -> Bytes", "cinch_text_md5")

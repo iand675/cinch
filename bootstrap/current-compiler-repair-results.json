@@ -1,0 +1,123 @@
+{
+  "status": "passed-complete-focused-repair-gates",
+  "checked_at": "2026-11-04T00:54:37.900536+00:00",
+  "source_snapshot_sha256": "f6e166c9ec48a7b30526db7d16f360c56204c5de4b6005f91ae54a350bd07808",
+  "compiler_source_sha256": "0e2848ef342cc3fd82d78e2eec3894d410660c17538f7c0becdf55278d37ab0f",
+  "complete_targets": [
+    {
+      "command": [
+        "/tmp/cinch-native-optimizer-borrow-validation-1/cargo/debug/deps/optimizer-21a087f1d2052990",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "elapsed_seconds": 189.76859149999996,
+      "executable": "/tmp/cinch-native-optimizer-borrow-validation-1/cargo/debug/deps/optimizer-21a087f1d2052990",
+      "exit_code": 0,
+      "finished": "2026-11-04T00:31:15.080831+00:00",
+      "log_sha256": "b0cce3f1cc8d235c3474d3bab897348f2f63f3ab7482bfabeb52b601eabbf277",
+      "name": "optimizer",
+      "sha256": "ca3b5865f0617dc00587473b23a96abebd028ac3c18227e65750d6d45d17babb",
+      "source_unchanged": true,
+      "started": "2026-11-04T00:28:05.291595+00:00",
+      "status": "passed",
+      "worker_slot": 2
+    },
+    {
+      "command": [
+        "/tmp/cinch-native-optimizer-borrow-validation-1/cargo/debug/deps/bootstrap_check-ed661b82d7219941",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "elapsed_seconds": 818.2780512499999,
+      "executable": "/tmp/cinch-native-optimizer-borrow-validation-1/cargo/debug/deps/bootstrap_check-ed661b82d7219941",
+      "exit_code": 0,
+      "finished": "2026-11-04T00:45:14.363417+00:00",
+      "log_sha256": "eb45159458e0780a8adf64de7a818cc4f19bf3328410ac48b93315af42166602",
+      "name": "bootstrap_check",
+      "sha256": "b9cefec943deba84cacd0eb63e7e2c6b16437bd9ab8e48a08e790327616dd82f",
+      "source_unchanged": true,
+      "started": "2026-11-04T00:31:36.080475+00:00",
+      "status": "passed",
+      "worker_slot": 1
+    },
+    {
+      "command": [
+        "/tmp/cinch-native-optimizer-borrow-validation-1/cargo/debug/deps/bootstrap_intrinsics-ce92352ff41c7d84",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "elapsed_seconds": 896.295882708,
+      "executable": "/tmp/cinch-native-optimizer-borrow-validation-1/cargo/debug/deps/bootstrap_intrinsics-ce92352ff41c7d84",
+      "exit_code": 0,
+      "finished": "2026-11-04T00:48:05.306938+00:00",
+      "log_sha256": "ba8d0551ace828d0a60a291dce510c77ef0cab0822ac7498f8db7e176ba6059b",
+      "name": "bootstrap_intrinsics",
+      "sha256": "f802ca6bfe869d92aa6617f864327ad3e73c43d8a02baff7cf5f93257f3afc71",
+      "source_unchanged": true,
+      "started": "2026-11-04T00:33:09.007349+00:00",
+      "status": "passed",
+      "worker_slot": 2
+    },
+    {
+      "command": [
+        "/tmp/cinch-native-optimizer-borrow-validation-1/cargo/debug/deps/bootstrap_runtime_ir-f3d238deebdeb860",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "elapsed_seconds": 696.608012083,
+      "executable": "/tmp/cinch-native-optimizer-borrow-validation-1/cargo/debug/deps/bootstrap_runtime_ir-f3d238deebdeb860",
+      "exit_code": 0,
+      "finished": "2026-11-04T00:53:36.516675+00:00",
+      "log_sha256": "de270e22f63a8e8ae2d320efc2f605153b0b1549afa1f43d5add5992cec5adb8",
+      "name": "bootstrap_runtime_ir",
+      "sha256": "efc8883e6396407a0b7aac9fd213b4a38d71b3db788bd923be320251a912dced",
+      "source_unchanged": true,
+      "started": "2026-11-04T00:41:59.905129+00:00",
+      "status": "passed",
+      "worker_slot": 3
+    },
+    {
+      "command": [
+        "/tmp/cinch-native-optimizer-borrow-validation-1/cargo/debug/deps/bootstrap_parse-88e7fe0973963d36",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "elapsed_seconds": 204.8720968330001,
+      "executable": "/tmp/cinch-native-optimizer-borrow-validation-1/cargo/debug/deps/bootstrap_parse-88e7fe0973963d36",
+      "exit_code": 0,
+      "finished": "2026-11-04T00:47:13.937168+00:00",
+      "log_sha256": "66feaf8c6da9aeab8f1259f01e1340f03812806410ab721e0d38df9057caeba5",
+      "name": "bootstrap_parse",
+      "sha256": "e09f6681e269e28caf61b064c5e87dbcb8a060977bdec34ba7318f1aff712de7",
+      "source_unchanged": true,
+      "started": "2026-11-04T00:43:49.063190+00:00",
+      "status": "passed",
+      "worker_slot": 0
+    }
+  ],
+  "changed_cinch_and_regression_inputs": {
+    "bootstrap/Bootstrap.Builtin.cinch": "9e53e3c98f76ccd6909a48bfbf6b85ed72424a32ce249f420e14d3685dd3ff47",
+    "bootstrap/Bootstrap.Check.cinch": "b5c6db7f87354c95b59f41e94eea77e5675792c458480c9a86a17efac72ae371",
+    "bootstrap/Bootstrap.RuntimeIr.cinch": "72c0a3db251dd3cef80459ef790be961db0fc4ff5c77496bd873fada33152b89",
+    "compiler/tests/bootstrap_intrinsics.rs": "e8d0bd2f4c9c3c81b2c83f2e56b32f0a5e799dd4d32f2a2de3202eed65f9f1fc",
+    "compiler/tests/bootstrap_runtime_ir.rs": "bc46cfacf4a97da1abac72fd7c63afc21d9b0335bd1df9bd2a9e899df0482839"
+  },
+  "new_runtime_cases": {
+    "function-valued-prefix": 245,
+    "pure-unit-entry": 83,
+    "pure-unit-closure-entry": 85,
+    "machine-i64-overflow": 239,
+    "machine-i64-first-class": 241,
+    "machine-i64-owned-chain": 243
+  },
+  "runtime_case_leaks": "Every executed program retains its exact expected result and32M zero-leak assertion; all pass.",
+  "retained_negative_controls": "Wrong intrinsic contracts, over-arity, inconsistent clauses, wrong function-valued bodies and unsupported entry shapes must still refuse; no error path may leave executable IR. Complete original runtime ABI/ownership/refusal target passed.",
+  "scope": "Focused Native-backed Cinch compiler slices plus Rust optimizer tests. These results do not establish the new full Stage1/2/3 chain or complete current-source suites.",
+  "new_stage_chain": "/tmp/cinch-final-bootstrap-chain-5/result.json",
+  "goal_complete": false
+}

@@ -27,6 +27,23 @@ fn runtime_intrinsics_check_their_contract_and_retain_canonical_symbols() {
         cases.push((symbol.to_owned(), external.to_owned(), format!("foreign import ccall \"{symbol}\" native :: {scheme}\n  probe :: {scheme}\n  {body}"), None));
     }
     let symbol = "cinch.runtime.textSha256";
+    for (identity, scheme) in [
+        ("cinch.prim.eqI64", "I64 -> I64 -> Bool"),
+        ("cinch.prim.wrappingAddI64", "I64 -> I64 -> I64"),
+        ("cinch.prim.wrappingSubI64", "I64 -> I64 -> I64"),
+    ] {
+        assert_eq!(cinch::core::PrimOp::from_symbol(identity).unwrap().symbol(), identity);
+        cases.push((identity.into(), identity.into(), format!("foreign import ccall \"{identity}\" native :: {scheme}\n  probe :: {scheme}\n  probe = native"), None));
+    }
+    for (name, identity, scheme, message) in [
+        ("machine wrong carrier", "cinch.prim.eqI64", "Int -> Int -> Bool", "type mismatch"),
+        ("machine wrong result", "cinch.prim.wrappingAddI64", "I64 -> I64 -> Bool", "type mismatch"),
+        ("machine wrong arity", "cinch.prim.wrappingSubI64", "I64 -> I64", "type mismatch"),
+        ("machine polymorphic", "cinch.prim.eqI64", "forall a. a -> a -> Bool", "cannot be polymorphic"),
+        ("machine unknown operation", "cinch.prim.imaginaryI64", "I64 -> I64 -> I64", "checked runtime intrinsic contract"),
+    ] {
+        cases.push((identity.into(), identity.into(), format!("foreign import ccall \"{identity}\" native :: {scheme}"), Some((name, message))));
+    }
     for (name, source, message) in [
         ("first class", "foreign import ccall \"cinch.runtime.textSha256\" native :: Bytes -> Bytes\n  probe :: Bytes -> Bytes\n  probe = native", None),
         ("named domain", "foreign import ccall \"cinch.runtime.textSha256\" native :: (input :: Bytes) -> Bytes\n  probe :: Bytes -> Bytes\n  probe input = native input", None),

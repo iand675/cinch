@@ -17,7 +17,8 @@
 -- `ELam`; `ECase`; and constructor application. Patterns: wildcard,
 -- variable, integer, string and character literals, and a constructor
 -- applied to argument patterns. Declarations: `DSig` + `DFun` (the clause's
--- parameter count must equal the signature's arrow count, and a clause an
+-- patterns consume a prefix of the signature; its body checks against the
+-- remaining function type, and a clause an
 -- earlier clause already matches is refused), recursion between top-level
 -- functions (the registry is built before any body is checked), and `DData`
 -- (each constructor's argument types and its result type, which must be the
@@ -230,6 +231,13 @@ module Bootstrap.Check where
   ty-result t = case t of
     TyFun a b -> ty-result b
     other -> t
+
+  -- A definition may return a function rather than bind every argument.
+  -- Only arrows consumed by actual clause patterns leave the expected type.
+  ty-after-args :: Ty -> Nat -> Ty
+  ty-after-args ty count = if count == 0 then ty else case ty of
+    TyFun domain result -> ty-after-args result (count - 1)
+    other -> TyHole
 
   -- The head name of a named type (used to match a constructor pattern's
   -- expected type against the constructor's result).
@@ -820,10 +828,10 @@ module Bootstrap.Check where
       (pats, body) -> (check-clause name env ty arity pats body) <> (check-clause-list name env ty arity rest)
 
   check-clause :: String -> List (String, Ty) -> Ty -> Nat -> List Pat -> Expr -> List Diagnostic
-  check-clause name env ty arity pats body = case list-length pats == arity of
+  check-clause name env ty arity pats body = case list-length pats <= arity of
     False -> fail (clause-span pats) (arity-mismatch-message name (list-length pats) arity)
     True -> case bind-pats env (ty-arg-types ty) pats of
-      (env2, dp) -> dp <> (check-expr env2 body (ty-result ty))
+      (env2, dp) -> dp <> (check-expr env2 body (ty-after-args ty (list-length pats)))
 
   arity-mismatch-message :: String -> Nat -> Nat -> String
   arity-mismatch-message name given expected =
