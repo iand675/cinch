@@ -1,5 +1,26 @@
 # Self-hosting
 
+## Checked intrinsic type views
+
+A runtime intrinsic now retains every exact checked source/interface type view
+under its one operation identity. Each view is closed, well-kinded and physically
+compatible with the others. A reference must match a declared view. Ordinary
+duplicate definitions and role collisions remain errors. This lets a plain
+primitive alias coexist with the base library's stronger checked refinement.
+Actual carrier failures now name the expected carrier, including Bytes.
+
+All43 compiler modules and seven complete focused groups pass. All133 runtime
+programs return their expected exits with zero leaks; six new independent Core
+checks execute at five large identifiers (30 assertions). Compiler identity:
+`445dbe70b656f15c42d45c1c17ba9d0de02b24a6bfa5fd2c503b860dd07ac169`. [The scoped proof](../bootstrap/current-intrinsic-view-results.json)
+records exact source, executable and complete-log hashes.
+
+This does not close the original nine-test byte-length parity target. Byte reads,
+typed helper reification, allocator promises and executable index witnesses still
+need their matching validation. The running chain11 and suites36 concern the
+preceding API compiler a93, not this new source. A new final matching bootstrap,
+all complete suites and the full Acceptance1-5 audit remain required.
+
 ## Scope and Task checked interfaces repaired
 
 The Cinch writer now exports the actual builtin Scope and Task types, preserving

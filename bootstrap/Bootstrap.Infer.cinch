@@ -3092,7 +3092,7 @@ module Bootstrap.Infer where
     Some actual -> let checked = unify sp actual (normalize st carrier) st in
       if list-length (store-errors checked) == list-length (store-errors st) then checked-typed-source-index sp value checked
       else if same-type carrier (primitive-type "Int") && predicate-math-carrier actual then checked-typed-source-index sp (UIndexPromote value) st
-      else bad sp "proof predicate has incompatible numeric carriers" st
+      else bad sp (string-concat "proof predicate has incompatible carriers; expected " (type-text (normalize st carrier))) st
     None -> bad sp "a type cannot be used as a predicate value" st
   convert-predicate-index :: Bool -> TypeContext -> List (String, UType) -> UType -> TypeExpr -> Store -> (UType, Store)
   convert-predicate-index external kinds locals carrier syntax st = case syntax of

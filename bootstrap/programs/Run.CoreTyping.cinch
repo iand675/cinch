@@ -204,6 +204,29 @@ module Main where
     , not (check (wrap (CLet sp result handle-id "h" (mono (task-type other-region int int)) (CSpawn sp (task-type other-region int int) scope-value worker) join)))
     , not (check (wrap (CLet sp result handle-id "h" (mono handle-ty) (CSpawn sp (task-type region bool int) scope-value worker) join)))
     ]
+  intrinsic-view-checks :: Nat -> List Bool
+  intrinsic-view-checks nonce =
+    let bytes = UCon "Bytes" KType in
+    let id = nonce + 90 in
+    let result = URefine id "n" nat (UCompare ">=" (UBound id "n" (value-kind nat)) (UIndex nat (IInteger 0))) in
+    let raw = mono (UFun bytes nat) in
+    let refined = mono (UFun bytes result) in
+    let symbol = "cinch.runtime.bytesLen" in
+    let declarations = add-global (GlobalValue symbol "intrinsic" raw) (add-global (GlobalValue symbol "intrinsic" refined) [GlobalValue "read" "value" (mono (UFun bytes nat)), GlobalValue "refined-read" "value" (mono (UFun bytes result))]) in
+    let payload = CPVar sp bytes (nonce + 91) "bytes" in
+    let argument = CLocal sp bytes (nonce + 91) "bytes" Nil in
+    let define name output function = MkCoreDefinition sp name (mono (UFun bytes output)) Nil Nil Nil [MkCoreClause sp [payload] (CApply sp output function argument)] in
+    let raw-use = CUse sp (UFun bytes nat) symbol "intrinsic" Nil in
+    let refined-use = CUse sp (UFun bytes result) symbol "intrinsic" Nil in
+    [ (case close-typing-context kinds declarations of
+        Some context -> typing-definition-closed context (define "read" nat raw-use) && typing-definition-closed context (define "refined-read" result refined-use)
+        None -> False)
+    , (case close-globals declarations of Some references -> not (global-definition-closed references (define "read" nat (CUse sp (UFun bytes bool) symbol "intrinsic" Nil))); None -> False)
+    , (case close-globals (add-global (GlobalValue "same" "value" raw) [GlobalValue "same" "value" refined]) of None -> True; Some context -> False)
+    , (case close-globals (add-global (GlobalValue symbol "value" raw) [GlobalValue symbol "intrinsic" refined]) of None -> True; Some context -> False)
+    , (case close-globals [GlobalIntrinsicViews symbol Nil] of None -> True; Some context -> False)
+    , (case close-globals [GlobalIntrinsicViews symbol [raw, mono (UFun bytes bool)]] of None -> True; Some context -> False)
+    ]
   verdict :: Int -> List Bool -> Int
   verdict next values = case values of Nil -> 0; Cons True rest -> verdict (next + 1) rest; Cons False rest -> next
   main :: Unit ->{IO r} Int
@@ -212,6 +235,6 @@ module Main where
     Ok input -> let nonce = 340282366920938463463374607431768211456 + bytes-len input in
       case verdict 1 (scope-checks nonce) of
         0 -> case verdict 1 (task-checks nonce) of
-          0 -> verdict 1 (checks nonce)
+          0 -> case verdict 1 (intrinsic-view-checks nonce) of 0 -> verdict 1 (checks nonce); code -> 180 + code
           code -> 150 + code
         code -> 100 + code

@@ -10,12 +10,13 @@ module Bootstrap.Global where
   import Text.Lex (Span)
   import Algebra.Semigroup
 
-  export CoreGlobal, GlobalValue, GlobalMethod, GlobalBody, global-name, global-scheme
+  export CoreGlobal, GlobalValue, GlobalMethod, GlobalBody, GlobalIntrinsicViews, global-name, global-scheme, global-schemes
   export globals-bodies, globals-guarded-bodies, GlobalGuardedBody
   export CoreGlobals, add-global, globals-closed, close-globals, global-definition-closed, globals-declarations
 
   data CoreGlobal where
     GlobalValue :: String -> String -> Scheme -> CoreGlobal
+    GlobalIntrinsicViews :: String -> List Scheme -> CoreGlobal
     GlobalMethod :: String -> String -> Nat -> Scheme -> CoreGlobal
     GlobalBody :: CoreGlobal -> BodyBinding -> CoreGlobal
     GlobalGuardedBody :: CoreGlobal -> GuardedBinding -> CoreGlobal
@@ -24,9 +25,53 @@ module Bootstrap.Global where
   globals-declarations :: CoreGlobals -> List CoreGlobal
   globals-declarations globals = case globals of ClosedGlobals declarations -> declarations
   global-name :: CoreGlobal -> String
-  global-name declaration = case declaration of GlobalValue name role sc -> name; GlobalMethod name owner slot sc -> name; GlobalBody declaration binding -> global-name declaration; GlobalGuardedBody declaration binding -> global-name declaration
+  global-name declaration = case declaration of GlobalValue name role sc -> name; GlobalIntrinsicViews name views -> name; GlobalMethod name owner slot sc -> name; GlobalBody declaration binding -> global-name declaration; GlobalGuardedBody declaration binding -> global-name declaration
   global-scheme :: CoreGlobal -> Scheme
-  global-scheme declaration = case declaration of GlobalValue name role sc -> sc; GlobalMethod name owner slot sc -> sc; GlobalBody declaration binding -> global-scheme declaration; GlobalGuardedBody declaration binding -> global-scheme declaration
+  global-scheme declaration = case declaration of GlobalValue name role sc -> sc; GlobalIntrinsicViews name views -> (case views of Cons sc rest -> sc; Nil -> mono UError); GlobalMethod name owner slot sc -> sc; GlobalBody declaration binding -> global-scheme declaration; GlobalGuardedBody declaration binding -> global-scheme declaration
+  global-schemes :: CoreGlobal -> List Scheme
+  global-schemes declaration = case declaration of
+    GlobalIntrinsicViews name views -> views
+    other -> [global-scheme declaration]
+  -- Several checked source declarations may expose different refinements of
+  -- one runtime intrinsic. Keep every exact checked view under one identity;
+  -- a reference must still match one of those declarations, never a guessed
+  -- compatible annotation. Ordinary duplicate definitions remain conflicts.
+  intrinsic-views :: CoreGlobal -> Option (List Scheme)
+  intrinsic-views declaration = case declaration of
+    GlobalValue name role sc -> if same role "intrinsic" then Some [sc] else None
+    GlobalIntrinsicViews name views -> Some views
+    other -> None
+  append-view :: Scheme -> List Scheme -> List Scheme
+  append-view sc views = case views of
+    Nil -> [sc]
+    Cons prior rest -> if scheme-equivalent sc prior then views else Cons prior (append-view sc rest)
+  merge-views :: List Scheme -> List Scheme -> List Scheme
+  merge-views incoming views = case incoming of Nil -> views; Cons sc rest -> merge-views rest (append-view sc views)
+  replace-intrinsic :: String -> List Scheme -> List CoreGlobal -> List CoreGlobal
+  replace-intrinsic name views declarations = case declarations of
+    Nil -> [GlobalIntrinsicViews name views]
+    Cons prior rest -> if same name (global-name prior) then Cons (GlobalIntrinsicViews name views) rest else Cons prior (replace-intrinsic name views rest)
+  intrinsic-carrier :: UType -> UType
+  intrinsic-carrier ty = case ty of
+    URefine id name carrier predicate -> intrinsic-carrier carrier
+    UFun domain result -> UFun (intrinsic-carrier domain) (intrinsic-carrier result)
+    UFunEff domain row result -> UFunEff (intrinsic-carrier domain) row (intrinsic-carrier result)
+    UPi id name domain row result -> if equal-type row (URow UEnd) then UFun (intrinsic-carrier domain) (intrinsic-carrier result) else UFunEff (intrinsic-carrier domain) row (intrinsic-carrier result)
+    other -> ty
+  intrinsic-monomorphic :: Scheme -> Bool
+  intrinsic-monomorphic sc = case (scheme-params sc, scheme-requirements sc) of (Nil, Nil) -> True; other -> False
+  compatible-intrinsic-views :: UType -> List Scheme -> Bool
+  compatible-intrinsic-views carrier views = case views of
+    Nil -> True
+    Cons sc rest -> intrinsic-monomorphic sc && equal-type carrier (intrinsic-carrier (scheme-body sc)) && compatible-intrinsic-views carrier rest
+  intrinsic-views-valid :: List Scheme -> Bool
+  intrinsic-views-valid views = case views of
+    Nil -> False
+    Cons sc rest -> intrinsic-monomorphic sc && compatible-intrinsic-views (intrinsic-carrier (scheme-body sc)) rest
+  schemes-closed :: List Scheme -> Bool
+  schemes-closed schemes = case schemes of Nil -> True; Cons sc rest -> contract-scheme-closed sc && schemes-closed rest
+  schemes-body-authorized :: List BodyBinding -> List Scheme -> Bool
+  schemes-body-authorized bindings schemes = case schemes of Nil -> True; Cons sc rest -> body-scheme-authorized bindings sc && schemes-body-authorized bindings rest
   base-global :: CoreGlobal -> CoreGlobal
   base-global declaration = case declaration of GlobalBody base binding -> base-global base; GlobalGuardedBody base binding -> base-global base; other -> declaration
   declaration-bodies :: List CoreGlobal -> List BodyBinding
@@ -66,7 +111,9 @@ module Bootstrap.Global where
   -- conflicting duplicate so that context validation refuses it.
   add-global :: CoreGlobal -> List CoreGlobal -> List CoreGlobal
   add-global declaration declarations = case lookup-global (global-name declaration) declarations of
-    Some prior -> if same-global declaration prior then declarations else Cons declaration declarations
+    Some prior -> case (intrinsic-views declaration, intrinsic-views prior) of
+      (Some incoming, Some views) -> replace-intrinsic (global-name declaration) (merge-views incoming views) declarations
+      other -> if same-global declaration prior then declarations else Cons declaration declarations
     None -> Cons declaration declarations
   has-name :: String -> List String -> Bool
   has-name name names = case names of Nil -> False; Cons key rest -> same key name || has-name name rest
@@ -84,15 +131,15 @@ module Bootstrap.Global where
   globals-seen declarations names = case declarations of
     Nil -> True
     Cons declaration rest -> let name = global-name declaration in
-      string-length name > 0 && not (has-name name names) && contract-scheme-closed (global-scheme declaration) && decision-global declaration && body-declaration-valid declaration
-      && (case base-global declaration of GlobalValue symbol role sc -> role-valid role; GlobalMethod symbol owner slot sc -> string-length owner > 0 && method-self owner sc; other -> False)
+      string-length name > 0 && not (has-name name names) && schemes-closed (global-schemes declaration) && decision-global declaration && body-declaration-valid declaration
+      && (case base-global declaration of GlobalValue symbol role sc -> role-valid role; GlobalMethod symbol owner slot sc -> string-length owner > 0 && method-self owner sc; GlobalIntrinsicViews symbol views -> intrinsic-views-valid views; other -> False)
       && globals-seen rest (Cons name names)
   globals-closed :: List CoreGlobal -> Bool
   globals-closed declarations = globals-seen declarations Nil && guarded-bindings-closed (declaration-guarded-bodies declarations) && body-bindings-closed (declaration-bodies declarations) && declarations-body-authorized (declaration-bodies declarations) declarations
   declarations-body-authorized :: List BodyBinding -> List CoreGlobal -> Bool
   declarations-body-authorized bindings declarations = case declarations of
     Nil -> True
-    Cons declaration rest -> body-scheme-authorized bindings (global-scheme declaration) && declarations-body-authorized bindings rest
+    Cons declaration rest -> schemes-body-authorized bindings (global-schemes declaration) && declarations-body-authorized bindings rest
   close-globals :: List CoreGlobal -> Option CoreGlobals
   close-globals declarations = if globals-closed declarations then Some (ClosedGlobals declarations) else None
 
@@ -140,7 +187,14 @@ module Bootstrap.Global where
       Some (GlobalValue symbol declared sc) -> same role declared && (case instantiate-contract sc actuals of
         Some (expected, requirements) -> equal-type ty expected && evidence-list globals givens requirements evidence
         None -> False)
+      Some (GlobalIntrinsicViews symbol views) -> same role "intrinsic" && intrinsic-view-reference globals givens ty actuals evidence views
       other -> False
+  intrinsic-view-reference :: List CoreGlobal -> List CoreGiven -> UType -> List UType -> List CoreEvidence -> List Scheme -> Bool
+  intrinsic-view-reference globals givens ty actuals evidence views = case views of
+    Nil -> False
+    Cons sc rest -> (case instantiate-contract sc actuals of
+      Some (expected, requirements) -> equal-type ty expected && evidence-list globals givens requirements evidence
+      None -> False) || intrinsic-view-reference globals givens ty actuals evidence rest
   method-reference :: List CoreGlobal -> List CoreGiven -> UType -> String -> String -> Nat -> List UType -> List CoreEvidence -> Bool
   method-reference globals givens ty name owner slot actuals evidence = case lookup-base-global name globals of
     Some (GlobalMethod symbol declared number sc) -> same owner declared && slot == number && (case instantiate-contract sc actuals of

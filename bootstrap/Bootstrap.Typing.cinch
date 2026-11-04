@@ -52,10 +52,12 @@ module Bootstrap.Typing where
     UProofFun predicate row result -> effects-fit row empty-row && constructor-pure result
     UPi id name a row b -> effects-fit row empty-row && constructor-pure b
     other -> True
+  global-schemes-well-formed :: List (String, Kind) -> List Scheme -> Bool
+  global-schemes-well-formed kinds schemes = case schemes of Nil -> True; Cons sc rest -> scheme-well-formed kinds empty-type-scope sc && global-schemes-well-formed kinds rest
   global-types :: List (String, Kind) -> List CoreGlobal -> Bool
   global-types kinds declarations = case declarations of
     Nil -> True
-    Cons declaration rest -> scheme-well-formed kinds empty-type-scope (global-scheme declaration)
+    Cons declaration rest -> global-schemes-well-formed kinds (global-schemes declaration)
       && (case declaration of GlobalValue name role sc -> not (same role "constructor") || constructor-pure (scheme-body sc); other -> True)
       && global-types kinds rest
   kernel-effect-kinds :: List (String, Kind)
