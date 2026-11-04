@@ -1,26 +1,26 @@
 {
   "schema": 1,
   "estimate": 90,
-  "commit": "32a8045",
+  "commit": "f57748f",
   "estimateNote": "Rough engineering estimate. Verified checks and remaining work are listed below.",
   "status": "Current-source verification running",
   "stages": [
     {
       "name": "Stage 0",
-      "state": "pending",
-      "label": "Pending",
+      "state": "passed",
+      "label": "Verified",
       "description": "Pinned Rust seed, independently revalidated and smoke-tested."
     },
     {
       "name": "Stage 1",
-      "state": "pending",
-      "label": "Pending",
+      "state": "passed",
+      "label": "Verified",
       "description": "Fresh Cinch compiler built from the seed; all three smoke checks."
     },
     {
       "name": "Stage 2",
       "state": "pending",
-      "label": "Pending",
+      "label": "Building",
       "description": "Every compiler module is being freshly rebuilt by Stage1; all repair gates passed."
     },
     {
@@ -53,12 +53,12 @@
     },
     {
       "title": "Complete sweep of the new Cinch source",
-      "detail": "0 of 208 complete groups passed; 0 running, 0 failed and 208 pending.Every group includes ignored tests. State: pending.",
+      "detail": "7 of 208 complete groups passed; 2 running, 0 failed and 199 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
       "title": "Fresh compiler bootstrap",
-      "detail": "0 of 4 stages built and smoke-tested. Fixed point, 43 interfaces, API consumption and changed-source behavior are required.",
+      "detail": "2 of 4 stages built and smoke-tested. Fixed point, 43 interfaces, API consumption and changed-source behavior are required.",
       "state": "running"
     },
     {
@@ -73,7 +73,7 @@
     },
     {
       "title": "Current runtime, tooling and editor checks",
-      "detail": "pending. All three complete matching-source gates are required.",
+      "detail": "running. All three complete matching-source gates are required.",
       "state": "running"
     },
     {
@@ -104,12 +104,8 @@
   ],
   "blockers": [
     {
-      "title": "Implement structured tasks in the self-built compiler",
-      "detail": "Real Cinch task execution now succeeds for empty scopes, single/pair joins and immutable data captures, all zero leaks. Seventy independent task-Core checks and19 Rust reference source cases pass. Nested tasks exposed an unconstrained task error carrier: final inference now chooses Unit only after complete constraints and dictionary resolution; its unchanged regression and a valid scoped-helper case are in run4. Scope/Task parameter-kind inference is corrected; ownership refusals must now show the actual safety diagnostic. Rust follow-up for an experimentally confirmed hidden tuple closure escape is under five-group validation. Final full bootstrap and suites remain open."
-    },
-    {
-      "title": "Publish the validated repair",
-      "detail": "The previous published compiler checkpoint remains linked below until the repair source is pushed."
+      "title": "Verify the new compiler through the complete bootstrap",
+      "detail": "Structured task support and the Rust aggregate-scope repair are pushed asf57748f. All43 compiler sources check through the final repaired host. Six complete Cinch groups pass, including133 runtime programs with zero leaks and70 new independent task-Core assertions; all60 focused Rust tests pass. Fresh chain10 Stage0 smokes pass and Stage1 is building. Full Native208, exact finalStage3-91 and runtime/tool/editor checks are now running or queued; unchanged self-built task exhaustion and all final acceptance checks remain required."
     },
     {
       "title": "Finish the fresh bootstrap",
@@ -117,11 +113,11 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "0 of 208 complete groups passed; 0 running, 0 failed and 208 pending."
+      "detail": "7 of 208 complete groups passed; 2 running, 0 failed and 199 pending."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
-      "detail": "pending."
+      "detail": "running."
     },
     {
       "title": "Finish the exact self-built compiler tests",
@@ -163,9 +159,9 @@
     }
   ],
   "candidateSource": "6b5e776bb196631c6c42476ec08e0f8e801a60e5fd95ea7fb21f7dfb9d776620",
-  "candidatePublished": false,
+  "candidatePublished": true,
   "fullGoalComplete": false,
-  "summary": "All 43 compiler-source checks: passed. 6 of 6 complete groups passed; 0 running, 0 failed and 0 pending. independent type checker: passed; Core validation: passed; typechecker: passed; inference: passed; runtime behavior: passed; library calls: passed. The repair source remains local while its full focused validation finishes.",
-  "activity": "Complete sweep of the new Cinch source: 0 of 208 complete groups passed; 0 running, 0 failed and 208 pending. Stage builds and smoke checks: 0 of 4; chain state: pending. Repair gates: 6 of 6 complete groups passed; 0 running, 0 failed and 0 pending. independent type checker: passed; Core validation: passed; typechecker: passed; inference: passed; runtime behavior: passed; library calls: passed. Early Stage1 behavior: 0 of 8 complete groups passed; 0 running, 0 failed and 8 pending. Exact final Stage3 suite: 0 of 91 complete groups passed; 0 running, 0 failed and 91 pending.",
-  "updatedAt": "2026-11-04T12:43:00.929822+00:00"
+  "summary": "All 43 compiler-source checks: passed. 6 of 6 complete groups passed; 0 running, 0 failed and 0 pending. independent type checker: passed; Core validation: passed; typechecker: passed; inference: passed; runtime behavior: passed; library calls: passed.",
+  "activity": "Complete sweep of the new Cinch source: 7 of 208 complete groups passed; 2 running, 0 failed and 199 pending. Stage builds and smoke checks: 2 of 4; chain state: running-full-stage-chain. Repair gates: 6 of 6 complete groups passed; 0 running, 0 failed and 0 pending. independent type checker: passed; Core validation: passed; typechecker: passed; inference: passed; runtime behavior: passed; library calls: passed. Early Stage1 behavior: 0 of 8 complete groups passed; 0 running, 0 failed and 8 pending. Exact final Stage3 suite: 0 of 91 complete groups passed; 0 running, 0 failed and 91 pending.",
+  "updatedAt": "2026-11-04T12:53:14.372442+00:00"
 }
