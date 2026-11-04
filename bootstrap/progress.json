@@ -2,8 +2,8 @@
   "activity": "Current source: all 127 ordinary target groups pass. Bootstrap-specific groups: 11 of 81 passed, 0 running and 0 failed. Matching runtime, tooling and syntax/editor gates are separate requirements. Fresh final-source stages built and smoke-tested: 3 of4; combined gate stopped-after-known-source-behavior-failure. Additional Stage3 coverage: ordinary: 0 of 8 passed, 0 running, 0 failed (stopped-before-execution-after-known-source-failure); mixed: 0 of 4 passed, 0 running, 0 failed (stopped-before-execution-after-known-source-failure). Self-built portable bootstrap suite: 0 of 79 groups passed, 0 running, 0 failed; state stopped-before-execution-after-known-source-failure.",
   "blockers": [
     {
-      "title": "Complete escaped constructor support",
-      "detail": "Original failing assertions: escaped_constructors_match_and_carry_one_descriptor_word, interned_symbols_are_counted_immortal_once_per_name. The complete original allocation group continues to record all results. Unstarted old-source verification is deferred; every required gate must pass on the eventual repaired source."
+      "title": "Complete escaped constructors and symbol ABI",
+      "detail": "Original failing assertions: escaped_constructors_match_and_carry_one_descriptor_word, interned_symbols_are_counted_immortal_once_per_name. The complete original allocation group finished6passed,2failed,noneignored orfiltered. Unstarted old-source verification is deferred; every required gate must pass on the eventual repaired source."
     },
     {
       "title": "Investigate current Stage2 behavior",
@@ -37,7 +37,7 @@
   "checks": [
     {
       "title": "Escaped constructor repair",
-      "detail": "The current Stage2 allocation regression exposed unsupported70constructor families. The repair uses the existing runtime descriptor format and adds actual65tag, recursive first-class and generic representation-class executions. Complete runtime/parser/checker validation: failed. This repair is not yet a verified fresh bootstrap.",
+      "detail": "The complete original Stage2 allocation group has6passing and2failing cases:70constructor descriptors and omittedSymRaw word classification. The corrected repair adds actual wide-tag and symbol roundtrip/generic/closure/field executions, preserving the shared-table capacity. All43source checks plus complete object/runtime/parser/checker validation: checking-all43-compiler-sources. This repair is not yet a verified fresh bootstrap.",
       "state": "running"
     },
     {
@@ -264,6 +264,6 @@
     }
   ],
   "status": "Stage2 allocation regression requires repair",
-  "summary": "The current source builds Stage2 and passes its smoke checks, but an actual external allocation test fails: the Cinch backend refuses the existing escaped-constructor runtime representation. A separate source repair is queued for full focused validation. Final acceptance remains open.",
-  "updatedAt": "2026-11-04T02:57:00.859634+00:00"
+  "summary": "The current source builds Stage2 and passes its smoke checks, but an actual external allocation test fails: the Cinch backend refuses wide constructor descriptors and omits the checkedSym word representation. A corrected combined source repair is undergoing full source and focused validation. Final acceptance remains open.",
+  "updatedAt": "2026-11-04T03:05:05.024607+00:00"
 }
