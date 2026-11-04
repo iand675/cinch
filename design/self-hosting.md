@@ -1,5 +1,21 @@
 # Self-hosting
 
+## Current case-repaired compiler bootstraps
+
+The repaired Cinch compiler now completes a fresh Stage0/1/2/3 chain.
+All stages pass their three smoke checks. Stage2 and Stage3 have identical
+compiler IR, executable bytes and all 43 canonical checked interfaces.
+Stage3 checks its actual entry against the emitted APIs without compiler
+bodies; Stage2 rebuilds changed compiler source and the rebuilt executable
+exhibits the changed diagnostic. See [the current chain proof](../bootstrap/current-case-dispatch-bootstrap-results.json).
+
+The complete original case-evidence target now passes all 17 tests through
+both fresh Stage1 and final Stage3, including the original allocation
+comparison. The Rust diagnostic-only follow-up leaves every Cinch, prelude
+and pinned-bootstrap input unchanged, so this chain remains current.
+Acceptance 5 is still open: matching full Native and final self-built suites,
+external/auxiliary checks and the final coverage audit remain required.
+
 ## Current repair: checked method dispatch and scalar case facts
 
 The current source now removes the allocation regression in the original
