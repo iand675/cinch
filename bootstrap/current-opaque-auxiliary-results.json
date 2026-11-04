@@ -1,0 +1,36 @@
+{
+  "compiler_sha256": "c1c4194734bfbeb1390dcd56f51dc346a56fa24f620f8e929772d3d9a7e94625",
+  "compiler_source_sha256": "e861abb04f804a94b1dfe6f65fcddab57005fdc24837b3abfedb5482dfde0208",
+  "editor_syntax_tests": 39,
+  "full_goal_complete": false,
+  "rows": [
+    {
+      "exit_code": 0,
+      "log_sha256": "78fcad79009b6da70a87970a36682eb67df7e67f2921b5af2cc04550b2a4debd",
+      "name": "runtime",
+      "source_unchanged": true,
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "b8ad17189e52ccdb925563804fbab20e9d25af234347d741d266d451f9352bd3",
+      "name": "tooling",
+      "source_unchanged": true,
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "a6eff20c4a97d83da4b7efea18a4737b3e9fbda9f97930164508844c09cec9bf",
+      "name": "syntax-editor",
+      "source_unchanged": true,
+      "status": "passed"
+    }
+  ],
+  "runtime_tests": 171,
+  "scope": "Complete matching published-source runtime including ignored, tooling discovery and editor/syntax experiment gates. Source snapshot, all complete log hashes, zero failures/ignored/skips/filtering and Native producer binary independently audited. Own runtime cache in same frozen source. Does not prove proof soundness, positive ABI6 selfhosted arrays, or final complete compiler acceptance.",
+  "source": "/tmp/cinch-current-native-source-check-42/source",
+  "source_sha256": "43dfeafbd1b387a755dec4b63850b6758e97ef5f1a554856eefb475236848e17",
+  "status": "passed-current-source-auxiliary",
+  "tooling_tests": 41,
+  "verified_at": "2026-11-04T22:02:57.868508+00:00"
+}

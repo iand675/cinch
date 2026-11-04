@@ -1,5 +1,32 @@
 # Next steps (as of 2026-11-04)
 
+## Current proof audit and complete auxiliary gates (2026-11-04)
+
+The exact published Rust row-kind compiler still accepts four invalid proof
+programs: direct recursion, a partial proof match, recursion hidden behind a
+pattern branch, and Boolean patterns over a natural-number proof subject.
+The unchanged valid induction control checks, while its captured-induction
+variant is refused. These are current checks, independently reproduced;
+no invalid proof executable was run. The actual e861 Stage3 compiler refuses
+all six inputs during name/namespace resolution, including both valid controls.
+Those unsupported-source refusals do not establish proof soundness.
+See `bootstrap/current-proof-frontends-audit.json`. The isolated ongoing proof
+repair must pass all these negatives and retain the valid controls before
+integration; green existing tests cannot close this blocker.
+
+All complete matching auxiliary gates independently pass: 171 runtime tests,
+41 tooling tests and 39 syntax/editor tests, with zero failures, ignored tests,
+skips or filtering. Source, producer and complete log identities are checked in
+`bootstrap/current-opaque-auxiliary-results.json`. This does not close the full
+compiler/self-built suites, original API/array behavior or Acceptance 5.
+
+The current Stage3 sweep has a separately identified harness failure:
+`bootstrap_check` exits zero and writes its correct report inside the project,
+while the test expects it in the caller's working directory. The external
+harness changes that directory; the Native driver inherits it. An isolated
+repair is being verified against the original full test and actual Stage3.
+The failed run remains recorded; it is not counted as a pass here.
+
 ## Verified opaque/HK bootstrap chain and Stage3 acceptance (2026-11-04)
 
 Compiler e861 now has an independently verified full Stage0/1/2/3 chain.

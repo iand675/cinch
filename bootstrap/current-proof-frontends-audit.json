@@ -1,0 +1,278 @@
+{
+  "cases": [
+    {
+      "expected_acceptance": false,
+      "name": "recursive-evidence",
+      "path": "/tmp/cinch-current-recursive-evidence-probe-1/Main.cinch",
+      "source": "/tmp/cinch-proof-current-frontends-audit-1/recursive-evidence/Main.cinch",
+      "source_sha256": "4ec0606ebde90b4e51001afc11a0f7caf3f4bc99daad19d4f1fc0d7f00c795fb"
+    },
+    {
+      "expected_acceptance": false,
+      "name": "partial",
+      "path": "/private/tmp/cinch-proof-case-audit/evidence-1/partial/Main.cinch",
+      "source": "/tmp/cinch-proof-current-frontends-audit-1/partial/Main.cinch",
+      "source_sha256": "ef03719deb17566a6f273d6102687d0811a17cbcce4861b771d6b84cca2a149e"
+    },
+    {
+      "expected_acceptance": false,
+      "name": "cyclic",
+      "path": "/private/tmp/cinch-proof-case-audit/evidence-1/cyclic/Main.cinch",
+      "source": "/tmp/cinch-proof-current-frontends-audit-1/cyclic/Main.cinch",
+      "source_sha256": "535c7c239676e1da1d3b269ed502bca3e3cfa45040f91276be2221d14f60e480"
+    },
+    {
+      "expected_acceptance": false,
+      "name": "wrong-carrier",
+      "path": "/private/tmp/cinch-proof-case-audit/evidence-1/wrong-carrier/Main.cinch",
+      "source": "/tmp/cinch-proof-current-frontends-audit-1/wrong-carrier/Main.cinch",
+      "source_sha256": "992ef491e4ec92e4dcca3105837b9ae89ce91fb161b5d8cffab40937a0b35151"
+    },
+    {
+      "expected_acceptance": true,
+      "name": "induction",
+      "path": "/private/tmp/cinch-proof-case-audit/evidence-1/induction/Main.cinch",
+      "source": "/tmp/cinch-proof-current-frontends-audit-1/induction/Main.cinch",
+      "source_sha256": "1ce47f0672e7435ca1b66b2d9d7f06e79a6cedf0d854eb822ed43c220a27a368"
+    },
+    {
+      "expected_acceptance": true,
+      "name": "captured-induction",
+      "path": "/private/tmp/cinch-proof-case-audit/evidence-1/captured-induction/Main.cinch",
+      "source": "/tmp/cinch-proof-current-frontends-audit-1/captured-induction/Main.cinch",
+      "source_sha256": "edbcd1ba42556f3defed0b8e64d025c8abfc51e3231638a7ab48c718b91a773d"
+    }
+  ],
+  "full_goal_complete": false,
+  "pid": 46755,
+  "producers": {
+    "native": {
+      "path": "/tmp/cinch-rust-row-kind-validation-2/cargo/debug/cinch",
+      "sha256": "12726209fbc8f4d09231a6d94ab979d6674dd283d33ab928f361b6d2d815282b"
+    },
+    "stage3": {
+      "path": "/tmp/cinch-final-bootstrap-chain-15/source/build/bootstrap/stage3/cinch",
+      "sha256": "d16d1daf4562e8e9ad1fc1e1b9c803e241d4f712959c05697213d8cbf6dc7c2e"
+    }
+  },
+  "rows": [
+    {
+      "accepted": true,
+      "agrees": false,
+      "command": [
+        "/tmp/cinch-rust-row-kind-validation-2/cargo/debug/cinch",
+        "check",
+        "/tmp/cinch-proof-current-frontends-audit-1/recursive-evidence/Main.cinch"
+      ],
+      "diagnostics": null,
+      "exit_code": 0,
+      "expected_acceptance": false,
+      "frontend": "native",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "recursive-evidence"
+    },
+    {
+      "accepted": false,
+      "agrees": true,
+      "command": [
+        "/tmp/cinch-final-bootstrap-chain-15/source/build/bootstrap/stage3/cinch",
+        "--check",
+        "--interfaces",
+        "/tmp/cinch-test-support-provider-4/interfaces.json",
+        "/tmp/cinch-proof-current-frontends-audit-1/recursive-evidence/Main.cinch",
+        "/tmp/cinch-proof-current-frontends-audit-1/recursive-evidence/stage3-contract"
+      ],
+      "diagnostics": "bootstrap.resolve:8:13: name is not in scope: unrefine\n",
+      "exit_code": 4,
+      "expected_acceptance": false,
+      "frontend": "stage3",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "recursive-evidence"
+    },
+    {
+      "accepted": true,
+      "agrees": false,
+      "command": [
+        "/tmp/cinch-rust-row-kind-validation-2/cargo/debug/cinch",
+        "check",
+        "/tmp/cinch-proof-current-frontends-audit-1/partial/Main.cinch"
+      ],
+      "diagnostics": null,
+      "exit_code": 0,
+      "expected_acceptance": false,
+      "frontend": "native",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "partial"
+    },
+    {
+      "accepted": false,
+      "agrees": true,
+      "command": [
+        "/tmp/cinch-final-bootstrap-chain-15/source/build/bootstrap/stage3/cinch",
+        "--check",
+        "--interfaces",
+        "/tmp/cinch-test-support-provider-4/interfaces.json",
+        "/tmp/cinch-proof-current-frontends-audit-1/partial/Main.cinch",
+        "/tmp/cinch-proof-current-frontends-audit-1/partial/stage3-contract"
+      ],
+      "diagnostics": "bootstrap.resolve:3:38: name is not in scope: refl\nbootstrap.resolve:8:13: name is not in scope: unrefine\n",
+      "exit_code": 4,
+      "expected_acceptance": false,
+      "frontend": "stage3",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "partial"
+    },
+    {
+      "accepted": true,
+      "agrees": false,
+      "command": [
+        "/tmp/cinch-rust-row-kind-validation-2/cargo/debug/cinch",
+        "check",
+        "/tmp/cinch-proof-current-frontends-audit-1/cyclic/Main.cinch"
+      ],
+      "diagnostics": null,
+      "exit_code": 0,
+      "expected_acceptance": false,
+      "frontend": "native",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "cyclic"
+    },
+    {
+      "accepted": false,
+      "agrees": true,
+      "command": [
+        "/tmp/cinch-final-bootstrap-chain-15/source/build/bootstrap/stage3/cinch",
+        "--check",
+        "--interfaces",
+        "/tmp/cinch-test-support-provider-4/interfaces.json",
+        "/tmp/cinch-proof-current-frontends-audit-1/cyclic/Main.cinch",
+        "/tmp/cinch-proof-current-frontends-audit-1/cyclic/stage3-contract"
+      ],
+      "diagnostics": "bootstrap.resolve:8:13: name is not in scope: unrefine\n",
+      "exit_code": 4,
+      "expected_acceptance": false,
+      "frontend": "stage3",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "cyclic"
+    },
+    {
+      "accepted": true,
+      "agrees": false,
+      "command": [
+        "/tmp/cinch-rust-row-kind-validation-2/cargo/debug/cinch",
+        "check",
+        "/tmp/cinch-proof-current-frontends-audit-1/wrong-carrier/Main.cinch"
+      ],
+      "diagnostics": null,
+      "exit_code": 0,
+      "expected_acceptance": false,
+      "frontend": "native",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "wrong-carrier"
+    },
+    {
+      "accepted": false,
+      "agrees": true,
+      "command": [
+        "/tmp/cinch-final-bootstrap-chain-15/source/build/bootstrap/stage3/cinch",
+        "--check",
+        "--interfaces",
+        "/tmp/cinch-test-support-provider-4/interfaces.json",
+        "/tmp/cinch-proof-current-frontends-audit-1/wrong-carrier/Main.cinch",
+        "/tmp/cinch-proof-current-frontends-audit-1/wrong-carrier/stage3-contract"
+      ],
+      "diagnostics": "bootstrap.resolve:3:38: name is not in scope: refl\nbootstrap.resolve:3:53: name is not in scope: refl\n",
+      "exit_code": 4,
+      "expected_acceptance": false,
+      "frontend": "stage3",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "wrong-carrier"
+    },
+    {
+      "accepted": true,
+      "agrees": true,
+      "command": [
+        "/tmp/cinch-rust-row-kind-validation-2/cargo/debug/cinch",
+        "check",
+        "/tmp/cinch-proof-current-frontends-audit-1/induction/Main.cinch"
+      ],
+      "diagnostics": null,
+      "exit_code": 0,
+      "expected_acceptance": true,
+      "frontend": "native",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "induction"
+    },
+    {
+      "accepted": false,
+      "agrees": false,
+      "command": [
+        "/tmp/cinch-final-bootstrap-chain-15/source/build/bootstrap/stage3/cinch",
+        "--check",
+        "--interfaces",
+        "/tmp/cinch-test-support-provider-4/interfaces.json",
+        "/tmp/cinch-proof-current-frontends-audit-1/induction/Main.cinch",
+        "/tmp/cinch-proof-current-frontends-audit-1/induction/stage3-contract"
+      ],
+      "diagnostics": "bootstrap.resolve:6:35: name is not in scope: refl\nbootstrap.resolve:6:51: name is not in scope: congr\n",
+      "exit_code": 4,
+      "expected_acceptance": true,
+      "frontend": "stage3",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "induction"
+    },
+    {
+      "accepted": false,
+      "agrees": false,
+      "command": [
+        "/tmp/cinch-rust-row-kind-validation-2/cargo/debug/cinch",
+        "check",
+        "/tmp/cinch-proof-current-frontends-audit-1/captured-induction/Main.cinch"
+      ],
+      "diagnostics": null,
+      "exit_code": 1,
+      "expected_acceptance": true,
+      "frontend": "native",
+      "log_sha256": "ce769563d76ed069c1a3877bd65466d207dd0c26bae4b845868f7de29edd3243",
+      "name": "captured-induction"
+    },
+    {
+      "accepted": false,
+      "agrees": false,
+      "command": [
+        "/tmp/cinch-final-bootstrap-chain-15/source/build/bootstrap/stage3/cinch",
+        "--check",
+        "--interfaces",
+        "/tmp/cinch-test-support-provider-4/interfaces.json",
+        "/tmp/cinch-proof-current-frontends-audit-1/captured-induction/Main.cinch",
+        "/tmp/cinch-proof-current-frontends-audit-1/captured-induction/stage3-contract"
+      ],
+      "diagnostics": "bootstrap.resolve:4:3: this declaration requires further namespace elaboration\nbootstrap.resolve:5:3: this declaration requires further namespace elaboration\nbootstrap.resolve:6:3: this declaration requires further namespace elaboration\n",
+      "exit_code": 4,
+      "expected_acceptance": true,
+      "frontend": "stage3",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "captured-induction"
+    }
+  ],
+  "scope": "Exact published Rust row-kind2 Native and independently bootstrapped e861 Stage3, six unchanged proof programs each, check-only. Positive induction controls retained. Refusal at an unrelated unsupported boundary is not proof of logical soundness. No invalid proof executable was run. Counterexamples remain mandatory blockers.",
+  "slot": 2,
+  "status": "audit-complete",
+  "verified_at": "2026-11-04T22:04:56.785506+00:00",
+  "independent_audit": {
+    "verified_at": "2026-11-04T22:06:43.554495+00:00",
+    "current_native_counterexamples": [
+      "recursive-evidence",
+      "partial",
+      "cyclic",
+      "wrong-carrier"
+    ],
+    "valid_native_induction_accepted": true,
+    "captured_native_induction_rejected": true,
+    "stage3_limit": "All six programs stop at name/namespace resolution (unrefine, refl, congr or namespace elaboration), including both valid controls. These are missing source features; none of the six Stage3 refusals proves logical soundness.",
+    "check_only": true,
+    "full_goal_complete": false,
+    "native_producer_receipt": "/tmp/cinch-rust-row-kind-validation-2/independent-verification.json",
+    "native_producer_receipt_sha256": "fc64873096f9381e83156b82f3c49618b6dd6f4cf3da75456af83671600c95e3"
+  }
+}
