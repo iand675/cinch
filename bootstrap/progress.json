@@ -1,9 +1,9 @@
 {
-  "activity": "Earlier baseline: all 127 ordinary target groups pass. Bootstrap-specific groups: 40 of 81 passed, 0 running and 0 failed. Runtime171, tooling41 and syntax/editor39 pass on this same source. Fresh final-source stages built and smoke-tested: 4 of4; combined gate passed. Additional Stage3 coverage: ordinary: 0 of 8 passed, 0 running, 1 failed (stopped-after-failure); mixed: 3 of 4 passed, 1 running, 0 failed (running). Self-built portable bootstrap suite: 2 of 79 groups passed, 0 running, 1 failed; state stopped-after-failure.",
+  "activity": "Earlier baseline: all 127 ordinary target groups pass. Bootstrap-specific groups: 40 of 81 passed, 0 running and 0 failed. Runtime171, tooling41 and syntax/editor39 pass on this same source. Fresh final-source stages built and smoke-tested: 4 of4; combined gate passed. Additional Stage3 coverage: ordinary: 0 of 8 passed, 0 running, 1 failed (stopped-after-failure); mixed: 4 of 4 passed, 0 running, 0 failed (running). Self-built portable bootstrap suite: 2 of 79 groups passed, 0 running, 1 failed; state stopped-after-failure.",
   "blockers": [
     {
       "title": "Self-built bootstrap regression needs its test-library variant",
-      "detail": "Failed groups: bootstrap_abstract_nonzero_types. Original failure logs remain recorded. The diagnostic requests missing test-library factory Data.List.FromList_List[R]. Library-only rebuild: passed; unchanged complete-target rerun using the same self-built compiler: waiting-reserved-lane. This isolated retry does not complete the 79-group suite or validate the newer compiler candidate."
+      "detail": "Failed groups: bootstrap_abstract_nonzero_types. Original failure logs remain recorded. The diagnostic requests missing test-library factory Data.List.FromList_List[R]. Library-only rebuild: passed; unchanged complete-target rerun using the same self-built compiler: running. This isolated retry does not complete the 79-group suite or validate the newer compiler candidate."
     },
     {
       "title": "Validate a Rust compiler performance repair",
@@ -58,7 +58,7 @@
     },
     {
       "title": "Additional behavior through earlier Stage3",
-      "detail": "ordinary: 0 of 8 passed, 0 running, 1 failed (stopped-after-failure); mixed: 3 of 4 passed, 1 running, 0 failed (running). Mixed coverage runs three complete consumer targets and the designed array-intrinsic refusal check. Positive ABI6 array behavior remains in its complete Native gate per design/arrays.md.",
+      "detail": "ordinary: 0 of 8 passed, 0 running, 1 failed (stopped-after-failure); mixed: 4 of 4 passed, 0 running, 0 failed (running). Mixed coverage runs three complete consumer targets and the designed array-intrinsic refusal check. Positive ABI6 array behavior remains in its complete Native gate per design/arrays.md.",
       "state": "running"
     },
     {
@@ -236,5 +236,5 @@
   ],
   "status": "Ordinary or mixed Stage3 verification needs investigation",
   "summary": "The earlier baseline compiler bootstraps and passes its exact Stage3 behavior checks. The current Rust optimizer repair passes all16 optimizer tests and the complete checker target; the remaining Cinch candidate gates are separate. The full 208-group Native-backed sweep and all 79 portable bootstrap groups through Stage3 are tracked separately. Native library fixture preparation is explicit; selected compiler failures never fall back.",
-  "updatedAt": "2026-11-04T00:48:00.684676+00:00"
+  "updatedAt": "2026-11-04T00:49:03.565874+00:00"
 }
