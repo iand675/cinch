@@ -53,7 +53,7 @@
     },
     {
       "title": "Earlier API compiler: complete Native sweep",
-      "detail": "143 of 208 complete groups passed; 2 running, 0 failed and 63 pending.Every group includes ignored tests. State: running. Earlier API checkpoint; the published intrinsic repair still needs its own final matching run.",
+      "detail": "143 of 208 complete groups passed; 3 running, 0 failed and 62 pending.Every group includes ignored tests. State: running. Earlier API checkpoint; the published intrinsic repair still needs its own final matching run.",
       "state": "running"
     },
     {
@@ -103,14 +103,14 @@
     },
     {
       "title": "Proposed compiler repair",
-      "detail": "Separate unpublished source: running-twelve-complete-groups. All 43 compiler modules: passed. 8 of 12 complete groups passed; 1 running, 0 failed and 3 pending. This does not replace current-source or final Stage3 acceptance.",
+      "detail": "Separate unpublished source: running-twelve-complete-groups. All 43 compiler modules: passed. 9 of 12 complete groups passed; 0 running, 0 failed and 3 pending. This does not replace current-source or final Stage3 acceptance.",
       "state": "running"
     }
   ],
   "blockers": [
     {
       "title": "Finish byte-length parity and final matching bootstrap",
-      "detail": "Typed byte helpers and allocator promises are published after all43 source checks, eight complete groups and135 runtime programs with zero leaks. The unchanged nine-test diagnostic now passes six tests; local carrier diagnostics, executable implicit value parameters and a mutable-reader obligation diagnostic remain. The first two repairs are in the current twelve-group source7 validation. Earlier API compiler a93 has its own successful genuine four-stage chain and its Native sweep continues. Source opaque declarations, a final matching bootstrap, complete suites and Acceptance1-5 audit remain required."
+      "detail": "Published3d7a6c9: all43 compiler sources, eight complete focused groups and135 runtime programs pass with zero leaks. The original nine-test diagnostic passes six tests on that source. A twelve-group value-parameter repair is running with no failures so far. The third diagnostic failure was traced to a real mismatch between equivalent bytesGet refinements: Int-promoted InRange aliases were rejected before checking the intended mutable-reader obligation. A semantic proof repair and eight independent Core plus two source checks are queued on frozen source9, respecting existing live worker leases. Source opaque declarations and other API fixture gaps remain. Final matching bootstrap, all complete suites and Acceptance1-5 audit remain required."
     },
     {
       "title": "Investigate the recorded failure",
@@ -122,7 +122,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "143 of 208 complete groups passed; 2 running, 0 failed and 63 pending. Earlier API checkpoint; the published intrinsic repair still needs its own final matching run."
+      "detail": "143 of 208 complete groups passed; 3 running, 0 failed and 62 pending. Earlier API checkpoint; the published intrinsic repair still needs its own final matching run."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -171,6 +171,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "All 43 compiler-source checks: passed. 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. independent type checker: passed; bootstrap_globals: passed; inference: passed; typechecker: passed; bootstrap_byte_observations: passed; bootstrap_pipeline: passed; runtime behavior: passed; library calls: passed.",
-  "activity": "Earlier API compiler: complete Native sweep: 143 of 208 complete groups passed; 2 running, 0 failed and 63 pending. Stage builds and smoke checks: 4 of 4; chain state: passed; earlier API source, not the published repair. Repair gates: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. independent type checker: passed; bootstrap_globals: passed; inference: passed; typechecker: passed; bootstrap_byte_observations: passed; bootstrap_pipeline: passed; runtime behavior: passed; library calls: passed. Early Stage1 behavior: 7 of 8 complete groups passed; 0 running, 1 failed and 0 pending. Exact final Stage3 suite: 7 of 91 complete groups passed; 0 running, 1 failed and 83 pending. Proposed compiler repair (separate unpublished source): running-twelve-complete-groups; 8 of 12 complete groups passed; 1 running, 0 failed and 3 pending.",
-  "updatedAt": "2026-11-04T16:13:06.646793+00:00"
+  "activity": "Earlier API compiler: complete Native sweep: 143 of 208 complete groups passed; 3 running, 0 failed and 62 pending. Stage builds and smoke checks: 4 of 4; chain state: passed; earlier API source, not the published repair. Repair gates: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. independent type checker: passed; bootstrap_globals: passed; inference: passed; typechecker: passed; bootstrap_byte_observations: passed; bootstrap_pipeline: passed; runtime behavior: passed; library calls: passed. Early Stage1 behavior: 7 of 8 complete groups passed; 0 running, 1 failed and 0 pending. Exact final Stage3 suite: 7 of 91 complete groups passed; 0 running, 1 failed and 83 pending. Proposed compiler repair (separate unpublished source): running-twelve-complete-groups; 9 of 12 complete groups passed; 0 running, 0 failed and 3 pending.",
+  "updatedAt": "2026-11-04T16:14:08.653175+00:00"
 }
