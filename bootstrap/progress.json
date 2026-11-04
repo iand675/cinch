@@ -53,7 +53,7 @@
     },
     {
       "title": "Published value-index compiler: complete Native sweep",
-      "detail": "39 of 208 complete groups passed; 1 running, 0 failed and 168 pending.Every group includes ignored tests. State: running.",
+      "detail": "40 of 208 complete groups passed; 0 running, 0 failed and 168 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -68,7 +68,7 @@
     },
     {
       "title": "Complete behavior through exact final Stage3",
-      "detail": "6 of 91 complete groups passed; 1 running, 0 failed and 84 pending.79 bootstrap groups, eight ordinary targets, three complete mixed consumers and the designed ABI5 array refusal. Native library fixtures remain explicit; selected compiler failures never fall back.",
+      "detail": "7 of 91 complete groups passed; 1 running, 0 failed and 83 pending.79 bootstrap groups, eight ordinary targets, three complete mixed consumers and the designed ABI5 array refusal. Native library fixtures remain explicit; selected compiler failures never fall back.",
       "state": "running"
     },
     {
@@ -118,11 +118,11 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "39 of 208 complete groups passed; 1 running, 0 failed and 168 pending."
+      "detail": "40 of 208 complete groups passed; 0 running, 0 failed and 168 pending."
     },
     {
       "title": "Finish the exact self-built compiler tests",
-      "detail": "6 of 91 complete groups passed; 1 running, 0 failed and 84 pending."
+      "detail": "7 of 91 complete groups passed; 1 running, 0 failed and 83 pending."
     },
     {
       "title": "Complete the coverage and acceptance audit",
@@ -159,6 +159,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "The fresh current-source compiler chain passes its smoke tests, matching Stage2/Stage3 IR, executable and all 43 canonical interfaces, actual API consumption and changed-source behavior. Complete tests and the final acceptance audit remain separate requirements.",
-  "activity": "Published value-index compiler: complete Native sweep: 39 of 208 complete groups passed; 1 running, 0 failed and 168 pending. Stage builds and smoke checks: 4 of 4; chain state: passed. Repair gates: 12 of 12 complete groups passed; 0 running, 0 failed and 0 pending. independent type checker: passed; bootstrap_globals: passed; inference: passed; typechecker: passed; bootstrap_byte_observations: passed; bootstrap_resolve: passed; Core validation: passed; index scope and representation: passed; bootstrap_value_indices: passed; bootstrap_pipeline: passed; runtime behavior: passed; library calls: passed. Early Stage1 behavior: 7 of 8 complete groups passed; 0 running, 1 failed and 0 pending. Exact final Stage3 suite: 6 of 91 complete groups passed; 1 running, 0 failed and 84 pending. Proposed compiler repair (separate unpublished source): running-twenty-one-complete-groups; 19 of 21 complete groups passed; 1 running, 0 failed and 1 pending.",
-  "updatedAt": "2026-11-04T18:05:59.311051+00:00"
+  "activity": "Published value-index compiler: complete Native sweep: 40 of 208 complete groups passed; 0 running, 0 failed and 168 pending. Stage builds and smoke checks: 4 of 4; chain state: passed. Repair gates: 12 of 12 complete groups passed; 0 running, 0 failed and 0 pending. independent type checker: passed; bootstrap_globals: passed; inference: passed; typechecker: passed; bootstrap_byte_observations: passed; bootstrap_resolve: passed; Core validation: passed; index scope and representation: passed; bootstrap_value_indices: passed; bootstrap_pipeline: passed; runtime behavior: passed; library calls: passed. Early Stage1 behavior: 7 of 8 complete groups passed; 0 running, 1 failed and 0 pending. Exact final Stage3 suite: 7 of 91 complete groups passed; 1 running, 0 failed and 83 pending. Proposed compiler repair (separate unpublished source): running-twenty-one-complete-groups; 19 of 21 complete groups passed; 1 running, 0 failed and 1 pending.",
+  "updatedAt": "2026-11-04T18:07:01.529151+00:00"
 }
