@@ -1,0 +1,98 @@
+{
+  "compiler_source_sha256": "61aeaf3f61d15afa4a2224bdaf8fcbef1bf44e168b2d0e5730c3062f539e657b",
+  "full_goal_complete": false,
+  "mechanism": "Opaque computed refined arguments retain unique strict values. Evaluate the function prefix first, retain actual checked predicate as write-tracked erased evidence, preserve bidirectional builtin/constructor/proof checking and method identity. Full refinement tests verify IO retention/refusal, distinct effectful readings, actual once/prefix runtime result7, fresh positive mutable contract and exact later-write staleness refusal.",
+  "rows": [
+    {
+      "binary": "/tmp/cinch-native-inline-argument-validation-4/cargo/debug/deps/evidence_invalidation-d5839eac46c3f721",
+      "binary_sha256": "661696b61955b67be15615f3e3b216af036bbb3e2289e9fdccd905f20526c570",
+      "failed": 0,
+      "filtered": 0,
+      "ignored": 0,
+      "log": "/tmp/cinch-native-inline-argument-validation-4/evidence_invalidation.log",
+      "log_sha256": "3782b58bfc4d645bf6dae86d0164c868faa1b76b2ca85c7f6141051120ce5cb8",
+      "name": "evidence_invalidation",
+      "passed": 12,
+      "source_snapshot": "2ab1be43e1e6f90e903ce5dcbfdf0b4008922a93dbfc58fe2f8f07170aa886d9"
+    },
+    {
+      "binary": "/tmp/cinch-native-inline-argument-validation-4/cargo/debug/deps/dependent-0e5296480b958eea",
+      "binary_sha256": "11e6da0318e4c172b7ed3017d8ba963a46f274dc74e5a95c6ddc08945d5fcf19",
+      "failed": 0,
+      "filtered": 0,
+      "ignored": 0,
+      "log": "/tmp/cinch-native-inline-argument-validation-4/dependent.log",
+      "log_sha256": "2f5f7ec2d541395ab5e28c89a7502aaf419c1ccb0c0b3195893e28d83c0df49f",
+      "name": "dependent",
+      "passed": 14,
+      "source_snapshot": "2ab1be43e1e6f90e903ce5dcbfdf0b4008922a93dbfc58fe2f8f07170aa886d9"
+    },
+    {
+      "binary": "/tmp/cinch-native-inline-argument-validation-4/cargo/debug/deps/effects-f07c4c070b8aa2b3",
+      "binary_sha256": "c06874fd033c33267d59de23ae79bcfe36c0590002cb41a8a115d33bc6e6e279",
+      "failed": 0,
+      "filtered": 0,
+      "ignored": 0,
+      "log": "/tmp/cinch-native-inline-argument-validation-4/effects.log",
+      "log_sha256": "9eb0bc9cb6acebb7c1829121d2d932ba4e3ca97f157d1564eea66ccfd6b3cb16",
+      "name": "effects",
+      "passed": 16,
+      "source_snapshot": "2ab1be43e1e6f90e903ce5dcbfdf0b4008922a93dbfc58fe2f8f07170aa886d9"
+    },
+    {
+      "binary": "/tmp/cinch-native-inline-argument-validation-4/cargo/debug/deps/case_evidence-c7ddbfc02f02977c",
+      "binary_sha256": "99ebbaa9fc2db268a295da05cbcee73b65906b13abea4a4fdc92f5a87002dbf0",
+      "failed": 0,
+      "filtered": 0,
+      "ignored": 0,
+      "log": "/tmp/cinch-native-inline-argument-validation-4/case_evidence.log",
+      "log_sha256": "9d92881c41d4c018d34af8df9d6ea0d96a585daee2c20dc8d333e4e46aad9b9f",
+      "name": "case_evidence",
+      "passed": 17,
+      "source_snapshot": "2ab1be43e1e6f90e903ce5dcbfdf0b4008922a93dbfc58fe2f8f07170aa886d9"
+    },
+    {
+      "binary": "/tmp/cinch-native-inline-argument-validation-4/cargo/debug/deps/optimizer-21a087f1d2052990",
+      "binary_sha256": "b6509244b59a834bdc349c290caf72429d1fc41296b02f8ea6b2173b8b220f1a",
+      "failed": 0,
+      "filtered": 0,
+      "ignored": 0,
+      "log": "/tmp/cinch-native-inline-argument-validation-4/optimizer.log",
+      "log_sha256": "03cb69c420af39964c284ee43b001e8999253a2a243acd86b15849270b3644d6",
+      "name": "optimizer",
+      "passed": 16,
+      "source_snapshot": "2ab1be43e1e6f90e903ce5dcbfdf0b4008922a93dbfc58fe2f8f07170aa886d9"
+    },
+    {
+      "binary": "/tmp/cinch-static-method-validation-1/cargo/debug/deps/refinements-a5d52b8b1d94cbe9",
+      "binary_sha256": "30f6db5c3340fc1c33ea969574a81e245f2f4701d4fca5f3fe025896e109fb70",
+      "failed": 0,
+      "filtered": 0,
+      "ignored": 0,
+      "log": "/tmp/cinch-static-method-validation-1/refinements.log",
+      "log_sha256": "488a6289c11ef19177cca2dba3146bb458c033b3d6a3263900e13d3c350b5b6f",
+      "name": "refinements",
+      "passed": 22,
+      "source_snapshot": "b8c5cc88192900f4360d73d42c01ec018b31d9e562cbe3af1eaa03134f6f7462"
+    }
+  ],
+  "rust_and_prelude_runtime_inputs_compared": 156,
+  "same_rust_implementation": true,
+  "schema": 1,
+  "scope": "Five complete original Native frontend targets on repair4 plus the complete22-case refinement target on combinedStatic1. The Rust compiler/prelude/runtime/Cargo inputs are byte-identical; every original test/assertion is retained. Original case_evidence runs through Native here, distinct from the known failing self-built cost target. Later fixture corrections and Cinch Object/RuntimeIr lowering changes live on the combined snapshot. This scoped proof does not replace a complete matching208-group Native sweep or new Cinch bootstrap.",
+  "source_snapshots": [
+    "2ab1be43e1e6f90e903ce5dcbfdf0b4008922a93dbfc58fe2f8f07170aa886d9",
+    "b8c5cc88192900f4360d73d42c01ec018b31d9e562cbe3af1eaa03134f6f7462"
+  ],
+  "status": "passed-scoped-rust-argument-gates",
+  "total_passed": 97,
+  "verified_at": "2026-11-04T07:36:46.689363+00:00",
+  "guarded_call_oracle": {
+    "status": "passed",
+    "binary": "/tmp/cinch-static-method-validation-1/cargo/debug/deps/bootstrap_guarded_calls-991aba28c57dddc3",
+    "binary_sha256": "1d1944ce87c4844d8696fbb40d9e509e0223e730004471f77b4f50b6b1e30779",
+    "log": "/tmp/cinch-static-method-validation-1/bootstrap_guarded_calls.log",
+    "log_sha256": "0266945c6bd9f0e8dbfaa01661258d570e2ef769761cef2072cffdb77e15158f",
+    "scope": "Complete original guarded-call target including actual Native inline effectful inputs without rewriting them into strict lets; actual compiled Cinch checker retains all original positives/refusals."
+  }
+}

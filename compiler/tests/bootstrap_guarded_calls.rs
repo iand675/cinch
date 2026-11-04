@@ -85,16 +85,7 @@ fn compiled_cinch_uses_actual_guarded_bodies_for_dependent_bounds() {
     let mut oracle_errors = Vec::new();
     for (name, body, accepted) in cases {
         let source = format!("module Main where\n  {body}\n  main :: Int\n  main = 0\n");
-        // Native currently requires an explicit value binding for the
-        // higher-order effectful result. Use that equivalent reference;
-        // the Cinch input below remains the inline call and must preserve
-        // its effects while materializing the checked result once.
-        let oracle_source = if name == "effectful-refined-result" || name == "cannot-erase-effects" {
-            let reference = source.replace("accept-end b (provider b u)", "let value = provider b u in accept-end b value");
-            assert_ne!(reference, source);
-            reference
-        } else { source.clone() };
-        let actual = cinch::driver::check_sources(&oracle_source, "native-guarded-call-oracle.cinch");
+        let actual = cinch::driver::check_sources(&source, "native-guarded-call-oracle.cinch");
         if actual.is_ok() != accepted { oracle_errors.push(format!("{name}: {}", actual.err().map_or("accepted".into(), |e| e.message))); }
         let element = "";
         requests.push(format!("{{\"name\":{},\"source\":{},\"element\":{},\"wanted\":{}}}", quote(name), quote(&source), quote(element), if accepted { 0 } else { 4 }));

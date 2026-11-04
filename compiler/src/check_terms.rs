@@ -691,6 +691,11 @@ impl Checker {
                     let fresh = self.uni.fresh();
                     return self.ctor_app(env, p, args, &fresh, *span);
                 }
+                // Private argument witnesses belong only to this call.
+                let mut call_env = env.clone();
+                let env = &mut call_env;
+                let mut call_binds = Vec::new();
+                let mut retained_method = None;
                 // A `using` context's refinement obligations discharge
                 // at the call's arguments (refinement types design,
                 // "instance heads at refinements"): a signature's own
@@ -728,20 +733,27 @@ impl Checker {
                 let mut call_args: Vec<(Option<ITerm>, Ty, ast::Span)> = Vec::new();
                 for a in args {
                     ty = self.uni.zonk(&ty);
+                    let prefix_ty = ty.clone();
+                    // Only a direct global carries a temporal call-step identity.
+                    // Do not copy an arbitrarily large partial application.
+                    let write_core = matches!(&core, ECore::Global(..)).then(|| core.clone());
                     let (arg_core, cod) = match ty {
                         Ty::Fun(dom, m, eff, cod) => {
                             self.perform(&eff)?;
                             let erased = matches!(self.uni.zonk(&dom), Ty::Prp(_) | Ty::Sort(_));
-                            let c = self.check(env, a, &dom)?;
+                            let (c, reading) = self.check_call_argument(
+                                env, a, &dom, &prefix_ty, &mut core,
+                                &mut call_binds, &mut retained_method,
+                            )?;
                             call_args.push((
-                                self.idx_of_term(a, env).ok(),
+                                reading,
                                 self.uni.zonk(&dom),
                                 a.span(),
                             ));
                             // Record writes after the argument, so the
                             // domain's region has unified with the passed
                             // borrow's region.
-                            self.note_call_arg_writes(env, args, &dom, &eff, *span, &core);
+                            self.note_call_arg_writes(env, args, &dom, &eff, *span, write_core.as_ref().unwrap_or(&core));
                             // A task handle is consumed exactly once by
                             // its function: a sink that could drop it is
                             // refused (concurrency specification,
@@ -753,9 +765,12 @@ impl Checker {
                         Ty::Pi { var, dom, eff, cod, .. } => {
                             self.perform(&eff)?;
                             let erased = matches!(self.uni.zonk(&dom), Ty::Prp(_) | Ty::Sort(_));
-                            let c = self.check(env, a, &dom)?;
-                            self.note_call_arg_writes(env, args, &dom, &eff, *span, &core);
-                            let subst = self.idx_of_term(a, env).map_err(|e| {
+                            let (c, reading) = self.check_call_argument(
+                                env, a, &dom, &prefix_ty, &mut core,
+                                &mut call_binds, &mut retained_method,
+                            )?;
+                            self.note_call_arg_writes(env, args, &dom, &eff, *span, write_core.as_ref().unwrap_or(&core));
+                            let subst = reading.ok_or_else(|| Error::at(a.span(), "this argument has no index reading")).map_err(|e| {
                                 Error::at(
                                     a.span(),
                                     format!(
@@ -797,9 +812,10 @@ impl Checker {
                 {
                     let zty = self.uni.zonk(&ty);
                     if Checker::has_positional_result(&zty) {
-                        let readings: Vec<Option<ITerm>> = args
-                            .iter()
-                            .map(|a| if self.fact_term_ok(env, a) { self.idx_of_term(a, env).ok() } else { None })
+                        let readings: Vec<Option<ITerm>> = args.iter().enumerate()
+                            .map(|(i, a)| call_args.get(i).and_then(|(reading, _, _)| reading.clone())
+                                .filter(|it| matches!(it, ITerm::Var(name) if name.starts_with("$call-argument:")))
+                                .or_else(|| if self.fact_term_ok(env, a) { self.idx_of_term(a, env).ok() } else { None }))
                             .collect();
                         let resolved = Checker::resolve_positional_result(&zty, &readings);
                         if resolved != zty {
@@ -865,10 +881,11 @@ impl Checker {
                         self.discharge_oblig(&ev, &inst, *span)?;
                     }
                 }
-                if let Some(want) = callee_want(&core) {
+                if let Some((want, method)) = retained_method.or_else(|| callee_want(&core).map(|want|
+                    (want, head_method(&core).filter(|(w, _)| *w == want).map(|(_, i)| i)))) {
                     self.prop_calls.push(PropCall {
                         want,
-                        method: head_method(&core).filter(|(w, _)| *w == want).map(|(_, i)| i),
+                        method,
                         args: call_args,
                         evidence: self.evidence_in(env),
                         residual_fun: matches!(
@@ -878,7 +895,7 @@ impl Checker {
                         span: *span,
                     });
                 }
-                Ok((core, ty))
+                Ok((wrap_lets(call_binds, core), ty))
             }
             ast::Term::Lam(_, _, _) => {
                 let t = self.uni.fresh();
@@ -1660,6 +1677,64 @@ impl Checker {
                 Ok(core)
             }
         }
+    }
+
+    /// Keep an opaque refined argument's actual value, rather than naming
+    /// another evaluation of its source expression in a proof. The prefix
+    /// is bound first so curried calls still evaluate left to right.
+    fn check_call_argument(
+        &mut self,
+        env: &mut Env,
+        argument: &ast::Term,
+        expected: &Ty,
+        prefix_ty: &Ty,
+        prefix: &mut ECore,
+        binds: &mut Vec<(LocalId, ECore)>,
+        retained_method: &mut Option<(usize, Option<usize>)>,
+    ) -> Result<(ECore, Option<ITerm>)> {
+        let ordinary_app = match argument {
+            ast::Term::App(f, _, _) => match &**f {
+                ast::Term::Con(_) => false,
+                ast::Term::Var(p) if p.quals.is_empty() && self.is_builtin_form(env, &p.name.text) => false,
+                _ => true,
+            },
+            _ => false,
+        };
+        if !ordinary_app || matches!(self.uni.zonk(expected), Ty::Prp(_) | Ty::Sort(_)) {
+            return Ok((self.check(env, argument, expected)?, self.idx_of_term(argument, env).ok()));
+        }
+        // Ordinary applications use inference followed by subsumption in
+        // `check` too. Constructors, lambdas and proof terms retain their
+        // original bidirectional checking path above.
+        let (checked, actual) = self.infer(env, argument)?;
+        self.check_subsume(env, argument, &actual, expected)?;
+        let actual = self.uni.zonk(&actual);
+        let refinement = self.refine_view(&actual)
+            .filter(|r| r.base.is_some() && !self.fact_term_ok(env, argument));
+        let Some(refinement) = refinement else {
+            return Ok((checked, self.idx_of_term(argument, env).ok()));
+        };
+        if retained_method.is_none() {
+            *retained_method = callee_want(prefix).map(|want|
+                (want, head_method(prefix).filter(|(w, _)| *w == want).map(|(_, i)| i)));
+        }
+        let function = self.fresh_local();
+        self.note_local_ty(function, prefix_ty);
+        binds.push((function, std::mem::replace(prefix, ECore::Var(function))));
+        let value = self.fresh_local();
+        let name = format!("$call-argument:{}", value.0);
+        let carrier = refinement.base.unwrap();
+        self.note_local_ty(value, &carrier);
+        env.locals.push((name.clone(), value, Scheme::mono(carrier)));
+        // A separate proof binder retains write-log provenance. Storing
+        // the refinement on the temporary itself would bypass staleness
+        // checks when a later argument writes a location in its predicate.
+        let predicate = refinement.pred.subst(&refinement.binder, &ITerm::Var(name.clone()));
+        if let Some(fact) = self.mk_fact(env, predicate, self.ev_writes.len()) {
+            self.bind_facts(env, &[fact], self.ev_writes.len(), argument.span())?;
+        }
+        binds.push((value, checked));
+        Ok((ECore::Var(value), Some(ITerm::Var(name))))
     }
 
     /// The inferred type of a checked term meets its expected type. A

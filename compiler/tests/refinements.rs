@@ -818,3 +818,65 @@ module Main where
   main = 0
 "#), &["refinement"]);
 }
+
+#[test]
+fn inline_effectful_refined_arguments_keep_the_checked_value() {
+    let prefix = "module Main where\n  import Data.Bytes\n  accept-end :: using (j <= bytes-len b) => (b :: Bytes) -> (j :: Nat) -> Bytes\n  accept-end b j = b\n";
+    let signature = "  slice :: forall r. ((source :: Bytes) -> Unit ->{IO r} refined (p <= bytes-len source) Nat) -> (b :: Bytes) -> Unit ->{IO r} Bytes\n";
+    let body = "  slice provider b u = accept-end b (provider b u)\n  main :: Int\n  main = 0\n";
+    let source = format!("{prefix}{signature}{body}");
+    expect_checks("inline checked IO result", &source);
+    expect_checks("explicit strict binding", &source.replace("accept-end b (provider b u)", "let value = provider b u in accept-end b value"));
+    expect_err("IO cannot disappear", &source.replace("-> Unit ->{IO r} Bytes", "-> Unit -> Bytes"), &[]);
+    expect_err("wrong buffer bound", &source.replace("p <= bytes-len source", "p <= bytes-len source + 1"), &[]);
+}
+
+#[test]
+fn separate_effectful_refined_arguments_do_not_share_a_value_identity() {
+    let source = r#"module Main where
+  import Data.Bytes
+  same :: using (a == b) => (a :: Nat) -> (b :: Nat) -> Nat
+  same a b = a
+  compare :: forall r. (Unit ->{IO r} refined (p < 10) Nat) -> Unit ->{IO r} Nat
+  compare provider u = same (provider u) (provider u)
+  main :: Int
+  main = 0
+"#;
+    expect_err("separate effectful readings", source, &[]);
+}
+
+#[test]
+fn inline_refined_argument_evaluates_after_the_function_prefix_once() {
+    expect_run("strict refined argument order", r#"module Main where
+  import Data.Bytes
+  import Effect.Io
+  finish :: forall r. Bytes -> Nat ->{IO r} Nat
+  finish b n = if 0 < bytes-len b then (if bytes-get b 0 == 2 then n else 99) else 99
+  start :: forall r. Bytes -> Unit ->{IO r} (Nat ->{IO r} Nat)
+  start b u = let written = if 0 < bytes-len b then bytes-set b 0 1 else () in finish b
+  argument :: forall r. Bytes -> Unit ->{IO r} refined (p < 10) Nat
+  argument b u = if 0 < bytes-len b then
+    let previous = bytes-get b 0 in
+    let written = bytes-set b 0 (if previous == 1 then 2 else 99) in
+    (7 :: Nat)
+    else (7 :: Nat)
+  main :: Unit ->{IO r} Int
+  main u = with (io = newIO ()) in
+    let b = bytes-new 1 in
+    nat-to-int ((start b ()) (argument b ()))
+"#, 7);
+}
+
+#[test]
+fn later_argument_write_invalidates_an_inline_result_contract() {
+    let source = r#"module Main where
+  accept :: forall r. using (j < m) => (m :: Mut r Nat) -> (j :: Nat) -> Unit -> Nat
+  accept m j u = j
+  use :: forall r. (m :: Mut r Nat) -> (Unit ->{IO r} refined (p < m) Nat) -> (Unit ->{IO r} Unit) -> Unit ->{IO r} Nat
+  use m provider writer u = accept m (provider u) (writer u)
+  main :: Int
+  main = 0
+"#;
+    expect_checks("fresh inline result contract", &source.replace("(writer u)", "()"));
+    expect_err("inline contract staleness", source, &["stale evidence"]);
+}

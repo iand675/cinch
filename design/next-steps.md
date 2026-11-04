@@ -1,5 +1,27 @@
 # Next steps (as of 2026-11-04)
 
+## Rust inline refined arguments repaired
+
+The Rust frontend now retains the actual checked result of an inline computed
+argument under a unique strict value identity. Its erased predicate carries
+write provenance. The function prefix evaluates first, and the argument
+evaluates once; repeated effectful calls receive distinct identities. Builtin
+borrow forms retain their expected-type checking path. The Native guarded-call
+oracle now checks the original inline source without rewriting it into a let.
+
+All97 tests in the six complete affected Native groups pass with no ignored or
+filtered cases, including actual runtime order, fresh mutable evidence and
+later-write refusal. The complete original guarded-call target passes too.
+See [the scoped Rust repair evidence](../bootstrap/current-rust-inline-argument-results.json).
+These results do not replace the full matching Native sweep.
+
+The preceding Cinch frontend still has a confirmed allocation failure in its
+original case-evidence target. A separate unpublished closed-method dispatch
+and scalar case-fact repair is under twelve-group verification. Its first
+object probe already reduces the proof-bearing if from200006 allocations to6;
+the Boolean and literal case probes remain required. The complete bootstrap
+and external results below describe their recorded Cinch compiler identity.
+
 ## Current compiler bootstraps through Stage3 (2026-11-04)
 
 The current Cinch compiler (`2ea1460a5a1f426cf65b16767ed96e97dff1ffb2d3ee022b4ca1724bf2e6075c`)
