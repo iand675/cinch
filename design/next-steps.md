@@ -2,6 +2,19 @@
 
 ## Current-source verification
 
+An additional original allocation regression through the actual self-built
+Stage2 now fails: a70-constructor family needs escaped runtime descriptors,
+which the runtime supports but the Cinch backend has been refusing. The original
+assertions and diagnostic are retained in
+[the Stage2 failure evidence](../bootstrap/current-stage2-allocation-failure.json).
+The complete eight-case allocation group continues to record its results;
+this checkpoint does not claim its aggregate outcome. A separate immutable
+repair candidate adds escaped allocation and safe tag reads, with positive
+65-tag, recursive/first-class70-constructor and generic representation-class
+execution cases. Its complete runtime/parser/checker validation is queued.
+The implementation remains unpublished until validated. This known source
+failure prevents final acceptance regardless of the ongoing stage chain.
+
 The published Cinch checkpoint is `3e14f1b`, with the Rust optimizer repair in
 `8d6feac`. The current frozen verification snapshot is
 `f6e166c9ec48a7b30526db7d16f360c56204c5de4b6005f91ae54a350bd07808`;
@@ -18,7 +31,10 @@ test-only library roots are recorded separately.
 
 All127 ordinary current-source compiler groups now pass, with no failures,
 ignored cases or filtered cases; see [the complete ordinary result](../bootstrap/current-ordinary-compiler-results.json).
-The full208-group sweep continues with its81bootstrap-specific groups. A fresh staged
+The full208-group sweep retains its completed results; unstarted old-source
+groups are deferred while active groups finish naturally and the necessary
+source repair is validated. Every group remains required on the eventual
+repaired-source sweep. A fresh staged
 compiler build has verified the unchanged pinned seed, rebuilt Stage1 and
 successfully compiled every compiler module through Stage1 into a new Stage2.
 All three Stage2 smoke programs pass, and all43 actual compiler interfaces pass
@@ -27,8 +43,9 @@ independent schema and dependency validation. The Stage2 executable identity is
 The [current acceptance audit](../bootstrap/current-bootstrap-acceptance-audit.json)
 verifies Acceptance1 and2 against the actual sources and stage artifacts;
 Acceptance3-5 remain open. Stage3 is building; the fixed point and changed-source
-behavior are not yet claimed. A separate
-91-group queue waits for the exact new Stage3:79 bootstrap groups,eight ordinary
+behavior are not yet claimed. The separate
+91-group queue was stopped before execution after the actual Stage2 failure.
+It must run against the eventual repaired Stage3:79 bootstrap groups,eight ordinary
 program targets,three complete mixed consumers and the designed ABI5 array
 refusal. Exact new-Stage3 test reports,zero-leak execution,definition-owned
 fixities and class behavior are queued too. The [current coverage audit](../bootstrap/current-external-coverage-audit.json)

@@ -1,0 +1,35 @@
+{
+  "status": "failed-original-external-behavior-case",
+  "checked_at": "2026-11-04T02:43:13.610458+00:00",
+  "source_sha256": "f6e166c9ec48a7b30526db7d16f360c56204c5de4b6005f91ae54a350bd07808",
+  "compiler_source_sha256": "0e2848ef342cc3fd82d78e2eec3894d410660c17538f7c0becdf55278d37ab0f",
+  "compiler_stage": 2,
+  "compiler_sha256": "e40184b49fbccd70443e544e01bb99ea3553141638adb4fab4f0ab727f8b34a7",
+  "target": "alloc_accounting",
+  "case": "escaped_constructors_match_and_carry_one_descriptor_word",
+  "observed_selected_compiler_exit": 5,
+  "full_original_eight_case_group": "Still running at checkpoint; no complete-group aggregate or terminal exit claimed.",
+  "diagnostics": "bootstrap.runtime-ir:530:20: runtime local is absent from its lexical scope\nbootstrap.runtime-ir:530:5: constructor pattern needs a specialized runtime representation\nbootstrap.runtime-ir:526:37: data family needs an extended runtime descriptor\nbootstrap.runtime-ir:539:5: constructor pattern needs a specialized runtime representation\nbootstrap.runtime-ir:538:5: constructor pattern needs a specialized runtime representation\nbootstrap.runtime-ir:544:89: data family needs an extended runtime descriptor\nbootstrap.runtime-ir:544:89: data family needs an extended runtime descriptor\nbootstrap.runtime-ir:544:73: data family needs an extended runtime descriptor\nbootstrap.runtime-ir:544:54: data family needs an extended runtime descriptor\nbootstrap.runtime-ir:544:43: data family needs an extended runtime descriptor\nbootstrap.runtime-ir:543:41: data family needs an extended runtime descriptor\n",
+  "artifacts": {
+    "source.cinch": {
+      "path": "/private/var/folders/8w/44rf3zr512nd0pd0bwb70vfm0000gn/T/cinch_boot_esc_small_90440_1/.cinch-self-tests/90440-0/source.cinch",
+      "sha256": "559a224c47c9f880dedbe4e04ddee1b0de7e70b4ac7d96d69646a1c375f0914e",
+      "bytes": 193614
+    },
+    "output.ll.diagnostics": {
+      "path": "/private/var/folders/8w/44rf3zr512nd0pd0bwb70vfm0000gn/T/cinch_boot_esc_small_90440_1/.cinch-self-tests/90440-0/output.ll.diagnostics",
+      "sha256": "4f3300296910a527cc0451112d4005fa79b13969a68ee17b33ef75c5002b8019",
+      "bytes": 895
+    },
+    "output.ll": {
+      "path": "/private/var/folders/8w/44rf3zr512nd0pd0bwb70vfm0000gn/T/cinch_boot_esc_small_90440_1/.cinch-self-tests/90440-0/output.ll",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    }
+  },
+  "source_test_sha256": "04f37006581907117365664f0713e531943a59015125ff1260634c1d410a89c2",
+  "planned_repair": "Implement existing runtime escaped descriptors in Cinch allocation and tag matching; validate original allocation accounting without changing its assertions.",
+  "candidate_validation": "/tmp/cinch-escaped-constructors-validation-1/state.json",
+  "candidate_compiler_source_sha256": "8916b149f34db607b6c711bc10ca1f3ec0c5efe8a933fcbbf4134f3593dd4923",
+  "completion_claim": false
+}
