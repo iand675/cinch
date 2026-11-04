@@ -1,0 +1,117 @@
+{
+  "artifact_proof": {
+    "added_roots": [
+      {
+        "classes": "OT",
+        "symbol": "Data.HashMap.hash-map-delete"
+      },
+      {
+        "classes": "TT",
+        "symbol": "Data.HashMap.hash-map-delete"
+      },
+      {
+        "classes": "OT",
+        "symbol": "Data.HashMap.hash-map-empty"
+      },
+      {
+        "classes": "TT",
+        "symbol": "Data.HashMap.hash-map-empty"
+      },
+      {
+        "classes": "TT",
+        "symbol": "Data.HashMap.hash-map-from-pairs"
+      },
+      {
+        "classes": "OT",
+        "symbol": "Data.HashMap.hash-map-insert"
+      },
+      {
+        "classes": "TT",
+        "symbol": "Data.HashMap.hash-map-insert"
+      },
+      {
+        "classes": "OT",
+        "symbol": "Data.HashMap.hash-map-is-empty"
+      },
+      {
+        "classes": "TT",
+        "symbol": "Data.HashMap.hash-map-is-empty"
+      },
+      {
+        "classes": "OT",
+        "symbol": "Data.HashMap.hash-map-lookup"
+      },
+      {
+        "classes": "TT",
+        "symbol": "Data.HashMap.hash-map-lookup"
+      },
+      {
+        "classes": "OT",
+        "symbol": "Data.HashMap.hash-map-size"
+      },
+      {
+        "classes": "TT",
+        "symbol": "Data.HashMap.hash-map-size"
+      }
+    ],
+    "checked_interfaces_byte_identical_to_prior": true,
+    "compiler_stage_roots_and_pins_unchanged": true,
+    "configuration": {
+      "metadata": "/tmp/cinch-test-support-provider-4/library.abi.json",
+      "metadata_sha256": "0b45ec0f60c4fa227b734b91bf1e2ef48fdc8cd77951d4520b38292a86649167",
+      "object": "/tmp/cinch-test-support-provider-4/library.o",
+      "object_sha256": "58a78e9efe02bdcf02521dba2d4bb2799459d0d9e17d9be04694aeef22751ff3",
+      "schema": 1,
+      "target": "aarch64-unknown-unknown"
+    },
+    "consumer_validation": "/tmp/cinch-hashmap-provider4-validation-1/state.json",
+    "interfaces": 56,
+    "producer": {
+      "description": "Library-only Native producer with checked object manifests, explicit representation roots and canonical method families. Never compiles Bootstrap implementation modules. The independent stage0 compiler pin is unchanged.",
+      "revision": "261ba1603be65f3e207f3665daa7f78119873d0c",
+      "runtime_abi": 5,
+      "schema": 1,
+      "source_sha256": "5a15a8d7c496ecc63c3b88879abbe88f8d0d61eef8469ef31285b0571430cdd0"
+    },
+    "roots_sha256": "9d4507f230969f5ab1aeca01e1c5a80c83dbaba87cef251faeeb730274fa9f24",
+    "scope": "Checked library-only representation-root expansion. This does not itself prove consumer success or current compiler bootstrap.",
+    "status": "passed-library-artifact-validation",
+    "verified_at": "2026-11-04T14:15:16.936884+00:00"
+  },
+  "compiler": "/tmp/cinch-final-bootstrap-chain-10/source/build/bootstrap/stage3/cinch",
+  "compiler_sha256": "72c828d911cfa37edb74c8558a137ea58c42fa8c2f37afc0d9490527de517607",
+  "compiler_source_sha256": "6b5e776bb196631c6c42476ec08e0f8e801a60e5fd95ea7fb21f7dfb9d776620",
+  "full_goal_complete": false,
+  "limitations": "This is the exact preceding6b Stage3 compiler and unchanged full HashMap target. The currenta93 compiler has its own fresh chain11 and matching complete suites36 queued; no final completion claim.",
+  "source_sha256": "ccb3922a9092e8e4cc73e4e2cdbaec5abed74672e07c0f7a500c37c3d2dc0100",
+  "status": "passed-scoped-Stage3-hashmap-library-repair",
+  "unchanged_assertions": [
+    "32000 keys and all eight original program checks",
+    "4000 versus32000 key growth ratios",
+    "collision and custom key behavior",
+    "120000ms absolute limit"
+  ],
+  "verified_at": "2026-11-04T14:18:19.930285+00:00",
+  "whole_target": {
+    "command": [
+      "/tmp/cinch-rust-task-lifetime-validation-4/cargo/debug/deps/lib_hashmap_real-11ab0aef9909187c",
+      "--include-ignored",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "elapsed_seconds": 57.31004112500001,
+    "executable": "/tmp/cinch-rust-task-lifetime-validation-4/cargo/debug/deps/lib_hashmap_real-11ab0aef9909187c",
+    "exit_code": 0,
+    "finished": "2026-11-04T14:14:42.305447+00:00",
+    "kind": "integration",
+    "log": "/tmp/cinch-hashmap-provider4-validation-1/lib_hashmap_real.log",
+    "log_sha256": "60f7acf121c1fa0e9b55d67cd053abfa78b58c81fe2e532ba531a7c07ba26e0f",
+    "name": "lib_hashmap_real",
+    "pid": 37138,
+    "sha256": "0d0faa3b22eb0e184b3e2e0eee3c63b6b46a6f25131011658361a5aafaeabd4b",
+    "source_unchanged": true,
+    "started": "2026-11-04T14:13:44.999646+00:00",
+    "status": "passed",
+    "tests": 2
+  }
+}

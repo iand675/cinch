@@ -1,0 +1,204 @@
+{
+  "dictionaries": [
+    {
+      "classes": "O",
+      "symbol": "Data.List.FromList_List"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.List.FromList_List"
+    },
+    {
+      "classes": "O",
+      "symbol": "Data.List.Semigroup_List"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.List.Semigroup_List"
+    },
+    {
+      "classes": "R",
+      "symbol": "Data.List.FromList_List"
+    }
+  ],
+  "methods": [],
+  "schema": 1,
+  "units": [
+    {
+      "classes": "",
+      "symbol": "Data.Bytes.bytes-compare"
+    },
+    {
+      "classes": "",
+      "symbol": "Data.Bytes.bytes-get"
+    },
+    {
+      "classes": "",
+      "symbol": "Data.Bytes.bytes-new"
+    },
+    {
+      "classes": "",
+      "symbol": "Data.Bytes.bytes-set"
+    },
+    {
+      "classes": "",
+      "symbol": "Data.Bytes.sha256-bytes"
+    },
+    {
+      "classes": "",
+      "symbol": "Data.Char.eq-char"
+    },
+    {
+      "classes": "",
+      "symbol": "Data.Int.int-add"
+    },
+    {
+      "classes": "",
+      "symbol": "Data.Int.int-from-i64"
+    },
+    {
+      "classes": "",
+      "symbol": "Data.Int.int-neg"
+    },
+    {
+      "classes": "",
+      "symbol": "Data.Int.int-sub"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.List.list-length"
+    },
+    {
+      "classes": "OO",
+      "symbol": "Data.List.map"
+    },
+    {
+      "classes": "O",
+      "symbol": "Data.List.sort-by"
+    },
+    {
+      "classes": "",
+      "symbol": "Data.Machine.checked-div-u64"
+    },
+    {
+      "classes": "",
+      "symbol": "Data.Machine.checked-rem-u64"
+    },
+    {
+      "classes": "",
+      "symbol": "Data.Machine.eq-i64"
+    },
+    {
+      "classes": "",
+      "symbol": "Data.Machine.eq-u64"
+    },
+    {
+      "classes": "",
+      "symbol": "Data.Machine.is-infinite-f64"
+    },
+    {
+      "classes": "",
+      "symbol": "Data.Machine.is-na-nf64"
+    },
+    {
+      "classes": "",
+      "symbol": "Data.Machine.le-i64"
+    },
+    {
+      "classes": "",
+      "symbol": "Data.Machine.lt-i64"
+    },
+    {
+      "classes": "",
+      "symbol": "Data.Machine.wrapping-mul-u64"
+    },
+    {
+      "classes": "",
+      "symbol": "Data.Nat.Sub_Nat.-"
+    },
+    {
+      "classes": "",
+      "symbol": "Data.Nat.nat-cmp"
+    },
+    {
+      "classes": "",
+      "symbol": "Data.Nat.nat-div"
+    },
+    {
+      "classes": "",
+      "symbol": "Data.Nat.nat-from-int"
+    },
+    {
+      "classes": "",
+      "symbol": "Data.Nat.nat-rem"
+    },
+    {
+      "classes": "",
+      "symbol": "Data.Nat.nat-to-i64"
+    },
+    {
+      "classes": "",
+      "symbol": "Data.Nat.nat-to-int"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.List.length"
+    },
+    {
+      "classes": "O",
+      "symbol": "Data.Option.is-none"
+    },
+    {
+      "classes": "OT",
+      "symbol": "Data.HashMap.hash-map-delete"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.HashMap.hash-map-delete"
+    },
+    {
+      "classes": "OT",
+      "symbol": "Data.HashMap.hash-map-empty"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.HashMap.hash-map-empty"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.HashMap.hash-map-from-pairs"
+    },
+    {
+      "classes": "OT",
+      "symbol": "Data.HashMap.hash-map-insert"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.HashMap.hash-map-insert"
+    },
+    {
+      "classes": "OT",
+      "symbol": "Data.HashMap.hash-map-is-empty"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.HashMap.hash-map-is-empty"
+    },
+    {
+      "classes": "OT",
+      "symbol": "Data.HashMap.hash-map-lookup"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.HashMap.hash-map-lookup"
+    },
+    {
+      "classes": "OT",
+      "symbol": "Data.HashMap.hash-map-size"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.HashMap.hash-map-size"
+    }
+  ]
+}

@@ -14,9 +14,15 @@ is `a93c6a7eef3a95be2d1fbac87794cb08eb6b0fcc00d293a521c9fb568186cc27`. See [the 
 
 This supersedes the prior task compiler's source, so its successful four-stage
 chain does not prove this new source. A fresh matching chain and complete suites
-remain required. The unchanged full self-built HashMap target exposed missing
-library-object representation variants in test support; those checked library
-roots are being extended separately. Acceptance 5 and the full goal remain open.
+remain required. The unchanged full self-built HashMap target exposed 13 missing
+library-object representation variants in test support. The checked library
+roots now include those actual requests; all checked interface documents are
+byte-identical to the previous library artifact. Both original HashMap tests
+pass through the exact preceding compiler's Stage3, preserving the 32,000-key,
+collision, correctness and growth assertions. The new compiler repeats those
+tests in its own matching suites. See [the scoped library proof](../bootstrap/current-hashmap-library-support-results.json)
+and [the reproducible library roots](../bootstrap/self-built-test-library-roots.json).
+Compiler stage roots and pins are unchanged. Acceptance 5 and the full goal remain open.
 
 ## Published task compiler rebuilds itself; API export follow-up open
 
