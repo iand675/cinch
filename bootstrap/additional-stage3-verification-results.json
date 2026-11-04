@@ -1,0 +1,139 @@
+{
+  "status": "incomplete-with-retained-failures",
+  "recorded_at": "2026-11-04T00:09:15.387855+00:00",
+  "scope": "Additional coverage beyond the passing e85a5d0 bootstrap. Failed targets remain failed; the candidate and isolated library retry require their own execution results.",
+  "tested_stage3_sha256": "1da1cf952dcca05824f46f29cbbbfb865268e8a6284a4fdb6b24eabcbe37b9dd",
+  "passing_array_refusal_rerun": {
+    "status": "passed-scoped-consumer-rerun",
+    "checked_at": "2026-11-03T23:36:21.725817+00:00",
+    "scope": "Exactly the existing self_hosted_intrinsic_contracts_refuse_unimplemented_array_operations case through old verifiedStage3. PositiveABI6array cases remain in their complete Native gate perdesign/arrays.md. This is not proof of allfour mixedtargets or new94cdcandidategates.",
+    "source_sha256": "52e7b67390ef3b0ed665b881cfe33e0ccce70333d136a59cfe3dac4688ea6b4f",
+    "compiler_sha256": "1da1cf952dcca05824f46f29cbbbfb865268e8a6284a4fdb6b24eabcbe37b9dd",
+    "test_executable_sha256": "cac6c956837dd96cfe8fb48c99dcb6291d43468b7782cce331df2016bc92379d",
+    "test_command": [
+      "/tmp/cinch-self-built-mixed-suite-1/cargo/debug/deps/arrays-ef4a95869f5e2b2e",
+      "--include-ignored",
+      "--nocapture",
+      "--test-threads=1",
+      "self_hosted_intrinsic_contracts_refuse_unimplemented_array_operations",
+      "--exact"
+    ],
+    "test_log_sha256": "7d7f5baa826324e0ef2e54bea5ad70f2a724d5a76b1cf532a1ff4ffde2615380",
+    "provider": {
+      "metadata": "/tmp/cinch-test-support-provider-2/library.abi.json",
+      "metadata_sha256": "7113d776fce2b9cc2c061664c233dd20a23967ba97468c7421cff803590e6fec",
+      "object": "/tmp/cinch-test-support-provider-2/library.o",
+      "object_sha256": "077b9c43a8ee415928dd40939b838e5726afd021ce708d7c2c051250d38cd7fd",
+      "schema": 1,
+      "target": "aarch64-unknown-unknown"
+    },
+    "passed": 1,
+    "failed": 0,
+    "ignored": 0,
+    "filtered_out": 13,
+    "retained_original_failure": "/tmp/cinch-self-built-mixed-suite-1/arrays.log",
+    "change": "Only separate checked test-library provider1to2; exactsame frozen source andrunner; same1daStage3compiler; nofallback.55interfacebytes unchanged."
+  },
+  "original_failures": [
+    {
+      "target": "alloc_accounting",
+      "log_sha256": "ad99b84a096ee32fcfdb941a9dc237ecb6daf87d9f5ddc3cfba78f414fa2bf83",
+      "log": "/tmp/cinch-self-built-ordinary-suite-1/alloc_accounting.log",
+      "reason": "Seven selected-Cinch allocation programs failed: missing checked I64 primitive declarations or rejection of pure Unit entry types. One Native API test passed."
+    },
+    {
+      "target": "bootstrap_abstract_nonzero_types",
+      "log_sha256": "fd1e2653bdebf263c4aaad1ed9ba0dc0f30643ea53d953938eba5b02dec73590",
+      "log": "/tmp/cinch-self-built-bootstrap-suite-1/bootstrap_abstract_nonzero_types.log",
+      "reason": "Missing checked library factory Data.List.FromList_List[R]. Same-compiler same-runner retry queued behind a library-only variant rebuild."
+    },
+    {
+      "target": "candidate2 bootstrap_runtime_ir",
+      "log_sha256": "3b1b0655fffbe15cca467df63a8ae9720c63bb0aca1a96913d31084cfe35fc38",
+      "log": "/tmp/cinch-machine-intrinsics-validation-2/bootstrap_runtime_ir.log",
+      "reason": "Pure Unit entry executed with exit83 and zero leaks; function-valued entry was then rejected by the legacy full-arity check."
+    }
+  ],
+  "candidate3": {
+    "source_audit": {
+      "all_other_changed_inputs": [
+        "README.md",
+        "bootstrap/progress.json"
+      ],
+      "changed_production_inputs": [
+        "bootstrap/Bootstrap.Builtin.cinch",
+        "bootstrap/Bootstrap.Check.cinch",
+        "bootstrap/Bootstrap.RuntimeIr.cinch"
+      ],
+      "changed_test_inputs": [
+        "compiler/tests/bootstrap_intrinsics.rs",
+        "compiler/tests/bootstrap_runtime_ir.rs"
+      ],
+      "checked_at": "2026-11-04T00:02:45.157123+00:00",
+      "compiler_source_sha256": "0e2848ef342cc3fd82d78e2eec3894d410660c17538f7c0becdf55278d37ab0f",
+      "scope": "Snapshot immutability and exact implementation delta against published baseline only. Focused gates, full current-source suites, actual new staged bootstrap and final acceptance remain required.",
+      "snapshot_sha256": "e248922054783d681b66d821fef677514904fe7ffeeac48f26a4faa31d2f6ce0",
+      "source_files_checked": 866,
+      "source_unchanged": true,
+      "status": "passed-scoped-source-audit-not-test-completion",
+      "unchanged_pins": [
+        "bootstrap/stage0.lock.json",
+        "bootstrap/library-provider.lock.json",
+        "bootstrap/library-object-roots.json"
+      ]
+    },
+    "focused_targets": [
+      "bootstrap_check",
+      "bootstrap_intrinsics",
+      "bootstrap_runtime_ir",
+      "bootstrap_parse"
+    ],
+    "state_at_checkpoint": {
+      "child_pid": 54915,
+      "compiler_source_sha256": "0e2848ef342cc3fd82d78e2eec3894d410660c17538f7c0becdf55278d37ab0f",
+      "pid": 51620,
+      "rows": [],
+      "scope": "Focused complete Native-backed Cinch intrinsic checker, typed runtime LLVM, and parser corpus targets. Includes strict fragment checker regression, full intrinsic target, full runtimeIR batch with I64 wrapping/partialapplication/owneddata, pure Unit and function-valued entries, general function-valued prefix and negative partialbody/clause/entry controls; all executed cases retain32M zero-leak assertions. Full parser corpus also required. No final bootstrap claim.",
+      "source": "/tmp/cinch-machine-intrinsics-validation-3/source",
+      "source_sha256": "e248922054783d681b66d821fef677514904fe7ffeeac48f26a4faa31d2f6ce0",
+      "status": "running",
+      "target": "bootstrap_check",
+      "worker_slot": 3
+    },
+    "publication": "Implementation is not yet published; complete focused gates must pass before the next staged bootstrap."
+  },
+  "library_retry": {
+    "provider_state_at_checkpoint": {
+      "added_roots": {
+        "dictionaries": [
+          {
+            "classes": "R",
+            "symbol": "Data.List.FromList_List"
+          }
+        ],
+        "methods": [],
+        "schema": 1,
+        "units": []
+      },
+      "diagnostic_sha256": "213d04b55ac77b0246cc0bf9df0dcfad9b6e8623ae4d56b3a43f482b157f0829",
+      "scope": "Explicit actual missing test-only library variant. Compiler roots, pins and implementation unchanged.",
+      "status": "waiting-reserved-lane"
+    },
+    "retry_state_at_checkpoint": {
+      "compiler_sha256": "1da1cf952dcca05824f46f29cbbbfb865268e8a6284a4fdb6b24eabcbe37b9dd",
+      "executable": "/tmp/cinch-explicit-fixture-harness-validation-1/cargo/debug/deps/bootstrap_abstract_nonzero_types-1d209e0ed67e9bdd",
+      "executable_sha256": "05d06d1f9336d4c4ced078d5ae3c539401f2f03e35afaa9ac220df7f5266e3cb",
+      "original_failure": "/tmp/cinch-self-built-bootstrap-suite-1/bootstrap_abstract_nonzero_types.log",
+      "scope": "Exact originally failed complete target, unchanged frozen source and runner, same self-built Stage3. Only test-library FromList_List[R] variant added. No compiler fallback. Does not prove candidate3 or the complete portable suite.",
+      "source": "/tmp/cinch-explicit-fixture-harness-validation-1/source",
+      "source_sha256": "3444e097b8a6f8043cb8b819aa9c6147bc14e623b59f0c03f450ea8a541fad8e",
+      "status": "waiting-test-provider"
+    }
+  },
+  "not_proven": [
+    "New candidate focused-gate completion",
+    "New compiler Stage1/2/3 rebuild and fixed point",
+    "Complete Native and self-built test suites on final compiler source",
+    "Final requirement-by-requirement acceptance audit"
+  ]
+}

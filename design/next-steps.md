@@ -75,14 +75,29 @@ documents match the previous bundle byte for byte. Its
 previously requested list-length variant and this Option variant; compiler
 roots, Stage0 and library producer pins remain unchanged. See
 [the scoped artifact result](../bootstrap/test-library-variant-results.json).
-The exact consumer rerun remains required.
+The exact array-refusal consumer rerun passes on the same Stage3 compiler and
+unchanged test runner. The complete canonical-artifact consumer target also
+passes; byte-observation and machine-contract consumers are still running or
+queued at this checkpoint.
 
 The ordinary Stage3 allocation target also exposed missing checked I64 equality
 and wrapping-arithmetic declarations, and rejection of pure `Unit -> Int`
-entries. A working candidate adds these with strict signatures and runtime
-regressions. Its first complete intrinsic-checking gate passes; the combined
-runtime, parser and new staged bootstrap gates remain open. The earlier green
-bootstrap remains evidence for its original e85a5d0 source, not this candidate.
+entries. The first candidate passes its complete intrinsic gate, then fails the
+runtime target at a function-valued entry: the legacy checker incorrectly
+requires every signature argument to have a clause pattern. The next working
+candidate checks a clause body against the function type remaining after its
+actual patterns. Too many arguments, inconsistent clause arities and wrong body
+types retain refusal checks. Its complete checker, intrinsic, runtime and parser
+gates remain required before publishing the implementation and rebuilding the
+staged compiler. The earlier green bootstrap remains evidence for its original
+e85a5d0 source.
+
+The portable bootstrap sweep separately passes type-syntax and abstract NonZero
+methods, then stops in the abstract NonZero type/Core target. Its retained
+diagnostic requests the missing test-library factory `Data.List.FromList_List[R]`.
+A library-only rebuild adds that exact variant. The unchanged complete target is
+queued through the same Stage3 compiler and runner; neither its success nor the
+complete79-group suite is claimed. See [the retained failures and candidate scope](../bootstrap/additional-stage3-verification-results.json).
 
 ## Earlier combined bootstrap checkpoint
 
