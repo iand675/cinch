@@ -955,8 +955,10 @@ module Bootstrap.Core where
   requirements-index-scope :: List Nat -> List Nat -> List Requirement -> Bool
   requirements-index-scope bound rigid rs = case rs of Nil -> True; Cons r rest -> type-index-scope bound rigid (requirement-type r) && requirements-index-scope bound rigid rest
   scheme-index-scope :: List Nat -> Scheme -> Bool
-  scheme-index-scope rigid sc = let bound = quant-index-bounds (scheme-params sc) Nil in
-    quant-index-scope (scheme-params sc) Nil rigid && type-index-scope bound rigid (scheme-body sc) && requirements-index-scope bound rigid (scheme-requirements sc)
+  scheme-index-scope rigid sc = scheme-index-scope-with Nil rigid sc
+  scheme-index-scope-with :: List Nat -> List Nat -> Scheme -> Bool
+  scheme-index-scope-with universals rigid sc = let bound = quant-index-bounds (scheme-params sc) universals in
+    quant-index-scope (scheme-params sc) universals rigid && type-index-scope bound rigid (scheme-body sc) && requirements-index-scope bound rigid (scheme-requirements sc)
   opening-type :: Nat -> List (Nat, UType) -> Option UType
   opening-type id pairs = case pairs of Nil -> None; Cons (key, ty) rest -> if id == key then Some ty else opening-type id rest
   opening-value-ids :: List Quant -> List (Nat, UType) -> List Nat
@@ -970,65 +972,77 @@ module Bootstrap.Core where
   givens-index-scope :: List Nat -> List CoreGiven -> Bool
   givens-index-scope rigid givens = case givens of Nil -> True; Cons given rest -> type-index-scope Nil rigid (given-type given) && givens-index-scope rigid rest
   evidence-index-scope :: List Nat -> CoreEvidence -> Bool
-  evidence-index-scope rigid evidence = case evidence of
-    CENeeded s ty scope -> False
-    CEGiven s ty name -> type-index-scope Nil rigid ty
-    CEInstance s ty name actuals args -> type-index-scope Nil rigid ty && types-index-scope Nil rigid actuals && evidence-index-scope rigid args
-    CEArgument s arg rest -> evidence-index-scope rigid arg && evidence-index-scope rigid rest
-    CEArgumentsEnd s -> True
+  evidence-index-scope rigid evidence = evidence-index-scope-with Nil rigid evidence
   evidences-index-scope :: List Nat -> List CoreEvidence -> Bool
-  evidences-index-scope rigid evidence = case evidence of Nil -> True; Cons first rest -> evidence-index-scope rigid first && evidences-index-scope rigid rest
+  evidences-index-scope rigid evidence = evidences-index-scope-with Nil rigid evidence
   pattern-scope :: List Nat -> CorePattern -> List Nat -> Option (List Nat)
-  pattern-scope values pattern scope = case pattern of
-    CPVar s ty id name -> if type-index-scope Nil (values <> scope) ty then bind-local-id id scope else None
-    CPProof s ty id name -> if type-index-scope Nil (values <> scope) ty then bind-local-id id scope else None
-    CPAs s ty id name inner -> if type-index-scope Nil (values <> scope) ty then (case bind-local-id id scope of Some bound -> pattern-scope values inner bound; None -> None) else None
-    CPConstructor s ty name actuals constructor fields -> if type-index-scope Nil (values <> scope) ty && types-index-scope Nil (values <> scope) actuals && type-index-scope Nil (values <> scope) constructor then pattern-scope values fields scope else None
-    CPTuple s ty fields -> if type-index-scope Nil (values <> scope) ty then pattern-scope values fields scope else None
-    CPField s first rest -> case pattern-scope values first scope of Some bound -> pattern-scope values rest bound; None -> None
-    CPWild s ty -> if type-index-scope Nil (values <> scope) ty then Some scope else None
-    CPInt s ty text -> if type-index-scope Nil (values <> scope) ty then Some scope else None
-    CPString s ty text -> if type-index-scope Nil (values <> scope) ty then Some scope else None
-    CPChar s ty text -> if type-index-scope Nil (values <> scope) ty then Some scope else None
-    CPDone s -> Some scope
+  pattern-scope values pattern scope = pattern-scope-with Nil values pattern scope
   patterns-scope :: List Nat -> List CorePattern -> List Nat -> Option (List Nat)
-  patterns-scope values patterns scope = case patterns of
-    Nil -> Some scope
-    Cons pattern rest -> case pattern-scope values pattern scope of Some bound -> patterns-scope values rest bound; None -> None
+  patterns-scope values patterns scope = patterns-scope-with Nil values patterns scope
   scoped-term :: List Nat -> List Nat -> CoreTerm -> Bool
-  scoped-term values scope term =
+  scoped-term values scope term = scoped-term-with Nil values scope term
+  -- A let scheme's value quantifiers scope over its RHS only. Keep this
+  -- bound namespace separate from rigid runtime locals and the let body.
+  evidence-index-scope-with :: List Nat -> List Nat -> CoreEvidence -> Bool
+  evidence-index-scope-with universals rigid evidence = case evidence of
+    CENeeded s ty scope -> False
+    CEGiven s ty name -> type-index-scope universals rigid ty
+    CEInstance s ty name actuals args -> type-index-scope universals rigid ty && types-index-scope universals rigid actuals && evidence-index-scope-with universals rigid args
+    CEArgument s arg rest -> evidence-index-scope-with universals rigid arg && evidence-index-scope-with universals rigid rest
+    CEArgumentsEnd s -> True
+  evidences-index-scope-with :: List Nat -> List Nat -> List CoreEvidence -> Bool
+  evidences-index-scope-with universals rigid evidence = case evidence of Nil -> True; Cons first rest -> evidence-index-scope-with universals rigid first && evidences-index-scope-with universals rigid rest
+  pattern-scope-with :: List Nat -> List Nat -> CorePattern -> List Nat -> Option (List Nat)
+  pattern-scope-with universals values pattern scope = case pattern of
+    CPVar s ty id name -> if type-index-scope universals (values <> scope) ty then bind-local-id id scope else None
+    CPProof s ty id name -> if type-index-scope universals (values <> scope) ty then bind-local-id id scope else None
+    CPAs s ty id name inner -> if type-index-scope universals (values <> scope) ty then (case bind-local-id id scope of Some bound -> pattern-scope-with universals values inner bound; None -> None) else None
+    CPConstructor s ty name actuals constructor fields -> if type-index-scope universals (values <> scope) ty && types-index-scope universals (values <> scope) actuals && type-index-scope universals (values <> scope) constructor then pattern-scope-with universals values fields scope else None
+    CPTuple s ty fields -> if type-index-scope universals (values <> scope) ty then pattern-scope-with universals values fields scope else None
+    CPField s first rest -> case pattern-scope-with universals values first scope of Some bound -> pattern-scope-with universals values rest bound; None -> None
+    CPWild s ty -> if type-index-scope universals (values <> scope) ty then Some scope else None
+    CPInt s ty text -> if type-index-scope universals (values <> scope) ty then Some scope else None
+    CPString s ty text -> if type-index-scope universals (values <> scope) ty then Some scope else None
+    CPChar s ty text -> if type-index-scope universals (values <> scope) ty then Some scope else None
+    CPDone s -> Some scope
+  patterns-scope-with :: List Nat -> List Nat -> List CorePattern -> List Nat -> Option (List Nat)
+  patterns-scope-with universals values patterns scope = case patterns of
+    Nil -> Some scope
+    Cons pattern rest -> case pattern-scope-with universals values pattern scope of Some bound -> patterns-scope-with universals values rest bound; None -> None
+  scoped-term-with :: List Nat -> List Nat -> List Nat -> CoreTerm -> Bool
+  scoped-term-with universals values scope term =
     let rigid = values <> scope in
-    let typed = case term of CHandlerOperation s slot openings row closure rest -> True; CHandlerEnd s -> True; CArgument s value rest -> True; CArgumentsEnd s -> True; CAlternative s p body rest -> True; CAlternativesEnd s -> True; other -> type-index-scope Nil rigid (core-type term) in
+    let typed = case term of CHandlerOperation s slot openings row closure rest -> True; CHandlerEnd s -> True; CArgument s value rest -> True; CArgumentsEnd s -> True; CAlternative s p body rest -> True; CAlternativesEnd s -> True; other -> type-index-scope universals rigid (core-type term) in
     typed && (case term of
-      CLocal s ty id name actuals -> local-id id scope && types-index-scope Nil rigid actuals
+      CLocal s ty id name actuals -> local-id id scope && types-index-scope universals rigid actuals
       CProofRef s ty id name -> local-id id scope
-      CDecision s ty predicate condition -> type-index-scope Nil rigid predicate && scoped-term values scope condition
-      CUse s ty name role actuals -> not (string-compare role "local" == 0) && types-index-scope Nil rigid actuals
-      CQualifiedUse s ty name role actuals evidence -> not (string-compare role "local" == 0) && types-index-scope Nil rigid actuals && evidences-index-scope rigid evidence
-      CMethod s ty name owner slot actuals evidence -> types-index-scope Nil rigid actuals && evidences-index-scope rigid evidence
-      CLambda s ty pattern body -> (case pattern-scope values pattern scope of Some bound -> scoped-term values bound body; None -> False)
-      CLet s ty id name scheme rhs body -> scheme-index-scope rigid scheme && scoped-term values scope rhs && (case bind-local-id id scope of Some bound -> scoped-term values bound body; None -> False)
-      CApply s ty f x -> scoped-term values scope f && scoped-term values scope x
-      CApplyEff s ty row f x -> type-index-scope Nil rigid row && scoped-term values scope f && scoped-term values scope x
-      CErasedApply s ty row f witness -> type-index-scope Nil rigid row && scoped-term values scope f && scoped-term values scope witness
-      CWith s ty given value body -> type-index-scope Nil rigid (given-type given) && scoped-term values scope value && scoped-term values scope body
-      CHandler s ty returned operations -> scoped-term values scope returned && scoped-term values scope operations
-      CHandle s ty label residual body handled-by -> type-index-scope Nil rigid label && type-index-scope Nil rigid residual && scoped-term values scope body && scoped-term values scope handled-by
+      CDecision s ty predicate condition -> type-index-scope universals rigid predicate && scoped-term-with universals values scope condition
+      CUse s ty name role actuals -> not (string-compare role "local" == 0) && types-index-scope universals rigid actuals
+      CQualifiedUse s ty name role actuals evidence -> not (string-compare role "local" == 0) && types-index-scope universals rigid actuals && evidences-index-scope-with universals rigid evidence
+      CMethod s ty name owner slot actuals evidence -> types-index-scope universals rigid actuals && evidences-index-scope-with universals rigid evidence
+      CLambda s ty pattern body -> (case pattern-scope-with universals values pattern scope of Some bound -> scoped-term-with universals values bound body; None -> False)
+      CLet s ty id name scheme rhs body -> scheme-index-scope-with universals rigid scheme && scoped-term-with (quant-index-bounds (scheme-params scheme) universals) values scope rhs && (case bind-local-id id scope of Some bound -> scoped-term-with universals values bound body; None -> False)
+      CApply s ty f x -> scoped-term-with universals values scope f && scoped-term-with universals values scope x
+      CApplyEff s ty row f x -> type-index-scope universals rigid row && scoped-term-with universals values scope f && scoped-term-with universals values scope x
+      CErasedApply s ty row f witness -> type-index-scope universals rigid row && scoped-term-with universals values scope f && scoped-term-with universals values scope witness
+      CWith s ty given value body -> type-index-scope universals rigid (given-type given) && scoped-term-with universals values scope value && scoped-term-with universals values scope body
+      CHandler s ty returned operations -> scoped-term-with universals values scope returned && scoped-term-with universals values scope operations
+      CHandle s ty label residual body handled-by -> type-index-scope universals rigid label && type-index-scope universals rigid residual && scoped-term-with universals values scope body && scoped-term-with universals values scope handled-by
       CHandlerOperation s slot openings row closure rest -> let opened = handler-opening-values openings <> values in
-        type-index-scope Nil (opened <> scope) row && scoped-term opened scope closure && scoped-term values scope rest
-      CIf s ty condition yes no -> scoped-term values scope condition && scoped-term values scope yes && scoped-term values scope no
-      CCase s ty value alternatives -> scoped-term values scope value && scoped-term values scope alternatives
-      CTuple s ty fields -> scoped-term values scope fields
-      CPrimitive s ty name args -> scoped-term values scope args
-      CProved s ty evidence body -> scoped-term values scope body
-      CRefine s ty evidence body -> scoped-term values scope body
-      CRefineProof s ty witness body -> scoped-term values scope witness && scoped-term values scope body
-      CForget s ty body -> scoped-term values scope body
-      CRequire s ty body -> scoped-term values scope body
-      CDischarge s ty evidence body -> scoped-term values scope body
-      CGuard s ty condition body -> scoped-term values scope condition && scoped-term values scope body
-      CArgument s value rest -> scoped-term values scope value && scoped-term values scope rest
-      CAlternative s pattern body rest -> (case pattern-scope values pattern scope of Some bound -> scoped-term values bound body; None -> False) && scoped-term values scope rest
+        type-index-scope universals (opened <> scope) row && scoped-term-with universals opened scope closure && scoped-term-with universals values scope rest
+      CIf s ty condition yes no -> scoped-term-with universals values scope condition && scoped-term-with universals values scope yes && scoped-term-with universals values scope no
+      CCase s ty value alternatives -> scoped-term-with universals values scope value && scoped-term-with universals values scope alternatives
+      CTuple s ty fields -> scoped-term-with universals values scope fields
+      CPrimitive s ty name args -> scoped-term-with universals values scope args
+      CProved s ty evidence body -> scoped-term-with universals values scope body
+      CRefine s ty evidence body -> scoped-term-with universals values scope body
+      CRefineProof s ty witness body -> scoped-term-with universals values scope witness && scoped-term-with universals values scope body
+      CForget s ty body -> scoped-term-with universals values scope body
+      CRequire s ty body -> scoped-term-with universals values scope body
+      CDischarge s ty evidence body -> scoped-term-with universals values scope body
+      CGuard s ty condition body -> scoped-term-with universals values scope condition && scoped-term-with universals values scope body
+      CArgument s value rest -> scoped-term-with universals values scope value && scoped-term-with universals values scope rest
+      CAlternative s pattern body rest -> (case pattern-scope-with universals values pattern scope of Some bound -> scoped-term-with universals values bound body; None -> False) && scoped-term-with universals values scope rest
       other -> True)
   scoped-clauses :: List Nat -> List CoreClause -> Bool
   scoped-clauses values clauses = case clauses of

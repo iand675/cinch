@@ -24,7 +24,7 @@ module Bootstrap.Type where
   export Store, empty-store, store-errors, store-level, enter-level, restore-level
   export add-error, fresh-meta, instantiate, skolemize, open-scheme, normalize, unify, valid-type
   export type-kind, type-text, free-metas, scheme-metas, generalize, scheme-arity, scheme-runtime-arity
-  export generalize-with, abstract-metas
+  export generalize-with, generalize-application-with, abstract-metas
   export fresh-id, substitute-bound, fresh-for-types, pi-dependent, unify-kind, kind-free-bound
   export type-all-ids, integer-carrier, integer-literal-valid, integer-bounds
 
@@ -949,27 +949,34 @@ module Bootstrap.Type where
     UTuple xs -> UTuple (replace-metas pairs xs)
     UArg x rest -> UArg (replace-metas pairs x) (replace-metas pairs rest)
     other -> ty
-  generalized :: Nat -> List Nat -> List Nat -> Nat -> Store -> (List Quant, List (Nat, UType))
-  generalized level blocked ids next st = case ids of
+  generalized :: Bool -> Nat -> List Nat -> List Nat -> Nat -> Store -> (List Quant, List (Nat, UType))
+  generalized current level blocked ids next st = case ids of
     Nil -> (Nil, Nil)
     Cons id rest -> case find-cell id st of
       Some (MkCell n lev k None) ->
-        if lev > level && not (contains-id id blocked) then
+        if (lev > level || (current && lev == level)) && not (contains-id id blocked) then
           let name = string-concat "a" (nat-to-string next) in
-          case generalized level blocked rest (next + 1) st of
+          case generalized current level blocked rest (next + 1) st of
             -- Retain the inference variable's unique identity. Restarting
             -- ids at zero would capture an outer generalized variable in
             -- the core of an inner polymorphic let binding.
             (qs, pairs) -> (Cons (MkQuant id name (normalize-kind st k) False) qs, Cons (id, UBound id name (normalize-kind st k)) pairs)
-        else generalized level blocked rest next st
-      other -> generalized level blocked rest next st
+        else generalized current level blocked rest next st
+      other -> generalized current level blocked rest next st
   generalize :: Nat -> List Nat -> UType -> Store -> Scheme
   generalize level blocked ty st = case generalize-with level blocked ty st of (sc, pairs) -> sc
   generalize-with :: Nat -> List Nat -> UType -> Store -> (Scheme, List (Nat, UType))
-  generalize-with level blocked ty st = case ordered-metas (free-metas st ty) st of
+  generalize-with level blocked ty st = generalize-at False level blocked ty st
+  -- A strict application can bind its function before opening an
+  -- argument's private witnesses. Retain independent instantiation
+  -- variables at this level; environment and Pi-escaping metas stay fixed.
+  generalize-application-with :: List Nat -> UType -> Store -> (Scheme, List (Nat, UType))
+  generalize-application-with blocked ty st = generalize-at True (store-level st) blocked ty st
+  generalize-at :: Bool -> Nat -> List Nat -> UType -> Store -> (Scheme, List (Nat, UType))
+  generalize-at current level blocked ty st = case ordered-metas (free-metas st ty) st of
     None -> (mono UError, Nil)
     Some ids -> let local = pi-escaping-metas (type-pi-ids (normalize st ty)) ids st Nil in
-      case generalized level (merge-ids blocked local) ids 0 st of
+      case generalized current level (merge-ids blocked local) ids 0 st of
         (qs, pairs) -> let closed = close-pairs Nil pairs in
           (MkScheme (map-quant-kinds (replace-metas closed) qs) (replace-metas closed (normalize st ty)), closed)
   -- Generalize kind dependencies first. A value parameter's carrier may

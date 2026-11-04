@@ -33,6 +33,9 @@ fn compiled_cinch_uses_actual_guarded_bodies_for_dependent_bounds() {
     rows.sort();
     std::fs::write(dir.join("interfaces.json"), format!("{{\"schema\":1,\"interfaces\":[{}]}}", rows.join(","))).unwrap();
     let cases = vec![
+        ("computed-natural-conversion", "import Data.Nat\n  computed :: Nat -> Nat -> Nat -> Nat\n  computed x y z = x + y + z\n  value :: Int\n  value = nat-to-int (computed 40 50 60)".to_string(), true),
+        ("opaque-dependent-argument", "keep :: (n :: Nat) -> refined (out == n) Nat\n  keep n = n\n  value :: (Nat -> Nat) -> Nat -> Nat\n  value compute n = keep (compute n)".to_string(), true),
+        ("opaque-argument-has-no-positive-equation", "keep :: using (n > 0) => (n :: Nat) -> Nat\n  keep n = n\n  bad :: (Nat -> Nat) -> Nat -> Nat\n  bad compute n = keep (compute n)".to_string(), false),
         ("pure-refined-result", "import Data.Bytes\n  accept-end :: using (j <= bytes-len b) => (b :: Bytes) -> (j :: Nat) -> Bytes\n  accept-end b j = b\n  end :: (b :: Bytes) -> refined (p <= bytes-len b) Nat\n  end b = bytes-len b\n  slice :: Bytes -> Bytes\n  slice b = accept-end b (end b)".to_string(), true),
         ("guarded-refined-result", "import Data.Bytes\n  accept-end :: using (j <= bytes-len b) => (b :: Bytes) -> (j :: Nat) -> Bytes\n  accept-end b j = b\n  end :: using (i <= bytes-len b) => (b :: Bytes) -> (i :: Nat) -> refined (p <= bytes-len b) Nat\n  end b i = i\n  slice :: Bytes -> Nat -> Bytes\n  slice b i = if i <= bytes-len b then accept-end b (end b i) else b".to_string(), true),
         ("missing-original-guard", "import Data.Bytes\n  accept-end :: using (j <= bytes-len b) => (b :: Bytes) -> (j :: Nat) -> Bytes\n  accept-end b j = b\n  end :: using (i <= bytes-len b) => (b :: Bytes) -> (i :: Nat) -> refined (p <= bytes-len b) Nat\n  end b i = i\n  slice :: Bytes -> Nat -> Bytes\n  slice b i = accept-end b (end b i)".to_string(), false),

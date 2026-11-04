@@ -9,18 +9,41 @@ order, linearity and rewrite barriers; none were ignored or filtered. See
 [the scoped Rust optimizer evidence](../bootstrap/current-rust-unfold-borrow-results.json).
 This result does not claim that the complete compiler suite has passed.
 
-The Cinch dependent-argument repair is still unpublished. Its first candidate
-passed all43 Native compiler-source checks and produced a fresh Stage1 passing
-all three smokes, but a new generic-consumer regression failed Core closure.
-Stage2 correctly remained gated. The next candidate retains strict function
-and argument evaluation order while keeping private argument identities out
-of earlier function annotations, and scopes local value quantifiers to their
-own right-hand sides. Ten complete compiler/Core/proof/ownership gates and
-explicit positive and escaping-scope regressions are under validation on
-frozen source `96d9b6692f40a517c3b3172da6ee0cb39e0e05d4deaa442b79476998ce5465be`
+The Cinch dependent-argument repair now passes all ten complete focused groups
+on frozen source `96d9b6692f40a517c3b3172da6ee0cb39e0e05d4deaa442b79476998ce5465be`
 (Cinch compiler identity `2ea1460a5a1f426cf65b16767ed96e97dff1ffb2d3ee022b4ca1724bf2e6075c`).
-The complete208-group Native run, actual final Stage3 consumers, auxiliary
-checks and Acceptance1-5 audit remain required on the final repaired source.
+All43 actual compiler modules pass Native checking. Complete source Pi,
+guarded calls, source refinements/effects, runtime lowering, fragment checker,
+optimizer, inference, Core, independent typing and typed-index targets pass,
+with no ignored or filtered cases. All93 runtime programs execute with expected
+results and zero leaked blocks. Seven new lexical-scope checks cover quantified
+let RHSs, nested schemes, lambda patterns and rejected escapes across five
+large runtime identities. See [the complete focused evidence](../bootstrap/current-dependent-argument-repair-results.json).
+
+An ordinary checked computation can supply a dependent runtime argument through
+a retained strict witness. Its identity does not become an unchecked symbolic
+equation. A generic consumer is bound before its argument at an independent
+scheme, then instantiated within the argument's private scopes; evaluation
+remains function, argument, call. Local value quantifiers scope over their
+own RHS only. Runtime locals and bound type indices keep separate namespaces,
+and the independent Core checker remains authoritative.
+
+Matching auxiliary checks also pass: all171 runtime tests,41 tooling checks
+and39 syntax/editor checks, with no skips or ignored cases. See
+[the current auxiliary evidence](../bootstrap/current-source-auxiliary-results.json).
+The complete original argv target now passes all three cases through the
+previous repaired Stage1 prototype (`39ad`): both portable builds use that
+actual Cinch compiler, while CLI forwarding remains a Native API case. This
+[scoped recovery](../bootstrap/current-stage1-argv-recovery.json) does not replace
+final acceptance through the exact new Stage3.
+
+A fresh Stage0/1/2/3 chain and complete208-group Native sweep now use the exact
+current source. Stage0 has passed its three smokes and fresh Stage1 is building.
+The other stages, all43 canonical interfaces and code fixed point, actual API
+consumer, changed-source rebuilding, exact final Stage3's91 selected groups and
+external checks, complete100-target coverage audit and Acceptance1-5 remain
+required. The original array ABI boundary and all original refusal assertions
+remain in force. Passing focused tests is not a whole-bootstrap claim.
 
 ## Constructor and symbol repair checkpoint
 

@@ -32,6 +32,10 @@ fn source_dependent_functions_use_checked_argument_values() {
         ("strict let type annotation alias", nat, "forward :: (n :: Nat) -> At n\n  forward renamed = let alias = renamed in (Mark :: At alias)", None),
         ("generic function-valued carrier", "  data AtFn (f :: Nat -> Nat) where\n    MarkFn :: AtFn f\n", "build :: (f :: Nat -> Nat) -> AtFn f\n  build function = MarkFn\n  forward :: (g :: Nat -> Nat) -> AtFn g\n  forward renamed = build renamed", None),
         ("generic Bool carrier", "  data Flag (b :: Bool) where\n    Flagged :: Flag b\n", "build :: (b :: Bool) -> Flag b\n  build actual = Flagged\n  forward :: (b :: Bool) -> Flag b\n  forward renamed = build renamed", None),
+        ("opaque computation retains a private witness", nat, "forget :: forall (n :: Nat). At n -> Nat\n  forget Mark = 7\n  use :: (Nat -> Nat) -> Nat -> Nat\n  use compute n = forget (make (compute n))", None),
+        ("opaque dependent result projects to its carrier", "", "keep :: (n :: Nat) -> refined (out == n) Nat\n  keep n = n\n  use :: (Nat -> Nat) -> Nat -> Nat\n  use compute n = keep (compute n)", None),
+        ("opaque effectful argument retains evaluation effects", "", "keep :: (n :: Nat) -> refined (out == n) Nat\n  keep n = n\n  use :: forall r. (Unit ->{IO r} Nat) -> Unit ->{IO r} Nat\n  use compute u = keep (compute u)", None),
+        ("opaque argument cannot erase evaluation effects", "", "keep :: (n :: Nat) -> refined (out == n) Nat\n  keep n = n\n  bad :: forall r. (Unit ->{IO r} Nat) -> Unit -> Nat\n  bad compute u = keep (compute u)", Some("effect")),
         ("carrier mismatch", nat, "bad :: Int -> At 0\n  bad value = make value", Some("type mismatch")),
         ("same name does not repair wrong identity", nat, "bad :: (n :: Nat) -> At n\n  bad n = let n = (2 :: Nat) in make n", Some("type mismatch")),
         ("strict let wrong constant", nat, "bad :: At 4\n  bad = let index = (3 :: Nat) in make index", Some("type mismatch")),
@@ -43,8 +47,10 @@ fn source_dependent_functions_use_checked_argument_values() {
         ("no unchecked symbolic subtraction", nat, "bad :: (n :: Nat) -> At (n - 1)\n  bad value = Mark", Some("source index")),
         ("argument type is not an index value", nat, "bad :: (n :: Bool) -> At n\n  bad value = Mark", Some("type mismatch")),
         ("type is not its own universe", "", "bad :: (a :: Type) -> a -> a\n  bad value x = x", Some("unknown type constructor")),
-        ("unknown calls cannot be reflected", int, "loop :: Int -> Int\n  loop x = loop x\n  bad :: Int -> AtI 0\n  bad x = make-i (loop x)", Some("pure total reification")),
-        ("zero cannot erase a partial argument", int, "loop :: Int -> Int\n  loop x = loop x\n  bad :: Int -> AtI 0\n  bad x = make-i (0 * loop x)", Some("pure total reification")),
+        // Runtime witnesses remain opaque: the private value cannot unify
+        // with zero, including when unchecked evaluation is multiplied by zero.
+        ("unknown calls cannot be reflected", int, "loop :: Int -> Int\n  loop x = loop x\n  bad :: Int -> AtI 0\n  bad x = make-i (loop x)", Some("type mismatch")),
+        ("zero cannot erase a partial argument", int, "loop :: Int -> Int\n  loop x = loop x\n  bad :: Int -> AtI 0\n  bad x = make-i (0 * loop x)", Some("type mismatch")),
         ("dependent declaration kind cannot capture caller binder", "  data Dep a (x :: a) where\n    Pack :: Dep a x\n", "bad :: forall a (x :: a). Dep Int x -> Int\n  bad value = 0", Some("binder-aware kind application")),
         ("ghost forall index has no runtime binding", "", "bad :: forall (n :: Nat). Nat\n  bad = n", Some("unbound variable")),
     ];

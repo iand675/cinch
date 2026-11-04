@@ -157,6 +157,7 @@ fn typed_runtime_numbers_preserve_exact_values_and_reclaim_owned_words() {
         ("failed-case-guard", "  data Box where\n    Box :: Int -> Box\n  main :: Int\n  main = case Box 18446744073709551616 of\n    Box n | n < 0 -> 1\n    Box n -> if n == 18446744073709551616 then 127 else 2\n", 127),
         ("natural-literal-pattern", "  classify :: Nat -> Int\n  classify 340282366920938463463374607431768211456 = 131\n  classify _ = 1\n  main :: Int\n  main = classify 340282366920938463463374607431768211456\n", 131),
         ("last-regular-tag", tag64.as_str(), 137),
+        ("opaque-runtime-dependent-argument", "  keep :: (n :: Nat) -> refined (out == n) Nat\n  keep n = n\n  computed :: Nat -> Nat -> Nat -> Nat\n  computed a b c = a + b + c\n  main :: Int\n  main = if keep (computed 18446744073709551616 50 60) == 18446744073709551726 then 149 else 1\n", 149),
         ("partially-applied-constructor", "  data Parcel where\n    Parcel :: Int -> Bool -> Parcel\n  make :: Int -> Bool -> Parcel\n  make value = Parcel value\n  apply :: (Bool -> Parcel) -> Bool -> Parcel\n  apply f flag = f flag\n  main :: Int\n  main = case apply (make 18446744073709551616) True of\n    Parcel value flag -> if flag && value == 18446744073709551616 then 147 else 1\n", 147),
         ("first-escaped-tag", tag65.as_str(), 139),
         ("escaped-recursive-and-first-class", tag70.as_str(), 141),

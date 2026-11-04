@@ -1,0 +1,28 @@
+{
+  "command": [
+    "/tmp/cinch-opaque-witness-validation-2/cargo/debug/deps/argv-1b2cdec3fc67fe4f",
+    "--include-ignored",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "compiler_sha256": "8dea9da6718659444438e11e421a492520eef8c423e2880e7f8eb8acdc2a3b75",
+  "compiler_source_sha256": "39ad7f79e757ab8ceff9cfa2ad35368679c3887c405feea55e67ad5dd0cc19e4",
+  "compiler_stage": 1,
+  "elapsed_seconds": 388.433725042,
+  "exit_code": 0,
+  "log_sha256": "b0ef742f79de10f3d172ff33db1c4bf25536042d504202ff90053b55ac5f64c4",
+  "pid": 40331,
+  "scope": "Complete original argv target through actual fresh Stage1 from proposal39ad. The third CLI forwarding case stays classified NativeAPI. No frontend fallback. Independent early diagnosis only; proposal has a known generic-consumer Core scope failure and does not close latestSource4 or finalStage3 acceptance.",
+  "source_sha256": "273daebcff2009787ea9bb5d7786e53ed23f6997929413547e1133d6c1499e6a",
+  "source_unchanged": true,
+  "status": "passed",
+  "test_executable_sha256": "43c214cf569ed030e68fd4f18f6b93f330d82262c66a3df1a6f0b016ca6f5575",
+  "test_cases": {
+    "passed": 3,
+    "failed": 0,
+    "ignored": 0,
+    "filtered_out": 0
+  },
+  "independently_verified": true,
+  "bootstrap_achieved": false
+}

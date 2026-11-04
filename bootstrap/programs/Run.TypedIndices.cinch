@@ -61,7 +61,25 @@ module Main where
     let proof-projected = UIndexForget (UIndex refined (IRigid id "arg" 0)) in
     let generalized-ok = case scheme-params generalized of Cons q Nil -> valid-type (scheme-body generalized); other -> False in
     let capture-ok = case renamed of URefine fresh name carrier predicate -> not (fresh == id) && good predicate (UCompare "==" (UIndex integer (IBound fresh "result")) (UIndexPromote variable)); value -> False in
-    [ valid-type arg
+    let q = MkQuant (nonce + 50) "n" (value-kind nat) False in
+    let bound-index = UBound (quant-id q) "n" (value-kind nat) in
+    let consumer-type = UFun (family bound-index) integer in
+    let consumer-scheme = MkScheme [q] consumer-type in
+    let consumer = CUse sp consumer-type "consume" "value" [bound-index] in
+    let answer body = MkCoreDefinition sp "answer" (mono integer) Nil Nil Nil [MkCoreClause sp Nil body] in
+    let constant = CInt sp integer "7" in
+    let consumer-local = nonce + 51 in
+    let nested-local = nonce + 52 in
+    let nested = CLet sp consumer-type nested-local "nested" (mono consumer-type) consumer consumer in
+    let lambda = CLambda sp consumer-type (CPVar sp (family bound-index) nested-local "value") constant in
+    [ core-definition-closed (answer (CLet sp integer consumer-local "consume" consumer-scheme consumer constant))
+    , core-definition-closed (answer (CLet sp integer consumer-local "consume" consumer-scheme nested constant))
+    , core-definition-closed (answer (CLet sp integer consumer-local "consume" consumer-scheme lambda constant))
+    , not (core-definition-closed (answer (CLet sp integer consumer-local "consume" (mono consumer-type) consumer constant)))
+    , not (core-definition-closed (answer (CLet sp integer consumer-local "consume" consumer-scheme consumer (CUse sp integer "outside" "value" [bound-index]))))
+    , not (core-definition-closed (answer (CLet sp (family bound-index) consumer-local "consume" consumer-scheme consumer constant)))
+    , not (core-definition-closed (answer (CLet sp integer consumer-local "consume" consumer-scheme (CUse sp consumer-type "wrong" "value" [UBound (nonce + 99) "n" (value-kind nat)]) constant)))
+    , valid-type arg
     , valid-type projected
     , kind-equal (type-kind projected) (value-kind nat)
     , valid-type promoted

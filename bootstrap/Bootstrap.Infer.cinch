@@ -2131,10 +2131,34 @@ module Bootstrap.Infer where
     UProofFun predicate effects result -> case erased-argument sp env arg predicate st of
       (witness, checked) -> discharge-call classes sp env (CErasedApply sp result effects fun witness) checked
     UPi id name domain effects result -> case check classes kinds families env locals arg domain st of
-      (value, checked) -> apply-runtime-argument classes sp env fun value checked
+      (value, checked) -> apply-source-argument classes kinds families env locals sp fun arg value st checked
     other -> case arrow-parts sp (core-type fun) st of
       (a, row, b, sf) -> case check classes kinds families env locals arg a sf of
-        (value, checked) -> apply-runtime-argument classes sp env fun value checked
+        (value, checked) -> apply-source-argument classes kinds families env locals sp fun arg value sf checked
+  -- Instantiating a generic consumer with an argument's private witness
+  -- must not put that witness in the preceding function binding's type.
+  -- Bind the function at its independent scheme first, then instantiate
+  -- its local inside the argument's retained lets. Evaluation order stays
+  -- function, argument, call; no computation becomes a type equation.
+  apply-source-argument :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> CoreTerm -> Expr -> CoreTerm -> Store -> Store -> (CoreTerm, Store)
+  apply-source-argument classes kinds families env locals sp fun arg value before checked =
+    if not (let-chain-mentions (type-all-ids (normalize checked (core-type fun))) value) then
+      apply-runtime-argument classes sp env fun value checked
+    else case generalize-application-with (env-metas env before) (core-type fun) before of
+      (scheme, Nil) -> apply-runtime-argument classes sp env fun value checked
+      (scheme, pairs) -> case fresh-id before of
+        (id, fresh) ->
+          let name = "#argument-polymorphic-function" in
+          let rhs = abstract-term before pairs fun in
+          let binding = MkLocalBinding name scheme id (store-level fresh) in
+          let bound = proof-let-env env binding id scheme rhs fresh in
+          case lookup-value sp name bound fresh of
+            (local, opened) -> case (case normalize opened (core-type local) of
+              UPi index display domain effects result -> (domain, opened)
+              other -> case arrow-parts sp (core-type local) opened of (domain, effects, result, shaped) -> (domain, shaped)) of
+              (domain, shaped) -> case check classes kinds families bound locals arg domain shaped of
+                (actual, ready) -> case apply-argument-lets classes sp bound local actual ready of
+                  (call, done) -> (CLet sp (core-type call) id name scheme rhs call, done)
   erased-argument :: Span -> List CheckedBinding -> Expr -> UType -> Store -> (CoreTerm, Store)
   erased-argument sp env syntax expected st = case syntax of
     EVar at name -> (case lookup-binding name env of
@@ -3066,7 +3090,13 @@ module Bootstrap.Infer where
         CForget source carrier body -> if comparison-refinement (normalize st (core-type body)) then
           materialize-dependent-view classes sp env fun body (Some carrier) st
           else (CError sp, checked)
-        other -> (CError sp, checked)
+        -- An ordinary checked computation can supply a runtime witness
+        -- without becoming a symbolic definition. Retain its strict let
+        -- scope and only accept the application if all remaining checks
+        -- succeed. On failure keep the original reification diagnostic.
+        other -> case materialize-dependent classes sp env fun value st of
+          (call, trial) -> if list-length (store-errors trial) == list-length (store-errors st) then (call, trial)
+            else (CError sp, checked)
   materialize-dependent :: List (String, Kind) -> Span -> List CheckedBinding -> CoreTerm -> CoreTerm -> Store -> (CoreTerm, Store)
   materialize-dependent classes sp env fun value st = materialize-dependent-view classes sp env fun value None st
   materialize-dependent-view :: List (String, Kind) -> Span -> List CheckedBinding -> CoreTerm -> CoreTerm -> Option UType -> Store -> (CoreTerm, Store)

@@ -1,0 +1,676 @@
+{
+  "schema": 1,
+  "status": "passed-all-ten-complete-focused-gates",
+  "checked_at": "2026-11-04T06:07:45.879189+00:00",
+  "source_sha256": "96d9b6692f40a517c3b3172da6ee0cb39e0e05d4deaa442b79476998ce5465be",
+  "compiler_source_sha256": "2ea1460a5a1f426cf65b16767ed96e97dff1ffb2d3ee022b4ca1724bf2e6075c",
+  "source_check": {
+    "compiler_modules": 43,
+    "compiler_sha256": "1950113e20ddfa53a6f1139e922339c51bfbf986f023b550d02503b1cc57887d",
+    "compiler_source_sha256": "2ea1460a5a1f426cf65b16767ed96e97dff1ffb2d3ee022b4ca1724bf2e6075c",
+    "exit_code": 0,
+    "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "status": "passed"
+  },
+  "rows": [
+    {
+      "command": [
+        "/tmp/cinch-opaque-witness-validation-4/cargo/debug/deps/bootstrap_source_pi-b6ea2f7e2716b35f",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "elapsed_seconds": 130.055500791,
+      "executable": "/tmp/cinch-opaque-witness-validation-4/cargo/debug/deps/bootstrap_source_pi-b6ea2f7e2716b35f",
+      "exit_code": 0,
+      "finished": "2026-11-04T05:42:20.190974+00:00",
+      "log_sha256": "7d56b2248b292deb5ed9d8e23944ea4ee2b11dba28a5ff0f0dacf2c15b8723c5",
+      "name": "bootstrap_source_pi",
+      "sha256": "7075fff6685b6fc53bb66d1aace40cddb406f31de8ad258725089536390423f2",
+      "source_unchanged": true,
+      "started": "2026-11-04T05:40:10.133293+00:00",
+      "status": "passed",
+      "worker_slot": 3
+    },
+    {
+      "command": [
+        "/tmp/cinch-opaque-witness-validation-4/cargo/debug/deps/bootstrap_guarded_calls-991aba28c57dddc3",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "elapsed_seconds": 1034.344751208,
+      "executable": "/tmp/cinch-opaque-witness-validation-4/cargo/debug/deps/bootstrap_guarded_calls-991aba28c57dddc3",
+      "exit_code": 0,
+      "finished": "2026-11-04T05:57:32.882706+00:00",
+      "log_sha256": "27fdbd306b5836422a4816920ec905fb5c04c8eed70751c858c4cbe7f5e4b73c",
+      "name": "bootstrap_guarded_calls",
+      "sha256": "de616ebebb54fadc02275921563b5aca80efc9c1584c769e9a34252711d232b7",
+      "source_unchanged": true,
+      "started": "2026-11-04T05:40:18.534797+00:00",
+      "status": "passed",
+      "worker_slot": 2
+    },
+    {
+      "command": [
+        "/tmp/cinch-opaque-witness-validation-4/cargo/debug/deps/bootstrap_source_refinements-405f961fa146e241",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "elapsed_seconds": 150.40823379199992,
+      "executable": "/tmp/cinch-opaque-witness-validation-4/cargo/debug/deps/bootstrap_source_refinements-405f961fa146e241",
+      "exit_code": 0,
+      "finished": "2026-11-04T05:44:24.959322+00:00",
+      "log_sha256": "f8f9c48debba2f004706237becfdc96e8d56704280bca4e0146efc74143c75b6",
+      "name": "bootstrap_source_refinements",
+      "sha256": "bd8f698fb7d60e722a43a8e68352b88d21e253be6722a552afcaf0d79ff9e3e7",
+      "source_unchanged": true,
+      "started": "2026-11-04T05:41:54.550237+00:00",
+      "status": "passed",
+      "worker_slot": 1
+    },
+    {
+      "command": [
+        "/tmp/cinch-opaque-witness-validation-4/cargo/debug/deps/bootstrap_runtime_ir-f3d238deebdeb860",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "elapsed_seconds": 219.10557362499992,
+      "executable": "/tmp/cinch-opaque-witness-validation-4/cargo/debug/deps/bootstrap_runtime_ir-f3d238deebdeb860",
+      "exit_code": 0,
+      "finished": "2026-11-04T05:45:59.390229+00:00",
+      "log_sha256": "9db99f27cc241a241c5bd4bc07152083617323c2ad854fb64f3ebf2580402e57",
+      "name": "bootstrap_runtime_ir",
+      "sha256": "e28d5a97130d755b088d314dfe9479d3651da5cb67f59e288787a2d3fc97c4c9",
+      "source_unchanged": true,
+      "started": "2026-11-04T05:42:20.283597+00:00",
+      "status": "passed",
+      "worker_slot": 3
+    },
+    {
+      "command": [
+        "/tmp/cinch-opaque-witness-validation-4/cargo/debug/deps/bootstrap_typed_indices-374d5c00d8978d21",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "elapsed_seconds": 73.23928291599987,
+      "executable": "/tmp/cinch-opaque-witness-validation-4/cargo/debug/deps/bootstrap_typed_indices-374d5c00d8978d21",
+      "exit_code": 0,
+      "finished": "2026-11-04T05:45:38.441956+00:00",
+      "log_sha256": "39bc6834bd13270f50f6553bd8cd24b220076737afa823ec1ef4491c7ca47277",
+      "name": "bootstrap_typed_indices",
+      "sha256": "85c410f91cce40eee22ad0375461cc1183931e2de62b07882bbca0fb501df4d4",
+      "source_unchanged": true,
+      "started": "2026-11-04T05:44:25.201966+00:00",
+      "status": "passed",
+      "worker_slot": 1
+    },
+    {
+      "command": [
+        "/tmp/cinch-opaque-witness-validation-4/cargo/debug/deps/bootstrap_typing-07c645cc2da54f73",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "elapsed_seconds": 52.709610999999995,
+      "executable": "/tmp/cinch-opaque-witness-validation-4/cargo/debug/deps/bootstrap_typing-07c645cc2da54f73",
+      "exit_code": 0,
+      "finished": "2026-11-04T05:46:31.242784+00:00",
+      "log_sha256": "7ac178182c264ea1a1a4b8621c2595ccb0179bc8897ebd9eec1a9901aa2a60f5",
+      "name": "bootstrap_typing",
+      "sha256": "3369d06ab65b0227abdf4c9ee3c5ce0b08603d4a4891e0600bfbedb303413c66",
+      "source_unchanged": true,
+      "started": "2026-11-04T05:45:38.532549+00:00",
+      "status": "passed",
+      "worker_slot": 1
+    },
+    {
+      "command": [
+        "/tmp/cinch-opaque-witness-validation-4/cargo/debug/deps/bootstrap_core-cfc7699e29c819d5",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "elapsed_seconds": 113.34784254199985,
+      "executable": "/tmp/cinch-opaque-witness-validation-4/cargo/debug/deps/bootstrap_core-cfc7699e29c819d5",
+      "exit_code": 0,
+      "finished": "2026-11-04T05:47:42.405892+00:00",
+      "log_sha256": "461843454fd6acf286e98b6b7a5e888c056ec8cc810a3644b947b0ceabee28a5",
+      "name": "bootstrap_core",
+      "sha256": "7b58ee1f10e925079ba2a6cb9ef83e9fd7ece75449ec6126eb5542b1836adda5",
+      "source_unchanged": true,
+      "started": "2026-11-04T05:45:49.057090+00:00",
+      "status": "passed",
+      "worker_slot": 0
+    },
+    {
+      "command": [
+        "/tmp/cinch-opaque-witness-validation-4/cargo/debug/deps/bootstrap_infer-3d863cddd3a52f96",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "elapsed_seconds": 126.43365787500011,
+      "executable": "/tmp/cinch-opaque-witness-validation-4/cargo/debug/deps/bootstrap_infer-3d863cddd3a52f96",
+      "exit_code": 0,
+      "finished": "2026-11-04T05:48:37.865276+00:00",
+      "log_sha256": "e410271fc49bed82cf7f9f0608435c31430a2c6d19b1ae5d126ea373ebcc0e99",
+      "name": "bootstrap_infer",
+      "sha256": "cbdd1fb21f03deabe5fe361bd1f0507ea99d4cca465a0e43378f7e3c0f15df50",
+      "source_unchanged": true,
+      "started": "2026-11-04T05:46:31.430785+00:00",
+      "status": "passed",
+      "worker_slot": 1
+    },
+    {
+      "command": [
+        "/tmp/cinch-opaque-witness-validation-4/cargo/debug/deps/bootstrap_check-ed661b82d7219941",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "elapsed_seconds": 114.61197841700005,
+      "executable": "/tmp/cinch-opaque-witness-validation-4/cargo/debug/deps/bootstrap_check-ed661b82d7219941",
+      "exit_code": 0,
+      "finished": "2026-11-04T05:49:37.161564+00:00",
+      "log_sha256": "335a2bf8ecd68330673c7fd4afd906f5317204ecdbc1a2c5880a9a8d0bdbf522",
+      "name": "bootstrap_check",
+      "sha256": "7089d5fc32f800a8be948944d62ea07ff29796cd1dfb0733747b63dec3c63f50",
+      "source_unchanged": true,
+      "started": "2026-11-04T05:47:42.548781+00:00",
+      "status": "passed",
+      "worker_slot": 0
+    },
+    {
+      "command": [
+        "/tmp/cinch-opaque-witness-validation-4/cargo/debug/deps/optimizer-21a087f1d2052990",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "elapsed_seconds": 108.76225783300015,
+      "executable": "/tmp/cinch-opaque-witness-validation-4/cargo/debug/deps/optimizer-21a087f1d2052990",
+      "exit_code": 0,
+      "finished": "2026-11-04T05:49:49.541251+00:00",
+      "log_sha256": "3267ff985519ddaa4816bfe65ae58103f505a662680fe1035ddfd9475c6447ee",
+      "name": "optimizer",
+      "sha256": "58a44db7b53ddf4ad3470d0523b8be0ef3173295f28fe0b6190039bf876825d4",
+      "source_unchanged": true,
+      "started": "2026-11-04T05:48:00.778019+00:00",
+      "status": "passed",
+      "worker_slot": 3
+    }
+  ],
+  "runtime_programs": [
+    {
+      "name": "function-valued-prefix",
+      "exit_code": 245,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "pure-unit-entry",
+      "exit_code": 83,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "pure-unit-closure-entry",
+      "exit_code": 85,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "machine-i64-overflow",
+      "exit_code": 239,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "machine-i64-first-class",
+      "exit_code": 241,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "machine-i64-owned-chain",
+      "exit_code": 243,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "huge",
+      "exit_code": 37,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "alias",
+      "exit_code": 39,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "call",
+      "exit_code": 41,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "branch",
+      "exit_code": 43,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "recursive",
+      "exit_code": 47,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "negative",
+      "exit_code": 53,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "natural",
+      "exit_code": 59,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "wildcard",
+      "exit_code": 61,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "tuple-field",
+      "exit_code": 67,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "tuple-case",
+      "exit_code": 71,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "nested-tuple",
+      "exit_code": 73,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "dropped-tuple",
+      "exit_code": 79,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "full-inline-map",
+      "exit_code": 83,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "nullary-constructors",
+      "exit_code": 89,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "recursive-tree",
+      "exit_code": 97,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "failed-nested-pattern",
+      "exit_code": 101,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "shared-constructor-root",
+      "exit_code": 103,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "raw-bool-patterns",
+      "exit_code": 107,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "numeric-equations",
+      "exit_code": 109,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "nested-case-guards",
+      "exit_code": 113,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "failed-case-guard",
+      "exit_code": 127,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "natural-literal-pattern",
+      "exit_code": 131,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "last-regular-tag",
+      "exit_code": 137,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "opaque-runtime-dependent-argument",
+      "exit_code": 149,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "partially-applied-constructor",
+      "exit_code": 147,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "first-escaped-tag",
+      "exit_code": 139,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "escaped-recursive-and-first-class",
+      "exit_code": 141,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "escaped-generic-representation-classes",
+      "exit_code": 143,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "generic-identity-classes",
+      "exit_code": 151,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "generic-shared-tobj",
+      "exit_code": 157,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "generic-shared-obj",
+      "exit_code": 163,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "generic-tuple-fields",
+      "exit_code": 167,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "polymorphic-recursion",
+      "exit_code": 173,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "class-swapping-recursion",
+      "exit_code": 179,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "generic-data-classes",
+      "exit_code": 181,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "generic-recursive-data",
+      "exit_code": 191,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "generic-data-growing-recursion",
+      "exit_code": 193,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "generic-owned-result",
+      "exit_code": 197,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "lambda-argument",
+      "exit_code": 199,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "escaping-capture",
+      "exit_code": 201,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "shared-closure",
+      "exit_code": 203,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "global-function-value",
+      "exit_code": 205,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "partial-function",
+      "exit_code": 207,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "dynamic-partial-application",
+      "exit_code": 209,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "partial-constructor",
+      "exit_code": 211,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "nested-escaping-closures",
+      "exit_code": 213,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "unused-capture",
+      "exit_code": 215,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "shadowed-capture",
+      "exit_code": 217,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "generic-capture-classes",
+      "exit_code": 219,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "higher-order-generic-map",
+      "exit_code": 221,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "borrowed-field-capture",
+      "exit_code": 223,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "closure-constructor-field",
+      "exit_code": 225,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "branch-returned-closure",
+      "exit_code": 227,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "generic-object-capture",
+      "exit_code": 229,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "lambda-tuple-pattern",
+      "exit_code": 231,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "function-captures",
+      "exit_code": 233,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "selected-dictionary",
+      "exit_code": 101,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "dictionary-slot-order",
+      "exit_code": 103,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "dictionary-value",
+      "exit_code": 107,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "dictionary-object-value",
+      "exit_code": 109,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "dictionary-factory-context",
+      "exit_code": 113,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "dictionary-self-method",
+      "exit_code": 127,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "dictionary-self-escaping",
+      "exit_code": 131,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "dictionary-evidence-capture",
+      "exit_code": 137,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "dictionary-extra-evidence",
+      "exit_code": 139,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "dictionary-raw-value",
+      "exit_code": 149,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "dictionary-shared-evidence",
+      "exit_code": 151,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "erased-region-identity",
+      "exit_code": 157,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "io-unit-entry",
+      "exit_code": 163,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "io-cancellation",
+      "exit_code": 167,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "io-evidence-capture",
+      "exit_code": 173,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "io-observable-bytes",
+      "exit_code": 179,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "imported-tagged-fields",
+      "exit_code": 181,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "imported-raw-fields",
+      "exit_code": 191,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "imported-object-fields",
+      "exit_code": 193,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "imported-nullary-tag",
+      "exit_code": 197,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "imported-declaration-order",
+      "exit_code": 199,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "imported-constructor-closure",
+      "exit_code": 201,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "source-signature",
+      "exit_code": 203,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "source-signature-order",
+      "exit_code": 205,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "source-signature-values",
+      "exit_code": 207,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "source-signature-factory",
+      "exit_code": 209,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "source-signature-operator",
+      "exit_code": 211,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "source-signature-module",
+      "exit_code": 213,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "source-signature-method-polymorphism",
+      "exit_code": 215,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "source-signature-method-families",
+      "exit_code": 217,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    },
+    {
+      "name": "source-signature-own-factory-context",
+      "exit_code": 219,
+      "leak": "cinch-leak: live=0 immortal=0 leaked=0"
+    }
+  ],
+  "scope": "Complete dependent/source Pi, guarded/imported calls, source refinements/effects, runtimeIR, legacy checker, optimizer, inference, Core, independent typing and typed-index gates. Original refusal assertions retained. Runtime93cases and seven direct let-quantifier scope checks across five large identities included. No full208/actualStage3/whole-bootstrap claim.",
+  "full_goal_complete": false
+}
