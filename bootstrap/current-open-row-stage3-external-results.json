@@ -1,0 +1,136 @@
+{
+  "compiler_sha256": "ba36d3d3c262cb86df1e5f7afc92a9410b12581ef0632e613a03ca7c101e639b",
+  "compiler_source_sha256": "e2f15c51f24f38e74ddf61943d96d828cade2e60f2cdc7db67c6eafdefd3f0a5",
+  "full_goal_complete": false,
+  "heap_limit": "32M",
+  "interfaces": [
+    {
+      "file_sha256": "7cdd6f8ca5dea2db1ba8f8882091e697bc46f15d4695a3ccd3833e2b2ccadf87",
+      "hash": "13934811992795131883",
+      "module": "A"
+    },
+    {
+      "file_sha256": "4d3489f0302a62aa807bb1920d66adee0fdfdffb96b20b851c6290559ab69c3a",
+      "hash": "17414231143244361203",
+      "module": "B"
+    },
+    {
+      "file_sha256": "bb77a5b2348c5aec957e5dec096fc60fdab9c5d6b51c08bdb6cd9a3a4436c443",
+      "hash": "11746095408528594365",
+      "module": "Facade"
+    }
+  ],
+  "log_sha256": {
+    "changed-redeclaration": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "class-identity": "09c28bc9613440002863fee11c84a13ec4819417607c51ace85936c86cfd6b50",
+    "direct": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "identical-redeclaration": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "mixed/emit": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "mixed/link": "6021f33487b85f8a9c5f9471588485ff4234e50e83be3e5c4c6e23dd0c32b455",
+    "mixed/run": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+    "passing/emit": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "passing/link": "6021f33487b85f8a9c5f9471588485ff4234e50e83be3e5c4c6e23dd0c32b455",
+    "passing/run": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+    "produce": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "renamed-reexport": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "separate-facade": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "separate-renamed": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "rows": [
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "mixed",
+      "phase": "emit",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "mixed",
+      "phase": "link",
+      "status": "passed"
+    },
+    {
+      "exit_code": 2,
+      "expected": 2,
+      "name": "mixed",
+      "phase": "run",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "passing",
+      "phase": "emit",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "passing",
+      "phase": "link",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "passing",
+      "phase": "run",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "produce",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "separate-facade",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "direct",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "renamed-reexport",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "separate-renamed",
+      "status": "passed"
+    },
+    {
+      "exit_code": 3,
+      "expected": 3,
+      "name": "identical-redeclaration",
+      "status": "passed"
+    },
+    {
+      "exit_code": 3,
+      "expected": 3,
+      "name": "changed-redeclaration",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "class-identity",
+      "status": "passed"
+    }
+  ],
+  "scope": "All14 original external checks on exact final e2f Stage3, independently verified: mixed/passing runner emit/link/execution, exact full reports and zero leaks; defining-only fixities, separate renamed facades and identical/changed importer redeclaration refusals; all3 class_identity tests including2 actual Stage3 portable build/run paths and1 direct Native API negative. Actual artifacts, logs, source and compiler identities audited. Full Native/Stage3 suites, proof soundness, positive ABI6 arrays, originalAPI coverage and Acceptance5 remain open.",
+  "source": "/tmp/cinch-current-native-source-check-44/source",
+  "source_sha256": "d5d979aeeb8fff715155bd68e93406ed745de5afa730e0735680d2b8c4ed561d",
+  "status": "passed-exact-current-stage3-external-acceptance",
+  "verified_at": "2026-11-04T23:30:21.632395+00:00"
+}

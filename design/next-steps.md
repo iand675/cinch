@@ -24,9 +24,20 @@ successfully before the checker rejects their missing executable decision
 procedure. It demands that precise diagnostic and forbids a generic resolver
 failure. The complete group and all 43 compiler modules pass independently;
 production compiler inputs are unchanged. See
-`bootstrap/current-source-decision-phase-results.json`. Its actual Stage3 rerun
-and the complete Native/final-Stage3 sweeps remain in progress. Older frozen
-runs retain their original expected-phase failure rather than being relabelled.
+`bootstrap/current-source-decision-phase-results.json`. The complete corrected
+group also passes through exact current Stage3, independently audited in
+`bootstrap/current-source-decision-stage3-results.json`. The complete Native
+and final-Stage3 sweeps remain in progress. Older frozen runs retain their
+original expected-phase failure rather than being relabelled.
+
+All 14 original external checks also pass through exact current Stage3:
+runner emit/link/execution, exact full reports and 32M zero-leak runs,
+defining-module-only fixities, renamed and separate facades, identical and
+changed importer redeclaration refusals, and the complete class-identity
+group. Its two portable builds use Stage3; its direct Native API negative
+stays classified separately. Artifacts, source, compiler identities and full
+logs are independently audited in
+`bootstrap/current-open-row-stage3-external-results.json`.
 
 Acceptance 5 remains open. The exact published Rust compiler still accepts the
 recursive false-proof counterexample; the isolated repair is not integrated.

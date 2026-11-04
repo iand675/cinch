@@ -1,0 +1,30 @@
+{
+  "compiler": {
+    "path": "/tmp/cinch-final-bootstrap-chain-16/source/build/bootstrap/stage3/cinch",
+    "sha256": "ba36d3d3c262cb86df1e5f7afc92a9410b12581ef0632e613a03ca7c101e639b"
+  },
+  "compiler_source_sha256": "e2f15c51f24f38e74ddf61943d96d828cade2e60f2cdc7db67c6eafdefd3f0a5",
+  "full_goal_complete": false,
+  "log_sha256": "e01cdc440b97f0a3f3269c34b7e7f7f64d542ddca9bc6a44297688e016aa08bc",
+  "provider": {
+    "metadata": "/tmp/cinch-test-support-provider-4/library.abi.json",
+    "metadata_sha256": "0b45ec0f60c4fa227b734b91bf1e2ef48fdc8cd77951d4520b38292a86649167",
+    "object": "/tmp/cinch-test-support-provider-4/library.o",
+    "object_sha256": "58a78e9efe02bdcf02521dba2d4bb2799459d0d9e17d9be04694aeef22751ff3",
+    "schema": 1,
+    "target": "aarch64-unknown-unknown"
+  },
+  "scope": "Complete strengthened source-decisions group through genuine current e2f Stage3. All internal source-case, decision-authority, kernel-field and cached-type controls execute. Opaque Prop resolves then checker phase4 refuses missing executable decision procedure with the precise diagnostic. Explicit admitted ABI5 base object provider; no frontend fallback. Separate corrected test snapshot; old frozen Native44/selected44 expected-phase failures are retained. This scoped pass is not a complete Stage3 suite or Acceptance5.",
+  "source_sha256": "dbe32074132937467376306d74783c1999380035f4095614657708db8cd64d27",
+  "status": "passed-scoped-exact-stage3-decision-phase",
+  "test_binary": {
+    "binary": "/tmp/cinch-source-decision-expectation-validation-1/cargo/debug/deps/bootstrap_source_decisions-eddd9e52d4861934",
+    "binary_sha256": "5b5dd1266be7389964616f73e320eb95ad9b6936ca1169475eb2c21cbb318d6e",
+    "exit_code": 0,
+    "log_sha256": "09b66e956c7d4272bb7634e89623951f2a013bc97ff8ade47fc975043a8da20c",
+    "name": "bootstrap_source_decisions",
+    "status": "passed"
+  },
+  "verified_at": "2026-11-04T23:29:53.513921+00:00",
+  "wrapper_sha256": "49999ee4f04bc33718ce7bc2282a11d1a73783458d243746a2d0b18bde9ee20b"
+}
