@@ -53,7 +53,7 @@
     },
     {
       "title": "Complete suite on newly published Rust and Cinch source",
-      "detail": "57 of 208 complete groups passed; 1 running, 0 failed and 150 pending.Every group includes ignored tests. State: running.",
+      "detail": "59 of 208 complete groups passed; 0 running, 0 failed and 149 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -123,7 +123,7 @@
     },
     {
       "title": "Proposed compiler repair",
-      "detail": "Separate unpublished source: running-thirty-three-complete-groups. All 43 compiler modules: passed. 26 of 33 complete groups passed; 1 running, 0 failed and 6 pending. This does not replace current-source or final Stage3 acceptance.",
+      "detail": "Separate unpublished source: running-thirty-three-complete-groups. All 43 compiler modules: passed. 27 of 33 complete groups passed; 1 running, 0 failed and 5 pending. This does not replace current-source or final Stage3 acceptance.",
       "state": "running"
     },
     {
@@ -143,7 +143,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "57 of 208 complete groups passed; 1 running, 0 failed and 150 pending."
+      "detail": "59 of 208 complete groups passed; 0 running, 0 failed and 149 pending."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -192,6 +192,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "The fresh current-source compiler chain passes its smoke tests, matching Stage2/Stage3 IR, executable and all 43 canonical interfaces, actual API consumption and changed-source behavior. Complete tests and the final acceptance audit remain separate requirements.",
-  "activity": "Complete suite on newly published Rust and Cinch source: 57 of 208 complete groups passed; 1 running, 0 failed and 150 pending. Stage builds and smoke checks: 4 of 4; chain state: passed. Repair gates: 30 of 30 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_source_instances: passed; refinements and effects: passed; bootstrap_export_interfaces: passed; parser: passed; bootstrap_export_types: passed; bootstrap_pipeline: passed; interface_refinements: passed; interface_refinement_closure: passed; independent type checker: passed; bootstrap_globals: passed; inference: passed; typechecker: passed; bootstrap_byte_observations: passed; bootstrap_resolve: passed; Core validation: passed; index scope and representation: passed; bootstrap_value_indices: passed; runtime behavior: passed; library calls: passed; bootstrap_function_preconditions: passed; bootstrap_refinement_closure: passed; bootstrap_refinement_constructors: passed; bootstrap_imported_preconditions: passed; bootstrap_refinement_core: passed; bootstrap_refinement_types: passed; bootstrap_nonzero_source: passed; bootstrap_named_refinements: passed; interface_class_contracts: passed; bootstrap_eval: passed; bootstrap_ir: passed. Early Stage1 behavior: 5 of 8 complete groups passed; 1 running, 0 failed and 2 pending. Exact final Stage3 suite: 7 of 91 complete groups passed; 0 running, 1 failed and 83 pending. Proposed compiler repair (separate unpublished source): running-thirty-three-complete-groups; 26 of 33 complete groups passed; 1 running, 0 failed and 6 pending.",
-  "updatedAt": "2026-11-04T21:16:49.480357+00:00"
+  "activity": "Complete suite on newly published Rust and Cinch source: 59 of 208 complete groups passed; 0 running, 0 failed and 149 pending. Stage builds and smoke checks: 4 of 4; chain state: passed. Repair gates: 30 of 30 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_source_instances: passed; refinements and effects: passed; bootstrap_export_interfaces: passed; parser: passed; bootstrap_export_types: passed; bootstrap_pipeline: passed; interface_refinements: passed; interface_refinement_closure: passed; independent type checker: passed; bootstrap_globals: passed; inference: passed; typechecker: passed; bootstrap_byte_observations: passed; bootstrap_resolve: passed; Core validation: passed; index scope and representation: passed; bootstrap_value_indices: passed; runtime behavior: passed; library calls: passed; bootstrap_function_preconditions: passed; bootstrap_refinement_closure: passed; bootstrap_refinement_constructors: passed; bootstrap_imported_preconditions: passed; bootstrap_refinement_core: passed; bootstrap_refinement_types: passed; bootstrap_nonzero_source: passed; bootstrap_named_refinements: passed; interface_class_contracts: passed; bootstrap_eval: passed; bootstrap_ir: passed. Early Stage1 behavior: 5 of 8 complete groups passed; 1 running, 0 failed and 2 pending. Exact final Stage3 suite: 7 of 91 complete groups passed; 0 running, 1 failed and 83 pending. Proposed compiler repair (separate unpublished source): running-thirty-three-complete-groups; 27 of 33 complete groups passed; 1 running, 0 failed and 5 pending.",
+  "updatedAt": "2026-11-04T21:17:51.606163+00:00"
 }
