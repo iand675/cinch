@@ -103,14 +103,14 @@
     },
     {
       "title": "Proposed compiler repair",
-      "detail": "Separate unpublished source: failed. All 43 compiler modules: passed. 5 of 6 complete groups passed; 0 running, 1 failed and 0 pending. This does not replace current-source or final Stage3 acceptance.",
-      "state": "running"
+      "detail": "Separate unpublished source: passed. All 43 compiler modules: passed. 1 of 1 complete groups passed; 0 running, 0 failed and 0 pending. This does not replace current-source or final Stage3 acceptance.",
+      "state": "passed"
     }
   ],
   "blockers": [
     {
       "title": "Implement structured tasks in the self-built compiler",
-      "detail": "Direct do is published and verified. A fresh scoped-region Core binder is under23-case kernel and six-group validation. Source task forms, lifetime/linear-handle checks and actual task runtime lowering remain unfinished. Original task-exhaustion assertion remains unchanged."
+      "detail": "Direct do is published and verified. Fresh scoped Core passes all43 source checks and five whole groups, including125 zero-leak runtime programs. The corrected23-case scope kernel fixture passes a direct Rust check; its complete typing target is running. Source task forms, lifetime/linear-handle checks and real task runtime lowering remain unfinished."
     },
     {
       "title": "Finish the fresh bootstrap",
@@ -167,6 +167,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "All 43 compiler-source checks: passed. 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. runtime behavior: passed; bootstrap_source_effects: passed; parser: passed; bootstrap_resolve: passed; inference: passed; independent type checker: passed; Core validation: passed; library calls: passed.",
-  "activity": "Complete sweep of the new Cinch source: 0 of 208 complete groups passed; 0 running, 0 failed and 208 pending. Stage builds and smoke checks: 0 of 4; chain state: pending. Repair gates: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. runtime behavior: passed; bootstrap_source_effects: passed; parser: passed; bootstrap_resolve: passed; inference: passed; independent type checker: passed; Core validation: passed; library calls: passed. Early Stage1 behavior: 0 of 8 complete groups passed; 0 running, 0 failed and 8 pending. Exact final Stage3 suite: 0 of 91 complete groups passed; 0 running, 0 failed and 91 pending. Proposed compiler repair (separate unpublished source): failed; 5 of 6 complete groups passed; 0 running, 1 failed and 0 pending.",
-  "updatedAt": "2026-11-04T10:39:34.150607+00:00"
+  "activity": "Complete sweep of the new Cinch source: 0 of 208 complete groups passed; 0 running, 0 failed and 208 pending. Stage builds and smoke checks: 0 of 4; chain state: pending. Repair gates: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. runtime behavior: passed; bootstrap_source_effects: passed; parser: passed; bootstrap_resolve: passed; inference: passed; independent type checker: passed; Core validation: passed; library calls: passed. Early Stage1 behavior: 0 of 8 complete groups passed; 0 running, 0 failed and 8 pending. Exact final Stage3 suite: 0 of 91 complete groups passed; 0 running, 0 failed and 91 pending. Proposed compiler repair (separate unpublished source): passed; 1 of 1 complete groups passed; 0 running, 0 failed and 0 pending.",
+  "updatedAt": "2026-11-04T10:43:43.925123+00:00"
 }
