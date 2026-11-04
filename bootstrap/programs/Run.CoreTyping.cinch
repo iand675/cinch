@@ -1,10 +1,12 @@
 module Main where
   import Bootstrap.Type
+  import Algebra.Semigroup
   import Bootstrap.Index
   import Bootstrap.Core
   import Bootstrap.Global
   import Bootstrap.Kinds
   import Bootstrap.Typing
+  import Bootstrap.Nominal (interface-global)
   import Bootstrap.Dictionary (resolve-dictionary-term-with)
   import Text.Lex (Span)
   import Data.Path (path-from-string)
@@ -158,6 +160,50 @@ module Main where
     , not (scope-region-closed region (UFun unit (UTuple (UArg token UEnd))))
     , not (scope-region-closed region (URow (UArg (UApp (UCon "ScopedEffect" (KFun KRegion KEffect)) region) UEnd)))
     ]
+  task-checks :: Nat -> List Bool
+  task-checks nonce =
+    let q = MkQuant nonce "r" KRegion False in
+    let owner = URigid (nonce + 1) "r" 1 KRegion in
+    let region = URigid (nonce + 2) "s" 2 KRegion in
+    let other-region = URigid (nonce + 3) "other" 3 KRegion in
+    let token = scope-type owner region in
+    let result = task-result-type int int in
+    let handle-ty = task-type region int int in
+    let io ty = UApp (UCon "b.Io" (KFun KRegion KType)) ty in
+    let row = URow (UArg (UApp (UCon "Async" (KFun KRegion KEffect)) owner) (UArg (UApp (UCon "Cancel" (KFun KRegion KEffect)) owner) (UArg (UCon "Diverge" KEffect) UEnd))) in
+    let bound-owner = UBound nonce "r" KRegion in
+    let bound-row = URow (UArg (UApp (UCon "Async" (KFun KRegion KEffect)) bound-owner) (UArg (UApp (UCon "Cancel" (KFun KRegion KEffect)) bound-owner) (UArg (UCon "Diverge" KEffect) UEnd))) in
+    let declared = qualified [q] [MkRequirement "io" (io (UBound nonce "r" KRegion))] (UFunEff unit bound-row result) in
+    let worker-ty = UFun unit result in
+    let declarations = [GlobalValue "task-work" "value" declared, GlobalValue "task-body" "external" (mono worker-ty), GlobalValue "True" "constructor" (mono bool)] in
+    let task-kinds = [("b.Io", KFun KRegion KType), ("b.Scope", scope-kind), ("b.Task", task-kind), (interface-global "Data.Core.Result", KFun KType (KFun KType KType))] <> kinds in
+    let scope-id = nonce + 10 in let handle-id = nonce + 11 in
+    let scope-value = CLocal sp token scope-id "s" Nil in
+    let handle-value = CLocal sp handle-ty handle-id "h" Nil in
+    let worker = CUse sp worker-ty "task-body" "external" Nil in
+    let spawn = CSpawn sp handle-ty scope-value worker in
+    let handles = CArgument sp handle-value (CArgumentsEnd sp) in
+    let join = CJoin sp result scope-value handles in
+    let bind next = CLet sp result handle-id "h" (mono handle-ty) spawn next in
+    let wrap body = CScope sp result region (CEGiven sp (io owner) "io") (CLambda sp (UFunEff token row result) (CPVar sp token scope-id "s") body) in
+    let check body = (case close-typing-context task-kinds declarations of
+      None -> False
+      Some context -> typing-definition-closed context (MkCoreDefinition sp "task-work" declared [(nonce, owner)] [CGiven sp "io" (io owner)] Nil [MkCoreClause sp [CPWild sp unit] body])) in
+    [ check (wrap (bind join))
+    , check (map-term-types (\ty -> ty) (wrap (bind join)))
+    , check (wrap (bind (CIf sp result truth join join)))
+    , not (check (wrap (bind (CJoin sp result scope-value (CArgument sp handle-value handles)))))
+    , not (check (wrap (bind (CLet sp result (nonce + 12) "first-result" (mono result) join join))))
+    , not (check (wrap (bind (CIf sp result truth join (CApply sp result worker (CUnit sp unit))))))
+    , not (check (wrap (bind (CApply sp result worker (CUnit sp unit)))))
+    , not (check (wrap (CLet sp result handle-id "h" (mono handle-ty) (CSpawn sp handle-ty scope-value (CLambda sp (UFun unit int) (CPWild sp unit) integer)) join)))
+    , not (check (wrap (bind (CJoin sp int scope-value handles))))
+    , not (check (wrap (bind (CJoin sp result scope-value (CArgumentsEnd sp)))))
+    , not (check (wrap (bind (CJoin sp result (CUnit sp unit) handles))))
+    , not (check (wrap (bind (CJoin sp result scope-value (CArgument sp integer (CArgumentsEnd sp))))))
+    , not (check (wrap (CLet sp result handle-id "h" (mono (task-type other-region int int)) (CSpawn sp (task-type other-region int int) scope-value worker) join)))
+    , not (check (wrap (CLet sp result handle-id "h" (mono handle-ty) (CSpawn sp (task-type region bool int) scope-value worker) join)))
+    ]
   verdict :: Int -> List Bool -> Int
   verdict next values = case values of Nil -> 0; Cons True rest -> verdict (next + 1) rest; Cons False rest -> next
   main :: Unit ->{IO r} Int
@@ -165,5 +211,7 @@ module Main where
     Err error -> 90
     Ok input -> let nonce = 340282366920938463463374607431768211456 + bytes-len input in
       case verdict 1 (scope-checks nonce) of
-        0 -> verdict 1 (checks nonce)
+        0 -> case verdict 1 (task-checks nonce) of
+          0 -> verdict 1 (checks nonce)
+          code -> 150 + code
         code -> 100 + code

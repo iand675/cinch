@@ -117,7 +117,11 @@ module Bootstrap.Contracts where
 
   display-type :: Span -> String -> String -> Json -> (Option TypeExpr, List Diagnostic)
   display-type s name kind metadata =
-    if same kind "value" || same kind "constructor" || same kind "method" || same kind "builtin" || same kind "builtin-syntax" || same kind "builtin-constructor" then case field "scheme" metadata of
+    -- Scope/task syntax is elaborated with fresh binders and variadic
+    -- argument checks; it has no first-class imported function scheme.
+    -- Infer validates the complete metadata against the owned kernel rule.
+    if same kind "builtin-syntax" && (same name "b.withScope" || same name "b.spawn" || same name "b.joinAllOrCancel") then (None, Nil)
+    else if same kind "value" || same kind "constructor" || same kind "method" || same kind "builtin" || same kind "builtin-syntax" || same kind "builtin-constructor" then case field "scheme" metadata of
       JStr text -> case parse-scheme name (string-to-bytes text) of
         Parsed ty Nil -> (Some ty, Nil)
         other -> (None, Cons (MkDiagnostic "bootstrap.resolve" s (string-concat "cannot parse imported scheme for " name)) Nil)
@@ -171,6 +175,8 @@ module Bootstrap.Contracts where
     EGuarded s guard body -> expr-references guard <> expr-references body
     EAnn s body ty -> expr-references body <> type-references ty
     EWith s bs body -> expr-references bs <> expr-references body
+    EDo s statements -> expr-references statements
+    EBind s name rhs -> expr-references rhs
     EHandle s body handled-by -> expr-references body <> expr-references handled-by
     EHandler s label clauses -> type-references label <> expr-references clauses
     EHandlerClause s name pats continuation body rest -> (if same name "return" then Nil else Cons name Nil)

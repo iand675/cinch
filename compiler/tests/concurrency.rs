@@ -484,3 +484,37 @@ module Main where
     Err e -> 2
 "#), 0);
 }
+
+#[test]
+fn aggregate_results_cannot_hide_scoped_closure_captures() {
+    expect_err("helper-hidden-in-tuple", r#"
+module Main where
+  hide :: forall r s. using (io :: Io r) => Scope r s -> Unit ->{Async r, Cancel r, Diverge} Result Int Nat
+  hide s u = do
+    h <- spawn s (\() -> Ok 7)
+    joinAllOrCancel s h
+  pack :: forall r s. using (io :: Io r) => Scope r s -> (Unit ->{Async r, Cancel r, Diverge} Result Int Nat, Int)
+  pack s = (hide s, 0)
+  bad :: forall r. using (io :: Io r) => Unit ->{Diverge} (Unit ->{Async r, Cancel r, Diverge} Result Int Nat, Int)
+  bad u = withScope (\s -> pack s)
+"#, "region escape");
+    expect_err("helper-hidden-in-data", r#"
+module Main where
+  data Holder where
+    Holder :: (Unit -> Int) -> Holder
+  pack :: forall r s. Scope r s -> Holder
+  pack s = Holder (\u -> case s of _ -> 7)
+  bad :: forall r. using (io :: Io r) => Unit ->{Diverge} Holder
+  bad u = withScope (\s -> pack s)
+"#, "region escape");
+    expect_ok("scope-helper-returns-ordinary-data", r#"
+module Main where
+  data NumberBox where
+    NumberBox :: Int -> NumberBox
+  wrap :: forall r s. Scope r s -> NumberBox
+  wrap s = NumberBox 7
+  main :: Unit ->{Diverge} Int
+  main u = with (io = newIO ()) in case withScope (\s -> wrap s) of
+    NumberBox n -> if n == 7 then 0 else 1
+"#, 0);
+}

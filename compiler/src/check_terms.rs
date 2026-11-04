@@ -902,22 +902,26 @@ impl Checker {
                         }
                     }
                 }
-                // A returned function can retain supplied arguments in its
-                // closure even when its visible result type omits them. Apply
+                // A returned function or data wrapper can retain arguments
+                // in a closure even when its visible type omits them. Apply
                 // the same borrowed-environment rule as an explicit lambda:
                 // an active structured-scope region must remain visible in
-                // the returned function type. Fully applied scalar/data
-                // results keep their ordinary non-closure path.
+                // the returned value type. Known values whose checked fields
+                // cannot retain closures keep their ordinary path.
                 let result_ty = self.uni.zonk(&ty);
-                if matches!(result_ty, Ty::Fun(..) | Ty::Pi { .. } | Ty::Meta(_)) {
+                if !self.scope_frames.is_empty() && self.value_may_hide_scope(&result_ty, &mut Vec::new(), 64) {
                     let mut visible = Vec::new();
                     all_regions(&result_ty, &mut visible);
                     for (_, argument_ty, argument_span) in &call_args {
-                        if let Some(region) = self.open_scope_region(argument_ty) {
+                        let mut captured = Vec::new();
+                        all_regions(&self.uni.zonk(argument_ty), &mut captured);
+                        for region in captured {
                             let region = self.uni.resolve_region(&region);
-                            if !visible.iter().any(|name| self.uni.resolve_region(name) == region) {
+                            let active = self.scope_frames.iter().any(|frame|
+                                self.uni.resolve_region(&frame.region) == region);
+                            if active && !visible.iter().any(|name| self.uni.resolve_region(name) == region) {
                                 return Err(Error::at(*argument_span, format!(
-                                    "region escape: a returned closure captures structured scope region {region} without retaining its lifetime in its type (concurrency specification, section 2)"
+                                    "region escape: a returned value captures structured scope region {region} without retaining its lifetime in its type (concurrency specification, section 2)"
                                 )));
                             }
                         }

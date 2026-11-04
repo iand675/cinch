@@ -1473,7 +1473,8 @@ module Bootstrap.Parse where
   -- (&&)/(||) remain ordinary function values, as in the native parser.
   infix-expression :: Span -> String -> Expr -> Expr -> Expr
   infix-expression sp op left right =
-    if string-compare op "&&" == 0 then EIf sp left right (ECon sp "False" (EArgsEnd sp))
+    if string-compare op "$" == 0 then EApp sp left right
+    else if string-compare op "&&" == 0 then EIf sp left right (ECon sp "False" (EArgsEnd sp))
     else if string-compare op "||" == 0 then EIf sp left (ECon sp "True" (EArgsEnd sp)) right
     else EBin sp op left right
 

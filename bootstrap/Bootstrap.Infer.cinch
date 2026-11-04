@@ -230,7 +230,7 @@ module Bootstrap.Infer where
       other -> primitive-type name)
     else primitive-type name
   primitive-kinds :: TypeContext
-  primitive-kinds = MkTypeContext (Cons ("b.Io", KFun KRegion KType) (Cons ("b.Dec", KFun KProp KType) (map-primitive ["Int", "Nat", "Bool", "Unit", "()", "String", "Char", "Bytes", "Sym", "Isize", "Usize", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "F32", "F64"])) ) Nil Nil [ByteObservation "#kernel.bytes-length" None] Nil Nil
+  primitive-kinds = MkTypeContext (Cons ("b.Scope", scope-kind) (Cons ("b.Task", task-kind) (Cons ("b.Io", KFun KRegion KType) (Cons ("b.Dec", KFun KProp KType) (map-primitive ["Int", "Nat", "Bool", "Unit", "()", "String", "Char", "Bytes", "Sym", "Isize", "Usize", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "F32", "F64"])) ))) Nil Nil [ByteObservation "#kernel.bytes-length" None] Nil Nil
   map-primitive :: List String -> List (String, Kind)
   map-primitive names = case names of Nil -> Nil; Cons name rest -> Cons (name, KType) (map-primitive rest)
   lookup-kind :: String -> List (String, Kind) -> Option Kind
@@ -828,6 +828,8 @@ module Bootstrap.Infer where
     Cons p rest -> Cons (case p of MkTypeParam s name None only -> if has name regions then MkTypeParam s name (Some (TName s "Region")) only else p; other -> p) (region-parameters rest regions)
   region-names :: TypeExpr -> List String
   region-names ty = case ty of
+    TApp s (TName h name) (TArg a (TName r owner) (TArg b (TName t region) (TArgsEnd end))) -> if has name ["Scope", "b.Scope"] then [owner, region] else Nil
+    TApp s (TName h name) (TArg a (TName r region) (TArg b error (TArg c value (TArgsEnd end)))) -> if has name ["Task", "b.Task"] then [region] else region-names error <> region-names value
     TApp s (TName h name) (TArg a (TName r region) (TArgsEnd end)) -> if has name ["Io", "b.Io", "IO", "Async", "Cancel", "Eval"] then [region] else Nil
     TApp s f xs -> region-names f <> region-names xs
     TFun s a b -> region-names a <> region-names b
@@ -1492,12 +1494,25 @@ module Bootstrap.Infer where
     Cons (DExternal sp symbol category syntax metadata) rest -> if same name symbol && same category "builtin-syntax" then Some metadata else kernel-syntax-metadata name rest
     Cons other rest -> kernel-syntax-metadata name rest
   register-decision-syntax :: Span -> String -> Json -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
-  register-decision-syntax sp name metadata env st = if not (same name "b.decide") then (env, add-error sp "unknown kernel predicate syntax" st) else
+  register-decision-syntax sp name metadata env st = if task-syntax-name name then register-task-syntax sp name metadata env st
+    else if not (same name "b.decide") then (env, add-error sp "unknown kernel predicate syntax" st) else
     case kernel-syntax-metadata name builtin-declarations of
       Some trusted -> if same-kernel-fields ["name", "operation", "runtime_abi", "first_class", "predicate_kind", "scheme"] metadata trusted then
         (case lookup-binding name env of None -> (Cons (MkSyntaxBinding name) env, st); Some prior -> (env, add-error sp "duplicate kernel predicate syntax" st))
         else (env, add-error sp "decide syntax disagrees with the kernel predicate contract" st)
       None -> (env, add-error sp "missing kernel predicate syntax contract" st)
+  task-syntax-name :: String -> Bool
+  task-syntax-name name = has name ["b.withScope", "b.spawn", "b.joinAllOrCancel"]
+  register-task-syntax :: Span -> String -> Json -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-task-syntax sp name metadata env st = case kernel-syntax-metadata name builtin-declarations of
+    Some trusted -> if same-kernel-fields ["name", "operation", "arity", "variadic", "runtime_abi", "first_class"] metadata trusted then
+      (case lookup-binding name env of None -> (Cons (MkSyntaxBinding name) env, st); Some prior -> (env, add-error sp "duplicate kernel task syntax" st))
+      else (env, add-error sp "task syntax disagrees with its owned kernel contract" st)
+    None -> (env, add-error sp "unknown kernel task syntax" st)
+  task-syntax-head :: List CheckedBinding -> Expr -> Bool
+  task-syntax-head env expr = case application-spine expr Nil of
+    (EVar sp name, args) -> task-syntax-name name && (case lookup-binding name env of Some (MkSyntaxBinding symbol) -> same name symbol; other -> False)
+    other -> False
   checked-kernel-cache :: Span -> TypeExpr -> Scheme -> List (String, Kind) -> TypeContext -> Store -> Store
   checked-kernel-cache sp syntax expected classes kinds st = case make-scheme False classes kinds Nil syntax st of
     (actual, checked) -> if scheme-equivalent actual expected then checked else add-error sp "cached kernel type disagrees with its owned contract" checked
@@ -1815,7 +1830,7 @@ module Bootstrap.Infer where
     ELitStr s text -> (CString s (literal-type kinds "String") text, st)
     ELitChar s text -> (CChar s (primitive-type "Char") text, st)
     EUnit s -> (CUnit s (primitive-type "Unit"), st)
-    EApp s f x -> if decision-syntax-head env f then infer-decision classes kinds families env locals s x st else
+    EApp s f x -> if task-syntax-head env expr then infer-task-application classes kinds families env locals s expr None st else if decision-syntax-head env f then infer-decision classes kinds families env locals s x st else
       (case infer classes kinds families env locals f st of
         (fun, sf) -> apply-argument classes kinds families env locals s fun x sf)
     ELam s ps body -> case infer-lambda classes kinds families env locals ps body (duplicate-names s (patterns-names ps) Nil st) of
@@ -1931,7 +1946,7 @@ module Bootstrap.Infer where
   infer-expected classes kinds families env locals expr expected st = case expr of
     ECon sp name fields -> if not (expression-spine-valid fields) then term-error sp "malformed constructor argument spine" st else (case lookup-expression-value sp kinds name env st of
       (constructor, opened) -> let args = exprs-of fields in apply-spine classes kinds families env locals constructor args (hint-application-result sp (core-type constructor) args expected opened))
-    EApp sp function argument -> if decision-syntax-head env function then infer-decision-expected classes kinds families env locals sp argument expected st else
+    EApp sp function argument -> if task-syntax-head env expr then infer-task-application classes kinds families env locals sp expr (Some expected) st else if decision-syntax-head env function then infer-decision-expected classes kinds families env locals sp argument expected st else
       (case application-spine expr Nil of
         (head, args) -> case infer classes kinds families env locals head st of
           (fun, opened) -> apply-spine classes kinds families env locals fun args
@@ -2111,7 +2126,11 @@ module Bootstrap.Infer where
         (term, checked) -> (term, unify (pat-span p) expected (core-type term) checked)
       other -> case bind-arrow-pattern classes kinds families env locals p expected st of
         (bound, pattern, row, result, checked) -> case check-lambda classes kinds families bound locals rest body result checked of
-          (rhs, sr) -> (CLambda (pat-span p) expected pattern rhs, include-effects (expr-span body) (core-effects rhs) row sr)
+          (rhs, sr) -> (CLambda (pat-span p) expected pattern rhs, inferred-lambda-effects (expr-span body) (core-effects rhs) row sr)
+  inferred-lambda-effects :: Span -> UType -> UType -> Store -> Store
+  inferred-lambda-effects sp actual allowed st = case normalize st allowed of
+    UMeta id KRow -> unify sp allowed (normalize st actual) st
+    other -> include-effects sp actual allowed st
   function-type :: UType -> UType -> UType -> UType
   function-type a row b = case row of URow UEnd -> UFun a b; other -> UFunEff a row b
   arrow-parts :: Span -> UType -> Store -> (UType, UType, UType, Store)
@@ -2442,6 +2461,50 @@ module Bootstrap.Infer where
       other -> (env, CPWild sp UError, add-error sp "too many constructor pattern arguments" st)
     other -> (env, CPWild sp UError, add-error sp "malformed constructor pattern spine" st)
 
+  task-wanted :: Option UType -> Store -> (UType, Store)
+  task-wanted wanted st = case wanted of Some ty -> (ty, st); None -> fresh-meta KType st
+  infer-task-application :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Option UType -> Store -> (CoreTerm, Store)
+  infer-task-application classes kinds families env locals sp expr wanted st = case application-spine expr Nil of
+    (EVar at name, args) -> if same name "b.withScope" then (case args of
+      Cons body Nil -> (case fresh-meta KRegion st of
+        (owner, one) -> case task-wanted wanted one of
+          (result, two) -> case fresh-meta KRow two of
+            (row, three) -> let level = store-level three in
+              case fresh-id (enter-level three) of
+                (id, inner) -> let region = URigid id "scope" (store-level inner) KRegion in
+                  let expected = UFunEff (scope-type owner region) row result in
+                  case check classes kinds families env locals body expected inner of
+                    (callback, done) -> (CScope sp result region (CENeeded sp (UApp (UCon "b.Io" (KFun KRegion KType)) owner) (env-givens env)) callback, restore-level level done))
+      other -> term-error sp "withScope takes exactly one scope callback" st)
+      else if same name "b.spawn" then (case args of
+        Cons token (Cons body Nil) -> (case fresh-meta KRegion st of
+          (owner, one) -> case fresh-meta KRegion one of
+            (region, two) -> case check classes kinds families env locals token (scope-type owner region) two of
+              (scope, three) -> case fresh-meta KType three of
+                (failure, four) -> case fresh-meta KType four of
+                  (value, five) -> case fresh-meta KRow five of
+                    (row, six) -> case check classes kinds families env locals body (UFunEff (primitive-type "Unit") row (task-result-type failure value)) six of
+                      (callback, done) -> let result = task-type region failure value in
+                        (CSpawn sp result scope callback, case wanted of None -> done; Some expected -> unify sp result expected done))
+        other -> term-error sp "spawn takes one scope and one task callback" st)
+      else (case args of
+        Cons token (Cons first rest) -> (case fresh-meta KRegion st of
+          (owner, one) -> case fresh-meta KRegion one of
+            (region, two) -> case check classes kinds families env locals token (scope-type owner region) two of
+              (scope, three) -> case fresh-meta KType three of
+                (failure, four) -> case check-task-handles classes kinds families env locals sp region failure (Cons first rest) four of
+                  (fields, handles, done) -> let payload = case fields of UArg value UEnd -> value; other -> UTuple fields in
+                    let result = task-result-type failure payload in
+                    (CJoin sp result scope handles, case wanted of None -> done; Some expected -> unify sp result expected done))
+        other -> term-error sp "joinAllOrCancel takes a scope and at least one task handle" st)
+    other -> term-error sp "task application needs its canonical kernel operation" st
+  check-task-handles :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> UType -> UType -> List Expr -> Store -> (UType, CoreTerm, Store)
+  check-task-handles classes kinds families env locals sp region failure args st = case args of
+    Nil -> (UEnd, CArgumentsEnd sp, st)
+    Cons first rest -> case fresh-meta KType st of
+      (value, fresh) -> case check classes kinds families env locals first (task-type region failure value) fresh of
+        (checked-value, checked) -> case check-task-handles classes kinds families env locals sp region failure rest checked of
+          (fields, handles, done) -> (UArg value fields, CArgument sp checked-value handles, done)
   check-do :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> UType -> Store -> (CoreTerm, Store)
   check-do classes kinds families env locals sp statements expected st = case statements of
     EArg at first (EArgsEnd end) -> (case first of
@@ -2664,9 +2727,29 @@ module Bootstrap.Infer where
         (definition, ss) -> case definition of
           None -> (Cons name seen, None, ss)
           Some core -> case resolve-dictionary-definition-with classes (env-instances env) core ss of
-            (resolved, checked) -> (Cons name seen, Some (seal-definition-with-contracts (env-body-bindings env) (env-guarded-bindings env) checked resolved), checked)
+            (resolved, checked) -> let completed = default-task-failure-clauses (core-clauses resolved) checked in
+              (Cons name seen, Some (seal-definition-with-contracts (env-body-bindings env) (env-guarded-bindings env) completed resolved), completed)
     DSig s name ty -> (seen, None, if has-definition name all then st else add-error s (string-concat "signature has no definition: " name) st)
     other -> (seen, None, st)
+  -- Task errors left unconstrained by the complete body are existential
+  -- monotypes, not caller-selected parameters. Choose Unit only after all
+  -- source constraints, numeric defaults and dictionary resolution finish.
+  -- Keep public/rigid types, generalization and failed obligations intact.
+  default-task-failure-clauses :: List CoreClause -> Store -> Store
+  default-task-failure-clauses clauses st = case clauses of
+    Nil -> st
+    Cons (MkCoreClause sp patterns body) rest -> default-task-failure-clauses rest (default-task-failure-term body st)
+  default-task-failure-term :: CoreTerm -> Store -> Store
+  default-task-failure-term term st = let checked = default-task-failure-terms (term-children term) st in
+    case term of
+      CSpawn sp ty token callback -> (case task-parts (normalize checked ty) of
+        Some (region, error, value) -> (case normalize checked error of
+          UMeta id KType -> (case store-errors checked of Nil -> unify sp error (primitive-type "Unit") checked; other -> checked)
+          other -> checked)
+        None -> checked)
+      other -> checked
+  default-task-failure-terms :: List CoreTerm -> Store -> Store
+  default-task-failure-terms terms st = case terms of Nil -> st; Cons first rest -> default-task-failure-terms rest (default-task-failure-term first st)
   check-bodies :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List String -> List Decl -> List Decl -> Store -> (List CoreDefinition, Store)
   check-bodies classes kinds families env seen all ds st = check-body-loop classes kinds families env seen all ds Nil st
   check-body-loop :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List String -> List Decl -> List Decl -> List CoreDefinition -> Store -> (List CoreDefinition, Store)
@@ -2721,6 +2804,7 @@ module Bootstrap.Infer where
   check-core-closed globals definitions st = case definitions of
     Nil -> st
     Cons d rest -> check-core-closed globals rest (if not (core-definition-contracts-closed (context-bodies globals) (context-guarded-bodies globals) d) then add-error zero "typed core contains an unresolved scheme or error term" st
+      else if not (task-definition-safe globals d) then add-error zero (string-concat "task handle must be consumed exactly once and scope/capture lifetimes and sharing must be valid: " (core-name d)) st
       else if typing-definition-closed globals d then st else add-error zero (string-concat "independent Core typing disagrees with the declaration or term: " (core-name d)) st)
   check-field-globals :: TypingContext -> List CoreDictionaryField -> Store -> Store
   check-field-globals globals fields st = case fields of Nil -> st; Cons field rest -> check-field-globals globals rest (check-core-closed globals [dictionary-field-definition field] st)
@@ -2728,8 +2812,8 @@ module Bootstrap.Infer where
   check-instance-globals globals instances st = case instances of Nil -> st; Cons dictionary rest -> check-instance-globals globals rest (check-field-globals globals (instance-fields dictionary) st)
   declared-kind-rows :: TypeContext -> List (String, Kind)
   declared-kind-rows context = case context of MkTypeContext kinds aliases active observers effects source-classes -> kinds
-  check-global-core :: TypeContext -> List CheckedBinding -> List CoreInstance -> List CoreDefinition -> Store -> Store
-  check-global-core kinds bindings instances definitions st = case close-typing-context-with-effects (declared-kind-rows kinds) (instance-globals instances (global-bindings (finish-bindings st bindings) Nil)) (context-effects kinds) of
+  check-global-core :: TypeContext -> List CheckedBinding -> List CoreInstance -> List CoreData -> List CoreDefinition -> Store -> Store
+  check-global-core kinds bindings instances datas definitions st = case close-typing-context-with-data (declared-kind-rows kinds) (instance-globals instances (global-bindings (finish-bindings st bindings) Nil)) (context-effects kinds) datas of
     Some globals -> check-instance-globals globals instances (check-core-closed globals definitions st)
     None -> add-error zero "global declaration environment is not closed or contains conflicting identities" st
   -- Reuse the schemes registered and checked above. Re-reading a surface
@@ -2947,7 +3031,7 @@ module Bootstrap.Infer where
     let (declared-data, declared-store) = case store-errors done of Nil -> checked-data classes linked-kinds env ds Nil done; other -> (Nil, done) in
     let (nominal-data, nominal-store) = case store-errors declared-store of Nil -> checked-nominal-data ds linked-kinds declared-data declared-store; other -> (declared-data, declared-store) in
     let (datas, sd) = case store-errors nominal-store of Nil -> complete-runtime-data ds classes linked-kinds nominal-data nominal-store; other -> (nominal-data, nominal-store) in
-    let finished = case store-errors sd of Nil -> check-data-closed datas (check-global-core linked-kinds env instances core sd); other -> sd in
+    let finished = case store-errors sd of Nil -> check-data-closed datas (check-global-core linked-kinds env instances datas core sd); other -> sd in
     let retained-classes = case store-errors finished of Nil -> checked-imported-classes rows rows classes linked-kinds descriptions; other -> descriptions in
     MkElaboration (store-errors finished) (finish-bindings finished env) (contexts ds) core datas effects (MkCoreClassContext classes retained-classes) instances
   elaborate-modules :: String -> List Module -> Elaboration

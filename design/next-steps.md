@@ -1,5 +1,52 @@
 # Next steps (as of 2026-11-04)
 
+## Structured task execution verified
+
+The Cinch compiler now elaborates withScope, spawn and joinAllOrCancel into
+checked Core and real shared-runtime threads. Scope identity, Io evidence,
+effects, exact-once handle use, capture sharing and hidden lifetimes are checked
+independently before emission. Only the declaring kernel owns these forms;
+ordinary source shadows retain their own behavior. Joined Result layouts use
+the actual checked Data.Core declaration.
+
+All 43 compiler sources and six complete focused groups pass. All 133 runtime
+programs return their expected results with zero leaks. Eight new programs cover
+single/pair joins, owned values, immutable captures, nested scopes, cancellation,
+a saturated scope helper, empty scopes and ordinary builtin-name shadows.
+Twelve task source refusals remain; ownership/lifetime cases must reach the
+actual safety diagnostic. Fourteen new independent task-node checks execute at
+five large identifiers alongside all 23 existing scoped-region checks.
+See [the complete focused task proof](../bootstrap/current-structured-task-results.json).
+
+The repair also discovers imported dependencies inside do blocks and infers
+fresh callback effect rows. Task error types left unconstrained after complete
+body checking and dictionary/numeric resolution instantiate Unit. Public and
+rigid types and ordinary private-type sealing retain their existing discipline.
+
+The compiler source identity is 6b5e776bb196631c6c42476ec08e0f8e801a60e5fd95ea7fb21f7dfb9d776620. This does not establish full
+ownership/provider parity or close Acceptance 1-5. The unchanged original
+self-built exhaustion test, a fresh Stage0-3 chain and all matching complete
+suites and the final coverage audit remain required. The separate Rust aggregate
+scope-escape repair passes all60 focused tests; the full matching suite remains required.
+
+## Rust aggregate scope capture repaired
+
+The Rust frontend now rejects an application that hides a live structured-scope
+token inside a returned function, tuple or data wrapper. Previously, partially applying a helper could
+return a closure whose type omitted the captured scope, bypassing the visible
+result-type escape check. The application now follows the existing explicit
+lambda capture rule and inspects actual checked constructor fields. Saturating
+the helper inside the scope and returning ordinary data still work.
+
+All 60 tests in the five complete concurrency, exhaustion, ownership, effects
+and region-interface groups pass, with none ignored or filtered. The new
+regression covers direct, aliased and tuple-wrapped escapes and executes a
+valid saturated helper. See [the scoped Rust proof](../bootstrap/current-rust-hidden-scope-capture-results.json).
+
+The separate Cinch task implementation passes its six complete focused groups.
+A fresh full bootstrap and complete matching suites remain required.
+Acceptance 1-5 and the full goal remain open.
+
 ## Rust hidden scope capture repaired
 
 The Rust frontend now rejects an application that hides a live structured-scope
@@ -13,9 +60,8 @@ and region-interface groups pass, with none ignored or filtered. The new
 regression covers direct, aliased and tuple-wrapped escapes and executes a
 valid saturated helper. See [the scoped Rust proof](../bootstrap/current-rust-hidden-scope-capture-results.json).
 
-The local Cinch task frontend, lifetime/consumption checks and physical runtime
-lowering remain under focused testing. A resolver integration failure is fixed
-locally; a fresh full bootstrap and complete matching suites remain required.
+The separate Cinch task implementation passes its six complete focused groups.
+A fresh full bootstrap and complete matching suites remain required.
 Acceptance 1-5 and the full goal remain open.
 
 ## Scoped-region Core foundation verified

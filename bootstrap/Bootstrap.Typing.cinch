@@ -15,18 +15,22 @@ module Bootstrap.Typing where
   import Text.Lex (Span)
   import Algebra.Semigroup
 
-  export close-typing-context-with-effects, context-effects
+  export close-typing-context-with-effects, close-typing-context-with-data, context-effects, task-definition-safe
   export TypingContext, close-typing-context, typing-definition-closed, context-bodies, context-guarded-bodies
   data TypingContext where
-    CheckedTypingContext :: List (String, Kind) -> CoreGlobals -> List CoreEffect -> TypingContext
+    CheckedTypingContext :: List (String, Kind) -> CoreGlobals -> List CoreEffect -> List CoreData -> TypingContext
+  context-data :: TypingContext -> List CoreData
+  context-data context = case context of CheckedTypingContext kinds globals effects datas -> datas
+  context-declarations :: TypingContext -> List CoreGlobal
+  context-declarations context = case context of CheckedTypingContext kinds globals effects datas -> globals-declarations globals
   context-effects :: TypingContext -> List CoreEffect
-  context-effects context = case context of CheckedTypingContext kinds globals effects -> effects
+  context-effects context = case context of CheckedTypingContext kinds globals effects datas -> effects
   context-bodies :: TypingContext -> List BodyBinding
-  context-bodies context = case context of CheckedTypingContext kinds globals effects -> globals-bodies globals
+  context-bodies context = case context of CheckedTypingContext kinds globals effects datas -> globals-bodies globals
   context-guarded-bodies :: TypingContext -> List GuardedBinding
-  context-guarded-bodies context = case context of CheckedTypingContext kinds globals effects -> globals-guarded-bodies globals
+  context-guarded-bodies context = case context of CheckedTypingContext kinds globals effects datas -> globals-guarded-bodies globals
   context-kinds :: TypingContext -> List (String, Kind)
-  context-kinds context = case context of CheckedTypingContext kinds globals effects -> kinds
+  context-kinds context = case context of CheckedTypingContext kinds globals effects datas -> kinds
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
   equal-type :: UType -> UType -> Bool
@@ -76,9 +80,11 @@ module Bootstrap.Typing where
         && operations-registered (core-effect-operations declaration) globals
         && effects-registered kinds globals (Cons name seen) rest
   close-typing-context-with-effects :: List (String, Kind) -> List CoreGlobal -> List CoreEffect -> Option TypingContext
-  close-typing-context-with-effects kinds declarations effects = let all = kernel-effect-kinds <> kinds in
-    if nominal-kinds-closed all && global-types all declarations && effects-registered all declarations Nil effects then
-      (case close-globals declarations of Some globals -> Some (CheckedTypingContext all globals effects); None -> None)
+  close-typing-context-with-effects kinds declarations effects = close-typing-context-with-data kinds declarations effects Nil
+  close-typing-context-with-data :: List (String, Kind) -> List CoreGlobal -> List CoreEffect -> List CoreData -> Option TypingContext
+  close-typing-context-with-data kinds declarations effects datas = let all = kernel-effect-kinds <> kinds in
+    if nominal-kinds-closed all && global-types all declarations && effects-registered all declarations Nil effects && task-data-closed all datas then
+      (case close-globals declarations of Some globals -> Some (CheckedTypingContext all globals effects datas); None -> None)
     else None
   wf :: TypingContext -> TypeScope -> UType -> Bool
   wf context scope ty = body-type-authorized (context-bodies context) ty && type-well-formed (context-kinds context) scope ty
@@ -211,6 +217,8 @@ module Bootstrap.Typing where
         None -> False)
       other -> False)
     CScope sp ty region evidence callback -> checked-scope context scope gamma facts ty region evidence callback
+    CSpawn sp ty token body -> checked-spawn ty token body && checked-term context scope gamma facts token && checked-term context scope gamma facts body
+    CJoin sp ty token handles -> (case task-join-result token handles of Some result -> equal-type ty result; None -> False) && checked-term context scope gamma facts token && argument-terms context scope gamma facts handles
     CWith sp ty given value body -> wf context scope (given-type given) && equal-type (given-type given) (core-type value)
       && equal-type ty (core-type body) && checked-term context scope gamma facts value && checked-term context scope gamma facts body
     CLet sp ty id name sc rhs body -> checked-let context scope gamma facts ty id sc rhs body
@@ -227,6 +235,289 @@ module Bootstrap.Typing where
     CDischarge sp ty certificates body -> equal-type ty (required-body (core-type body)) && checked-term context scope gamma facts body
     CGuard sp ty condition body -> type-is "Bool" (core-type condition) && equal-type ty (core-type body) && checked-term context scope gamma facts condition && checked-term context scope gamma (branch-facts gamma facts condition True) body
     other -> False)
+  task-data-closed :: List (String, Kind) -> List CoreData -> Bool
+  task-data-closed kinds datas = case datas of
+    Nil -> True
+    Cons d rest -> core-data-closed d && effect-kind-declared (core-data-name d) (core-data-kind d) kinds && task-data-closed kinds rest
+  task-data :: String -> List CoreData -> Option CoreData
+  task-data name datas = case datas of Nil -> None; Cons d rest -> if same name (core-data-name d) then Some d else task-data name rest
+  task-base :: UType -> UType
+  task-base ty = case ty of URefine id name carrier predicate -> task-base carrier; URequire predicates body -> task-base body; other -> ty
+  task-type-spine :: UType -> List UType -> (UType, List UType)
+  task-type-spine ty args = case task-base ty of UApp f x -> task-type-spine f (Cons x args); other -> (other, args)
+  task-actuals :: List Quant -> List UType -> List (Nat, UType)
+  task-actuals qs args = case (qs, args) of (Cons q rest, Cons a more) -> Cons (quant-id q, a) (task-actuals rest more); other -> Nil
+  task-seen-type :: UType -> List UType -> Bool
+  task-seen-type ty seen = case seen of Nil -> False; Cons old rest -> equal-type ty old || task-seen-type ty rest
+  task-signature :: String -> List CoreGlobal -> Bool
+  task-signature owner declarations = case declarations of
+    Nil -> False
+    Cons (GlobalMethod name class slot sc) rest -> same owner class || task-signature owner rest
+    Cons (GlobalBody d body) rest -> task-signature owner [d] || task-signature owner rest
+    Cons (GlobalGuardedBody d body) rest -> task-signature owner [d] || task-signature owner rest
+    Cons other rest -> task-signature owner rest
+  -- Structural Copy/Share uses checked complete data declarations. Unknown
+  -- carriers and mutable buffers do not acquire sharing from a printed name.
+  task-shareable :: TypingContext -> List UType -> Nat -> UType -> Bool
+  task-shareable context seen fuel ty = if fuel == 0 then False else case task-base ty of
+    UCon name KType -> if has name ["Int", "Nat", "Bool", "Unit", "Char", "String", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "F32", "F64"] || same name (interface-global "Data.String.String") then True else task-data-property context True seen fuel ty
+    UTuple fields -> task-fields-property context True seen fuel fields
+    UApp (UCon name kind) owner -> if same name "b.Io" then True else task-data-property context True seen fuel ty
+    UApp (UApp (UCon name kind) owner) region -> if same name "b.Scope" then True else task-data-property context True seen fuel ty
+    URigid id name level KRegion -> True
+    UBound id name KRegion -> True
+    other -> task-data-property context True seen fuel ty
+  -- A closed scalar/data value cannot hide a scoped closure. This allows
+  -- ordinary saturated calls to return such values without inventing loans.
+  task-region-free-type :: TypingContext -> List UType -> Nat -> UType -> Bool
+  task-region-free-type context seen fuel ty = if fuel == 0 then False else case task-base ty of
+    UCon name KType -> if has name ["Int", "Nat", "Bool", "Unit", "Char", "String", "Bytes", "Sym", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "F32", "F64"] || same name (interface-global "Data.String.String") then True else task-data-property context False seen fuel ty
+    UTuple fields -> task-fields-property context False seen fuel fields
+    other -> task-data-property context False seen fuel ty
+  task-property :: TypingContext -> Bool -> List UType -> Nat -> UType -> Bool
+  task-property context sharing seen fuel ty = if sharing then task-shareable context seen fuel ty else task-region-free-type context seen fuel ty
+  task-fields-property :: TypingContext -> Bool -> List UType -> Nat -> UType -> Bool
+  task-fields-property context sharing seen fuel fields = case fields of UEnd -> True; UArg ty more -> task-property context sharing seen fuel ty && task-fields-property context sharing seen fuel more; other -> False
+  task-types-property :: TypingContext -> Bool -> List UType -> Nat -> List UType -> Bool
+  task-types-property context sharing seen fuel types = case types of Nil -> True; Cons ty rest -> task-property context sharing seen fuel ty && task-types-property context sharing seen fuel rest
+  task-data-property :: TypingContext -> Bool -> List UType -> Nat -> UType -> Bool
+  task-data-property context sharing seen fuel ty = if fuel == 0 then False else if task-seen-type ty seen then True else case task-type-spine ty Nil of
+    (UCon name kind, args) -> if sharing && task-signature name (context-declarations context) then task-types-property context True seen (fuel - 1) args else
+      (case task-data name (context-data context) of
+        None -> False
+        Some d -> list-length args == list-length (core-data-params d) && (case core-data-constructors d of Nil -> False; other -> True)
+          && task-constructors-property context sharing (Cons ty seen) (fuel - 1) (task-actuals (core-data-params d) args) (core-data-constructors d))
+    other -> False
+  task-constructors-property :: TypingContext -> Bool -> List UType -> Nat -> List (Nat, UType) -> List CoreConstructor -> Bool
+  task-constructors-property context sharing seen fuel pairs ctors = case ctors of
+    Nil -> True
+    Cons ctor rest -> task-types-property context sharing seen fuel (map-task-types pairs (core-constructor-fields ctor)) && task-constructors-property context sharing seen fuel pairs rest
+  map-task-types :: List (Nat, UType) -> List UType -> List UType
+  map-task-types pairs types = case types of Nil -> Nil; Cons ty rest -> Cons (substitute-bound pairs ty) (map-task-types pairs rest)
+  data TaskLocal where
+    TaskLocal :: Nat -> UType -> List UType -> Bool -> TaskLocal
+  data TaskTrace where
+    TaskTrace :: Bool -> List UType -> Bool -> TaskTrace
+  task-trace-ok :: TaskTrace -> Bool
+  task-trace-ok result = case result of TaskTrace ok regions shared -> ok
+  task-trace-regions :: TaskTrace -> List UType
+  task-trace-regions result = case result of TaskTrace ok regions shared -> regions
+  task-trace-shared :: TaskTrace -> Bool
+  task-trace-shared result = case result of TaskTrace ok regions shared -> shared
+  task-local :: Nat -> List TaskLocal -> Option TaskLocal
+  task-local id env = case env of Nil -> None; Cons (TaskLocal key ty regions shared) rest -> if id == key then Some (TaskLocal key ty regions shared) else task-local id rest
+  task-pattern-ids :: CorePattern -> List Nat
+  task-pattern-ids p = case p of CPVar sp ty id name -> [id]; CPProof sp ty id name -> [id]; CPAs sp ty id name inner -> Cons id (task-pattern-ids inner); CPConstructor sp ty name actuals constructor fields -> task-pattern-ids fields; CPTuple sp ty fields -> task-pattern-ids fields; CPField sp first rest -> task-pattern-ids first <> task-pattern-ids rest; other -> Nil
+  task-id-present :: Nat -> List Nat -> Bool
+  task-id-present id ids = case ids of Nil -> False; Cons key rest -> id == key || task-id-present id rest
+  task-pattern-env :: CorePattern -> List UType -> Bool -> List TaskLocal -> List TaskLocal
+  task-pattern-env p regions shared env = case p of
+    CPVar sp ty id name -> Cons (TaskLocal id ty regions shared) env
+    CPProof sp ty id name -> env
+    CPAs sp ty id name inner -> Cons (TaskLocal id ty regions shared) (task-pattern-env inner regions shared env)
+    CPConstructor sp ty name actuals constructor fields -> task-pattern-env fields regions shared env
+    CPTuple sp ty fields -> task-pattern-env fields regions shared env
+    CPField sp first rest -> task-pattern-env rest regions shared (task-pattern-env first regions shared env)
+    other -> env
+  task-regions :: UType -> List UType
+  task-regions ty = case task-base ty of
+    URigid id name level KRegion -> [ty]
+    UBound id name KRegion -> [ty]
+    UApp f x -> task-regions f <> task-regions x
+    UFun a b -> task-regions a <> task-regions b
+    UFunEff a row b -> task-regions a <> task-regions row <> task-regions b
+    UPi id name a row b -> task-regions a <> task-regions row <> task-regions b
+    UTuple fields -> task-regions fields
+    UArg first rest -> task-regions first <> task-regions rest
+    URow labels -> task-regions labels
+    URowJoin a b -> task-regions a <> task-regions b
+    other -> Nil
+  task-region-present :: UType -> List UType -> Bool
+  task-region-present region regions = case regions of Nil -> False; Cons first rest -> equal-type region first || task-region-present region rest
+  task-outlives :: List UType -> UType -> UType -> UType -> Bool
+  task-outlives scopes owner destination captured = if equal-type owner captured || equal-type destination captured then True
+    else if not (task-region-present captured scopes) then task-region-present destination scopes
+    else task-enclosing scopes destination captured
+  task-enclosing :: List UType -> UType -> UType -> Bool
+  task-enclosing scopes destination captured = case scopes of Nil -> False; Cons first rest -> if equal-type destination first then task-region-present captured rest else task-enclosing rest destination captured
+  task-capture-regions :: List UType -> UType -> UType -> List UType -> Bool
+  task-capture-regions scopes owner destination regions = case regions of Nil -> True; Cons region rest -> task-outlives scopes owner destination region && task-capture-regions scopes owner destination rest
+  task-evidence-regions :: CoreEvidence -> List UType
+  task-evidence-regions evidence = case evidence of
+    CEGiven sp ty name -> task-regions ty
+    CEInstance sp ty symbol actuals args -> task-regions ty <> task-evidence-regions args
+    CEArgument sp first rest -> task-evidence-regions first <> task-evidence-regions rest
+    other -> Nil
+  task-evidences-regions :: List CoreEvidence -> List UType
+  task-evidences-regions evidence = case evidence of Nil -> Nil; Cons first rest -> task-evidence-regions first <> task-evidences-regions rest
+  task-scoped-type :: UType -> Bool
+  task-scoped-type ty = case (scope-parameters (task-base ty), task-parts (task-base ty)) of (None, None) -> False; other -> True
+  task-handle-type :: UType -> Bool
+  task-handle-type ty = case task-parts (task-base ty) of Some parts -> True; None -> False
+  task-free :: List Nat -> CoreTerm -> List (Nat, UType)
+  task-free bound term = case term of
+    CLocal sp ty id name actuals -> if task-id-present id bound then Nil else [(id, ty)]
+    CLambda sp ty p body -> task-free (task-pattern-ids p <> bound) body
+    CLet sp ty id name sc rhs body -> task-free bound rhs <> task-free (Cons id bound) body
+    CAlternative sp p body rest -> task-free (task-pattern-ids p <> bound) body <> task-free bound rest
+    other -> task-free-children bound (term-children term)
+  task-free-children :: List Nat -> List CoreTerm -> List (Nat, UType)
+  task-free-children bound terms = case terms of Nil -> Nil; Cons first rest -> task-free bound first <> task-free-children bound rest
+  task-free-regions :: List TaskLocal -> List (Nat, UType) -> List UType
+  task-free-regions env free = case free of
+    Nil -> Nil
+    Cons (id, ty) rest -> task-regions ty <> (case task-local id env of Some (TaskLocal key declared regions shared) -> regions; None -> Nil) <> task-free-regions env rest
+  task-free-sharing :: TypingContext -> List (Nat, UType) -> Bool
+  task-free-sharing context free = case free of Nil -> True; Cons (id, ty) rest -> (task-handle-type ty || task-shareable context Nil 64 ty) && task-free-sharing context rest
+  task-free-scopes :: List TaskLocal -> List (Nat, UType) -> Bool
+  task-free-scopes env free = case free of
+    Nil -> True
+    Cons (id, ty) rest -> not (task-scoped-type ty) && (case task-local id env of Some (TaskLocal key declared regions shared) -> (case regions of Nil -> True; other -> False); None -> True) && task-free-scopes env rest
+  task-count-add :: Option Nat -> Option Nat -> Option Nat
+  task-count-add a b = case (a, b) of (Some x, Some y) -> Some (x + y); other -> None
+  task-count-same :: Option Nat -> Option Nat -> Option Nat
+  task-count-same a b = case (a, b) of (Some x, Some y) -> if x == y then Some x else None; other -> None
+  task-count-list :: Nat -> List CoreTerm -> Option Nat
+  task-count-list id terms = case terms of Nil -> Some 0; Cons first rest -> task-count-add (task-use-count id first) (task-count-list id rest)
+  task-once-count :: Nat -> CoreTerm -> Option Nat
+  task-once-count id callback = case callback of CLambda sp ty p body -> if task-id-present id (task-pattern-ids p) then Some 0 else task-use-count id body; other -> task-use-count id callback
+  task-use-count :: Nat -> CoreTerm -> Option Nat
+  task-use-count id term = case term of
+    CLocal sp ty key name actuals -> Some (if id == key then 1 else 0)
+    CLambda sp ty p body -> if task-id-present id (task-pattern-ids p) then Some 0 else (case task-use-count id body of Some 0 -> Some 0; other -> None)
+    CLet sp ty key name sc rhs body -> task-count-add (task-use-count id rhs) (if id == key then Some 0 else task-use-count id body)
+    CIf sp ty condition yes no -> task-count-add (task-use-count id condition) (task-count-same (task-use-count id yes) (task-use-count id no))
+    CCase sp ty value alts -> task-count-add (task-use-count id value) (task-alternative-count id alts)
+    CScope sp ty region evidence callback -> task-once-count id callback
+    CSpawn sp ty token callback -> task-count-add (task-use-count id token) (task-once-count id callback)
+    other -> task-count-list id (term-children term)
+  task-pattern-total :: CorePattern -> Bool
+  task-pattern-total p = case p of CPWild sp ty -> True; CPVar sp ty id name -> True; CPAs sp ty id name inner -> task-pattern-total inner; other -> False
+  task-row-count :: Nat -> CoreTerm -> CoreTerm -> Option Nat
+  task-row-count id body rest = case body of
+    CGuard sp ty guard value -> if core-alternative-covers body then task-count-add (task-use-count id guard) (task-use-count id value) else task-count-add (task-use-count id guard) (task-count-same (task-use-count id value) (task-alternative-count id rest))
+    CLet sp ty key name sc rhs value -> task-count-add (task-use-count id rhs) (task-row-count id value rest)
+    other -> task-use-count id body
+  task-alternative-count :: Nat -> CoreTerm -> Option Nat
+  task-alternative-count id alts = case alts of
+    CAlternative sp p body (CAlternativesEnd end) -> task-use-count id body
+    CAlternative sp p body rest -> if task-id-present id (task-pattern-ids p) then task-alternative-count id rest else if task-pattern-total p then task-row-count id body rest else task-count-same (task-row-count id body rest) (task-alternative-count id rest)
+    other -> None
+  task-bound-once :: Nat -> UType -> CoreTerm -> Bool
+  task-bound-once id ty body = not (task-handle-type ty) || (case task-use-count id body of Some 1 -> True; other -> False)
+  task-pattern-once :: CorePattern -> CoreTerm -> Bool
+  task-pattern-once p body = case p of
+    CPVar sp ty id name -> task-bound-once id ty body
+    CPWild sp ty -> not (task-handle-type ty)
+    CPAs sp ty id name inner -> task-bound-once id ty body && task-pattern-once inner body
+    CPConstructor sp ty name actuals constructor fields -> task-pattern-once fields body
+    CPTuple sp ty fields -> task-pattern-once fields body
+    CPField sp first rest -> task-pattern-once first body && task-pattern-once rest body
+    other -> True
+  task-traces-merge :: TaskTrace -> TaskTrace -> TaskTrace
+  task-traces-merge a b = TaskTrace (task-trace-ok a && task-trace-ok b) (task-trace-regions a <> task-trace-regions b) (task-trace-shared a && task-trace-shared b)
+  task-trace-list :: TypingContext -> List TaskLocal -> List UType -> Bool -> List CoreTerm -> TaskTrace
+  task-trace-list context env scopes consuming terms = case terms of Nil -> TaskTrace True Nil True; Cons first rest -> task-traces-merge (task-trace context env scopes consuming first) (task-trace-list context env scopes consuming rest)
+  task-result-trace :: TypingContext -> UType -> TaskTrace -> TaskTrace
+  task-result-trace context ty trace = TaskTrace (task-trace-ok trace) (if task-region-free-type context Nil 64 ty then Nil else task-hidden-regions ty (task-trace-regions trace)) (task-trace-shared trace)
+  task-hidden-regions :: UType -> List UType -> List UType
+  task-hidden-regions ty regions = case regions of Nil -> Nil; Cons region rest -> if task-region-present region (task-regions ty) then task-hidden-regions ty rest else Cons region (task-hidden-regions ty rest)
+  task-free-evidence :: List String -> CoreTerm -> List UType
+  task-free-evidence bound term = case term of
+    CQualifiedUse sp ty name role actuals evidence -> task-free-evidences bound evidence
+    CMethod sp ty name owner slot actuals evidence -> task-free-evidences bound evidence
+    CScope sp ty region evidence callback -> task-evidence-types bound evidence <> task-free-evidence bound callback
+    CWith sp ty given value body -> task-free-evidence bound value <> task-free-evidence (Cons (given-symbol given) bound) body
+    other -> task-free-evidence-list bound (term-children term)
+  task-evidence-types :: List String -> CoreEvidence -> List UType
+  task-evidence-types bound evidence = case evidence of
+    CEGiven sp ty name -> if has name bound then Nil else [ty]
+    CEInstance sp ty name actuals args -> task-evidence-types bound args
+    CEArgument sp first rest -> task-evidence-types bound first <> task-evidence-types bound rest
+    other -> Nil
+  task-free-evidences :: List String -> List CoreEvidence -> List UType
+  task-free-evidences bound evidence = case evidence of Nil -> Nil; Cons first rest -> task-evidence-types bound first <> task-free-evidences bound rest
+  task-free-evidence-list :: List String -> List CoreTerm -> List UType
+  task-free-evidence-list bound terms = case terms of Nil -> Nil; Cons first rest -> task-free-evidence bound first <> task-free-evidence-list bound rest
+  task-capture-types :: List UType -> List UType
+  task-capture-types types = case types of Nil -> Nil; Cons ty rest -> task-regions ty <> task-capture-types rest
+  task-active-regions :: List UType -> List UType -> List UType
+  task-active-regions scopes regions = case regions of Nil -> Nil; Cons region rest -> if task-region-present region scopes then Cons region (task-active-regions scopes rest) else task-active-regions scopes rest
+  task-callable :: TypingContext -> List TaskLocal -> List UType -> Bool -> CoreTerm -> TaskTrace
+  task-callable context env scopes spawning callback = case callback of
+    CLambda sp ty p body -> let free = task-free (task-pattern-ids p) body in
+      let captured = task-free-regions env free in
+      let inside = task-trace context (task-pattern-env p Nil False env) scopes True body in
+      TaskTrace (task-pattern-once p body && task-trace-ok inside && (not spawning || (task-free-sharing context free && task-types-property context True Nil 64 (task-free-evidence Nil body)))) (task-trace-regions inside) (task-trace-shared inside)
+    other -> let checked = task-trace context env scopes False callback in
+      task-result-trace context (case scope-callback-parts (core-type callback) of Some (owner, region, row, result) -> result; None -> case task-body-parts (core-type callback) of Some (error, value, row) -> task-result-type error value; None -> UError)
+        (TaskTrace (task-trace-ok checked && (not spawning || task-trace-shared checked)) (task-trace-regions checked <> task-regions (core-type callback)) (task-trace-shared checked))
+  task-trace :: TypingContext -> List TaskLocal -> List UType -> Bool -> CoreTerm -> TaskTrace
+  task-trace context env scopes consuming term = if task-handle-type (core-type term) && not consuming then TaskTrace False Nil False else case term of
+    CLocal sp ty id name actuals -> (case task-local id env of Some (TaskLocal key declared regions shared) -> TaskTrace True regions shared; None -> TaskTrace True Nil False)
+    CScope sp ty region evidence callback -> let inside = task-callable context env (Cons region scopes) False callback in
+      TaskTrace (task-trace-ok inside && not (task-region-present region (task-trace-regions inside))) (task-trace-regions inside) (task-trace-shared inside)
+    CSpawn sp ty token callback -> let scope-value = task-trace context env scopes False token in
+      let inside = task-callable context env scopes True callback in
+      let regions = (case callback of CLambda sp ft p body -> task-free-regions env (task-free (task-pattern-ids p) body) <> task-capture-types (task-free-evidence Nil body); other -> task-trace-regions (task-trace context env scopes False callback)) in
+      let lifetime = case scope-parameters (core-type token) of Some (owner, destination) -> task-capture-regions scopes owner destination regions; None -> False in
+      TaskTrace (task-trace-ok scope-value && task-trace-ok inside && lifetime) (task-trace-regions inside) True
+    CJoin sp ty token handles -> let scope-value = task-trace context env scopes False token in
+      let consumed = task-trace-list context env scopes True (case handles of CArgument sp first rest -> task-argument-values handles; other -> Nil) in
+      task-result-trace context ty (task-traces-merge scope-value consumed)
+    CLambda sp ty p body -> let free = task-free (task-pattern-ids p) body in
+      let inside = task-trace context (task-pattern-env p Nil False env) scopes True body in
+      TaskTrace (task-pattern-once p body && task-free-scopes env free && task-trace-ok inside) (task-free-regions env free <> task-active-regions scopes (task-capture-types (task-free-evidence Nil body))) (task-free-sharing context free && task-types-property context True Nil 64 (task-free-evidence Nil body))
+    CLet sp ty id name sc rhs body -> let value = task-trace context env scopes True rhs in
+      let result = task-trace context (Cons (TaskLocal id (scheme-body sc) (task-trace-regions value) (task-trace-shared value)) env) scopes consuming body in
+      TaskTrace (task-bound-once id (scheme-body sc) body && task-trace-ok value && task-trace-ok result) (task-trace-regions result) (task-trace-shared result)
+    CApply sp ty f x -> task-call-trace context env scopes ty f x
+    CApplyEff sp ty row f x -> task-call-trace context env scopes ty f x
+    CIf sp ty condition yes no -> let test = task-trace context env scopes False condition in
+      let result = task-traces-merge (task-trace context env scopes consuming yes) (task-trace context env scopes consuming no) in
+      TaskTrace (task-trace-ok test && task-trace-ok result) (task-trace-regions result) (task-trace-shared result)
+    CCase sp ty value alts -> let input = task-trace context env scopes False value in
+      let result = task-alternatives-trace context env scopes consuming input alts in
+      TaskTrace (task-trace-ok input && task-trace-ok result) (task-trace-regions result) (task-trace-shared result)
+    CQualifiedUse sp ty name role actuals evidence -> task-result-trace context ty (TaskTrace True (task-evidences-regions evidence) True)
+    CMethod sp ty name owner slot actuals evidence -> task-result-trace context ty (TaskTrace True (task-evidences-regions evidence) True)
+    CWith sp ty given value body -> let supplied = task-trace context env scopes False value in
+      let result = task-trace context env scopes consuming body in
+      TaskTrace (task-trace-ok supplied && task-trace-ok result) (task-trace-regions result) (task-trace-shared result)
+    other -> task-result-trace context (core-type term) (task-trace-list context env scopes False (term-children term))
+  task-call-trace :: TypingContext -> List TaskLocal -> List UType -> UType -> CoreTerm -> CoreTerm -> TaskTrace
+  task-call-trace context env scopes result f x = let function = task-trace context env scopes False f in
+    let input = task-trace context env scopes False x in
+    task-result-trace context result (TaskTrace (task-trace-ok function && task-trace-ok input)
+      (task-trace-regions function <> task-trace-regions input <> task-regions (core-type x))
+      (task-trace-shared function && task-trace-shared input && task-shareable context Nil 64 (core-type x)))
+  task-argument-values :: CoreTerm -> List CoreTerm
+  task-argument-values terms = case terms of CArgumentsEnd sp -> Nil; CArgument sp first rest -> Cons first (task-argument-values rest); other -> Nil
+  task-alternatives-trace :: TypingContext -> List TaskLocal -> List UType -> Bool -> TaskTrace -> CoreTerm -> TaskTrace
+  task-alternatives-trace context env scopes consuming input alts = case alts of
+    CAlternativesEnd sp -> TaskTrace True Nil True
+    CAlternative sp p body rest -> task-traces-merge (task-trace context (task-pattern-env p (task-trace-regions input) (task-trace-shared input) env) scopes consuming body) (task-alternatives-trace context env scopes consuming input rest)
+    other -> TaskTrace False Nil False
+  task-code-present :: CoreTerm -> Bool
+  task-code-present term = task-scoped-type (core-type term) || (case term of CScope sp ty region evidence callback -> True; CSpawn sp ty token callback -> True; CJoin sp ty token handles -> True; other -> task-code-list (term-children term))
+  task-code-list :: List CoreTerm -> Bool
+  task-code-list terms = case terms of Nil -> False; Cons first rest -> task-code-present first || task-code-list rest
+  task-clause-safe :: TypingContext -> List CorePattern -> CoreTerm -> Bool
+  task-clause-safe context patterns body = task-patterns-safe context Nil patterns body
+  task-patterns-safe :: TypingContext -> List TaskLocal -> List CorePattern -> CoreTerm -> Bool
+  task-patterns-safe context env patterns body = case patterns of
+    Nil -> task-trace-ok (task-trace context env Nil True body)
+    Cons p rest -> task-pattern-once p body && task-patterns-safe context (task-pattern-env p Nil False env) rest body
+  task-definition-safe :: TypingContext -> CoreDefinition -> Bool
+  task-definition-safe context d = task-clauses-safe context (core-clauses d)
+  task-patterns-present :: List CorePattern -> Bool
+  task-patterns-present patterns = case patterns of Nil -> False; Cons p rest -> task-scoped-type (pattern-type p) || task-patterns-present rest
+  task-clauses-safe :: TypingContext -> List CoreClause -> Bool
+  task-clauses-safe context clauses = case clauses of Nil -> True; Cons (MkCoreClause sp patterns body) rest -> (not (task-code-present body || task-patterns-present patterns) || task-clause-safe context patterns body) && task-clauses-safe context rest
+  checked-spawn :: UType -> CoreTerm -> CoreTerm -> Bool
+  checked-spawn expected token body = case (scope-parameters (core-type token), task-body-parts (core-type body)) of
+    (Some (owner, region), Some (error, value, row)) -> equal-type expected (task-type region error value)
+    other -> False
   checked-scope :: TypingContext -> TypeScope -> ProofScope -> List Proposition -> UType -> UType -> CoreEvidence -> CoreTerm -> Bool
   checked-scope context scope gamma facts expected region evidence callback = case (region, scope-callback-parts (core-type callback)) of
     (URigid id name level KRegion, Some (owner, bound, row, result)) -> equal-type region bound && equal-type expected result
@@ -324,8 +615,9 @@ module Bootstrap.Typing where
     Nil -> True
     Cons (MkCoreClause sp patterns body) rest -> clause-typed context scope (with-guarded-bindings (context-guarded-bodies context) (with-body-bindings (context-bodies context) (make-proof-scope Nil Nil))) expected empty-row patterns body && clauses-typed context scope expected rest
   typing-definition-closed :: TypingContext -> CoreDefinition -> Bool
-  typing-definition-closed context definition = (case context of CheckedTypingContext kinds globals effects -> global-definition-closed globals definition)
+  typing-definition-closed context definition = (case context of CheckedTypingContext kinds globals effects datas -> global-definition-closed globals definition)
     && core-definition-contracts-closed (context-bodies context) (context-guarded-bodies context) definition
+    && task-definition-safe context definition
     && (case openings-scope context empty-type-scope (core-openings definition) of
       Some opened -> (case private-scope opened (core-private-types definition) of
         Some scope -> private-kinds context scope (core-private-types definition) && givens-typed context scope (core-givens definition)

@@ -106,6 +106,8 @@ module Bootstrap.Nominal where
   qualify-name :: Json -> List String -> Span -> String -> (TypeExpr, List Diagnostic)
   qualify-name refs locals sp name =
     if same name "Io" then (TName sp "b.Io", Nil)
+    else if same name "Scope" then (TName sp "b.Scope", Nil)
+    else if same name "Task" then (TName sp "b.Task", Nil)
     else if has name locals || kernel-type-name name then (TName sp name, Nil)
     else if contains-identity name refs then (TName sp (interface-global name), Nil)
     else fail sp (string-concat "resolved scheme contains an unbound type name: " name)

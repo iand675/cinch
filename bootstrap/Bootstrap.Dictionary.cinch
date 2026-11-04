@@ -124,6 +124,8 @@ module Bootstrap.Dictionary where
       (f, sf) -> case resolve-term context scope arg sf of (x, sx) -> (CApply sp ty f x, sx)
     CApplyEff sp ty row fun arg -> case resolve-term context scope fun st of
       (f, sf) -> case resolve-term context scope arg sf of (x, sx) -> (CApplyEff sp ty row f x, sx)
+    CSpawn sp ty token body -> (case resolve-term context scope token st of (found, ready) -> case resolve-term context scope body ready of (out, done) -> (CSpawn sp ty found out, done))
+    CJoin sp ty token handles -> (case resolve-term context scope token st of (found, ready) -> case resolve-term context scope handles ready of (out, done) -> (CJoin sp ty found out, done))
     CScope sp ty region evidence callback -> (case resolve-evidence context scope evidence st of
       (supplied, ready) -> case resolve-term context scope callback ready of
         (body, done) -> (CScope sp ty region supplied body, done))

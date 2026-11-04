@@ -55,6 +55,7 @@ fn typed_runtime_numbers_preserve_exact_values_and_reclaim_owned_words() {
     // contracts against an empty Prelude, keeping executable base methods
     // outside this fixture's scope. The full bootstrap uses the real base.
     let prelude_source = "module Prelude where\n";
+    let core_source = include_str!("../prelude/Data/Core.cinch");
     let class_source = std::fs::read_to_string(producer.join("RuntimeClasses.cinch")).unwrap();
     let main_source = std::fs::read_to_string(producer.join("Main.cinch")).unwrap();
     let fixities = Default::default();
@@ -62,8 +63,10 @@ fn typed_runtime_numbers_preserve_exact_values_and_reclaim_owned_words() {
     let prelude = cinch::driver::parse_source(prelude_source, "Prelude.cinch", &fixities, &tables).unwrap();
     let classes = cinch::driver::parse_source(&class_source, "RuntimeClasses.cinch", &fixities, &tables).unwrap();
     let entry = cinch::driver::parse_source(&main_source, "Main.cinch", &fixities, &tables).unwrap();
-    let modules = [classes.modules, entry.modules].concat();
+    let core = cinch::driver::parse_source(core_source, "Data.Core.cinch", &fixities, &tables).unwrap();
+    let modules = [core.modules, classes.modules, entry.modules].concat();
     let hashes = [("Prelude".into(), cinch::interface::content_hash(prelude_source)),
+        ("Data.Core".into(), cinch::interface::content_hash(core_source)),
         ("RuntimeClasses".into(), cinch::interface::content_hash(&class_source)),
         ("Main".into(), cinch::interface::content_hash(&main_source))].into_iter().collect();
     let (_, checked_interfaces, _, _) = cinch::check::check_program_multi_full(
@@ -128,6 +131,93 @@ fn typed_runtime_numbers_preserve_exact_values_and_reclaim_owned_words() {
     Token n -> if recover False (C64 True) && recover 0 (C69 9223372036854775808) == 9223372036854775808 && n == 18446744073709551616 then 143 else 1
 "#, (0..70).map(|i| format!("    C{i} :: a -> Wide a\n")).collect::<String>());
     let cases = [
+        ("task-saturated-scoped-helper", r#"  import Data.Core (Result, Err, Ok)
+  helper :: forall r s. using (io :: Io r) => Scope r s -> Unit ->{Async r, Cancel r, Diverge} Result Int Nat
+  helper s u = do
+    h <- spawn s (\() -> Ok 7)
+    joinAllOrCancel s h
+  work :: forall r. using (io :: Io r) => Unit ->{Async r, Cancel r, Diverge} Result Int Nat
+  work u = withScope (\s -> helper s ())
+  main :: Unit ->{Async r, Cancel r, Diverge} Int
+  main u = with (io = newIO ()) in case work () of
+    Ok n -> if n == 7 then 219 else 1
+    Err e -> 2
+"#, 219),
+        ("task-empty-scope", r#"  empty :: forall r. using (io :: Io r) => Unit ->{Diverge} Int
+  empty u = withScope (\s -> 205)
+  main :: Unit ->{Diverge} Int
+  main u = with (io = newIO ()) in empty ()
+"#, 205),
+        ("task-single-join", r#"  import Data.Core (Result, Err, Ok)
+  work :: forall r. using (io :: Io r) => Unit ->{Async r, Cancel r, Diverge} Result Int Nat
+  work u = withScope $ \s -> do
+    h <- spawn s (\() -> Ok 7)
+    joinAllOrCancel s h
+  main :: Unit ->{Async r, Cancel r, Diverge} Int
+  main u = with (io = newIO ()) in case work () of
+    Ok n -> if n == 7 then 207 else 1
+    Err e -> 2
+"#, 207),
+        ("task-pair-owned-raw", r#"  import Data.Core (Result, Err, Ok)
+  work :: forall r. using (io :: Io r) => Unit ->{Async r, Cancel r, Diverge} Result Int (Nat, Bool)
+  work u = withScope $ \s -> do
+    h <- spawn s (\() -> Ok 18446744073709551616)
+    k <- spawn s (\() -> Ok True)
+    joinAllOrCancel s h k
+  main :: Unit ->{Async r, Cancel r, Diverge} Int
+  main u = with (io = newIO ()) in case work () of
+    Ok n -> if (case n of (a, b) -> a == 18446744073709551616 && b) then 209 else 1
+    Err e -> 2
+"#, 209),
+        ("task-immutable-adt-capture", r#"  import Data.Core (Result, Err, Ok)
+  data Box where
+    Box :: Nat -> Box
+  work :: forall r. using (io :: Io r) => Unit ->{Async r, Cancel r, Diverge} Result Int Nat
+  work u = let value = Box 18446744073709551616 in withScope $ \s -> do
+    h <- spawn s (\() -> case value of Box n -> Ok n)
+    joinAllOrCancel s h
+  main :: Unit ->{Async r, Cancel r, Diverge} Int
+  main u = with (io = newIO ()) in case work () of
+    Ok n -> if n == 18446744073709551616 then 211 else 1
+    Err e -> 2
+"#, 211),
+        ("task-nested-scopes", r#"  import Data.Core (Result, Err, Ok)
+  work :: forall r. using (io :: Io r) => Unit ->{Async r, Cancel r, Diverge} Result Int Nat
+  work u = withScope $ \outer -> do
+    h <- spawn outer (\() -> Ok 7)
+    nested <- withScope (\inner -> do
+      k <- spawn inner (\() -> Ok True)
+      joinAllOrCancel inner k)
+    case nested of
+      Ok b -> joinAllOrCancel outer h
+      Err e -> joinAllOrCancel outer h
+  main :: Unit ->{Async r, Cancel r, Diverge} Int
+  main u = with (io = newIO ()) in case work () of
+    Ok n -> if n == 7 then 213 else 1
+    Err e -> 2
+"#, 213),
+        ("task-failure-cancels-sibling", r#"  import Data.Core (Result, Err, Ok)
+  wait :: forall r. using (io :: Io r) => Unit ->{IO r, Cancel r, Diverge} Result Int Nat
+  wait u = if pollCancel () then Ok 0 else case ioSleep 0 of _ -> wait ()
+  work :: forall r. using (io :: Io r) => Unit ->{Async r, IO r, Cancel r, Diverge} Result Int (Nat, Nat)
+  work u = withScope $ \s -> do
+    h <- spawn s (\() -> Err 17)
+    k <- spawn s (\() -> wait ())
+    joinAllOrCancel s h k
+  main :: Unit ->{Async r, IO r, Cancel r, Diverge} Int
+  main u = with (io = newIO ()) in case work () of
+    Err e -> if e == 17 then 215 else 1
+    Ok p -> 2
+"#, 215),
+        ("task-builtin-local-shadowing", r#"  withScope :: Int -> Int
+  withScope n = n + 1
+  spawn :: Int -> Int -> Int
+  spawn a b = a + b
+  joinAllOrCancel :: Int -> Int -> Int
+  joinAllOrCancel a b = a + b
+  main :: Int
+  main = joinAllOrCancel (spawn (withScope 200) 8) 8
+"#, 217),
         ("direct-do-effect-order-once", "  foreign import ccall \"cinch.runtime.bytesNew\" allocate :: Nat -> Bytes\n  step :: forall r. using (io :: Io r) => Nat ->{IO r} Nat\n  step n = case ioWrite (allocate n) of _ -> n + 1\n  main :: Unit ->{IO r} Int\n  main unit = with (io = newIO ()) in do\n    x <- step 1\n    y <- step x\n    if y == 3 then 193 else 1\n", 193),
         ("direct-do-polymorphic-capture", "  main :: Int\n  main = do { n <- 340282366920938463463374607431768211456; let { keep ignored = n }; if keep True == n && keep (0 :: Int) == n then 195 else 1 }\n", 195),
         ("direct-do-polymorphic-nested-alias", "  make :: Unit -> Bool -> Int\n  make unit = do { n <- 18446744073709551616; let { identity x = x; alias = identity }; \\flag -> if alias flag && alias n == n then 197 else 1 }\n  main :: Int\n  main = make () True\n", 197),
@@ -234,6 +324,125 @@ fn typed_runtime_numbers_preserve_exact_values_and_reclaim_owned_words() {
     std::fs::write(dir.join(format!("input-{}.source", cases.len())), "module Main where\n  import RuntimeClasses\n  data Box where\n    Box :: Int -> Box\n  instance RawValue :: Value Bool where\n    value = True\n  instance TaggedValue :: Value Int where\n    value = 340282366920938463463374607431768211456\n  instance ObjectValue :: Value Box where\n    value = Box 18446744073709551616\n  instance FunctionValue :: Value (Int -> Int) where\n    value = let n = 18446744073709551616 in \\x -> x + n\n  getRaw :: Value Bool\n  getRaw = RawValue\n  getTagged :: Value Int\n  getTagged = TaggedValue\n  getObject :: Value Box\n  getObject = ObjectValue\n  getFunction :: Value (Int -> Int)\n  getFunction = FunctionValue\n  instance SharedBox :: Shared Box where\n    duplicate = stored\n    stored = Box 18446744073709551616\n    observe u = stored\n    escape-value u = \\v -> observe v\n  getShared :: Shared Box\n  getShared = SharedBox\n  main :: Int\n  main = case (getRaw, getTagged, getObject, getFunction, getShared) of _ -> 0\n").unwrap();
     std::fs::write(dir.join(format!("input-{}.source", cases.len() + 1)), "module Main where\n  import RuntimeClasses\n  package :: PrivateEnvelope\n  package = PublicEnvelope 18446744073709551616\n  main :: Int\n  main = case package of PublicEnvelope n -> 0; _ -> 1\n").unwrap();
     let invalid_source_signatures = [
+        // task-drop
+        r#"module Main where
+  import Data.Core (Result, Err, Ok)
+  bad :: forall r. using (io :: Io r) => Unit ->{Async r, Cancel r, Diverge} Nat
+  bad u = withScope $ \s -> do
+    h <- spawn s (\() -> Ok 7)
+    0
+  main :: Int
+  main = 0
+"#,
+        // task-wildcard-drop
+        r#"module Main where
+  import Data.Core (Result, Err, Ok)
+  bad :: forall r. using (io :: Io r) => Unit ->{Async r, Cancel r, Diverge} Nat
+  bad u = withScope $ \s -> do
+    _ <- spawn s (\() -> Ok 7)
+    0
+  main :: Int
+  main = 0
+"#,
+        // task-duplicate
+        r#"module Main where
+  import Data.Core (Result, Err, Ok)
+  bad :: forall r. using (io :: Io r) => Unit ->{Async r, Cancel r, Diverge} Result Int (Nat, Nat)
+  bad u = withScope $ \s -> do
+    h <- spawn s (\() -> Ok 7)
+    joinAllOrCancel s h h
+  main :: Int
+  main = 0
+"#,
+        // task-branch-drop
+        r#"module Main where
+  import Data.Core (Result, Err, Ok)
+  bad :: forall r. using (io :: Io r) => Unit ->{Async r, Cancel r, Diverge} Result Int Nat
+  bad u = withScope $ \s -> do
+    h <- spawn s (\() -> Ok 7)
+    if True then joinAllOrCancel s h else Ok 0
+  main :: Int
+  main = 0
+"#,
+        // task-visible-escape
+        r#"module Main where
+  import Data.Core (Result, Err, Ok)
+  bad :: forall r. using (io :: Io r) => Unit ->{Async r, Cancel r, Diverge} Nat
+  bad u = withScope $ \s -> spawn s (\() -> Ok 7)
+  main :: Int
+  main = 0
+"#,
+        // task-wrong-scope-join
+        r#"module Main where
+  import Data.Core (Result, Err, Ok)
+  bad :: forall r. using (io :: Io r) => Unit ->{Async r, Cancel r, Diverge} Result Int Nat
+  bad u = withScope $ \outer -> do
+    h <- spawn outer (\() -> Ok 7)
+    withScope (\inner -> joinAllOrCancel inner h)
+  main :: Int
+  main = 0
+"#,
+        // task-inner-capture-in-outer
+        r#"module Main where
+  import Data.Core (Result, Err, Ok)
+  bad :: forall r. using (io :: Io r) => Unit ->{Async r, Cancel r, Diverge} Result Int Nat
+  bad u = withScope $ \outer -> do
+    h <- withScope (\inner -> spawn outer (\() -> do
+      k <- spawn inner (\() -> Ok 7)
+      joinAllOrCancel inner k))
+    joinAllOrCancel outer h
+  main :: Int
+  main = 0
+"#,
+        // task-hidden-closure-escape
+        r#"module Main where
+  import Data.Core (Result, Err, Ok)
+  hide :: forall r s. using (io :: Io r) => Scope r s -> Unit ->{Async r, Cancel r, Diverge} Result Int Nat
+  hide s u = do
+    h <- spawn s (\() -> Ok 7)
+    joinAllOrCancel s h
+  bad :: forall r. using (io :: Io r) => Unit ->{Async r, Cancel r, Diverge} Unit ->{Async r, Cancel r, Diverge} Result Int Nat
+  bad u = withScope $ \s -> hide s
+  main :: Int
+  main = 0
+"#,
+        // task-mutable-bytes-capture
+        r#"module Main where
+  import Data.Core (Result, Err, Ok)
+  bad :: forall r. using (io :: Io r) => Unit ->{Async r, Cancel r, Diverge} Result Int Bytes
+  foreign import ccall "cinch.runtime.bytesNew" allocate :: Nat -> Bytes
+  bad u = let buffer = allocate 1 in withScope $ \s -> do
+    h <- spawn s (\() -> Ok buffer)
+    joinAllOrCancel s h
+  main :: Int
+  main = 0
+"#,
+        // task-spawn-missing-callback
+        r#"module Main where
+  import Data.Core (Result, Err, Ok)
+  bad :: forall r. using (io :: Io r) => Unit ->{Async r, Cancel r, Diverge} Nat
+  bad u = withScope $ \s -> spawn s
+  main :: Int
+  main = 0
+"#,
+        // task-join-missing-handle
+        r#"module Main where
+  import Data.Core (Result, Err, Ok)
+  bad :: forall r. using (io :: Io r) => Unit ->{Async r, Cancel r, Diverge} Nat
+  bad u = withScope $ \s -> joinAllOrCancel s
+  main :: Int
+  main = 0
+"#,
+        // task-wrong-body-result
+        r#"module Main where
+  import Data.Core (Result, Err, Ok)
+  bad :: forall r. using (io :: Io r) => Unit ->{Async r, Cancel r, Diverge} Result Int Nat
+  bad u = withScope $ \s -> do
+    h <- spawn s (\() -> 7)
+    joinAllOrCancel s h
+  main :: Int
+  main = 0
+"#,
         "module Main where\n  data Box where\n    Box :: Int -> Box\n  main :: Int\n  main = case Box 1 of\n    Box -> 0\n",
         "module Main where\n  data Pair where\n    Pair :: Int -> Bool -> Pair\n  bad :: Bool -> Pair\n  bad = Pair True\n  main :: Int\n  main = 0\n",
         "module Main where\n  missing :: Int -> Int\n  missing = 0\n  main :: Int\n  main = 0\n",
@@ -266,6 +475,11 @@ fn typed_runtime_numbers_preserve_exact_values_and_reclaim_owned_words() {
     for index in 0..invalid_source_signatures.len() {
         assert_eq!(common::read_output(&dir, &format!("output-{}.status", cases.len() + 2 + index)), "4", "invalid source signature {index}");
         assert!(common::read_output(&dir, &format!("output-{}.ll", cases.len() + 2 + index)).is_empty());
+        if [0, 1, 2, 3, 6, 7, 8].contains(&index) {
+            assert!(common::read_output(&dir, &format!("output-{}.diagnostics", cases.len() + 2 + index))
+                .contains("task handle must be consumed exactly once"),
+                "task refusal {index} must reach ownership/lifetime checking, not fail an unrelated source check");
+        }
     }
     for index in 0..invalid_runtime_entries.len() {
         let offset = entry_error_start + index;

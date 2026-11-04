@@ -20,7 +20,8 @@ module Bootstrap.Core where
   export CoreTerm, CUse, CLocal, CInt, CString, CChar, CUnit, CApply, CLambda, CLet, CIf, CCase, CTuple, CPrimitive, CGuard
   export CArgument, CArgumentsEnd, CAlternative, CAlternativesEnd, CError
   export CApplyEff, CWith, core-effects
-  export CScope, scope-kind, scope-type, scope-callback-parts, scope-region-closed
+  export CScope, CSpawn, CJoin, scope-kind, scope-type, scope-callback-parts, scope-region-closed
+  export task-kind, task-type, task-result-type, task-parts, task-body-parts, scope-parameters, task-join-result
   export CHandler, CHandle, CHandlerOperation, CHandlerEnd
   export handler-kind, handler-type, handler-parts, handler-residual, handler-operation-scheme, handler-clause-type, handler-resumption-safe, handler-body-direct
   export CProofRef, CErasedApply, scope-erased, scoped-proof-reference
@@ -31,6 +32,7 @@ module Bootstrap.Core where
   export ProofScope, make-proof-scope, scoped-prove-refinement, scoped-prove-predicates, scoped-core-predicates, scoped-core-condition, scoped-core-branch, scoped-core-let-fact, scoped-prove-subtraction
   export scoped-total-call-index, scope-bodies, with-body-bindings, core-definition-bodies-closed, seal-definition-with-bodies
   export CoreClause, MkCoreClause, CoreDefinition, MkCoreDefinition
+  export term-children
   export core-type, core-name, core-scheme, core-clauses, core-openings, core-private-types
   export CoreGiven, CGiven, CoreEvidence, CENeeded, CEGiven, CEInstance
   export CEArgument, CEArgumentsEnd
@@ -270,6 +272,8 @@ module Bootstrap.Core where
     -- exact test in the actual value scope before it can justify a branch.
     CDecision :: Span -> UType -> UType -> CoreTerm -> CoreTerm
     CScope :: Span -> UType -> UType -> CoreEvidence -> CoreTerm -> CoreTerm
+    CSpawn :: Span -> UType -> CoreTerm -> CoreTerm -> CoreTerm
+    CJoin :: Span -> UType -> CoreTerm -> CoreTerm -> CoreTerm
     CWith :: Span -> UType -> CoreGiven -> CoreTerm -> CoreTerm -> CoreTerm
     CHandler :: Span -> UType -> CoreTerm -> CoreTerm -> CoreTerm
     CHandle :: Span -> UType -> UType -> UType -> CoreTerm -> CoreTerm -> CoreTerm
@@ -401,6 +405,8 @@ module Bootstrap.Core where
     CDischarge sp ty evidence body -> handler-body-direct label names body
     CGuard sp ty condition body -> handler-body-direct label names condition && handler-body-direct label names body
     CScope sp ty region evidence callback -> handler-row-absent label (core-effects term) && handler-body-direct label names callback
+    CSpawn sp ty token body -> handler-row-absent label (core-effects term) && handler-body-direct label names token && handler-body-direct label names body
+    CJoin sp ty token body -> handler-row-absent label (core-effects term) && handler-body-direct label names token && handler-body-direct label names body
     CWith sp ty given value body -> handler-body-direct label names value && handler-body-direct label names body
     CHandle sp ty inner residual body handled-by -> handler-row-absent label (core-effects term)
     -- Constructing a closure or handler does not execute its body.
@@ -434,6 +440,8 @@ module Bootstrap.Core where
     CDischarge sp ty evidence body -> resume-uses id body
     CGuard sp ty condition body -> resume-uses id condition + resume-uses id body
     CScope sp ty region evidence callback -> resume-uses id callback
+    CSpawn sp ty token body -> resume-uses id token + resume-uses id body
+    CJoin sp ty token body -> resume-uses id token + resume-uses id body
     CWith sp ty given value body -> resume-uses id value + resume-uses id body
     CHandle sp ty label residual body handled-by -> resume-uses id body + resume-uses id handled-by
     CHandler sp ty returned operations -> if resume-uses id returned + resume-uses id operations > 0 then 2 else 0
@@ -472,6 +480,35 @@ module Bootstrap.Core where
   data CoreDefinition where
     MkCoreDefinition :: Span -> String -> Scheme -> List (Nat, UType) -> List CoreGiven -> List (Nat, Kind) -> List CoreClause -> CoreDefinition
 
+  term-children :: CoreTerm -> List CoreTerm
+  term-children term = case term of
+    CApply sp ty f x -> [f, x]
+    CApplyEff sp ty row f x -> [f, x]
+    CErasedApply sp ty row f x -> [f, x]
+    CDecision sp ty predicate condition -> [condition]
+    CScope sp ty region evidence callback -> [callback]
+    CSpawn sp ty token body -> [token, body]
+    CJoin sp ty token handles -> [token, handles]
+    CWith sp ty given value body -> [value, body]
+    CHandler sp ty returned operations -> [returned, operations]
+    CHandle sp ty label residual body handled-by -> [body, handled-by]
+    CHandlerOperation sp slot openings row closure rest -> [closure, rest]
+    CLambda sp ty p body -> [body]
+    CLet sp ty id name sc rhs body -> [rhs, body]
+    CIf sp ty condition yes no -> [condition, yes, no]
+    CCase sp ty value alts -> [value, alts]
+    CTuple sp ty fields -> [fields]
+    CPrimitive sp ty op args -> [args]
+    CProved sp ty certificate body -> [body]
+    CRefine sp ty certificate body -> [body]
+    CRefineProof sp ty witness body -> [witness, body]
+    CForget sp ty body -> [body]
+    CRequire sp ty body -> [body]
+    CDischarge sp ty proofs body -> [body]
+    CGuard sp ty guard body -> [guard, body]
+    CArgument sp first rest -> [first, rest]
+    CAlternative sp p body rest -> [body, rest]
+    other -> Nil
   core-name :: CoreDefinition -> String
   core-name d = case d of MkCoreDefinition s name sc openings givens private clauses -> name
   core-scheme :: CoreDefinition -> Scheme
@@ -507,6 +544,53 @@ module Bootstrap.Core where
   scope-domain domain row result = case domain of
     UApp (UApp (UCon name kind) owner) region -> if string-compare name "b.Scope" == 0 && kind-equal kind scope-kind && kind-equal (type-kind owner) KRegion && kind-equal (type-kind region) KRegion then Some (owner, region, row, result) else None
     other -> None
+  task-kind :: Kind
+  task-kind = KFun KRegion (KFun KType (KFun KType KType))
+  task-type :: UType -> UType -> UType -> UType
+  task-type region error value = UApp (UApp (UApp (UCon "b.Task" task-kind) region) error) value
+  task-result-type :: UType -> UType -> UType
+  task-result-type error value = UApp (UApp (UCon (interface-global "Data.Core.Result") (KFun KType (KFun KType KType))) error) value
+  scope-parameters :: UType -> Option (UType, UType)
+  scope-parameters ty = case scope-callback-parts (UFun ty (UCon "Unit" KType)) of Some (owner, region, row, result) -> Some (owner, region); None -> None
+  task-parts :: UType -> Option (UType, UType, UType)
+  task-parts ty = case ty of
+    UApp (UApp (UApp (UCon name kind) region) error) value -> if string-compare name "b.Task" == 0 && kind-equal kind task-kind then Some (region, error, value) else None
+    other -> None
+  task-body-parts :: UType -> Option (UType, UType, UType)
+  task-body-parts ty = case ty of
+    UFun domain result -> task-body-result domain (URow UEnd) result
+    UFunEff domain row result -> task-body-result domain row result
+    other -> None
+  task-body-result :: UType -> UType -> UType -> Option (UType, UType, UType)
+  task-body-result domain row result = case result of
+    UApp (UApp (UCon name kind) error) value -> if contract-equal domain (UCon "Unit" KType) && string-compare name (interface-global "Data.Core.Result") == 0 && kind-equal kind (KFun KType (KFun KType KType)) then Some (error, value, row) else None
+    other -> None
+  task-effect :: String -> UType -> UType
+  task-effect name owner = URow (UArg (UApp (UCon name (KFun KRegion KEffect)) owner) UEnd)
+  task-spawn-effects :: CoreTerm -> CoreTerm -> UType
+  task-spawn-effects token body = case (scope-parameters (core-type token), task-body-parts (core-type body)) of
+    (Some (owner, region), Some (error, value, row)) -> union-effects (task-effect "Async" owner) (union-effects row (union-effects (core-effects token) (core-effects body)))
+    other -> UError
+  task-join-effects :: CoreTerm -> CoreTerm -> UType
+  task-join-effects token handles = case scope-parameters (core-type token) of
+    Some (owner, region) -> union-effects (URow (UArg (UCon "Diverge" KEffect) UEnd)) (union-effects (task-effect "Async" owner) (union-effects (task-effect "Cancel" owner) (union-effects (core-effects token) (core-effects handles))))
+    None -> UError
+  task-join-result :: CoreTerm -> CoreTerm -> Option UType
+  task-join-result token handles = case (scope-parameters (core-type token), handles) of
+    (Some (owner, region), CArgument sp first rest) -> (case task-parts (core-type first) of
+      Some (actual, error, value) -> if contract-equal region actual then (case task-join-fields region error rest of
+        Some UEnd -> Some (task-result-type error value)
+        Some more -> Some (task-result-type error (UTuple (UArg value more)))
+        None -> None) else None
+      None -> None)
+    other -> None
+  task-join-fields :: UType -> UType -> CoreTerm -> Option UType
+  task-join-fields region error handles = case handles of
+    CArgumentsEnd sp -> Some UEnd
+    CArgument sp first rest -> (case task-parts (core-type first) of
+      Some (actual, failure, value) -> if contract-equal region actual && contract-equal error failure then (case task-join-fields region error rest of Some more -> Some (UArg value more); None -> None) else None
+      None -> None)
+    other -> None
   core-type :: CoreTerm -> UType
   core-type term = case term of
     CUse s ty name role actuals -> ty
@@ -523,6 +607,8 @@ module Bootstrap.Core where
     CErasedApply s ty row f x -> ty
     CDecision s ty predicate condition -> ty
     CScope s ty region evidence callback -> ty
+    CSpawn s ty token body -> ty
+    CJoin s ty token body -> ty
     CWith s ty given value body -> ty
     CHandler s ty returned operations -> ty
     CHandle s ty label residual body handled-by -> ty
@@ -552,6 +638,8 @@ module Bootstrap.Core where
     CErasedApply s ty row f witness -> union-effects row (union-effects (core-effects f) (core-effects witness))
     CDecision s ty predicate condition -> core-effects condition
     CScope s ty region evidence callback -> (case scope-callback-parts (core-type callback) of Some (owner, bound, row, result) -> union-effects (URow (UArg (UCon "Diverge" KEffect) UEnd)) (union-effects row (core-effects callback)); None -> UError)
+    CSpawn s ty token body -> task-spawn-effects token body
+    CJoin s ty token body -> task-join-effects token body
     CWith s ty given value body -> union-effects (core-effects value) (core-effects body)
     CHandle s ty label residual body handled-by -> case handler-parts (core-type handled-by) of
       Some (declared-label, input, output, row) -> union-effects residual (union-effects row (core-effects handled-by))
@@ -607,6 +695,8 @@ module Bootstrap.Core where
       URow UEnd -> CApply s (f ty) (map-term-types f fun) (map-term-types f arg)
       effects -> CApplyEff s (f ty) effects (map-term-types f fun) (map-term-types f arg)
     CScope s ty region evidence callback -> CScope s (f ty) (f region) (map-evidence f evidence) (map-term-types f callback)
+    CSpawn s ty token body -> CSpawn s (f ty) (map-term-types f token) (map-term-types f body)
+    CJoin s ty token body -> CJoin s (f ty) (map-term-types f token) (map-term-types f body)
     CWith s ty given value body -> CWith s (f ty) (CGiven s (given-symbol given) (f (given-type given))) (map-term-types f value) (map-term-types f body)
     CHandler s ty returned operations -> CHandler s (f ty) (map-term-types f returned) (map-term-types f operations)
     CHandle s ty label residual body handled-by -> CHandle s (f ty) (f label) (f residual) (map-term-types f body) (map-term-types f handled-by)
@@ -756,6 +846,8 @@ module Bootstrap.Core where
     CErasedApply s ty row f witness -> type-metas st ty <> type-metas st row <> term-metas st f <> term-metas st witness
     CDecision s ty predicate condition -> type-metas st ty <> type-metas st predicate <> term-metas st condition
     CScope s ty region evidence callback -> type-metas st ty <> type-metas st region <> evidence-metas st evidence <> term-metas st callback
+    CSpawn s ty token body -> type-metas st ty <> term-metas st token <> term-metas st body
+    CJoin s ty token body -> type-metas st ty <> term-metas st token <> term-metas st body
     CWith s ty given value body -> type-metas st ty <> type-metas st (given-type given) <> term-metas st value <> term-metas st body
     CHandler s ty returned operations -> type-metas st ty <> term-metas st returned <> term-metas st operations
     CHandle s ty label residual body handled-by -> type-metas st ty <> type-metas st label <> type-metas st residual <> term-metas st body <> term-metas st handled-by
@@ -898,6 +990,8 @@ module Bootstrap.Core where
     CApplyEff s ty row f x -> closed-runtime-type ty && closed-type row && kind-equal (type-kind row) KRow && valid-term f && valid-term x
     CErasedApply s ty row f witness -> closed-runtime-type ty && closed-type row && kind-equal (type-kind row) KRow && valid-term f && valid-proof-reference witness
     CScope s ty region evidence callback -> closed-runtime-type ty && closed-type region && scope-region-closed region ty && scope-region-closed region (core-effects term) && evidences-closed [evidence] && valid-term callback
+    CSpawn s ty token body -> closed-runtime-type ty && valid-term token && valid-term body
+    CJoin s ty token body -> closed-runtime-type ty && valid-term token && valid-term body
     CWith s ty given value body -> closed-runtime-type ty && closed-type (given-type given) && valid-term value && valid-term body
     CHandler s ty returned operations -> closed-runtime-type ty && valid-term returned && valid-term operations
     CHandle s ty label residual body handled-by -> closed-runtime-type ty && closed-type label && closed-type residual && valid-term body && valid-term handled-by
@@ -1055,6 +1149,8 @@ module Bootstrap.Core where
       CApplyEff s ty row f x -> type-index-scope universals rigid row && scoped-term-with universals values scope f && scoped-term-with universals values scope x
       CErasedApply s ty row f witness -> type-index-scope universals rigid row && scoped-term-with universals values scope f && scoped-term-with universals values scope witness
       CScope s ty region evidence callback -> type-index-scope universals rigid region && evidence-index-scope-with universals rigid evidence && scoped-term-with universals values scope callback
+      CSpawn s ty token body -> scoped-term-with universals values scope token && scoped-term-with universals values scope body
+      CJoin s ty token body -> scoped-term-with universals values scope token && scoped-term-with universals values scope body
       CWith s ty given value body -> type-index-scope universals rigid (given-type given) && scoped-term-with universals values scope value && scoped-term-with universals values scope body
       CHandler s ty returned operations -> scoped-term-with universals values scope returned && scoped-term-with universals values scope operations
       CHandle s ty label residual body handled-by -> type-index-scope universals rigid label && type-index-scope universals rigid residual && scoped-term-with universals values scope body && scoped-term-with universals values scope handled-by
@@ -1492,6 +1588,8 @@ module Bootstrap.Core where
     CApply s ty f x -> proof-term gamma facts f && proof-term gamma facts x && (if contains-required (core-type f) then application-type gamma facts ty (URow UEnd) f x else True)
     CApplyEff s ty row f x -> proof-term gamma facts f && proof-term gamma facts x && (if contains-required (core-type f) then application-type gamma facts ty row f x else True)
     CScope s ty region evidence callback -> proof-term gamma facts callback
+    CSpawn s ty token body -> proof-term gamma facts token && proof-term gamma facts body
+    CJoin s ty token body -> proof-term gamma facts token && proof-term gamma facts body
     CWith s ty given value body -> proof-term gamma facts value && proof-term gamma facts body
     CHandler s ty returned operations -> proof-term gamma facts returned && proof-term gamma facts operations
     CHandle s ty label residual body handled-by -> proof-term gamma facts body && proof-term gamma facts handled-by
@@ -1594,6 +1692,8 @@ module Bootstrap.Core where
     CCase s ty value alternatives -> proof-term gamma facts value && refined-alternatives gamma facts value ty alternatives
     CGuard s ty guard rhs -> bool-type (core-type guard) && proof-term gamma facts guard && proof-expected gamma (branch-facts gamma facts guard True) ty rhs
     CScope s ty region evidence callback -> proof-term gamma facts callback
+    CSpawn s ty token body -> proof-term gamma facts token && proof-term gamma facts body
+    CJoin s ty token body -> proof-term gamma facts token && proof-term gamma facts body
     CWith s ty given value body -> proof-term gamma facts value && proof-expected gamma facts ty body
     other -> False
   refined-alternatives :: ProofScope -> List Proposition -> CoreTerm -> UType -> CoreTerm -> Bool
@@ -1651,6 +1751,8 @@ module Bootstrap.Core where
     CErasedApply s ty row f witness -> CErasedApply s ty row (refresh-certificates gamma facts f) witness
     CDecision s ty predicate condition -> CDecision s ty predicate (refresh-certificates gamma facts condition)
     CScope s ty region evidence callback -> CScope s ty region evidence (refresh-certificates gamma facts callback)
+    CSpawn s ty token body -> CSpawn s ty (refresh-certificates gamma facts token) (refresh-certificates gamma facts body)
+    CJoin s ty token body -> CJoin s ty (refresh-certificates gamma facts token) (refresh-certificates gamma facts body)
     CWith s ty given value body -> CWith s ty given (refresh-certificates gamma facts value) (refresh-certificates gamma facts body)
     CLambda s ty pattern body -> CLambda s ty pattern (refresh-certificates (proof-pattern pattern gamma) facts body)
     CLet s ty id name sc rhs body -> let value = refresh-certificates gamma facts rhs in

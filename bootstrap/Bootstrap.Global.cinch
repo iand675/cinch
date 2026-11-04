@@ -12,7 +12,7 @@ module Bootstrap.Global where
 
   export CoreGlobal, GlobalValue, GlobalMethod, GlobalBody, global-name, global-scheme
   export globals-bodies, globals-guarded-bodies, GlobalGuardedBody
-  export CoreGlobals, add-global, globals-closed, close-globals, global-definition-closed
+  export CoreGlobals, add-global, globals-closed, close-globals, global-definition-closed, globals-declarations
 
   data CoreGlobal where
     GlobalValue :: String -> String -> Scheme -> CoreGlobal
@@ -21,6 +21,8 @@ module Bootstrap.Global where
     GlobalGuardedBody :: CoreGlobal -> GuardedBinding -> CoreGlobal
   data CoreGlobals where
     ClosedGlobals :: List CoreGlobal -> CoreGlobals
+  globals-declarations :: CoreGlobals -> List CoreGlobal
+  globals-declarations globals = case globals of ClosedGlobals declarations -> declarations
   global-name :: CoreGlobal -> String
   global-name declaration = case declaration of GlobalValue name role sc -> name; GlobalMethod name owner slot sc -> name; GlobalBody declaration binding -> global-name declaration; GlobalGuardedBody declaration binding -> global-name declaration
   global-scheme :: CoreGlobal -> Scheme
@@ -188,6 +190,8 @@ module Bootstrap.Global where
     CHandlerEnd sp -> True
     CErasedApply sp ty row f witness -> term-references globals locals givens f && term-references globals locals givens witness
     CScope sp ty region evidence callback -> evidence-valid globals givens evidence && term-references globals locals givens callback
+    CSpawn sp ty token body -> term-references globals locals givens token && term-references globals locals givens body
+    CJoin sp ty token handles -> term-references globals locals givens token && term-references globals locals givens handles
     CWith sp ty given value body -> (case lookup-given (given-symbol given) givens of Some prior -> False; None -> True)
       && equal-type (given-type given) (core-type value) && term-references globals locals givens value
       && term-references globals locals (Cons given givens) body

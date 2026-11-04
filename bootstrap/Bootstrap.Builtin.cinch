@@ -36,6 +36,8 @@ module Bootstrap.Builtin where
   builtin-bindings :: List (String, String)
   builtin-bindings =
     [ ("newIO", "b.newIO"), ("Runtime.newIO", "b.newIO")
+    , ("withScope", "b.withScope"), ("spawn", "b.spawn"), ("joinAllOrCancel", "b.joinAllOrCancel")
+    , ("Scope", "b.Scope"), ("Task", "b.Task")
     , ("ioWrite", "b.ioWrite"), ("ioRead", "b.ioRead")
     , ("ioSleep", "b.ioSleep"), ("pollCancel", "b.pollCancel")
     , ("decide", "b.decide"), ("Yes", "b.Yes"), ("No", "b.No"), ("Dec", "b.Dec")
@@ -78,6 +80,9 @@ module Bootstrap.Builtin where
                   (JObj "erased" (JArr (JBool True) JArrEnd)
                     (JObj "scheme" (JStr scheme) JObjEnd)))))))))
 
+  task-rule :: String -> String -> Int -> Bool -> Decl
+  task-rule name operation arity variadic = DExternal (Span 0 0 1 1) (string-concat "b." name) "builtin-syntax" None
+    (JObj "name" (JStr name) (JObj "operation" (JStr operation) (JObj "arity" (JNum arity) (JObj "variadic" (JBool variadic) (JObj "runtime_abi" (JNum runtime-abi-int) (JObj "first_class" (JBool False) JObjEnd))))))
   builtin-declarations :: List Decl
   builtin-declarations =
     [ entry "newIO" "NewIO" "forall (r :: Region). Unit -> Io r" True
@@ -85,6 +90,9 @@ module Bootstrap.Builtin where
     , entry "ioRead" "IoRead" "forall (r :: Region). using (io :: Io r) => Nat ->{IO r, Diverge} Option Bytes" False
     , entry "ioSleep" "IoSleep" "forall (r :: Region). using (io :: Io r) => Nat ->{IO r, Cancel r} Unit" False
     , entry "pollCancel" "PollCancel" "forall (r :: Region). using (io :: Io r) => Unit ->{Cancel r} Bool" False
+    , task-rule "withScope" "WithScope" 1 False
+    , task-rule "spawn" "Spawn" 2 False
+    , task-rule "joinAllOrCancel" "JoinAllOrCancel" 2 True
     , decision-rule
     , decision-constructor "Yes" 0 "forall (p :: Prop). (h :: p) -> Dec p"
     , decision-constructor "No" 1 "forall (p :: Prop). (h :: Not p) -> Dec p"

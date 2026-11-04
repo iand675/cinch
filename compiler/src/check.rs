@@ -4550,6 +4550,46 @@ impl Checker {
         })
     }
 
+    /// Can a value retain a closure whose captured regions are absent
+    /// from its visible type? Follow actual constructor field types, not
+    /// just type arguments: a monomorphic wrapper can hold a function too.
+    fn value_may_hide_scope(&self, ty: &Ty, seen: &mut Vec<Ty>, fuel: usize) -> bool {
+        if fuel == 0 { return true; }
+        let ty = self.uni.zonk(ty);
+        if seen.contains(&ty) { return false; }
+        match &ty {
+            Ty::Fun(..) | Ty::Pi { .. } | Ty::Handler { .. }
+            | Ty::Thunk { .. } | Ty::Later(_) | Ty::Lazy { .. }
+            | Ty::Meta(_) | Ty::Param(_) | Ty::App(..) | Ty::Former(_) => true,
+            Ty::Ref(_, inner) | Ty::Mut(_, inner) => self.value_may_hide_scope(inner, seen, fuel - 1),
+            Ty::Tuple(items) => items.iter().any(|item| self.value_may_hide_scope(item, seen, fuel - 1)),
+            Ty::Sigma { dom, cod, .. } => self.value_may_hide_scope(dom, seen, fuel - 1)
+                || self.value_may_hide_scope(cod, seen, fuel - 1),
+            Ty::Adt(name, args) => {
+                if is_capability_class(name) || name == "Scope" || name == "Copy" { return false; }
+                if name == "Task" { return true; }
+                if matches!(name.as_str(), "Array" | "Tensor" | "Columnar") {
+                    return args.iter().any(|arg| self.value_may_hide_scope(arg, seen, fuel - 1));
+                }
+                seen.push(ty.clone());
+                let info = match self.lookup_type(&[name]) { Ok(info) => info, Err(_) => return true };
+                if self.codata_types.contains(&(info.module.clone(), info.name.clone())) || info.ctors.is_empty() {
+                    return true;
+                }
+                for (name, _) in &info.ctors {
+                    let ctor = match self.ctor_of_type(&info, name) { Ok(ctor) => ctor, Err(_) => return true };
+                    let parts = match self.ctor_parts(&ctor, args) { Ok(parts) => parts, Err(_) => return true };
+                    if parts.fields.iter().any(|(_, field, erased)| !erased && self.value_may_hide_scope(field, seen, fuel - 1)) {
+                        return true;
+                    }
+                }
+                false
+            }
+            Ty::Int | Ty::Nat | Ty::Bool | Ty::Unit | Ty::Bytes | Ty::Sym
+            | Ty::Prim(_) | Ty::Region(_) | Ty::Ptr { .. } | Ty::Sort(_) | Ty::Idx(_) | Ty::Prp(_) => false,
+        }
+    }
+
     /// Structural `Copy` evidence (ownership and usage design, section 3):
     /// machine scalars and the mathematical types, immutable products of
     /// `Copy` parts, and shared borrows. `Bytes` is a mutable buffer;

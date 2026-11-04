@@ -7,6 +7,7 @@ module Bootstrap.RuntimeIr where
   import Bootstrap.Infer (elaboration-core, elaboration-data, elaboration-effects, elaboration-classes, elaboration-instances, elaboration-bindings, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-conditional-target)
   import Bootstrap.Object (RuntimeObject, RuntimeUnit, object-words, object-unit, object-variant, object-dictionary, object-family, object-conditional-unit, object-closed-method-unit, object-string-layout, unit-symbol, unit-closure, unit-params, unit-result, llvm-object-symbol, llvm-data-bytes)
   import Bootstrap.Core
+  import Bootstrap.Nominal (interface-global)
   import Bootstrap.Instance
   import Bootstrap.Type
   import Bootstrap.Report
@@ -205,7 +206,7 @@ module Bootstrap.RuntimeIr where
       UPi id name domain row result -> Some 1
       UTuple fields -> if field-types context fields 0 then Some 1 else None
       other -> case type-head ty of
-        UCon name kind -> if same name "b.Io" && kind-equal kind (KFun KRegion KType) then Some 0
+        UCon name kind -> if (same name "b.Io" && kind-equal kind (KFun KRegion KType)) || (same name "b.Scope" && kind-equal kind scope-kind) || (same name "b.Task" && kind-equal kind task-kind) then Some 0
           else if (same name "Bytes" || same name "String") && kind-equal kind KType then Some 1 else
           (case data-declaration name (program-data datas) of
             Some d -> Some 1
@@ -496,6 +497,8 @@ module Bootstrap.RuntimeIr where
     CErasedApply sp ty row f x -> CErasedApply sp ty row (specialize-local id scheme value f) (specialize-local id scheme value x)
     CDecision sp ty predicate condition -> CDecision sp ty predicate (specialize-local id scheme value condition)
     CScope sp ty region evidence callback -> CScope sp ty region evidence (specialize-local id scheme value callback)
+    CSpawn sp ty token body -> CSpawn sp ty (specialize-local id scheme value token) (specialize-local id scheme value body)
+    CJoin sp ty token body -> CJoin sp ty (specialize-local id scheme value token) (specialize-local id scheme value body)
     CWith sp ty given rhs body -> CWith sp ty given (specialize-local id scheme value rhs) (specialize-local id scheme value body)
     CHandler sp ty returned operations -> CHandler sp ty (specialize-local id scheme value returned) (specialize-local id scheme value operations)
     CHandle sp ty label residual body handled-by -> CHandle sp ty label residual (specialize-local id scheme value body) (specialize-local id scheme value handled-by)
@@ -532,7 +535,9 @@ module Bootstrap.RuntimeIr where
     CQualifiedUse sp ty name role actuals evidence -> case evidences definitions locals w evidence of
       (ready, values) -> call-name definitions locals ready sp name actuals values Nil
     CMethod sp ty name owner slot actuals evidence -> method-value definitions locals w sp ty name owner slot actuals evidence
-    CScope sp ty region evidence callback -> unsupported w sp "structured task scope needs lifetime and linear-handle validation before runtime lowering"
+    CScope sp ty region evidence callback -> scope-expression definitions locals w sp evidence callback
+    CSpawn sp ty token body -> if task-result-abi w then (case expressions definitions locals w [token, body] of (ready, [scope, closure]) -> call ready "@cinch_task_spawn" [scope, closure]; other -> unsupported w sp "malformed task spawn") else unsupported w sp "tasks require the canonical checked Result error/success ABI"
+    CJoin sp ty token body -> if task-result-abi w then join-expression definitions locals w sp ty token body else unsupported w sp "tasks require the canonical checked Result error/success ABI"
     CWith sp ty given value body -> case expression definitions locals w value of
       (ready, word) -> case expression definitions (Cons (GivenLocal (given-symbol given) (given-type given) word) locals) ready body of
         (done, result) -> (count-op False (given-type given) word done, result)
@@ -582,6 +587,73 @@ module Bootstrap.RuntimeIr where
             other -> None)
         other -> None)
     other -> None
+  task-result-abi :: Writer -> Bool
+  task-result-abi w = case data-declaration (interface-global "Data.Core.Result") (writer-data w) of
+    Some d -> (case (core-data-params d, core-data-constructors d) of
+      ([error, value], [first, second]) -> same (core-constructor-name first) (interface-global "Data.Core.Err") && same (core-constructor-name second) (interface-global "Data.Core.Ok")
+        && (case (core-constructor-fields first, core-constructor-fields second) of
+          ([UBound left name KType], [UBound right other KType]) -> left == quant-id error && right == quant-id value
+          other -> False)
+      other -> False)
+    None -> False
+  scope-expression :: List CoreDefinition -> List Local -> Writer -> Span -> CoreEvidence -> CoreTerm -> (Writer, String)
+  scope-expression definitions locals w sp evidence callback = case evidences definitions locals w [evidence] of
+    (supplied, [capability]) -> (case expression definitions locals supplied callback of
+      (ready, closure) -> case call ready "@cinch_scope_open" Nil of
+        (opened, scope) -> case apply-one opened closure scope of
+          (called, result) -> case call called "@cinch_scope_close" [scope] of
+            (closed, ignored) -> (count-op False (evidence-type evidence) capability closed, result))
+    other -> unsupported w sp "scope requires one checked Io capability"
+  task-stack-array :: Writer -> List String -> (Writer, String, String)
+  task-stack-array w values = let (one, pointer) = fresh w "%ptr" in
+    let (two, word) = fresh one "%v" in
+    let allocated = line two (cat ["  ", pointer, " = alloca i64, i64 ", nat-to-string (list-length values)]) in
+    let filled = store-fields allocated pointer 0 values in
+    (line filled (cat ["  ", word, " = ptrtoint ptr ", pointer, " to i64"]), pointer, word)
+  task-zero-words :: Nat -> List String
+  task-zero-words count = if count == 0 then Nil else Cons "0" (task-zero-words (count - 1))
+  task-load-words :: Writer -> String -> Nat -> Nat -> (Writer, List String)
+  task-load-words w pointer index count = if count == 0 then (w, Nil) else case load-word w pointer (nat-to-string index) of
+    (loaded, value) -> case task-load-words loaded pointer (index + 1) (count - 1) of (done, rest) -> (done, Cons value rest)
+  task-result-types :: UType -> Option (UType, UType)
+  task-result-types ty = case ty of UApp (UApp (UCon name kind) error) value -> if same name (interface-global "Data.Core.Result") then Some (error, value) else None; other -> None
+  task-tuple-types :: UType -> Option (List UType)
+  task-tuple-types ty = case ty of UTuple fields -> task-tuple-fields fields; other -> None
+  task-tuple-fields :: UType -> Option (List UType)
+  task-tuple-fields fields = case fields of UEnd -> Some Nil; UArg ty more -> (case task-tuple-fields more of Some rest -> Some (Cons ty rest); None -> None); other -> None
+  task-join-success :: Writer -> Span -> UType -> List String -> (Writer, String)
+  task-join-success w sp ty values = case task-result-types ty of
+    Some (error, payload) -> (case (task-tuple-types payload, data-declaration (interface-global "Data.Core.Result") (writer-data w)) of
+      (Some types, Some d) -> (case class-vector (writer-context w) types of
+        Some classes -> (case request-object-shape sp classes w of
+          (planned, descriptor) -> case allocate planned descriptor values of
+            (made, tuple) -> case scheme-classes (writer-context made) (core-data-params d) [error, payload] of
+              Some result-classes -> (case request-data sp d result-classes made of (ready, base-id) -> allocate ready (data-descriptor d base-id 1) [tuple])
+              None -> unsupported made sp "joined Result needs checked runtime representations")
+        None -> unsupported w sp "joined tuple needs checked runtime representations")
+      other -> unsupported w sp "joined task result must use its checked tuple and Result declarations")
+    None -> unsupported w sp "join has no checked Result carrier"
+  join-expression :: List CoreDefinition -> List Local -> Writer -> Span -> UType -> CoreTerm -> CoreTerm -> (Writer, String)
+  join-expression definitions locals w sp ty token handles = case term-fields handles of
+    None -> unsupported w sp "malformed join handle spine"
+    Some terms -> if list-length terms == 0 then unsupported w sp "join needs at least one handle" else
+      (case expression definitions locals w token of
+        (scoped, scope) -> case expressions definitions locals scoped terms of
+          (evaluated, values) -> case task-stack-array evaluated values of
+            (array, input-pointer, input-word) -> case task-stack-array array (task-zero-words (list-length values)) of
+              (output, output-pointer, output-word) -> case call output "@cinch_task_join_all_or_cancel" [scope, input-word, nat-to-string (list-length values), output-word] of
+                (joined, status) -> if list-length values == 1 then load-word joined output-pointer "0" else task-join-branches joined sp ty output-pointer status (list-length values))
+  task-join-branches :: Writer -> Span -> UType -> String -> String -> Nat -> (Writer, String)
+  task-join-branches w sp ty output status count =
+    let (one, failed) = fresh w "%v" in let (two, slot) = fresh one "%ptr" in
+    let (three, failure) = fresh two "taskfail" in let (four, success) = fresh three "taskok" in let (five, end) = fresh four "taskdone" in
+    let split = line (line (line five (cat ["  ", slot, " = alloca i64"])) (cat ["  ", failed, " = icmp slt i64 ", status, ", 0"])) (cat ["  br i1 ", failed, ", label %", failure, ", label %", success]) in
+    case load-word (line split (cat [failure, ":"])) output "0" of
+      (bad, error) -> let next = line (line (line bad (cat ["  store i64 ", error, ", ptr ", slot])) (cat ["  br label %", end])) (cat [success, ":"]) in
+        case task-load-words next output 0 count of
+          (loaded, values) -> case task-join-success loaded sp ty values of
+            (good, result) -> let merged = line (line (line good (cat ["  store i64 ", result, ", ptr ", slot])) (cat ["  br label %", end])) (cat [end, ":"]) in
+              case fresh merged "%v" of (done, word) -> (line done (cat ["  ", word, " = load i64, ptr ", slot]), word)
   expressions :: List CoreDefinition -> List Local -> Writer -> List CoreTerm -> (Writer, List String)
   expressions definitions locals w terms = case terms of
     Nil -> (w, Nil)
@@ -870,6 +942,8 @@ module Bootstrap.RuntimeIr where
     CLambda sp ty pattern body -> term-value-dependencies w owner key seen body
     CLet sp ty id name sc value body -> merge-value-fields (term-value-dependencies w owner key seen value) (term-value-dependencies w owner key seen body)
     CScope sp ty region evidence callback -> term-value-dependencies w owner key seen callback
+    CSpawn sp ty token body -> merge-value-fields (term-value-dependencies w owner key seen token) (term-value-dependencies w owner key seen body)
+    CJoin sp ty token body -> merge-value-fields (term-value-dependencies w owner key seen token) (term-value-dependencies w owner key seen body)
     CWith sp ty given value body -> merge-value-fields (term-value-dependencies w owner key seen value) (term-value-dependencies w owner key seen body)
     CIf sp ty condition yes no -> merge-value-fields (term-value-dependencies w owner key seen condition) (merge-value-fields (term-value-dependencies w owner key seen yes) (term-value-dependencies w owner key seen no))
     CCase sp ty value alternatives -> merge-value-fields (term-value-dependencies w owner key seen value) (term-value-dependencies w owner key seen alternatives)
@@ -1145,6 +1219,8 @@ module Bootstrap.RuntimeIr where
     CApply sp ty first second -> term-uses id first || term-uses id second
     CApplyEff sp ty row first second -> term-uses id first || term-uses id second
     CScope sp ty region evidence callback -> term-uses id callback
+    CSpawn sp ty token body -> term-uses id token || term-uses id body
+    CJoin sp ty token body -> term-uses id token || term-uses id body
     CWith sp ty given value body -> term-uses id value || term-uses id body
     CLambda sp ty pattern body -> not (pattern-binds id pattern) && term-uses id body
     CLet sp ty key name sc rhs body -> term-uses id rhs || (id /= key && term-uses id body)
@@ -1178,6 +1254,8 @@ module Bootstrap.RuntimeIr where
     CLambda sp ty pattern body -> given-uses name body
     CLet sp ty key symbol sc rhs body -> given-uses name rhs || given-uses name body
     CScope sp ty region evidence callback -> evidence-uses name evidence || given-uses name callback
+    CSpawn sp ty token body -> given-uses name token || given-uses name body
+    CJoin sp ty token body -> given-uses name token || given-uses name body
     CWith sp ty given value body -> given-uses name value || (not (same name (given-symbol given)) && given-uses name body)
     CIf sp ty test yes no -> given-uses name test || given-uses name yes || given-uses name no
     CCase sp ty value alternatives -> given-uses name value || given-uses name alternatives
@@ -1597,7 +1675,7 @@ module Bootstrap.RuntimeIr where
   declarations = cat [
     "declare ptr @cinch_alloc_ctor(i64, i64)\ndeclare ptr @cinch_alloc_shaped(i64, i64, i64)\ndeclare ptr @memcpy(ptr, ptr, i64)\ndeclare void @cinch_layouts_register(ptr, i64)\n",
     "declare void @cinch_dup(i64)\ndeclare void @cinch_drop(i64)\ndeclare void @cinch_reclaim_enable()\ndeclare i64 @cinch_exit_check(i64)\n",
-    "declare i64 @cinch_nat_to_len(i64)\ndeclare i64 @cinch_nat_from_i64(i64)\ndeclare i64 @cinch_bytes_new(i64)\ndeclare i64 @cinch_bytes_len(i64)\ndeclare i64 @cinch_bytes_from_data(ptr, i64)\ndeclare i64 @cinch_bytes_compare(i64, i64)\ndeclare i64 @cinch_io_write(i64)\ndeclare i64 @cinch_io_sleep(i64)\ndeclare i64 @cinch_task_poll_cancel()\n",
+    "declare i64 @cinch_nat_to_len(i64)\ndeclare i64 @cinch_nat_from_i64(i64)\ndeclare i64 @cinch_bytes_new(i64)\ndeclare i64 @cinch_bytes_len(i64)\ndeclare i64 @cinch_bytes_from_data(ptr, i64)\ndeclare i64 @cinch_bytes_compare(i64, i64)\ndeclare i64 @cinch_io_write(i64)\ndeclare i64 @cinch_io_sleep(i64)\ndeclare i64 @cinch_task_poll_cancel()\ndeclare i64 @cinch_scope_open()\ndeclare i64 @cinch_scope_close(i64)\ndeclare i64 @cinch_task_spawn(i64, i64)\ndeclare i64 @cinch_task_join_all_or_cancel(i64, i64, i64, i64)\n",
     "declare i64 @cinch_text_f64_to_decimal(double)\ndeclare double @cinch_text_f64_from_decimal(i64)\n",
     "declare i64 @cinch_argv_init(i64, ptr)\ndeclare i64 @cinch_run_main(ptr)\n",
     "declare i64 @cinch_int_from_decimal(ptr, i64)\ndeclare i64 @cinch_nat_from_decimal(ptr, i64)\ndeclare i64 @cinch_int_to_i64(i64)\n",

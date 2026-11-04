@@ -1,0 +1,960 @@
+{
+  "compiler_source_sha256": "6b5e776bb196631c6c42476ec08e0f8e801a60e5fd95ea7fb21f7dfb9d776620",
+  "failed_attempts": [
+    {
+      "reason": "Task syntax incorrectly required an ordinary imported scheme.",
+      "root": "/tmp/cinch-task-validation-1"
+    },
+    {
+      "reason": "Do-block references were not materialized and fresh callback effect rows were unresolved.",
+      "root": "/tmp/cinch-task-validation-2"
+    },
+    {
+      "reason": "Unconstrained nested task error carrier lacked runtime representation.",
+      "root": "/tmp/cinch-task-validation-3"
+    }
+  ],
+  "full_goal_complete": false,
+  "kernel_checks": {
+    "new_task_assertions_executed": 70,
+    "nonces": [
+      0,
+      1,
+      17,
+      129,
+      4096
+    ],
+    "scoped_region": 23,
+    "task_nodes": 14,
+    "total_scope_task_assertions": 185
+  },
+  "limitations": "Focused proof only. Full language ownership/borrow/provider parity, unchanged exact self-built exhaustion, fresh Stage0-3 and all matching complete Native/self-built/runtime/tool/editor/external/coverage gates remain required. No full goal completion claim.",
+  "mechanism": "Owned task syntax elaborates to checked CScope/CSpawn/CJoin. Independent Core typing checks kinds, lexical Io, generative regions, task/result identities, effects, exact-once handles, structural capture sharing and hidden/captured lifetimes. Runtime lowers to actual shared-runtime scope open/close, real task spawn and cancel/join, with checked canonical Result ABI and representation maps. Do-block dependency discovery and fresh callback effect inference are repaired. Task errors still unconstrained after complete body constraints and dictionary/numeric resolution instantiate Unit; rigid/public types and general private-type sealing are unchanged.",
+  "reference_sources": {
+    "child_pid": 6330,
+    "rows": [
+      {
+        "exit_code": 0,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "name": "task-empty-scope",
+        "status": "passed",
+        "wanted_acceptance": true
+      },
+      {
+        "exit_code": 0,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "name": "task-single-join",
+        "status": "passed",
+        "wanted_acceptance": true
+      },
+      {
+        "exit_code": 0,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "name": "task-pair-owned-raw",
+        "status": "passed",
+        "wanted_acceptance": true
+      },
+      {
+        "exit_code": 0,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "name": "task-immutable-adt-capture",
+        "status": "passed",
+        "wanted_acceptance": true
+      },
+      {
+        "exit_code": 0,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "name": "task-nested-scopes",
+        "status": "passed",
+        "wanted_acceptance": true
+      },
+      {
+        "exit_code": 0,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "name": "task-failure-cancels-sibling",
+        "status": "passed",
+        "wanted_acceptance": true
+      },
+      {
+        "exit_code": 0,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "name": "task-builtin-local-shadowing",
+        "status": "passed",
+        "wanted_acceptance": true
+      },
+      {
+        "exit_code": 1,
+        "log_sha256": "5d7ecfcd0f4fb27de5f087b22b09ca1fab9153f571dafcc88d9cbf85f1a45f9c",
+        "name": "task-drop",
+        "status": "passed",
+        "wanted_acceptance": false
+      },
+      {
+        "exit_code": 1,
+        "log_sha256": "6337589b0fedb9f25212245614394fdca2607b9545ff22c28bf425ffcfafb6da",
+        "name": "task-wildcard-drop",
+        "status": "passed",
+        "wanted_acceptance": false
+      },
+      {
+        "exit_code": 1,
+        "log_sha256": "fd9b0b6b6491ed27a28037f8be6fbd4cad4cd83f2f56f9c7096682d30f7d2941",
+        "name": "task-duplicate",
+        "status": "passed",
+        "wanted_acceptance": false
+      },
+      {
+        "exit_code": 1,
+        "log_sha256": "f87f0e801f72d866506002a4791dcb2ce7b2dc9075583ef1e50e2fd9a1f76094",
+        "name": "task-branch-drop",
+        "status": "passed",
+        "wanted_acceptance": false
+      },
+      {
+        "exit_code": 1,
+        "log_sha256": "95d57003a6e26c9ef00927d6ddfc3f8ca07ee42bc4497d087d3ac44c57c8d622",
+        "name": "task-visible-escape",
+        "status": "passed",
+        "wanted_acceptance": false
+      },
+      {
+        "exit_code": 1,
+        "log_sha256": "cd52a9efcbad0df1eed4ab339b73b4ed9254b999879e489149c00e2a0b7d54e7",
+        "name": "task-wrong-scope-join",
+        "status": "passed",
+        "wanted_acceptance": false
+      },
+      {
+        "exit_code": 1,
+        "log_sha256": "1bd6c1da6f236d19469bb6fcf83fb88f3228c40c6a9159113cdf5dc8f2a03276",
+        "name": "task-inner-capture-in-outer",
+        "status": "passed",
+        "wanted_acceptance": false
+      },
+      {
+        "exit_code": 1,
+        "log_sha256": "b4a1318029bcf0fe62db2d2fb0b348a65daa26a076737b453aec10158a87a770",
+        "name": "task-hidden-closure-escape",
+        "status": "passed",
+        "wanted_acceptance": false
+      },
+      {
+        "exit_code": 1,
+        "log_sha256": "427756e34ca80ba6b9bc230245123786153a5c4f41d05587f6ec2bf4fae4df45",
+        "name": "task-mutable-bytes-capture",
+        "status": "passed",
+        "wanted_acceptance": false
+      },
+      {
+        "exit_code": 1,
+        "log_sha256": "b9c4205e906b85cada47df11ef7db676b7e04fda2bf68f9961d81ceccdc53af9",
+        "name": "task-spawn-missing-callback",
+        "status": "passed",
+        "wanted_acceptance": false
+      },
+      {
+        "exit_code": 1,
+        "log_sha256": "c3b2b487b7d67f8de7d24d4371c0ee8e89d235960bb5d3f92f1d8c010b58afd7",
+        "name": "task-join-missing-handle",
+        "status": "passed",
+        "wanted_acceptance": false
+      },
+      {
+        "exit_code": 1,
+        "log_sha256": "90faeb5ef418c28ed8ff05b06fff6a3e2227ce987a8a5a0dfa28e68ad4b425e6",
+        "name": "task-wrong-body-result",
+        "status": "passed",
+        "wanted_acceptance": false
+      }
+    ],
+    "scope": "New task success/cancellation and ownership/lifetime cases checked against actual Rust frontend; mismatches retained for investigation.",
+    "status": "passed"
+  },
+  "rows": [
+    {
+      "binary": "/tmp/cinch-task-validation-4/cargo/debug/deps/bootstrap_typing-07c645cc2da54f73",
+      "binary_sha256": "17741ac85fe556886088f5ff8d5926845f3a7ccee6bf958c56a6fc3f3de88110",
+      "exit_code": 0,
+      "log": "/tmp/cinch-task-validation-4/bootstrap_typing.log",
+      "log_sha256": "905a1d2f9b8a069098a9e42b8562b088d04bb53cbc985952f703e3117a4e38e2",
+      "name": "bootstrap_typing",
+      "pid": 60252,
+      "status": "passed",
+      "tests": 1,
+      "worker_slot": 4
+    },
+    {
+      "binary": "/tmp/cinch-task-validation-4/cargo/debug/deps/bootstrap_core-cfc7699e29c819d5",
+      "binary_sha256": "fa6bd04324bc0c055568f49b385717ee92e36362a2262a3e4b7414f279d10d59",
+      "exit_code": 0,
+      "log": "/tmp/cinch-task-validation-4/bootstrap_core.log",
+      "log_sha256": "78abfbd233173d4936a33187093128430a9273c1ca7d38101d78a09d797bb110",
+      "name": "bootstrap_core",
+      "pid": 60253,
+      "status": "passed",
+      "tests": 1,
+      "worker_slot": 0
+    },
+    {
+      "binary": "/tmp/cinch-task-validation-4/cargo/debug/deps/bootstrap_check-ed661b82d7219941",
+      "binary_sha256": "740ae7f6823cf5601320e47941f4d3ac55eaf630e87e7e703b1a2d0d66a3a4e9",
+      "exit_code": 0,
+      "log": "/tmp/cinch-task-validation-4/bootstrap_check.log",
+      "log_sha256": "157043e63762ddf207537e6ba7e383e43e9747e1ff95b3c8b8c861aef4b39aee",
+      "name": "bootstrap_check",
+      "pid": 60255,
+      "status": "passed",
+      "tests": 1,
+      "worker_slot": 1
+    },
+    {
+      "binary": "/tmp/cinch-task-validation-4/cargo/debug/deps/bootstrap_infer-3d863cddd3a52f96",
+      "binary_sha256": "bd5ada874adde4c5168e959f067318f77bafa7499d625d53dcf79253d02f2d4a",
+      "exit_code": 0,
+      "log": "/tmp/cinch-task-validation-4/bootstrap_infer.log",
+      "log_sha256": "e32941c9ed176d51f24058ba0157d7014f8ca8300e00f0d9191e402ce5a54ecb",
+      "name": "bootstrap_infer",
+      "pid": 60257,
+      "status": "passed",
+      "tests": 1,
+      "worker_slot": 2
+    },
+    {
+      "binary": "/tmp/cinch-task-validation-4/cargo/debug/deps/bootstrap_runtime_ir-f3d238deebdeb860",
+      "binary_sha256": "ea42eede904cf1dbfc826a6cded21e4933b7dc11b0f2ec23459ce49815c5e5b7",
+      "exit_code": 0,
+      "log": "/tmp/cinch-task-validation-4/bootstrap_runtime_ir.log",
+      "log_sha256": "031c5b3004f20309cd26c3292e660570f6e3cf9fe2d3093a8221bc8cf411619f",
+      "name": "bootstrap_runtime_ir",
+      "pid": 60260,
+      "status": "passed",
+      "tests": 1,
+      "worker_slot": 3
+    },
+    {
+      "binary": "/tmp/cinch-task-validation-4/cargo/debug/deps/bootstrap_runtime_objects-3f0ca8e79c6a5a13",
+      "binary_sha256": "fe506416d610007f9137f47ca233f9df099820a0bbe88cf12cc738bb2cdc01d2",
+      "exit_code": 0,
+      "log": "/tmp/cinch-task-validation-4/bootstrap_runtime_objects.log",
+      "log_sha256": "5cbd48cdb573be84d250c7c6996682851d323b30d3674f7b185bb1d248048201",
+      "name": "bootstrap_runtime_objects",
+      "pid": 62416,
+      "status": "passed",
+      "tests": 1,
+      "worker_slot": 4
+    }
+  ],
+  "runtime_programs": {
+    "bootstrap_runtime_ir": [
+      {
+        "exit_code": 219,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "task-saturated-scoped-helper"
+      },
+      {
+        "exit_code": 205,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "task-empty-scope"
+      },
+      {
+        "exit_code": 207,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "task-single-join"
+      },
+      {
+        "exit_code": 209,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "task-pair-owned-raw"
+      },
+      {
+        "exit_code": 211,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "task-immutable-adt-capture"
+      },
+      {
+        "exit_code": 213,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "task-nested-scopes"
+      },
+      {
+        "exit_code": 215,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "task-failure-cancels-sibling"
+      },
+      {
+        "exit_code": 217,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "task-builtin-local-shadowing"
+      },
+      {
+        "exit_code": 193,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "direct-do-effect-order-once"
+      },
+      {
+        "exit_code": 195,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "direct-do-polymorphic-capture"
+      },
+      {
+        "exit_code": 197,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "direct-do-polymorphic-nested-alias"
+      },
+      {
+        "exit_code": 187,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "direct-do-owned-alias"
+      },
+      {
+        "exit_code": 189,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "direct-do-pure-polymorphic-let"
+      },
+      {
+        "exit_code": 191,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "direct-do-layout-shadow"
+      },
+      {
+        "exit_code": 245,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "function-valued-prefix"
+      },
+      {
+        "exit_code": 83,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "pure-unit-entry"
+      },
+      {
+        "exit_code": 85,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "pure-unit-closure-entry"
+      },
+      {
+        "exit_code": 239,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "machine-i64-overflow"
+      },
+      {
+        "exit_code": 241,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "machine-i64-first-class"
+      },
+      {
+        "exit_code": 243,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "machine-i64-owned-chain"
+      },
+      {
+        "exit_code": 37,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "huge"
+      },
+      {
+        "exit_code": 39,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "alias"
+      },
+      {
+        "exit_code": 41,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "call"
+      },
+      {
+        "exit_code": 43,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "branch"
+      },
+      {
+        "exit_code": 47,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "recursive"
+      },
+      {
+        "exit_code": 53,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "negative"
+      },
+      {
+        "exit_code": 59,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "natural"
+      },
+      {
+        "exit_code": 61,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "wildcard"
+      },
+      {
+        "exit_code": 67,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "tuple-field"
+      },
+      {
+        "exit_code": 71,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "tuple-case"
+      },
+      {
+        "exit_code": 73,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "nested-tuple"
+      },
+      {
+        "exit_code": 79,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "dropped-tuple"
+      },
+      {
+        "exit_code": 83,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "full-inline-map"
+      },
+      {
+        "exit_code": 89,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "nullary-constructors"
+      },
+      {
+        "exit_code": 97,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "recursive-tree"
+      },
+      {
+        "exit_code": 101,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "failed-nested-pattern"
+      },
+      {
+        "exit_code": 103,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "shared-constructor-root"
+      },
+      {
+        "exit_code": 107,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "raw-bool-patterns"
+      },
+      {
+        "exit_code": 109,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "numeric-equations"
+      },
+      {
+        "exit_code": 113,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "nested-case-guards"
+      },
+      {
+        "exit_code": 127,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "failed-case-guard"
+      },
+      {
+        "exit_code": 131,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "natural-literal-pattern"
+      },
+      {
+        "exit_code": 137,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "last-regular-tag"
+      },
+      {
+        "exit_code": 149,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "opaque-runtime-dependent-argument"
+      },
+      {
+        "exit_code": 147,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "partially-applied-constructor"
+      },
+      {
+        "exit_code": 139,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "first-escaped-tag"
+      },
+      {
+        "exit_code": 141,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "escaped-recursive-and-first-class"
+      },
+      {
+        "exit_code": 143,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "escaped-generic-representation-classes"
+      },
+      {
+        "exit_code": 151,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "generic-identity-classes"
+      },
+      {
+        "exit_code": 157,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "generic-shared-tobj"
+      },
+      {
+        "exit_code": 163,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "generic-shared-obj"
+      },
+      {
+        "exit_code": 167,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "generic-tuple-fields"
+      },
+      {
+        "exit_code": 173,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "polymorphic-recursion"
+      },
+      {
+        "exit_code": 179,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "class-swapping-recursion"
+      },
+      {
+        "exit_code": 181,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "generic-data-classes"
+      },
+      {
+        "exit_code": 191,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "generic-recursive-data"
+      },
+      {
+        "exit_code": 193,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "generic-data-growing-recursion"
+      },
+      {
+        "exit_code": 197,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "generic-owned-result"
+      },
+      {
+        "exit_code": 199,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "lambda-argument"
+      },
+      {
+        "exit_code": 201,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "escaping-capture"
+      },
+      {
+        "exit_code": 203,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "shared-closure"
+      },
+      {
+        "exit_code": 205,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "global-function-value"
+      },
+      {
+        "exit_code": 207,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "partial-function"
+      },
+      {
+        "exit_code": 209,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "dynamic-partial-application"
+      },
+      {
+        "exit_code": 211,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "partial-constructor"
+      },
+      {
+        "exit_code": 213,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "nested-escaping-closures"
+      },
+      {
+        "exit_code": 215,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "unused-capture"
+      },
+      {
+        "exit_code": 217,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "shadowed-capture"
+      },
+      {
+        "exit_code": 219,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "generic-capture-classes"
+      },
+      {
+        "exit_code": 221,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "higher-order-generic-map"
+      },
+      {
+        "exit_code": 223,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "borrowed-field-capture"
+      },
+      {
+        "exit_code": 225,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "closure-constructor-field"
+      },
+      {
+        "exit_code": 227,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "branch-returned-closure"
+      },
+      {
+        "exit_code": 229,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "generic-object-capture"
+      },
+      {
+        "exit_code": 231,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "lambda-tuple-pattern"
+      },
+      {
+        "exit_code": 233,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "function-captures"
+      },
+      {
+        "exit_code": 101,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "selected-dictionary"
+      },
+      {
+        "exit_code": 103,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "dictionary-slot-order"
+      },
+      {
+        "exit_code": 107,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "dictionary-value"
+      },
+      {
+        "exit_code": 109,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "dictionary-object-value"
+      },
+      {
+        "exit_code": 113,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "dictionary-factory-context"
+      },
+      {
+        "exit_code": 127,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "dictionary-self-method"
+      },
+      {
+        "exit_code": 131,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "dictionary-self-escaping"
+      },
+      {
+        "exit_code": 137,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "dictionary-evidence-capture"
+      },
+      {
+        "exit_code": 139,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "dictionary-extra-evidence"
+      },
+      {
+        "exit_code": 149,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "dictionary-raw-value"
+      },
+      {
+        "exit_code": 151,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "dictionary-shared-evidence"
+      },
+      {
+        "exit_code": 157,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "erased-region-identity"
+      },
+      {
+        "exit_code": 163,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "io-unit-entry"
+      },
+      {
+        "exit_code": 167,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "io-cancellation"
+      },
+      {
+        "exit_code": 173,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "io-evidence-capture"
+      },
+      {
+        "exit_code": 179,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "io-observable-bytes"
+      },
+      {
+        "exit_code": 181,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "imported-tagged-fields"
+      },
+      {
+        "exit_code": 191,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "imported-raw-fields"
+      },
+      {
+        "exit_code": 193,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "imported-object-fields"
+      },
+      {
+        "exit_code": 197,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "imported-nullary-tag"
+      },
+      {
+        "exit_code": 199,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "imported-declaration-order"
+      },
+      {
+        "exit_code": 201,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "imported-constructor-closure"
+      },
+      {
+        "exit_code": 203,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "source-signature"
+      },
+      {
+        "exit_code": 205,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "source-signature-order"
+      },
+      {
+        "exit_code": 207,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "source-signature-values"
+      },
+      {
+        "exit_code": 209,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "source-signature-factory"
+      },
+      {
+        "exit_code": 211,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "source-signature-operator"
+      },
+      {
+        "exit_code": 213,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "source-signature-module"
+      },
+      {
+        "exit_code": 215,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "source-signature-method-polymorphism"
+      },
+      {
+        "exit_code": 217,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "source-signature-method-families"
+      },
+      {
+        "exit_code": 219,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "source-signature-own-factory-context"
+      }
+    ],
+    "bootstrap_runtime_objects": [
+      {
+        "exit_code": 227,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "raw"
+      },
+      {
+        "exit_code": 229,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "closure"
+      },
+      {
+        "exit_code": 231,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "owned-result"
+      },
+      {
+        "exit_code": 233,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "partial-owned"
+      },
+      {
+        "exit_code": 235,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "combined-table"
+      },
+      {
+        "exit_code": 239,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "process-arguments"
+      },
+      {
+        "exit_code": 241,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "polymorphic-function"
+      },
+      {
+        "exit_code": 243,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "method-families"
+      },
+      {
+        "exit_code": 245,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "string-literal"
+      },
+      {
+        "exit_code": 247,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "empty-string"
+      },
+      {
+        "exit_code": 249,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "char-pattern"
+      },
+      {
+        "exit_code": 251,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "machine-pattern"
+      },
+      {
+        "exit_code": 253,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "string-pattern"
+      },
+      {
+        "exit_code": 225,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "conditional-slot"
+      },
+      {
+        "exit_code": 223,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "intrinsic-export"
+      },
+      {
+        "exit_code": 217,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "float-decimal"
+      },
+      {
+        "exit_code": 219,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "float-negative-zero"
+      },
+      {
+        "exit_code": 221,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "float-first-class"
+      },
+      {
+        "exit_code": 237,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "returned-function"
+      },
+      {
+        "exit_code": 201,
+        "leak_report": "live=2 immortal=2 leaked=0",
+        "name": "symbol-word-abi"
+      },
+      {
+        "exit_code": 203,
+        "leak_report": "live=1 immortal=1 leaked=0",
+        "name": "symbol-raw-specialization"
+      },
+      {
+        "exit_code": 205,
+        "leak_report": "live=1 immortal=1 leaked=0",
+        "name": "symbol-first-class-and-field"
+      },
+      {
+        "exit_code": 0,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "machine-evidence-plain"
+      },
+      {
+        "exit_code": 0,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "machine-evidence-if"
+      },
+      {
+        "exit_code": 0,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "machine-evidence-bool"
+      },
+      {
+        "exit_code": 0,
+        "leak_report": "live=0 immortal=0 leaked=0",
+        "name": "machine-evidence-literal"
+      }
+    ]
+  },
+  "schema": 1,
+  "source": "/tmp/cinch-task-validation-4/source",
+  "source_check": {
+    "compiler_source_sha256": "6b5e776bb196631c6c42476ec08e0f8e801a60e5fd95ea7fb21f7dfb9d776620",
+    "exit_code": 0,
+    "full_goal_complete": false,
+    "log": "/tmp/cinch-task-source-check-9/check.log",
+    "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "pid": 53300,
+    "preflight_native": {
+      "authority": "Actual Native CLI with Rust hidden-scope-capture fix; exact Rust/prelude/runtime/Cargo input identities checked. No Cargo cache reuse across paths.",
+      "path": "/tmp/cinch-rust-task-lifetime-validation-2/cargo/debug/cinch",
+      "sha256": "43fc410e4a52df7fa8d7e2e1b5bb6bc438dc323785d3beb61b3f74e9e258bfd0"
+    },
+    "source": "/tmp/cinch-task-source-check-9/source",
+    "source_sha256": "fceb2301d8c2a9b639f80b90525612aff2e88f31e8f8fb477ebb02e12a792059",
+    "status": "passed"
+  },
+  "source_sha256": "b0a2f68a4fd05434f89099be7bf3795cb954f0f45184bea8d83ba2b5e0e045d2",
+  "status": "passed-structured-task-repair",
+  "task_programs": {
+    "task-builtin-local-shadowing": 217,
+    "task-empty-scope": 205,
+    "task-failure-cancels-sibling": 215,
+    "task-immutable-adt-capture": 211,
+    "task-nested-scopes": 213,
+    "task-pair-owned-raw": 209,
+    "task-saturated-scoped-helper": 219,
+    "task-single-join": 207
+  },
+  "verified_at": "2026-11-04T12:49:56.174410+00:00",
+  "combined_validation": {
+    "cinch": "/tmp/cinch-task-validation-4",
+    "rust": "/tmp/cinch-rust-task-lifetime-validation-4",
+    "differing_source_paths": [
+      "bootstrap/progress.json",
+      "compiler/src/check.rs",
+      "compiler/src/check_terms.rs",
+      "compiler/tests/concurrency.rs"
+    ],
+    "authority": "All Cinch compiler, prelude/runtime/Cargo and other source inputs are byte-identical; only the separately validated Rust scope repair, its regression and dashboard data differ. Six complete Cinch groups and60 tests in five complete Rust groups pass. Full final suites and stage chain remain separate."
+  }
+}
