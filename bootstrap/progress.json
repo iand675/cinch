@@ -1,5 +1,5 @@
 {
-  "activity": "Current source: all 127 ordinary target groups pass. Bootstrap-specific groups: 11 of 81 passed, 0 running and 0 failed. Matching runtime, tooling and syntax/editor gates are separate requirements. Fresh final-source stages built and smoke-tested: 3 of4; combined gate stopped-after-known-source-behavior-failure. Additional Stage3 coverage: ordinary: 0 of 8 passed, 0 running, 0 failed (stopped-before-execution-after-known-source-failure); mixed: 0 of 4 passed, 0 running, 0 failed (stopped-before-execution-after-known-source-failure). Self-built portable bootstrap suite: 0 of 79 groups passed, 0 running, 0 failed; state stopped-before-execution-after-known-source-failure. Current repair candidate: 0 of 4 complete repair gates passed; 0 running and 0 failed. All43 compiler-source check: pending. library calls: pending; runtime behavior: pending; parser: pending; typechecker: pending.",
+  "activity": "Current source: all 127 ordinary target groups pass. Bootstrap-specific groups: 11 of 81 passed, 0 running and 0 failed. Matching runtime, tooling and syntax/editor gates are separate requirements. Fresh final-source stages built and smoke-tested: 3 of4; combined gate stopped-after-known-source-behavior-failure. Additional Stage3 coverage: ordinary: 0 of 8 passed, 0 running, 0 failed (stopped-before-execution-after-known-source-failure); mixed: 0 of 4 passed, 0 running, 0 failed (stopped-before-execution-after-known-source-failure). Self-built portable bootstrap suite: 0 of 79 groups passed, 0 running, 0 failed; state stopped-before-execution-after-known-source-failure. Current repair candidate: 0 of 4 complete repair gates passed; 0 running and 0 failed. All43 compiler-source check: passed. library calls: pending; runtime behavior: pending; parser: pending; typechecker: pending.",
   "blockers": [
     {
       "title": "Complete escaped constructors and symbol ABI",
@@ -37,7 +37,7 @@
   "checks": [
     {
       "title": "Escaped constructor repair",
-      "detail": "0 of 4 complete repair gates passed; 0 running and 0 failed. All43 compiler-source check: pending. library calls: pending; runtime behavior: pending; parser: pending; typechecker: pending. The complete original Stage2 allocation group has6passing and2failing cases:70constructor descriptors and omittedSymRaw word classification. The corrected repair adds actual wide-tag and symbol roundtrip/generic/closure/field executions, preserving the shared-table capacity. The next candidate also repairs residual function types for partial constructor expressions while retaining exact constructor-pattern arities. All43source checks plus complete object/runtime/parser/checker validation: checking-all43-compiler-sources. This repair is not yet a verified fresh bootstrap.",
+      "detail": "0 of 4 complete repair gates passed; 0 running and 0 failed. All43 compiler-source check: passed. library calls: pending; runtime behavior: pending; parser: pending; typechecker: pending. The complete original Stage2 allocation group has6passing and2failing cases:70constructor descriptors and omittedSymRaw word classification. The corrected repair adds actual wide-tag and symbol roundtrip/generic/closure/field executions, preserving the shared-table capacity. The next candidate also repairs residual function types for partial constructor expressions while retaining exact constructor-pattern arities. All43source checks plus complete object/runtime/parser/checker validation: compiling-complete-repair-runners. This repair is not yet a verified fresh bootstrap.",
       "state": "running"
     },
     {
@@ -265,5 +265,5 @@
   ],
   "status": "Stage2 allocation regression requires repair",
   "summary": "The current source builds Stage2 and passes its smoke checks, but an actual external allocation test fails: the Cinch backend refuses wide constructor descriptors and omits the checkedSym word representation. A corrected combined source repair is undergoing full source and focused validation. Final acceptance remains open.",
-  "updatedAt": "2026-11-04T03:25:56.868438+00:00"
+  "updatedAt": "2026-11-04T03:28:59.364354+00:00"
 }
