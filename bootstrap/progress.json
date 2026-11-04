@@ -33,7 +33,7 @@
       "state": "passed"
     },
     {
-      "title": "Portable bootstrap suite through earlier Stage3",
+      "title": "Portable bootstrap suite through current Stage3",
       "detail": "0 of 79 existing portable target groups passed, 0 running and 0 failed. The tested fixture harness makes 14 Native library producers explicit; the actual compiler source check/build/run path selects final Stage3 and never falls back. All four harness checks and the complete initial type-syntax control pass.",
       "state": "running"
     },
@@ -48,7 +48,7 @@
       "state": "running"
     },
     {
-      "title": "Additional behavior through earlier Stage3",
+      "title": "Additional behavior through current Stage3",
       "detail": "ordinary: 0 of 8 passed, 0 running, 0 failed (waiting-current-chain-and-runners); mixed: 0 of 4 passed, 0 running, 0 failed (waiting-current-chain-and-runners). Mixed coverage runs three complete consumer targets and the designed array-intrinsic refusal check. Positive ABI6 array behavior remains in its complete Native gate per design/arrays.md.",
       "state": "running"
     },
@@ -247,5 +247,5 @@
   ],
   "status": "Repair gates passed; fresh bootstrap underway",
   "summary": "All five complete repair gates pass and the tested Cinch/Rust changes are published. The fresh Stage0/1/2/3 build and complete matching suites are now required. Earlier baseline results remain separately scoped.",
-  "updatedAt": "2026-11-04T02:24:44.206515+00:00"
+  "updatedAt": "2026-11-04T02:26:24.991279+00:00"
 }
