@@ -103,7 +103,7 @@
     },
     {
       "title": "Proposed compiler repair",
-      "detail": "Separate unpublished source: running-six-complete-groups. All 43 compiler modules: passed. 2 of 8 complete groups passed; 1 running, 0 failed and 5 pending. This does not replace current-source or final Stage3 acceptance.",
+      "detail": "Separate unpublished source: running-six-complete-groups. All 43 compiler modules: passed. 3 of 8 complete groups passed; 0 running, 0 failed and 5 pending. This does not replace current-source or final Stage3 acceptance.",
       "state": "running"
     }
   ],
@@ -167,6 +167,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "All 43 compiler-source checks: passed. 7 of 7 complete groups passed; 0 running, 0 failed and 0 pending. independent type checker: passed; bootstrap_globals: passed; inference: passed; typechecker: passed; bootstrap_pipeline: passed; runtime behavior: passed; library calls: passed.",
-  "activity": "Earlier API compiler: complete Native sweep: 31 of 208 complete groups passed; 0 running, 0 failed and 177 pending. Stage builds and smoke checks: 4 of 4; chain state: passed; earlier API source, not the published repair. Repair gates: 7 of 7 complete groups passed; 0 running, 0 failed and 0 pending. independent type checker: passed; bootstrap_globals: passed; inference: passed; typechecker: passed; bootstrap_pipeline: passed; runtime behavior: passed; library calls: passed. Early Stage1 behavior: 2 of 8 complete groups passed; 1 running, 0 failed and 5 pending. Exact final Stage3 suite: 0 of 91 complete groups passed; 0 running, 0 failed and 91 pending. Proposed compiler repair (separate unpublished source): running-six-complete-groups; 2 of 8 complete groups passed; 1 running, 0 failed and 5 pending.",
-  "updatedAt": "2026-11-04T14:59:47.662098+00:00"
+  "activity": "Earlier API compiler: complete Native sweep: 31 of 208 complete groups passed; 0 running, 0 failed and 177 pending. Stage builds and smoke checks: 4 of 4; chain state: passed; earlier API source, not the published repair. Repair gates: 7 of 7 complete groups passed; 0 running, 0 failed and 0 pending. independent type checker: passed; bootstrap_globals: passed; inference: passed; typechecker: passed; bootstrap_pipeline: passed; runtime behavior: passed; library calls: passed. Early Stage1 behavior: 2 of 8 complete groups passed; 1 running, 0 failed and 5 pending. Exact final Stage3 suite: 0 of 91 complete groups passed; 0 running, 0 failed and 91 pending. Proposed compiler repair (separate unpublished source): running-six-complete-groups; 3 of 8 complete groups passed; 0 running, 0 failed and 5 pending.",
+  "updatedAt": "2026-11-04T15:00:49.810066+00:00"
 }
