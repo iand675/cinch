@@ -1,39 +1,39 @@
 {
   "schema": 1,
   "estimate": 90,
-  "commit": "e3ed9a8",
+  "commit": "036d58a",
   "estimateNote": "Rough engineering estimate. Verified checks and remaining work are listed below.",
   "status": "Verification found a failure; correction required",
   "stages": [
     {
-      "name": "Stage 0",
+      "name": "Prior API Stage 0",
       "state": "passed",
       "label": "Verified",
-      "description": "Pinned Rust seed, independently revalidated and smoke-tested."
+      "description": "Pinned Rust seed, independently revalidated and smoke-tested. Earlier API checkpoint; the published intrinsic repair still needs its own final matching run."
     },
     {
-      "name": "Stage 1",
+      "name": "Prior API Stage 1",
       "state": "passed",
       "label": "Verified",
-      "description": "Fresh Cinch compiler built from the seed; all three smoke checks."
+      "description": "Fresh Cinch compiler built from the seed; all three smoke checks. Earlier API checkpoint; the published intrinsic repair still needs its own final matching run."
     },
     {
-      "name": "Stage 2",
+      "name": "Prior API Stage 2",
       "state": "passed",
       "label": "Verified",
-      "description": "Every compiler module is being freshly rebuilt by Stage1; all repair gates passed."
+      "description": "Every compiler module is being freshly rebuilt by Stage1; all repair gates passed. Earlier API checkpoint; the published intrinsic repair still needs its own final matching run."
     },
     {
-      "name": "Stage 3",
+      "name": "Prior API Stage 3",
       "state": "passed",
-      "label": "Fixed point verified",
-      "description": "Fresh rebuild by Stage2, followed by code/interface matching and changed-source checks."
+      "label": "Smokes passed; final checks remain",
+      "description": "Fresh rebuild by Stage2, followed by code/interface matching and changed-source checks. Earlier API checkpoint; the published intrinsic repair still needs its own final matching run."
     }
   ],
   "checks": [
     {
       "title": "Current repair gates",
-      "detail": "12 of 12 complete groups passed; 0 running, 0 failed and 0 pending. independent type checker: passed; bootstrap_globals: passed; inference: passed; typechecker: passed; bootstrap_byte_observations: passed; bootstrap_resolve: passed; Core validation: passed; index scope and representation: passed; bootstrap_value_indices: passed; bootstrap_pipeline: passed; runtime behavior: passed; library calls: passed. All 43 source-module check: passed.",
+      "detail": "21 of 21 complete groups passed; 0 running, 0 failed and 0 pending. independent type checker: passed; bootstrap_globals: passed; inference: passed; typechecker: passed; bootstrap_byte_observations: passed; bootstrap_resolve: passed; Core validation: passed; index scope and representation: passed; bootstrap_value_indices: passed; bootstrap_pipeline: passed; runtime behavior: passed; library calls: passed; bootstrap_function_preconditions: passed; bootstrap_refinement_closure: passed; bootstrap_refinement_constructors: passed; bootstrap_imported_preconditions: passed; refinements and effects: passed; bootstrap_refinement_core: passed; bootstrap_refinement_types: passed; bootstrap_nonzero_source: passed; bootstrap_named_refinements: passed. All 43 source-module check: passed.",
       "state": "passed"
     },
     {
@@ -53,12 +53,12 @@
     },
     {
       "title": "Published value-index compiler: complete Native sweep",
-      "detail": "40 of 208 complete groups passed; 0 running, 0 failed and 168 pending.Every group includes ignored tests. State: running.",
+      "detail": "45 of 208 complete groups passed; 1 running, 0 failed and 162 pending.Every group includes ignored tests. State: running. Earlier API checkpoint; the published intrinsic repair still needs its own final matching run.",
       "state": "running"
     },
     {
-      "title": "Fresh compiler bootstrap",
-      "detail": "4 of 4 stages built and smoke-tested. Fixed point, 43 interfaces, API consumption and changed-source behavior are required.",
+      "title": "Earlier API compiler bootstrap",
+      "detail": "4 of 4 stages built and smoke-tested. Fixed point, 43 interfaces, API consumption and changed-source behavior are required. Earlier API checkpoint; the published intrinsic repair still needs its own final matching run.",
       "state": "passed"
     },
     {
@@ -67,18 +67,18 @@
       "state": "running"
     },
     {
-      "title": "Complete behavior through exact final Stage3",
-      "detail": "7 of 91 complete groups passed; 0 running, 1 failed and 83 pending.79 bootstrap groups, eight ordinary targets, three complete mixed consumers and the designed ABI5 array refusal. Native library fixtures remain explicit; selected compiler failures never fall back.",
+      "title": "Earlier API checkpoint: exact Stage3 behavior",
+      "detail": "7 of 91 complete groups passed; 0 running, 1 failed and 83 pending.79 bootstrap groups, eight ordinary targets, three complete mixed consumers and the designed ABI5 array refusal. Native library fixtures remain explicit; selected compiler failures never fall back. Earlier API checkpoint; the published intrinsic repair still needs its own final matching run.",
       "state": "running"
     },
     {
-      "title": "Current runtime, tooling and editor checks",
-      "detail": "runtime: passed; tooling: passed; syntax-editor: passed. All three complete matching-source gates are required.",
+      "title": "Earlier API checkpoint: runtime, tooling and editor checks",
+      "detail": "runtime: passed; tooling: passed; syntax-editor: passed. All three complete matching-source gates are required. Earlier API checkpoint; the published intrinsic repair still needs its own final matching run.",
       "state": "passed"
     },
     {
-      "title": "Exact final Stage3 acceptance",
-      "detail": "Test-runner reports, 32M zero-leak runs, definition-owned fixities, separate facades and class behavior: passed.",
+      "title": "Earlier API checkpoint: final Stage3 acceptance",
+      "detail": "Test-runner reports, 32M zero-leak runs, definition-owned fixities, separate facades and class behavior: passed. Earlier API checkpoint; the published intrinsic repair still needs its own final matching run.",
       "state": "passed"
     },
     {
@@ -103,26 +103,38 @@
     },
     {
       "title": "Proposed compiler repair",
-      "detail": "Separate unpublished source: passed. All 43 compiler modules: passed. 21 of 21 complete groups passed; 0 running, 0 failed and 0 pending. This does not replace current-source or final Stage3 acceptance.",
-      "state": "passed"
+      "detail": "Separate unpublished source: running-twenty-seven-complete-groups. All 43 compiler modules: passed. 4 of 27 complete groups passed; 2 running, 0 failed and 21 pending. This does not replace current-source or final Stage3 acceptance.",
+      "state": "running"
     }
   ],
   "blockers": [
     {
-      "title": "Complete matching suites and repair remaining interface parity",
-      "detail": "Published value-index compiler completes independently verified Stage0/1/2/3 chain (47a07bf). Exact Stage3 suites38 now stop at the known byte-reader diagnostic: original primitive_length_identity 8pass/1fail, unsafe mutable reader correctly refused but missing obligation marker and cascading errors. Seven prior groups pass, including both full HashMap tests at32000keys and exhaustion. Diagnostic12 passes all9unchanged original byte tests through an actual diagnosticCinch frontend;20of21 affected groups pass, lastgroup running. FullNative38 continues, runtime/tool/editor and14externalchecks pass. Refinement interface work passes real export checks; corrected pipeline tests and named NonZero syntax repair are validating on separate snapshots. Remaining sourceAPI parity and full100target/Acceptance1-5audit remainopen."
+      "title": "Verify published diagnostic compiler and complete interface parity",
+      "detail": "Published036d58a diagnostic compiler passes all43sourcechecks and21complete affectedgroups; independent original9byte diagnostic tests pass. Previous ef4Stage3 actual8/9confirms the corrected diagnostic issue, but its chain/suites do not prove this new source. Matching finalchain/suites remain required. Interface candidates validate separately; namedNonZero syntax followup is checked against Rust and exposed a Rust anonymous numeric refinement literal bug. Remaining sourceAPI parity and100target/Acceptance1-5audit are open."
     },
     {
       "title": "Investigate the recorded failure",
       "detail": "self-built tests: primitive_length_identity; early Stage1 checks: primitive_length_identity"
     },
     {
+      "title": "Finish the fresh bootstrap",
+      "detail": " Earlier API checkpoint; the published intrinsic repair still needs its own final matching run. A matching final chain is not yet verified."
+    },
+    {
       "title": "Finish all current compiler tests",
-      "detail": "40 of 208 complete groups passed; 0 running, 0 failed and 168 pending."
+      "detail": "45 of 208 complete groups passed; 1 running, 0 failed and 162 pending. Earlier API checkpoint; the published intrinsic repair still needs its own final matching run."
+    },
+    {
+      "title": "Finish matching runtime, tooling and editor checks",
+      "detail": "runtime: passed; tooling: passed; syntax-editor: passed. Earlier API checkpoint; the published intrinsic repair still needs its own final matching run."
     },
     {
       "title": "Finish the exact self-built compiler tests",
-      "detail": "7 of 91 complete groups passed; 0 running, 1 failed and 83 pending."
+      "detail": "7 of 91 complete groups passed; 0 running, 1 failed and 83 pending. Earlier API checkpoint; the published intrinsic repair still needs its own final matching run."
+    },
+    {
+      "title": "Finish final external acceptance",
+      "detail": "passed. Earlier API checkpoint; the published intrinsic repair still needs its own final matching run."
     },
     {
       "title": "Complete the coverage and acceptance audit",
@@ -155,10 +167,10 @@
       "title": "Earlier source: Changed-source rebuilding verified"
     }
   ],
-  "candidateSource": "ef4f399642a225f45acf5bc95dc6b41816390b8b00393446870349c2752431d4",
+  "candidateSource": "ffee20f54e9b9b34b039104b4142b0454f28ead43adfec29753f3a8977fa2d11",
   "candidatePublished": true,
   "fullGoalComplete": false,
-  "summary": "The fresh current-source compiler chain passes its smoke tests, matching Stage2/Stage3 IR, executable and all 43 canonical interfaces, actual API consumption and changed-source behavior. Complete tests and the final acceptance audit remain separate requirements.",
-  "activity": "Published value-index compiler: complete Native sweep: 40 of 208 complete groups passed; 0 running, 0 failed and 168 pending. Stage builds and smoke checks: 4 of 4; chain state: passed. Repair gates: 12 of 12 complete groups passed; 0 running, 0 failed and 0 pending. independent type checker: passed; bootstrap_globals: passed; inference: passed; typechecker: passed; bootstrap_byte_observations: passed; bootstrap_resolve: passed; Core validation: passed; index scope and representation: passed; bootstrap_value_indices: passed; bootstrap_pipeline: passed; runtime behavior: passed; library calls: passed. Early Stage1 behavior: 7 of 8 complete groups passed; 0 running, 1 failed and 0 pending. Exact final Stage3 suite: 7 of 91 complete groups passed; 0 running, 1 failed and 83 pending. Proposed compiler repair (separate unpublished source): passed; 21 of 21 complete groups passed; 0 running, 0 failed and 0 pending.",
-  "updatedAt": "2026-11-04T18:13:32.287476+00:00"
+  "summary": "All 43 compiler-source checks: passed. 21 of 21 complete groups passed; 0 running, 0 failed and 0 pending. independent type checker: passed; bootstrap_globals: passed; inference: passed; typechecker: passed; bootstrap_byte_observations: passed; bootstrap_resolve: passed; Core validation: passed; index scope and representation: passed; bootstrap_value_indices: passed; bootstrap_pipeline: passed; runtime behavior: passed; library calls: passed; bootstrap_function_preconditions: passed; bootstrap_refinement_closure: passed; bootstrap_refinement_constructors: passed; bootstrap_imported_preconditions: passed; refinements and effects: passed; bootstrap_refinement_core: passed; bootstrap_refinement_types: passed; bootstrap_nonzero_source: passed; bootstrap_named_refinements: passed.",
+  "activity": "Published value-index compiler: complete Native sweep: 45 of 208 complete groups passed; 1 running, 0 failed and 162 pending. Stage builds and smoke checks: 4 of 4; chain state: passed; earlier API source, not the published repair. Repair gates: 21 of 21 complete groups passed; 0 running, 0 failed and 0 pending. independent type checker: passed; bootstrap_globals: passed; inference: passed; typechecker: passed; bootstrap_byte_observations: passed; bootstrap_resolve: passed; Core validation: passed; index scope and representation: passed; bootstrap_value_indices: passed; bootstrap_pipeline: passed; runtime behavior: passed; library calls: passed; bootstrap_function_preconditions: passed; bootstrap_refinement_closure: passed; bootstrap_refinement_constructors: passed; bootstrap_imported_preconditions: passed; refinements and effects: passed; bootstrap_refinement_core: passed; bootstrap_refinement_types: passed; bootstrap_nonzero_source: passed; bootstrap_named_refinements: passed. Early Stage1 behavior: 7 of 8 complete groups passed; 0 running, 1 failed and 0 pending. Exact final Stage3 suite: 7 of 91 complete groups passed; 0 running, 1 failed and 83 pending. Proposed compiler repair (separate unpublished source): running-twenty-seven-complete-groups; 4 of 27 complete groups passed; 2 running, 0 failed and 21 pending.",
+  "updatedAt": "2026-11-04T18:17:31.722203+00:00"
 }
