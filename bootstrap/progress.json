@@ -6,6 +6,10 @@
       "detail": "Original failing assertions: escaped_constructors_match_and_carry_one_descriptor_word, interned_symbols_are_counted_immortal_once_per_name. The complete original allocation group continues to record all results. Unstarted old-source verification is deferred; every required gate must pass on the eventual repaired source."
     },
     {
+      "title": "Investigate current Stage2 behavior",
+      "detail": "Failed complete groups: alloc_accounting. Original failure logs remain recorded; no final acceptance claim."
+    },
+    {
       "title": "Validate the additional Stage3 repairs",
       "detail": "Allocation programs exposed missing I64 primitive contracts and pure Unit-entry rejection. Candidate2ran a pure Unitentry with zero leaks, then failed at a function-valued entry because legacy clause checking demanded all arguments. Candidate3also checks the body against the residual function type, with over-arity and wrong-body refusals retained. Focused tests: passed; new compiler bootstrap: stopped-after-known-source-behavior-failure. Earlier green bootstrap results remain scoped to their original source."
     },
@@ -38,7 +42,7 @@
     },
     {
       "title": "Early checks through current Stage2",
-      "detail": "0 of 8 complete ordinary targets passed, 1 running and 0 failed through the current self-built Stage2. Original allocation, argument, evidence, class, exhaustion, ownership, map and primitive-identity assertions remain intact. Uses one existing shared slot; these are early diagnostics and do not replace final Stage3 acceptance.",
+      "detail": "0 of 8 complete ordinary targets passed, 0 running and 1 failed through the current self-built Stage2. Original allocation, argument, evidence, class, exhaustion, ownership, map and primitive-identity assertions remain intact. Uses one existing shared slot; these are early diagnostics and do not replace final Stage3 acceptance.",
       "state": "running"
     },
     {
@@ -261,5 +265,5 @@
   ],
   "status": "Stage2 allocation regression requires repair",
   "summary": "The current source builds Stage2 and passes its smoke checks, but an actual external allocation test fails: the Cinch backend refuses the existing escaped-constructor runtime representation. A separate source repair is queued for full focused validation. Final acceptance remains open.",
-  "updatedAt": "2026-11-04T02:55:57.611006+00:00"
+  "updatedAt": "2026-11-04T02:57:00.859634+00:00"
 }
