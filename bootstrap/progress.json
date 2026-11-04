@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "estimate": 90,
-  "commit": "f57748f",
+  "commit": "89da579",
   "estimateNote": "Rough engineering estimate. Verified checks and remaining work are listed below.",
   "status": "Current-source verification running",
   "stages": [
@@ -53,7 +53,7 @@
     },
     {
       "title": "Complete sweep of the published task compiler",
-      "detail": "138 of 208 complete groups passed; 1 running, 0 failed and 69 pending.Every group includes ignored tests. State: running.",
+      "detail": "141 of 208 complete groups passed; 1 running, 0 failed and 66 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -68,7 +68,7 @@
     },
     {
       "title": "Complete behavior through exact final Stage3",
-      "detail": "1 of 91 complete groups passed; 1 running, 0 failed and 89 pending.79 bootstrap groups, eight ordinary targets, three complete mixed consumers and the designed ABI5 array refusal. Native library fixtures remain explicit; selected compiler failures never fall back.",
+      "detail": "2 of 91 complete groups passed; 0 running, 0 failed and 89 pending.79 bootstrap groups, eight ordinary targets, three complete mixed consumers and the designed ABI5 array refusal. Native library fixtures remain explicit; selected compiler failures never fall back.",
       "state": "running"
     },
     {
@@ -103,22 +103,22 @@
     },
     {
       "title": "Proposed compiler repair",
-      "detail": "Separate unpublished source: running-six-complete-groups. All 43 compiler modules: passed. 5 of 9 complete groups passed; 1 running, 1 failed and 2 pending. This does not replace current-source or final Stage3 acceptance.",
+      "detail": "Separate unpublished source: running-six-complete-groups. All 43 compiler modules: passed. 0 of 9 complete groups passed; 1 running, 0 failed and 8 pending. This does not replace current-source or final Stage3 acceptance.",
       "state": "running"
     }
   ],
   "blockers": [
     {
       "title": "Finish full bootstrap verification and task API exports",
-      "detail": "Original Stage1 exhaustion tests pass. The local Scope/Task API export repair passes actual interface emission, reexport, independent Native schema readback, Cinch client imports and the complete pipeline test. The type-export comparison exposed a Rust producer gap: resolved Scope/Task metadata was absent. That Rust fix now passes nine tests across six complete interface/identity groups. All-source checking through the repaired host and a fresh combined regression run follow. Published-source full bootstrap/tests continue separately."
+      "detail": "The published task compiler completes Stage0 through Stage3, with matching Stage2/Stage3 code and all43 interfaces, real API consumption and a changed-source rebuild. Original Stage1 exhaustion tests pass. The local Scope/Task API writer repair passes genuine reexport/readback/client and pipeline checks. Its Rust producer counterpart is now pushed: all nine tests in six complete interface groups and all43 source checks pass. A fresh nine-group combined run is active before publishing the remaining Cinch repair and repeating final-source acceptance."
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "138 of 208 complete groups passed; 1 running, 0 failed and 69 pending."
+      "detail": "141 of 208 complete groups passed; 1 running, 0 failed and 66 pending."
     },
     {
       "title": "Finish the exact self-built compiler tests",
-      "detail": "1 of 91 complete groups passed; 1 running, 0 failed and 89 pending."
+      "detail": "2 of 91 complete groups passed; 0 running, 0 failed and 89 pending."
     },
     {
       "title": "Complete the coverage and acceptance audit",
@@ -155,6 +155,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "The fresh current-source compiler chain passes its smoke tests, matching Stage2/Stage3 IR, executable and all 43 canonical interfaces, actual API consumption and changed-source behavior. Complete tests and the final acceptance audit remain separate requirements.",
-  "activity": "Complete sweep of the published task compiler: 138 of 208 complete groups passed; 1 running, 0 failed and 69 pending. Stage builds and smoke checks: 4 of 4; chain state: passed. Repair gates: 6 of 6 complete groups passed; 0 running, 0 failed and 0 pending. independent type checker: passed; Core validation: passed; typechecker: passed; inference: passed; runtime behavior: passed; library calls: passed. Early Stage1 behavior: 3 of 8 complete groups passed; 1 running, 0 failed and 4 pending. Exact final Stage3 suite: 1 of 91 complete groups passed; 1 running, 0 failed and 89 pending. Proposed compiler repair (separate unpublished source): running-six-complete-groups; 5 of 9 complete groups passed; 1 running, 1 failed and 2 pending.",
-  "updatedAt": "2026-11-04T13:35:25.939597+00:00"
+  "activity": "Complete sweep of the published task compiler: 141 of 208 complete groups passed; 1 running, 0 failed and 66 pending. Stage builds and smoke checks: 4 of 4; chain state: passed. Repair gates: 6 of 6 complete groups passed; 0 running, 0 failed and 0 pending. independent type checker: passed; Core validation: passed; typechecker: passed; inference: passed; runtime behavior: passed; library calls: passed. Early Stage1 behavior: 3 of 8 complete groups passed; 1 running, 0 failed and 4 pending. Exact final Stage3 suite: 2 of 91 complete groups passed; 0 running, 0 failed and 89 pending. Proposed compiler repair (separate unpublished source): running-six-complete-groups; 0 of 9 complete groups passed; 1 running, 0 failed and 8 pending.",
+  "updatedAt": "2026-11-04T13:41:48.357076+00:00"
 }
