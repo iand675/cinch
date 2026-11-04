@@ -1,0 +1,68 @@
+{
+  "full_goal_complete": false,
+  "limitations": "This proves the scoped Rust repair only. The local Cinch task implementation remains under focused regression testing; no new full bootstrap or all-tests-passing claim.",
+  "mechanism": "Applying a helper can retain scoped arguments in its returned function even if its visible type hides their region. Apply the explicit-lambda borrowed-environment rule to function-valued application results: reject an active scope argument whose region disappears from the result function type. Fully saturated ordinary Result calls remain valid.",
+  "native_cli": {
+    "path": "/tmp/cinch-rust-task-lifetime-validation-2/cargo/debug/cinch",
+    "sha256": "43fc410e4a52df7fa8d7e2e1b5bb6bc438dc323785d3beb61b3f74e9e258bfd0"
+  },
+  "regression": "Original Rust CLI accepted actual task-hidden-closure-escape source in /tmp/cinch-task-native-oracle-1/results.json. New whole concurrency group includes direct, let-aliased and tuple-wrapped escape refusals with required region-escape diagnostic plus actual saturated helper execution returning7. All original tests remain.",
+  "rows": [
+    {
+      "binary": "/tmp/cinch-rust-task-lifetime-validation-2/cargo/debug/deps/concurrency-bd9bd7ae3743ecb9",
+      "binary_sha256": "067f3586f36ec7ac62223a14b945d492c1c631f063406649dc0daa3d90b48214",
+      "exit_code": 0,
+      "log": "/tmp/cinch-rust-task-lifetime-validation-2/concurrency.log",
+      "log_sha256": "626363ed97cd66ad7ca742cf5fcc49e90474ebe56d8cbae30181d1c759e2c7ca",
+      "name": "concurrency",
+      "status": "passed",
+      "tests": 15
+    },
+    {
+      "binary": "/tmp/cinch-rust-task-lifetime-validation-2/cargo/debug/deps/exhaustion-3183945dce98bdcd",
+      "binary_sha256": "0339148909175e5f7b22340c55833fad27e1b8146cbf375847d15a57138e8ae6",
+      "exit_code": 0,
+      "log": "/tmp/cinch-rust-task-lifetime-validation-2/exhaustion.log",
+      "log_sha256": "9e532ec9498b4e67cb0d2d748cc195fb8abc4ee20be78aad66b205f820949cff",
+      "name": "exhaustion",
+      "status": "passed",
+      "tests": 4
+    },
+    {
+      "binary": "/tmp/cinch-rust-task-lifetime-validation-2/cargo/debug/deps/ownership-c6abdd89e62a5fd6",
+      "binary_sha256": "766e34b497f7e599a507afa0b8056c4b02438566e46f996937015a705e54abc1",
+      "exit_code": 0,
+      "log": "/tmp/cinch-rust-task-lifetime-validation-2/ownership.log",
+      "log_sha256": "66733d21b2a648da7ae66bd026028a5c04e5ee1b27ab904ca1357d0b8f307d1e",
+      "name": "ownership",
+      "status": "passed",
+      "tests": 23
+    },
+    {
+      "binary": "/tmp/cinch-rust-task-lifetime-validation-2/cargo/debug/deps/effects-f07c4c070b8aa2b3",
+      "binary_sha256": "24696eede15536c0dd403d63c25ec0f32ca3203e3ee31e16bd167e7678637183",
+      "exit_code": 0,
+      "log": "/tmp/cinch-rust-task-lifetime-validation-2/effects.log",
+      "log_sha256": "6cdfd7b3d9ff27320530933b2df290877ba93e6fc36fed1ba284d3796429b806",
+      "name": "effects",
+      "status": "passed",
+      "tests": 16
+    },
+    {
+      "binary": "/tmp/cinch-rust-task-lifetime-validation-2/cargo/debug/deps/interface_region_effects-a40a0643bee06bcc",
+      "binary_sha256": "509026b155ab480622a320cb5c25a3fb159f22f3574b8757c5b601cb89438e5b",
+      "exit_code": 0,
+      "log": "/tmp/cinch-rust-task-lifetime-validation-2/interface_region_effects.log",
+      "log_sha256": "f91e287f2a7ef12e77c23512324c44a6131c9b5d73f26e63528c04d1602ced62",
+      "name": "interface_region_effects",
+      "status": "passed",
+      "tests": 1
+    }
+  ],
+  "schema": 1,
+  "source": "/tmp/cinch-rust-task-lifetime-validation-2/source",
+  "source_sha256": "5f114c749b199854996def326fb4eee2da52e7a45a428c5b61b92bc54f7bd3ba",
+  "status": "passed-rust-hidden-scope-capture-repair",
+  "tests": 59,
+  "verified_at": "2026-11-04T12:04:00.485433+00:00"
+}

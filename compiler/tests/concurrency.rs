@@ -456,3 +456,31 @@ fn example_11_structured_tasks_accepts() {
         Err(e) => panic!("11-structured-tasks: rejected: {e}"),
     }
 }
+
+#[test]
+fn partial_application_cannot_hide_a_scoped_token_in_an_escaping_closure() {
+    let helper = r#"
+module Main where
+  hide :: forall r s. using (io :: Io r) => Scope r s -> Unit ->{Async r, Cancel r, Diverge} Result Int Nat
+  hide s u = do
+    h <- spawn s (\() -> Ok 7)
+    joinAllOrCancel s h
+"#;
+    for (body, result) in [
+        (r"withScope (\s -> hide s)", "Unit ->{Async r, Cancel r, Diverge} Result Int Nat"),
+        (r"withScope (\s -> let escaped = hide s in escaped)", "Unit ->{Async r, Cancel r, Diverge} Result Int Nat"),
+        (r"withScope (\s -> (hide s, 0))", "(Unit ->{Async r, Cancel r, Diverge} Result Int Nat, Int)"),
+    ] {
+        expect_err("hidden-scope-capture", &format!("{helper}\n  bad :: forall r. using (io :: Io r) => Unit ->{{Async r, Cancel r, Diverge}} ({result})\n  bad u = {body}\n"), "region escape");
+    }
+    // Saturating the same helper consumes the scoped token before exit;
+    // only its ordinary Result returns, with no retained scope handle.
+    expect_ok("saturated-scope-helper", &format!(r#"{helper}
+  work :: forall r. using (io :: Io r) => Unit ->{{Async r, Cancel r, Diverge}} Result Int Nat
+  work u = withScope (\s -> hide s ())
+  main :: Unit ->{{Async r, Cancel r, Diverge}} Int
+  main u = with (io = newIO ()) in case work () of
+    Ok n -> if n == 7 then 0 else 1
+    Err e -> 2
+"#), 0);
+}

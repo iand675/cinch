@@ -1,5 +1,23 @@
 # Next steps (as of 2026-11-04)
 
+## Rust hidden scope capture repaired
+
+The Rust frontend now rejects an application that hides a live structured-scope
+token inside a returned function. Previously, partially applying a helper could
+return a closure whose type omitted the captured scope, bypassing the visible
+result-type escape check. The application now follows the existing explicit
+lambda capture rule. Saturating the helper inside the scope still works.
+
+All 59 tests in the five complete concurrency, exhaustion, ownership, effects
+and region-interface groups pass, with none ignored or filtered. The new
+regression covers direct, aliased and tuple-wrapped escapes and executes a
+valid saturated helper. See [the scoped Rust proof](../bootstrap/current-rust-hidden-scope-capture-results.json).
+
+The local Cinch task frontend, lifetime/consumption checks and physical runtime
+lowering remain under focused testing. A resolver integration failure is fixed
+locally; a fresh full bootstrap and complete matching suites remain required.
+Acceptance 1-5 and the full goal remain open.
+
 ## Scoped-region Core foundation verified
 
 Core now has an explicit fresh-region binder for structured scopes. The
