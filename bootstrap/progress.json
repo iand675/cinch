@@ -97,27 +97,27 @@
   "milestones": [
     {
       "detail": "All four stages, exact compiler/interface comparisons, actual API consumption and changed-source rebuilding pass on the same frozen snapshot.",
-      "title": "Fresh combined bootstrap fixed point verified"
+      "title": "Earlier source: Fresh combined bootstrap fixed point verified"
     },
     {
       "detail": "The compiler containing the latest checked-interface writer starts successfully and is now exporting contracts from its own source.",
-      "title": "Updated Cinch-built compiler emits and links"
+      "title": "Earlier source: Updated Cinch-built compiler emits and links"
     },
     {
       "detail": "Actual emission, linking and execution all pass, alongside independent contract readback.",
-      "title": "Self-built Stage3 executes the advanced interface writer"
+      "title": "Earlier source: Self-built Stage3 executes the advanced interface writer"
     },
     {
       "detail": "205 target groups executed: 201 passed and four failures identified for repair.",
-      "title": "Complete baseline sweep finished"
+      "title": "Earlier source: Complete baseline sweep finished"
     },
     {
       "detail": "Candidate23 Stage2 and Stage3 have identical compiler IR and executable bytes and both pass all smoke cases.",
-      "title": "Compiler-code fixed point verified"
+      "title": "Earlier source: Compiler-code fixed point verified"
     },
     {
       "detail": "The self-built Stage2 builds a modified compiler whose diagnostic changes as intended.",
-      "title": "Changed-source rebuilding verified"
+      "title": "Earlier source: Changed-source rebuilding verified"
     }
   ],
   "candidateSource": "33f4dde5688c94aeb1f04dc6498a8ceb013ee51193dd471aca9c36f3c3b675e1",
