@@ -73,7 +73,7 @@
     },
     {
       "title": "Current runtime, tooling and editor checks",
-      "detail": "waiting-final-runner-build. All three complete matching-source gates are required.",
+      "detail": "running. All three complete matching-source gates are required.",
       "state": "running"
     },
     {
@@ -126,7 +126,7 @@
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
-      "detail": "waiting-final-runner-build."
+      "detail": "running."
     },
     {
       "title": "Finish the exact self-built compiler tests",
@@ -172,5 +172,5 @@
   "fullGoalComplete": false,
   "summary": "All 43 compiler-source checks: passed. 12 of 12 complete groups passed; 0 running, 0 failed and 0 pending. independent type checker: passed; bootstrap_globals: passed; inference: passed; typechecker: passed; bootstrap_byte_observations: passed; bootstrap_resolve: passed; Core validation: passed; index scope and representation: passed; bootstrap_value_indices: passed; bootstrap_pipeline: passed; runtime behavior: passed; library calls: passed.",
   "activity": "Published value-index compiler: complete Native sweep: 18 of 208 complete groups passed; 0 running, 0 failed and 190 pending. Stage builds and smoke checks: 2 of 4; chain state: running-full-stage-chain. Repair gates: 12 of 12 complete groups passed; 0 running, 0 failed and 0 pending. independent type checker: passed; bootstrap_globals: passed; inference: passed; typechecker: passed; bootstrap_byte_observations: passed; bootstrap_resolve: passed; Core validation: passed; index scope and representation: passed; bootstrap_value_indices: passed; bootstrap_pipeline: passed; runtime behavior: passed; library calls: passed. Early Stage1 behavior: 7 of 8 complete groups passed; 0 running, 1 failed and 0 pending. Exact final Stage3 suite: 0 of 91 complete groups passed; 0 running, 0 failed and 91 pending. Proposed compiler repair (separate unpublished source): waiting-reserved-compile-slot; 0 of 21 complete groups passed; 0 running, 0 failed and 21 pending.",
-  "updatedAt": "2026-11-04T17:12:00.795476+00:00"
+  "updatedAt": "2026-11-04T17:13:22.797258+00:00"
 }
