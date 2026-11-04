@@ -3,6 +3,7 @@
 -- Full term typing, totality and semantic proof authority are separate checks.
 module Bootstrap.Global where
   import Bootstrap.Type
+  import Bootstrap.Index
   import Bootstrap.BodyContract
   import Bootstrap.Guarded
   import Bootstrap.Core
@@ -272,11 +273,15 @@ module Bootstrap.Global where
     CAlternativesEnd sp -> True
     CError sp -> False
   clause-references :: List CoreGlobal -> List CoreGiven -> List CoreClause -> Bool
-  clause-references globals givens clauses = case clauses of
+  clause-references globals givens clauses = clause-references-with globals Nil givens clauses
+  value-local-schemes :: List (Nat, UType) -> List (Nat, Scheme)
+  value-local-schemes values = case values of Nil -> Nil; Cons (id, carrier) rest -> Cons (id, mono carrier) (value-local-schemes rest)
+  clause-references-with :: List CoreGlobal -> List (Nat, Scheme) -> List CoreGiven -> List CoreClause -> Bool
+  clause-references-with globals prefix givens clauses = case clauses of
     Nil -> True
-    Cons (MkCoreClause sp patterns body) rest -> (case patterns-locals globals Nil patterns of
+    Cons (MkCoreClause sp patterns body) rest -> (case patterns-locals globals prefix patterns of
       Some locals -> term-references globals locals givens body
-      None -> False) && clause-references globals givens rest
+      None -> False) && clause-references-with globals prefix givens rest
   has-id :: Nat -> List Nat -> Bool
   has-id id ids = case ids of Nil -> False; Cons key rest -> id == key || has-id id rest
   definition-openings :: List Quant -> List (Nat, UType) -> List (Nat, UType) -> List Nat -> Bool
@@ -286,6 +291,7 @@ module Bootstrap.Global where
       && kind-equal (map-kind-types (substitute-bound earlier) (quant-kind q)) (type-kind actual)
       && (case actual of
         URigid fresh name level kind -> not (has-id fresh seen) && definition-openings rest more (Cons (id, actual) earlier) (Cons fresh seen)
+        UIndex carrier (IRigid fresh name level) -> not (has-id fresh seen) && definition-openings rest more (Cons (id, actual) earlier) (Cons fresh seen)
         other -> False)
     other -> False
   declared-givens :: List Requirement -> List CoreGiven -> List String -> Bool
@@ -302,7 +308,7 @@ module Bootstrap.Global where
       && definition-openings (scheme-params (core-scheme definition)) (core-openings definition) Nil Nil
       && declared-givens (map-requirements (substitute-bound (core-openings definition)) (scheme-requirements (core-scheme definition))) (core-givens definition) Nil
       && core-definition-result-types definition
-      && clause-references globals (core-givens definition) (core-clauses definition)
+      && clause-references-with globals (value-local-schemes (opening-value-types (core-openings definition))) (core-givens definition) (core-clauses definition)
     other -> False)
 
 

@@ -594,10 +594,10 @@ module Bootstrap.Resolve where
       (renamed, errors) -> (DFun s name renamed, errors)
     other -> (members, fail (decl-span members) "instance member requires further declaration elaboration")
 
-  rename-decl :: String -> List Binding -> Decl -> (List Decl, List Diagnostic)
-  rename-decl home visible d = case d of
+  rename-decl :: String -> List Binding -> List Decl -> Decl -> (List Decl, List Diagnostic)
+  rename-decl home visible declarations d = case d of
     DSig s name ty -> (Cons (DSig s (global-name home name) (rename-type visible Nil ty)) Nil, Nil)
-    DFun s name clauses -> case rename-clauses visible clauses of
+    DFun s name clauses -> case rename-member-clauses visible (instance-method-names name declarations) clauses of
       (body, errors) -> (Cons (DFun s (global-name home name) body) Nil, errors)
     DData s name params ctors -> (Cons (DData s (global-name home name) (rename-params visible Nil params)
       (rename-ctors home visible (parameter-names params) ctors)) Nil, Nil)
@@ -633,10 +633,12 @@ module Bootstrap.Resolve where
       (more, errors) -> (Cons other more, fail (decl-span other) "source signature member needs checked default or declaration elaboration" <> errors)
 
   rename-decls :: String -> List Binding -> List Decl -> (List Decl, List Diagnostic)
-  rename-decls home visible ds = case ds of
+  rename-decls home visible ds = rename-decls-with home visible ds ds
+  rename-decls-with :: String -> List Binding -> List Decl -> List Decl -> (List Decl, List Diagnostic)
+  rename-decls-with home visible all ds = case ds of
     Nil -> (Nil, Nil)
-    Cons d rest -> case rename-decl home visible d of
-      (body, errors) -> case rename-decls home visible rest of
+    Cons d rest -> case rename-decl home visible all d of
+      (body, errors) -> case rename-decls-with home visible all rest of
         (others, more) -> (body <> others, errors <> more)
 
   resolve-program :: Program -> (Program, List Diagnostic)

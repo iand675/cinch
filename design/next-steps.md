@@ -1,5 +1,28 @@
 # Next steps (as of 2026-11-04)
 
+## Executable value indices and byte contracts
+
+Implicit value parameters now have checked lexical/type/proof/task scopes and
+real owned runtime argument slots. Byte-length witnesses execute the actual
+operation; partial applications and closures retain their owned values.
+Constructor indices stay erased, with normalized bound indices required to
+match the same binder and checked carrier. Byte-read refinement declarations
+are proved from actual runtime bounds, admitting Int-promoted range aliases
+and refusing stronger promises without granting immutable-read authority.
+
+All43 compiler modules and twelve complete focused groups pass. All139 runtime
+programs return their expected results with zero leaks, including the indexed
+constructor with an owned field. All335 independent Core assertions pass.
+Compiler identity: `ef4f399642a225f45acf5bc95dc6b41816390b8b00393446870349c2752431d4`.
+See [the independently verified checkpoint](../bootstrap/current-value-index-contract-results.json).
+
+The unchanged original byte target passes8/9 through the diagnostic frontend.
+Its unsafe mutable-reader case is rejected, but the error wording lacks the
+expected obligation marker and produces secondary diagnostics. That fix,
+source interface gaps, the matching fresh bootstrap and complete suites38,
+and the full Acceptance1-5 audit remain open. Earlier chains prove their own
+source identities only. No full bootstrap completion is claimed here.
+
 ## Typed byte helpers and allocator proof contracts
 
 Checked pure identity helpers now preserve byte operand carriers in source

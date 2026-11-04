@@ -175,13 +175,20 @@ module Main where
     let bound-row = URow (UArg (UApp (UCon "Async" (KFun KRegion KEffect)) bound-owner) (UArg (UApp (UCon "Cancel" (KFun KRegion KEffect)) bound-owner) (UArg (UCon "Diverge" KEffect) UEnd))) in
     let declared = qualified [q] [MkRequirement "io" (io (UBound nonce "r" KRegion))] (UFunEff unit bound-row result) in
     let worker-ty = UFun unit result in
-    let declarations = [GlobalValue "task-work" "value" declared, GlobalValue "task-body" "external" (mono worker-ty), GlobalValue "True" "constructor" (mono bool)] in
+    let capture-owner = MkQuant (nonce + 30) "r" KRegion False in
+    let capture-region = MkQuant (nonce + 31) "s" KRegion False in
+    let capture-token = scope-type (UBound (nonce + 30) "r" KRegion) (UBound (nonce + 31) "s" KRegion) in
+    let captured-scope = MkScheme [capture-owner, capture-region, MkQuant (nonce + 32) "token" (value-kind capture-token) False] worker-ty in
+    let captured-number = MkScheme [MkQuant (nonce + 33) "n" (value-kind nat) False] worker-ty in
+    let declarations = [GlobalValue "task-work" "value" declared, GlobalValue "task-body" "external" (mono worker-ty), GlobalValue "hidden-scope" "external" captured-scope, GlobalValue "hidden-number" "external" captured-number, GlobalValue "True" "constructor" (mono bool)] in
     let task-kinds = [("b.Io", KFun KRegion KType), ("b.Scope", scope-kind), ("b.Task", task-kind), (interface-global "Data.Core.Result", KFun KType (KFun KType KType))] <> kinds in
     let scope-id = nonce + 10 in let handle-id = nonce + 11 in
     let scope-value = CLocal sp token scope-id "s" Nil in
     let handle-value = CLocal sp handle-ty handle-id "h" Nil in
     let worker = CUse sp worker-ty "task-body" "external" Nil in
     let spawn = CSpawn sp handle-ty scope-value worker in
+    let hidden-scope = CUse sp worker-ty "hidden-scope" "external" [owner, region, UIndex token (IRigid scope-id "s" 2)] in
+    let hidden-number = CUse sp worker-ty "hidden-number" "external" [UIndex nat (IInteger 0)] in
     let handles = CArgument sp handle-value (CArgumentsEnd sp) in
     let join = CJoin sp result scope-value handles in
     let bind next = CLet sp result handle-id "h" (mono handle-ty) spawn next in
@@ -190,6 +197,8 @@ module Main where
       None -> False
       Some context -> typing-definition-closed context (MkCoreDefinition sp "task-work" declared [(nonce, owner)] [CGiven sp "io" (io owner)] Nil [MkCoreClause sp [CPWild sp unit] body])) in
     [ check (wrap (bind join))
+    , check (wrap (CLet sp result handle-id "h" (mono handle-ty) (CSpawn sp handle-ty scope-value hidden-number) join))
+    , not (check (wrap (CLet sp result handle-id "h" (mono handle-ty) (CSpawn sp handle-ty scope-value hidden-scope) join)))
     , check (map-term-types (\ty -> ty) (wrap (bind join)))
     , check (wrap (bind (CIf sp result truth join join)))
     , not (check (wrap (bind (CJoin sp result scope-value (CArgument sp handle-value handles)))))
@@ -242,6 +251,43 @@ module Main where
     , not (byte-allocation-contract (UPi input "n" nat log-row (URefine output "out" bytes (UCompare "==" length size))))
     , not (byte-allocation-contract (UFun nat (URefine output "out" bytes (UCompare "==" length (UIndex nat (IInteger 99))))))
     ]
+  byte-read-contract-checks :: Nat -> List Bool
+  byte-read-contract-checks nonce =
+    let output = nonce + 300 in let bytes = UCon "Bytes" KType in
+    let value = UBound output "out" (value-kind nat) in
+    let promoted = UIndexPromote value in
+    let lo = UIndex int (IInteger 0) in let hi = UIndex int (IInteger 255) in
+    let ranged predicate = UFun bytes (UFun nat (URefine output "out" nat predicate)) in
+    [ byte-read-contract (UFun bytes (UFun nat nat))
+    , byte-read-contract (ranged (UPropAnd (UCompare "<=" lo promoted) (UCompare "<=" promoted hi)))
+    , byte-read-contract (ranged (UCompare "<=" promoted hi))
+    , not (byte-read-contract (ranged (UCompare "<=" promoted (UIndex int (IInteger 254)))))
+    , not (byte-read-contract (ranged (UCompare ">" promoted lo)))
+    , not (byte-read-contract (UFun bytes (UFun int nat)))
+    , not (byte-read-contract (UFunEff bytes log-row (UFun nat nat)))
+    , not (byte-read-contract (UFun bytes (UFun nat (URefine output "out" int (UCompare "<=" (UBound output "out" (value-kind int)) hi)))))
+    ]
+  value-parameter-checks :: Nat -> List Bool
+  value-parameter-checks nonce =
+    let key = nonce + 200 in let value = nonce + 201 in let unit-id = nonce + 202 in
+    let sc = MkScheme [MkQuant key "n" (value-kind nat) False] (UFun unit nat) in
+    let opened = URigid value "n" 1 (value-kind nat) in
+    let clause body = MkCoreClause sp [CPVar sp unit unit-id "u"] body in
+    let make openings body = MkCoreDefinition sp "implicit" sc openings Nil Nil [clause body] in
+    let body = CLocal sp nat value "n" Nil in
+    let declarations = [GlobalValue "implicit" "value" sc] in
+    let check d = case close-typing-context kinds declarations of Some context -> typing-definition-closed context d; None -> False in
+    [ check (make [(key, opened)] body)
+    , check (make [(key, UIndex nat (IRigid value "n" 1))] body)
+    , not (check (make [(key, opened)] (CLocal sp int value "n" Nil)))
+    , not (check (make [(key, opened)] (CLocal sp nat (value + 10) "forged" Nil)))
+    , not (check (make [(key, UIndex int (IRigid value "n" 1))] body))
+    , not (check (MkCoreDefinition sp "implicit" sc [(key, opened)] Nil Nil [MkCoreClause sp [CPVar sp unit value "shadow"] body]))
+    , (let type-sc = MkScheme [MkQuant key "a" KType False] (UFun unit nat) in
+       case close-typing-context kinds [GlobalValue "type-only" "value" type-sc] of
+         Some context -> not (typing-definition-closed context (MkCoreDefinition sp "type-only" type-sc [(key, URigid value "a" 1 KType)] Nil Nil [clause body]))
+         None -> False)
+    ]
   verdict :: Int -> List Bool -> Int
   verdict next values = case values of Nil -> 0; Cons True rest -> verdict (next + 1) rest; Cons False rest -> next
   main :: Unit ->{IO r} Int
@@ -251,7 +297,9 @@ module Main where
       case verdict 1 (scope-checks nonce) of
         0 -> case verdict 1 (task-checks nonce) of
           0 -> case verdict 1 (intrinsic-view-checks nonce) of
-            0 -> case verdict 1 (allocation-contract-checks nonce) of 0 -> verdict 1 (checks nonce); code -> 190 + code
+            0 -> case verdict 1 (allocation-contract-checks nonce) of
+              0 -> case verdict 1 (byte-read-contract-checks nonce <> value-parameter-checks nonce) of 0 -> verdict 1 (checks nonce); code -> 200 + code
+              code -> 190 + code
             code -> 180 + code
           code -> 150 + code
         code -> 100 + code

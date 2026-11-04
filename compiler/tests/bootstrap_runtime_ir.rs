@@ -131,6 +131,48 @@ fn typed_runtime_numbers_preserve_exact_values_and_reclaim_owned_words() {
     Token n -> if recover False (C64 True) && recover 0 (C69 9223372036854775808) == 9223372036854775808 && n == 18446744073709551616 then 143 else 1
 "#, (0..70).map(|i| format!("    C{i} :: a -> Wide a\n")).collect::<String>());
     let cases = [
+        ("mixed-indexed-owned-constructor", r#"  foreign import ccall "cinch.runtime.bytesLen" extent :: Bytes -> Nat
+  foreign import ccall "cinch.runtime.bytesNew" allocate :: Nat -> Bytes
+  data Mark (n :: Nat) a where
+    Mark :: a -> Mark n a
+  make :: forall a. (b :: Bytes) -> a -> Mark (extent b) a
+  make b value = Mark value
+  width :: forall (n :: Nat) a. Mark n a -> Nat
+  width value = case value of Mark payload -> n
+  main :: Int
+  main = let b = allocate 3 in if width (make b 184467440737095516160) == 3 then 231 else 1
+"#, 231),
+        ("byte-index-witness-runtime", r#"  foreign import ccall "cinch.runtime.bytesLen" extent :: Bytes -> Nat
+  foreign import ccall "cinch.runtime.bytesNew" allocate :: Nat -> Bytes
+  data Mark (n :: Nat) where
+    Mark :: Mark n
+  make :: (b :: Bytes) -> Mark (extent b)
+  make b = Mark
+  width :: forall (n :: Nat). Mark n -> Nat
+  width value = n
+  main :: Int
+  main = let b = allocate 3 in if width (make b) == 3 then 225 else 1
+"#, 225),
+        ("byte-index-witness-partial", r#"  foreign import ccall "cinch.runtime.bytesLen" extent :: Bytes -> Nat
+  foreign import ccall "cinch.runtime.bytesNew" allocate :: Nat -> Bytes
+  data Mark (n :: Nat) where
+    Mark :: Mark n
+  make :: (b :: Bytes) -> Mark (extent b)
+  make b = Mark
+  remember :: forall (n :: Nat). Mark n -> Unit -> Nat
+  remember value unit = n
+  main :: Int
+  main = let b = allocate 3 in let f = remember (make b) in if f () == 3 then 227 else 1
+"#, 227),
+        ("owned-index-witness-closure", r#"  data Mark (n :: Nat) where
+    Mark :: Mark n
+  make :: (n :: Nat) -> Mark n
+  make n = Mark
+  remember :: forall (n :: Nat). Mark n -> Unit -> Nat
+  remember value = \unit -> n
+  main :: Int
+  main = let f = remember (make 184467440737095516160) in if f () == 184467440737095516160 && f () == 184467440737095516160 then 229 else 1
+"#, 229),
         ("byte-allocation-primitive-promise", r#"  foreign import ccall "cinch.runtime.bytesLen" extent :: Bytes -> Nat
   foreign import ccall "cinch.runtime.bytesNew" allocate :: (n :: Nat) -> refined (extent out == n) Bytes
   make :: (n :: Nat) -> refined (extent out == n) Bytes

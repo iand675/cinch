@@ -7,13 +7,14 @@ module Bootstrap.RuntimeIr where
   import Bootstrap.Infer (elaboration-core, elaboration-data, elaboration-effects, elaboration-classes, elaboration-instances, elaboration-bindings, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-conditional-target)
   import Bootstrap.Object (RuntimeObject, RuntimeUnit, object-words, object-unit, object-variant, object-dictionary, object-family, object-conditional-unit, object-closed-method-unit, object-string-layout, unit-symbol, unit-closure, unit-params, unit-result, llvm-object-symbol, llvm-data-bytes)
   import Bootstrap.Core
+  import Bootstrap.Index
   import Bootstrap.Nominal (interface-global)
   import Bootstrap.Instance
   import Bootstrap.Type
   import Bootstrap.Report
   import Algebra.Semigroup
   import Text.Builder
-  import Text.Show (nat-to-string)
+  import Text.Show (nat-to-string, int-to-string)
   import Text.Lex (Span)
 
   export emit-runtime-program, emit-runtime-program-with-object
@@ -242,10 +243,19 @@ module Bootstrap.RuntimeIr where
         other -> None)
       else if erased-kind (quant-kind q) then scheme-classes context rest more else None
     other -> None
+  source-scheme-classes :: RuntimeContext -> List Quant -> List UType -> Option (List Nat)
+  source-scheme-classes context qs actuals = case (qs, actuals) of
+    (Nil, Nil) -> Some Nil
+    (Cons q rest, Cons actual more) -> (case value-carrier (quant-kind q) of
+      Some carrier -> if typed-index-admissible actual then source-scheme-classes context rest more else None
+      None -> if kind-equal (quant-kind q) KType then
+        (case (word-class context actual, source-scheme-classes context rest more) of (Some code, Some tail) -> Some (Cons code tail); other -> None)
+        else if erased-kind (quant-kind q) then source-scheme-classes context rest more else None)
+    other -> None
   class-bindings :: List Quant -> List Nat -> Option (List (Nat, Nat))
   class-bindings qs classes = case qs of
     Nil -> case classes of Nil -> Some Nil; other -> None
-    Cons q rest -> if erased-kind (quant-kind q) then class-bindings rest classes else
+    Cons q rest -> if erased-kind (quant-kind q) || (case value-carrier (quant-kind q) of Some carrier -> True; None -> False) then class-bindings rest classes else
       (case classes of
         Cons code more -> if kind-equal (quant-kind q) KType && code < 3 then
           (case class-bindings rest more of Some tail -> Some (Cons (quant-id q, code) tail); None -> None) else None
@@ -253,10 +263,11 @@ module Bootstrap.RuntimeIr where
   rigid-bindings :: List (Nat, UType) -> List (Nat, Nat) -> Option (List (Nat, Nat))
   rigid-bindings openings bounds = case openings of
     Nil -> Some Nil
-    Cons (key, URigid id name level kind) rest -> if erased-kind kind then rigid-bindings rest bounds else
+    Cons (key, URigid id name level kind) rest -> if erased-kind kind || (case value-carrier kind of Some carrier -> True; None -> False) then rigid-bindings rest bounds else
       (case (representation key bounds, rigid-bindings rest bounds) of
         (Some code, Some more) -> Some (Cons (id, code) more)
         other -> None)
+    Cons (key, UIndex carrier (IRigid id name level)) rest -> rigid-bindings rest bounds
     other -> None
   with-representations :: List (Nat, Nat) -> List (Nat, Nat) -> Writer -> Writer
   with-representations bounds rigids w = case w of
@@ -351,7 +362,7 @@ module Bootstrap.RuntimeIr where
   regular-parameters :: List Quant -> List Quant -> Bool
   regular-parameters expected actual = case (expected, actual) of
     (Nil, Nil) -> True
-    (Cons q rest, Cons p more) -> quant-id q == quant-id p && kind-equal (quant-kind q) KType && kind-equal (quant-kind p) KType && regular-parameters rest more
+    (Cons q rest, Cons p more) -> quant-id q == quant-id p && kind-equal (quant-kind q) (quant-kind p) && (kind-equal (quant-kind q) KType || (case value-carrier (quant-kind q) of Some carrier -> True; None -> False)) && regular-parameters rest more
     other -> False
   data-result :: CoreData -> UType
   data-result d = data-result-args (UCon (core-data-name d) (core-data-kind d)) (core-data-params d)
@@ -365,6 +376,12 @@ module Bootstrap.RuntimeIr where
   same-data-result first second = case (first, second) of
     (UCon a ka, UCon b kb) -> same a b && kind-equal ka kb
     (UBound a an ka, UBound b bn kb) -> a == b && kind-equal ka kb
+    -- Normalization represents a bound value index as UIndex/IBound.
+    -- Compare the same binder and its checked carrier, never an arbitrary
+    -- computed or constructor-local index with a family parameter.
+    (UBound a an ka, UIndex carrier (IBound b bn)) -> a == b && (case value-carrier ka of Some expected -> runtime-type-equal expected carrier; None -> False)
+    (UIndex carrier (IBound a an), UBound b bn kb) -> a == b && (case value-carrier kb of Some expected -> runtime-type-equal carrier expected; None -> False)
+    (UIndex carrier (IBound a an), UIndex input (IBound b bn)) -> a == b && runtime-type-equal carrier input
     (UApp f x, UApp g y) -> same-data-result f g && same-data-result x y
     other -> False
   constructor-supported :: RuntimeContext -> CoreData -> CoreConstructor -> Bool
@@ -774,7 +791,7 @@ module Bootstrap.RuntimeIr where
         None -> unsupported w sp "factory needs runtime representation specialization"
       None -> case constructor name (writer-data w) of
         Some (owner, tag, c) -> case data-declaration owner (writer-data w) of
-          Some d -> case scheme-classes (writer-context w) (scheme-params (core-constructor-scheme c)) actuals of
+          Some d -> case source-scheme-classes (writer-context w) (scheme-params (core-constructor-scheme c)) actuals of
             None -> unsupported w sp "constructor parameters need runtime representation classes"
             Some classes -> case constructor-context d classes w of
               None -> unsupported w sp "constructor parameters need first-order representation classes"
@@ -790,8 +807,8 @@ module Bootstrap.RuntimeIr where
                 else unsupported w sp "constructor application exceeds its checked arity"
           None -> unsupported w sp "constructor has no defining runtime declaration"
         None -> case definition name definitions of
-          Some d -> case scheme-classes (writer-context w) (scheme-params (core-scheme d)) actuals of
-            Some classes -> function-call definitions locals w sp d classes givens args
+          Some d -> case source-scheme-classes (writer-context w) (scheme-params (core-scheme d)) actuals of
+            Some classes -> function-call definitions locals w sp d actuals classes givens args
             None -> unsupported w sp "function parameters need first-order or erased representation classes"
           None -> external-call definitions locals w sp name actuals givens args
   external-binding :: String -> List CheckedBinding -> Option CheckedBinding
@@ -854,24 +871,72 @@ module Bootstrap.RuntimeIr where
             other -> unsupported w sp "external function lacks concrete checked word representations")
           None -> unsupported w sp "external unit arity exceeds its checked function telescope")
         else unsupported w sp "external function context disagrees with its checked scheme"
-  function-call :: List CoreDefinition -> List Local -> Writer -> Span -> CoreDefinition -> List Nat -> List String -> List CoreTerm -> (Writer, String)
-  function-call definitions locals w sp d classes givens args = case definition-context d classes w of
+  runtime-type-equal :: UType -> UType -> Bool
+  runtime-type-equal first second = valid-type first && valid-type second && (case store-errors (unify (Span 0 0 1 1) (without-index-levels first) (without-index-levels second) (empty-store "runtime index carrier")) of Nil -> True; other -> False)
+  index-expression :: List Local -> Writer -> Span -> UType -> (Writer, String)
+  index-expression locals w sp value = if not (typed-index-admissible value) then unsupported w sp "implicit value argument has no solved checked index witness" else case value of
+    UIndexByteLength input -> (case index-expression locals w sp input of
+      (ready, bytes) -> case call ready "@cinch_bytes_len" [bytes] of
+        (measured, length) -> case call measured "@cinch_nat_from_i64" [length] of
+          (done, result) -> (case value-carrier (type-kind input) of Some carrier -> (count-op False carrier bytes done, result); None -> unsupported done sp "byte index input has no actual carrier"))
+    UIndexForget input -> index-expression locals w sp input
+    UIndexPromote input -> (case value-carrier (type-kind input) of
+      Some carrier -> if named carrier "Nat" then (case index-expression locals w sp input of
+        (ready, natural) -> case call ready "@cinch_int_from_nat" [natural] of (done, result) -> (count-op False carrier natural done, result))
+        else if named carrier "Int" then index-expression locals w sp input else unsupported w sp "index promotion needs its checked mathematical carrier"
+      None -> unsupported w sp "index promotion has no actual input carrier")
+    UIndexMath op first second -> (case value-carrier (type-kind first) of
+      Some carrier -> index-math-expression locals w sp carrier op first second
+      None -> unsupported w sp "index arithmetic has no checked carrier")
+    other -> (case (value-carrier (type-kind value), index-of-type value) of
+      (Some carrier, Some (IRigid id name level)) -> (case local id locals of
+        Some (declared, word) -> if runtime-type-equal carrier declared then (count-op True declared word w, word) else unsupported w sp "runtime index local disagrees with its checked carrier"
+        None -> unsupported w sp "runtime index local is absent from its lexical scope")
+      (Some carrier, Some (IInteger n)) -> if number carrier then decimal w carrier (int-to-string n) else if raw-integer carrier then (w, int-to-string n) else unsupported w sp "index literal needs a runtime integer carrier"
+      (Some carrier, Some (IAdd first second)) -> index-math-expression locals w sp carrier "+" (UIndex carrier first) (UIndex carrier second)
+      (Some carrier, Some (ISubtract first second)) -> index-math-expression locals w sp carrier "-" (UIndex carrier first) (UIndex carrier second)
+      (Some carrier, Some (IMultiply first second)) -> index-math-expression locals w sp carrier "*" (UIndex carrier first) (UIndex carrier second)
+      other -> unsupported w sp "index witness needs checked runtime reification")
+  index-math-expression :: List Local -> Writer -> Span -> UType -> String -> UType -> UType -> (Writer, String)
+  index-math-expression locals w sp carrier operation first second = if not (number carrier) then unsupported w sp "index arithmetic requires a mathematical runtime carrier" else
+    let suffix = if same operation "+" then "add" else if same operation "*" then "mul" else "sub" in
+    case index-expression locals w sp first of
+      (one, a) -> case index-expression locals one sp second of
+        (two, b) -> case call two (cat ["@cinch_", runtime-number carrier, "_", suffix]) [a, b] of
+          (done, result) -> (count-op False carrier b (count-op False carrier a done), result)
+  implicit-value-words :: List Local -> Writer -> Span -> List Quant -> List UType -> (Writer, List String)
+  implicit-value-words locals w sp params actuals = case (params, actuals) of
+    (Nil, Nil) -> (w, Nil)
+    (Cons q rest, Cons actual more) -> (case value-carrier (quant-kind q) of
+      Some carrier -> (case index-expression locals w sp actual of
+        (ready, word) -> case implicit-value-words locals ready sp rest more of (done, values) -> (done, Cons word values))
+      None -> implicit-value-words locals w sp rest more)
+    other -> (refuse w sp "implicit value argument arity disagrees with the checked scheme", Nil)
+  value-types :: List (Nat, UType) -> List UType
+  value-types values = case values of Nil -> Nil; Cons (id, ty) rest -> Cons ty (value-types rest)
+  runtime-index-locals :: List (Nat, UType) -> Nat -> List Local
+  runtime-index-locals values index = case values of Nil -> Nil; Cons (id, ty) rest -> Cons (Local id ty (cat ["%arg", nat-to-string index])) (runtime-index-locals rest (index + 1))
+  function-call :: List CoreDefinition -> List Local -> Writer -> Span -> CoreDefinition -> List UType -> List Nat -> List String -> List CoreTerm -> (Writer, String)
+  function-call definitions locals w sp d actuals classes givens args = case definition-context d classes w of
     Some context -> let parameters = definition-parameters d in
       let required = runtime-givens w d in
       let dependencies = definition-value-dependencies w d in
-      let all-types = value-field-types dependencies <> given-types required <> pattern-types parameters in
+      let indices = opening-value-types (core-openings d) in
+      let all-types = value-field-types dependencies <> given-types required <> value-types indices <> pattern-types parameters in
       let count = list-length parameters in
       if list-length givens > list-length required then unsupported w sp "function context exceeds its checked ABI" else
-        if list-length givens < list-length required && list-length args > 0 then unsupported w sp "explicit arguments precede missing function evidence" else
+        if list-length givens < list-length required && (list-length args > 0 || list-length indices > 0) then unsupported w sp "implicit values require the complete checked dictionary context" else
+        if list-length indices > 0 && (case field-owner (core-name d) (program-instances (writer-program w)) of Some owner -> True; None -> False) then unsupported w sp "dictionary method value parameters need their checked runtime ABI" else
         case definition-self-values d locals w of
-          (prepared, saved) -> if list-length givens < list-length required || list-length args < count then
-            (case class-vector context all-types of
-              Some parameter-classes -> case expressions definitions locals (demand-worker (core-name d) classes prepared) args of
-                (ready, values) -> closure sp (specialized-name (core-name d) classes) parameter-classes (saved <> givens <> values) ready
-              None -> unsupported prepared sp "function parameters need known closure representations")
-            else case expressions definitions locals (demand-worker (core-name d) classes prepared) (take-terms count args) of
-              (ready, values) -> case call ready (symbol (specialized-name (core-name d) classes)) (saved <> givens <> values) of
-                (called, result) -> apply-terms definitions locals called result (drop-terms count args)
+          (prepared, saved) -> case (if list-length indices == 0 then (prepared, Nil) else implicit-value-words locals prepared sp (scheme-params (core-scheme d)) actuals) of
+            (indexed, witnesses) -> if list-length givens < list-length required || list-length args < count then
+              (case class-vector context all-types of
+                Some parameter-classes -> case expressions definitions locals (demand-worker (core-name d) classes indexed) args of
+                  (ready, values) -> closure sp (specialized-name (core-name d) classes) parameter-classes (saved <> givens <> witnesses <> values) ready
+                None -> unsupported indexed sp "function parameters need known closure representations")
+              else case expressions definitions locals (demand-worker (core-name d) classes indexed) (take-terms count args) of
+                (ready, values) -> case call ready (symbol (specialized-name (core-name d) classes)) (saved <> givens <> witnesses <> values) of
+                  (called, result) -> apply-terms definitions locals called result (drop-terms count args)
     None -> unsupported w sp "function parameters need first-order or erased representation classes"
   instance-definitions :: List CoreInstance -> List CoreDefinition
   instance-definitions instances = case instances of Nil -> Nil; Cons first rest -> field-definitions (instance-fields first) <> instance-definitions rest
@@ -1009,7 +1074,7 @@ module Bootstrap.RuntimeIr where
       None -> (refuse w (Span 0 0 1 1) "cyclic strict dictionary values need recursive environment lowering", locals)
       Some (selected, pending) -> let d = dictionary-field-definition selected in
         case copy-givens context locals w of
-          (copied, values) -> case function-call definitions locals copied (Span 0 0 1 1) d classes values Nil of
+          (copied, values) -> case function-call definitions locals copied (Span 0 0 1 1) d Nil classes values Nil of
             (ready, word) -> initialize-values definitions owner classes context (Cons (SelfValue (instance-name owner) (dictionary-field-slot selected) (scheme-body (core-scheme d)) word) locals) pointer pending (store-one ready pointer (1 + dictionary-field-slot selected) word)
   dictionary-name :: String -> List Nat -> String
   dictionary-name name classes = cat [specialized-name name classes, ".dictionary"]
@@ -1123,7 +1188,7 @@ module Bootstrap.RuntimeIr where
             None -> unsupported w sp "self value was used before its dictionary slot was initialized")
           else case copy-givens context locals w of
             (copied, prefix) -> case evidences definitions locals copied extra of
-              (ready, more) -> function-call definitions locals ready sp (dictionary-field-definition field) (classes <> own-codes) (prefix <> more) Nil
+              (ready, more) -> function-call definitions locals ready sp (dictionary-field-definition field) Nil (classes <> own-codes) (prefix <> more) Nil
         None -> unsupported w sp "self method is absent from its actual factory")
       else unsupported w sp "self evidence disagrees with the selected declaring class"
     None -> unsupported w sp "self method has no actual checked factory"
@@ -1174,7 +1239,7 @@ module Bootstrap.RuntimeIr where
       Some field -> if strict-value-field w owner field then dictionary-fields definitions owner classes context locals pointer rest w else
         let d = dictionary-field-definition field in
         (case copy-givens context locals w of
-          (copied, values) -> case function-call definitions locals copied (Span 0 0 1 1) d (classes <> own-codes) values Nil of
+          (copied, values) -> case function-call definitions locals copied (Span 0 0 1 1) d Nil (classes <> own-codes) values Nil of
             (ready, value) -> let stored = store-one ready pointer (1 + physical) value in
               dictionary-fields definitions owner classes context locals pointer rest stored)
       None -> refuse w (Span 0 0 1 1) "planned dictionary slot has no actual instance method"
@@ -1240,7 +1305,9 @@ module Bootstrap.RuntimeIr where
     CGuard sp ty guard body -> term-uses id guard || term-uses id body
     CArgument sp first rest -> term-uses id first || term-uses id rest
     CAlternative sp pattern body rest -> (not (pattern-binds id pattern) && term-uses id body) || term-uses id rest
-    other -> False
+    other -> index-term-uses id (term-children term)
+  index-term-uses :: Nat -> List CoreTerm -> Bool
+  index-term-uses id terms = case terms of Nil -> False; Cons first rest -> term-uses id first || index-term-uses id rest
   evidence-uses :: String -> CoreEvidence -> Bool
   evidence-uses name evidence = case evidence of
     CEGiven sp ty symbol -> same name symbol
@@ -1625,9 +1692,11 @@ module Bootstrap.RuntimeIr where
               let context = runtime-givens scoped d in
               let dependencies = definition-value-dependencies scoped d in
               let hidden = list-length dependencies in
-              let offset = hidden + list-length context in
-              let prefix = worker-self-values scoped d dependencies <> given-bindings context hidden <> self-binding scoped d classes in
-              let roots = capture-roots (value-field-types dependencies) 0 <> given-roots context hidden <> parameter-roots patterns offset in
+              let index-offset = hidden + list-length context in
+              let indices = opening-value-types openings in
+              let offset = index-offset + list-length indices in
+              let prefix = worker-self-values scoped d dependencies <> given-bindings context hidden <> runtime-index-locals indices index-offset <> self-binding scoped d classes in
+              let roots = capture-roots (value-field-types dependencies) 0 <> given-roots context hidden <> runtime-index-locals indices index-offset <> parameter-roots patterns offset in
               let started = line (line scoped (cat ["define i64 ", symbol (specialized-name name classes), "(", join (argument-words (value-parameters (offset + list-length patterns) 0)), ") {"])) "entry:" in
               line (worker-clauses definitions prefix roots offset clauses started) "}"
             Nil -> refuse scoped sp "runtime definition has no checked equations"
@@ -1679,7 +1748,7 @@ module Bootstrap.RuntimeIr where
   declarations = cat [
     "declare ptr @cinch_alloc_ctor(i64, i64)\ndeclare ptr @cinch_alloc_shaped(i64, i64, i64)\ndeclare ptr @memcpy(ptr, ptr, i64)\ndeclare void @cinch_layouts_register(ptr, i64)\n",
     "declare void @cinch_dup(i64)\ndeclare void @cinch_drop(i64)\ndeclare void @cinch_reclaim_enable()\ndeclare i64 @cinch_exit_check(i64)\n",
-    "declare i64 @cinch_nat_to_len(i64)\ndeclare i64 @cinch_nat_from_i64(i64)\ndeclare i64 @cinch_bytes_new(i64)\ndeclare i64 @cinch_bytes_len(i64)\ndeclare i64 @cinch_bytes_get(i64, i64)\ndeclare i64 @cinch_bytes_from_data(ptr, i64)\ndeclare i64 @cinch_bytes_compare(i64, i64)\ndeclare i64 @cinch_io_write(i64)\ndeclare i64 @cinch_io_sleep(i64)\ndeclare i64 @cinch_task_poll_cancel()\ndeclare i64 @cinch_scope_open()\ndeclare i64 @cinch_scope_close(i64)\ndeclare i64 @cinch_task_spawn(i64, i64)\ndeclare i64 @cinch_task_join_all_or_cancel(i64, i64, i64, i64)\n",
+    "declare i64 @cinch_nat_to_len(i64)\ndeclare i64 @cinch_nat_from_i64(i64)\ndeclare i64 @cinch_int_from_nat(i64)\ndeclare i64 @cinch_bytes_new(i64)\ndeclare i64 @cinch_bytes_len(i64)\ndeclare i64 @cinch_bytes_get(i64, i64)\ndeclare i64 @cinch_bytes_from_data(ptr, i64)\ndeclare i64 @cinch_bytes_compare(i64, i64)\ndeclare i64 @cinch_io_write(i64)\ndeclare i64 @cinch_io_sleep(i64)\ndeclare i64 @cinch_task_poll_cancel()\ndeclare i64 @cinch_scope_open()\ndeclare i64 @cinch_scope_close(i64)\ndeclare i64 @cinch_task_spawn(i64, i64)\ndeclare i64 @cinch_task_join_all_or_cancel(i64, i64, i64, i64)\n",
     "declare i64 @cinch_text_f64_to_decimal(double)\ndeclare double @cinch_text_f64_from_decimal(i64)\n",
     "declare i64 @cinch_argv_init(i64, ptr)\ndeclare i64 @cinch_run_main(ptr)\n",
     "declare i64 @cinch_int_from_decimal(ptr, i64)\ndeclare i64 @cinch_nat_from_decimal(ptr, i64)\ndeclare i64 @cinch_int_to_i64(i64)\n",

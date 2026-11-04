@@ -15,7 +15,7 @@ module Bootstrap.Core where
   import Text.Lex (Span)
   import Algebra.Semigroup
 
-  export scoped-core-case-facts, core-alternative-covers
+  export scoped-core-case-facts, core-alternative-covers, opening-value-types, opening-value-patterns
   export CorePattern, CPWild, CPProof, CPVar, CPAs, CPConstructor, CPInt, CPString, CPChar, CPTuple, CPField, CPDone
   export CoreTerm, CUse, CLocal, CInt, CString, CChar, CUnit, CApply, CLambda, CLet, CIf, CCase, CTuple, CPrimitive, CGuard
   export CArgument, CArgumentsEnd, CAlternative, CAlternativesEnd, CError
@@ -26,7 +26,7 @@ module Bootstrap.Core where
   export handler-kind, handler-type, handler-parts, handler-residual, handler-operation-scheme, handler-clause-type, handler-resumption-safe, handler-body-direct
   export CProofRef, CErasedApply, scope-erased, scoped-proof-reference
   export CDecision, decision-type, decision-constructor-scheme, scoped-decision-valid, stable-index-source
-  export CRefineProof, scoped-refinement-proof, byte-allocation-contract
+  export CRefineProof, scoped-refinement-proof, byte-allocation-contract, byte-read-contract
   export CRefine, CForget, prove-refinement, CRequire, CDischarge, core-predicates, prove-predicates, required-body, CProved, core-condition, core-let-fact, prove-subtraction, numeric-method-operation
   export scope-guarded-bodies, with-guarded-bindings, scoped-guarded-call-index, core-definition-contracts-closed, seal-definition-with-contracts
   export ProofScope, make-proof-scope, scoped-prove-refinement, scoped-prove-predicates, scoped-core-predicates, scoped-core-condition, scoped-core-branch, scoped-core-let-fact, scoped-prove-subtraction
@@ -480,8 +480,30 @@ module Bootstrap.Core where
   data CoreDefinition where
     MkCoreDefinition :: Span -> String -> Scheme -> List (Nat, UType) -> List CoreGiven -> List (Nat, Kind) -> List CoreClause -> CoreDefinition
 
+  index-local-terms :: Span -> UType -> IndexTerm -> List CoreTerm
+  index-local-terms sp carrier value = case value of
+    IRigid id name level -> [CLocal sp carrier id name Nil]
+    IAdd first second -> index-local-terms sp carrier first <> index-local-terms sp carrier second
+    ISubtract first second -> index-local-terms sp carrier first <> index-local-terms sp carrier second
+    IMultiply first second -> index-local-terms sp carrier first <> index-local-terms sp carrier second
+    other -> Nil
+  index-value-terms :: Span -> UType -> List CoreTerm
+  index-value-terms sp value = case value of
+    UIndexByteLength input -> index-value-terms sp input
+    UIndexForget input -> index-value-terms sp input
+    UIndexPromote input -> index-value-terms sp input
+    UIndexMath op first second -> index-value-terms sp first <> index-value-terms sp second
+    UIndexCall function arguments -> index-argument-terms sp arguments
+    other -> (case (value-carrier (type-kind value), index-of-type value) of (Some carrier, Some term) -> index-local-terms sp carrier term; other -> Nil)
+  index-argument-terms :: Span -> UType -> List CoreTerm
+  index-argument-terms sp arguments = case arguments of UArg first rest -> index-value-terms sp first <> index-argument-terms sp rest; other -> Nil
+  implicit-value-terms :: Span -> List UType -> List CoreTerm
+  implicit-value-terms sp actuals = case actuals of Nil -> Nil; Cons first rest -> index-value-terms sp first <> implicit-value-terms sp rest
   term-children :: CoreTerm -> List CoreTerm
   term-children term = case term of
+    CUse sp ty name role actuals -> if string-compare role "constructor" == 0 then Nil else implicit-value-terms sp actuals
+    CQualifiedUse sp ty name role actuals evidence -> if string-compare role "constructor" == 0 then Nil else implicit-value-terms sp actuals
+    CMethod sp ty name owner slot actuals evidence -> implicit-value-terms sp actuals
     CApply sp ty f x -> [f, x]
     CApplyEff sp ty row f x -> [f, x]
     CErasedApply sp ty row f x -> [f, x]
@@ -1084,6 +1106,16 @@ module Bootstrap.Core where
     quant-index-scope (scheme-params sc) universals rigid && type-index-scope bound rigid (scheme-body sc) && requirements-index-scope bound rigid (scheme-requirements sc)
   opening-type :: Nat -> List (Nat, UType) -> Option UType
   opening-type id pairs = case pairs of Nil -> None; Cons (key, ty) rest -> if id == key then Some ty else opening-type id rest
+  opening-value-types :: List (Nat, UType) -> List (Nat, UType)
+  opening-value-types openings = case openings of
+    Nil -> Nil
+    Cons (key, value) rest -> (case (value-carrier (type-kind value), index-of-type value) of
+      (Some carrier, Some (IRigid id name level)) -> Cons (id, carrier) (opening-value-types rest)
+      other -> opening-value-types rest)
+  opening-value-patterns :: Span -> List (Nat, UType) -> List CorePattern
+  opening-value-patterns sp openings = value-type-patterns sp (opening-value-types openings)
+  value-type-patterns :: Span -> List (Nat, UType) -> List CorePattern
+  value-type-patterns sp values = case values of Nil -> Nil; Cons (id, carrier) rest -> Cons (CPVar sp carrier id "#implicit-value") (value-type-patterns sp rest)
   opening-value-ids :: List Quant -> List (Nat, UType) -> List Nat
   opening-value-ids qs pairs = case qs of
     Nil -> Nil
@@ -1173,7 +1205,7 @@ module Bootstrap.Core where
   scoped-clauses :: List Nat -> List CoreClause -> Bool
   scoped-clauses values clauses = case clauses of
     Nil -> True
-    Cons (MkCoreClause s patterns body) rest -> (case patterns-scope values patterns Nil of Some bound -> scoped-term values bound body; None -> False) && scoped-clauses values rest
+    Cons (MkCoreClause s patterns body) rest -> (case patterns-scope values patterns values of Some bound -> scoped-term values bound body; None -> False) && scoped-clauses values rest
   -- These checks cover lexical identities, index references and operation
   -- certificates. An independent full typing/kind kernel remains separate.
   core-definition-closed :: CoreDefinition -> Bool
@@ -1183,7 +1215,7 @@ module Bootstrap.Core where
   core-definition-contracts-closed :: List BodyBinding -> List GuardedBinding -> CoreDefinition -> Bool
   core-definition-contracts-closed bodies guards definition = body-bindings-closed bodies && guarded-bindings-closed guards && (case definition of
     MkCoreDefinition s name sc openings givens private clauses -> let values = opening-value-ids (scheme-params sc) openings in
-      scheme-closed sc && scheme-index-scope Nil sc && givens-closed givens && givens-index-scope values givens && valid-clauses clauses && scoped-clauses values clauses && body-scheme-authorized bodies sc && proof-contract-clauses bodies guards (substitute-bound openings (scheme-body sc)) clauses)
+      scheme-closed sc && scheme-index-scope Nil sc && givens-closed givens && givens-index-scope values givens && valid-clauses clauses && scoped-clauses values clauses && body-scheme-authorized bodies sc && proof-contract-clauses-with bodies guards (opening-value-types openings) (substitute-bound openings (scheme-body sc)) clauses)
 
   -- Operation certificates are rechecked against facts derived from the
   -- retained Core control flow. Display names never identify proof values.
@@ -1655,6 +1687,20 @@ module Bootstrap.Core where
        let fact = PCompare Equal (byte-length-variable output) (proof-variable input) in
        case scoped-prove-refinement gamma [fact] opened (CLocal (Span 0 0 1 1) carrier output "#allocation-result" Nil) of Some evidence -> True; None -> False)
     other -> contract-equal result (UCon "Bytes" KType)
+  -- The runtime read returns a Nat between zero and 255. Check a source
+  -- promise semantically, so Int-promoted aliases have the same authority
+  -- as direct Nat bounds without making mutable reads stable observations.
+  byte-read-result-contract :: UType -> Bool
+  byte-read-result-contract result = case result of
+    URefine output name carrier predicate -> contract-equal carrier (UCon "Nat" KType) && valid-type result &&
+      (let gamma = make-proof-scope [(output, carrier)] Nil in
+       let facts = [PCompare AtLeast (proof-variable output) (AInteger 0), PCompare AtMost (proof-variable output) (AInteger 255)] in
+       case scoped-prove-refinement gamma facts result (CLocal (Span 0 0 1 1) carrier output "#byte-read-result" Nil) of Some evidence -> True; None -> False)
+    other -> contract-equal result (UCon "Nat" KType)
+  byte-read-contract :: UType -> Bool
+  byte-read-contract ty = valid-type ty && (case ty of
+    UFun input (UFun index result) -> contract-equal input (UCon "Bytes" KType) && nat-type index && byte-read-result-contract result
+    other -> False)
   byte-allocation-contract :: UType -> Bool
   byte-allocation-contract ty = valid-type ty && (case ty of
     UFun domain result -> nat-type domain && contract-equal result (UCon "Bytes" KType)
@@ -2006,11 +2052,13 @@ module Bootstrap.Core where
       other -> False
     other -> proof-term gamma facts term
   proof-contract-clauses :: List BodyBinding -> List GuardedBinding -> UType -> List CoreClause -> Bool
-  proof-contract-clauses bodies guards expected clauses = case clauses of
+  proof-contract-clauses bodies guards expected clauses = proof-contract-clauses-with bodies guards Nil expected clauses
+  proof-contract-clauses-with :: List BodyBinding -> List GuardedBinding -> List (Nat, UType) -> UType -> List CoreClause -> Bool
+  proof-contract-clauses-with bodies guards values expected clauses = case clauses of
     Nil -> True
     Cons (MkCoreClause s patterns body) rest -> (case patterns-result expected patterns of
-      Some result -> proof-expected (proof-patterns patterns (with-guarded-bindings guards (with-body-bindings bodies empty-proof-scope))) Nil result body
-      None -> False) && proof-contract-clauses bodies guards expected rest
+      Some result -> proof-expected (proof-patterns patterns (with-guarded-bindings guards (with-body-bindings bodies (make-proof-scope values Nil)))) Nil result body
+      None -> False) && proof-contract-clauses-with bodies guards values expected rest
 
   numeric-method-comparison :: CoreTerm -> CoreTerm -> CoreTerm -> Option Comparison
   numeric-method-comparison method first second = case method of

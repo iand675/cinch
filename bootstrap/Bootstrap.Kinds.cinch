@@ -5,7 +5,7 @@ module Bootstrap.Kinds where
   import Bootstrap.Index
   import Text.Lex (Span)
 
-  export TypeScope, MkTypeScope, empty-type-scope, scope-bound, scope-rigid, scope-locals, add-local-scheme
+  export TypeScope, MkTypeScope, empty-type-scope, scope-bound, scope-rigid, scope-locals, add-local-scheme, add-value-parameter
   export type-well-formed, kind-well-formed, scheme-well-formed, scheme-type-scope
   export nominal-kinds-closed, add-rigid-kind
   export proper-type, argument-well-formed
@@ -41,6 +41,12 @@ module Bootstrap.Kinds where
   add-local-scheme :: Nat -> Scheme -> TypeScope -> Option TypeScope
   add-local-scheme id sc scope = case (lookup-id id (scope-rigid scope), lookup-local id (scope-locals scope)) of
     (None, None) -> Some (MkTypeScope (scope-bound scope) (scope-rigid scope) (Cons (id, sc) (scope-locals scope)))
+    other -> None
+  -- A forall value has both its actual rigid index kind and a term binding
+  -- at that kind's carrier. Ordinary locals still cannot shadow rigid ids.
+  add-value-parameter :: Nat -> UType -> TypeScope -> Option TypeScope
+  add-value-parameter id carrier scope = case (lookup-id id (scope-rigid scope), lookup-local id (scope-locals scope)) of
+    (Some kind, None) -> if kind-equal kind (value-kind carrier) then Some (MkTypeScope (scope-bound scope) (scope-rigid scope) (Cons (id, mono carrier) (scope-locals scope))) else None
     other -> None
   highest :: Nat -> Nat -> Nat
   highest a b = if a > b then a else b
