@@ -1,215 +1,111 @@
 {
-  "activity": "Current source: all 127 ordinary target groups pass. Bootstrap-specific groups: 11 of 81 passed, 0 running and 0 failed. Matching runtime, tooling and syntax/editor gates are separate requirements. Fresh final-source stages built and smoke-tested: 3 of4; combined gate stopped-after-known-source-behavior-failure. Additional Stage3 coverage: ordinary: 0 of 8 passed, 0 running, 0 failed (stopped-before-execution-after-known-source-failure); mixed: 0 of 4 passed, 0 running, 0 failed (stopped-before-execution-after-known-source-failure). Self-built portable bootstrap suite: 0 of 79 groups passed, 0 running, 0 failed; state stopped-before-execution-after-known-source-failure. Current repair candidate: 3 of 4 complete repair gates passed; 1 running and 0 failed. All43 compiler-source check: passed. library calls: running; runtime behavior: passed; parser: passed; typechecker: passed.",
-  "blockers": [
+  "schema": 1,
+  "estimate": 90,
+  "commit": "3e14f1be6f548d095dd1c9ce4da9f1b40c892814",
+  "estimateNote": "Rough engineering estimate. Verified checks and remaining work are listed below.",
+  "status": "Current-source verification running",
+  "stages": [
     {
-      "title": "Complete escaped constructors and symbol ABI",
-      "detail": "Original failing assertions: escaped_constructors_match_and_carry_one_descriptor_word, interned_symbols_are_counted_immortal_once_per_name. The complete original allocation group finished6passed,2failed,noneignored orfiltered. Unstarted old-source verification is deferred; every required gate must pass on the eventual repaired source."
+      "name": "Stage 0",
+      "state": "passed",
+      "label": "Verified",
+      "description": "Pinned Rust seed, independently revalidated and smoke-tested."
     },
     {
-      "title": "Investigate current Stage2 behavior",
-      "detail": "Failed complete groups: alloc_accounting. Original failure logs remain recorded; no final acceptance claim."
+      "name": "Stage 1",
+      "state": "pending",
+      "label": "Building",
+      "description": "Fresh Cinch compiler built from the seed; all three smoke checks."
     },
     {
-      "title": "Validate the additional Stage3 repairs",
-      "detail": "Allocation programs exposed missing I64 primitive contracts and pure Unit-entry rejection. Candidate2ran a pure Unitentry with zero leaks, then failed at a function-valued entry because legacy clause checking demanded all arguments. Candidate3also checks the body against the residual function type, with over-arity and wrong-body refusals retained. Focused tests: passed; new compiler bootstrap: stopped-after-known-source-behavior-failure. Earlier green bootstrap results remain scoped to their original source."
+      "name": "Stage 2",
+      "state": "pending",
+      "label": "Pending",
+      "description": "Every compiler module freshly rebuilt by Stage1; waits for all four repair gates."
     },
     {
-      "title": "Finish every current-source compiler test",
-      "detail": "Current source: 138 of 208 complete groups pass. The complete matching sweep is required; earlier baseline outcomes are not counted here."
-    },
-    {
-      "title": "Finish the fresh repaired-source bootstrap",
-      "detail": "3 of 4 stages are built and smoke-tested. Matching compiler IR and canonical interfaces, actual API consumption and changed-source rebuilding must all pass on this snapshot."
-    },
-    {
-      "title": "Finish external acceptance through exact final Stage3",
-      "detail": "Queued after the complete stage chain. Exact final Stage3 must pass both original test-runner programs with exact reports and 32M zero leaks, seven fixity/facade probes, and portable class behavior. Earlier results remain scoped to their executable."
-    },
-    {
-      "title": "Finish all portable bootstrap groups through Cinch",
-      "detail": "0 of 79 groups pass. This suite verifies the existing bootstrap programs through the exact self-built Stage3 compiler. Fixture preparation remains an explicit Native library stage; it does not replace or rescue a selected compiler invocation."
-    },
-    {
-      "title": "Complete external compiler coverage audit",
-      "detail": "The harness inventory finds 100 targets: 79 bootstrap groups and 21 ordinary groups. The source review maps all 100 targets: 9 Native interface API targets already pass, while 79 bootstrap groups, 8 ordinary program targets and 3 mixed consumers plus the designed array-refusal case require Stage3 execution. The 79-group queue alone does not close this gate."
+      "name": "Stage 3",
+      "state": "pending",
+      "label": "Pending",
+      "description": "Fresh rebuild by Stage2, followed by code/interface matching and changed-source checks."
     }
   ],
   "checks": [
     {
-      "title": "Escaped constructor repair",
-      "detail": "3 of 4 complete repair gates passed; 1 running and 0 failed. All43 compiler-source check: passed. library calls: running; runtime behavior: passed; parser: passed; typechecker: passed. The complete original Stage2 allocation group has6passing and2failing cases:70constructor descriptors and omittedSymRaw word classification. The corrected repair adds actual wide-tag and symbol roundtrip/generic/closure/field executions, preserving the shared-table capacity. The next candidate also repairs residual function types for partial constructor expressions while retaining exact constructor-pattern arities. All43source checks plus complete object/runtime/parser/checker validation: running. This repair is not yet a verified fresh bootstrap.",
+      "title": "Current repair gates",
+      "detail": "3 of 4 complete groups passed; 1 running, 0 failed and 0 pending. library calls: running; runtime behavior: passed; parser: passed; typechecker: passed. All 43 source modules also pass Native checking.",
       "state": "running"
     },
     {
-      "title": "Early checks through current Stage2",
-      "detail": "0 of 8 complete ordinary targets passed, 0 running and 1 failed through the current self-built Stage2. Original allocation, argument, evidence, class, exhaustion, ownership, map and primitive-identity assertions remain intact. Uses one existing shared slot; these are early diagnostics and do not replace final Stage3 acceptance.",
+      "title": "Complete current compiler sweep",
+      "detail": "0 of 208 complete groups passed; 0 running, 0 failed and 208 pending.Every group includes ignored tests. State: compiling-test-runners.",
       "state": "running"
     },
     {
-      "title": "Complete current-source repair gates passed",
-      "detail": "All five complete targets pass on frozen f6e1/Cinch0e28: optimizer16, exact checker, intrinsic contracts, full runtime lowering and parser corpus. New Unit/function-returning entry and I64 overflow/first-class/owned-data cases have exact results and zero leaks at32M. Full suites and fresh staged build remain separate.",
-      "state": "passed"
-    },
-    {
-      "title": "Portable bootstrap suite through current Stage3",
-      "detail": "0 of 79 existing portable target groups passed, 0 running and 0 failed. The tested fixture harness makes 14 Native library producers explicit; the actual compiler source check/build/run path selects final Stage3 and never falls back. All four harness checks and the complete initial type-syntax control pass.",
+      "title": "Fresh compiler bootstrap",
+      "detail": "1 of 4 stages built and smoke-tested. Fixed point, 43 interfaces, API consumption and changed-source behavior are required.",
       "state": "running"
     },
     {
-      "title": "Current ordinary compiler groups passed",
-      "detail": "All 127 non-bootstrap target groups pass, including compiler units, library, ownership, interface, LSP and documentation checks. The 81 bootstrap-specific groups remain separate; 11 have passed so far.",
-      "state": "passed"
-    },
-    {
-      "title": "Current compiler full test sweep",
-      "detail": "138 of 208 complete target groups passed; 0 running and 0 failed. Every group includes ignored tests. Exact current f6e1 snapshot, Cinch0e28 and published Rust optimizer repair; matching source and private cache.",
+      "title": "Early behavior through fresh Stage1",
+      "detail": "0 of 8 complete groups passed; 0 running, 0 failed and 8 pending.These original eight ordinary targets give early feedback and do not replace final Stage3 acceptance.",
       "state": "running"
     },
     {
-      "title": "Additional behavior through current Stage3",
-      "detail": "ordinary: 0 of 8 passed, 0 running, 0 failed (stopped-before-execution-after-known-source-failure); mixed: 0 of 4 passed, 0 running, 0 failed (stopped-before-execution-after-known-source-failure). Mixed coverage runs three complete consumer targets and the designed array-intrinsic refusal check. Positive ABI6 array behavior remains in its complete Native gate per design/arrays.md.",
+      "title": "Complete behavior through exact final Stage3",
+      "detail": "0 of 91 complete groups passed; 0 running, 0 failed and 91 pending.79 bootstrap groups, eight ordinary targets, three complete mixed consumers and the designed ABI5 array refusal. Native library fixtures remain explicit; selected compiler failures never fall back.",
       "state": "running"
     },
     {
-      "title": "Earlier baseline ordinary compiler groups passed",
-      "detail": "All 127 non-bootstrap target groups pass, including compiler units, library, ownership, interface, LSP and documentation checks. The 81 bootstrap-specific groups remain separate; 40 have passed so far.",
-      "state": "passed"
-    },
-    {
-      "title": "Earlier baseline compiler sweep",
-      "detail": "167 of 208 complete target groups passed; 0 running and 0 failed. Every group includes ignored tests. Source snapshot c6260e01; results apply to the earlier baseline, before the new Rust optimizer repair.",
+      "title": "Current runtime, tooling and editor checks",
+      "detail": "waiting-final-runner-build. All three complete matching-source gates are required.",
       "state": "running"
     },
     {
-      "title": "Earlier baseline bootstrap passed",
-      "detail": "Fresh four-stage chain on the exact suite27 snapshot: all smokes, byte-identical compiler IR/executables, all 43 canonical interfaces, actual entry consumption and changed-source executable behavior pass. This includes the latest fixity and Rust repairs.",
-      "state": "passed"
+      "title": "Exact final Stage3 acceptance",
+      "detail": "Test-runner reports, 32M zero-leak runs, definition-owned fixities, separate facades and class behavior: pending.",
+      "state": "running"
     },
     {
-      "detail": "Writer, parser, resolver and both Rust interface-fixity cases all pass on the expanded snapshot. All seven actual rebuilt Cinch probes pass too, including separate renamed forwarding and refusal of identical/changed importer declarations.",
-      "state": "passed",
-      "title": "Complete expanded fixity regression passes"
-    },
-    {
-      "detail": "On the exact suite27 snapshot: all 171 runtime tests, 41 tooling checks and 39 compiler/LSP/Tree-sitter tests pass, with no ignored or skipped tests. Compiler test progress is tracked separately above.",
-      "state": "passed",
-      "title": "Earlier baseline auxiliary gates pass"
-    },
-    {
-      "detail": "Actual Cinch build/run returns 37 for local Bits data and 43 for two distinct same-named defining classes. The third wrong-evidence case is a Native API rejection. This target passes; it does not claim full frontend parity.",
-      "state": "passed",
-      "title": "Portable class behavior passes through the rebuilt Cinch frontend"
-    },
-    {
-      "detail": "171 passed, zero failed and zero ignored. Four symbol-export checks now inspect archives beside the actual test executable instead of relying on a pre-existing default build folder. Their original export assertions remain intact.",
-      "state": "passed",
-      "title": "Complete isolated runtime suite passes"
-    },
-    {
-      "detail": "All 3 class-identity, 4 compression and 7 module-parameter tests pass. Local Bits data no longer becomes the Algebra.Bits signature; distinct defining class identities and wrong-evidence refusals still pass.",
-      "state": "passed",
-      "title": "Rust local data/class-name collision repaired"
-    },
-    {
-      "detail": "Frozen source 6c6644d: all four stages and their smokes pass. Stage2/Stage3 IR, executable and all 43 canonical interfaces match. Stage3 checks its actual entry from emitted APIs; Stage2 rebuilds changed source with the expected changed behavior. This precedes the two latest repairs.",
-      "state": "passed",
-      "title": "Fresh full compiler/interface bootstrap passed"
-    },
-    {
-      "detail": "The complete writer, parser, resolver and Rust interface-fixity targets pass on the first repair snapshot. Importers still cannot declare or override fixities. A later extension tests forwarding through a separately compiled facade and is awaiting validation.",
-      "state": "passed",
-      "title": "Reexport precedence repair passes its first focused checks"
-    },
-    {
-      "detail": "The repaired Cinch compiler emits and links successfully and checks its real entry with implementation bodies absent. The reduced public-return case passes, while private constructor import, private type annotation and a wrong field carrier are all refused.",
-      "state": "passed",
-      "title": "Actual self-built compiler consumes the compiler APIs"
-    },
-    {
-      "detail": "Both programs compile through the actual self-built compiler and produce exact reports: two deliberate failures are correctly counted, and the passing suite reports zero. Both run with a 32M heap and report zero leaks. A separate checked test-library bundle supplies the requested list-length variant.",
-      "state": "passed",
-      "title": "Cinch compiles and runs its own test runner"
-    },
-    {
-      "detail": "Validation9 passes source checking, the expanded writer/privacy case, type export, nominal identity, parsing and region contracts. Kind facts are retained from actual public constructor contracts; source names and private constructors remain hidden.",
-      "state": "passed",
-      "title": "Complete private-layout regression passed"
-    },
-    {
-      "detail": "Actual self-built compiler validation2 emits all 43 documents. Native parses and canonically roundtrips them and verifies the chain and coherence across 98 total modules; every source hash matches its full module slice. The reserved Main.main identity repair passes the separate complete writer7 regression.",
-      "state": "passed",
-      "title": "All 43 compiler interfaces pass independent readback"
-    },
-    {
-      "detail": "Candidate23 finished with four failing groups: parser coverage, failed-output handling, lattice transfers and refinements. The original failures remain recorded. Fresh complete parser and pipeline reruns now pass; final-source verification is still required.",
-      "state": "passed",
-      "title": "Full baseline finished: 201 of 205 groups passed"
-    },
-    {
-      "detail": "The self-built Stage3 compiles and executes the advanced writer. Independent Native readers accept its schema, canonical form and dependency hashes; public aliases work and private constructors and importer fixity overrides are refused.",
-      "state": "passed",
-      "title": "Checked interfaces run through the self-built compiler"
-    },
-    {
-      "detail": "Validation7 passes the full interface, type-export, parser, 16 effect tests and region-contract checks. It verifies Main.main, public operation contracts, definition-owned fixities and private constructor boundaries. The new private-layout regression is being tested separately.",
-      "state": "passed",
-      "title": "Updated interface writer passes its complete focused gates"
-    },
-    {
-      "detail": "The CLI emits checked interface files and refuses invalid input. The seed builds all 43 compiler modules. Source hashes now cover each complete module body rather than only its header.",
-      "state": "passed",
-      "title": "Compiler interface CLI and complete source identities verified"
-    },
-    {
-      "detail": "The full corrected parser target and full corrected pipeline target pass on fresh snapshots. Coverage includes all 109 measured parser entries and four stale-output refusal probes.",
-      "state": "passed",
-      "title": "Parser and failed-output regressions repaired"
-    },
-    {
-      "detail": "The frozen-source run passes runtime checks, all 41 tooling checks, and all 39 syntax tests with none skipped. Final-source full-suite verification remains open.",
-      "state": "passed",
-      "title": "Fresh auxiliary checks passed"
-    },
-    {
-      "detail": "A linear parameter used once in its own lambda body was incorrectly rejected. The independent reproduction now passes; all23 ownership tests pass, including refusal of capture, duplicate use and dropped parameters.",
-      "state": "passed",
-      "title": "Rust linear-parameter ownership repaired"
-    },
-    {
-      "detail": "Stage2 compiles a modified compiler; that executable produces the changed diagnostic label and correctly refuses the invalid probe. The verification driver now explicitly uses Stage2 for this gate.",
-      "state": "passed",
-      "title": "Self-built compiler rebuilds changed source correctly"
-    },
-    {
-      "detail": "Candidate23: identical LLVM IR and executable SHA256; Stage3 also passes valid-program, precedence and invalid-source smoke checks. This does not establish the compiler-interface fixed point.",
-      "state": "passed",
-      "title": "Stage2 and Stage3 compiler code matches exactly"
-    },
-    {
-      "detail": "82 runtime cases on candidate 10 and 18 linked-object cases on candidate 14. The linked cases, including the direct intrinsic export, all report zero leaks; the whole object target passed.",
-      "state": "passed",
-      "title": "100 programs executed"
-    },
-    {
-      "detail": "Candidate 20 passes exact text, string-concatenation oracle, chunk counts, scale, and 65,536 newline chunks on a 2 MiB stack.",
-      "state": "passed",
-      "title": "All five builder checks passed"
-    },
-    {
-      "detail": "Candidate23 passes the entire proof certificate regression. Its fresh Stage1 accepts the reduced outer-guard case and complete builder, while refusing an out-of-bounds write.",
-      "state": "passed",
-      "title": "Direct proof reuse and complete builder checks pass"
-    },
-    {
-      "title": "Complete current-source auxiliary gates",
-      "detail": "Runtime, tooling and syntax/editor verification: passed. Each complete gate uses the exact frozen f6e1 source; earlier auxiliary results are separate.",
+      "title": "Earlier source: scoped baseline results",
+      "detail": "The earlier 0e28 compiler built Stage2 and passed its smokes. Its Native sweep retained 138 passing groups and deferred 70. Its original allocation target finished six passed and two failed. These results do not count as completion on the current source.",
       "state": "passed"
     }
   ],
-  "commit": "3e14f1be6f548d095dd1c9ce4da9f1b40c892814",
-  "dashboardUrl": "https://cinch-bootstrap-status.ian92821.chatgpt.site",
-  "estimate": 90,
-  "estimateNote": "Rough engineering estimate. Remaining compiler bugs can change it; this is not a measured test pass rate.",
+  "blockers": [
+    {
+      "title": "Finish the repair gates",
+      "detail": "3 of 4 complete groups passed; 1 running, 0 failed and 0 pending. library calls: running; runtime behavior: passed; parser: passed; typechecker: passed."
+    },
+    {
+      "title": "Publish the validated repair",
+      "detail": "The previous published compiler checkpoint remains linked below until the repair source is pushed."
+    },
+    {
+      "title": "Finish the fresh bootstrap",
+      "detail": "Stage2 and full Native execution wait for all four complete focused gates; Stage2/3 must then match and pass actual API/changed-source checks."
+    },
+    {
+      "title": "Finish all current compiler tests",
+      "detail": "0 of 208 complete groups passed; 0 running, 0 failed and 208 pending."
+    },
+    {
+      "title": "Finish matching runtime, tooling and editor checks",
+      "detail": "waiting-final-runner-build."
+    },
+    {
+      "title": "Finish the exact self-built compiler tests",
+      "detail": "0 of 91 complete groups passed; 0 running, 0 failed and 91 pending."
+    },
+    {
+      "title": "Finish final external acceptance",
+      "detail": "pending."
+    },
+    {
+      "title": "Complete the coverage and acceptance audit",
+      "detail": "Account for all 100 harness targets, the pinned ABI5 array boundary and every Acceptance1-5 requirement. Passing counts alone cannot close this audit."
+    }
+  ],
   "milestones": [
     {
       "detail": "All four stages, exact compiler/interface comparisons, actual API consumption and changed-source rebuilding pass on the same frozen snapshot.",
@@ -236,34 +132,10 @@
       "title": "Changed-source rebuilding verified"
     }
   ],
-  "schema": 1,
-  "stages": [
-    {
-      "name": "Stage 0",
-      "state": "passed",
-      "label": "Verified",
-      "description": "Pinned Rust seed compiler; all three smoke checks."
-    },
-    {
-      "name": "Stage 1",
-      "state": "passed",
-      "label": "Verified",
-      "description": "Cinch compiler built from the verified seed; all three smoke checks."
-    },
-    {
-      "name": "Stage 2",
-      "state": "passed",
-      "label": "Verified",
-      "description": "Compiler source rebuilt by Cinch Stage1, including actual checked interfaces."
-    },
-    {
-      "name": "Stage 3",
-      "state": "pending",
-      "label": "Pending",
-      "description": "Rebuilt by Stage2; the combined gate compares IR and 43 interfaces and checks API consumption and changed-source behavior."
-    }
-  ],
-  "status": "Stage2 allocation regression requires repair",
-  "summary": "The current source builds Stage2 and passes its smoke checks, but an actual external allocation test fails: the Cinch backend refuses wide constructor descriptors and omits the checkedSym word representation. A corrected combined source repair is undergoing full source and focused validation. Final acceptance remains open.",
-  "updatedAt": "2026-11-04T03:44:14.675083+00:00"
+  "candidateSource": "33f4dde5688c94aeb1f04dc6498a8ceb013ee51193dd471aca9c36f3c3b675e1",
+  "candidatePublished": false,
+  "fullGoalComplete": false,
+  "summary": "The repair candidate passes all 43 compiler-source checks. 3 of 4 complete groups passed; 1 running, 0 failed and 0 pending. library calls: running; runtime behavior: passed; parser: passed; typechecker: passed. The repair source remains local while its full focused validation finishes.",
+  "activity": "Current compiler sweep: 0 of 208 complete groups passed; 0 running, 0 failed and 208 pending. Stage builds and smoke checks: 1 of 4; chain state: running-full-stage-chain. Repair gates: 3 of 4 complete groups passed; 1 running, 0 failed and 0 pending. library calls: running; runtime behavior: passed; parser: passed; typechecker: passed. Early Stage1 behavior: 0 of 8 complete groups passed; 0 running, 0 failed and 8 pending. Exact final Stage3 suite: 0 of 91 complete groups passed; 0 running, 0 failed and 91 pending.",
+  "updatedAt": "2026-11-04T03:52:18.007660+00:00"
 }
