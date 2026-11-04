@@ -1,5 +1,19 @@
 # Next steps (as of 2026-11-04)
 
+## Rust witness diagnostics preserve source expressions
+
+Failed call obligations now display the user's original source expression
+instead of the internal once-evaluated witness name. Proof checking keeps its
+actual private identity; rendering happens only after failed discharge.
+The original FFI diagnostic assertion is unchanged.
+
+All 109 tests in seven complete affected Native groups pass, with no ignored
+or filtered cases, and the repaired Rust CLI checks all 43 compiler modules.
+See [the scoped diagnostic proof](../bootstrap/current-rust-witness-diagnostics-results.json).
+All Cinch, prelude and pinned-bootstrap inputs are byte-identical to the
+validated case/dispatch repair, so its fresh chain9 remains valid. The matching
+full Native and exact final self-built suites are rerunning on this Rust snapshot.
+
 ## Current repair: checked method dispatch and scalar case facts
 
 The current source now removes the allocation regression in the original

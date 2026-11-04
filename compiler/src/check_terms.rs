@@ -878,7 +878,28 @@ impl Checker {
                             continue;
                         }
                         let ev = self.evidence_in(env);
-                        self.discharge_oblig(&ev, &inst, *span)?;
+                        if let Err(mut error) = self.discharge_oblig(&ev, &inst, *span) {
+                            // Private witnesses identify one evaluation for
+                            // proof checking. Diagnostics still name the
+                            // user's original expression. Reify only after
+                            // failure, without changing the successful path.
+                            let mut displayed = inst.clone();
+                            for index in &idxs {
+                                if let Some((Some(ITerm::Var(name)), _, _)) = call_args.get(*index) {
+                                    if name.starts_with("$call-argument:") {
+                                        if let Some(reading) = args.get(*index)
+                                            .and_then(|argument| self.idx_of_term(argument, env).ok())
+                                        {
+                                            displayed = displayed.subst(name, &reading);
+                                        }
+                                    }
+                                }
+                            }
+                            error.message = error.message.replace(
+                                &format!("`{inst}`"), &format!("`{displayed}`"),
+                            );
+                            return Err(error);
+                        }
                     }
                 }
                 if let Some((want, method)) = retained_method.or_else(|| callee_want(&core).map(|want|
