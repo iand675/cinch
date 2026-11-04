@@ -75,6 +75,11 @@
       "title": "Previous 33f4 source: retained results",
       "detail": "120 of 208 complete groups passed; 0 running, 0 failed and 88 pending. Its Stage1 allocation target passed all eight cases; argv finished one passed and two failed. Its incomplete Stage2 build was intentionally retired for the necessary source repair. These results do not count toward this new source.",
       "state": "passed"
+    },
+    {
+      "title": "Proposed opaque-argument repair",
+      "detail": "Separate unpublished source: checking-all43-compiler-sources. All 43 compiler modules: pending. 0 of 7 complete groups passed; 0 running, 0 failed and 7 pending. This does not replace current-source or final Stage3 acceptance.",
+      "state": "running"
     }
   ],
   "blockers": [
@@ -145,6 +150,6 @@
   "candidatePublished": false,
   "fullGoalComplete": false,
   "summary": "All 43 compiler-source checks: passed. 0 of 6 complete groups passed; 1 running, 0 failed and 5 pending. dependent arguments: running; call preconditions: pending; refinements and effects: pending; runtime behavior: pending; typechecker: pending; Rust optimizer behavior: pending. The repair source remains local while its full focused validation finishes.",
-  "activity": "Current compiler sweep: 0 of 208 complete groups passed; 0 running, 0 failed and 208 pending. Stage builds and smoke checks: 1 of 4; chain state: running-full-stage-chain. Repair gates: 0 of 6 complete groups passed; 1 running, 0 failed and 5 pending. dependent arguments: running; call preconditions: pending; refinements and effects: pending; runtime behavior: pending; typechecker: pending; Rust optimizer behavior: pending. Early Stage1 behavior: 0 of 8 complete groups passed; 0 running, 0 failed and 8 pending. Exact final Stage3 suite: 0 of 91 complete groups passed; 0 running, 0 failed and 91 pending.",
-  "updatedAt": "2026-11-04T05:18:28.549429+00:00"
+  "activity": "Current compiler sweep: 0 of 208 complete groups passed; 0 running, 0 failed and 208 pending. Stage builds and smoke checks: 1 of 4; chain state: running-full-stage-chain. Repair gates: 0 of 6 complete groups passed; 1 running, 0 failed and 5 pending. dependent arguments: running; call preconditions: pending; refinements and effects: pending; runtime behavior: pending; typechecker: pending; Rust optimizer behavior: pending. Early Stage1 behavior: 0 of 8 complete groups passed; 0 running, 0 failed and 8 pending. Exact final Stage3 suite: 0 of 91 complete groups passed; 0 running, 0 failed and 91 pending. Proposed opaque-argument repair (separate unpublished source): checking-all43-compiler-sources; 0 of 7 complete groups passed; 0 running, 0 failed and 7 pending.",
+  "updatedAt": "2026-11-04T05:20:11.343263+00:00"
 }
