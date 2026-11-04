@@ -1,0 +1,45 @@
+{
+  "status": "passed-library-artifact-validation",
+  "checked_at": "2026-11-04T00:23:11.587591+00:00",
+  "scope": "Only the exact test-library dictionary requested by the retained consumer failure. Does not establish consumer success, new compiler success, or full-suite completion.",
+  "roots_file": "bootstrap/test-support-object-roots.json",
+  "roots_sha256": "71e85274ffc1ce872d3a199aded9bbeb20dbeb077d4fde653dc1126f98c7b04c",
+  "added_root": {
+    "symbol": "Data.List.FromList_List",
+    "classes": "R"
+  },
+  "added_factory": {
+    "class": "Data.FromList.FromList",
+    "context_arity": 0,
+    "fields": [
+      "O"
+    ],
+    "methods": [
+      "Data.List.FromList_List.from-list@R"
+    ]
+  },
+  "configuration": {
+    "metadata": "/tmp/cinch-test-support-provider-3/library.abi.json",
+    "metadata_sha256": "574d088adbc6848c878688605b999f0bb76d995b285ecf6e048d775d67669d02",
+    "object": "/tmp/cinch-test-support-provider-3/library.o",
+    "object_sha256": "038c7eefc9ce33f4d0c5fb0ecdf963ddb3a9404b90f1c94033f5b7afe29618cb",
+    "schema": 1,
+    "target": "aarch64-unknown-unknown"
+  },
+  "producer": {
+    "description": "Library-only Native producer with checked object manifests, explicit representation roots and canonical method families. Never compiles Bootstrap implementation modules. The independent stage0 compiler pin is unchanged.",
+    "revision": "261ba1603be65f3e207f3665daa7f78119873d0c",
+    "runtime_abi": 5,
+    "schema": 1,
+    "source_sha256": "5a15a8d7c496ecc63c3b88879abbe88f8d0d61eef8469ef31285b0571430cdd0"
+  },
+  "producer_binary_sha256": "b0298ec0768f4d4108ba6d61c8a7225595ab3bf2f541556f11f30b497c3ac503",
+  "runtime_sha256": "3d50ac6bab9b8cb0776bb994e3b9da76876a6eec8b9e8162f76ed8cd903f8c6d",
+  "admitted_base_interfaces": 55,
+  "interfaces_including_trivial_library_root": 56,
+  "interfaces_byte_identical_to_previous_bundle": true,
+  "compiler_stage_roots_and_pins_unchanged": true,
+  "retained_failure_log_sha256": "fd1e2653bdebf263c4aaad1ed9ba0dc0f30643ea53d953938eba5b02dec73590",
+  "diagnostic_sha256": "213d04b55ac77b0246cc0bf9df0dcfad9b6e8623ae4d56b3a43f482b157f0829",
+  "unchanged_consumer_rerun_status_at_checkpoint": "waiting-reserved-lane"
+}

@@ -15,6 +15,10 @@
     {
       "classes": "T",
       "symbol": "Data.List.Semigroup_List"
+    },
+    {
+      "classes": "R",
+      "symbol": "Data.List.FromList_List"
     }
   ],
   "methods": [],

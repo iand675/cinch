@@ -72,8 +72,9 @@ lacked `Data.Option.is-none[O]`. The replacement bundle passes independent
 artifact validation and contains that exact requested unit. All55 interface
 documents match the previous bundle byte for byte. Its
 [test-only roots](../bootstrap/test-support-object-roots.json) add only the
-previously requested list-length variant and this Option variant; compiler
-roots, Stage0 and library producer pins remain unchanged. See
+previously requested list-length and Option variants, plus the separately
+requested raw-list factory described below; compiler roots, Stage0 and library
+producer pins remain unchanged. See
 [the scoped artifact result](../bootstrap/test-library-variant-results.json).
 The exact array-refusal consumer rerun passes on the same Stage3 compiler and
 unchanged test runner. The complete canonical-artifact consumer target also
@@ -95,9 +96,11 @@ e85a5d0 source.
 The portable bootstrap sweep separately passes type-syntax and abstract NonZero
 methods, then stops in the abstract NonZero type/Core target. Its retained
 diagnostic requests the missing test-library factory `Data.List.FromList_List[R]`.
-A library-only rebuild adds that exact variant. The unchanged complete target is
-queued through the same Stage3 compiler and runner; neither its success nor the
-complete79-group suite is claimed. See [the retained failures and candidate scope](../bootstrap/additional-stage3-verification-results.json).
+The library-only rebuild and independent artifact checks pass for that exact
+variant. All55 admitted base interfaces, plus the trivial library root interface,
+match the previous bundle byte for byte. The unchanged complete target is queued
+through the same Stage3 compiler and runner; neither its success nor the
+complete79-group suite is claimed. See [the raw-list library artifact receipt](../bootstrap/test-library-list-variant-results.json). See [the retained failures and candidate scope](../bootstrap/additional-stage3-verification-results.json).
 
 ## Earlier combined bootstrap checkpoint
 
