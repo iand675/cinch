@@ -19,8 +19,15 @@ test-only library roots are recorded separately.
 All127 ordinary current-source compiler groups now pass, with no failures,
 ignored cases or filtered cases; see [the complete ordinary result](../bootstrap/current-ordinary-compiler-results.json).
 The full208-group sweep continues with its81bootstrap-specific groups. A fresh staged
-compiler build has verified the unchanged pinned seed and its smoke checks;
-the new Stage1/2/3 artifacts and fixed point are not yet claimed. A separate
+compiler build has verified the unchanged pinned seed, rebuilt Stage1 and
+successfully compiled every compiler module through Stage1 into a new Stage2.
+All three Stage2 smoke programs pass, and all43 actual compiler interfaces pass
+independent schema and dependency validation. The Stage2 executable identity is
+`e40184b49fbccd70443e544e01bb99ea3553141638adb4fab4f0ab727f8b34a7`.
+The [current acceptance audit](../bootstrap/current-bootstrap-acceptance-audit.json)
+verifies Acceptance1 and2 against the actual sources and stage artifacts;
+Acceptance3-5 remain open. Stage3 is building; the fixed point and changed-source
+behavior are not yet claimed. A separate
 91-group queue waits for the exact new Stage3:79 bootstrap groups,eight ordinary
 program targets,three complete mixed consumers and the designed ABI5 array
 refusal. Exact new-Stage3 test reports,zero-leak execution,definition-owned
