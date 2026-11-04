@@ -46,7 +46,7 @@ module Bootstrap.ExportType where
       (case decode rest 0 False Nil of Ok value -> if string-length value > 0 then Ok value else Err "empty imported defining identity"; Err error -> Err error)
       else if char-code dot == 46 && char-code prefix == 109 then
         (case split-owner rest Nil of Err error -> Err error; Ok (owner, member) -> Ok (string-concat-all [owner, ".", member]))
-      else if same name "b.Io" then Ok "Io" else if same name "b.Dec" then Ok "Dec"
+      else if same name "b.Io" then Ok "Io" else if same name "b.Dec" then Ok "Dec" else if same name "b.Scope" then Ok "Scope" else if same name "b.Task" then Ok "Task"
       else if char-code dot == 46 && char-code prefix == 98 then Err "unported kernel defining identity" else Ok name
     other -> Ok name
 

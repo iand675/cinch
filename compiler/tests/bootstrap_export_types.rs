@@ -19,6 +19,8 @@ fn checked_schemes_have_portable_definition_owned_syntax() {
         let body = match name {
             "nat" | "polymorphic" | "dependent" | "refinement" | "nominal" => "probe x = x",
             "region" => "probe u = 0",
+            "scope" => "probe x = x",
+            "task" => "probe u = probe u",
             "source-identity" => { assert_eq!(scheme, "A.Token"); continue; }
             "alpha-stable" => { assert_eq!(scheme, "yes"); continue; }
             "unsolved" | "escaped" | "malformed-identity" | "independent-row-tails" => {
@@ -27,12 +29,17 @@ fn checked_schemes_have_portable_definition_owned_syntax() {
             _ => panic!("unexpected exporter result {line}"),
         };
         assert!(!scheme.starts_with("ERROR:"), "{name}: {scheme}");
-        if name == "region" {
+        if matches!(name, "region" | "scope" | "task") {
             // Region kind annotations are part of resolved interface syntax.
             // Compare with Native's own checked interface production rather
             // than interpreting that internal spelling as a source kind.
             let (_, interfaces) = cinch::driver::check_sources_ifaces(
-                "module Main where\n  probe :: forall {q0}. using (d0 :: Io q0) => Unit ->{IO q0} Int\n  probe u = 0\n  main :: Int\n  main = 0\n",
+                match name {
+                    "region" => "module Main where\n  probe :: forall {q0}. using (d0 :: Io q0) => Unit ->{IO q0} Int\n  probe u = 0\n  main :: Int\n  main = 0\n",
+                    "scope" => "module Main where\n  probe :: forall {q0} {q1}. Scope q0 q1 -> Scope q0 q1\n  probe x = x\n  main :: Int\n  main = 0\n",
+                    "task" => "module Main where\n  probe :: forall {q0} q1 q2. Unit -> Task q0 q1 q2\n  probe u = probe u\n  main :: Int\n  main = 0\n",
+                    _ => unreachable!(),
+                },
                 "native-region-interface-oracle.cinch",
             ).unwrap();
             let main = interfaces.iter().find(|i| i.module == "Main").unwrap();
@@ -46,6 +53,6 @@ fn checked_schemes_have_portable_definition_owned_syntax() {
         let checked = cinch::driver::check_sources(&source, "cinch-exported-type.cinch");
         assert!(checked.is_ok(), "Native readback {name}: {scheme}\n{checked:?}\nProject: {}", dir.display());
     }
-    assert_eq!(report.lines().count(), 12, "{report}");
+    assert_eq!(report.lines().count(), 14, "{report}");
     common::cleanup(&dir);
 }

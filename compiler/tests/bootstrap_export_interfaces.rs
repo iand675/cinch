@@ -45,6 +45,15 @@ fn source_interfaces_preserve_private_nominals_and_defining_fixities() {
     for name in ["<#>", "<+>"] {
         assert_eq!(b.exports.values.iter().find(|v| v.name == name).unwrap().symbol, "A.<+>");
     }
+    for interface in [a, b] {
+        for (name, identity) in [("inspect-scope", "A.inspect-scope"), ("task-source", "A.task-source")] {
+            let value = interface.exports.values.iter().find(|v| v.name == name).unwrap();
+            assert_eq!(value.symbol, identity);
+            let resolved = value.resolved.as_ref().unwrap();
+            assert!(resolved.nominals.is_empty(), "kernel Scope/Task types must not invent defining-module nominals");
+            assert!(resolved.scheme.contains(if name == "inspect-scope" { "Scope" } else { "Task" }));
+        }
+    }
     assert_eq!(a.assumptions.primitives, ["cinch.runtime.textSha256"]);
     assert!(b.assumptions.primitives.is_empty());
     assert!(!a.exports.types.iter().any(|t| t.name == "Local"));

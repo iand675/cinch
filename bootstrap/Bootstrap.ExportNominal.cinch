@@ -72,7 +72,7 @@ module Bootstrap.ExportNominal where
   type-references ty = case ty of
     UCon raw kind -> case export-global raw of
       Err error -> Err error
-      Ok name -> if kernel-type-name name || same name "Io" || same name "Dec" || kernel-effect name kind then kind-references kind
+      Ok name -> if kernel-type-name name || same name "Io" || same name "Dec" || same name "Scope" || same name "Task" || kernel-effect name kind then kind-references kind
         else combine (Ok [name]) (kind-references kind)
     UBound id name kind -> kind-references kind
     URigid id name level kind -> kind-references kind

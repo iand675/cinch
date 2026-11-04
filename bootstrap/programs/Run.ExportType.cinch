@@ -23,6 +23,8 @@ module Main where
     row "nat" (export-scheme (mono (UFun nat nat))) <>
     row "polymorphic" (export-scheme (MkScheme [MkQuant 7 "a" KType False] (UFun (UBound 7 "a" KType) (UBound 7 "a" KType)))) <>
     row "region" (export-scheme (MkQualifiedScheme [MkQuant 8 "r" KRegion True] [MkRequirement "io" (UApp (UCon "b.Io" (KFun KRegion KType)) (UBound 8 "r" KRegion))] (UFunEff unit (URow (UArg (UApp (UCon "IO" (KFun KRegion KEffect)) (UBound 8 "r" KRegion)) UEnd)) (UCon "Int" KType)))) <>
+    row "scope" (export-scheme (MkScheme [MkQuant 8 "r" KRegion True, MkQuant 9 "s" KRegion True] (let token = UApp (UApp (UCon "b.Scope" (KFun KRegion (KFun KRegion KType))) (UBound 8 "r" KRegion)) (UBound 9 "s" KRegion) in UFun token token))) <>
+    row "task" (export-scheme (MkScheme [MkQuant 8 "s" KRegion True, MkQuant 9 "e" KType False, MkQuant 10 "a" KType False] (UFun unit (UApp (UApp (UApp (UCon "b.Task" (KFun KRegion (KFun KType (KFun KType KType)))) (UBound 8 "s" KRegion)) (UBound 9 "e" KType)) (UBound 10 "a" KType))))) <>
     row "dependent" (export-scheme (mono (UPi 4 "n" nat empty (URequire (UArg (UCompare "<=" (variable 4 "n") (UIndex nat (IInteger 5))) UEnd) nat)))) <>
     row "refinement" (export-scheme (mono (UPi 4 "n" nat empty (URefine 9 "out" nat (UCompare ">=" (variable 9 "out") (variable 4 "n")))))) <>
     row "nominal" (export-scheme (mono (UFun (UCon (interface-global "A.Token") KType) (UCon (interface-global "A.Token") KType)))) <>

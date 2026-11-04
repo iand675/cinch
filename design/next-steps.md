@@ -1,5 +1,23 @@
 # Next steps (as of 2026-11-04)
 
+## Scope and Task checked interfaces repaired
+
+The Cinch writer now exports the actual builtin Scope and Task types, preserving
+Region binder kinds and defining-module ownership through reexports. It adds no
+fabricated nominal owner. Independent Native checked schemes, schema readback,
+canonical serialization, and actual Cinch import clients agree. Existing private
+nominal and declaring-module-only fixity checks remain intact.
+
+All 43 compiler modules and nine complete focused groups pass, including all
+133 runtime programs with expected exits and zero leaks. The compiler identity
+is `a93c6a7eef3a95be2d1fbac87794cb08eb6b0fcc00d293a521c9fb568186cc27`. See [the independently verified API repair](../bootstrap/current-task-interface-export-results.json).
+
+This supersedes the prior task compiler's source, so its successful four-stage
+chain does not prove this new source. A fresh matching chain and complete suites
+remain required. The unchanged full self-built HashMap target exposed missing
+library-object representation variants in test support; those checked library
+roots are being extended separately. Acceptance 5 and the full goal remain open.
+
 ## Published task compiler rebuilds itself; API export follow-up open
 
 The published structured-task compiler completes a fresh Stage0/1/2/3 chain.
