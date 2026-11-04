@@ -63,9 +63,11 @@ This inventory is an open audit, not a passing result.
 
 The mixed consumer tests now explicitly name their Native library fixture stage;
 the consumer builds and executions continue through the selected Cinch compiler.
-All four runners compile on their frozen snapshot;
-[that result](../bootstrap/mixed-fixture-runner-results.json) does not claim that
-their consumer programs pass.
+All four runners compile on their frozen snapshot. The three complete mixed
+consumer targets and the designed ABI5 array-refusal case now pass through the
+same exact earlier Stage3 compiler. Their source, binary, object-provider and
+log hashes are independently verified in [the scoped consumer result](../bootstrap/stage3-mixed-consumer-results.json).
+These results apply to the earlier e85a5d0 compiler, not the newer0e28 candidate.
 
 The first array-refusal consumer stopped because its test-only object bundle
 lacked `Data.Option.is-none[O]`. The replacement bundle passes independent
@@ -77,9 +79,8 @@ requested raw-list factory described below; compiler roots, Stage0 and library
 producer pins remain unchanged. See
 [the scoped artifact result](../bootstrap/test-library-variant-results.json).
 The exact array-refusal consumer rerun passes on the same Stage3 compiler and
-unchanged test runner. The complete canonical-artifact consumer target also
-passes; byte-observation and machine-contract consumers are still running or
-queued at this checkpoint.
+unchanged test runner. The complete canonical-artifact, byte-observation and machine-contract consumer
+targets also pass on that same unchanged Stage3 compiler.
 
 The ordinary Stage3 allocation target also exposed missing checked I64 equality
 and wrapping-arithmetic declarations, and rejection of pure `Unit -> Int`
@@ -89,8 +90,9 @@ requires every signature argument to have a clause pattern. The next working
 candidate checks a clause body against the function type remaining after its
 actual patterns. Too many arguments, inconsistent clause arities and wrong body
 types retain refusal checks. Its complete checker, intrinsic, runtime and parser
-gates remain required before publishing the implementation and rebuilding the
-staged compiler. The earlier green bootstrap remains evidence for its original
+gates are tracked on the frozen current-source repair snapshot. The checker,
+intrinsic and parser targets now pass; runtime lowering remains open before
+publishing the Cinch implementation and rebuilding the staged compiler. The earlier green bootstrap remains evidence for its original
 e85a5d0 source.
 
 The portable bootstrap sweep separately passes type-syntax and abstract NonZero
@@ -112,8 +114,8 @@ All16 optimizer tests and the complete exact-report checker test pass on the
 frozen repair snapshot, with no failures, ignored tests or filtered cases. See
 [the focused Rust result](../bootstrap/native-optimizer-borrow-results.json).
 This is a Rust-only implementation checkpoint. The test snapshot also contains
-the separately unpublished Cinch candidate; its intrinsic, runtime-lowering and
-parser gates remain open. Earlier full-suite and bootstrap evidence retains its
+the separately unpublished Cinch candidate; its intrinsic and parser targets
+now also pass, while runtime lowering remains open. Earlier full-suite and bootstrap evidence retains its
 original source scope. The new Rust source requires the final full Native sweep.
 
 ## Earlier combined bootstrap checkpoint

@@ -1,0 +1,98 @@
+{
+  "checked_at": "2026-11-04T00:51:01.363747+00:00",
+  "compiler_source_sha256": "e85a5d0ad1875429759da1619b9c60cf86c72e5d6213f1d3dac2430ebd9fd9dd",
+  "coordinator_note": "All4actualtestprocessesfinished0. Childless coordinator retired143 during its final polling interval; its existing promoter already checked all-passed. Independent finalization verifies exact source/binaries/logs rather than treating coordinator signal as test success.",
+  "provider_configuration": {
+    "metadata": "/tmp/cinch-test-support-provider-2/library.abi.json",
+    "metadata_sha256": "7113d776fce2b9cc2c061664c233dd20a23967ba97468c7421cff803590e6fec",
+    "object": "/tmp/cinch-test-support-provider-2/library.o",
+    "object_sha256": "077b9c43a8ee415928dd40939b838e5726afd021ce708d7c2c051250d38cd7fd",
+    "schema": 1,
+    "target": "aarch64-unknown-unknown"
+  },
+  "scope": "Three complete mixed consumer groups plus exactly the designed ABI5 array-intrinsic refusal. Explicit Native library fixtures; selected consumers use unchanged exact earlier Stage3. Positive ABI6 arrays remain in Native scope. Does not prove the new0e28compiler or close79bootstrap/8ordinary/allfullsuite coverage.",
+  "source_sha256": "52e7b67390ef3b0ed665b881cfe33e0ccce70333d136a59cfe3dac4688ea6b4f",
+  "source_unchanged": true,
+  "stage3_sha256": "1da1cf952dcca05824f46f29cbbbfb865268e8a6284a4fdb6b24eabcbe37b9dd",
+  "status": "passed-complete-scoped-mixed-suite",
+  "targets": [
+    {
+      "command": [
+        "/tmp/cinch-self-built-mixed-suite-1/cargo/debug/deps/arrays-ef4a95869f5e2b2e",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1",
+        "self_hosted_intrinsic_contracts_refuse_unimplemented_array_operations",
+        "--exact"
+      ],
+      "executable": "/tmp/cinch-self-built-mixed-suite-1/cargo/debug/deps/arrays-ef4a95869f5e2b2e",
+      "exit_code": 0,
+      "finished": "2026-11-03T23:19:22.671304+00:00",
+      "log_sha256": "7d7f5baa826324e0ef2e54bea5ad70f2a724d5a76b1cf532a1ff4ffde2615380",
+      "name": "arrays",
+      "pid": 21658,
+      "sha256": "cac6c956837dd96cfe8fb48c99dcb6291d43468b7782cce331df2016bc92379d",
+      "source_unchanged": true,
+      "started": "2026-11-03T23:16:43.475852+00:00",
+      "status": "passed",
+      "worker": 4
+    },
+    {
+      "command": [
+        "/tmp/cinch-self-built-mixed-suite-1/cargo/debug/deps/canonical_artifacts-9490e97768d9c41d",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "executable": "/tmp/cinch-self-built-mixed-suite-1/cargo/debug/deps/canonical_artifacts-9490e97768d9c41d",
+      "exit_code": 0,
+      "finished": "2026-11-03T23:51:21.754451+00:00",
+      "log_sha256": "1065acffebcddfaebfe32530361b2fe5416bf7baa45eb44798f15d6dae085d78",
+      "name": "canonical_artifacts",
+      "pid": 51295,
+      "sha256": "3d85f70a25199da455c59387c758634f4983b490f14d002a9c05f12f4bc79b61",
+      "source_unchanged": true,
+      "started": "2026-11-03T23:48:33.826159+00:00",
+      "status": "passed",
+      "worker": 4
+    },
+    {
+      "command": [
+        "/tmp/cinch-self-built-mixed-suite-1/cargo/debug/deps/interface_byte_observations-c308c1807316ead4",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "executable": "/tmp/cinch-self-built-mixed-suite-1/cargo/debug/deps/interface_byte_observations-c308c1807316ead4",
+      "exit_code": 0,
+      "finished": "2026-11-04T00:17:11.813793+00:00",
+      "log_sha256": "994d7196a2c0ea965e8b81232ef38d8b1151192de9fa26d12e96b31c9755379e",
+      "name": "interface_byte_observations",
+      "pid": 53673,
+      "sha256": "90ce758aee7006f8855753d272e07ada713d7f3ffd0549aa156726f44fbd23bb",
+      "source_unchanged": true,
+      "started": "2026-11-03T23:51:22.079161+00:00",
+      "status": "passed",
+      "worker": 4
+    },
+    {
+      "command": [
+        "/tmp/cinch-self-built-mixed-suite-1/cargo/debug/deps/interface_machine_contracts-72e855e9dd9ce400",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "executable": "/tmp/cinch-self-built-mixed-suite-1/cargo/debug/deps/interface_machine_contracts-72e855e9dd9ce400",
+      "exit_code": 0,
+      "finished": "2026-11-04T00:48:47.515244+00:00",
+      "log_sha256": "43af1c01afbf4e501b94ea0a20184511aa3243ca543cfdee26e0de33ab2bfc0b",
+      "name": "interface_machine_contracts",
+      "pid": 78764,
+      "sha256": "21a68379145b77cbb920c746c02912e5b319ddeeefb5e10fb07eb1b91fbfadac",
+      "source_unchanged": true,
+      "started": "2026-11-04T00:17:25.018856+00:00",
+      "status": "passed",
+      "worker": 4
+    }
+  ]
+}
