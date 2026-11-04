@@ -2084,7 +2084,7 @@ module Bootstrap.Infer where
     Cons error rest -> (CError sp, st)
     Nil -> case scoped-prove-refinement (proof-context env st) (proof-facts env) (normalize st expected) (map-term-types (normalize st) term) of
       Some evidence -> (CRefine sp expected evidence term, st)
-      None -> term-error sp "refinement predicate is not established for this value" st
+      None -> term-error sp "refinement predicate is not established for this value (undischarged refinement obligation)" st
   -- Hoisting an actual strict value binding out of a let-generalization
   -- level changes that binding's inference depth, not its identity. Retarget
   -- only references to that witnessed local; unrelated indices and all type
@@ -2822,10 +2822,15 @@ module Bootstrap.Infer where
   check-bodies :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List String -> List Decl -> List Decl -> Store -> (List CoreDefinition, Store)
   check-bodies classes kinds families env seen all ds st = check-body-loop classes kinds families env seen all ds Nil st
   check-body-loop :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List String -> List Decl -> List Decl -> List CoreDefinition -> Store -> (List CoreDefinition, Store)
-  check-body-loop classes kinds families env seen all ds backwards st = case ds of
-    Nil -> (reverse backwards, st)
-    Cons d rest -> case check-body-declaration classes kinds families env seen all d st of
-      (names, definition, ss) -> check-body-loop classes kinds families env names all rest (case definition of None -> backwards; Some core -> Cons core backwards) ss
+  -- A failed body leaves recovery types and an undischarged store. Do not
+  -- treat that store as evidence while checking later definitions: their
+  -- coverage/type diagnostics would be artifacts of the original failure.
+  check-body-loop classes kinds families env seen all ds backwards st = case store-errors st of
+    Cons error rest -> (reverse backwards, st)
+    Nil -> case ds of
+      Nil -> (reverse backwards, st)
+      Cons d rest -> case check-body-declaration classes kinds families env seen all d st of
+        (names, definition, ss) -> check-body-loop classes kinds families env names all rest (case definition of None -> backwards; Some core -> Cons core backwards) ss
   contexts :: List Decl -> List Json
   contexts ds = case ds of
     Nil -> Nil

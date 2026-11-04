@@ -1,0 +1,375 @@
+{
+  "actual_abi6_contracts": [
+    {
+      "hash": "13842151301063202486",
+      "module": "Algebra.Arithmetic",
+      "sha256": "5751c353b4904d163e9e6017d07c59c7b0c220d28919d49d624bbf00709dafa6"
+    },
+    {
+      "hash": "15983031596111231497",
+      "module": "Algebra.Bits",
+      "sha256": "d15247546e2e109174ef0ec5f888d17515f6a55991fd40390d10e8eae17c3ef5"
+    },
+    {
+      "hash": "16869328135167726332",
+      "module": "Algebra.Group",
+      "sha256": "20397581c62248e9fc4e4ade142cff40a9460c20440de3e8510afff66cb593dd"
+    },
+    {
+      "hash": "12426572980860711657",
+      "module": "Algebra.Monoid",
+      "sha256": "e92fba6eb3bab5cd29c8a8b076572925e9aafe9c1d87261ed65dfc5f082aeb65"
+    },
+    {
+      "hash": "6881241614433664628",
+      "module": "Algebra.Semigroup",
+      "sha256": "13bc94f7c39f114cc228a1132398a66e29951aa7490d0039b60e26e057765c82"
+    },
+    {
+      "hash": "1488842932481883057",
+      "module": "Algebra.Semiring",
+      "sha256": "c92734d35b65aecf166ce9051180f2e3659b923cf162d1bd8df69d28e450a9e5"
+    },
+    {
+      "hash": "6864986517333063660",
+      "module": "Category.Alternative",
+      "sha256": "28b8258f250a11296a6ee2b672d5ec734f350463935a6fb0187c9eff59798e22"
+    },
+    {
+      "hash": "7878030592159176235",
+      "module": "Category.Applicative",
+      "sha256": "b598c59ba56e33738e13c8b85ef46f2bf79ab3157991fbb62baa90e9f81a52fa"
+    },
+    {
+      "hash": "7126635349764341739",
+      "module": "Category.Foldable",
+      "sha256": "aa916b365ec9cf9ebbf69a6d0d2407088a45eff7c7c63d5adb3041a106b1f5a1"
+    },
+    {
+      "hash": "628340235998342005",
+      "module": "Category.Functor",
+      "sha256": "54b8566f163acbcc06abbb428eaf6467ae24f581288a885925000186ec6f3dd0"
+    },
+    {
+      "hash": "10189209684746342147",
+      "module": "Category.Monad",
+      "sha256": "4756c09b512033eabf9432c4e98bce108622301c5b203963af491626c44c8e6a"
+    },
+    {
+      "hash": "8463305609808136731",
+      "module": "Category.Traversable",
+      "sha256": "a30b713641209bbb18c353b5cc7965d794a3a55c7462828615634299023f7b34"
+    },
+    {
+      "hash": "16285749250104632482",
+      "module": "Data.Ascii",
+      "sha256": "b7cd1027441c9c03a45f38c46addad724f77bf2eda3f2838cb0a0c84697afaf5"
+    },
+    {
+      "hash": "1516713794899190076",
+      "module": "Data.Bool",
+      "sha256": "d500b9f80658c3713093d323f84381bf5d2466f4fb533da11a236f19d2388af4"
+    },
+    {
+      "hash": "2436511818681150572",
+      "module": "Data.Bytes",
+      "sha256": "44afdf2f1bd97c215d885aaac94be1b1530cedf965a5b8fc19810d7aab1a230d"
+    },
+    {
+      "hash": "5609336336446020904",
+      "module": "Data.Char",
+      "sha256": "c991b64815972a1cfd593f05429e2de45fad45ab9f6cd2c4af051339d4e35630"
+    },
+    {
+      "hash": "1374979336662901828",
+      "module": "Data.Compose",
+      "sha256": "4921e1810a30284cf9630e4fe2cb3291f9e85f0dbdd54d270c4366ec0e7e7646"
+    },
+    {
+      "hash": "4865323618195197639",
+      "module": "Data.Const",
+      "sha256": "8c5f0b75a3acceb8dd92f91d5c1ff5020836810b1dc4d53c9276d83294350c89"
+    },
+    {
+      "hash": "3420315651835929958",
+      "module": "Data.Core",
+      "sha256": "56a0d1fabef31161423bc5cffe54268a5ba0cc668b10501129cd44fa985f5014"
+    },
+    {
+      "hash": "17963298471269881640",
+      "module": "Data.Enum",
+      "sha256": "2a55203099419e8e37018cd3849b654814b88148819cebcf6681b5d75e4b9a06"
+    },
+    {
+      "hash": "1739836151382401118",
+      "module": "Data.FromList",
+      "sha256": "abe9ac49f554bb7970ba0a9f9b948a3dd90dc90b9655d4bf222a0f28a7e7f6f8"
+    },
+    {
+      "hash": "14016075688030151666",
+      "module": "Data.FromMap",
+      "sha256": "fc1c716abce3cf0bdcdda5c9a1e25a9deb28aad336d78348e044f826452b40a5"
+    },
+    {
+      "hash": "17809640171645917845",
+      "module": "Data.Hash",
+      "sha256": "5ab29fb0906800fb9d92c9c7d38bbafe27153beb2f18fdac7c7f7db31b965f14"
+    },
+    {
+      "hash": "15977396049913053081",
+      "module": "Data.HashMap",
+      "sha256": "6b4e27f9f34358380481d29e772c5325a4a690729b3ecdcad1d32f6e731a4568"
+    },
+    {
+      "hash": "2467601184233023551",
+      "module": "Data.Identity",
+      "sha256": "7b59e9b46963e720217320fad1fd522370721190b874a539521d3b9e8c4a291c"
+    },
+    {
+      "hash": "2663618414847375297",
+      "module": "Data.Int",
+      "sha256": "aba49a058b17295dddbd8803f06f7048512d570cc5d867a81fbd1e17e70e3f2d"
+    },
+    {
+      "hash": "14359955746843732831",
+      "module": "Data.Json",
+      "sha256": "a5b07c28a1f87039e796668305d33d73110de4dd225fceaa5782f881c90481b4"
+    },
+    {
+      "hash": "6142962880476242451",
+      "module": "Data.List",
+      "sha256": "a23b76a4ff55356629a52572b05a5b0bd4488940a92b15d73c3f0c4a127e4cb6"
+    },
+    {
+      "hash": "2257442324564629344",
+      "module": "Data.Machine",
+      "sha256": "3e2d67b7180eb66865e31453658ea2be9a817a3d6a2da35dde7312160ce5238f"
+    },
+    {
+      "hash": "2634115353349236146",
+      "module": "Data.Map",
+      "sha256": "b88c9e77f838065b3b3ee5f3ada0fcf210aa9b38ded6a6d80a9260e182ab5c7f"
+    },
+    {
+      "hash": "1629034456318606723",
+      "module": "Data.Nat",
+      "sha256": "4ce74152677b189caf97c8e2a1ced337b3ae8cb3baf46071d75a718c5fe63fde"
+    },
+    {
+      "hash": "1753113886610403996",
+      "module": "Data.NonEmpty",
+      "sha256": "5a68a526211b523cf5b63327cfe176c4835b5fbee83770b3effd4953271da1cc"
+    },
+    {
+      "hash": "4483440388194383488",
+      "module": "Data.NonZero",
+      "sha256": "f4557e27b8414b2c138d46ef09d5876ada90cd583b5b0d62a3d2ebbd1bb213bc"
+    },
+    {
+      "hash": "1145753081147236305",
+      "module": "Data.Option",
+      "sha256": "0a9e7174f53573bc0ed857a4ac16363643526dd88b31f858c892cf12a3a6ff00"
+    },
+    {
+      "hash": "16693064181037897819",
+      "module": "Data.Ordering",
+      "sha256": "9a5b8f6021356d7d3dd1706bf1f9c7a6385957584dbe7ff0e4f1f90ed011bc0e"
+    },
+    {
+      "hash": "4958634132012510761",
+      "module": "Data.Path",
+      "sha256": "37707c287fab2c09793999fcecc2c12742ee33ec42f4de4bf94d16dde0569821"
+    },
+    {
+      "hash": "2050035776222371863",
+      "module": "Data.Producer",
+      "sha256": "b4d8c98a352021ee74a8fdf9fec6ce9bbb81695ca05d59647ebce865a5f6c020"
+    },
+    {
+      "hash": "7651825571225985303",
+      "module": "Data.Result",
+      "sha256": "efcf586ac8e4e30173d9bd497c01a0cbbc61f0f8a1e8d7848484744a569a55a8"
+    },
+    {
+      "hash": "13400877467743081959",
+      "module": "Data.Set",
+      "sha256": "f11cc417b102d3d934c758b2cf729d01dcd1bb4c356044df1eefe80e97b8360c"
+    },
+    {
+      "hash": "10869596701741698519",
+      "module": "Data.Sorted",
+      "sha256": "a41b5dbc5ada4cf347d8998c3b9fa070c952dc75f39775848a09ed3628f6c6d3"
+    },
+    {
+      "hash": "9849046186649177963",
+      "module": "Data.String",
+      "sha256": "693278c82546e99b6fa0fcf84e9ef8a727681ebf845767af1398a027728800aa"
+    },
+    {
+      "hash": "6476929375519347843",
+      "module": "Data.Sym",
+      "sha256": "9a31bb79fb47344fe551a6d3a1a88d3d0a2a022e39138a4eab574fed3851a3d2"
+    },
+    {
+      "hash": "15284296877948332421",
+      "module": "Data.Target",
+      "sha256": "71cd2c1b38bbab78ef84065a0e43f593f44e224b294adabe290d8a33e064fb7e"
+    },
+    {
+      "hash": "16640911728439466776",
+      "module": "Effect.Clock",
+      "sha256": "8563724fc8aaa6af23858235c5d8814d6ec9c5eb0b5cd21a3b385e950885216e"
+    },
+    {
+      "hash": "6672204240006104289",
+      "module": "Effect.Concurrent",
+      "sha256": "091efd15bc78c87564f6ec6ac7345c694a115209739806e785b119d1b450dec9"
+    },
+    {
+      "hash": "14289679991734009925",
+      "module": "Effect.Fs",
+      "sha256": "b88ff886eba02d2a72f180fd126bf6ff1f745947ecea6c7424f92b2c1f71f67c"
+    },
+    {
+      "hash": "1015207891216393428",
+      "module": "Effect.Io",
+      "sha256": "b717c8b7e8c349434491da06dc56f0098a7caaa2349141b8cf64f40e7bf17739"
+    },
+    {
+      "hash": "12849707440356997826",
+      "module": "Effect.Process",
+      "sha256": "30041f76690bc91fdc3d843eaa525a8c55cbfaa19f22b98dd0c77d81c163de2c"
+    },
+    {
+      "hash": "14276833131377607710",
+      "module": "Effect.Sequencing",
+      "sha256": "7aa6e36302ac196fa4a4d49fba8a974987cb6ec120c5286d936c2c1efbdc7201"
+    },
+    {
+      "hash": "625740523843558080",
+      "module": "Function.Combinators",
+      "sha256": "e2e5dc38ce97fad6a93b6e5251bd236be86d2e4bfb9425a427bb9b45413579b7"
+    },
+    {
+      "hash": "1613411840886015548",
+      "module": "Prelude",
+      "sha256": "adf49d2e4094bf8f92b85e02fc13e117941ac779096fbd11499dede5d4cfe9ea"
+    },
+    {
+      "hash": "3324485094145768292",
+      "module": "Relation.Eq",
+      "sha256": "26c1db6861434bbbf38f390f6a3d237ebcd87c3e7a2f8b21aa115018627d0879"
+    },
+    {
+      "hash": "47200044129606778",
+      "module": "Relation.Ord",
+      "sha256": "40f74f75f5cac7ee397d1c22df4e6b8a64692eeada23da6bd42038c6453e48b3"
+    },
+    {
+      "hash": "9568693429672696213",
+      "module": "Text.Codec",
+      "sha256": "83b88b485d4a8fc74266c3b35adf68185a660636c3addfada655be0ebb493442"
+    },
+    {
+      "hash": "10546905207430385165",
+      "module": "Text.Show",
+      "sha256": "fc86493bdd6e033baaaffddb5e3b61440914d0ffce0f904707d44e8b233bebe3"
+    }
+  ],
+  "compiler": {
+    "actual_original_executable": "/private/var/folders/8w/44rf3zr512nd0pd0bwb70vfm0000gn/T/cinch_boot_pipeline_fib_88074_0/pipeline",
+    "actual_project_bootstrap_inputs": {
+      "Bootstrap.Ast.cinch": "a5372ebbba2a3bac1123ed1655d8de7c16c2da5cddf5469314fe68b974ab8188",
+      "Bootstrap.BodyContract.cinch": "94846b0abfb9b5e1b5c854f9abf7cabf6f0a8331fde6f5db5ff38b537262ce12",
+      "Bootstrap.Builtin.cinch": "1c49a1ac4d4c4eb6404a0d151f22c581cc4468ed03ec863044b2c94419bb91b5",
+      "Bootstrap.Check.cinch": "7696d463c8480897acb7196b2f928fc838a8a96d47f9e3110be32ac7465f9c20",
+      "Bootstrap.Contracts.cinch": "0b4ef80fb6695890dd7b17eaaa02afa94cb816ccd180c666d09a197353968049",
+      "Bootstrap.Core.cinch": "0060e26b6316be5a564a149379ac87624f0c7f3a40f25299fa53564a7a03b71e",
+      "Bootstrap.Dictionary.cinch": "d26a57426fe4cc32696c42378f7db6fffdc4684754069f509d3d61e4be6a4012",
+      "Bootstrap.Driver.cinch": "a9350fe510c1dd5a785e5f805a0da632d343a2cd8699f838d9bb3a2b22cab533",
+      "Bootstrap.Export.cinch": "fd4f504213dd1faba647fca222cd8da19fbe7ec3dd4852596911915d42d4db88",
+      "Bootstrap.ExportNominal.cinch": "d5372cdbb7cfda62cec4d97189235a5b917cf07c3015c8bc0b1334e39cb0f100",
+      "Bootstrap.ExportType.cinch": "559a4f970aa42e7740c59a9d6a5210188a886b54e46f991be14b2b8d5fdb47c3",
+      "Bootstrap.Global.cinch": "cdcb00d55df4a6051f3fd4cae8ff9fe02ffe4c2a4ce483b9ae143bf079e93abf",
+      "Bootstrap.Guarded.cinch": "024615db9bfcfc432cb0ee943f9390756cb43d1f52b1de36cd8584ce53dd6d98",
+      "Bootstrap.Index.cinch": "dcb92174c01a96faaf66bc7d550c4e443bfa2d4cdc88376f899eb547c5bf166f",
+      "Bootstrap.Infer.cinch": "ad7c60ce654a578501c0f180a3c80658e3c26d29438bf243c735cee612423c2c",
+      "Bootstrap.Inputs.cinch": "0b69e6f9667acf7e5659741aeac32ba9c0dbe231204d297fbf7b9c88eed2b03c",
+      "Bootstrap.Instance.cinch": "f15e8149f76dcdcaf4cecb02a837af3e586dfe2d861aa1eee9f6b220581ec3ac",
+      "Bootstrap.Interface.cinch": "176ecc8db40bf583ac2b711f6f77029cc81d24fe0bfe3a50a9188ceccb2e632e",
+      "Bootstrap.Ir.cinch": "6e1e5540b6340fcb7b0652f4add6b15fea235176ed36b9d6539789d0cd3d04f5",
+      "Bootstrap.Kinds.cinch": "43ef88263ca7d810b9caa28aa8f2c89c2e87285d98421cb2c9b3658a5b018ee4",
+      "Bootstrap.Load.cinch": "7ca358b69f71d7f1a63cb0e23bedf100cff7471205fa6187e690a09d9d05933f",
+      "Bootstrap.Nominal.cinch": "7c426edbbbb0d7bbd8d096b18cce79f8487a5fb69a7aef8cd21915c9c12cda0a",
+      "Bootstrap.Object.cinch": "e88596e377442ba603ababb109976343b10ee1e00a1b05acdc190b852003f3b3",
+      "Bootstrap.Parse.cinch": "87e49cfa17a85a99301d4ff628236bb1d9e6ea80a631d3b03c92156f81650256",
+      "Bootstrap.Pipeline.cinch": "6ba27e87417bfeb0b57356edea4eea4fd5e2fbfa8769d07be9cbef671dbac87c",
+      "Bootstrap.Proof.cinch": "d8cc2e3b314dccd4314245ee56efe1ecc763346df1d7ab51d3ad55f61a65fb2b",
+      "Bootstrap.Report.cinch": "38e4a34dc34ddfed70ff7348874b0c16b2ae41b23c7026c0b2e10129c9e94d5b",
+      "Bootstrap.Resolve.cinch": "54a37946ce04cb7fb9eb8aea6850b0d02045326362cbaf13ee0f739d20ca8353",
+      "Bootstrap.RuntimeAbi.cinch": "a7f25347ef8b5be6baf048cd3339a913e15623d2717961d272e22a7ff34cddd1",
+      "Bootstrap.RuntimeIr.cinch": "a2d3fe6f3bcf9b0c5e6092ccf552c34303d274e02c3480eaa86e0da552ad5d2c",
+      "Bootstrap.Total.cinch": "63a655358dd9042526eb19666bfd75d33d159fb11dc1fd904fe73f8ca96d1623",
+      "Bootstrap.Type.cinch": "1a7445d15db1d544b9ab6bf74b8dbbe002cb11edddc9a20662715d4b228725a3",
+      "Bootstrap.Typing.cinch": "46ad2f7b4938bfb7930a69363b2dca4b0817377607501c46ccc81c2a8ac5a290"
+    },
+    "compiler": "/tmp/cinch-byte-current-diagnostic-7/diagnostic-cinch",
+    "compiler_sha256": "3db18515f0428af3f8e0b2396c621a73923c2d4f423b8d6f5da09ee92ea21589",
+    "compiler_source_sha256": "ffee20f54e9b9b34b039104b4142b0454f28ead43adfec29753f3a8977fa2d11",
+    "observed_executing_processes": [
+      "92223 88074 /var/folders/8w/44rf3zr512nd0pd0bwb70vfm0000gn/T/cinch_boot_pipeline_fib_88074_0/pipeline /var/folders/8w/44rf3zr512nd0pd0bwb70vfm0000gn/T/cinch_boot_pipeline_fib_88074_0/fib with\\012a newline.cinch /var/folders/8w/44rf3zr512nd0pd0bwb70vfm0000gn/T/cinch_boot_pipeline_fib_88074_0/fib.ll /var/folders/8w/44rf3zr512nd0pd0bwb70vfm0000gn/T/cinch_boot_pipeline_fib_88074_0/fib.bin /var/folders/8w/44rf3zr512nd0pd0bwb70vfm0000gn/T/cinch_boot_pipeline_fib_88074_0/pipeline-report.txt"
+    ],
+    "producer_test_binary": "/tmp/cinch-byte-observation-validation-12/cargo/debug/deps/bootstrap_pipeline-3ec6fede78ff695e",
+    "producer_test_binary_sha256": "9112b4d673c0fa4d98f67c62620896631b5e4d9d8ab2869defb5dd845cb310ef",
+    "runtime_abi": 6,
+    "scope": "Diagnostic only: actual Cinch frontend built and exercised by the complete pipeline regression on source12. Not the exact Stage3 compiler and not a bootstrap completion proof.",
+    "source_sha256": "b2ec8f9d5ccf94d4e2b6ce81f40ff739dc600ead5daa0c8c0cd8cc7607f922aa",
+    "staged_source_identity_note": "Parent identity uses pinned generated ABI5 input; this diagnostic uses the actual Native-built ABI6 variant whose complete Bootstrap input hashes are recorded here."
+  },
+  "compiler_source_sha256": "ffee20f54e9b9b34b039104b4142b0454f28ead43adfec29753f3a8977fa2d11",
+  "failed": 0,
+  "filtered": 0,
+  "full_goal_complete": false,
+  "ignored": 0,
+  "limitations": "This diagnostic compiler is the genuine ABI6 Native-built variant of the candidate; the parent compiler identity renders the pinned ABI5 module for staging. This is not final Stage3 evidence or a staged-bootstrap completion proof. Exact matching final Stage3 must repeat these nine tests as part of the complete91targetsuite, and all remaining Acceptance1-5 requirements remain open.",
+  "log": "/tmp/cinch-byte-current-diagnostic-7/primitive_length_identity.log",
+  "log_sha256": "2484594cc8577c72f88931feb5a0e02083dbbe2fc00cb9ede451b84b92df3174",
+  "original_test_inputs": {
+    "compiler/tests/common/external_frontend.rs": "e5ef66f3c230806da966230e0a19a04de36409fe3b122148bdc3640ce3318b47",
+    "compiler/tests/common/mod.rs": "74c6ce658700cfb7ed8d59927976f7968a3ecb18f5a22196c4283b345362486a",
+    "compiler/tests/primitive_length_identity.rs": "db34314177d1e6f67a787594dd8e43f820a2c3d674bcd30dbccf63821d00461a"
+  },
+  "passed": 9,
+  "producer": {
+    "binary": "/tmp/cinch-byte-observation-validation-12/cargo/debug/deps/bootstrap_pipeline-3ec6fede78ff695e",
+    "binary_sha256": "9112b4d673c0fa4d98f67c62620896631b5e4d9d8ab2869defb5dd845cb310ef",
+    "exit_code": 0,
+    "log_sha256": "215d3d572ed72efeaf1303761c44eed8acf5a4e39949397c8e4a4b5ad03dbba9",
+    "name": "bootstrap_pipeline",
+    "pid": 88074,
+    "status": "passed",
+    "worker_slot": 1
+  },
+  "runner": {
+    "executable": "/tmp/cinch-task-validation-6/cargo/debug/deps/primitive_length_identity-ce45e6581770590d",
+    "kind": "integration",
+    "sha256": "bc8e3aa5522d76d7af089d706f52573acb53b979eb6d7b678e1f02b4d704804f"
+  },
+  "runtime_abi": 6,
+  "scope": "All nine unchanged original primitive_length_identity tests executed through the actual Cinch frontend built and exercised by the full pipeline regression. Original safety/diagnostic assertions unchanged, no Native frontend fallback. Source/project/producer/executable/runner/provider/log identities independently audited.",
+  "source": "/tmp/cinch-byte-observation-validation-12/source",
+  "source_sha256": "b2ec8f9d5ccf94d4e2b6ce81f40ff739dc600ead5daa0c8c0cd8cc7607f922aa",
+  "status": "passed-verified-original-nine-byte-tests-diagnostic",
+  "tests": [
+    "allocation_promise_agrees_with_an_actual_primitive_alias",
+    "fresh_primitive_declaration_supplies_stable_length_facts",
+    "index_operands_use_forall_and_nested_application_carriers",
+    "length_indices_reject_non_byte_carriers",
+    "named_observation_refinements_check_the_defining_carrier_even_when_unused",
+    "primitive_index_witness_executes_the_operation_not_a_missing_global",
+    "primitive_indices_check_result_carriers_and_arity",
+    "refined_byte_operands_and_polymorphic_helpers_keep_their_carriers",
+    "same_spelled_ordinary_reader_cannot_supply_immutable_facts"
+  ],
+  "verified_at": "2026-11-04T18:16:08.798699+00:00"
+}

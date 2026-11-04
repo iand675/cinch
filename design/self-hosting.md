@@ -1,5 +1,26 @@
 # Self-hosting
 
+## Refinement obligation diagnostics repaired
+
+Failed refinement checks now name the undischarged obligation while preserving
+the existing diagnostic prefix. Later definitions are not checked against the
+failed recovery state, avoiding false coverage and type errors. The invalid
+program is still rejected; proof rules and successful checking are unchanged.
+
+All43 compiler modules and21 complete affected groups pass, including139 runtime
+programs with expected outcomes and zero leaks and335 independent Core assertions.
+Compiler identity: `ffee20f54e9b9b34b039104b4142b0454f28ead43adfec29753f3a8977fa2d11`.
+See [the independent scoped audit](../bootstrap/current-refinement-obligation-results.json).
+The [nine unchanged original byte tests](../bootstrap/current-original-byte-diagnostic-results.json)
+also pass through the genuine ABI6 diagnostic Cinch frontend. That frontend is
+explicitly distinct from the final pinned-ABI5 Stage3 compiler.
+
+The preceding ef4 compiler completed its genuine Stage0/1/2/3 chain, but its final
+Stage3 suite confirms the known byte-reader diagnostic failure (8/9 pass).
+This repair still requires its own matching final chain and full suites.
+Refinement interface repairs remain isolated candidates. Acceptance5 and the
+full goal remain open.
+
 ## Value-index compiler completes the genuine bootstrap
 
 The published value-index/byte-contract compiler completes a fresh

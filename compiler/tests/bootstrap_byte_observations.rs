@@ -30,6 +30,7 @@ fn source_observations_use_declared_primitive_identity_and_actual_buffer() {
     let cases=[
         ("byte read Int-promoted range alias","type ByteRange (lo :: Int) (hi :: Int) a = refine (out :: a) with lo <= out && out <= hi\n  foreign import ccall \"cinch.runtime.bytesGet\" raw-get :: Bytes -> Nat -> ByteRange 0 255 Nat\n  read :: Bytes -> Nat\n  read b = raw-get b 0",0),
         ("byte read rejects stronger bounds","foreign import ccall \"cinch.runtime.bytesGet\" raw-get :: Bytes -> Nat -> refined (out <= 254) Nat",4),
+        ("failed refinement keeps primary obligation","bad :: refined (out > 0) Nat\n  bad = 0\n  later :: Bool -> Bool\n  later b = case b of True -> True; False -> False",4),
         ("forall observation carrier","data Mark (n :: Nat) where\n    Mark :: Mark n\n  bad :: forall (n :: Nat). Mark (extent n)",4),
         ("local function observation carrier","data Mark (n :: Nat) where\n    Mark :: Mark n\n  bad :: (f :: Nat -> Nat) -> (n :: Nat) -> Mark (extent (f n))",4),
         ("typed polymorphic byte helper","identity :: forall a. a -> a\n  identity x = x\n  data Mark (n :: Nat) where\n    Mark :: Mark n\n  make :: (b :: refined (extent out >= 0) Bytes) -> Mark (extent (identity b))\n  make b = Mark",0),
@@ -60,6 +61,10 @@ fn source_observations_use_declared_primitive_identity_and_actual_buffer() {
         let result=std::process::Command::new(&exe).current_dir(&dir).output().unwrap();
         let report=common::read_output(&dir,"refinement-report.txt");
         assert_eq!(result.status.code(),Some(status),"{name}; project {}\n{source}\n{report}\n{}",dir.display(),String::from_utf8_lossy(&result.stderr));
+        if name == "failed refinement keeps primary obligation" {
+            assert!(report.contains("refinement predicate is not established") && report.contains("obligation"), "{name}: {report}");
+            assert!(!report.contains("non-exhaustive") && report.lines().count() == 1, "later valid bodies must not add recovery diagnostics: {report}");
+        }
         if name == "ordinary byte helper has no identity authority" { assert!(report.contains("byte observation input needs checked pure total reification"), "{name}: {report}"); }
         if name == "wrong typed identity helper" { assert!(report.contains("Bytes"), "{name}: {report}"); }
         if name == "forall observation carrier" || name == "local function observation carrier" { assert!(report.contains("Bytes"), "{name}: {report}"); }
