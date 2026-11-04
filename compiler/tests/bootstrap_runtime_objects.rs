@@ -84,6 +84,28 @@ fn cinch_calls_actual_library_objects_with_checked_layout_authority() {
     std::fs::write(dir.join("provider.abi.json"), &metadata).unwrap();
     std::fs::write(dir.join("target.txt"), &profile.triple).unwrap();
     let compiler = common::build(&dir, "Main.cinch", "runtime-object-emitter").expect("build actual Cinch object consumer");
+    // Keep proof-bearing machine branches allocation-equivalent to a
+    // direct foreign comparison, using the actual checked object provider.
+    let machine_cost = |step: &str| format!(r#"module Main where
+  foreign import ccall "cinch.prim.wrappingSubI64" sub64 :: I64 -> I64 -> I64
+  foreign import ccall "cinch.prim.wrappingAddI64" add64 :: I64 -> I64 -> I64
+  foreign import ccall "cinch.prim.eqI64" eq64 :: I64 -> I64 -> Bool
+  type NZ = refine (n :: I64) with NonZero n
+  keep :: I64 -> NZ -> I64
+  keep n d = n
+  step :: I64 -> I64 -> I64
+  step n d = {step}
+  loop :: I64 -> I64 -> I64
+  loop i acc = if eq64 i 0 then acc else loop (sub64 i 1) (add64 acc (step i (sub64 i 500)))
+  main :: Int
+  main = if eq64 (loop 100000 0) 0 then 1 else 0
+"#);
+    let machine_cost_inputs = [
+        "if eq64 d 0 then 0 else n",
+        "if d == 0 then 0 else keep n d",
+        "case d == 0 of\n    True -> 0\n    False -> keep n d",
+        "case d of\n    0 -> 0\n    _ -> keep n d",
+    ].map(machine_cost);
     let cases = [
         ("raw", "module Main where\n  import Data.Bool (not)\n  main :: Int\n  main = if not False then 227 else 1\n", 227),
         ("closure", "module Main where\n  import Data.Bool (not)\n  apply :: (Bool -> Bool) -> Bool -> Bool\n  apply f b = f b\n  main :: Int\n  main = if apply not False then 229 else 1\n", 229),
@@ -107,12 +129,17 @@ fn cinch_calls_actual_library_objects_with_checked_layout_authority() {
         ("symbol-word-abi", "module Main where\n  import Library (make-symbol, symbol-name, same-symbol)\n  main :: Int\n  main = if same-symbol (make-symbol \"alpha\") (make-symbol \"alpha\") && not (same-symbol (make-symbol \"beta\") (make-symbol \"alpha\")) && symbol-name (make-symbol \"beta\") == \"beta\" then 201 else 1\n", 201),
         ("symbol-raw-specialization", "module Main where\n  import Library (make-symbol, same-symbol, identity)\n  main :: Int\n  main = if same-symbol (identity (make-symbol \"alpha\")) (make-symbol \"alpha\") then 203 else 1\n", 203),
         ("symbol-first-class-and-field", "module Main where\n  import Library (make-symbol, same-symbol)\n  data Box where\n    Box :: Sym -> Int -> Box\n  apply :: (String -> Sym) -> String -> Sym\n  apply f name = f name\n  main :: Int\n  main = case Box (apply make-symbol \"alpha\") 18446744073709551616 of\n    Box value n -> if same-symbol value (make-symbol \"alpha\") && n == 18446744073709551616 then 205 else 1\n", 205),
+        ("machine-evidence-plain", machine_cost_inputs[0].as_str(), 0),
+        ("machine-evidence-if", machine_cost_inputs[1].as_str(), 0),
+        ("machine-evidence-bool", machine_cost_inputs[2].as_str(), 0),
+        ("machine-evidence-literal", machine_cost_inputs[3].as_str(), 0),
     ];
     for (i, (_, source, _)) in cases.iter().enumerate() { std::fs::write(dir.join(format!("input-{i}.source")), source).unwrap(); }
     std::fs::write(dir.join("batch.count"), vec![b'x'; cases.len()]).unwrap();
     let emitted = Command::new(&compiler).current_dir(&dir).env("CINCH_HEAP_LIMIT", "2G").output().unwrap();
     assert!(emitted.status.success(), "project {}\n{}\n{}", dir.display(), common::read_output(&dir,"admission.diagnostics"), String::from_utf8_lossy(&emitted.stderr));
     let runtime = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("runtime/target/debug/libcinchruntime.a");
+    let mut machine_cost_baseline = None;
     for (i, (name, _, code)) in cases.iter().enumerate() {
         assert_eq!(common::read_output(&dir, &format!("output-{i}.status")), "0", "{name}: {}", common::read_output(&dir, &format!("output-{i}.diagnostics")));
         let ir = dir.join(format!("output-{i}.ll")); let exe = dir.join(format!("program-{i}"));
@@ -125,9 +152,21 @@ fn cinch_calls_actual_library_objects_with_checked_layout_authority() {
         assert!(link.status.success(), "{name}: {}", String::from_utf8_lossy(&link.stderr));
         let mut command = Command::new(&exe);
         if *name == "process-arguments" { command.arg("argument with spaces"); }
+        if name.starts_with("machine-evidence-") { command.env("CINCH_ALLOC_STATS", "1"); }
         let ran = command.env("CINCH_LEAK_CHECK", "1").env("CINCH_RC_DEBUG", "1").env("CINCH_HEAP_LIMIT", "32M").output().unwrap();
         assert_eq!(ran.status.code(), Some(*code), "{name}: {}", String::from_utf8_lossy(&ran.stderr));
         assert!(String::from_utf8_lossy(&ran.stderr).split_whitespace().any(|s| s == "leaked=0"));
+        if name.starts_with("machine-evidence-") {
+            let stderr = String::from_utf8_lossy(&ran.stderr);
+            let stats = stderr.lines().find(|line| line.starts_with("cinch-alloc:")).expect("allocation counters");
+            let blocks: u64 = stats.split_whitespace().find_map(|part| part.strip_prefix("blocks=")).unwrap().parse().unwrap();
+            if *name == "machine-evidence-plain" {
+                assert!(blocks < 100, "plain machine loop allocates per iteration: {blocks}");
+                machine_cost_baseline = Some(blocks);
+            } else {
+                assert_eq!(Some(blocks), machine_cost_baseline, "{name}: evidence adds heap allocations");
+            }
+        }
         println!("object {name}: exit {code}; {}", String::from_utf8_lossy(&ran.stderr).trim());
     }
     // Input identity failures stop admission before any source program emits.

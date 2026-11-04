@@ -180,12 +180,13 @@ module Bootstrap.Typing where
     other -> False
   argument-terms :: TypingContext -> TypeScope -> ProofScope -> List Proposition -> CoreTerm -> Bool
   argument-terms context scope gamma facts terms = case terms of CArgumentsEnd sp -> True; CArgument sp first rest -> checked-term context scope gamma facts first && argument-terms context scope gamma facts rest; other -> False
-  alternatives-typed :: TypingContext -> TypeScope -> ProofScope -> List Proposition -> UType -> UType -> CoreTerm -> Bool
+  alternatives-typed :: TypingContext -> TypeScope -> ProofScope -> List Proposition -> CoreTerm -> UType -> CoreTerm -> Bool
   alternatives-typed context scope gamma facts scrutinee expected alternatives = case alternatives of
     CAlternativesEnd sp -> True
-    CAlternative sp pattern body rest -> (case pattern-scope context scope scrutinee pattern of
-      Some bound -> equal-type expected (core-type body) && checked-term context bound (proof-pattern pattern gamma) facts body
-      None -> False) && alternatives-typed context scope gamma facts scrutinee expected rest
+    CAlternative sp pattern body rest -> (case pattern-scope context scope (core-type scrutinee) pattern of
+      Some bound -> let row-scope = proof-pattern pattern gamma in
+        equal-type expected (core-type body) && checked-term context bound row-scope (scoped-core-case-facts row-scope facts scrutinee pattern True <> facts) body
+      None -> False) && alternatives-typed context scope gamma (if core-alternative-covers body then scoped-core-case-facts gamma facts scrutinee pattern False <> facts else facts) scrutinee expected rest
     other -> False
   checked-term :: TypingContext -> TypeScope -> ProofScope -> List Proposition -> CoreTerm -> Bool
   checked-term context scope gamma facts term = proper-type (core-type term) && wf context scope (core-type term) && (case term of
@@ -214,7 +215,7 @@ module Bootstrap.Typing where
     CLet sp ty id name sc rhs body -> checked-let context scope gamma facts ty id sc rhs body
     CIf sp ty condition yes no -> type-is "Bool" (core-type condition) && equal-type ty (core-type yes) && equal-type ty (core-type no)
       && checked-term context scope gamma facts condition && checked-term context scope gamma (branch-facts gamma facts condition True) yes && checked-term context scope gamma (branch-facts gamma facts condition False) no
-    CCase sp ty value alternatives -> checked-term context scope gamma facts value && alternatives-typed context scope gamma facts (core-type value) ty alternatives
+    CCase sp ty value alternatives -> checked-term context scope gamma facts value && alternatives-typed context scope gamma facts value ty alternatives
     CTuple sp ty fields -> (case tuple-fields ty of Some types -> tuple-terms context scope gamma facts types fields; None -> False)
     CPrimitive sp ty name args -> primitive-types ty name args && argument-terms context scope gamma facts args
     CProved sp ty certificate body -> equal-type ty (core-type body) && checked-term context scope gamma facts body

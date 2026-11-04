@@ -1628,6 +1628,13 @@ module Bootstrap.Infer where
   proof-branch env condition positive st = case scoped-core-branch (proof-context env st) (proof-facts env) (map-term-types (normalize st) condition) positive of
     Some fact -> Cons (MkProofBinding fact) env
     None -> env
+  prepend-proof-facts :: List Proposition -> List CheckedBinding -> List CheckedBinding
+  prepend-proof-facts facts env = case facts of
+    Nil -> env
+    Cons first rest -> Cons (MkProofBinding first) (prepend-proof-facts rest env)
+  proof-case-env :: List CheckedBinding -> CoreTerm -> CorePattern -> Bool -> Store -> List CheckedBinding
+  proof-case-env env value pattern positive st = prepend-proof-facts
+    (scoped-core-case-facts (proof-context env st) (proof-facts env) (map-term-types (normalize st) value) (map-pattern-types (normalize st) pattern) positive) env
   proof-let-env :: List CheckedBinding -> CheckedBinding -> Nat -> Scheme -> CoreTerm -> Store -> List CheckedBinding
   proof-let-env env binding id sc value st = case scoped-core-let-fact (proof-context env st) (proof-facts env) id (map-scheme-types (normalize st) sc) (map-term-types (normalize st) value) of
     Some fact -> Cons (MkProofBinding fact) (Cons binding env)
@@ -1825,7 +1832,7 @@ module Bootstrap.Infer where
             (b, sb) -> (CIf s ty c a b, sb)
     ECase s value alts -> case infer classes kinds families env locals value st of
       (scrut, sv) -> case fresh-meta KType sv of
-        (out, so) -> case check-alternatives classes kinds families env locals (core-type scrut) out alts (ensure-coverage s families env [core-type scrut] (alternative-rows alts) so) of
+        (out, so) -> case check-alternatives classes kinds families env locals scrut out alts (ensure-coverage s families env [core-type scrut] (alternative-rows alts) so) of
           (alternatives, ss) -> (CCase s out scrut alternatives, ss)
     ETuple s args -> case infer-fields classes kinds families env locals args st of
       (types, terms, ss) -> (CTuple s (tuple-type types) terms, ss)
@@ -1855,7 +1862,7 @@ module Bootstrap.Infer where
         (a, sa) -> case check classes kinds families (proof-branch env c False sa) locals no expected sa of
           (b, sb) -> (CIf s expected c a b, sb)
     ECase s value alternatives -> case infer classes kinds families env locals value st of
-      (scrutinee, checked) -> case check-alternatives classes kinds families env locals (core-type scrutinee) expected alternatives (ensure-coverage s families env [core-type scrutinee] (alternative-rows alternatives) checked) of
+      (scrutinee, checked) -> case check-alternatives classes kinds families env locals scrutinee expected alternatives (ensure-coverage s families env [core-type scrutinee] (alternative-rows alternatives) checked) of
         (branches, done) -> (CCase s expected scrutinee branches, done)
     ELitInt s text -> if integer-carrier (normalize st expected) || (case normalize st expected of UMeta id KType -> True; other -> False) then checked-literal s expected text st else check-inferred classes kinds families env locals expr expected st
     ENeg s (ELitInt at text) -> if integer-carrier (normalize st expected) || (case normalize st expected of UMeta id KType -> True; other -> False) then checked-literal s expected (string-concat "-" text) st else check-inferred classes kinds families env locals expr expected st
@@ -1946,7 +1953,7 @@ module Bootstrap.Infer where
   check-refined classes kinds families env locals expr expected carrier st = case expr of
     EIf s condition yes no -> check-unrefined classes kinds families env locals expr expected st
     ECase s value alternatives -> case infer classes kinds families env locals value st of
-      (scrutinee, checked) -> case check-alternatives classes kinds families env locals (core-type scrutinee) expected alternatives (ensure-coverage s families env [core-type scrutinee] (alternative-rows alternatives) checked) of
+      (scrutinee, checked) -> case check-alternatives classes kinds families env locals scrutinee expected alternatives (ensure-coverage s families env [core-type scrutinee] (alternative-rows alternatives) checked) of
         (branches, done) -> (CCase s expected scrutinee branches, done)
     ELet s bindings body -> check-refined-let classes kinds families env locals s bindings body expected st
     EWith s bindings body -> infer-with classes kinds families env locals bindings body (Some expected) st
@@ -2431,12 +2438,12 @@ module Bootstrap.Infer where
       other -> (env, CPWild sp UError, add-error sp "too many constructor pattern arguments" st)
     other -> (env, CPWild sp UError, add-error sp "malformed constructor pattern spine" st)
 
-  check-alternatives :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> UType -> UType -> Expr -> Store -> (CoreTerm, Store)
+  check-alternatives :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> CoreTerm -> UType -> Expr -> Store -> (CoreTerm, Store)
   check-alternatives classes kinds families env locals scrut result alts st = case alts of
     EAltsEnd s -> (CAlternativesEnd s, st)
-    EAlt s p body rest -> case bind-pattern classes kinds families env locals p scrut (duplicate-names s (pattern-names p) Nil st) of
-      (bound, pattern, sb) -> case check-alt-body classes kinds families bound locals body result sb of
-        (rhs, sr) -> case check-alternatives classes kinds families env locals scrut result rest sr of
+    EAlt s p body rest -> case bind-pattern classes kinds families env locals p (core-type scrut) (duplicate-names s (pattern-names p) Nil st) of
+      (bound, pattern, sb) -> case check-alt-body classes kinds families (proof-case-env bound scrut pattern True sb) locals body result sb of
+        (rhs, sr) -> case check-alternatives classes kinds families (if body-covers body then proof-case-env env scrut pattern False sr else env) locals scrut result rest sr of
           (more, ss) -> (CAlternative s pattern rhs more, ss)
     other -> term-error (expr-span alts) "malformed alternative spine" st
   check-alt-body :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> UType -> Store -> (CoreTerm, Store)

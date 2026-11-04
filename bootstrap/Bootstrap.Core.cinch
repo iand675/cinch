@@ -15,6 +15,7 @@ module Bootstrap.Core where
   import Text.Lex (Span)
   import Algebra.Semigroup
 
+  export scoped-core-case-facts, core-alternative-covers
   export CorePattern, CPWild, CPProof, CPVar, CPAs, CPConstructor, CPInt, CPString, CPChar, CPTuple, CPField, CPDone
   export CoreTerm, CUse, CLocal, CInt, CString, CChar, CUnit, CApply, CLambda, CLet, CIf, CCase, CTuple, CPrimitive, CGuard
   export CArgument, CArgumentsEnd, CAlternative, CAlternativesEnd, CError
@@ -1363,6 +1364,42 @@ module Bootstrap.Core where
             Some PTruth -> scoped-core-branch gamma facts test False
             other -> None)
         other -> None
+  -- A case row states facts only about the actual checked scrutinee.
+  -- Failure of a guarded row does not refute its pattern: its guard may
+  -- have failed. Callers add a refutation only for covering rows.
+  scoped-core-case-facts :: ProofScope -> List Proposition -> CoreTerm -> CorePattern -> Bool -> List Proposition
+  scoped-core-case-facts gamma facts value pattern positive = case pattern of
+    CPAs sp ty id name inner ->
+      (if positive then case-value-alias gamma facts value ty id else Nil)
+        <> scoped-core-case-facts gamma facts value inner positive
+    CPVar sp ty id name -> if positive then case-value-alias gamma facts value ty id else Nil
+    CPConstructor sp ty name Nil constructor (CPDone end) ->
+      if not (bool-type ty && bool-type constructor && bool-type (core-type value)) then Nil else
+        if string-compare name "True" == 0 || string-compare name "False" == 0 then
+          (case scoped-core-branch gamma facts value (if positive then string-compare name "True" == 0 else string-compare name "False" == 0) of
+            Some fact -> [fact]
+            None -> Nil)
+          else Nil
+    CPInt sp ty text -> if not (contract-equal ty (core-type value)) then Nil else
+      (case (core-arithmetic gamma facts value, core-arithmetic gamma facts (CInt sp ty text)) of
+        (Some actual, Some literal) -> [PCompare (if positive then Equal else Unequal) actual literal]
+        other -> Nil)
+    other -> Nil
+  case-value-alias :: ProofScope -> List Proposition -> CoreTerm -> UType -> Nat -> List Proposition
+  case-value-alias gamma facts value ty id = if not (integer-carrier ty && contract-equal ty (core-type value)) then Nil else
+    case core-arithmetic gamma facts value of
+      Some actual -> [PCompare Equal (proof-variable id) actual]
+      None -> Nil
+  core-alternative-covers :: CoreTerm -> Bool
+  core-alternative-covers body = case body of
+    CGuard sp ty condition rhs -> (case condition of
+      CUse at actual name role Nil -> bool-type actual && string-compare name "True" == 0 && string-compare role "constructor" == 0
+      other -> False)
+    other -> True
+  case-branch-facts :: ProofScope -> List Proposition -> CoreTerm -> CorePattern -> Bool -> List Proposition
+  case-branch-facts gamma facts value pattern positive = scoped-core-case-facts gamma facts value pattern positive <> facts
+  case-rest-facts :: ProofScope -> List Proposition -> CoreTerm -> CorePattern -> CoreTerm -> List Proposition
+  case-rest-facts gamma facts value pattern body = if core-alternative-covers body then case-branch-facts gamma facts value pattern False else facts
   branch-facts :: ProofScope -> List Proposition -> CoreTerm -> Bool -> List Proposition
   branch-facts gamma facts condition positive = case scoped-core-branch gamma facts condition positive of
     Some p -> Cons p facts
@@ -1435,12 +1472,19 @@ module Bootstrap.Core where
     CIf s ty condition yes no -> proof-term gamma facts condition
       && proof-term gamma (branch-facts gamma facts condition True) yes
       && proof-term gamma (branch-facts gamma facts condition False) no
-    CCase s ty value alts -> proof-term gamma facts value && proof-term gamma facts alts
+    CCase s ty value alts -> proof-term gamma facts value && proof-case-alternatives gamma facts value alts
     CTuple s ty fields -> proof-term gamma facts fields
     CGuard s ty guard rhs -> proof-term gamma facts guard && proof-term gamma (branch-facts gamma facts guard True) rhs
     CArgument s first rest -> proof-term gamma facts first && proof-term gamma facts rest
     CAlternative s pattern body rest -> proof-term (proof-pattern pattern gamma) facts body && proof-term gamma facts rest
     other -> True
+  proof-case-alternatives :: ProofScope -> List Proposition -> CoreTerm -> CoreTerm -> Bool
+  proof-case-alternatives gamma facts value alternatives = case alternatives of
+    CAlternativesEnd sp -> True
+    CAlternative sp pattern body rest -> let bound = proof-pattern pattern gamma in
+      proof-term bound (case-branch-facts bound facts value pattern True) body
+        && proof-case-alternatives gamma (case-rest-facts gamma facts value pattern body) value rest
+    other -> False
   is-refinement :: UType -> Bool
   is-refinement ty = case ty of URefine id name carrier predicate -> True; other -> False
   -- This view is for predicate checking only. It never changes a runtime
@@ -1517,14 +1561,16 @@ module Bootstrap.Core where
     CIf s ty condition yes no -> bool-type (core-type condition) && proof-term gamma facts condition
       && proof-expected gamma (branch-facts gamma facts condition True) ty yes
       && proof-expected gamma (branch-facts gamma facts condition False) ty no
-    CCase s ty value alternatives -> proof-term gamma facts value && refined-alternatives gamma facts ty alternatives
+    CCase s ty value alternatives -> proof-term gamma facts value && refined-alternatives gamma facts value ty alternatives
     CGuard s ty guard rhs -> bool-type (core-type guard) && proof-term gamma facts guard && proof-expected gamma (branch-facts gamma facts guard True) ty rhs
     CWith s ty given value body -> proof-term gamma facts value && proof-expected gamma facts ty body
     other -> False
-  refined-alternatives :: ProofScope -> List Proposition -> UType -> CoreTerm -> Bool
-  refined-alternatives gamma facts ty alternatives = case alternatives of
+  refined-alternatives :: ProofScope -> List Proposition -> CoreTerm -> UType -> CoreTerm -> Bool
+  refined-alternatives gamma facts value ty alternatives = case alternatives of
     CAlternativesEnd s -> True
-    CAlternative s pattern body rest -> proof-expected (proof-pattern pattern gamma) facts ty body && refined-alternatives gamma facts ty rest
+    CAlternative s pattern body rest -> let bound = proof-pattern pattern gamma in
+      proof-expected bound (case-branch-facts bound facts value pattern True) ty body
+        && refined-alternatives gamma (case-rest-facts gamma facts value pattern body) value ty rest
     other -> False
 
   proof-clauses :: List CoreClause -> Bool
@@ -1535,6 +1581,12 @@ module Bootstrap.Core where
   -- positions. Seal against the completed types: keep a valid certificate,
   -- otherwise search again in the actual frozen context. The independent
   -- proof-term pass still checks the resulting certificate without repair.
+  refresh-case-alternatives :: ProofScope -> List Proposition -> CoreTerm -> CoreTerm -> CoreTerm
+  refresh-case-alternatives gamma facts value alternatives = case alternatives of
+    CAlternative sp pattern body rest -> let bound = proof-pattern pattern gamma in
+      CAlternative sp pattern (refresh-certificates bound (case-branch-facts bound facts value pattern True) body)
+        (refresh-case-alternatives gamma (case-rest-facts gamma facts value pattern body) value rest)
+    other -> other
   refresh-certificates :: ProofScope -> List Proposition -> CoreTerm -> CoreTerm
   refresh-certificates gamma facts term = case term of
     CHandler s ty returned operations -> CHandler s ty (refresh-certificates gamma facts returned) (refresh-certificates gamma facts operations)
@@ -1575,7 +1627,8 @@ module Bootstrap.Core where
     CIf s ty condition yes no -> let c = refresh-certificates gamma facts condition in
       CIf s ty c (refresh-certificates gamma (branch-facts gamma facts c True) yes)
         (refresh-certificates gamma (branch-facts gamma facts c False) no)
-    CCase s ty value alts -> CCase s ty (refresh-certificates gamma facts value) (refresh-certificates gamma facts alts)
+    CCase s ty value alts -> let scrutinee = refresh-certificates gamma facts value in
+      CCase s ty scrutinee (refresh-case-alternatives gamma facts scrutinee alts)
     CTuple s ty fields -> CTuple s ty (refresh-certificates gamma facts fields)
     CPrimitive s ty op args -> CPrimitive s ty op (refresh-certificates gamma facts args)
     CGuard s ty condition body -> let c = refresh-certificates gamma facts condition in

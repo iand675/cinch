@@ -32,14 +32,33 @@ fn compiled_cinch_retains_only_valid_one_way_boolean_facts() {
     }
     rows.sort();
     std::fs::write(dir.join("interfaces.json"), format!("{{\"schema\":1,\"interfaces\":[{}]}}", rows.join(","))).unwrap();
-    let cases = vec![
+    let mut cases = vec![
         ("guarded JSON slot conversion", "import Data.Nat\n  probe :: Nat -> Int -> Option Nat\n  probe count slot = if slot >= 0 && nat-from-int slot < count then Some (nat-from-int slot) else None", true),
         ("true conjunction keeps left guard", "import Data.Nat\n  probe :: (Int -> Bool) -> Int -> Nat\n  probe test slot = if slot >= 0 && test slot then nat-from-int slot else 0", true),
         ("false disjunction keeps negative left guard", "import Data.Nat\n  probe :: (Int -> Bool) -> Int -> Nat\n  probe test slot = if slot < 0 || test slot then 0 else nat-from-int slot", true),
         ("false conjunction cannot negate left guard", "import Data.Nat\n  probe :: (Int -> Bool) -> Int -> Nat\n  probe test slot = if slot < 0 && test slot then 0 else nat-from-int slot", false),
         ("true disjunction cannot assert left guard", "import Data.Nat\n  probe :: (Int -> Bool) -> Int -> Nat\n  probe test slot = if slot >= 0 || test slot then nat-from-int slot else 0", false),
         ("nested conjunction keeps outer guard", "import Data.Nat\n  probe :: (Int -> Bool) -> (Int -> Bool) -> Int -> Nat\n  probe first second slot = if slot >= 0 && first slot && second slot then nat-from-int slot else 0", true),
-    ];
+    ].into_iter().map(|(name, body, accepted)| (name, body.to_string(), accepted)).collect::<Vec<_>>();
+    for (name, expression, accepted) in [
+        ("case false comparison keeps nonzero", "case d == 0 of\n    True -> 0\n    False -> keep d d", true),
+        ("case true equality cannot prove nonzero", "case d == 0 of\n    True -> keep d d\n    False -> 0", false),
+        ("case literal fallthrough excludes zero", "case d of\n    0 -> 0\n    _ -> keep d d", true),
+        ("case matched zero cannot prove nonzero", "case d of\n    0 -> keep d d\n    _ -> 0", false),
+        ("guarded literal failure is not pattern refutation", "case d of\n    0 | guard -> 0\n    _ -> keep d d", false),
+        ("false literal guard leaves zero possible", "case d of\n    0 | False -> 0\n    _ -> keep d d", false),
+        ("true literal guard covers its pattern", "case d of\n    0 | True -> 0\n    _ -> keep d d", true),
+        ("case alias keeps actual scalar identity", "case d of\n    0 -> 0\n    value -> keep value value", true),
+        ("case shadow keeps actual scalar identity", "case d of\n    0 -> 0\n    d -> keep d d", true),
+        ("case Boolean wildcard uses preceding refutation", "case d == 0 of\n    True -> 0\n    _ -> keep d d", true),
+        ("case Boolean wildcard cannot invent a polarity", "case d == 0 of\n    _ -> keep d d", false),
+        ("case true inequality keeps nonzero", "case d /= 0 of\n    True -> keep d d\n    False -> 0", true),
+        ("case false inequality cannot prove nonzero", "case d /= 0 of\n    True -> 0\n    False -> keep d d", false),
+        ("case successive literals keep ordered refutations", "case d of\n    0 -> 0\n    1 -> keep d d\n    _ -> keep d d", true),
+        ("case facts do not escape to another local", "case d of\n    0 -> 0\n    _ -> let other = (0 :: I64) in keep other other", false),
+    ] {
+        cases.push((name, format!("type NZ = refine (n :: I64) with NonZero n\n  keep :: I64 -> NZ -> I64\n  keep n d = n\n  probe :: Bool -> I64 -> I64\n  probe guard d = {expression}"), accepted));
+    }
     let mut requests = Vec::new();
     for (name, body, accepted) in cases {
         let source = format!("module Main where\n  {body}\n  main :: Int\n  main = 0\n");

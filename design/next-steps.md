@@ -1,5 +1,32 @@
 # Next steps (as of 2026-11-04)
 
+## Current repair: checked method dispatch and scalar case facts
+
+The current source now removes the allocation regression in the original
+case-evidence loop. Fully applied closed methods use the actual private worker
+selected by the checked declaring class, slot and exported instance metadata.
+ABI checks and strict dictionary-value initialization remain enforced.
+
+Boolean and numeric case rows retain facts about their actual scrutinee.
+Later rows receive earlier-pattern refutations only when those earlier rows
+cover their match; a failed guard does not refute its pattern. Pattern aliases
+retain value identity. Elaboration, Core certificates and independent typing
+use the same scoped rule, including literal True guards.
+
+All 43 compiler modules and all 12 complete focused groups pass, with no ignored
+or filtered cases. All 119 runtime programs execute as expected with zero leaks.
+The four 100,000-iteration plain/if/Boolean-case/literal-case loops each allocate
+exactly 6 startup blocks, replacing the previous 200,006-block evidence loop.
+All original object ABI/refusal checks and 21 Boolean/case source inputs pass.
+See [the independently checked repair evidence](../bootstrap/current-case-dispatch-repair-results.json).
+
+The new Cinch compiler identity is 018a2e3ca7546d60a2ba4c62b200b6a446ce0545d4956c2a3f9362cf6f581bf1.
+Its fresh four-stage bootstrap and complete matching tests are the next gates;
+the earlier 2ea bootstrap proof below does not prove this changed compiler.
+The preceding checkpoint's 208-group Native sweep completed successfully,
+while its self-built case-evidence failure motivated this repair. Full matching
+Native, final Stage3 and auxiliary execution plus Acceptance 1-5 remain open.
+
 ## Rust inline refined arguments repaired
 
 The Rust frontend now retains the actual checked result of an inline computed
@@ -22,7 +49,7 @@ object probe already reduces the proof-bearing if from200006 allocations to6;
 the Boolean and literal case probes remain required. The complete bootstrap
 and external results below describe their recorded Cinch compiler identity.
 
-## Current compiler bootstraps through Stage3 (2026-11-04)
+## Previous 2ea compiler bootstrap checkpoint (2026-11-04)
 
 The current Cinch compiler (`2ea1460a5a1f426cf65b16767ed96e97dff1ffb2d3ee022b4ca1724bf2e6075c`)
 now completes the fresh Stage0/1/2/3 chain. Every stage passes all three smoke

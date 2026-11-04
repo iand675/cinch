@@ -16,7 +16,7 @@ module Bootstrap.Object where
   export RuntimeObject, RuntimeUnit, parse-runtime-object, read-runtime-object
   export object-words, object-unit, unit-symbol, unit-closure, unit-params, unit-result
   export llvm-object-symbol
-  export object-variant, object-dictionary, object-family, object-conditional-unit
+  export object-variant, object-dictionary, object-family, object-conditional-unit, object-closed-method-unit
   export object-string-layout, llvm-data-bytes
 
   data RuntimeUnit where
@@ -93,6 +93,29 @@ module Bootstrap.Object where
           other -> None)
         None -> None)
     other -> None
+  -- A closed factory containing only actual function workers has no
+  -- strict value initialization to preserve. Select its private worker
+  -- through the exported instance and exact declaring slot, never as an
+  -- ordinary value export. A zero-argument worker is a strict value and
+  -- keeps the normal dictionary construction path.
+  closed-function-fields :: List RuntimeUnit -> List Nat -> Json -> Bool
+  closed-function-fields units fields methods = case (fields, methods) of
+    (Nil, JArrEnd) -> True
+    (Cons 1 rest, JArr (JStr name) more) -> (case find-unit (interface-global name) units of
+      Some unit -> (case unit-params unit of Nil -> False; other -> True) && closed-function-fields units rest more
+      None -> False)
+    other -> False
+  object-closed-method-unit :: String -> String -> Nat -> RuntimeObject -> Option RuntimeUnit
+  object-closed-method-unit owner factory slot value = case value of
+    RuntimeObject words units exports instances dictionaries families constructors types -> if not (has factory instances) then None else
+      (case dictionary-row factory dictionaries of
+        Some (key, row) -> (case (field "class" row, field "context_arity" row, classes (field "fields" row)) of
+          (JStr actual-owner, JNum 0, Some fields) -> if not (same owner (interface-global actual-owner) && closed-function-fields units fields (field "methods" row)) then None else
+            (case conditional-method-at slot (field "methods" row) of
+              Some method -> find-unit (interface-global method) units
+              None -> None)
+          other -> None)
+        None -> None)
   own-classes :: String -> Nat -> Option (List Nat)
   own-classes text index = let bytes = string-to-bytes text in if index < bytes-len bytes then
     (let byte = bytes-get bytes index in if byte /= 82 && byte /= 79 && byte /= 84 then None else

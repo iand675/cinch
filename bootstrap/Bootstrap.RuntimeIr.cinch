@@ -5,7 +5,7 @@
 module Bootstrap.RuntimeIr where
   import Bootstrap.Check (CheckedProgram, checked-elaboration)
   import Bootstrap.Infer (elaboration-core, elaboration-data, elaboration-effects, elaboration-classes, elaboration-instances, elaboration-bindings, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-conditional-target)
-  import Bootstrap.Object (RuntimeObject, RuntimeUnit, object-words, object-unit, object-variant, object-dictionary, object-family, object-conditional-unit, object-string-layout, unit-symbol, unit-closure, unit-params, unit-result, llvm-object-symbol, llvm-data-bytes)
+  import Bootstrap.Object (RuntimeObject, RuntimeUnit, object-words, object-unit, object-variant, object-dictionary, object-family, object-conditional-unit, object-closed-method-unit, object-string-layout, unit-symbol, unit-closure, unit-params, unit-result, llvm-object-symbol, llvm-data-bytes)
   import Bootstrap.Core
   import Bootstrap.Instance
   import Bootstrap.Type
@@ -519,9 +519,27 @@ module Bootstrap.RuntimeIr where
   application :: List CoreDefinition -> List Local -> Writer -> Span -> CoreTerm -> CoreTerm -> CoreTerm -> (Writer, String)
   application definitions locals w sp term f x = case head term of
       CUse at function name role actuals -> direct-call definitions locals w sp name actuals (arguments term Nil)
-      other -> case expression definitions locals w f of
-        (callee, function) -> case expression definitions locals callee x of
-          (ready, value) -> apply-one ready function value
+      CMethod at function name owner slot actuals [CEInstance location receiver factory Nil (CEArgumentsEnd end)] ->
+        (case closed-method-unit w name owner slot actuals factory of
+          Some unit -> if list-length (arguments term Nil) == list-length (unit-params unit) then
+            external-call-unit definitions locals (note-version owner slot Nil w) sp unit (mono function) Nil (arguments term Nil)
+            else indirect-application definitions locals w f x
+          None -> indirect-application definitions locals w f x)
+      other -> indirect-application definitions locals w f x
+  indirect-application :: List CoreDefinition -> List Local -> Writer -> CoreTerm -> CoreTerm -> (Writer, String)
+  indirect-application definitions locals w f x = case expression definitions locals w f of
+    (callee, function) -> case expression definitions locals callee x of
+      (ready, value) -> apply-one ready function value
+  closed-method-unit :: Writer -> String -> String -> Nat -> List UType -> String -> Option RuntimeUnit
+  closed-method-unit w name owner slot actuals factory = case (program-object (writer-program w), find-class owner (program-classes (writer-program w)), instance-binding factory (program-bindings (writer-program w))) of
+    (Some provider, Some description, Some binding) -> if not (method-reference name owner slot (program-bindings (writer-program w))) then None else
+      (case (scheme-params (checked-scheme binding), scheme-requirements (checked-scheme binding), class-owner (scheme-body (checked-scheme binding)), method-at slot (class-methods description)) of
+        (Nil, Nil, Some actual-owner, Some member) -> if not (same owner actual-owner) then None else
+          (case method-own-classes w member actuals of
+            Some Nil -> object-closed-method-unit owner factory slot provider
+            other -> None)
+        other -> None)
+    other -> None
   expressions :: List CoreDefinition -> List Local -> Writer -> List CoreTerm -> (Writer, List String)
   expressions definitions locals w terms = case terms of
     Nil -> (w, Nil)
