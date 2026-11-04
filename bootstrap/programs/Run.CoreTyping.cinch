@@ -5,6 +5,7 @@ module Main where
   import Bootstrap.Global
   import Bootstrap.Kinds
   import Bootstrap.Typing
+  import Bootstrap.Dictionary (resolve-dictionary-term-with)
   import Text.Lex (Span)
   import Data.Path (path-from-string)
   import Effect.Fs (fs-read)
@@ -106,9 +107,63 @@ module Main where
         , (case close-typing-context kinds [GlobalValue "bad" "constructor" (mono (UFunEff unit log-row int))] of None -> True; Some other -> False)
         ]
       other -> [False]
+  scope-checks :: Nat -> List Bool
+  scope-checks nonce =
+    let q = MkQuant nonce "r" KRegion False in
+    let owner = URigid (nonce + 1) "r" 1 KRegion in
+    let region = URigid (nonce + 2) "s" 2 KRegion in
+    let inner = URigid (nonce + 3) "nested" 3 KRegion in
+    let token = scope-type owner region in
+    let io ty = UApp (UCon "b.Io" (KFun KRegion KType)) ty in
+    let diverge = URow (UArg (UCon "Diverge" KEffect) UEnd) in
+    let bound-io = io (UBound nonce "r" KRegion) in
+    let actual-io = io owner in
+    let evidence = CEGiven sp actual-io "scope-io" in
+    let callback = CLambda sp (UFun token int) (CPVar sp token (nonce + 10) "scope") integer in
+    let good = CScope sp int region evidence callback in
+    let task-kinds = Cons ("b.Io", KFun KRegion KType) (Cons ("b.Scope", scope-kind) kinds) in
+    let sc row = qualified [q] [MkRequirement "io" bound-io] (UFunEff unit row int) in
+    let check row body = (let declared = sc row in
+      (case close-typing-context task-kinds [GlobalValue "scope-work" "value" declared, GlobalValue "effect" "external" (mono (UFunEff unit log-row int))] of
+        None -> False
+        Some context -> typing-definition-closed context (MkCoreDefinition sp "scope-work" declared [(nonce, owner)] [CGiven sp "scope-io" actual-io] Nil [MkCoreClause sp [CPWild sp unit] body]))) in
+    let resolution supplied = (case resolve-dictionary-term-with [("b.Io", KFun KRegion KType)] Nil [CGiven sp "scope-io" actual-io] (CScope sp int region supplied callback) (empty-store "scope evidence") of
+      (found, checked) -> (case store-errors checked of Nil -> check diverge found; other -> False)) in
+    let effectful = CLambda sp (UFunEff token log-row int) (CPWild sp token) (CApplyEff sp int log-row (CUse sp (UFunEff unit log-row int) "effect" "external" Nil) (CUnit sp unit)) in
+    let nested-token = scope-type owner inner in
+    let nested = CScope sp int inner evidence (CLambda sp (UFun nested-token int) (CPWild sp nested-token) integer) in
+    let repeated = CScope sp int region evidence (CLambda sp (UFun token int) (CPWild sp token) integer) in
+    let escaped = CLet sp int (nonce + 11) "outside" (mono (UFun token int)) callback integer in
+    [ check diverge good
+    , resolution (CENeeded sp actual-io [CGiven sp "scope-io" actual-io])
+    , not (resolution (CENeeded sp actual-io Nil))
+    , not (resolution (CEGiven sp actual-io "missing"))
+    , not (resolution (CENeeded sp (io region) [CGiven sp "scope-io" actual-io]))
+    , check diverge (map-term-types (\ty -> ty) good)
+    , not (check zero-row good)
+    , not (check diverge (CScope sp int owner evidence (CLambda sp (UFun (scope-type owner owner) int) (CPWild sp (scope-type owner owner)) integer)))
+    , not (check diverge (CScope sp int (UCon "pretend" KRegion) evidence callback))
+    , not (check diverge (CScope sp int region (CEGiven sp actual-io "missing") callback))
+    , not (check diverge (CScope sp int region (CEGiven sp (io region) "scope-io") callback))
+    , not (check diverge (CScope sp int region evidence (CLambda sp (UFun (scope-type region region) int) (CPWild sp (scope-type region region)) integer)))
+    , not (check diverge (CScope sp int region evidence (CLambda sp (UFun unit int) (CPWild sp unit) integer)))
+    , not (check diverge (CScope sp int region evidence (CLambda sp (UFun (scope-type owner inner) int) (CPWild sp (scope-type owner inner)) integer)))
+    , not (check diverge escaped)
+    , check (union-effects diverge log-row) (CScope sp int region evidence effectful)
+    , not (check diverge (CScope sp int region evidence effectful))
+    , check diverge (CScope sp int region evidence (CLambda sp (UFunEff token diverge int) (CPWild sp token) nested))
+    , not (check diverge (CScope sp int region evidence (CLambda sp (UFunEff token diverge int) (CPWild sp token) repeated)))
+    , scope-region-closed region int
+    , not (scope-region-closed region token)
+    , not (scope-region-closed region (UFun unit (UTuple (UArg token UEnd))))
+    , not (scope-region-closed region (URow (UArg (UApp (UCon "ScopedEffect" (KFun KRegion KEffect)) region) UEnd)))
+    ]
   verdict :: Int -> List Bool -> Int
   verdict next values = case values of Nil -> 0; Cons True rest -> verdict (next + 1) rest; Cons False rest -> next
   main :: Unit ->{IO r} Int
   main unit = with (io = newIO ()) in case fs-read (path-from-string "nonce.txt") of
     Err error -> 90
-    Ok input -> verdict 1 (checks (340282366920938463463374607431768211456 + bytes-len input))
+    Ok input -> let nonce = 340282366920938463463374607431768211456 + bytes-len input in
+      case verdict 1 (scope-checks nonce) of
+        0 -> verdict 1 (checks nonce)
+        code -> 100 + code

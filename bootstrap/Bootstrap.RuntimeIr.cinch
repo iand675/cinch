@@ -495,6 +495,7 @@ module Bootstrap.RuntimeIr where
     CApplyEff sp ty row f x -> CApplyEff sp ty row (specialize-local id scheme value f) (specialize-local id scheme value x)
     CErasedApply sp ty row f x -> CErasedApply sp ty row (specialize-local id scheme value f) (specialize-local id scheme value x)
     CDecision sp ty predicate condition -> CDecision sp ty predicate (specialize-local id scheme value condition)
+    CScope sp ty region evidence callback -> CScope sp ty region evidence (specialize-local id scheme value callback)
     CWith sp ty given rhs body -> CWith sp ty given (specialize-local id scheme value rhs) (specialize-local id scheme value body)
     CHandler sp ty returned operations -> CHandler sp ty (specialize-local id scheme value returned) (specialize-local id scheme value operations)
     CHandle sp ty label residual body handled-by -> CHandle sp ty label residual (specialize-local id scheme value body) (specialize-local id scheme value handled-by)
@@ -531,6 +532,7 @@ module Bootstrap.RuntimeIr where
     CQualifiedUse sp ty name role actuals evidence -> case evidences definitions locals w evidence of
       (ready, values) -> call-name definitions locals ready sp name actuals values Nil
     CMethod sp ty name owner slot actuals evidence -> method-value definitions locals w sp ty name owner slot actuals evidence
+    CScope sp ty region evidence callback -> unsupported w sp "structured task scope needs lifetime and linear-handle validation before runtime lowering"
     CWith sp ty given value body -> case expression definitions locals w value of
       (ready, word) -> case expression definitions (Cons (GivenLocal (given-symbol given) (given-type given) word) locals) ready body of
         (done, result) -> (count-op False (given-type given) word done, result)
@@ -867,6 +869,7 @@ module Bootstrap.RuntimeIr where
     CApplyEff sp ty row first second -> merge-value-fields (term-value-dependencies w owner key seen first) (term-value-dependencies w owner key seen second)
     CLambda sp ty pattern body -> term-value-dependencies w owner key seen body
     CLet sp ty id name sc value body -> merge-value-fields (term-value-dependencies w owner key seen value) (term-value-dependencies w owner key seen body)
+    CScope sp ty region evidence callback -> term-value-dependencies w owner key seen callback
     CWith sp ty given value body -> merge-value-fields (term-value-dependencies w owner key seen value) (term-value-dependencies w owner key seen body)
     CIf sp ty condition yes no -> merge-value-fields (term-value-dependencies w owner key seen condition) (merge-value-fields (term-value-dependencies w owner key seen yes) (term-value-dependencies w owner key seen no))
     CCase sp ty value alternatives -> merge-value-fields (term-value-dependencies w owner key seen value) (term-value-dependencies w owner key seen alternatives)
@@ -1141,6 +1144,7 @@ module Bootstrap.RuntimeIr where
     CLocal sp ty key name actuals -> id == key
     CApply sp ty first second -> term-uses id first || term-uses id second
     CApplyEff sp ty row first second -> term-uses id first || term-uses id second
+    CScope sp ty region evidence callback -> term-uses id callback
     CWith sp ty given value body -> term-uses id value || term-uses id body
     CLambda sp ty pattern body -> not (pattern-binds id pattern) && term-uses id body
     CLet sp ty key name sc rhs body -> term-uses id rhs || (id /= key && term-uses id body)
@@ -1173,6 +1177,7 @@ module Bootstrap.RuntimeIr where
     CApplyEff sp ty row first second -> given-uses name first || given-uses name second
     CLambda sp ty pattern body -> given-uses name body
     CLet sp ty key symbol sc rhs body -> given-uses name rhs || given-uses name body
+    CScope sp ty region evidence callback -> evidence-uses name evidence || given-uses name callback
     CWith sp ty given value body -> given-uses name value || (not (same name (given-symbol given)) && given-uses name body)
     CIf sp ty test yes no -> given-uses name test || given-uses name yes || given-uses name no
     CCase sp ty value alternatives -> given-uses name value || given-uses name alternatives

@@ -20,6 +20,7 @@ module Bootstrap.Core where
   export CoreTerm, CUse, CLocal, CInt, CString, CChar, CUnit, CApply, CLambda, CLet, CIf, CCase, CTuple, CPrimitive, CGuard
   export CArgument, CArgumentsEnd, CAlternative, CAlternativesEnd, CError
   export CApplyEff, CWith, core-effects
+  export CScope, scope-kind, scope-type, scope-callback-parts, scope-region-closed
   export CHandler, CHandle, CHandlerOperation, CHandlerEnd
   export handler-kind, handler-type, handler-parts, handler-residual, handler-operation-scheme, handler-clause-type, handler-resumption-safe, handler-body-direct
   export CProofRef, CErasedApply, scope-erased, scoped-proof-reference
@@ -268,6 +269,7 @@ module Bootstrap.Core where
     -- The test is executable; the proposition is checked against that
     -- exact test in the actual value scope before it can justify a branch.
     CDecision :: Span -> UType -> UType -> CoreTerm -> CoreTerm
+    CScope :: Span -> UType -> UType -> CoreEvidence -> CoreTerm -> CoreTerm
     CWith :: Span -> UType -> CoreGiven -> CoreTerm -> CoreTerm -> CoreTerm
     CHandler :: Span -> UType -> CoreTerm -> CoreTerm -> CoreTerm
     CHandle :: Span -> UType -> UType -> UType -> CoreTerm -> CoreTerm -> CoreTerm
@@ -398,6 +400,7 @@ module Bootstrap.Core where
     CRequire sp ty body -> handler-body-direct label names body
     CDischarge sp ty evidence body -> handler-body-direct label names body
     CGuard sp ty condition body -> handler-body-direct label names condition && handler-body-direct label names body
+    CScope sp ty region evidence callback -> handler-row-absent label (core-effects term) && handler-body-direct label names callback
     CWith sp ty given value body -> handler-body-direct label names value && handler-body-direct label names body
     CHandle sp ty inner residual body handled-by -> handler-row-absent label (core-effects term)
     -- Constructing a closure or handler does not execute its body.
@@ -430,6 +433,7 @@ module Bootstrap.Core where
     CRequire sp ty body -> resume-uses id body
     CDischarge sp ty evidence body -> resume-uses id body
     CGuard sp ty condition body -> resume-uses id condition + resume-uses id body
+    CScope sp ty region evidence callback -> resume-uses id callback
     CWith sp ty given value body -> resume-uses id value + resume-uses id body
     CHandle sp ty label residual body handled-by -> resume-uses id body + resume-uses id handled-by
     CHandler sp ty returned operations -> if resume-uses id returned + resume-uses id operations > 0 then 2 else 0
@@ -484,6 +488,25 @@ module Bootstrap.Core where
 
   -- Sequence nodes have no value type. They only appear in the matching
   -- tuple, primitive, pattern or alternative positions, never as values.
+  -- A scope binds a genuinely fresh region only inside its callback.
+  -- Neither a printed region name nor a cached kind introduces this binder.
+  scope-kind :: Kind
+  scope-kind = KFun KRegion (KFun KRegion KType)
+  scope-type :: UType -> UType -> UType
+  scope-type owner region = UApp (UApp (UCon "b.Scope" scope-kind) owner) region
+  scope-region-closed :: UType -> UType -> Bool
+  scope-region-closed region result = case region of
+    URigid id name level KRegion -> not (local-id id (type-all-ids result))
+    other -> False
+  scope-callback-parts :: UType -> Option (UType, UType, UType, UType)
+  scope-callback-parts ty = case ty of
+    UFun domain result -> scope-domain domain (URow UEnd) result
+    UFunEff domain row result -> scope-domain domain row result
+    other -> None
+  scope-domain :: UType -> UType -> UType -> Option (UType, UType, UType, UType)
+  scope-domain domain row result = case domain of
+    UApp (UApp (UCon name kind) owner) region -> if string-compare name "b.Scope" == 0 && kind-equal kind scope-kind && kind-equal (type-kind owner) KRegion && kind-equal (type-kind region) KRegion then Some (owner, region, row, result) else None
+    other -> None
   core-type :: CoreTerm -> UType
   core-type term = case term of
     CUse s ty name role actuals -> ty
@@ -499,6 +522,7 @@ module Bootstrap.Core where
     CApplyEff s ty row f x -> ty
     CErasedApply s ty row f x -> ty
     CDecision s ty predicate condition -> ty
+    CScope s ty region evidence callback -> ty
     CWith s ty given value body -> ty
     CHandler s ty returned operations -> ty
     CHandle s ty label residual body handled-by -> ty
@@ -527,6 +551,7 @@ module Bootstrap.Core where
     CApplyEff s ty row f x -> union-effects row (union-effects (core-effects f) (core-effects x))
     CErasedApply s ty row f witness -> union-effects row (union-effects (core-effects f) (core-effects witness))
     CDecision s ty predicate condition -> core-effects condition
+    CScope s ty region evidence callback -> (case scope-callback-parts (core-type callback) of Some (owner, bound, row, result) -> union-effects (URow (UArg (UCon "Diverge" KEffect) UEnd)) (union-effects row (core-effects callback)); None -> UError)
     CWith s ty given value body -> union-effects (core-effects value) (core-effects body)
     CHandle s ty label residual body handled-by -> case handler-parts (core-type handled-by) of
       Some (declared-label, input, output, row) -> union-effects residual (union-effects row (core-effects handled-by))
@@ -581,6 +606,7 @@ module Bootstrap.Core where
     CApplyEff s ty row fun arg -> case f row of
       URow UEnd -> CApply s (f ty) (map-term-types f fun) (map-term-types f arg)
       effects -> CApplyEff s (f ty) effects (map-term-types f fun) (map-term-types f arg)
+    CScope s ty region evidence callback -> CScope s (f ty) (f region) (map-evidence f evidence) (map-term-types f callback)
     CWith s ty given value body -> CWith s (f ty) (CGiven s (given-symbol given) (f (given-type given))) (map-term-types f value) (map-term-types f body)
     CHandler s ty returned operations -> CHandler s (f ty) (map-term-types f returned) (map-term-types f operations)
     CHandle s ty label residual body handled-by -> CHandle s (f ty) (f label) (f residual) (map-term-types f body) (map-term-types f handled-by)
@@ -729,6 +755,7 @@ module Bootstrap.Core where
     CApplyEff s ty row f x -> type-metas st ty <> type-metas st row <> term-metas st f <> term-metas st x
     CErasedApply s ty row f witness -> type-metas st ty <> type-metas st row <> term-metas st f <> term-metas st witness
     CDecision s ty predicate condition -> type-metas st ty <> type-metas st predicate <> term-metas st condition
+    CScope s ty region evidence callback -> type-metas st ty <> type-metas st region <> evidence-metas st evidence <> term-metas st callback
     CWith s ty given value body -> type-metas st ty <> type-metas st (given-type given) <> term-metas st value <> term-metas st body
     CHandler s ty returned operations -> type-metas st ty <> term-metas st returned <> term-metas st operations
     CHandle s ty label residual body handled-by -> type-metas st ty <> type-metas st label <> type-metas st residual <> term-metas st body <> term-metas st handled-by
@@ -870,6 +897,7 @@ module Bootstrap.Core where
     CApply s ty f x -> closed-runtime-type ty && valid-term f && valid-term x
     CApplyEff s ty row f x -> closed-runtime-type ty && closed-type row && kind-equal (type-kind row) KRow && valid-term f && valid-term x
     CErasedApply s ty row f witness -> closed-runtime-type ty && closed-type row && kind-equal (type-kind row) KRow && valid-term f && valid-proof-reference witness
+    CScope s ty region evidence callback -> closed-runtime-type ty && closed-type region && scope-region-closed region ty && scope-region-closed region (core-effects term) && evidences-closed [evidence] && valid-term callback
     CWith s ty given value body -> closed-runtime-type ty && closed-type (given-type given) && valid-term value && valid-term body
     CHandler s ty returned operations -> closed-runtime-type ty && valid-term returned && valid-term operations
     CHandle s ty label residual body handled-by -> closed-runtime-type ty && closed-type label && closed-type residual && valid-term body && valid-term handled-by
@@ -1026,6 +1054,7 @@ module Bootstrap.Core where
       CApply s ty f x -> scoped-term-with universals values scope f && scoped-term-with universals values scope x
       CApplyEff s ty row f x -> type-index-scope universals rigid row && scoped-term-with universals values scope f && scoped-term-with universals values scope x
       CErasedApply s ty row f witness -> type-index-scope universals rigid row && scoped-term-with universals values scope f && scoped-term-with universals values scope witness
+      CScope s ty region evidence callback -> type-index-scope universals rigid region && evidence-index-scope-with universals rigid evidence && scoped-term-with universals values scope callback
       CWith s ty given value body -> type-index-scope universals rigid (given-type given) && scoped-term-with universals values scope value && scoped-term-with universals values scope body
       CHandler s ty returned operations -> scoped-term-with universals values scope returned && scoped-term-with universals values scope operations
       CHandle s ty label residual body handled-by -> type-index-scope universals rigid label && type-index-scope universals rigid residual && scoped-term-with universals values scope body && scoped-term-with universals values scope handled-by
@@ -1462,6 +1491,7 @@ module Bootstrap.Core where
     CPrimitive s ty op args -> not (nat-type ty && string-compare op "-" == 0) && proof-term gamma facts args
     CApply s ty f x -> proof-term gamma facts f && proof-term gamma facts x && (if contains-required (core-type f) then application-type gamma facts ty (URow UEnd) f x else True)
     CApplyEff s ty row f x -> proof-term gamma facts f && proof-term gamma facts x && (if contains-required (core-type f) then application-type gamma facts ty row f x else True)
+    CScope s ty region evidence callback -> proof-term gamma facts callback
     CWith s ty given value body -> proof-term gamma facts value && proof-term gamma facts body
     CHandler s ty returned operations -> proof-term gamma facts returned && proof-term gamma facts operations
     CHandle s ty label residual body handled-by -> proof-term gamma facts body && proof-term gamma facts handled-by
@@ -1563,6 +1593,7 @@ module Bootstrap.Core where
       && proof-expected gamma (branch-facts gamma facts condition False) ty no
     CCase s ty value alternatives -> proof-term gamma facts value && refined-alternatives gamma facts value ty alternatives
     CGuard s ty guard rhs -> bool-type (core-type guard) && proof-term gamma facts guard && proof-expected gamma (branch-facts gamma facts guard True) ty rhs
+    CScope s ty region evidence callback -> proof-term gamma facts callback
     CWith s ty given value body -> proof-term gamma facts value && proof-expected gamma facts ty body
     other -> False
   refined-alternatives :: ProofScope -> List Proposition -> CoreTerm -> UType -> CoreTerm -> Bool
@@ -1619,6 +1650,7 @@ module Bootstrap.Core where
     CApplyEff s ty row f x -> CApplyEff s ty row (refresh-certificates gamma facts f) (refresh-certificates gamma facts x)
     CErasedApply s ty row f witness -> CErasedApply s ty row (refresh-certificates gamma facts f) witness
     CDecision s ty predicate condition -> CDecision s ty predicate (refresh-certificates gamma facts condition)
+    CScope s ty region evidence callback -> CScope s ty region evidence (refresh-certificates gamma facts callback)
     CWith s ty given value body -> CWith s ty given (refresh-certificates gamma facts value) (refresh-certificates gamma facts body)
     CLambda s ty pattern body -> CLambda s ty pattern (refresh-certificates (proof-pattern pattern gamma) facts body)
     CLet s ty id name sc rhs body -> let value = refresh-certificates gamma facts rhs in

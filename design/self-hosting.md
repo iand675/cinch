@@ -1,5 +1,25 @@
 # Self-hosting
 
+## Scoped-region Core foundation verified
+
+Core now has an explicit fresh-region binder for structured scopes. The
+independent checker binds that Region only inside the callback, requires
+matching lexical Io evidence, checks owner/result/effect identity and rejects
+reused binders and visible region escape. All Core substitution, proof,
+reference, dictionary and runtime capture/dependency traversals preserve it.
+
+All 43 compiler sources and six complete focused groups pass on identical
+compiler inputs. The corrected scope fixture executes 23 checks at each of
+five large identifier sizes, retaining all original typing tests. All 125
+existing runtime programs return their expected values with zero leaks.
+See [the scoped Core proof](../bootstrap/current-scoped-region-core-results.json).
+
+This is a Core foundation. Source task forms, linear handle consumption and
+capture/lifetime checking are still unfinished. Scoped nodes explicitly refuse
+runtime emission until that safety work and physical task lowering are ready.
+No new bootstrap or task execution is claimed. The current compiler identity
+is 6cb4a980e5d7a90ffdb621d456092233ae4e3d8c113c3ea953d37b45b08441c5; Acceptance 1-5 remains open.
+
 ## Direct sequencing validated; structured tasks remain open
 
 Direct `do` now parses explicit and layout blocks, scopes bindings in order,

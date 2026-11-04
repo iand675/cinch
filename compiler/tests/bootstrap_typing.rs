@@ -5,6 +5,7 @@ mod common;
 fn core_typing_rechecks_annotations_with_actual_declarations_and_scopes() {
     let dir = common::project("core_typing", &[
         ("Bootstrap.Type.cinch", include_str!("../../bootstrap/Bootstrap.Type.cinch")),
+        ("Bootstrap.Dictionary.cinch", include_str!("../../bootstrap/Bootstrap.Dictionary.cinch")),
         ("Bootstrap.Core.cinch", include_str!("../../bootstrap/Bootstrap.Core.cinch")),
         ("Bootstrap.Instance.cinch", include_str!("../../bootstrap/Bootstrap.Instance.cinch")),
         ("Bootstrap.Global.cinch", include_str!("../../bootstrap/Bootstrap.Global.cinch")),

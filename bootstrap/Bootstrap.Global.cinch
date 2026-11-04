@@ -187,6 +187,7 @@ module Bootstrap.Global where
     CHandlerOperation sp slot openings row closure rest -> term-references globals locals givens closure && term-references globals locals givens rest
     CHandlerEnd sp -> True
     CErasedApply sp ty row f witness -> term-references globals locals givens f && term-references globals locals givens witness
+    CScope sp ty region evidence callback -> evidence-valid globals givens evidence && term-references globals locals givens callback
     CWith sp ty given value body -> (case lookup-given (given-symbol given) givens of Some prior -> False; None -> True)
       && equal-type (given-type given) (core-type value) && term-references globals locals givens value
       && term-references globals locals (Cons given givens) body

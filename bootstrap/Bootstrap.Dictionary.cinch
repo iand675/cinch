@@ -124,6 +124,9 @@ module Bootstrap.Dictionary where
       (f, sf) -> case resolve-term context scope arg sf of (x, sx) -> (CApply sp ty f x, sx)
     CApplyEff sp ty row fun arg -> case resolve-term context scope fun st of
       (f, sf) -> case resolve-term context scope arg sf of (x, sx) -> (CApplyEff sp ty row f x, sx)
+    CScope sp ty region evidence callback -> (case resolve-evidence context scope evidence st of
+      (supplied, ready) -> case resolve-term context scope callback ready of
+        (body, done) -> (CScope sp ty region supplied body, done))
     CWith sp ty given value body -> case resolve-term context scope value st of
       (out, checked) -> if string-length (given-symbol given) == 0 || (case find-given (given-symbol given) scope of Some old -> True; None -> False) then
         (CError sp, add-error sp "capability scope has an empty or duplicate binder symbol" checked)

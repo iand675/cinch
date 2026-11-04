@@ -210,6 +210,7 @@ module Bootstrap.Typing where
         Some bound -> equal-type result (core-type body) && checked-term context bound (proof-pattern pattern gamma) facts body && effects-fit (core-effects body) row
         None -> False)
       other -> False)
+    CScope sp ty region evidence callback -> checked-scope context scope gamma facts ty region evidence callback
     CWith sp ty given value body -> wf context scope (given-type given) && equal-type (given-type given) (core-type value)
       && equal-type ty (core-type body) && checked-term context scope gamma facts value && checked-term context scope gamma facts body
     CLet sp ty id name sc rhs body -> checked-let context scope gamma facts ty id sc rhs body
@@ -226,6 +227,13 @@ module Bootstrap.Typing where
     CDischarge sp ty certificates body -> equal-type ty (required-body (core-type body)) && checked-term context scope gamma facts body
     CGuard sp ty condition body -> type-is "Bool" (core-type condition) && equal-type ty (core-type body) && checked-term context scope gamma facts condition && checked-term context scope gamma (branch-facts gamma facts condition True) body
     other -> False)
+  checked-scope :: TypingContext -> TypeScope -> ProofScope -> List Proposition -> UType -> UType -> CoreEvidence -> CoreTerm -> Bool
+  checked-scope context scope gamma facts expected region evidence callback = case (region, scope-callback-parts (core-type callback)) of
+    (URigid id name level KRegion, Some (owner, bound, row, result)) -> equal-type region bound && equal-type expected result
+      && scope-region-closed region expected && scope-region-closed region row
+      && evidence-types context scope evidence && equal-type (evidence-type evidence) (UApp (UCon "b.Io" (KFun KRegion KType)) owner)
+      && (case add-rigid-kind id KRegion scope of Some opened -> checked-term context opened gamma facts callback; None -> False)
+    other -> False
   effect-for-label :: UType -> List CoreEffect -> Option CoreEffect
   effect-for-label label declarations = case declarations of
     Nil -> None
