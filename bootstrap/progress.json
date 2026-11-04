@@ -43,7 +43,7 @@
     },
     {
       "title": "Complete current compiler sweep",
-      "detail": "136 of 208 complete groups passed; 3 running, 0 failed and 69 pending.Every group includes ignored tests. State: running.",
+      "detail": "137 of 208 complete groups passed; 3 running, 0 failed and 68 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -89,7 +89,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "136 of 208 complete groups passed; 3 running, 0 failed and 69 pending."
+      "detail": "137 of 208 complete groups passed; 3 running, 0 failed and 68 pending."
     },
     {
       "title": "Finish the exact self-built compiler tests",
@@ -134,6 +134,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "All 43 compiler-source checks: passed. 10 of 10 complete groups passed; 0 running, 0 failed and 0 pending. dependent arguments: passed; call preconditions: passed; refinements and effects: passed; runtime behavior: passed; index scope and representation: passed; independent type checker: passed; Core validation: passed; inference: passed; typechecker: passed; Rust optimizer behavior: passed.",
-  "activity": "Current compiler sweep: 136 of 208 complete groups passed; 3 running, 0 failed and 69 pending. Stage builds and smoke checks: 2 of 4; chain state: running-full-stage-chain. Repair gates: 10 of 10 complete groups passed; 0 running, 0 failed and 0 pending. dependent arguments: passed; call preconditions: passed; refinements and effects: passed; runtime behavior: passed; index scope and representation: passed; independent type checker: passed; Core validation: passed; inference: passed; typechecker: passed; Rust optimizer behavior: passed. Early Stage1 behavior: 1 of 8 complete groups passed; 1 running, 0 failed and 6 pending. Exact final Stage3 suite: 0 of 91 complete groups passed; 0 running, 0 failed and 91 pending.",
-  "updatedAt": "2026-11-04T06:28:36.134225+00:00"
+  "activity": "Current compiler sweep: 137 of 208 complete groups passed; 3 running, 0 failed and 68 pending. Stage builds and smoke checks: 2 of 4; chain state: running-full-stage-chain. Repair gates: 10 of 10 complete groups passed; 0 running, 0 failed and 0 pending. dependent arguments: passed; call preconditions: passed; refinements and effects: passed; runtime behavior: passed; index scope and representation: passed; independent type checker: passed; Core validation: passed; inference: passed; typechecker: passed; Rust optimizer behavior: passed. Early Stage1 behavior: 1 of 8 complete groups passed; 1 running, 0 failed and 6 pending. Exact final Stage3 suite: 0 of 91 complete groups passed; 0 running, 0 failed and 91 pending.",
+  "updatedAt": "2026-11-04T06:29:38.326353+00:00"
 }
