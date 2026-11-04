@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "estimate": 90,
-  "commit": "5267cba",
+  "commit": "b1c977c",
   "estimateNote": "Rough engineering estimate. Verified checks and remaining work are listed below.",
   "status": "Verification found a failure; correction required",
   "stages": [
@@ -47,8 +47,13 @@
       "state": "passed"
     },
     {
+      "title": "Published witness diagnostic repair: 109 tests passed",
+      "detail": "Seven complete Native groups and all 43 compiler source checks pass. Actual proof identities remain private; failed obligations show source expressions. Full matching Native and self-built sweeps remain required.",
+      "state": "passed"
+    },
+    {
       "title": "Complete current compiler sweep",
-      "detail": "32 of 208 complete groups passed; 0 running, 1 failed and 175 pending.Every group includes ignored tests. State: stopped-after-failure.",
+      "detail": "32 of 208 complete groups passed; 2 running, 0 failed and 174 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -58,12 +63,12 @@
     },
     {
       "title": "Early behavior through fresh Stage1",
-      "detail": "3 of 8 complete groups passed; 1 running, 0 failed and 4 pending.These original eight ordinary targets give early feedback and do not replace final Stage3 acceptance.",
+      "detail": "4 of 8 complete groups passed; 1 running, 0 failed and 3 pending.These original eight ordinary targets give early feedback and do not replace final Stage3 acceptance.",
       "state": "running"
     },
     {
       "title": "Complete behavior through exact final Stage3",
-      "detail": "1 of 91 complete groups passed; 1 running, 0 failed and 89 pending.79 bootstrap groups, eight ordinary targets, three complete mixed consumers and the designed ABI5 array refusal. Native library fixtures remain explicit; selected compiler failures never fall back.",
+      "detail": "0 of 91 complete groups passed; 1 running, 0 failed and 90 pending.79 bootstrap groups, eight ordinary targets, three complete mixed consumers and the designed ABI5 array refusal. Native library fixtures remain explicit; selected compiler failures never fall back.",
       "state": "running"
     },
     {
@@ -73,8 +78,8 @@
     },
     {
       "title": "Exact final Stage3 acceptance",
-      "detail": "Test-runner reports, 32M zero-leak runs, definition-owned fixities, separate facades and class behavior: passed.",
-      "state": "passed"
+      "detail": "Test-runner reports, 32M zero-leak runs, definition-owned fixities, separate facades and class behavior: waiting-for-fifth-slot.",
+      "state": "running"
     },
     {
       "title": "Earlier source: scoped baseline results",
@@ -85,25 +90,24 @@
       "title": "Previous 33f4 source: retained results",
       "detail": "208 of 208 complete groups passed; 0 running, 0 failed and 0 pending. Its Stage1 allocation target passed all eight cases; argv finished one passed and two failed. Its incomplete Stage2 build was intentionally retired for the necessary source repair. These results do not count toward this new source.",
       "state": "passed"
-    },
-    {
-      "title": "Proposed compiler repair",
-      "detail": "Separate unpublished source: passed. All 43 compiler modules: passed. 7 of 7 complete groups passed; 0 running, 0 failed and 0 pending. This does not replace current-source or final Stage3 acceptance.",
-      "state": "passed"
     }
   ],
   "blockers": [
     {
       "title": "Investigate the recorded failure",
-      "detail": "Native compiler tests: ffi"
+      "detail": "early Stage1 checks: exhaustion recorded a failed test case; the complete group is still running"
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "32 of 208 complete groups passed; 0 running, 1 failed and 175 pending."
+      "detail": "32 of 208 complete groups passed; 2 running, 0 failed and 174 pending."
     },
     {
       "title": "Finish the exact self-built compiler tests",
-      "detail": "1 of 91 complete groups passed; 1 running, 0 failed and 89 pending."
+      "detail": "0 of 91 complete groups passed; 1 running, 0 failed and 90 pending."
+    },
+    {
+      "title": "Finish final external acceptance",
+      "detail": "waiting-for-fifth-slot."
     },
     {
       "title": "Complete the coverage and acceptance audit",
@@ -140,6 +144,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "The fresh current-source compiler chain passes its smoke tests, matching Stage2/Stage3 IR, executable and all 43 canonical interfaces, actual API consumption and changed-source behavior. Complete tests and the final acceptance audit remain separate requirements.",
-  "activity": "Complete current compiler sweep: 32 of 208 complete groups passed; 0 running, 1 failed and 175 pending. Stage builds and smoke checks: 4 of 4; chain state: passed. Repair gates: 12 of 12 complete groups passed; 0 running, 0 failed and 0 pending. library calls: passed; bootstrap_boolean_branches: passed; refinements: passed; runtime behavior: passed; typechecker: passed; inference: passed; independent type checker: passed; Core validation: passed; dependent arguments: passed; call preconditions: passed; refinements and effects: passed; Rust optimizer behavior: passed. Early Stage1 behavior: 3 of 8 complete groups passed; 1 running, 0 failed and 4 pending. Exact final Stage3 suite: 1 of 91 complete groups passed; 1 running, 0 failed and 89 pending. Proposed compiler repair (separate unpublished source): passed; 7 of 7 complete groups passed; 0 running, 0 failed and 0 pending.",
-  "updatedAt": "2026-11-04T08:53:52.360091+00:00"
+  "activity": "Complete current compiler sweep: 32 of 208 complete groups passed; 2 running, 0 failed and 174 pending. Stage builds and smoke checks: 4 of 4; chain state: passed. Repair gates: 12 of 12 complete groups passed; 0 running, 0 failed and 0 pending. library calls: passed; bootstrap_boolean_branches: passed; refinements: passed; runtime behavior: passed; typechecker: passed; inference: passed; independent type checker: passed; Core validation: passed; dependent arguments: passed; call preconditions: passed; refinements and effects: passed; Rust optimizer behavior: passed. Early Stage1 behavior: 4 of 8 complete groups passed; 1 running, 0 failed and 3 pending. Exact final Stage3 suite: 0 of 91 complete groups passed; 1 running, 0 failed and 90 pending.",
+  "updatedAt": "2026-11-04T09:02:19.857566+00:00"
 }
