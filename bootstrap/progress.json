@@ -103,7 +103,7 @@
     },
     {
       "title": "Proposed compiler repair",
-      "detail": "Separate unpublished source: running-twenty-one-complete-groups. All 43 compiler modules: passed. 11 of 21 complete groups passed; 2 running, 0 failed and 8 pending. This does not replace current-source or final Stage3 acceptance.",
+      "detail": "Separate unpublished source: running-twenty-one-complete-groups. All 43 compiler modules: passed. 11 of 21 complete groups passed; 3 running, 0 failed and 7 pending. This does not replace current-source or final Stage3 acceptance.",
       "state": "running"
     }
   ],
@@ -167,6 +167,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "All 43 compiler-source checks: passed. 12 of 12 complete groups passed; 0 running, 0 failed and 0 pending. independent type checker: passed; bootstrap_globals: passed; inference: passed; typechecker: passed; bootstrap_byte_observations: passed; bootstrap_resolve: passed; Core validation: passed; index scope and representation: passed; bootstrap_value_indices: passed; bootstrap_pipeline: passed; runtime behavior: passed; library calls: passed.",
-  "activity": "Published value-index compiler: complete Native sweep: 34 of 208 complete groups passed; 0 running, 0 failed and 174 pending. Stage builds and smoke checks: 4 of 4; chain state: running-full-stage-chain. Repair gates: 12 of 12 complete groups passed; 0 running, 0 failed and 0 pending. independent type checker: passed; bootstrap_globals: passed; inference: passed; typechecker: passed; bootstrap_byte_observations: passed; bootstrap_resolve: passed; Core validation: passed; index scope and representation: passed; bootstrap_value_indices: passed; bootstrap_pipeline: passed; runtime behavior: passed; library calls: passed. Early Stage1 behavior: 7 of 8 complete groups passed; 0 running, 1 failed and 0 pending. Exact final Stage3 suite: 0 of 91 complete groups passed; 0 running, 0 failed and 91 pending. Proposed compiler repair (separate unpublished source): running-twenty-one-complete-groups; 11 of 21 complete groups passed; 2 running, 0 failed and 8 pending.",
-  "updatedAt": "2026-11-04T17:49:18.011219+00:00"
+  "activity": "Published value-index compiler: complete Native sweep: 34 of 208 complete groups passed; 0 running, 0 failed and 174 pending. Stage builds and smoke checks: 4 of 4; chain state: running-full-stage-chain. Repair gates: 12 of 12 complete groups passed; 0 running, 0 failed and 0 pending. independent type checker: passed; bootstrap_globals: passed; inference: passed; typechecker: passed; bootstrap_byte_observations: passed; bootstrap_resolve: passed; Core validation: passed; index scope and representation: passed; bootstrap_value_indices: passed; bootstrap_pipeline: passed; runtime behavior: passed; library calls: passed. Early Stage1 behavior: 7 of 8 complete groups passed; 0 running, 1 failed and 0 pending. Exact final Stage3 suite: 0 of 91 complete groups passed; 0 running, 0 failed and 91 pending. Proposed compiler repair (separate unpublished source): running-twenty-one-complete-groups; 11 of 21 complete groups passed; 3 running, 0 failed and 7 pending.",
+  "updatedAt": "2026-11-04T17:50:19.949129+00:00"
 }
