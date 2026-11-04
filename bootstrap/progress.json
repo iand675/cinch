@@ -3,7 +3,7 @@
   "estimate": 90,
   "commit": "30962c29025e4dcc75d0e3df08d74c8128ba1379",
   "estimateNote": "Rough engineering estimate. Verified checks and remaining work are listed below.",
-  "status": "Current-source verification running",
+  "status": "Verification found a failure; correction required",
   "stages": [
     {
       "name": "Stage 0",
@@ -33,7 +33,7 @@
   "checks": [
     {
       "title": "Current repair gates",
-      "detail": "0 of 6 complete groups passed; 2 running, 0 failed and 4 pending. dependent arguments: running; call preconditions: running; refinements and effects: pending; runtime behavior: pending; typechecker: pending; Rust optimizer behavior: pending. All43 source-module check: passed.",
+      "detail": "0 of 6 complete groups passed; 1 running, 1 failed and 4 pending. dependent arguments: failed; call preconditions: running; refinements and effects: pending; runtime behavior: pending; typechecker: pending; Rust optimizer behavior: pending. All43 source-module check: passed.",
       "state": "running"
     },
     {
@@ -58,12 +58,12 @@
     },
     {
       "title": "Current runtime, tooling and editor checks",
-      "detail": "waiting-final-runner-build. All three complete matching-source gates are required.",
+      "detail": "stopped-before-execution-after-prerequisite-failure. All three complete matching-source gates are required.",
       "state": "running"
     },
     {
       "title": "Exact final Stage3 acceptance",
-      "detail": "Test-runner reports, 32M zero-leak runs, definition-owned fixities, separate facades and class behavior: waiting-for-final-chain.",
+      "detail": "Test-runner reports, 32M zero-leak runs, definition-owned fixities, separate facades and class behavior: failed.",
       "state": "running"
     },
     {
@@ -84,12 +84,16 @@
   ],
   "blockers": [
     {
+      "title": "Investigate the recorded failure",
+      "detail": "repair checks: bootstrap_source_pi; stage chain: Focused gate failed; preserve completed stages and do not start the next self-build"
+    },
+    {
       "title": "Verify the argument-test repair",
       "detail": "The previous compiler failed two original argv cases. The new compiler must pass the complete unchanged group; its result is still pending."
     },
     {
       "title": "Finish the repair gates",
-      "detail": "0 of 6 complete groups passed; 2 running, 0 failed and 4 pending. dependent arguments: running; call preconditions: running; refinements and effects: pending; runtime behavior: pending; typechecker: pending; Rust optimizer behavior: pending."
+      "detail": "0 of 6 complete groups passed; 1 running, 1 failed and 4 pending. dependent arguments: failed; call preconditions: running; refinements and effects: pending; runtime behavior: pending; typechecker: pending; Rust optimizer behavior: pending."
     },
     {
       "title": "Publish the validated repair",
@@ -105,7 +109,7 @@
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
-      "detail": "waiting-final-runner-build."
+      "detail": "stopped-before-execution-after-prerequisite-failure."
     },
     {
       "title": "Finish the exact self-built compiler tests",
@@ -113,7 +117,7 @@
     },
     {
       "title": "Finish final external acceptance",
-      "detail": "waiting-for-final-chain."
+      "detail": "failed."
     },
     {
       "title": "Complete the coverage and acceptance audit",
@@ -149,7 +153,7 @@
   "candidateSource": "39ad7f79e757ab8ceff9cfa2ad35368679c3887c405feea55e67ad5dd0cc19e4",
   "candidatePublished": false,
   "fullGoalComplete": false,
-  "summary": "All 43 compiler-source checks: passed. 0 of 6 complete groups passed; 2 running, 0 failed and 4 pending. dependent arguments: running; call preconditions: running; refinements and effects: pending; runtime behavior: pending; typechecker: pending; Rust optimizer behavior: pending. The repair source remains local while its full focused validation finishes.",
-  "activity": "Current compiler sweep: 0 of 208 complete groups passed; 0 running, 0 failed and 208 pending. Stage builds and smoke checks: 2 of 4; chain state: waiting-all-focused-gates-before-stage2. Repair gates: 0 of 6 complete groups passed; 2 running, 0 failed and 4 pending. dependent arguments: running; call preconditions: running; refinements and effects: pending; runtime behavior: pending; typechecker: pending; Rust optimizer behavior: pending. Early Stage1 behavior: 0 of 8 complete groups passed; 0 running, 0 failed and 8 pending. Exact final Stage3 suite: 0 of 91 complete groups passed; 0 running, 0 failed and 91 pending. Proposed opaque-argument repair (separate unpublished source): checking-all43-compiler-sources; 0 of 7 complete groups passed; 0 running, 0 failed and 7 pending.",
-  "updatedAt": "2026-11-04T05:23:16.702884+00:00"
+  "summary": "All 43 compiler-source checks: passed. 0 of 6 complete groups passed; 1 running, 1 failed and 4 pending. dependent arguments: failed; call preconditions: running; refinements and effects: pending; runtime behavior: pending; typechecker: pending; Rust optimizer behavior: pending. The repair source remains local while its full focused validation finishes.",
+  "activity": "Current compiler sweep: 0 of 208 complete groups passed; 0 running, 0 failed and 208 pending. Stage builds and smoke checks: 2 of 4; chain state: failed. Repair gates: 0 of 6 complete groups passed; 1 running, 1 failed and 4 pending. dependent arguments: failed; call preconditions: running; refinements and effects: pending; runtime behavior: pending; typechecker: pending; Rust optimizer behavior: pending. Early Stage1 behavior: 0 of 8 complete groups passed; 0 running, 0 failed and 8 pending. Exact final Stage3 suite: 0 of 91 complete groups passed; 0 running, 0 failed and 91 pending. Proposed opaque-argument repair (separate unpublished source): checking-all43-compiler-sources; 0 of 7 complete groups passed; 0 running, 0 failed and 7 pending.",
+  "updatedAt": "2026-11-04T05:24:39.204829+00:00"
 }
