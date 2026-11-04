@@ -21,7 +21,8 @@ if [ "$1" != '--compile-only' ]; then exit 91; fi
 printf 'clang-exit: 0\n' > "$7"
 cat > "$6" <<'PROGRAM'
 #!/bin/sh
-printf ran > selected-artifact-ran
+printf ran > "$0.ran"
+pwd > "$0.cwd"
 exit 37
 PROGRAM
 chmod +x "$6"
@@ -52,9 +53,12 @@ fn selected_frontend_checks_builds_runs_and_records_the_actual_sources() {
     let output = dir.join("built-program");
     assert_eq!(drive(&frontend, Mode::Build, &dir, entry, Some(output.clone())).unwrap(), 0);
     assert!(output.is_file());
-    assert!(!dir.join("selected-artifact-ran").exists(), "build executed its artifact");
+    assert!(!output.with_extension("ran").exists(), "build executed its artifact");
     assert_eq!(drive(&frontend, Mode::Run, &dir, entry, None).unwrap(), 37);
-    assert!(dir.join("selected-artifact-ran").exists());
+    let ran = invocations(&dir).into_iter().find(|p| p.join("program.ran").exists()).expect("selected artifact ran");
+    let cwd = std::fs::read_to_string(ran.join("program.cwd")).unwrap();
+    assert_eq!(Path::new(cwd.trim()).canonicalize().unwrap(), std::env::current_dir().unwrap().canonicalize().unwrap(),
+        "selected artifacts must inherit the same caller working directory as the Native driver");
     assert_eq!(invocations(&dir).len(), 3, "generated bundles were collected as new source inputs");
     common::cleanup(&dir);
 }

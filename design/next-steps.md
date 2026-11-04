@@ -20,12 +20,15 @@ skips or filtering. Source, producer and complete log identities are checked in
 `bootstrap/current-opaque-auxiliary-results.json`. This does not close the full
 compiler/self-built suites, original API/array behavior or Acceptance 5.
 
-The current Stage3 sweep has a separately identified harness failure:
-`bootstrap_check` exits zero and writes its correct report inside the project,
-while the test expects it in the caller's working directory. The external
-harness changes that directory; the Native driver inherits it. An isolated
-repair is being verified against the original full test and actual Stage3.
-The failed run remains recorded; it is not counted as a pass here.
+The Stage3 report-directory harness failure is repaired. The external artifact
+now inherits the caller's working directory, matching the Native driver.
+All four complete harness tests and the original checker test pass under
+Native; that original complete checker also passes through actual e861 Stage3,
+including its exact full diagnostic report. See
+`bootstrap/current-stage3-harness-cwd-results.json`. Compiler, prelude, runtime
+and bootstrap sources are unchanged. The previous selected sweep remains
+recorded as 16 passing groups followed by one failed harness group; this scoped
+rerun does not replace the full remaining Stage3 suite or Acceptance 5.
 
 ## Verified opaque/HK bootstrap chain and Stage3 acceptance (2026-11-04)
 

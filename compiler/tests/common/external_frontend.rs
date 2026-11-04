@@ -101,7 +101,8 @@ pub fn drive(frontend: &Frontend, mode: Mode, dir: &Path, entry: &str, out: Opti
     match mode {
         Mode::Check => Ok(0),
         Mode::Build => if exe.is_file() { Ok(0) } else { Err("selected compiler succeeded without an executable".into()) },
-        Mode::Run => std::process::Command::new(&exe).current_dir(&dir).status().map_err(|e| e.to_string())?.code().ok_or_else(|| "external test artifact terminated without an exit code".into()),
+        // Match the Native driver: programs inherit the test caller's working directory.
+        Mode::Run => std::process::Command::new(&exe).status().map_err(|e| e.to_string())?.code().ok_or_else(|| "external test artifact terminated without an exit code".into()),
         Mode::EmitIr | Mode::EmitObject => unreachable!(),
     }
 }

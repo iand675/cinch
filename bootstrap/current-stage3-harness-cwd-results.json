@@ -1,0 +1,48 @@
+{
+  "actual_stage3_check": {
+    "binary_sha256": "3b41ae78d65a7d3cac358f8e74069ea02028707601f37be770c4480ec1295860",
+    "compiler_sha256": "d16d1daf4562e8e9ad1fc1e1b9c803e241d4f712959c05697213d8cbf6dc7c2e",
+    "exit_code": 0,
+    "log_sha256": "d44dd06672bd812392b8d82d2391b66fc2007cddb80f1494a3fd23524622f775",
+    "status": "passed"
+  },
+  "changed_files": [
+    "compiler/tests/bootstrap_external_frontend.rs",
+    "compiler/tests/common/external_frontend.rs"
+  ],
+  "compiler_source_sha256": "e861abb04f804a94b1dfe6f65fcddab57005fdc24837b3abfedb5482dfde0208",
+  "full_goal_complete": false,
+  "limitations": "The earlier91group selected Stage3 run remains stopped after16passes and1harness failure. This exact one-group rerun repairs that failure; it does not prove the remaining74 groups or rerun earlier16 under the changed harness. Final complete matching suites, proof soundness, original API/positiveABI6array behavior and Acceptance5 remain open.",
+  "original_failure": {
+    "log": "/tmp/cinch-final-self-built-42/bootstrap_check.log",
+    "log_sha256": "0c69b1673408279a6bb5241c448223d351897fdd06a6c6c14eaed39cb7ee2386",
+    "project_report": "/private/var/folders/8w/44rf3zr512nd0pd0bwb70vfm0000gn/T/cinch_boot_check_26671_0/bootstrap-check-report.txt",
+    "project_report_sha256": "1557fddf899a3aa6bc37f38c283bef4fd2f7f90d2e2e165dc450cc8f0d02784e",
+    "report_matches_full_original_expected_bytes": true
+  },
+  "rows": [
+    {
+      "binary": "/tmp/cinch-harness-cwd-validation-1/cargo/debug/deps/bootstrap_external_frontend-e224849e999a9c81",
+      "binary_sha256": "6c6debe257d4c7c9f0224fe06055024dbe095a0c4d7501fb005e8ea480b15cfe",
+      "exit_code": 0,
+      "log_sha256": "d8d81ad5836497eab736354a576e6373ddc0200108fd71860384fdb657513404",
+      "name": "bootstrap_external_frontend",
+      "status": "passed",
+      "tests": 4
+    },
+    {
+      "binary": "/tmp/cinch-harness-cwd-validation-1/cargo/debug/deps/bootstrap_check-ed661b82d7219941",
+      "binary_sha256": "3b41ae78d65a7d3cac358f8e74069ea02028707601f37be770c4480ec1295860",
+      "exit_code": 0,
+      "log_sha256": "66c57f20e0a41804f1ae243a4dc6be50fefe993a3f3963e2b7e0054d8026a67e",
+      "name": "bootstrap_check",
+      "status": "passed",
+      "tests": 1
+    }
+  ],
+  "scope": "Complete four-case external-frontend harness suite and original complete checker target pass under Native; original complete checker also passes through actual independently bootstrapped Stage3. The external artifact inherits the caller working directory, matching Native. Actual invocation, no-fallback, compile-only and fixture authority guards are retained. Only two test/harness files changed; compiler/prelude/runtime/bootstrap sources are byte-identical. Regression directly records executed artifact cwd using unique executable-local output.",
+  "source": "/tmp/cinch-harness-cwd-validation-1/source",
+  "source_sha256": "adad4ebbe93957485e631c9e0fe054ff06eecabb0eb4d074f9521dbece1ec78a",
+  "status": "passed-scoped-stage3-harness-working-directory",
+  "verified_at": "2026-11-04T22:09:18.088087+00:00"
+}
