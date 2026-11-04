@@ -53,7 +53,7 @@
     },
     {
       "title": "Published value-index compiler: complete Native sweep",
-      "detail": "36 of 208 complete groups passed; 0 running, 0 failed and 172 pending.Every group includes ignored tests. State: running.",
+      "detail": "39 of 208 complete groups passed; 1 running, 0 failed and 168 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -68,7 +68,7 @@
     },
     {
       "title": "Complete behavior through exact final Stage3",
-      "detail": "2 of 91 complete groups passed; 1 running, 0 failed and 88 pending.79 bootstrap groups, eight ordinary targets, three complete mixed consumers and the designed ABI5 array refusal. Native library fixtures remain explicit; selected compiler failures never fall back.",
+      "detail": "6 of 91 complete groups passed; 1 running, 0 failed and 84 pending.79 bootstrap groups, eight ordinary targets, three complete mixed consumers and the designed ABI5 array refusal. Native library fixtures remain explicit; selected compiler failures never fall back.",
       "state": "running"
     },
     {
@@ -103,14 +103,14 @@
     },
     {
       "title": "Proposed compiler repair",
-      "detail": "Separate unpublished source: running-twenty-one-complete-groups. All 43 compiler modules: passed. 14 of 21 complete groups passed; 3 running, 0 failed and 4 pending. This does not replace current-source or final Stage3 acceptance.",
+      "detail": "Separate unpublished source: running-twenty-one-complete-groups. All 43 compiler modules: passed. 19 of 21 complete groups passed; 1 running, 0 failed and 1 pending. This does not replace current-source or final Stage3 acceptance.",
       "state": "running"
     }
   ],
   "blockers": [
     {
-      "title": "Finish byte-length parity and final matching bootstrap",
-      "detail": "Published e3ed9a8 completes its genuine fresh Stage0/1/2/3 chain14: allsmokes, fixedpoint IR/exe/43interfaces, actualAPIconsumption andchanged-sourcecheck pass. Independentchain audit is queued for a shared lease before publication. Its full matching suites38 continue; older a93 Native208 groups allfinish0 but are separate source evidence. Diagnostic12 passes all9unchanged original byte tests through actualCinch diagnosticfrontend and its21affectedgroups continue before publication; finalmatchingStage3mustrepeat. Expanded interface candidate passes all43modulechecks andactual interface/typeexport groups;25groupscontinue. Instance-headfollowup also passesall43modulechecks and27gatesarequeued. Inferred/parameter-kind/contextual-instance provenance, opaque/otherAPIgaps andcomplete100target/Acceptance1-5auditremainopen."
+      "title": "Complete matching suites and repair remaining interface parity",
+      "detail": "Published value-index source completes its independently verified fresh Stage0/1/2/3 chain; proof pushed in 47a07bf. Matching full Native and exact Stage3 suites38 continue; runtime/tool/editor and all14 external checks pass. Diagnostic12 passes all9 original byte tests through an actual diagnostic Cinch frontend; its21 affected groups continue before publication. Interface candidates pass actual defining/private refinement and facade export checks, but an older complete pipeline still asserts the former blanket refusal: replace that obsolete expectation with actual exported-template readback while preserving unsupported-contract refusals. Remaining API behavior and all100target/Acceptance1-5 audit stay open."
     },
     {
       "title": "Investigate the recorded failure",
@@ -118,11 +118,11 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "36 of 208 complete groups passed; 0 running, 0 failed and 172 pending."
+      "detail": "39 of 208 complete groups passed; 1 running, 0 failed and 168 pending."
     },
     {
       "title": "Finish the exact self-built compiler tests",
-      "detail": "2 of 91 complete groups passed; 1 running, 0 failed and 88 pending."
+      "detail": "6 of 91 complete groups passed; 1 running, 0 failed and 84 pending."
     },
     {
       "title": "Complete the coverage and acceptance audit",
@@ -159,6 +159,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "The fresh current-source compiler chain passes its smoke tests, matching Stage2/Stage3 IR, executable and all 43 canonical interfaces, actual API consumption and changed-source behavior. Complete tests and the final acceptance audit remain separate requirements.",
-  "activity": "Published value-index compiler: complete Native sweep: 36 of 208 complete groups passed; 0 running, 0 failed and 172 pending. Stage builds and smoke checks: 4 of 4; chain state: passed. Repair gates: 12 of 12 complete groups passed; 0 running, 0 failed and 0 pending. independent type checker: passed; bootstrap_globals: passed; inference: passed; typechecker: passed; bootstrap_byte_observations: passed; bootstrap_resolve: passed; Core validation: passed; index scope and representation: passed; bootstrap_value_indices: passed; bootstrap_pipeline: passed; runtime behavior: passed; library calls: passed. Early Stage1 behavior: 7 of 8 complete groups passed; 0 running, 1 failed and 0 pending. Exact final Stage3 suite: 2 of 91 complete groups passed; 1 running, 0 failed and 88 pending. Proposed compiler repair (separate unpublished source): running-twenty-one-complete-groups; 14 of 21 complete groups passed; 3 running, 0 failed and 4 pending.",
-  "updatedAt": "2026-11-04T17:58:35.263137+00:00"
+  "activity": "Published value-index compiler: complete Native sweep: 39 of 208 complete groups passed; 1 running, 0 failed and 168 pending. Stage builds and smoke checks: 4 of 4; chain state: passed. Repair gates: 12 of 12 complete groups passed; 0 running, 0 failed and 0 pending. independent type checker: passed; bootstrap_globals: passed; inference: passed; typechecker: passed; bootstrap_byte_observations: passed; bootstrap_resolve: passed; Core validation: passed; index scope and representation: passed; bootstrap_value_indices: passed; bootstrap_pipeline: passed; runtime behavior: passed; library calls: passed. Early Stage1 behavior: 7 of 8 complete groups passed; 0 running, 1 failed and 0 pending. Exact final Stage3 suite: 6 of 91 complete groups passed; 1 running, 0 failed and 84 pending. Proposed compiler repair (separate unpublished source): running-twenty-one-complete-groups; 19 of 21 complete groups passed; 1 running, 0 failed and 1 pending.",
+  "updatedAt": "2026-11-04T18:05:59.311051+00:00"
 }
