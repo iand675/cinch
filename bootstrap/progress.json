@@ -19,14 +19,14 @@
     },
     {
       "name": "Stage 2",
-      "state": "pending",
-      "label": "Building",
+      "state": "passed",
+      "label": "Verified",
       "description": "Every compiler module is being freshly rebuilt by Stage1; all repair gates passed."
     },
     {
       "name": "Stage 3",
       "state": "pending",
-      "label": "Pending",
+      "label": "Building",
       "description": "Fresh rebuild by Stage2, followed by code/interface matching and changed-source checks."
     }
   ],
@@ -58,12 +58,12 @@
     },
     {
       "title": "Complete suite on newly published Rust and Cinch source",
-      "detail": "127 of 208 complete groups passed; 4 running, 0 failed and 77 pending.Every group includes ignored tests. State: running.",
+      "detail": "128 of 208 complete groups passed; 3 running, 0 failed and 77 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
       "title": "Fresh compiler bootstrap",
-      "detail": "2 of 4 stages built and smoke-tested. Fixed point, 43 interfaces, API consumption and changed-source behavior are required.",
+      "detail": "3 of 4 stages built and smoke-tested. Fixed point, 43 interfaces, API consumption and changed-source behavior are required.",
       "state": "running"
     },
     {
@@ -152,7 +152,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "127 of 208 complete groups passed; 4 running, 0 failed and 77 pending."
+      "detail": "128 of 208 complete groups passed; 3 running, 0 failed and 77 pending."
     },
     {
       "title": "Finish the exact self-built compiler tests",
@@ -197,6 +197,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "All 43 compiler-source checks: passed. 9 of 9 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_nominals: passed; bootstrap_export_interfaces: passed; bootstrap_pipeline: passed; interface_region_effects: passed; bootstrap_source_effects: passed; effects: passed; hk: passed; params: passed; folded_literal_ownership: passed.",
-  "activity": "Complete suite on newly published Rust and Cinch source: 127 of 208 complete groups passed; 4 running, 0 failed and 77 pending. Stage builds and smoke checks: 2 of 4; chain state: running-full-stage-chain. Repair gates: 9 of 9 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_nominals: passed; bootstrap_export_interfaces: passed; bootstrap_pipeline: passed; interface_region_effects: passed; bootstrap_source_effects: passed; effects: passed; hk: passed; params: passed; folded_literal_ownership: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 0 of 91 complete groups passed; 0 running, 0 failed and 91 pending. Proposed compiler repair (separate unpublished source): failed; 0 of 14 complete groups passed; 0 running, 1 failed and 13 pending.",
-  "updatedAt": "2026-11-04T23:11:19.048937+00:00"
+  "activity": "Complete suite on newly published Rust and Cinch source: 128 of 208 complete groups passed; 3 running, 0 failed and 77 pending. Stage builds and smoke checks: 3 of 4; chain state: running-full-stage-chain. Repair gates: 9 of 9 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_nominals: passed; bootstrap_export_interfaces: passed; bootstrap_pipeline: passed; interface_region_effects: passed; bootstrap_source_effects: passed; effects: passed; hk: passed; params: passed; folded_literal_ownership: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 0 of 91 complete groups passed; 0 running, 0 failed and 91 pending. Proposed compiler repair (separate unpublished source): failed; 0 of 14 complete groups passed; 0 running, 1 failed and 13 pending.",
+  "updatedAt": "2026-11-04T23:12:21.117046+00:00"
 }
