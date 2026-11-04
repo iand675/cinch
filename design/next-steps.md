@@ -1,5 +1,24 @@
 # Next steps (as of 2026-11-04)
 
+## Current compiler bootstraps through Stage3 (2026-11-04)
+
+The current Cinch compiler (`2ea1460a5a1f426cf65b16767ed96e97dff1ffb2d3ee022b4ca1724bf2e6075c`)
+now completes the fresh Stage0/1/2/3 chain. Every stage passes all three smoke
+checks. Stage2 and Stage3 produce byte-identical compiler IR, executables and
+all43 checked compiler interfaces. Stage3 consumes those actual emitted APIs
+without compiler-module bodies. Stage2 also rebuilds changed compiler source,
+and the resulting executable exhibits the changed diagnostic. The independently
+checked [current bootstrap receipt](../bootstrap/current-opaque-witness-bootstrap-results.json)
+proves Acceptance1-4 for this source.
+
+Acceptance5 remains open: the complete208-group Native sweep,91-group final
+Stage3 suite,14 external acceptance rows and final100-target coverage audit
+must finish. The matching171 runtime,41 tooling and39 editor checks already
+pass. A separately reproduced Rust inline-refined-argument bug has an
+unpublished repair under regression testing; it does not change these43 Cinch
+compiler sources. Neither the working self-build nor these scoped checks claim
+that the full goal is complete.
+
 ## Latest follow-up: dependent arguments and Rust unfolding
 
 The Rust optimizer now borrows a callee definition from its read-only table
