@@ -53,7 +53,7 @@
     },
     {
       "title": "Complete sweep of the new Cinch source",
-      "detail": "108 of 208 complete groups passed; 3 running, 0 failed and 97 pending.Every group includes ignored tests. State: running.",
+      "detail": "117 of 208 complete groups passed; 2 running, 0 failed and 89 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -104,8 +104,8 @@
   ],
   "blockers": [
     {
-      "title": "Verify the new compiler through the complete bootstrap",
-      "detail": "Task support and the Rust lifetime fixes are published in f57748f. All 43 compiler modules check. Six complete focused groups pass, including 133 runtime programs with zero leaks and 70 independent task checks. All 60 focused Rust tests pass. Stage0 passes its smoke tests; Stage1 is building. Complete compiler, self-built compiler, runtime and editor verification are running or queued. The original task stack-exhaustion test and final bootstrap acceptance checks remain required."
+      "title": "Finish full bootstrap verification and task API exports",
+      "detail": "The unchanged four-test exhaustion suite now passes through fresh Stage1, including real task stack exhaustion. The published f57748f source has passed its focused task gates and more than100 complete compiler groups with no failures so far; its fresh Stage2 is building. A separate cross-module check found Scope/Task signatures were refused by the interface writer. That small export repair and genuine reexport/readback regressions are local and under validation. A fresh chain for the final repaired source and all complete matching suites remain required."
     },
     {
       "title": "Finish the fresh bootstrap",
@@ -113,7 +113,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "108 of 208 complete groups passed; 3 running, 0 failed and 97 pending."
+      "detail": "117 of 208 complete groups passed; 2 running, 0 failed and 89 pending."
     },
     {
       "title": "Finish the exact self-built compiler tests",
@@ -158,6 +158,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "All 43 compiler-source checks: passed. 6 of 6 complete groups passed; 0 running, 0 failed and 0 pending. independent type checker: passed; Core validation: passed; typechecker: passed; inference: passed; runtime behavior: passed; library calls: passed.",
-  "activity": "Complete sweep of the new Cinch source: 108 of 208 complete groups passed; 3 running, 0 failed and 97 pending. Stage builds and smoke checks: 2 of 4; chain state: running-full-stage-chain. Repair gates: 6 of 6 complete groups passed; 0 running, 0 failed and 0 pending. independent type checker: passed; Core validation: passed; typechecker: passed; inference: passed; runtime behavior: passed; library calls: passed. Early Stage1 behavior: 1 of 8 complete groups passed; 1 running, 0 failed and 6 pending. Exact final Stage3 suite: 0 of 91 complete groups passed; 0 running, 0 failed and 91 pending.",
-  "updatedAt": "2026-11-04T13:08:45.850379+00:00"
+  "activity": "Complete sweep of the new Cinch source: 117 of 208 complete groups passed; 2 running, 0 failed and 89 pending. Stage builds and smoke checks: 2 of 4; chain state: running-full-stage-chain. Repair gates: 6 of 6 complete groups passed; 0 running, 0 failed and 0 pending. independent type checker: passed; Core validation: passed; typechecker: passed; inference: passed; runtime behavior: passed; library calls: passed. Early Stage1 behavior: 1 of 8 complete groups passed; 1 running, 0 failed and 6 pending. Exact final Stage3 suite: 0 of 91 complete groups passed; 0 running, 0 failed and 91 pending.",
+  "updatedAt": "2026-11-04T13:09:47.907687+00:00"
 }
