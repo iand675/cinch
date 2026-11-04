@@ -1,38 +1,38 @@
 {
-  "compiler_sha256": "d2c49454c47e85fd48f7a3d89755fb8b5cadc74676bd2fcb42ebdac5b2c2c979",
+  "compiler_sha256": "1af2730716e15d62185879068c0e92877cc299378e02ae50ad95947e1302d8bb",
+  "full_goal_complete": false,
+  "passed_tests": {
+    "editor": 39,
+    "runtime": 171,
+    "tooling": 41
+  },
   "rows": [
     {
       "exit_code": 0,
-      "log_sha256": "125ad68a61f5bbebe9f514b0be4ab9d37121d59506fd0452af6fd95b3ed324b4",
+      "log_sha256": "7df39f0ed2e210d0b0780d3e99bec01e874e7bc2fb44a638970fa5062f898a2f",
       "name": "runtime",
       "source_unchanged": true,
       "status": "passed"
     },
     {
       "exit_code": 0,
-      "log_sha256": "590732c2dfa6872d90cfcc27d9a6d284004158b4b4e6d8669235d496dca0281a",
+      "log_sha256": "b1cc1deb4df9d2950da20b336fa210a90e58fceaaf483e2c66cb40abf040eecb",
       "name": "tooling",
       "source_unchanged": true,
       "status": "passed"
     },
     {
       "exit_code": 0,
-      "log_sha256": "a5aedd9f1903e624e0dfbcfa2b4afaec0fda45bed88447e3f0568a703f36a18a",
+      "log_sha256": "eee8f05a80473c610e9ae6a9d22700389ed1944346ba86ca59f3f26d9484b775",
       "name": "syntax-editor",
       "source_unchanged": true,
       "status": "passed"
     }
   ],
-  "scope": "Complete fresh runtime suite includingignored, complete tooling unittest discovery and complete compiler/editor syntax gate, exact current96d9source (Cinch2ea strict private/generic witness scopes, local value quantifiers, published Rust borrowing and previous repairs). Runtimecache private tothis same source; Native compilerbinary hash fixed throughout. No goalcompletionclaim.",
-  "source": "/tmp/cinch-opaque-witness-validation-4/source",
-  "source_sha256": "96d9b6692f40a517c3b3172da6ee0cb39e0e05d4deaa442b79476998ce5465be",
+  "schema": 1,
+  "scope": "Complete fresh runtime suite includingignored, complete tooling unittest discovery and complete compiler/editor syntax gate, exact final Rust-diagnostic snapshot (Cinch018a closed methods/scalar case facts and published Rust argument repair). Runtimecache private tothis same source; Native compilerbinary hash fixed throughout. No goalcompletionclaim.",
+  "source": "/tmp/cinch-rust-witness-diagnostics-validation-2/source",
+  "source_sha256": "25922dbd1c8530051286ed499cdc280c4428e8f4b4b5d7eda81ffdb492ee6c8e",
   "status": "passed",
-  "checked_at": "2026-11-04T06:07:45.884463+00:00",
-  "compiler_source_sha256": "2ea1460a5a1f426cf65b16767ed96e97dff1ffb2d3ee022b4ca1724bf2e6075c",
-  "independently_verified_counts": {
-    "runtime": 171,
-    "tooling": 41,
-    "syntax_editor": 39
-  },
-  "bootstrap_achieved": false
+  "verified_at": "2026-11-04T09:40:47.529069+00:00"
 }

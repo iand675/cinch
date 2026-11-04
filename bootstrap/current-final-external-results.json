@@ -1,0 +1,121 @@
+{
+  "compiler_sha256": "79300402143d8749429bfb13931c7e8e50103e78c707c071c6590380015abc58",
+  "compiler_source_sha256": "018a2e3ca7546d60a2ba4c62b200b6a446ce0545d4956c2a3f9362cf6f581bf1",
+  "full_goal_complete": false,
+  "heap_limit": "32M",
+  "leak_check": "both runs live=0 immortal=0 leaked=0",
+  "logs": {
+    "class-identity.log": "35ec27e1b861c3547deeda4e205575e06378a2601ebce93ae90695dff9d55746",
+    "fixity/changed-redeclaration.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "fixity/direct.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "fixity/identical-redeclaration.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "fixity/produce.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "fixity/renamed-reexport.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "fixity/separate-facade.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "fixity/separate-renamed.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "mixed/emit.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "mixed/link.log": "6021f33487b85f8a9c5f9471588485ff4234e50e83be3e5c4c6e23dd0c32b455",
+    "mixed/run.log": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+    "passing/emit.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "passing/link.log": "6021f33487b85f8a9c5f9471588485ff4234e50e83be3e5c4c6e23dd0c32b455",
+    "passing/run.log": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+  },
+  "rows": [
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "mixed",
+      "phase": "emit",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "mixed",
+      "phase": "link",
+      "status": "passed"
+    },
+    {
+      "exit_code": 2,
+      "expected": 2,
+      "name": "mixed",
+      "phase": "run",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "passing",
+      "phase": "emit",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "passing",
+      "phase": "link",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "passing",
+      "phase": "run",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "produce",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "separate-facade",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "direct",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "renamed-reexport",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "separate-renamed",
+      "status": "passed"
+    },
+    {
+      "exit_code": 3,
+      "expected": 3,
+      "name": "identical-redeclaration",
+      "status": "passed"
+    },
+    {
+      "exit_code": 3,
+      "expected": 3,
+      "name": "changed-redeclaration",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "class-identity",
+      "status": "passed"
+    }
+  ],
+  "schema": 1,
+  "scope": "Exact final Stage3, selected only after the complete chain passes: both original runner programs with exact reports and 32M zero leaks, seven fixity/separate-facade probes, and complete class_identity target (two actual Cinch build/run cases and one direct Native API negative). No compiler frontend fallback.",
+  "source_sha256": "25922dbd1c8530051286ed499cdc280c4428e8f4b4b5d7eda81ffdb492ee6c8e",
+  "source_unchanged": true,
+  "status": "passed",
+  "verified_at": "2026-11-04T09:40:47.535118+00:00"
+}

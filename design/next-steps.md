@@ -1,5 +1,24 @@
 # Next steps (as of 2026-11-04)
 
+## Current acceptance blocker: structured tasks
+
+The exact final Stage3 compiler passes the complete original argv, allocation,
+case-evidence and class-identity groups. The complete exhaustion group passes
+three tests and fails its task stack-exhaustion case: `withScope` and direct
+`do` sequencing are not yet supported by the Cinch frontend. The original
+assertion remains unchanged; the fix must create a real runtime task and
+retain scope lifetimes, handle consumption, effects and cancellation.
+See [the recorded failure](../bootstrap/current-self-built-task-blocker.json).
+
+Matching final-source auxiliary checks pass all 171 runtime, 41 tooling and
+39 editor tests. All 14 exact Stage3 external acceptance checks also pass.
+See [auxiliary evidence](../bootstrap/current-source-auxiliary-results.json)
+and [external evidence](../bootstrap/current-final-external-results.json).
+The full Native sweep remains running. The final self-built sweep stopped
+after its exhaustion failure, with 86 groups still pending. Acceptance5 is
+open. Sequencing changes are local and under focused validation; they require
+a fresh bootstrap chain after validation.
+
 ## Current case-repaired compiler bootstraps
 
 The repaired Cinch compiler now completes a fresh Stage0/1/2/3 chain.
