@@ -38,7 +38,7 @@
     },
     {
       "title": "Complete current compiler sweep",
-      "detail": "82 of 208 complete groups passed; 3 running, 0 failed and 123 pending.Every group includes ignored tests. State: running.",
+      "detail": "83 of 208 complete groups passed; 3 running, 0 failed and 122 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -79,7 +79,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "82 of 208 complete groups passed; 3 running, 0 failed and 123 pending."
+      "detail": "83 of 208 complete groups passed; 3 running, 0 failed and 122 pending."
     },
     {
       "title": "Finish the exact self-built compiler tests",
@@ -124,6 +124,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "All 43 compiler-source checks: passed. 4 of 4 complete groups passed; 0 running, 0 failed and 0 pending. library calls: passed; runtime behavior: passed; parser: passed; typechecker: passed.",
-  "activity": "Current compiler sweep: 82 of 208 complete groups passed; 3 running, 0 failed and 123 pending. Stage builds and smoke checks: 2 of 4; chain state: running-full-stage-chain. Repair gates: 4 of 4 complete groups passed; 0 running, 0 failed and 0 pending. library calls: passed; runtime behavior: passed; parser: passed; typechecker: passed. Early Stage1 behavior: 1 of 8 complete groups passed; 1 running, 0 failed and 6 pending. Exact final Stage3 suite: 0 of 91 complete groups passed; 0 running, 0 failed and 91 pending.",
-  "updatedAt": "2026-11-04T04:46:44.550056+00:00"
+  "activity": "Current compiler sweep: 83 of 208 complete groups passed; 3 running, 0 failed and 122 pending. Stage builds and smoke checks: 2 of 4; chain state: running-full-stage-chain. Repair gates: 4 of 4 complete groups passed; 0 running, 0 failed and 0 pending. library calls: passed; runtime behavior: passed; parser: passed; typechecker: passed. Early Stage1 behavior: 1 of 8 complete groups passed; 1 running, 0 failed and 6 pending. Exact final Stage3 suite: 0 of 91 complete groups passed; 0 running, 0 failed and 91 pending.",
+  "updatedAt": "2026-11-04T04:47:48.095125+00:00"
 }
