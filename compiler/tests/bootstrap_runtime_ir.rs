@@ -131,6 +131,11 @@ fn typed_runtime_numbers_preserve_exact_values_and_reclaim_owned_words() {
     Token n -> if recover False (C64 True) && recover 0 (C69 9223372036854775808) == 9223372036854775808 && n == 18446744073709551616 then 143 else 1
 "#, (0..70).map(|i| format!("    C{i} :: a -> Wide a\n")).collect::<String>());
     let cases = [
+        ("byte-primitive-get-alias", r#"  foreign import ccall "cinch.runtime.bytesNew" allocate :: Nat -> Bytes
+  foreign import ccall "cinch.runtime.bytesGet" read-byte :: Bytes -> Nat -> refined (0 <= out && out <= 255) Nat
+  main :: Int
+  main = if read-byte (allocate 1) 0 == 0 then 221 else 1
+"#, 221),
         ("task-saturated-scoped-helper", r#"  import Data.Core (Result, Err, Ok)
   helper :: forall r s. using (io :: Io r) => Scope r s -> Unit ->{Async r, Cancel r, Diverge} Result Int Nat
   helper s u = do

@@ -712,11 +712,11 @@ module Bootstrap.RuntimeIr where
     None -> None
     Some bounds -> Some (RuntimeContext (writer-program w) bounds Nil Nil Nil)
   builtin-known :: String -> Bool
-  builtin-known name = machine-i64-builtin name || same name "b.newIO" || same name "b.ioWrite" || same name "b.ioSleep" || same name "b.pollCancel" || same name "cinch.runtime.bytesNew" || same name "cinch.runtime.bytesLen" || same name "cinch.runtime.textF64FromDecimal" || same name "cinch.runtime.textF64ToDecimal"
+  builtin-known name = machine-i64-builtin name || same name "b.newIO" || same name "b.ioWrite" || same name "b.ioSleep" || same name "b.pollCancel" || same name "cinch.runtime.bytesNew" || same name "cinch.runtime.bytesLen" || same name "cinch.runtime.bytesGet" || same name "cinch.runtime.textF64FromDecimal" || same name "cinch.runtime.textF64ToDecimal"
   machine-i64-builtin :: String -> Bool
   machine-i64-builtin name = same name "cinch.prim.eqI64" || same name "cinch.prim.wrappingAddI64" || same name "cinch.prim.wrappingSubI64"
   builtin-classes :: String -> List Nat
-  builtin-classes name = if machine-i64-builtin name then [0, 0] else if same name "b.newIO" then [0] else if same name "b.ioWrite" then [0, 1] else if same name "b.ioSleep" then [0, 2] else if same name "b.pollCancel" then [0, 0] else if same name "cinch.runtime.bytesNew" then [2] else if same name "cinch.runtime.textF64ToDecimal" then [0] else [1]
+  builtin-classes name = if machine-i64-builtin name then [0, 0] else if same name "b.newIO" then [0] else if same name "b.ioWrite" then [0, 1] else if same name "b.ioSleep" then [0, 2] else if same name "b.pollCancel" then [0, 0] else if same name "cinch.runtime.bytesGet" then [1, 2] else if same name "cinch.runtime.bytesNew" then [2] else if same name "cinch.runtime.textF64ToDecimal" then [0] else [1]
   builtin-call :: List CoreDefinition -> List Local -> Writer -> Span -> String -> List UType -> List String -> List CoreTerm -> (Writer, String)
   builtin-call definitions locals w sp name actuals givens args =
     let classes = builtin-classes name in
@@ -746,6 +746,10 @@ module Bootstrap.RuntimeIr where
       else if same name "b.pollCancel" then call started "@cinch_task_poll_cancel" Nil
       else if same name "cinch.runtime.bytesNew" then (case call started "@cinch_nat_to_len" ["%arg0"] of
         (converted, length) -> case call converted "@cinch_bytes_new" [length] of (done, result) -> (line done "  call void @cinch_drop(i64 %arg0)", result))
+      else if same name "cinch.runtime.bytesGet" then (case call started "@cinch_nat_to_len" ["%arg1"] of
+        (converted, index) -> case call converted "@cinch_bytes_get" ["%arg0", index] of
+          (read, byte) -> case call read "@cinch_nat_from_i64" [byte] of
+            (done, result) -> (line (line done "  call void @cinch_drop(i64 %arg0)") "  call void @cinch_drop(i64 %arg1)", result))
       else if same name "cinch.runtime.textF64ToDecimal" then
         (let (one, value) = fresh started "%float" in
          let converted = line one (cat ["  ", value, " = bitcast i64 %arg0 to double"]) in
@@ -1675,7 +1679,7 @@ module Bootstrap.RuntimeIr where
   declarations = cat [
     "declare ptr @cinch_alloc_ctor(i64, i64)\ndeclare ptr @cinch_alloc_shaped(i64, i64, i64)\ndeclare ptr @memcpy(ptr, ptr, i64)\ndeclare void @cinch_layouts_register(ptr, i64)\n",
     "declare void @cinch_dup(i64)\ndeclare void @cinch_drop(i64)\ndeclare void @cinch_reclaim_enable()\ndeclare i64 @cinch_exit_check(i64)\n",
-    "declare i64 @cinch_nat_to_len(i64)\ndeclare i64 @cinch_nat_from_i64(i64)\ndeclare i64 @cinch_bytes_new(i64)\ndeclare i64 @cinch_bytes_len(i64)\ndeclare i64 @cinch_bytes_from_data(ptr, i64)\ndeclare i64 @cinch_bytes_compare(i64, i64)\ndeclare i64 @cinch_io_write(i64)\ndeclare i64 @cinch_io_sleep(i64)\ndeclare i64 @cinch_task_poll_cancel()\ndeclare i64 @cinch_scope_open()\ndeclare i64 @cinch_scope_close(i64)\ndeclare i64 @cinch_task_spawn(i64, i64)\ndeclare i64 @cinch_task_join_all_or_cancel(i64, i64, i64, i64)\n",
+    "declare i64 @cinch_nat_to_len(i64)\ndeclare i64 @cinch_nat_from_i64(i64)\ndeclare i64 @cinch_bytes_new(i64)\ndeclare i64 @cinch_bytes_len(i64)\ndeclare i64 @cinch_bytes_get(i64, i64)\ndeclare i64 @cinch_bytes_from_data(ptr, i64)\ndeclare i64 @cinch_bytes_compare(i64, i64)\ndeclare i64 @cinch_io_write(i64)\ndeclare i64 @cinch_io_sleep(i64)\ndeclare i64 @cinch_task_poll_cancel()\ndeclare i64 @cinch_scope_open()\ndeclare i64 @cinch_scope_close(i64)\ndeclare i64 @cinch_task_spawn(i64, i64)\ndeclare i64 @cinch_task_join_all_or_cancel(i64, i64, i64, i64)\n",
     "declare i64 @cinch_text_f64_to_decimal(double)\ndeclare double @cinch_text_f64_from_decimal(i64)\n",
     "declare i64 @cinch_argv_init(i64, ptr)\ndeclare i64 @cinch_run_main(ptr)\n",
     "declare i64 @cinch_int_from_decimal(ptr, i64)\ndeclare i64 @cinch_nat_from_decimal(ptr, i64)\ndeclare i64 @cinch_int_to_i64(i64)\n",

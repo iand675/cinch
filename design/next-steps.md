@@ -1,5 +1,24 @@
 # Next steps (as of 2026-11-04)
 
+## Checked byte-read primitive
+
+The Cinch compiler now checks the actual bytesGet runtime contract: Bytes and
+Nat operands produce a Nat byte in the closed range 0..255. Runtime lowering
+converts the index through the checked runtime ABI and releases both owned
+operands. This does not grant mutable reads the immutable length primitive's
+proof authority.
+
+All43 compiler modules and seven complete focused groups pass. All134 runtime
+programs return their expected exits with zero leaks, including the new
+byte-read alias program (exit221). Compiler identity: `b4b6367f93e165500d4589348684135f83c4746c66f91a2c9d1e683b98cfc3a7`.
+[The scoped proof](../bootstrap/current-byte-read-primitive-results.json)
+records exact inputs, executables, full logs and the actual runtime case.
+
+Typed helper normalization, allocator refinement proofs, executable index
+witnesses and source opaque declarations remain separate work. The running
+chain11 and suites36 concern preceding API sourcea93. A final matching bootstrap,
+all complete suites and the full Acceptance1-5 audit remain required.
+
 ## Checked intrinsic type views
 
 A runtime intrinsic now retains every exact checked source/interface type view
