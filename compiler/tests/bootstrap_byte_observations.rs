@@ -28,6 +28,10 @@ fn source_observations_use_declared_primitive_identity_and_actual_buffer() {
     ]);
     let exe=common::build(&dir,"Main.cinch","source-observations").expect("build Cinch source observation checker");
     let cases=[
+        ("typed polymorphic byte helper","identity :: forall a. a -> a\n  identity x = x\n  data Mark (n :: Nat) where\n    Mark :: Mark n\n  make :: (b :: refined (extent out >= 0) Bytes) -> Mark (extent (identity b))\n  make b = Mark",0),
+        ("nested pure identity helpers","first :: forall a. a -> a\n  first x = x\n  second :: Bytes -> Bytes\n  second x = x\n  data Mark (n :: Nat) where\n    Mark :: Mark n\n  make :: (b :: Bytes) -> Mark (extent (first (second b)))\n  make b = Mark",0),
+        ("ordinary byte helper has no identity authority","identity :: Bytes -> Bytes\n  identity x = []\n  data Mark (n :: Nat) where\n    Mark :: Mark n\n  make :: (b :: Bytes) -> Mark (extent (identity b))\n  make b = Mark",4),
+        ("wrong typed identity helper","identity :: Nat -> Nat\n  identity x = x\n  data Mark (n :: Nat) where\n    Mark :: Mark n\n  make :: (b :: Bytes) -> Mark (extent (identity b))\n  make b = Mark",4),
         ("nonnegative observation","nonnegative :: Bytes -> refined (out >= 0) Nat\n  nonnegative b = extent b",0),
         ("machine-sized observation","bounded :: Bytes -> refined (out <= 9223372036854775807) Nat\n  bounded b = extent b",0),
         ("refined buffer introduction","keep :: using (extent b > 0) => (b :: Bytes) -> refined (extent out > 0) Bytes\n  keep b = b",0),
@@ -52,6 +56,8 @@ fn source_observations_use_declared_primitive_identity_and_actual_buffer() {
         let result=std::process::Command::new(&exe).current_dir(&dir).output().unwrap();
         let report=common::read_output(&dir,"refinement-report.txt");
         assert_eq!(result.status.code(),Some(status),"{name}; project {}\n{source}\n{report}\n{}",dir.display(),String::from_utf8_lossy(&result.stderr));
+        if name == "ordinary byte helper has no identity authority" { assert!(report.contains("byte observation input needs checked pure total reification"), "{name}: {report}"); }
+        if name == "wrong typed identity helper" { assert!(report.contains("Bytes"), "{name}: {report}"); }
     }
     common::cleanup(&dir);
 }

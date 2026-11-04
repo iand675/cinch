@@ -1,5 +1,25 @@
 # Next steps (as of 2026-11-04)
 
+## Typed byte helpers and allocator proof contracts
+
+Checked pure identity helpers now preserve byte operand carriers in source
+indices, including refined operands and nested helper calls. Allocation
+refinement contracts are proved from the actual kernel fact that the returned
+buffer length equals its input. False promises, effectful or wrong inputs and
+forged unnamed refinements are refused.
+
+All43 compiler modules and eight complete focused groups pass, with135 runtime
+programs returning their expected outcomes and zero leaks. Seven new allocation
+checks run at five identifiers alongside all existing Core checks. Four source
+helper cases retain precise acceptance and refusal checks. Compiler identity:
+`1b2eb541e7712c3defff20e8a0b81b651457050019a0bbe5502d2111a24583d4`. See [the scoped evidence](../bootstrap/current-byte-helper-allocation-results.json).
+
+The unchanged original nine-test diagnostic passes six tests on this source.
+Three failures remain: local application carrier diagnostics, executable value
+parameters and the mutable-reader obligation diagnostic. Value-parameter work
+is in a separate validation snapshot. Source opaque declarations, a fresh final
+matching bootstrap, all complete suites and the Acceptance1-5 audit remain open.
+
 ## Checked byte-read primitive
 
 The Cinch compiler now checks the actual bytesGet runtime contract: Bytes and

@@ -37,6 +37,7 @@ module Bootstrap.Infer where
   data ByteObservation where
     ByteObservation :: String -> Option String -> ByteObservation
     TotalObservation :: String -> BodyBinding -> ByteObservation
+    IdentityObservation :: String -> Scheme -> ByteObservation
   data TypeContext where
     MkTypeContext :: List (String, Kind) -> List Decl -> List String -> List ByteObservation -> List CoreEffect -> List CoreClass -> TypeContext
   context-kind :: String -> TypeContext -> Option Kind
@@ -392,7 +393,7 @@ module Bootstrap.Infer where
     TIndex sp text -> True
     TNegate sp body -> refinement-predicate-scope kinds names body
     TInfix sp op first second -> has op ["+", "-", "*", "<", "<=", ">", ">=", "==", "/=", "&&", "||"] && refinement-predicate-scope kinds names first && refinement-predicate-scope kinds names second
-    TApp sp (TName at name) (TArg arg input (TArgsEnd end)) -> (same name "NonZero" || byte-length-binding name kinds) && refinement-predicate-scope kinds names input
+    TApp sp (TName at name) (TArg arg input (TArgsEnd end)) -> (same name "NonZero" || byte-length-binding name kinds || (case context-identity-observation name kinds of Some sc -> True; None -> False)) && refinement-predicate-scope kinds names input
     other -> False
   validate-refinement :: TypeContext -> Decl -> Store -> Store
   validate-refinement kinds declaration st = case declaration of
@@ -524,15 +525,59 @@ module Bootstrap.Infer where
   imported-observation-scheme name metadata context = case (context-byte-observation name context, field "scheme" metadata) of
     (Some (ByteObservation binding (Some declared)), JStr actual) -> same declared actual
     other -> False
+  identity-observation :: String -> List ByteObservation -> Option Scheme
+  identity-observation name observers = case observers of
+    Nil -> None
+    Cons (IdentityObservation symbol sc) rest -> if same name symbol then Some sc else identity-observation name rest
+    Cons other rest -> identity-observation name rest
+  context-identity-observation :: String -> TypeContext -> Option Scheme
+  context-identity-observation name context = case context of MkTypeContext kinds aliases active observers effects source-classes -> identity-observation name observers
+  context-add-identity :: String -> Scheme -> TypeContext -> TypeContext
+  context-add-identity name sc context = case context of MkTypeContext kinds aliases active observers effects source-classes -> MkTypeContext kinds aliases active (Cons (IdentityObservation name sc) observers) effects source-classes
+  identity-type-shape :: TypeExpr -> Bool
+  identity-type-shape syntax = case syntax of
+    TForall sp binders body -> identity-type-shape body
+    TFun sp (TName first domain) (TName second result) -> same domain result
+    other -> False
+  identity-body :: String -> List Decl -> Bool
+  identity-body name declarations = case function-clauses name declarations of
+    Cons (Cons (PVar sp parameter) Nil, EVar at value) Nil -> same parameter value
+    other -> False
+  identity-type-parameters :: List Quant -> Bool
+  identity-type-parameters params = case params of Nil -> True; Cons q rest -> kind-equal (quant-kind q) KType && identity-type-parameters rest
+  identity-scheme :: Scheme -> Bool
+  identity-scheme sc = identity-type-parameters (scheme-params sc) && (case (scheme-requirements sc, scheme-body sc) of
+    (Nil, UFun domain result) -> same-type domain result
+    other -> False)
+  -- Only a complete single-clause identity definition, with its checked pure
+  -- type, supplies this beta reduction. A similarly named or merely typed
+  -- function, a foreign binding, or another clause supplies no authority.
+  collect-source-identities :: List Decl -> List Decl -> List (String, Kind) -> TypeContext -> Store -> (TypeContext, Store)
+  collect-source-identities all declarations classes kinds st = case declarations of
+    Nil -> (kinds, st)
+    Cons (DSig sp name syntax) rest -> if identity-type-shape syntax && identity-body name all then
+      (case make-scheme False classes kinds Nil syntax st of
+        (sc, checked) -> collect-source-identities all rest classes (if identity-scheme sc then context-add-identity name sc kinds else kinds) checked)
+      else collect-source-identities all rest classes kinds st
+    Cons other rest -> collect-source-identities all rest classes kinds st
+  convert-byte-operand :: TypeContext -> List (String, UType) -> Span -> TypeExpr -> Store -> (UType, Store)
+  convert-byte-operand kinds locals sp argument st = case argument of
+    TName at binding -> case lookup-local binding locals of
+      Some value -> predicate-index-value sp (primitive-type "Bytes") value st
+      None -> bad sp "byte observation input has no checked local identity" st
+    TApp at (TName called name) (TArg arg input (TArgsEnd end)) -> (case context-identity-observation name kinds of
+      Some sc -> (case open-scheme False sc st of
+        (function, pairs, opened) -> case function of
+          UFun domain result -> case convert-byte-operand kinds locals sp input opened of
+            (value, checked) -> (value, unify sp result (primitive-type "Bytes") (unify sp domain (primitive-type "Bytes") checked))
+          other -> bad sp "byte observation helper needs its checked pure identity type" opened)
+      None -> bad sp "byte observation input needs checked pure total reification" st)
+    other -> bad sp "byte observation input needs checked pure total reification" st
   convert-byte-length :: TypeContext -> List (String, UType) -> Span -> String -> TypeExpr -> Store -> (UType, Store)
   convert-byte-length kinds locals sp name argument st =
     if not (byte-length-binding name kinds) then bad sp "index expression needs checked scope, purity and totality" st
-    else case argument of
-      TName at binding -> case lookup-local binding locals of
-        Some value -> case predicate-index-value sp (primitive-type "Bytes") value st of
-          (input, checked) -> checked-typed-source-index sp (UIndexByteLength input) checked
-        None -> bad sp "byte observation input has no checked local identity" st
-      other -> bad sp "byte observation input needs checked pure total reification" st
+    else case convert-byte-operand kinds locals sp argument st of
+      (input, checked) -> checked-typed-source-index sp (UIndexByteLength input) checked
   convert-total-arguments :: Bool -> TypeContext -> List (String, UType) -> List String -> TypeExpr -> Store -> (UType, Store)
   convert-total-arguments external kinds locals parameters arguments st = case (parameters, arguments) of
     (Nil, TArgsEnd sp) -> (UEnd, st)
@@ -1460,7 +1505,7 @@ module Bootstrap.Infer where
             Parsed expected Nil -> case convert False kinds Nil expected checked of
               (ty, prepared) -> case lookup-binding name env of
                 Some prior -> (env, add-error sp "duplicate intrinsic binding" prepared)
-                None -> (Cons (MkIntrinsicBinding name sc symbol) env, unify sp (scheme-body sc) ty prepared)
+                None -> (Cons (MkIntrinsicBinding name sc symbol) env, if same symbol "cinch.runtime.bytesNew" && byte-allocation-contract (normalize prepared (scheme-body sc)) then prepared else unify sp (scheme-body sc) ty prepared)
             other -> (env, add-error sp "invalid kernel intrinsic contract" checked)
           other -> (env, add-error sp "runtime intrinsic cannot be polymorphic or constrained" checked)
   kernel-metadata :: String -> List Decl -> Option Json
@@ -3016,8 +3061,9 @@ module Bootstrap.Infer where
     let (nominal-kinds, sk) = collect-nominal-kinds ds instance-kinds instance-store in
     let (runtime-kinds, runtime-store) = imported-runtime-class-kinds rows nominal-kinds sk in
     let classes = Cons ("b.Io", KFun KRegion KType) (source-class-kinds ds runtime-kinds (class-kinds rows runtime-kinds Nil)) in
-    let aliases-checked = validate-refinements runtime-kinds (context-aliases runtime-kinds) runtime-store in
-    let (class-kinds, class-store) = collect-source-classes ds classes runtime-kinds aliases-checked in
+    let (identity-kinds, identity-store) = collect-source-identities ds ds classes runtime-kinds runtime-store in
+    let aliases-checked = validate-refinements identity-kinds (context-aliases identity-kinds) identity-store in
+    let (class-kinds, class-store) = collect-source-classes ds classes identity-kinds aliases-checked in
     let (kinds, body-store) = collect-body-contracts ds classes class-kinds class-store in
     let (values, sv) = register rows classes kinds ds (context-body-bindings kinds <> builtins) body-store in
     let (ordinary-env, si) = register-implicit-instances classes kinds ds values sv in

@@ -26,7 +26,7 @@ module Bootstrap.Core where
   export handler-kind, handler-type, handler-parts, handler-residual, handler-operation-scheme, handler-clause-type, handler-resumption-safe, handler-body-direct
   export CProofRef, CErasedApply, scope-erased, scoped-proof-reference
   export CDecision, decision-type, decision-constructor-scheme, scoped-decision-valid, stable-index-source
-  export CRefineProof, scoped-refinement-proof
+  export CRefineProof, scoped-refinement-proof, byte-allocation-contract
   export CRefine, CForget, prove-refinement, CRequire, CDischarge, core-predicates, prove-predicates, required-body, CProved, core-condition, core-let-fact, prove-subtraction, numeric-method-operation
   export scope-guarded-bodies, with-guarded-bindings, scoped-guarded-call-index, core-definition-contracts-closed, seal-definition-with-contracts
   export ProofScope, make-proof-scope, scoped-prove-refinement, scoped-prove-predicates, scoped-core-predicates, scoped-core-condition, scoped-core-branch, scoped-core-let-fact, scoped-prove-subtraction
@@ -1642,6 +1642,24 @@ module Bootstrap.Core where
           Some value -> core-predicate gamma (substitute-bound [(id, value)] predicate)
           None -> None) else None
     other -> None
+  -- The runtime allocator returns a Bytes buffer whose immutable length is
+  -- exactly the checked Nat input. Validate a foreign declaration's proposed
+  -- refinement against that kernel fact; source text supplies no assumption.
+  allocation-result-contract :: Nat -> UType -> Bool
+  allocation-result-contract input result = case result of
+    URefine output name carrier predicate -> input /= output && contract-equal carrier (UCon "Bytes" KType) && valid-type result &&
+      (let nat = UCon "Nat" KType in
+       let gamma = make-proof-scope [(input, nat), (output, UCon "Bytes" KType)] Nil in
+       let actual = UIndex nat (IRigid input "#allocation-length" 0) in
+       let opened = substitute-bound [(input, actual)] result in
+       let fact = PCompare Equal (byte-length-variable output) (proof-variable input) in
+       case scoped-prove-refinement gamma [fact] opened (CLocal (Span 0 0 1 1) carrier output "#allocation-result" Nil) of Some evidence -> True; None -> False)
+    other -> contract-equal result (UCon "Bytes" KType)
+  byte-allocation-contract :: UType -> Bool
+  byte-allocation-contract ty = valid-type ty && (case ty of
+    UFun domain result -> nat-type domain && contract-equal result (UCon "Bytes" KType)
+    UPi input name domain row result -> nat-type domain && contract-equal row (URow UEnd) && allocation-result-contract input result
+    other -> False)
   scoped-prove-refinement :: ProofScope -> List Proposition -> UType -> CoreTerm -> Option Proof
   scoped-prove-refinement gamma facts ty body = case refinement-goal gamma facts ty body of
     Some goal -> let hypotheses = goal-assumptions gamma facts [goal] in case prove hypotheses goal of

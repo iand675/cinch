@@ -227,6 +227,21 @@ module Main where
     , (case close-globals [GlobalIntrinsicViews symbol Nil] of None -> True; Some context -> False)
     , (case close-globals [GlobalIntrinsicViews symbol [raw, mono (UFun bytes bool)]] of None -> True; Some context -> False)
     ]
+  allocation-contract-checks :: Nat -> List Bool
+  allocation-contract-checks nonce =
+    let input = nonce + 100 in let output = nonce + 101 in
+    let bytes = UCon "Bytes" KType in
+    let length = UIndexByteLength (UBound output "out" (value-kind bytes)) in
+    let size = UBound input "n" (value-kind nat) in
+    let promise predicate = UPi input "n" nat zero-row (URefine output "out" bytes predicate) in
+    [ byte-allocation-contract (UFun nat bytes)
+    , byte-allocation-contract (promise (UCompare "==" length size))
+    , byte-allocation-contract (promise (UCompare ">=" length (UIndex nat (IInteger 0))))
+    , not (byte-allocation-contract (promise (UCompare "==" length (UIndexMath "+" size (UIndex nat (IInteger 1))))))
+    , not (byte-allocation-contract (UPi input "n" int zero-row (URefine output "out" bytes (UCompare "==" length size))))
+    , not (byte-allocation-contract (UPi input "n" nat log-row (URefine output "out" bytes (UCompare "==" length size))))
+    , not (byte-allocation-contract (UFun nat (URefine output "out" bytes (UCompare "==" length (UIndex nat (IInteger 99))))))
+    ]
   verdict :: Int -> List Bool -> Int
   verdict next values = case values of Nil -> 0; Cons True rest -> verdict (next + 1) rest; Cons False rest -> next
   main :: Unit ->{IO r} Int
@@ -235,6 +250,8 @@ module Main where
     Ok input -> let nonce = 340282366920938463463374607431768211456 + bytes-len input in
       case verdict 1 (scope-checks nonce) of
         0 -> case verdict 1 (task-checks nonce) of
-          0 -> case verdict 1 (intrinsic-view-checks nonce) of 0 -> verdict 1 (checks nonce); code -> 180 + code
+          0 -> case verdict 1 (intrinsic-view-checks nonce) of
+            0 -> case verdict 1 (allocation-contract-checks nonce) of 0 -> verdict 1 (checks nonce); code -> 190 + code
+            code -> 180 + code
           code -> 150 + code
         code -> 100 + code

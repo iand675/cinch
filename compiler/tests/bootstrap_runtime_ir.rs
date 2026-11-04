@@ -131,6 +131,13 @@ fn typed_runtime_numbers_preserve_exact_values_and_reclaim_owned_words() {
     Token n -> if recover False (C64 True) && recover 0 (C69 9223372036854775808) == 9223372036854775808 && n == 18446744073709551616 then 143 else 1
 "#, (0..70).map(|i| format!("    C{i} :: a -> Wide a\n")).collect::<String>());
     let cases = [
+        ("byte-allocation-primitive-promise", r#"  foreign import ccall "cinch.runtime.bytesLen" extent :: Bytes -> Nat
+  foreign import ccall "cinch.runtime.bytesNew" allocate :: (n :: Nat) -> refined (extent out == n) Bytes
+  make :: (n :: Nat) -> refined (extent out == n) Bytes
+  make n = allocate n
+  main :: Int
+  main = if extent (make 4) == 4 then 223 else 1
+"#, 223),
         ("byte-primitive-get-alias", r#"  foreign import ccall "cinch.runtime.bytesNew" allocate :: Nat -> Bytes
   foreign import ccall "cinch.runtime.bytesGet" read-byte :: Bytes -> Nat -> refined (0 <= out && out <= 255) Nat
   main :: Int
