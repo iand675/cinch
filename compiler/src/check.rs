@@ -7583,6 +7583,9 @@ impl Checker {
         let mut obligs: Vec<PropOblig> = Vec::new();
         // `forall` binders in order, with their kind hints.
         let mut binders: Vec<(String, Option<ParamKind>, ast::Span)> = Vec::new();
+        // Rows occupy Scheme::row_params rather than the proper/index kind
+        // namespace. Retain an explicit Row annotation until usage is known.
+        let mut explicit_rows = Vec::new();
         let mut rest = ty;
         loop {
             match rest {
@@ -7591,10 +7594,15 @@ impl Checker {
                         if params.contains(&b.name.text) {
                             return Err(Error::at(b.name.span, "duplicate type parameter"));
                         }
-                        let hint = match &b.ann {
+                        let explicit_row = matches!(b.ann.as_ref(),
+                            Some(ast::Type::Con(path, _)) if path.parts().as_slice() == ["Row"]);
+                        let hint = if explicit_row {
+                            explicit_rows.push(b.name.text.clone());
+                            None
+                        } else { match &b.ann {
                             Some(ann) => Some(self.binder_kind(ann, &params)?),
                             None => None,
-                        };
+                        }};
                         params.push(b.name.text.clone());
                         binders.push((b.name.text.clone(), hint, b.name.span));
                     }
@@ -7699,7 +7707,20 @@ impl Checker {
                     let mut val_params: Vec<(String, Ty)> = Vec::new();
                     let mut prop_params: Vec<String> = Vec::new();
                     for (name, hint, span) in binders {
-                        if row_params.contains(&name) || region_params.contains(&name) {
+                        if row_params.contains(&name) || explicit_rows.contains(&name) {
+                            // Inference cannot discard an explicit different
+                            // kind or merge a row with a type, value or region.
+                            if hint.is_some() || region_params.contains(&name)
+                                || constraints.iter().any(|(used, _)| used == &name)
+                            {
+                                return Err(Error::at(span, format!(
+                                    "effect row parameter `{name}` has an incompatible kind or non-row use"
+                                )));
+                            }
+                            if !row_params.contains(&name) { row_params.push(name); }
+                            continue;
+                        }
+                        if region_params.contains(&name) {
                             continue;
                         }
                         let kind =

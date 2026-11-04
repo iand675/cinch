@@ -1,5 +1,19 @@
 # Next steps (as of 2026-11-04)
 
+## Verified Rust row-parameter annotations (2026-11-04)
+
+Rust now retains explicit `forall (e :: Row)` binders and rejects a row tail
+annotated as a proper type or value. A binder cannot simultaneously name a row
+and a type, value or region. Ordinary unannotated rows remain inferred; explicit
+Region annotations retain their existing refusal. Nominal kinds and ABI are unchanged.
+
+Four complete Native suites pass all 28 tests, including all original effects,
+parameter and interface cases. All 43 compiler modules and ten original CLI
+reproductions pass independently. Evidence is
+`bootstrap/current-rust-row-kind-results.json`; this is scoped Rust evidence.
+The separate Cinch open-row implementation, matching complete final suites and
+the full Acceptance 1-5 audit remain open.
+
 ## Verified opaque declarations and inferred constructor kinds (2026-11-04)
 
 The Cinch checker now retains opaque declarations as abstract nominal identities

@@ -760,3 +760,29 @@ module Main where
         7,
     );
 }
+
+#[test]
+fn row_parameter_annotations_and_names_preserve_their_kind() {
+    for scheme in [
+        "forall e. (Unit ->{|e} Unit) ->{|e} Unit",
+        "forall (e :: Row). (Unit ->{|e} Unit) ->{|e} Unit",
+        "forall (unused :: Row). Unit -> Unit",
+    ] {
+        let source = format!("module Main where\n  callback :: {scheme}\n  callback f = {}\n  main :: Int\n  main = 0\n", if scheme.contains("unused") { "f" } else { "f ()" });
+        check_sources(&source, "row-kind.cinch").unwrap_or_else(|e| panic!("{scheme}: {e}"));
+    }
+    for scheme in [
+        "forall (e :: Type). (Unit ->{|e} Unit) ->{|e} Unit",
+        "forall (e :: Nat). (Unit ->{|e} Unit) ->{|e} Unit",
+        "forall (e :: Region). (Unit ->{|e} Unit) ->{|e} Unit",
+        "forall e. e -> (Unit ->{|e} Unit) ->{|e} Unit",
+        "forall (e :: Row). e -> e",
+        "forall e. Io e -> (Unit ->{|e} Unit) ->{|e} Unit",
+    ] {
+        let source = format!("module Main where\n  callback :: {scheme}\n  callback = callback\n  main :: Int\n  main = 0\n");
+        let error=check_sources(&source,"row-kind.cinch").expect_err(scheme).to_string();
+        let expected = if scheme.contains(":: Region") { "unknown type Region" }
+            else { "incompatible kind or non-row use" };
+        assert!(error.contains(expected), "{scheme}: {error}");
+    }
+}

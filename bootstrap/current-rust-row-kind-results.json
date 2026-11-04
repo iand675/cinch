@@ -1,0 +1,147 @@
+{
+  "compiler_source_sha256": "80413b5dccb1f43943acec2b0c38b8764481417cb2663289d3eee6e75810b470",
+  "full_goal_complete": false,
+  "limitations": "Scoped Rust proof only. Combined Cinch source checks, matching complete Native/self-built/runtime/tool/editor/external suites, positive live-ABI array lowering and original100-target/Acceptance1-5 audit remain open.",
+  "original_oracle": {
+    "compiler": "/tmp/cinch-rust-row-kind-validation-2/cargo/debug/cinch",
+    "compiler_sha256": "12726209fbc8f4d09231a6d94ab979d6674dd283d33ab928f361b6d2d815282b",
+    "full_goal_complete": false,
+    "rows": [
+      {
+        "exit_code": 0,
+        "expected_acceptance": true,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "name": "inferred open effect row",
+        "source_sha256": "f8b082c14703814eed854b09767ac9a4c2e026c2c96a3c81af9d09b1c7ba197e",
+        "status": "passed"
+      },
+      {
+        "exit_code": 0,
+        "expected_acceptance": true,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "name": "explicit open effect row",
+        "source_sha256": "d4429db56906ba52b603fb820fcf5c174836f21d4b48b6afe734c7972da15fab",
+        "status": "passed"
+      },
+      {
+        "exit_code": 0,
+        "expected_acceptance": true,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "name": "open effect row with labels",
+        "source_sha256": "ca36465ed0fa88f38ed3dbf044c034fbcd04a803476f185be835874ea8fffd42",
+        "status": "passed"
+      },
+      {
+        "exit_code": 1,
+        "expected_acceptance": false,
+        "log_sha256": "d4ecccde2e0b5eae5a20b6b063d839270be14bc11e886b1f44c761010d18f425",
+        "name": "open effect row cannot erase tail",
+        "source_sha256": "f869c55c96d7dfad7b06ae24f1172fc27e8fa52ccdf243969b2af67cea5e2699",
+        "status": "passed"
+      },
+      {
+        "exit_code": 1,
+        "expected_acceptance": false,
+        "log_sha256": "7f8a8350c742740815d07734db027bf42810b72285dea875e605b6b742f651b6",
+        "name": "open effect row cannot substitute identity",
+        "source_sha256": "1ae743be7bd30d98e098725569f05929b0b9468ea6582660d14a2cae88c58a9c",
+        "status": "passed"
+      },
+      {
+        "exit_code": 1,
+        "expected_acceptance": false,
+        "log_sha256": "91804cdc92c4a35cb6164f76d1b8d1ddf75583893e0e6bd37871eb11aebdd8f8",
+        "name": "open effect row explicit Type refused",
+        "source_sha256": "fc696f7f9735a43bed22c6a9ed5e6917c7fd1f3c3f9f1b9a405b452902585e34",
+        "status": "passed"
+      },
+      {
+        "exit_code": 1,
+        "expected_acceptance": false,
+        "log_sha256": "e31380103390d93dea02940150bf68b3282c8666e61c32432c1aaa3c4a0ddd25",
+        "name": "open effect row explicit Region refused",
+        "source_sha256": "dca1d886edbf0de05627e2eb9ca1382999dff3819cb475a45b5c521e2336659c",
+        "status": "passed"
+      },
+      {
+        "exit_code": 1,
+        "expected_acceptance": false,
+        "log_sha256": "24895aeefc01c99dea6fdc7a2e3d27c521ff9e842e8a80ab1600b578235d85fc",
+        "name": "open effect row unbound refused",
+        "source_sha256": "994a98951c67ec32f1e4e8deeeeee02968dfbe98bb009d46a636cd73da5c8499",
+        "status": "passed"
+      },
+      {
+        "exit_code": 1,
+        "expected_acceptance": false,
+        "log_sha256": "b3edf6d7f98d3e721295e6197288245fcdb29d805627cf1b3de52a11c64b329b",
+        "name": "open effect row conflicting type use refused",
+        "source_sha256": "c00fde000ddf003d7e9a51147b72d777c340ff8887688153ea6bbc2ae76a122c",
+        "status": "passed"
+      },
+      {
+        "exit_code": 1,
+        "expected_acceptance": false,
+        "log_sha256": "c499ce335133484afc98ce5df1cc10b07df93767d348306863dc9cec5a359fdd",
+        "name": "open effect row cannot hide named effect",
+        "source_sha256": "5af4e403c30a295fb1af90eef6602e75fb7c53d7b8c3e908be258ac68cfad12e",
+        "status": "passed"
+      }
+    ],
+    "scope": "Independent Native acceptance oracle for the ten exact corrected Cinch row cases. Cinch execution and complete effect suites remain separate requirements.",
+    "source_sha256": "b173049618c39c76c7f0fa1ca01d68d1c318fed0433a376a90df2affc3ea4eb1",
+    "status": "passed"
+  },
+  "rows": [
+    {
+      "binary": "/tmp/cinch-rust-row-kind-validation-2/cargo/debug/deps/effects-f07c4c070b8aa2b3",
+      "binary_sha256": "fa4370b5249d754fac4c3488170333d7cbacebc883ad6d13e4b3ab50853dea3b",
+      "exit_code": 0,
+      "log_sha256": "e7dd1bafa040654d8dad9dfa7b5dbd6fa12f6de31f701a1771e20e9414cfd22a",
+      "name": "effects",
+      "status": "passed",
+      "tests": 17
+    },
+    {
+      "binary": "/tmp/cinch-rust-row-kind-validation-2/cargo/debug/deps/params-d3037ea95f2da87b",
+      "binary_sha256": "1e7733041672d38215241b176945999f97f0ae76a20fece6aea7ef3509228047",
+      "exit_code": 0,
+      "log_sha256": "2fc42372c68836b23607a0b03455d4dc01cc12c1bbf0265b1881f5bc2b07fb44",
+      "name": "params",
+      "status": "passed",
+      "tests": 7
+    },
+    {
+      "binary": "/tmp/cinch-rust-row-kind-validation-2/cargo/debug/deps/interface_region_effects-a40a0643bee06bcc",
+      "binary_sha256": "a83f6a861cdc61830ecd310932af9cde6e54abbb5eafb3fa2d12660850045701",
+      "exit_code": 0,
+      "log_sha256": "b2d90b0819c77e7b842cfec74e9b64f0d5e54f04ee0a1f776e99a81430959b3a",
+      "name": "interface_region_effects",
+      "status": "passed",
+      "tests": 2
+    },
+    {
+      "binary": "/tmp/cinch-rust-row-kind-validation-2/cargo/debug/deps/interface_kinds-50a2c803475e0226",
+      "binary_sha256": "8d1f5d5ea1bccce02959b9361c05f220ab7a070c81aa1377d7e309607b43ca5c",
+      "exit_code": 0,
+      "log_sha256": "e9ce0eefb5f189cb5cba531138a15afc75d6bb10727e50d94a2c84f993aedf81",
+      "name": "interface_kinds",
+      "status": "passed",
+      "tests": 2
+    }
+  ],
+  "scope": "Four complete original Native groups including ignored cases, all43 compiler-module checks and ten independent actual CLI reproductions. Explicit forall Row annotations preserve row identities; explicit incompatible kinds and mixed row/type/value/region uses are rejected. Unannotated rows remain inferred and distinct row identities and declared effects cannot be erased. Native Region annotations retain their existing named refusal. No change to nominal parameter kinds or artifact ABI.",
+  "source": "/tmp/cinch-rust-row-kind-validation-2/source",
+  "source_check": {
+    "compiler": "/tmp/cinch-rust-row-kind-validation-2/cargo/debug/cinch",
+    "compiler_modules": 43,
+    "compiler_sha256": "12726209fbc8f4d09231a6d94ab979d6674dd283d33ab928f361b6d2d815282b",
+    "exit_code": 0,
+    "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "status": "passed"
+  },
+  "source_sha256": "8bc74c1f7a7ceed04d8b6d96ea13a30b17a8947030212fd0ad4317a27ec16765",
+  "status": "passed-scoped-rust-effect-row-kinds",
+  "tests": 28,
+  "verified_at": "2026-11-04T20:28:04.608661+00:00"
+}
