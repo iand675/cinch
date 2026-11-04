@@ -3,7 +3,7 @@
   "blockers": [
     {
       "title": "Complete escaped constructor support",
-      "detail": "Original failing assertions: escaped_constructors_match_and_carry_one_descriptor_word. The complete original allocation group continues to record all results. Unstarted old-source verification is deferred; every required gate must pass on the eventual repaired source."
+      "detail": "Original failing assertions: escaped_constructors_match_and_carry_one_descriptor_word, interned_symbols_are_counted_immortal_once_per_name. The complete original allocation group continues to record all results. Unstarted old-source verification is deferred; every required gate must pass on the eventual repaired source."
     },
     {
       "title": "Validate the additional Stage3 repairs",
@@ -33,7 +33,7 @@
   "checks": [
     {
       "title": "Escaped constructor repair",
-      "detail": "The current Stage2 allocation regression exposed unsupported70constructor families. The repair uses the existing runtime descriptor format and adds actual65tag, recursive first-class and generic representation-class executions. Complete runtime/parser/checker validation: waiting-shared-slot. This repair is not yet a verified fresh bootstrap.",
+      "detail": "The current Stage2 allocation regression exposed unsupported70constructor families. The repair uses the existing runtime descriptor format and adds actual65tag, recursive first-class and generic representation-class executions. Complete runtime/parser/checker validation: running. This repair is not yet a verified fresh bootstrap.",
       "state": "running"
     },
     {
@@ -261,5 +261,5 @@
   ],
   "status": "Stage2 allocation regression requires repair",
   "summary": "The current source builds Stage2 and passes its smoke checks, but an actual external allocation test fails: the Cinch backend refuses the existing escaped-constructor runtime representation. A separate source repair is queued for full focused validation. Final acceptance remains open.",
-  "updatedAt": "2026-11-04T02:43:43.564628+00:00"
+  "updatedAt": "2026-11-04T02:44:46.103580+00:00"
 }
