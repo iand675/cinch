@@ -28,6 +28,11 @@
   ],
   "checks": [
     {
+      "title": "Early checks through current Stage2",
+      "detail": "0 of 8 complete ordinary targets passed, 1 running and 0 failed through the current self-built Stage2. Original allocation, argument, evidence, class, exhaustion, ownership, map and primitive-identity assertions remain intact. Uses one existing shared slot; these are early diagnostics and do not replace final Stage3 acceptance.",
+      "state": "running"
+    },
+    {
       "title": "Complete current-source repair gates passed",
       "detail": "All five complete targets pass on frozen f6e1/Cinch0e28: optimizer16, exact checker, intrinsic contracts, full runtime lowering and parser corpus. New Unit/function-returning entry and I64 overflow/first-class/owned-data cases have exact results and zero leaks at32M. Full suites and fresh staged build remain separate.",
       "state": "passed"
@@ -247,5 +252,5 @@
   ],
   "status": "Repair gates passed; fresh bootstrap underway",
   "summary": "All five complete repair gates pass and the tested Cinch/Rust changes are published. The fresh Stage0/1/2/3 build and complete matching suites are now required. Earlier baseline results remain separately scoped.",
-  "updatedAt": "2026-11-04T02:33:10.133155+00:00"
+  "updatedAt": "2026-11-04T02:34:18.123991+00:00"
 }
