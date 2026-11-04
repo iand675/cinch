@@ -102,6 +102,20 @@ match the previous bundle byte for byte. The unchanged complete target is queued
 through the same Stage3 compiler and runner; neither its success nor the
 complete79-group suite is claimed. See [the raw-list library artifact receipt](../bootstrap/test-library-list-variant-results.json). See [the retained failures and candidate scope](../bootstrap/additional-stage3-verification-results.json).
 
+## Rust optimizer definition-table borrowing
+
+A live profile of the complete checker target exposed repeated deep copies of
+all function bodies: each per-function optimizer driver cloned the complete
+definition table, although it only reads that table. The driver now borrows the
+current table; the existing updates between optimized functions are preserved.
+All16 optimizer tests and the complete exact-report checker test pass on the
+frozen repair snapshot, with no failures, ignored tests or filtered cases. See
+[the focused Rust result](../bootstrap/native-optimizer-borrow-results.json).
+This is a Rust-only implementation checkpoint. The test snapshot also contains
+the separately unpublished Cinch candidate; its intrinsic, runtime-lowering and
+parser gates remain open. Earlier full-suite and bootstrap evidence retains its
+original source scope. The new Rust source requires the final full Native sweep.
+
 ## Earlier combined bootstrap checkpoint
 
 The fresh pinned Stage0/1/2/3 chain on frozen source

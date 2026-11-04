@@ -5441,7 +5441,9 @@ fn stage_class(v: &[Class], i: usize) -> Class {
 /// residual unit with the profile's fuel and whistle bounds.
 struct Driver<'a> {
     cx: &'a OptCx,
-    defs: HashMap<String, FnDef>,
+    // A driver only reads this table. Borrow the current definitions so
+    // optimizing each unit does not deep-clone every other function body.
+    defs: &'a HashMap<String, FnDef>,
     instances: Vec<InstanceDef>,
     rules: Vec<RewriteRule>,
     caller: FnDef,
@@ -6643,7 +6645,7 @@ pub fn optimize(program: &Program, profile: &TargetProfile) -> Result<(Program, 
         let residual_limit = base_size.saturating_mul(profile.measure.max(1) as usize);
         let mut drv = Driver {
             cx: &cx,
-            defs: defs.clone(),
+            defs: &defs,
             instances: program.instances.clone(),
             rules: program.rewrites.clone(),
             caller: orig.clone(),

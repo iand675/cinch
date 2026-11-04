@@ -1,0 +1,64 @@
+{
+  "status": "passed-focused-rust-optimizer-verification",
+  "checked_at": "2026-11-04T00:46:48.443287+00:00",
+  "source_snapshot_sha256": "f6e166c9ec48a7b30526db7d16f360c56204c5de4b6005f91ae54a350bd07808",
+  "rust_file": "compiler/src/core.rs",
+  "rust_file_sha256": "05957d03b90836cc687ec5959060a0276834203b2e84b9c74eb9740a4c720d7d",
+  "scope": "Read-only Driver definition-map borrowing preserves sequential between-unit updates and removes one whole-program deep copy per optimized function. Full current-source Native and self-built suites and new staged bootstrap are still required.",
+  "profile_sha256": "793074af95c33e47822ee6708f5b4c08ebc5dc8eb701317c2bc214b561e42674",
+  "profile_observation": "One-second sample of the original real checker target showed substantial recursive Core/FnDef cloning beneath HashMap clone in core::optimize. This is not a controlled wall-time speedup benchmark.",
+  "complete_targets": [
+    {
+      "command": [
+        "/tmp/cinch-native-optimizer-borrow-validation-1/cargo/debug/deps/optimizer-21a087f1d2052990",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "elapsed_seconds": 189.76859149999996,
+      "executable": "/tmp/cinch-native-optimizer-borrow-validation-1/cargo/debug/deps/optimizer-21a087f1d2052990",
+      "exit_code": 0,
+      "finished": "2026-11-04T00:31:15.080831+00:00",
+      "log_sha256": "b0cce3f1cc8d235c3474d3bab897348f2f63f3ab7482bfabeb52b601eabbf277",
+      "name": "optimizer",
+      "sha256": "ca3b5865f0617dc00587473b23a96abebd028ac3c18227e65750d6d45d17babb",
+      "source_unchanged": true,
+      "started": "2026-11-04T00:28:05.291595+00:00",
+      "status": "passed",
+      "worker_slot": 2
+    },
+    {
+      "command": [
+        "/tmp/cinch-native-optimizer-borrow-validation-1/cargo/debug/deps/bootstrap_check-ed661b82d7219941",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "elapsed_seconds": 818.2780512499999,
+      "executable": "/tmp/cinch-native-optimizer-borrow-validation-1/cargo/debug/deps/bootstrap_check-ed661b82d7219941",
+      "exit_code": 0,
+      "finished": "2026-11-04T00:45:14.363417+00:00",
+      "log_sha256": "eb45159458e0780a8adf64de7a818cc4f19bf3328410ac48b93315af42166602",
+      "name": "bootstrap_check",
+      "sha256": "b9cefec943deba84cacd0eb63e7e2c6b16437bd9ab8e48a08e790327616dd82f",
+      "source_unchanged": true,
+      "started": "2026-11-04T00:31:36.080475+00:00",
+      "status": "passed",
+      "worker_slot": 1
+    }
+  ],
+  "tests": {
+    "optimizer": 16,
+    "bootstrap_check": 1,
+    "failed": 0,
+    "ignored": 0,
+    "filtered_out": 0
+  },
+  "checker_scope": "Full exact-report fragment checker using the separate unpublished Cinch residual-function-type candidate0e2848e. This Rust-only checkpoint does not publish or prove the remaining Cinch repairs.",
+  "compiler_source_sha256_in_validation": "0e2848ef342cc3fd82d78e2eec3894d410660c17538f7c0becdf55278d37ab0f",
+  "remaining_cinch_gates": [
+    "bootstrap_intrinsics",
+    "bootstrap_runtime_ir",
+    "bootstrap_parse"
+  ]
+}
