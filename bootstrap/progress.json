@@ -1,5 +1,5 @@
 {
-  "activity": "Current full suite: 81 of 208 groups passed, 4 running and 0 failed. Matching runtime, tooling and syntax/editor gates are tracked separately. Fresh final-source stage chain: 2 of 4 stages built and smoke-tested; combined fixed-point gate running-full-stage-chain. Additional Stage3 coverage: ordinary: 0 of 8 passed, 0 running, 0 failed (waiting-current-chain-and-runners); mixed: 0 of 4 passed, 0 running, 0 failed (waiting-current-chain-and-runners). Self-built portable bootstrap suite: 0 of 79 groups passed, 0 running, 0 failed; state waiting-current-chain-and-runners.",
+  "activity": "Current full suite: 90 of 208 groups passed, 4 running and 0 failed. Matching runtime, tooling and syntax/editor gates are tracked separately. Fresh final-source stage chain: 2 of 4 stages built and smoke-tested; combined fixed-point gate running-full-stage-chain. Additional Stage3 coverage: ordinary: 0 of 8 passed, 0 running, 0 failed (waiting-current-chain-and-runners); mixed: 0 of 4 passed, 0 running, 0 failed (waiting-current-chain-and-runners). Self-built portable bootstrap suite: 0 of 79 groups passed, 0 running, 0 failed; state waiting-current-chain-and-runners.",
   "blockers": [
     {
       "title": "Validate the additional Stage3 repairs",
@@ -7,7 +7,7 @@
     },
     {
       "title": "Finish every current-source compiler test",
-      "detail": "Current source: 81 of 208 complete groups pass. The complete matching sweep is required; earlier baseline outcomes are not counted here."
+      "detail": "Current source: 90 of 208 complete groups pass. The complete matching sweep is required; earlier baseline outcomes are not counted here."
     },
     {
       "title": "Finish the fresh repaired-source bootstrap",
@@ -39,7 +39,7 @@
     },
     {
       "title": "Current compiler full test sweep",
-      "detail": "81 of 208 complete target groups passed; 4 running and 0 failed. Every group includes ignored tests. Exact current f6e1 snapshot, Cinch0e28 and published Rust optimizer repair; matching source and private cache.",
+      "detail": "90 of 208 complete target groups passed; 4 running and 0 failed. Every group includes ignored tests. Exact current f6e1 snapshot, Cinch0e28 and published Rust optimizer repair; matching source and private cache.",
       "state": "running"
     },
     {
@@ -242,5 +242,5 @@
   ],
   "status": "Repair gates passed; fresh bootstrap underway",
   "summary": "All five complete repair gates pass and the tested Cinch/Rust changes are published. The fresh Stage0/1/2/3 build and complete matching suites are now required. Earlier baseline results remain separately scoped.",
-  "updatedAt": "2026-11-04T01:49:39.005953+00:00"
+  "updatedAt": "2026-11-04T01:53:41.637164+00:00"
 }
