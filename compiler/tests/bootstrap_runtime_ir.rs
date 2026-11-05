@@ -131,6 +131,27 @@ fn typed_runtime_numbers_preserve_exact_values_and_reclaim_owned_words() {
     Token n -> if recover False (C64 True) && recover 0 (C69 9223372036854775808) == 9223372036854775808 && n == 18446744073709551616 then 143 else 1
 "#, (0..70).map(|i| format!("    C{i} :: a -> Wide a\n")).collect::<String>());
     let cases = [
+        ("named-polymorphic-proof", "  take :: forall (p :: Prop). (h :: p) -> Int\n  take h = 42\n  main :: Int\n  main = case decide True of Yes h -> take h; No _ -> 1\n", 42),
+        ("named-owned-prefix", "  take :: (n :: Int) -> (h :: n > 0) -> Int\n  take n h = n\n  main :: Int\n  main = let large = 18446744073709551616 in case decide (large > 0) of Yes h -> if take large h == large then 42 else 1; No _ -> 1\n", 42),
+        ("named-runtime-after-proof", "  take :: (h :: True) -> Int -> Int\n  take h n = n\n  main :: Int\n  main = case decide True of Yes h -> take h 42; No _ -> 1\n", 42),
+        ("named-nested-proofs", "  take :: (h :: True) -> (other :: True) -> Int\n  take h other = 42\n  main :: Int\n  main = case decide True of Yes h -> take h h; No _ -> 1\n", 42),
+        ("named-unused-divergence", "  loop :: Unit ->{Diverge} Int\n  loop u = loop u\n  take :: (h :: True) ->{Diverge} Int\n  take h = loop ()\n  main :: Int\n  main = let f = take in 42\n", 42),
+        ("named-multiple-prefix-equations", "  take :: Bool -> (h :: True) -> Int\n  take True h = 42\n  take False h = 1\n  main :: Int\n  main = case decide True of Yes h -> take True h; No _ -> 1\n", 42),
+        ("named-multiple-late-equations", "  take :: (h :: True) -> Bool -> Int\n  take h True = 1\n  take h False = 42\n  main :: Int\n  main = case decide True of Yes h -> take h False; No _ -> 1\n", 42),
+        ("named-multiple-late-owned", "  take :: (n :: Int) -> (h :: n > 0) -> Bool -> Int\n  take n h True = 1\n  take n h False = n\n  main :: Int\n  main = let large = 18446744073709551616 in case decide (large > 0) of Yes h -> if take large h False == large then 42 else 1; No _ -> 1\n", 42),
+        ("named-proof-forwarding", "  take :: forall (p :: Prop). (h :: p) -> Int\n  take h = 21\n  forward :: forall (p :: Prop). (h :: p) -> Int\n  forward h = take h + take h\n  main :: Int\n  main = case decide True of Yes h -> forward h; No _ -> 1\n", 42),
+        ("named-proof-between-runtime-stages", "  take :: Int -> (h :: True) -> Int -> (other :: True) -> Int -> Int\n  take a h b other c = a + b + c\n  main :: Int\n  main = case decide True of Yes h -> take 10 h 20 h 12; No _ -> 1\n", 42),
+        ("explicit-refinement-projection-bignum", "  type Positive = refine (n :: Int) with n > 0\n  value :: Positive\n  value = 18446744073709551616\n  project :: Positive -> Int\n  project n = unrefine n\n  main :: Int\n  main = if project value == 18446744073709551616 then 42 else 1\n", 42),
+        ("explicit-refinement-projection-closure", "  type Positive = refine (n :: Int) with n > 0\n  value :: Positive\n  value = 42\n  projector :: Unit -> Positive -> Int\n  projector unit = \\n -> unrefine n\n  main :: Int\n  main = let project = projector () in project value\n", 42),
+        ("proof-lambda-applied", "  main :: Int\n  main = case decide (1 > 0) of Yes h -> let f = ((\\evidence -> 42) :: (evidence :: 1 > 0) -> Int) in f h; No _ -> 1\n", 42),
+        ("proof-lambda-owned-capture", "  main :: Int\n  main = case decide (1 > 0) of Yes h -> let large = 18446744073709551616 in let f = ((\\evidence -> large) :: (evidence :: 1 > 0) -> Int) in if f h == large then 42 else 1; No _ -> 1\n", 42),
+        ("proof-lambda-unused-divergence", "  loop :: Unit ->{Diverge} Int\n  loop u = loop u\n  main :: Int\n  main = let f = ((\\evidence -> loop ()) :: (evidence :: True) ->{Diverge} Int) in 42\n", 42),
+        ("proof-lambda-twice", "  main :: Int\n  main = case decide (1 > 0) of Yes h -> let f = ((\\evidence -> 21) :: (evidence :: 1 > 0) -> Int) in f h + f h; No _ -> 1\n", 42),
+        ("proof-lambda-nested", "  main :: Int\n  main = case decide (1 > 0) of Yes h -> let f = ((\\one -> \\two -> 42) :: (one :: 1 > 0) -> (two :: 1 > 0) -> Int) in f h h; No _ -> 1\n", 42),
+        ("runtime-decision-yes", "  choose :: (n :: Int) -> Int\n  choose n = case decide (NonZero n) of Yes _ -> 42; No _ -> 1\n  main :: Int\n  main = choose 7\n", 42),
+        ("runtime-decision-no", "  choose :: (n :: Int) -> Int\n  choose n = case decide (NonZero n) of Yes _ -> 1; No _ -> 42\n  main :: Int\n  main = choose 0\n", 42),
+        ("runtime-decision-forward", "  forward :: (n :: Int) -> Dec (NonZero n)\n  forward n = case decide (NonZero n) of Yes h -> Yes h; No h -> No h\n  choose :: (n :: Int) -> Int\n  choose n = case forward n of Yes _ -> 42; No _ -> 1\n  main :: Int\n  main = choose 7\n", 42),
+        ("runtime-decision-proof-refinement", "  type Positive = refine (value :: Int) with value > 0\n  choose :: Int -> Int\n  choose n = case decide (n > 0) of Yes h -> let value = Positive n h in if value == n then 42 else 1; No _ -> 0\n  main :: Int\n  main = choose 2\n", 42),
         ("mixed-indexed-owned-constructor", r#"  foreign import ccall "cinch.runtime.bytesLen" extent :: Bytes -> Nat
   foreign import ccall "cinch.runtime.bytesNew" allocate :: Nat -> Bytes
   data Mark (n :: Nat) a where

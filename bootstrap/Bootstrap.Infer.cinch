@@ -1747,13 +1747,32 @@ module Bootstrap.Infer where
     Cons (DExternal sp symbol category syntax metadata) rest -> if same name symbol && same category "builtin-syntax" then Some metadata else kernel-syntax-metadata name rest
     Cons other rest -> kernel-syntax-metadata name rest
   register-decision-syntax :: Span -> String -> Json -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
-  register-decision-syntax sp name metadata env st = if task-syntax-name name then register-task-syntax sp name metadata env st
+  register-decision-syntax sp name metadata env st = if same name "b.unrefine" then register-projection-syntax sp name metadata env st else if task-syntax-name name then register-task-syntax sp name metadata env st
     else if not (same name "b.decide") then (env, add-error sp "unknown kernel predicate syntax" st) else
     case kernel-syntax-metadata name builtin-declarations of
       Some trusted -> if same-kernel-fields ["name", "operation", "runtime_abi", "first_class", "predicate_kind", "scheme"] metadata trusted then
         (case lookup-binding name env of None -> (Cons (MkSyntaxBinding name) env, st); Some prior -> (env, add-error sp "duplicate kernel predicate syntax" st))
         else (env, add-error sp "decide syntax disagrees with the kernel predicate contract" st)
       None -> (env, add-error sp "missing kernel predicate syntax contract" st)
+  -- Projection consumes an actual checked refinement. The source spelling
+  -- never grants authority to an ordinary local or imported function.
+  register-projection-syntax :: Span -> String -> Json -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-projection-syntax sp name metadata env st = case kernel-syntax-metadata name builtin-declarations of
+    Some trusted -> if same-kernel-fields ["name", "operation", "arity", "variadic", "runtime_abi", "first_class"] metadata trusted then
+      (case lookup-binding name env of None -> (Cons (MkSyntaxBinding name) env, st); Some prior -> (env, add-error sp "duplicate kernel projection syntax" st))
+      else (env, add-error sp "projection syntax disagrees with its owned kernel contract" st)
+    None -> (env, add-error sp "missing kernel projection syntax contract" st)
+  projection-syntax-head :: List CheckedBinding -> Expr -> Bool
+  projection-syntax-head env expr = case expr of
+    EVar sp name -> same name "b.unrefine" && (case lookup-binding name env of Some (MkSyntaxBinding symbol) -> same symbol name; other -> False)
+    other -> False
+  projection-syntax-spine :: List CheckedBinding -> Expr -> Bool
+  projection-syntax-spine env expr = case application-spine expr Nil of (head, args) -> projection-syntax-head env head
+  infer-projection :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Store -> (CoreTerm, Store)
+  infer-projection classes kinds families env locals sp input st = case infer classes kinds families env locals input st of
+    (body, checked) -> case normalize checked (core-type body) of
+      URefine id name carrier predicate -> (CForget sp carrier body, checked)
+      other -> term-error sp "unrefine projects a refinement to its container" checked
   task-syntax-name :: String -> Bool
   task-syntax-name name = has name ["b.withScope", "b.spawn", "b.joinAllOrCancel"]
   register-task-syntax :: Span -> String -> Json -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
@@ -1835,7 +1854,7 @@ module Bootstrap.Infer where
         let actuals = actual-types pairs in
         case b of
           MkErasedBinding name predicate id -> (CProofRef sp predicate id name, ss)
-          MkSyntaxBinding symbol -> term-error sp "decide consumes predicate syntax and is not a first-class function" ss
+          MkSyntaxBinding symbol -> term-error sp "kernel syntax is not a first-class function" ss
           MkMethodBinding method sc owner slot -> (CMethod sp ty name owner slot actuals evidence, ss)
           MkGivenBinding source dict symbol -> (CUse sp ty symbol "dictionary" actuals, ss)
           MkLocalBinding source sc id level -> case requirements of
@@ -2083,7 +2102,7 @@ module Bootstrap.Infer where
     ELitStr s text -> (CString s (literal-type kinds "String") text, st)
     ELitChar s text -> (CChar s (primitive-type "Char") text, st)
     EUnit s -> (CUnit s (primitive-type "Unit"), st)
-    EApp s f x -> if task-syntax-head env expr then infer-task-application classes kinds families env locals s expr None st else if decision-syntax-head env f then infer-decision classes kinds families env locals s x st else
+    EApp s f x -> if projection-syntax-head env f then infer-projection classes kinds families env locals s x st else if task-syntax-head env expr then infer-task-application classes kinds families env locals s expr None st else if decision-syntax-head env f then infer-decision classes kinds families env locals s x st else
       (case infer classes kinds families env locals f st of
         (fun, sf) -> apply-argument classes kinds families env locals s fun x sf)
     ELam s ps body -> case infer-lambda classes kinds families env locals ps body (duplicate-names s (patterns-names ps) Nil st) of
@@ -2199,7 +2218,7 @@ module Bootstrap.Infer where
   infer-expected classes kinds families env locals expr expected st = case expr of
     ECon sp name fields -> if not (expression-spine-valid fields) then term-error sp "malformed constructor argument spine" st else (case lookup-expression-value sp kinds name env st of
       (constructor, opened) -> let args = exprs-of fields in apply-spine classes kinds families env locals constructor args (hint-application-result sp (core-type constructor) args expected opened))
-    EApp sp function argument -> if task-syntax-head env expr then infer-task-application classes kinds families env locals sp expr (Some expected) st else if decision-syntax-head env function then infer-decision-expected classes kinds families env locals sp argument expected st else
+    EApp sp function argument -> if projection-syntax-spine env expr then infer classes kinds families env locals expr st else if task-syntax-head env expr then infer-task-application classes kinds families env locals sp expr (Some expected) st else if decision-syntax-head env function then infer-decision-expected classes kinds families env locals sp argument expected st else
       (case application-spine expr Nil of
         (head, args) -> case infer classes kinds families env locals head st of
           (fun, opened) -> apply-spine classes kinds families env locals fun args

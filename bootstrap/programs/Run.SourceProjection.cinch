@@ -1,0 +1,70 @@
+module Main where
+  import Bootstrap.Ast
+  import Bootstrap.Parse (parse-program)
+  import Bootstrap.Resolve (resolve-program)
+  import Bootstrap.Check (check-program)
+  import Bootstrap.Infer
+  import Bootstrap.Core
+  import Bootstrap.Type
+  import Bootstrap.Report (render-diagnostics)
+  import Data.Json
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read, fs-write)
+  import Text.Parse (ParseOutcome, Parsed, Failed)
+  import Algebra.Semigroup
+
+  same :: String -> String -> Bool
+  same first second = string-compare first second == 0
+  invalidate :: String -> Json -> Json
+  invalidate key doc = case doc of JObj name value rest -> JObj name (if same key name then JNull else value) (invalidate key rest); other -> doc
+  corrupt :: String -> Decl -> Decl
+  corrupt key declaration = case declaration of
+    DDecl sp first rest -> DDecl sp (corrupt key first) (corrupt key rest)
+    DExternal sp name category syntax metadata ->
+      if (same key "syntax-type" && same name "b.unrefine") || (same key "constructor-type" && same name "b.unrefine") then DExternal sp name category (Some (TName sp "Int")) metadata
+      else if same name "b.unrefine" && same category "builtin-syntax" then DExternal sp name category syntax (invalidate key metadata) else declaration
+    other -> declaration
+  corrupt-modules :: String -> List Module -> List Module
+  corrupt-modules key modules = case modules of
+    Nil -> Nil
+    Cons (MkModule sp name declarations) rest -> Cons (MkModule sp name (corrupt key declarations)) (corrupt-modules key rest)
+  corrupt-program :: String -> Program -> Program
+  corrupt-program key program = case program of MkProgram sp modules -> MkProgram sp (corrupt-modules key modules)
+  has-projection :: CoreTerm -> Bool
+  has-projection term = case term of
+    CForget sp ty body -> True
+    CApply sp ty function input -> has-projection function || has-projection input
+    CApplyEff sp ty row function input -> has-projection function || has-projection input
+    CErasedApply sp ty row function input -> has-projection function || has-projection input
+    CLambda sp ty patterns body -> has-projection body
+    CLet sp ty id name sc value body -> has-projection value || has-projection body
+    CIf sp ty condition yes no -> has-projection condition || has-projection yes || has-projection no
+    CCase sp ty value alternatives -> has-projection value || has-projection alternatives
+    CAlternative sp pattern body rest -> has-projection body || has-projection rest
+    CArgument sp value rest -> has-projection value || has-projection rest
+    other -> False
+  clause-projection :: List CoreClause -> Bool
+  clause-projection clauses = case clauses of Nil -> False; Cons (MkCoreClause sp patterns body) rest -> has-projection body || clause-projection rest
+  retained :: List CoreDefinition -> Bool
+  retained definitions = case definitions of Nil -> False; Cons definition rest -> clause-projection (core-clauses definition) || retained rest
+  closed :: List CoreDefinition -> Bool
+  closed definitions = case definitions of Nil -> True; Cons definition rest -> core-definition-closed definition && closed rest
+  run :: Bytes -> String -> (Int, String)
+  run source mutation = case parse-program "source-projection" source of
+    Parsed parsed Nil -> case resolve-program parsed of
+      (resolved, Nil) ->
+        let program = corrupt-program mutation resolved in
+        let checks = check-program program in
+        let result = elaborate-program "source-projection" program in
+        let errors = checks <> elaboration-errors result in
+        if list-length errors > 0 then (if list-length (elaboration-core result) == 0 then 4 else 93, render-diagnostics errors)
+        else if (same mutation "ordinary" || retained (elaboration-core result)) && closed (elaboration-core result) then (0, "") else (94, "projection lost its checked Core node or closed value identity")
+      (resolved, errors) -> (3, render-diagnostics errors)
+    other -> (2, "source parse failed")
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case (fs-read (path-from-string "source.cinch"), fs-read (path-from-string "mutation.txt")) of
+    (Ok source, Ok mutation) -> (case string-from-bytes mutation of
+      Some text -> let (status, report) = run source text in
+        (case fs-write (path-from-string "source-projection-report.txt") (string-to-bytes report) of Ok _ -> status; Err error -> 91)
+      None -> 92)
+    other -> 90

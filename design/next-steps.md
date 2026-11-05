@@ -1,5 +1,31 @@
 # Next steps (as of 2026-11-05)
 
+## Checked projection and decision/proof runtime lowering (2026-11-05)
+
+The Cinch compiler lowers checked Dec constructors and matches, evaluates
+runtime decision conditions once, and erases checked proof witnesses while
+retaining the runtime value. Explicit `unrefine` consumes an actual checked
+refinement through its defining kernel contract and retains its carrier.
+Proof lambdas use delayed zero-runtime-argument closures; applying erased
+evidence performs the call. Named proof workers preserve owned captures,
+alternating runtime/proof stages and every late equation alternative.
+
+All 14 complete affected groups pass independently: 28 tests, 134 runtime
+clients with zero leaks, all 15 array tests (31 actual clients), and 20 exact
+F32/F64 payload patterns. All 43 compiler modules and every test target also
+check. The complete evaluator, Core, independent typing, source proof,
+constructor, refinement, decision, interface and projection groups remain
+intact. See `bootstrap/current-projection-proof-runtime-results.json`.
+
+The new canonical 43-module source is
+`c8d6d87a8d1a698009b1ed820427a7a2bb67dab0f34d170accb41e42678ba985`.
+It requires a fresh Stage0/1/2/3 chain and all matching complete suites;
+the earlier 31ac fixed-point receipt proves only that earlier compiler.
+The explicit b64710b ABI6 seed/provider pins remain unchanged. This runtime
+repair does not establish the remaining source proof API, GADT/localforall,
+general FFI, total-measure export or safe source-module replacement work.
+Original 100-target coverage and Acceptance 5 remain open.
+
 ## Source Pi runtime binding expectation (2026-11-05)
 
 The complete source-Pi group passes with every original source case retained.
@@ -71,7 +97,7 @@ remain preserved. See `bootstrap/current-abi6-test-library-results.json`.
 The remaining complete suites, original API scope and proof/Acceptance 5
 work remain required; these receipts do not establish full acceptance.
 
-## Current ABI6 compiler bootstraps from Cinch (2026-11-05)
+## Previous ABI6 compiler bootstraps from Cinch (2026-11-05)
 
 The published array/effect compiler now has an independently audited
 Stage0/1/2/3 bootstrap. Stage1 rebuilds all 43 compiler modules into Stage2,

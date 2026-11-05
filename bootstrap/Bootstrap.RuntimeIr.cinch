@@ -198,14 +198,21 @@ module Bootstrap.RuntimeIr where
   type-head ty = case base ty of UApp f x -> type-head f; other -> other
   representation :: Nat -> List (Nat, Nat) -> Option Nat
   representation id entries = case entries of Nil -> None; Cons (key, code) rest -> if key == id then Some code else representation id rest
+  -- Kernel Dec stores a tag only. Its checked proposition is erased;
+  -- source datatypes cannot supply this builtin identity or its layout.
+  decision-word-type :: UType -> Bool
+  decision-word-type ty = case base ty of
+    UApp (UCon name kind) predicate -> same name "b.Dec" && kind-equal kind (KFun KProp KType) && kind-equal (type-kind predicate) KProp && valid-type predicate
+    other -> False
   word-class :: RuntimeContext -> UType -> Option Nat
   -- Sym is an immortal runtime handle, classified Raw by the object ABI.
-  word-class context ty = if number ty then Some 2 else if named ty "Bool" || named ty "Unit" || raw-integer ty || named ty "Char" || named ty "Sym" || named ty "F32" || named ty "F64" then Some 0 else case context of
+  word-class context ty = if decision-word-type ty then Some 1 else if number ty then Some 2 else if named ty "Bool" || named ty "Unit" || raw-integer ty || named ty "Char" || named ty "Sym" || named ty "F32" || named ty "F64" then Some 0 else case context of
     RuntimeContext datas bounds rigids pending done -> case base ty of
       UBound id name KType -> representation id bounds
       URigid id name level KType -> representation id rigids
       UFun domain result -> Some 1
       UFunEff domain row result -> Some 1
+      UProofFun predicate row result -> Some 1
       UPi id name domain row result -> Some 1
       UTuple fields -> if field-types context fields 0 then Some 1 else None
       other -> case type-head ty of
@@ -346,6 +353,33 @@ module Bootstrap.RuntimeIr where
             (refuse w sp "tuple layout needs an extended runtime descriptor", 0)
             else let id = 64 * (groups + 1) in
               (Writer next globals code errors (LayoutPlan (groups + 1) (Cons (id, packed) tuples) names (Cons (id, packed) cells)) datas, id)
+  decision-layout :: Span -> Writer -> (Writer, Nat)
+  decision-layout sp w = case w of
+    Writer next globals code errors (LayoutPlan groups tuples names cells) context -> case named-layout "b.Dec" names of
+      Some id -> (w, id)
+      None -> if groups >= 1022 then (refuse w sp "decision layout exceeds the shared runtime table", 0) else
+        let id = 64 * (groups + 1) in
+        (Writer next globals code errors (LayoutPlan (groups + 1) tuples (Cons ("b.Dec", id) names) (Cons (id, 0) (Cons (id + 1, 0) cells))) context, id)
+  decision-constructor :: Span -> Bool -> Writer -> (Writer, String)
+  decision-constructor sp positive w = case decision-layout sp w of
+    (planned, base-id) -> allocate planned (base-id + (if positive then 0 else 1)) Nil
+  decision-expression :: List CoreDefinition -> List Local -> Writer -> Span -> CoreTerm -> (Writer, String)
+  decision-expression definitions locals w sp test = case expression definitions locals w test of
+    (tested, condition) ->
+      let (one, predicate) = fresh tested "%v" in
+      let (two, yes) = fresh one "decision-yes" in
+      let (three, no) = fresh two "decision-no" in
+      let (four, joined) = fresh three "decision-join" in
+      let split = line (line four (cat ["  ", predicate, " = icmp ne i64 ", condition, ", 0"])) (cat ["  br i1 ", predicate, ", label %", yes, ", label %", no]) in
+      let (left, yes-value) = decision-constructor sp True (line split (cat [yes, ":"])) in
+      let middle = line (line left (cat ["  br label %", joined])) (cat [no, ":"]) in
+      let (right, no-value) = decision-constructor sp False middle in
+      let (ready, result) = fresh (line (line right (cat ["  br label %", joined])) (cat [joined, ":"])) "%v" in
+      (line ready (cat ["  ", result, " = phi i64 [ ", yes-value, ", %", yes, " ], [ ", no-value, ", %", no, " ]"]), result)
+  erased-decision-fields :: CorePattern -> Bool
+  erased-decision-fields fields = case fields of
+    CPField sp (CPProof at predicate id name) (CPDone end) -> True
+    other -> False
   layout-count :: LayoutPlan -> Nat
   layout-count plan = case plan of LayoutPlan groups tuples names cells -> if groups == 0 then 0 else 64 * (groups + 1)
   layout-word :: Nat -> List (Nat, Nat) -> Nat
@@ -491,6 +525,7 @@ module Bootstrap.RuntimeIr where
   function-type datas ty = case base ty of
     UFun domain result -> word-type datas domain && function-type datas result
     UFunEff domain row result -> word-type datas domain && function-type datas result
+    UProofFun predicate row result -> kind-equal (type-kind predicate) KProp && valid-type predicate && function-type datas result
     UPi id name domain row result -> word-type datas domain && function-type datas result
     other -> word-type datas ty
   arity :: UType -> Nat
@@ -579,10 +614,14 @@ module Bootstrap.RuntimeIr where
     CPrimitive sp ty op args -> primitive definitions locals w sp ty op args
     CProved sp ty evidence body -> expression definitions locals w body
     CRefine sp ty evidence body -> expression definitions locals w body
+    CRefineProof sp ty witness body -> expression definitions locals w body
     CForget sp ty body -> expression definitions locals w body
     CRequire sp ty body -> expression definitions locals w body
     CDischarge sp ty evidence body -> expression definitions locals w body
-    CDecision sp ty predicate condition -> unsupported w sp "decision constructors need runtime layouts"
+    CDecision sp ty predicate condition -> if decision-word-type ty then decision-expression definitions locals w sp condition else unsupported w sp "decision has no checked kernel result type"
+    CErasedApply sp ty row f witness -> case f of
+      CUse at function name role actuals -> if decision-word-type ty && same role "constructor" && (same name "b.Yes" || same name "b.No") then decision-constructor sp (same name "b.Yes") w else erased-application definitions locals w f
+      other -> erased-application definitions locals w f
     other -> unsupported w (Span 0 0 1 1) "Core form needs typed runtime lowering"
   application :: List CoreDefinition -> List Local -> Writer -> Span -> CoreTerm -> CoreTerm -> CoreTerm -> (Writer, String)
   application definitions locals w sp term f x = case head term of
@@ -708,6 +747,13 @@ module Bootstrap.RuntimeIr where
     let (two, result) = fresh one "%v" in
     let stored = line (line two (cat ["  ", argv, " = alloca i64"])) (cat ["  store i64 ", value, ", ptr ", argv]) in
     (line stored (cat ["  ", result, " = call i64 @__apply(i64 ", function, ", i64 1, ptr ", argv, ")"]), result)
+  -- A proof lambda is a delayed zero-argument closure. Its body starts only
+  -- at the checked erased application, never when the closure is created.
+  erased-application :: List CoreDefinition -> List Local -> Writer -> CoreTerm -> (Writer, String)
+  erased-application definitions locals w f = case expression definitions locals w f of
+    (callee, function) -> let (one, argv) = fresh callee "%ptr" in
+      let (two, result) = fresh one "%v" in
+      (line (line two (cat ["  ", argv, " = alloca i64"])) (cat ["  ", result, " = call i64 @__apply(i64 ", function, ", i64 0, ptr ", argv, ")"]), result)
   apply-terms :: List CoreDefinition -> List Local -> Writer -> String -> List CoreTerm -> (Writer, String)
   apply-terms definitions locals w function terms = case terms of
     Nil -> (w, function)
@@ -719,7 +765,33 @@ module Bootstrap.RuntimeIr where
   drop-terms :: Nat -> List CoreTerm -> List CoreTerm
   drop-terms count terms = if count == 0 then terms else case terms of Nil -> Nil; Cons first rest -> drop-terms (count - 1) rest
   definition-parameters :: CoreDefinition -> List CorePattern
-  definition-parameters d = case core-clauses d of Nil -> Nil; Cons (MkCoreClause sp parameters body) rest -> parameters
+  definition-parameters d = runtime-prefix (definition-all-parameters d)
+  definition-all-parameters :: CoreDefinition -> List CorePattern
+  definition-all-parameters d = case core-clauses d of Nil -> Nil; Cons (MkCoreClause sp parameters body) rest -> parameters
+  runtime-prefix :: List CorePattern -> List CorePattern
+  runtime-prefix parameters = case parameters of
+    Nil -> Nil
+    Cons (CPProof sp predicate id name) rest -> Nil
+    Cons first rest -> Cons first (runtime-prefix rest)
+  runtime-parameters :: List CorePattern -> List CorePattern
+  runtime-parameters parameters = case parameters of
+    Nil -> Nil
+    Cons (CPProof sp predicate id name) rest -> runtime-parameters rest
+    Cons first rest -> Cons first (runtime-parameters rest)
+  -- Each proof application advances one stage, passing zero runtime words.
+  -- Preserve all equations until the last stage, so patterns following a
+  -- proof binder still dispatch together rather than committing early.
+  proof-stage-arities :: List CorePattern -> Nat -> List Nat
+  proof-stage-arities parameters count = case parameters of
+    Nil -> [count]
+    Cons (CPProof sp predicate id name) rest -> Cons count (proof-stage-arities rest count)
+    Cons first rest -> proof-stage-arities rest (count + 1)
+  proof-stage-name :: String -> Nat -> String
+  proof-stage-name name rung = if rung == 0 then name else cat [name, ".$proof.", nat-to-string rung]
+  take-types :: Nat -> List UType -> List UType
+  take-types count types = if count == 0 then Nil else case types of
+    Nil -> Nil
+    Cons first rest -> Cons first (take-types (count - 1) rest)
   pattern-types :: List CorePattern -> List UType
   pattern-types patterns = case patterns of Nil -> Nil; Cons first rest -> Cons (pattern-type first) (pattern-types rest)
   definition-context :: CoreDefinition -> List Nat -> Writer -> Option RuntimeContext
@@ -1391,6 +1463,7 @@ module Bootstrap.RuntimeIr where
   pattern-binds :: Nat -> CorePattern -> Bool
   pattern-binds id pattern = case pattern of
     CPVar sp ty key name -> id == key
+    CPProof sp ty key name -> id == key
     CPAs sp ty key name inner -> id == key || pattern-binds id inner
     CPTuple sp ty fields -> pattern-binds id fields
     CPConstructor sp ty name actuals sc fields -> pattern-binds id fields
@@ -1502,7 +1575,8 @@ module Bootstrap.RuntimeIr where
   lambda :: List CoreDefinition -> List Local -> Writer -> Span -> CorePattern -> CoreTerm -> (Writer, String)
   lambda definitions locals w sp parameter body =
     let saved = captures-from parameter body locals locals in
-    case class-vector (writer-context w) (capture-types saved <> [pattern-type parameter]) of
+    let parameters = case parameter of CPProof at predicate id name -> Nil; other -> [pattern-type parameter] in
+    case class-vector (writer-context w) (capture-types saved <> parameters) of
       None -> unsupported w sp "lambda parameters need known runtime representations"
       Some classes -> let (named, name) = fresh w ".lambda" in
         (case writer-context named of
@@ -1665,7 +1739,11 @@ module Bootstrap.RuntimeIr where
         other -> let (ready, pointer) = fresh w "%ptr" in
           match-fields fields pointer 0 failed (line ready (cat ["  ", pointer, " = inttoptr i64 ", value, " to ptr"]))
       CPConstructor sp ty name actuals sc fields ->
-        if named ty "Bool" && (same name "True" || same name "False") then
+        if decision-word-type ty && (same name "b.Yes" || same name "b.No") && erased-decision-fields fields then
+          (case constructor-tag w value of
+            (loaded, actual) -> case compare-word loaded "eq" actual (if same name "b.Yes" then "0" else "1") of
+              (compared, condition) -> (continue-if compared condition failed, Nil))
+        else if named ty "Bool" && (same name "True" || same name "False") then
           (case compare-word w "eq" value (if same name "True" then "1" else "0") of
             (ready, condition) -> (continue-if ready condition failed, Nil))
         else case constructor name (writer-data w) of
@@ -1781,6 +1859,7 @@ module Bootstrap.RuntimeIr where
   match-parameters :: List CorePattern -> Nat -> String -> Writer -> (Writer, List Local)
   match-parameters patterns index failed w = case patterns of
     Nil -> (w, Nil)
+    Cons (CPProof sp predicate id name) rest -> match-parameters rest index failed w
     Cons first rest -> case match-pattern first (cat ["%arg", nat-to-string index]) failed w of
       (matched, bindings) -> case match-parameters rest (index + 1) failed matched of
         (done, more) -> (done, bindings <> more)
@@ -1810,10 +1889,24 @@ module Bootstrap.RuntimeIr where
               let indices = opening-value-types openings in
               let offset = index-offset + list-length indices in
               let prefix = worker-self-values scoped d dependencies <> given-bindings context hidden <> runtime-index-locals indices index-offset <> self-binding scoped d classes in
-              let roots = capture-roots (value-field-types dependencies) 0 <> given-roots context hidden <> runtime-index-locals indices index-offset <> parameter-roots patterns offset in
-              let started = line (line scoped (cat ["define i64 ", symbol (specialized-name name classes), "(", join (argument-words (value-parameters (offset + list-length patterns) 0)), ") {"])) "entry:" in
-              line (worker-clauses definitions prefix roots offset clauses started) "}"
+              let parameters = runtime-parameters patterns in
+              let roots = capture-roots (value-field-types dependencies) 0 <> given-roots context hidden <> runtime-index-locals indices index-offset <> parameter-roots parameters offset in
+              let types = value-field-types dependencies <> given-types context <> value-types indices <> pattern-types parameters in
+              proof-worker-stages definitions classes d prefix roots offset types (proof-stage-arities patterns offset) 0 scoped
             Nil -> refuse scoped sp "runtime definition has no checked equations"
+  proof-worker-stages :: List CoreDefinition -> List Nat -> CoreDefinition -> List Local -> List Local -> Nat -> List UType -> List Nat -> Nat -> Writer -> Writer
+  proof-worker-stages definitions classes d prefix roots offset types arities rung w = case arities of
+    Nil -> refuse w (Span 0 0 1 1) "runtime function has no checked proof stage"
+    Cons count rest ->
+      let name = proof-stage-name (specialized-name (core-name d) classes) rung in
+      let started = line (line w (cat ["define i64 ", symbol name, "(", join (argument-words (value-parameters count 0)), ") {"])) "entry:" in
+      (case rest of
+        Nil -> line (worker-clauses definitions prefix roots offset (core-clauses d) started) "}"
+        Cons next-count more -> case class-vector (writer-context started) (take-types next-count types) of
+          None -> refuse started (Span 0 0 1 1) "proof continuation needs checked runtime parameter representations"
+          Some next-classes -> case closure (Span 0 0 1 1) (proof-stage-name (specialized-name (core-name d) classes) (rung + 1)) next-classes (value-parameters count 0) started of
+            (ready, result) -> let returned = line (line ready (cat ["  ret i64 ", result])) "}" in
+              proof-worker-stages definitions classes d prefix roots offset types rest (rung + 1) returned)
   value-parameters :: Nat -> Nat -> List String
   value-parameters count index = if count == 0 then Nil else Cons (cat ["%arg", nat-to-string index]) (value-parameters (count - 1) (index + 1))
   constructor-worker :: String -> List Nat -> Writer -> Writer
@@ -1839,9 +1932,15 @@ module Bootstrap.RuntimeIr where
     if not (word-type (writer-context scoped) (core-type body)) then refuse scoped (Span 0 0 1 1) "lambda result needs a checked runtime representation" else
       let types = capture-types saved in
       let offset = list-length types in
-      let roots = capture-roots types 0 <> parameter-roots [parameter] offset in
-      let started = line (line scoped (cat ["define i64 ", symbol name, "(", join (argument-words (value-parameters (offset + 1) 0)), ") {"])) "entry:" in
-      line (worker-clauses definitions (captured-bindings saved 0) roots offset [MkCoreClause (Span 0 0 1 1) [parameter] body] started) "}"
+      case parameter of
+        CPProof at predicate id display ->
+          let started = line (line scoped (cat ["define i64 ", symbol name, "(", join (argument-words (value-parameters offset 0)), ") {"])) "entry:" in
+          (case expression definitions (captured-bindings saved 0) started body of
+            (done, result) -> line (line (drop-locals (capture-roots types 0) done) (cat ["  ret i64 ", result])) "}")
+        other ->
+          let roots = capture-roots types 0 <> parameter-roots [parameter] offset in
+          let started = line (line scoped (cat ["define i64 ", symbol name, "(", join (argument-words (value-parameters (offset + 1) 0)), ") {"])) "entry:" in
+          line (worker-clauses definitions (captured-bindings saved 0) roots offset [MkCoreClause (Span 0 0 1 1) [parameter] body] started) "}"
   workers :: List CoreDefinition -> Writer -> Writer
   workers definitions w = case w of
     Writer next globals code errors layouts (RuntimeContext datas bounds rigids pending done) -> case pending of

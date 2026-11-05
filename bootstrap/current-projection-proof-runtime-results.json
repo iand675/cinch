@@ -1,0 +1,641 @@
+{
+  "compiler_source_sha256": "c8d6d87a8d1a698009b1ed820427a7a2bb67dab0f34d170accb41e42678ba985",
+  "full_goal_complete": false,
+  "rows": [
+    {
+      "binary_sha256": "0e46cd7c5d31bb90dc6f6d8eef18f10d2acf2733c5902c43fb5295e5d6edba00",
+      "log_sha256": "f513a490b30c6c5a17d7166f769cf7e1902c9de5b827af0257439271625c7a3e",
+      "name": "bootstrap_runtime_ir",
+      "tests": 1
+    },
+    {
+      "binary_sha256": "0914248ebe3bd1197899864acb66204eb55e5a1cec973103c6fa328d09da9c7e",
+      "log_sha256": "65bd72481f9a6819181e3b160d82cd3d7a6c88ad3e971087f9228c16261f1e04",
+      "name": "bootstrap_eval",
+      "tests": 1
+    },
+    {
+      "binary_sha256": "2712d8c56e3edf520feee8350960f47a870ca0691eef6ac6065d28681bb4bfda",
+      "log_sha256": "80a583a9ab8c77dee99f9b937e1e9d4f02bfce206d598dfe95d73529112568a0",
+      "name": "bootstrap_runtime_objects",
+      "tests": 1
+    },
+    {
+      "binary_sha256": "1227fd4c4bc5995f13367fd2867dabd33b32908d9ff9f88b81dae84f210e5f6e",
+      "log_sha256": "2776dee32fc8b59b28a789c7afab0c475dd6279e4002240634895b4503abae75",
+      "name": "bootstrap_source_proofs",
+      "tests": 1
+    },
+    {
+      "binary_sha256": "cbf2a182bd2c65a0f6fc3953fa6041661ffe51434c749c8a855f44781b8a151a",
+      "log_sha256": "cb849280a57e10e5e4ca619431c7430ac034f76673443a4ff78cfd191a5a8e9e",
+      "name": "bootstrap_source_constructors",
+      "tests": 1
+    },
+    {
+      "binary_sha256": "87d1b899735d4947326d69b25920ea5593b83f545e340a93ddd6b30f9b64417b",
+      "log_sha256": "8c234d221c755ad5cbad3b9c20aba1db0d4f5af75d941364fd303b6a8afc5a13",
+      "name": "bootstrap_source_refinements",
+      "tests": 1
+    },
+    {
+      "binary_sha256": "096e120e076b245c0715be8c49fc52334d5f95b211e5a7508e019fb52174316d",
+      "log_sha256": "179896e3ef2494cdd33239acfc11fceb22d64a77cf3d6c6debc64c6df103b252",
+      "name": "bootstrap_core",
+      "tests": 1
+    },
+    {
+      "binary_sha256": "3feca91787c7ee9b654f8524e9ab650ada192fe0ff9b77135a20981550e2136d",
+      "log_sha256": "e526974891e005f5e8ab2f137e0a84ad7f0f9cf0178f3f42100eadd5ff27760a",
+      "name": "bootstrap_typing",
+      "tests": 1
+    },
+    {
+      "binary_sha256": "0cabde83b7b53d6548a37b28db71c0f8f8774223f381313819a1443264b4af88",
+      "log_sha256": "14e9ee4f6232d70ca4c63ac1d02ceded3e62e6557b0e167da25fe6ffc6dae54a",
+      "name": "bootstrap_decisions",
+      "tests": 1
+    },
+    {
+      "binary_sha256": "e3c2f173dc3bd5cca0aca9105cec24635e31391e51119ee88cd2d4ca6736b64a",
+      "log_sha256": "d75eaf81b7d70d48c9349ff2557dbd21e2bbe8dab3ed2d7e9d444af58c1d15b3",
+      "name": "bootstrap_source_decisions",
+      "tests": 1
+    },
+    {
+      "binary_sha256": "21a0ccb8fb09cf722693fe95e46d413b5daf5885f0d7ebbade8d4260f39523fc",
+      "log_sha256": "8cafaf37b8d2fee30e9b72409cbbffc414c0919c1d67d3a60f2a5b798a89e773",
+      "name": "bootstrap_export_interfaces",
+      "tests": 1
+    },
+    {
+      "binary_sha256": "3d10977f89d9c4952b74508dc656cea31dd104333d4798e6e243da4c0c1b47f2",
+      "log_sha256": "503482459e22cf1484fa44fdfb756b40084f0d8e0e08fbb457243236173d5f31",
+      "name": "bootstrap_source_projection",
+      "tests": 1
+    },
+    {
+      "binary_sha256": "ae1d8bda97002aed041113b04f2126df84308dea7ee38fcba44eff916b4737b1",
+      "log_sha256": "5ba98e40f902e301f9614890c72579039d6432b7f7231ab4f6eea0f4a2ae79e0",
+      "name": "arrays",
+      "tests": 15
+    },
+    {
+      "binary_sha256": "791a098e8d636bcaa2fd659bd26ea3d2aacdd12f6a159573d360928a2bc6e7d7",
+      "log_sha256": "17cb5049018764e8b2d4f89bc5754cc73146eb46f4fdc8c5a982add1dab5c2be",
+      "name": "bootstrap_array_float_bits",
+      "tests": 1
+    }
+  ],
+  "runtime_clients": [
+    [
+      "named-polymorphic-proof",
+      "42"
+    ],
+    [
+      "named-owned-prefix",
+      "42"
+    ],
+    [
+      "named-runtime-after-proof",
+      "42"
+    ],
+    [
+      "named-nested-proofs",
+      "42"
+    ],
+    [
+      "named-unused-divergence",
+      "42"
+    ],
+    [
+      "named-multiple-prefix-equations",
+      "42"
+    ],
+    [
+      "named-multiple-late-equations",
+      "42"
+    ],
+    [
+      "named-multiple-late-owned",
+      "42"
+    ],
+    [
+      "named-proof-forwarding",
+      "42"
+    ],
+    [
+      "named-proof-between-runtime-stages",
+      "42"
+    ],
+    [
+      "explicit-refinement-projection-bignum",
+      "42"
+    ],
+    [
+      "explicit-refinement-projection-closure",
+      "42"
+    ],
+    [
+      "proof-lambda-applied",
+      "42"
+    ],
+    [
+      "proof-lambda-owned-capture",
+      "42"
+    ],
+    [
+      "proof-lambda-unused-divergence",
+      "42"
+    ],
+    [
+      "proof-lambda-twice",
+      "42"
+    ],
+    [
+      "proof-lambda-nested",
+      "42"
+    ],
+    [
+      "runtime-decision-yes",
+      "42"
+    ],
+    [
+      "runtime-decision-no",
+      "42"
+    ],
+    [
+      "runtime-decision-forward",
+      "42"
+    ],
+    [
+      "runtime-decision-proof-refinement",
+      "42"
+    ],
+    [
+      "mixed-indexed-owned-constructor",
+      "231"
+    ],
+    [
+      "byte-index-witness-runtime",
+      "225"
+    ],
+    [
+      "byte-index-witness-partial",
+      "227"
+    ],
+    [
+      "owned-index-witness-closure",
+      "229"
+    ],
+    [
+      "byte-allocation-primitive-promise",
+      "223"
+    ],
+    [
+      "byte-primitive-get-alias",
+      "221"
+    ],
+    [
+      "task-saturated-scoped-helper",
+      "219"
+    ],
+    [
+      "task-empty-scope",
+      "205"
+    ],
+    [
+      "task-single-join",
+      "207"
+    ],
+    [
+      "task-pair-owned-raw",
+      "209"
+    ],
+    [
+      "task-immutable-adt-capture",
+      "211"
+    ],
+    [
+      "task-nested-scopes",
+      "213"
+    ],
+    [
+      "task-failure-cancels-sibling",
+      "215"
+    ],
+    [
+      "task-builtin-local-shadowing",
+      "217"
+    ],
+    [
+      "direct-do-effect-order-once",
+      "193"
+    ],
+    [
+      "direct-do-polymorphic-capture",
+      "195"
+    ],
+    [
+      "direct-do-polymorphic-nested-alias",
+      "197"
+    ],
+    [
+      "direct-do-owned-alias",
+      "187"
+    ],
+    [
+      "direct-do-pure-polymorphic-let",
+      "189"
+    ],
+    [
+      "direct-do-layout-shadow",
+      "191"
+    ],
+    [
+      "function-valued-prefix",
+      "245"
+    ],
+    [
+      "pure-unit-entry",
+      "83"
+    ],
+    [
+      "pure-unit-closure-entry",
+      "85"
+    ],
+    [
+      "machine-i64-overflow",
+      "239"
+    ],
+    [
+      "machine-i64-first-class",
+      "241"
+    ],
+    [
+      "machine-i64-owned-chain",
+      "243"
+    ],
+    [
+      "huge",
+      "37"
+    ],
+    [
+      "alias",
+      "39"
+    ],
+    [
+      "call",
+      "41"
+    ],
+    [
+      "branch",
+      "43"
+    ],
+    [
+      "recursive",
+      "47"
+    ],
+    [
+      "negative",
+      "53"
+    ],
+    [
+      "natural",
+      "59"
+    ],
+    [
+      "wildcard",
+      "61"
+    ],
+    [
+      "tuple-field",
+      "67"
+    ],
+    [
+      "tuple-case",
+      "71"
+    ],
+    [
+      "nested-tuple",
+      "73"
+    ],
+    [
+      "dropped-tuple",
+      "79"
+    ],
+    [
+      "full-inline-map",
+      "83"
+    ],
+    [
+      "nullary-constructors",
+      "89"
+    ],
+    [
+      "recursive-tree",
+      "97"
+    ],
+    [
+      "failed-nested-pattern",
+      "101"
+    ],
+    [
+      "shared-constructor-root",
+      "103"
+    ],
+    [
+      "raw-bool-patterns",
+      "107"
+    ],
+    [
+      "numeric-equations",
+      "109"
+    ],
+    [
+      "nested-case-guards",
+      "113"
+    ],
+    [
+      "failed-case-guard",
+      "127"
+    ],
+    [
+      "natural-literal-pattern",
+      "131"
+    ],
+    [
+      "last-regular-tag",
+      "137"
+    ],
+    [
+      "opaque-runtime-dependent-argument",
+      "149"
+    ],
+    [
+      "partially-applied-constructor",
+      "147"
+    ],
+    [
+      "first-escaped-tag",
+      "139"
+    ],
+    [
+      "escaped-recursive-and-first-class",
+      "141"
+    ],
+    [
+      "escaped-generic-representation-classes",
+      "143"
+    ],
+    [
+      "generic-identity-classes",
+      "151"
+    ],
+    [
+      "generic-shared-tobj",
+      "157"
+    ],
+    [
+      "generic-shared-obj",
+      "163"
+    ],
+    [
+      "generic-tuple-fields",
+      "167"
+    ],
+    [
+      "polymorphic-recursion",
+      "173"
+    ],
+    [
+      "class-swapping-recursion",
+      "179"
+    ],
+    [
+      "generic-data-classes",
+      "181"
+    ],
+    [
+      "generic-recursive-data",
+      "191"
+    ],
+    [
+      "generic-data-growing-recursion",
+      "193"
+    ],
+    [
+      "generic-owned-result",
+      "197"
+    ],
+    [
+      "lambda-argument",
+      "199"
+    ],
+    [
+      "escaping-capture",
+      "201"
+    ],
+    [
+      "shared-closure",
+      "203"
+    ],
+    [
+      "global-function-value",
+      "205"
+    ],
+    [
+      "partial-function",
+      "207"
+    ],
+    [
+      "dynamic-partial-application",
+      "209"
+    ],
+    [
+      "partial-constructor",
+      "211"
+    ],
+    [
+      "nested-escaping-closures",
+      "213"
+    ],
+    [
+      "unused-capture",
+      "215"
+    ],
+    [
+      "shadowed-capture",
+      "217"
+    ],
+    [
+      "generic-capture-classes",
+      "219"
+    ],
+    [
+      "higher-order-generic-map",
+      "221"
+    ],
+    [
+      "borrowed-field-capture",
+      "223"
+    ],
+    [
+      "closure-constructor-field",
+      "225"
+    ],
+    [
+      "branch-returned-closure",
+      "227"
+    ],
+    [
+      "generic-object-capture",
+      "229"
+    ],
+    [
+      "lambda-tuple-pattern",
+      "231"
+    ],
+    [
+      "function-captures",
+      "233"
+    ],
+    [
+      "selected-dictionary",
+      "101"
+    ],
+    [
+      "dictionary-slot-order",
+      "103"
+    ],
+    [
+      "dictionary-value",
+      "107"
+    ],
+    [
+      "dictionary-object-value",
+      "109"
+    ],
+    [
+      "dictionary-factory-context",
+      "113"
+    ],
+    [
+      "dictionary-self-method",
+      "127"
+    ],
+    [
+      "dictionary-self-escaping",
+      "131"
+    ],
+    [
+      "dictionary-evidence-capture",
+      "137"
+    ],
+    [
+      "dictionary-extra-evidence",
+      "139"
+    ],
+    [
+      "dictionary-raw-value",
+      "149"
+    ],
+    [
+      "dictionary-shared-evidence",
+      "151"
+    ],
+    [
+      "erased-region-identity",
+      "157"
+    ],
+    [
+      "io-unit-entry",
+      "163"
+    ],
+    [
+      "io-cancellation",
+      "167"
+    ],
+    [
+      "io-evidence-capture",
+      "173"
+    ],
+    [
+      "io-observable-bytes",
+      "179"
+    ],
+    [
+      "imported-tagged-fields",
+      "181"
+    ],
+    [
+      "imported-raw-fields",
+      "191"
+    ],
+    [
+      "imported-object-fields",
+      "193"
+    ],
+    [
+      "imported-nullary-tag",
+      "197"
+    ],
+    [
+      "imported-declaration-order",
+      "199"
+    ],
+    [
+      "imported-constructor-closure",
+      "201"
+    ],
+    [
+      "source-signature",
+      "203"
+    ],
+    [
+      "source-signature-order",
+      "205"
+    ],
+    [
+      "source-signature-values",
+      "207"
+    ],
+    [
+      "source-signature-factory",
+      "209"
+    ],
+    [
+      "source-signature-operator",
+      "211"
+    ],
+    [
+      "source-signature-module",
+      "213"
+    ],
+    [
+      "source-signature-method-polymorphism",
+      "215"
+    ],
+    [
+      "source-signature-method-families",
+      "217"
+    ],
+    [
+      "source-signature-own-factory-context",
+      "219"
+    ]
+  ],
+  "scope": "All14completeaffectedgroups on combined named-proof/projection/decision runtime implementation, including all original evaluator/runtime clients, all15arraytests and20exactIEEEpatterns. Every source43module checks. Full fresh bootstrap, complete Native/finalStage3/auxiliary/external suites and original API/Acceptance5 remain required.",
+  "source": "/tmp/cinch-current-combined-repair-validation-2/source",
+  "source_check": {
+    "compiler": "/tmp/cinch-current-combined-repair-validation-2/cargo/debug/cinch",
+    "compiler_modules": 43,
+    "compiler_sha256": "03d6d38f9b5dfe8fa005927560a087f0e56788823f107fb43823e49b0bfeeeee",
+    "exit_code": 0,
+    "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "status": "passed"
+  },
+  "source_sha256": "b95dbf91d2a32ee798672716e1b77bf15d5bddf38ebd22c65f19ef8b72f3ea64",
+  "status": "passed-scoped-combined-projection-decision-proof-runtime",
+  "tests": 28
+}
