@@ -1,0 +1,12 @@
+{
+  "exit_code": 0,
+  "full_goal_complete": false,
+  "log_sha256": "d2a5297f6f4c6448882bd11743107a15efb6dbb74996fb8e179f16e485a52558",
+  "scope": "Entire tooling unittest discovery, including bothABI5/ABI6source preparation and finalinterface consumers; actualcurrentpin and canonicalwrongABIrefusal; no productioncompiler orABIchecks changed.",
+  "source": "/tmp/cinch-abi6-tooling-fix-validation-1/source",
+  "source_sha256": "3492152028cbba28bea628ef064a03f24b8de7203b48c6b96345d7bc31cf1bf0",
+  "status": "passed",
+  "tests": 41,
+  "compiler_source_sha256": "31ac09d621b8f8bc7b13f64f3eb6f61965f96507d7f8683b8512d4156ff40fa0",
+  "verification": "All41 complete unittest cases, with explicit5/6subcases andcanonicalwrongABIrefusal. Compiler inputs, pins, runtime andprelude unchanged."
+}

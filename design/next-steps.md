@@ -1,5 +1,32 @@
 # Next steps (as of 2026-11-05)
 
+## ABI6 tooling and original external checks (2026-11-05)
+
+All 41 tooling tests pass on the current explicit ABI6 pin. Two integration
+fixtures now follow the selected pin, while source preparation and final
+interface consumption test both ABI5 and ABI6 explicitly. A canonical
+wrong-ABI contract still receives the precise ABI refusal. Production
+compiler, stage, loader and provider validation behavior is unchanged.
+See `bootstrap/current-abi6-tooling-results.json`.
+
+All 14 original external checks also pass independently through the exact
+current final ABI6 Stage3: both runner programs with exact reports and 32M
+zero leaks; defining-module-only fixities and separate renamed facades;
+identical and changed importer redeclaration refusals; and the complete
+class-identity group. Its direct Native API negative remains classified
+separately. See `bootstrap/current-abi6-stage3-external-results.json`.
+
+The compiler-only library object lacked the `Data.List.length [T]` variant
+used by the original runner and allocation tests. The separate library-only
+test object is freshly rebuilt from the same pinned b64710b ABI6 producer
+and runtime using `bootstrap/test-library-object-roots.json`. All 55 checked
+library identities and the runtime archive match the audited stage inputs;
+no ABI5 object or client frontend fallback is used. All eight original
+allocation tests now pass through final Stage3. The initial failing sweeps
+remain preserved. See `bootstrap/current-abi6-test-library-results.json`.
+The remaining complete suites, original API scope and proof/Acceptance 5
+work remain required; these receipts do not establish full acceptance.
+
 ## Current ABI6 compiler bootstraps from Cinch (2026-11-05)
 
 The published array/effect compiler now has an independently audited

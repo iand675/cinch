@@ -69,11 +69,17 @@ class CompilerInterfaceGate(unittest.TestCase):
                     contracts.read_contract(path)
 
     def test_final_consumer_uses_self_built_compiler_and_emitted_contracts(self):
+        for runtime_abi in (5, 6):
+            with self.subTest(runtime_abi=runtime_abi), patch.object(bootstrap, "seed_inputs", return_value=({"runtime_abi": runtime_abi}, b"")):
+                self.assert_final_consumer(runtime_abi)
+
+    def assert_final_consumer(self, runtime_abi):
+        doc = {**self.doc, "runtime_abi": runtime_abi}
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             (root / "cinch").write_bytes(b"self-built compiler")
-            (root / "Main.cinchif").write_text(contracts.canonical(self.doc))
-            dependency = {**self.doc, "module": "Bootstrap.Check"}
+            (root / "Main.cinchif").write_text(contracts.canonical(doc))
+            dependency = {**doc, "module": "Bootstrap.Check"}
             path = root / "Bootstrap.Check.cinchif"
             path.write_text(contracts.canonical(dependency))
             bootstrap.write_json(root / "base-interfaces.json", {"schema": 1, "interfaces": []})

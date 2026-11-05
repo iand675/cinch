@@ -47,6 +47,20 @@ See [current ABI6 chain evidence](current-abi6-bootstrap-results.json).
 This proves Acceptance 1-4 for compiler source `31ac09d621b8f8bc7b13f64f3eb6f61965f96507d7f8683b8512d4156ff40fa0`.
 The complete matching Native and final-Stage3 suites, auxiliary checks,
 original API coverage, proof soundness and Acceptance 5 remain open.
+All 14 original external checks now pass on that exact ABI6 Stage3; see
+[current external evidence](current-abi6-stage3-external-results.json).
+The complete tooling suite passes all 41 tests, including both supported
+stage ABIs and their mismatch refusals; see
+[current tooling evidence](current-abi6-tooling-results.json).
+
+Portable client tests use the separate explicit
+[test library roots](test-library-object-roots.json), including concrete
+variants outside the compiler source's own dependency closure. The pinned
+Native producer builds only the generated `CinchBaseObject` library root
+and its admitted base modules with these roots. Its checked interfaces
+and runtime must match the compiler's library dependencies. See
+[test library provenance](current-abi6-test-library-results.json).
+Client parsing, checking and lowering remain with the exact Stage3 compiler.
 The older [repaired chain](final-repaired-bootstrap-results.json) and
 [external checks](final-stage3-external-results.json) retain their original
 source scope; they do not establish the current compiler's full acceptance.

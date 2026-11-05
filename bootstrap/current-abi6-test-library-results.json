@@ -1,0 +1,262 @@
+{
+  "added_actual_diagnostic_roots": {
+    "dictionaries": [],
+    "methods": [],
+    "schema": 1,
+    "units": [
+      {
+        "classes": "T",
+        "symbol": "Data.List.length"
+      }
+    ]
+  },
+  "build_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "child_pid": 85693,
+  "configuration": {
+    "metadata": "/tmp/cinch-test-support-provider-5/library.abi.json",
+    "metadata_sha256": "c1fe88f90eaa8cb12ddd97c6c8aa427cd3e58c4015a7c274a185fe5491b60a76",
+    "object": "/tmp/cinch-test-support-provider-5/library.o",
+    "object_sha256": "9f9968adaf4922baf66479f1b05b6ed20497bdb888e3f5472ae809878e6eeb90",
+    "schema": 1,
+    "target": "aarch64-unknown-unknown"
+  },
+  "interfaces": 55,
+  "pid": 85583,
+  "producer": {
+    "description": "Exact ABI6 b64710b library-only Native producer. Never compiles Bootstrap implementation modules. Seed and provider retain separate explicit roles and private caches.",
+    "revision": "b64710b29e57c0b73dbfce8fa67c3bf1e581ea6c",
+    "runtime_abi": 6,
+    "schema": 1,
+    "source_sha256": "dbe00931df2b2ab7a14a56e4acc6653dc7a4d01a0dc1d3e1f4da22e9ce039ffb"
+  },
+  "producer_binary_sha256": "7dbfec02002d4e102cb3d04bf628acc1bae2975ab9292900d113bb524c06ac17",
+  "roots_sha256": "9d4507f230969f5ab1aeca01e1c5a80c83dbaba87cef251faeeb730274fa9f24",
+  "runtime": "/private/tmp/cinch-array-abi6-chain-1/source/build/bootstrap/library-provider/b38b973003e0ed6cea619a254c951d2f87ae3753c258e7231f0b2fe9397a7e10/libcinchruntime.a",
+  "runtime_sha256": "2fab721751aa601f3ca72d7677f8520e5bdd37d93887275b5636fce478f959c6",
+  "scope": "Fresh ABI6 library-only test object from the exact current pinned producer/source/runtime. Reuses only the explicit root declarations from earlier tests, never old ABI5 artifacts. No Bootstrap implementation modules or client frontend compilation.",
+  "status": "passed",
+  "matching_library_interfaces": {
+    "Algebra.Arithmetic": {
+      "identity": "13842151301063202486",
+      "file_sha256": "5751c353b4904d163e9e6017d07c59c7b0c220d28919d49d624bbf00709dafa6"
+    },
+    "Algebra.Bits": {
+      "identity": "15983031596111231497",
+      "file_sha256": "d15247546e2e109174ef0ec5f888d17515f6a55991fd40390d10e8eae17c3ef5"
+    },
+    "Algebra.Group": {
+      "identity": "16869328135167726332",
+      "file_sha256": "20397581c62248e9fc4e4ade142cff40a9460c20440de3e8510afff66cb593dd"
+    },
+    "Algebra.Monoid": {
+      "identity": "12426572980860711657",
+      "file_sha256": "e92fba6eb3bab5cd29c8a8b076572925e9aafe9c1d87261ed65dfc5f082aeb65"
+    },
+    "Algebra.Semigroup": {
+      "identity": "6881241614433664628",
+      "file_sha256": "13bc94f7c39f114cc228a1132398a66e29951aa7490d0039b60e26e057765c82"
+    },
+    "Algebra.Semiring": {
+      "identity": "1488842932481883057",
+      "file_sha256": "c92734d35b65aecf166ce9051180f2e3659b923cf162d1bd8df69d28e450a9e5"
+    },
+    "Category.Alternative": {
+      "identity": "6864986517333063660",
+      "file_sha256": "28b8258f250a11296a6ee2b672d5ec734f350463935a6fb0187c9eff59798e22"
+    },
+    "Category.Applicative": {
+      "identity": "7878030592159176235",
+      "file_sha256": "b598c59ba56e33738e13c8b85ef46f2bf79ab3157991fbb62baa90e9f81a52fa"
+    },
+    "Category.Foldable": {
+      "identity": "7126635349764341739",
+      "file_sha256": "aa916b365ec9cf9ebbf69a6d0d2407088a45eff7c7c63d5adb3041a106b1f5a1"
+    },
+    "Category.Functor": {
+      "identity": "628340235998342005",
+      "file_sha256": "54b8566f163acbcc06abbb428eaf6467ae24f581288a885925000186ec6f3dd0"
+    },
+    "Category.Monad": {
+      "identity": "10189209684746342147",
+      "file_sha256": "4756c09b512033eabf9432c4e98bce108622301c5b203963af491626c44c8e6a"
+    },
+    "Category.Traversable": {
+      "identity": "8463305609808136731",
+      "file_sha256": "a30b713641209bbb18c353b5cc7965d794a3a55c7462828615634299023f7b34"
+    },
+    "Data.Ascii": {
+      "identity": "16285749250104632482",
+      "file_sha256": "b7cd1027441c9c03a45f38c46addad724f77bf2eda3f2838cb0a0c84697afaf5"
+    },
+    "Data.Bool": {
+      "identity": "1516713794899190076",
+      "file_sha256": "d500b9f80658c3713093d323f84381bf5d2466f4fb533da11a236f19d2388af4"
+    },
+    "Data.Bytes": {
+      "identity": "2436511818681150572",
+      "file_sha256": "44afdf2f1bd97c215d885aaac94be1b1530cedf965a5b8fc19810d7aab1a230d"
+    },
+    "Data.Char": {
+      "identity": "5609336336446020904",
+      "file_sha256": "c991b64815972a1cfd593f05429e2de45fad45ab9f6cd2c4af051339d4e35630"
+    },
+    "Data.Compose": {
+      "identity": "1374979336662901828",
+      "file_sha256": "4921e1810a30284cf9630e4fe2cb3291f9e85f0dbdd54d270c4366ec0e7e7646"
+    },
+    "Data.Const": {
+      "identity": "4865323618195197639",
+      "file_sha256": "8c5f0b75a3acceb8dd92f91d5c1ff5020836810b1dc4d53c9276d83294350c89"
+    },
+    "Data.Core": {
+      "identity": "3420315651835929958",
+      "file_sha256": "56a0d1fabef31161423bc5cffe54268a5ba0cc668b10501129cd44fa985f5014"
+    },
+    "Data.Enum": {
+      "identity": "17963298471269881640",
+      "file_sha256": "2a55203099419e8e37018cd3849b654814b88148819cebcf6681b5d75e4b9a06"
+    },
+    "Data.FromList": {
+      "identity": "1739836151382401118",
+      "file_sha256": "abe9ac49f554bb7970ba0a9f9b948a3dd90dc90b9655d4bf222a0f28a7e7f6f8"
+    },
+    "Data.FromMap": {
+      "identity": "14016075688030151666",
+      "file_sha256": "fc1c716abce3cf0bdcdda5c9a1e25a9deb28aad336d78348e044f826452b40a5"
+    },
+    "Data.Hash": {
+      "identity": "17809640171645917845",
+      "file_sha256": "5ab29fb0906800fb9d92c9c7d38bbafe27153beb2f18fdac7c7f7db31b965f14"
+    },
+    "Data.HashMap": {
+      "identity": "15977396049913053081",
+      "file_sha256": "6b4e27f9f34358380481d29e772c5325a4a690729b3ecdcad1d32f6e731a4568"
+    },
+    "Data.Identity": {
+      "identity": "2467601184233023551",
+      "file_sha256": "7b59e9b46963e720217320fad1fd522370721190b874a539521d3b9e8c4a291c"
+    },
+    "Data.Int": {
+      "identity": "2663618414847375297",
+      "file_sha256": "aba49a058b17295dddbd8803f06f7048512d570cc5d867a81fbd1e17e70e3f2d"
+    },
+    "Data.Json": {
+      "identity": "14359955746843732831",
+      "file_sha256": "a5b07c28a1f87039e796668305d33d73110de4dd225fceaa5782f881c90481b4"
+    },
+    "Data.List": {
+      "identity": "6142962880476242451",
+      "file_sha256": "a23b76a4ff55356629a52572b05a5b0bd4488940a92b15d73c3f0c4a127e4cb6"
+    },
+    "Data.Machine": {
+      "identity": "2257442324564629344",
+      "file_sha256": "3e2d67b7180eb66865e31453658ea2be9a817a3d6a2da35dde7312160ce5238f"
+    },
+    "Data.Map": {
+      "identity": "2634115353349236146",
+      "file_sha256": "b88c9e77f838065b3b3ee5f3ada0fcf210aa9b38ded6a6d80a9260e182ab5c7f"
+    },
+    "Data.Nat": {
+      "identity": "1629034456318606723",
+      "file_sha256": "4ce74152677b189caf97c8e2a1ced337b3ae8cb3baf46071d75a718c5fe63fde"
+    },
+    "Data.NonEmpty": {
+      "identity": "1753113886610403996",
+      "file_sha256": "5a68a526211b523cf5b63327cfe176c4835b5fbee83770b3effd4953271da1cc"
+    },
+    "Data.NonZero": {
+      "identity": "4483440388194383488",
+      "file_sha256": "f4557e27b8414b2c138d46ef09d5876ada90cd583b5b0d62a3d2ebbd1bb213bc"
+    },
+    "Data.Option": {
+      "identity": "1145753081147236305",
+      "file_sha256": "0a9e7174f53573bc0ed857a4ac16363643526dd88b31f858c892cf12a3a6ff00"
+    },
+    "Data.Ordering": {
+      "identity": "16693064181037897819",
+      "file_sha256": "9a5b8f6021356d7d3dd1706bf1f9c7a6385957584dbe7ff0e4f1f90ed011bc0e"
+    },
+    "Data.Path": {
+      "identity": "4958634132012510761",
+      "file_sha256": "37707c287fab2c09793999fcecc2c12742ee33ec42f4de4bf94d16dde0569821"
+    },
+    "Data.Producer": {
+      "identity": "2050035776222371863",
+      "file_sha256": "b4d8c98a352021ee74a8fdf9fec6ce9bbb81695ca05d59647ebce865a5f6c020"
+    },
+    "Data.Result": {
+      "identity": "7651825571225985303",
+      "file_sha256": "efcf586ac8e4e30173d9bd497c01a0cbbc61f0f8a1e8d7848484744a569a55a8"
+    },
+    "Data.Set": {
+      "identity": "13400877467743081959",
+      "file_sha256": "f11cc417b102d3d934c758b2cf729d01dcd1bb4c356044df1eefe80e97b8360c"
+    },
+    "Data.Sorted": {
+      "identity": "10869596701741698519",
+      "file_sha256": "a41b5dbc5ada4cf347d8998c3b9fa070c952dc75f39775848a09ed3628f6c6d3"
+    },
+    "Data.String": {
+      "identity": "9849046186649177963",
+      "file_sha256": "693278c82546e99b6fa0fcf84e9ef8a727681ebf845767af1398a027728800aa"
+    },
+    "Data.Sym": {
+      "identity": "6476929375519347843",
+      "file_sha256": "9a31bb79fb47344fe551a6d3a1a88d3d0a2a022e39138a4eab574fed3851a3d2"
+    },
+    "Data.Target": {
+      "identity": "15284296877948332421",
+      "file_sha256": "71cd2c1b38bbab78ef84065a0e43f593f44e224b294adabe290d8a33e064fb7e"
+    },
+    "Effect.Clock": {
+      "identity": "16640911728439466776",
+      "file_sha256": "8563724fc8aaa6af23858235c5d8814d6ec9c5eb0b5cd21a3b385e950885216e"
+    },
+    "Effect.Concurrent": {
+      "identity": "6672204240006104289",
+      "file_sha256": "091efd15bc78c87564f6ec6ac7345c694a115209739806e785b119d1b450dec9"
+    },
+    "Effect.Fs": {
+      "identity": "14289679991734009925",
+      "file_sha256": "b88ff886eba02d2a72f180fd126bf6ff1f745947ecea6c7424f92b2c1f71f67c"
+    },
+    "Effect.Io": {
+      "identity": "1015207891216393428",
+      "file_sha256": "b717c8b7e8c349434491da06dc56f0098a7caaa2349141b8cf64f40e7bf17739"
+    },
+    "Effect.Process": {
+      "identity": "12849707440356997826",
+      "file_sha256": "30041f76690bc91fdc3d843eaa525a8c55cbfaa19f22b98dd0c77d81c163de2c"
+    },
+    "Effect.Sequencing": {
+      "identity": "14276833131377607710",
+      "file_sha256": "7aa6e36302ac196fa4a4d49fba8a974987cb6ec120c5286d936c2c1efbdc7201"
+    },
+    "Function.Combinators": {
+      "identity": "625740523843558080",
+      "file_sha256": "e2e5dc38ce97fad6a93b6e5251bd236be86d2e4bfb9425a427bb9b45413579b7"
+    },
+    "Prelude": {
+      "identity": "1613411840886015548",
+      "file_sha256": "adf49d2e4094bf8f92b85e02fc13e117941ac779096fbd11499dede5d4cfe9ea"
+    },
+    "Relation.Eq": {
+      "identity": "3324485094145768292",
+      "file_sha256": "26c1db6861434bbbf38f390f6a3d237ebcd87c3e7a2f8b21aa115018627d0879"
+    },
+    "Relation.Ord": {
+      "identity": "47200044129606778",
+      "file_sha256": "40f74f75f5cac7ee397d1c22df4e6b8a64692eeada23da6bd42038c6453e48b3"
+    },
+    "Text.Codec": {
+      "identity": "9568693429672696213",
+      "file_sha256": "83b88b485d4a8fc74266c3b35adf68185a660636c3addfada655be0ebb493442"
+    },
+    "Text.Show": {
+      "identity": "10546905207430385165",
+      "file_sha256": "fc86493bdd6e033baaaffddb5e3b61440914d0ffce0f904707d44e8b233bebe3"
+    }
+  },
+  "validated_consumers": "All14originalexternalStage3checks andthecomplete8-testalloc_accountinggroup passed usingthisnewlibraryobject. ActualclientfrontendistheunchangedABI6Stage3; noclientfrontendfallback.",
+  "full_goal_complete": false
+}

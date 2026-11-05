@@ -36,10 +36,16 @@ class BootstrapContract(unittest.TestCase):
             with self.assertRaisesRegex(bootstrap.BootstrapError, "invalid actual compiler interface"):
                 bootstrap.require_compiler_interfaces(root, files)
             template = bootstrap.read_json(Path(__file__).parent / "fixtures/checked-interface.json")
+            runtime_abi = bootstrap.seed_inputs()[0]["runtime_abi"]
             for name in ["Main", "Bootstrap.Check"]:
-                doc = {**template, "module": name}
+                doc = {**template, "module": name, "runtime_abi": runtime_abi}
                 (root / (name + ".cinchif")).write_text(json.dumps(doc, ensure_ascii=False, sort_keys=True, separators=(",", ":")))
             bootstrap.require_compiler_interfaces(root, files)
+            wrong_abi = 5 if runtime_abi == 6 else 6
+            (root / "Main.cinchif").write_text(json.dumps({**template, "module": "Main", "runtime_abi": wrong_abi}, ensure_ascii=False, sort_keys=True, separators=(",", ":")))
+            with self.assertRaisesRegex(bootstrap.BootstrapError, "wrong runtime ABI"):
+                bootstrap.require_compiler_interfaces(root, files)
+            (root / "Main.cinchif").write_text(json.dumps({**template, "module": "Main", "runtime_abi": runtime_abi}, ensure_ascii=False, sort_keys=True, separators=(",", ":")))
             bootstrap.write_json(root / "extra.cinchif", {"module": "Bootstrap.Check"})
             with self.assertRaisesRegex(bootstrap.BootstrapError, "duplicate canonical compiler interface"):
                 bootstrap.require_compiler_interfaces(root, files)
@@ -48,12 +54,16 @@ class BootstrapContract(unittest.TestCase):
         live = (bootstrap.ROOT / "bootstrap/Bootstrap.RuntimeAbi.cinch").read_bytes()
         self.assertEqual(live, bootstrap.runtime_abi_source(6))
         pinned = bootstrap.collect_compiler_sources()
-        self.assertEqual(pinned["Bootstrap.RuntimeAbi.cinch"], bootstrap.runtime_abi_source(5))
-        self.assertIn(b"runtime-abi = 5", bootstrap.bundle(pinned))
-        self.assertIn(b"runtime-abi-int = 5", pinned["Bootstrap.RuntimeAbi.cinch"])
-        self.assertIn(b"runtime-abi-int = 6", live)
-        native = {**pinned, "Bootstrap.RuntimeAbi.cinch": live}
-        self.assertNotEqual(bootstrap.source_hash(pinned), bootstrap.source_hash(native))
+        lock, patch_bytes = bootstrap.seed_inputs()
+        self.assertEqual(pinned["Bootstrap.RuntimeAbi.cinch"], bootstrap.runtime_abi_source(lock["runtime_abi"]))
+        prepared = {}
+        for runtime_abi in (5, 6):
+            with self.subTest(runtime_abi=runtime_abi), patch.object(bootstrap, "seed_inputs", return_value=({**lock, "runtime_abi": runtime_abi}, patch_bytes)):
+                prepared[runtime_abi] = bootstrap.collect_compiler_sources()
+            self.assertEqual(prepared[runtime_abi]["Bootstrap.RuntimeAbi.cinch"], bootstrap.runtime_abi_source(runtime_abi))
+            self.assertIn(f"runtime-abi = {runtime_abi}".encode(), bootstrap.bundle(prepared[runtime_abi]))
+            self.assertIn(f"runtime-abi-int = {runtime_abi}".encode(), prepared[runtime_abi]["Bootstrap.RuntimeAbi.cinch"])
+        self.assertNotEqual(bootstrap.source_hash(prepared[5]), bootstrap.source_hash(prepared[6]))
         for invalid in (None, True, "5", 0, 4, 7):
             with self.assertRaises(bootstrap.BootstrapError):
                 bootstrap.runtime_abi_source(invalid)
