@@ -52,6 +52,9 @@ All 14 original external checks now pass on that exact ABI6 Stage3; see
 The complete tooling suite passes all 41 tests, including both supported
 stage ABIs and their mismatch refusals; see
 [current tooling evidence](current-abi6-tooling-results.json).
+The complete matching auxiliary audit covers all 171 runtime, 41 tooling
+and 39 editor checks; see [auxiliary evidence](current-abi6-auxiliary-results.json).
+Each component records its actual execution source and checked input identity.
 
 Portable client tests use the separate explicit
 [test library roots](test-library-object-roots.json), including concrete

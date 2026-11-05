@@ -9,6 +9,14 @@ wrong-ABI contract still receives the precise ABI refusal. Production
 compiler, stage, loader and provider validation behavior is unchanged.
 See `bootstrap/current-abi6-tooling-results.json`.
 
+The complete auxiliary gates now pass independently: 171 runtime, 41
+tooling and 39 editor checks, with no skipped or filtered cases. Runtime
+evidence retains its actual earlier execution source identity and is reused
+only after exact equality of every runtime input, including all tests.
+Corrected tooling and editor checks execute freshly on the frozen repair.
+The Native producer and all 43 compiler module bytes match the published
+ABI6 compiler. See `bootstrap/current-abi6-auxiliary-results.json`.
+
 All 14 original external checks also pass independently through the exact
 current final ABI6 Stage3: both runner programs with exact reports and 32M
 zero leaks; defining-module-only fixities and separate renamed facades;
