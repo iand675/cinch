@@ -1,9 +1,9 @@
 {
   "schema": 1,
   "estimate": 90,
-  "commit": "b1d05ee",
+  "commit": "16cef82",
   "estimateNote": "Rough engineering estimate. Verified checks and remaining work are listed below.",
-  "status": "Verification found a failure; correction required",
+  "status": "Current-source verification running",
   "stages": [
     {
       "name": "Prior API Stage 0",
@@ -57,8 +57,8 @@
       "state": "passed"
     },
     {
-      "title": "Current d701d79 Rust suite",
-      "detail": "89 of 230 complete groups passed; 1 running, 0 failed and 140 pending.Every group includes ignored tests. State: running. Earlier compiler inputs; a matching published-source run remains required.",
+      "title": "Current16cef82 Rust suite",
+      "detail": "0 of 230 complete groups passed; 0 running, 0 failed and 230 pending.Every group includes ignored tests. State: compiling-all-native-runners. Earlier compiler inputs; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -73,7 +73,7 @@
     },
     {
       "title": "Earlier API checkpoint: exact Stage3 behavior",
-      "detail": "52 of 93 complete groups passed; 1 running, 1 failed and 39 pending.81 complete bootstrap groups, eight ordinary and four mixed targets. Includes all positive ABI6 arrays, exact float patterns and the new projection group. Every case runs; direct Native operations remain separately classified. Earlier compiler inputs; a matching published-source run remains required.",
+      "detail": "0 of 93 complete groups passed; 0 running, 0 failed and 93 pending.81 complete bootstrap groups, eight ordinary and four mixed targets. Includes all positive ABI6 arrays, exact float patterns and the new projection group. Every case runs; direct Native operations remain separately classified. Earlier compiler inputs; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -128,33 +128,29 @@
     },
     {
       "title": "Proposed compiler repair",
-      "detail": "Separate unpublished source: under-validation. All 43 compiler modules: passed. 5 of 37 complete groups passed; 2 running, 0 failed and 30 pending. This does not replace current-source or final Stage3 acceptance.",
+      "detail": "Separate unpublished source: under-validation. All 43 compiler modules: passed. 23 of 37 complete groups passed; 1 running, 0 failed and 13 pending. This does not replace current-source or final Stage3 acceptance.",
       "state": "running"
     },
     {
-      "title": "Published list and byte measures: 312 tests passed",
-      "detail": "15 complete affected groups, all43 compiler modules and alltesttargets pass. All17 original lattice cases and six added controls remain; recursive tail and exact constructor layout checks reject malformed carriers. Debug ownership checks,32M heaps and129 zero-leak reports pass. Complete matching suites remain required.",
+      "title": "Published runtime arithmetic repair:333 tests passed",
+      "detail": "All16 complete affected groups, all43compiler modules and alltesttargets pass independently, with135zero-leak reports and debug ownership verification. Original larger-input counterexample is replayed: normal exit0, altered addition refused. Type arithmetic remains mathematical; runtime equations require actual checked implementations. Complete matching suites remain required.",
       "state": "passed"
     },
     {
-      "title": "Runtime arithmetic operands need actual implementation authority",
-      "detail": "The prior actual compiler accepts a false result under changed Nat addition (normal exit0 / changed exit42). List carrier repair does not change that conversion. A separate candidate is under validation.",
-      "state": "failed"
+      "title": "Previous Rust sweep (earlier production inputs)",
+      "detail": "95 of 230 complete groups passed; 0 running, 0 failed and 135 pending. Preserved earlier-source evidence; current matching sweeps are separate.",
+      "state": "running"
     },
     {
-      "title": "Published Stage3 source bundling: all9 checks passed",
-      "detail": "Six complete adapter tests and allthree unchanged lexer tests pass through the actual final Cinch-built compiler. Unimported lexical data remains available without entering the program bundle; requested duplicate providers still reach the selected compiler. Full matching suites remain required.",
-      "state": "passed"
+      "title": "Previous exact Stage3 sweep (earlier test host)",
+      "detail": "53 of 93 complete groups passed; 1 running, 1 failed and 38 pending. Preserved earlier-source evidence; current matching sweeps are separate.",
+      "state": "running"
     }
   ],
   "blockers": [
     {
-      "title": "Arithmetic validation, method-body metadata and matching full suites",
-      "detail": "Published d701d79 fixes list/byte carriers: 15 complete groups /312tests and all43 c8d6 modules pass. Published b1d05ee fixes selected-frontend source bundling: six adapter tests and all three unchanged lexer tests pass through actual finalStage3. The retained full Stage3 run records its original duplicate-module failure; its patched replay passes. The current Native52 sweep uses original test-owned runtime controls; Native51 forced-diagnostics failures remain recorded separately. The arithmetic candidate has passed all16completegroups; fresh all43 checking and independent audit remain before publication. The private Cinch body-context/method candidate passes all43 after adding exact declaring owner/name, slot, type arguments and factory-target authority. Its instance-resolution replay passes every original positive/refusal control; broader runtime groups and fresh exporter19 controls continue. Earlier exporter18 controls remain scoped to their older source. Imported conditional preconditions also reveal that some selected method bodies are not carried in portable interface graphs unless another exported value reaches them; complete method-body metadata remains required. Full matching suites, original100target/API scope, GADT/localforall, FFI, safe source overlays, Cinch proofAPI and Acceptance5 remain open."
-    },
-    {
-      "title": "Investigate the recorded failure",
-      "detail": "self-built tests: bootstrap_lexer; Runtime arithmetic operand semantics remain open"
+      "title": "Complete matching suites and portable selected-method metadata",
+      "detail": "Published16cef82 fixes runtime arithmetic authority: 333tests/16completegroups, all43c8d6modules, alltesttargets and135zero-leak reports pass. The original larger-input altered-addition counterexample is rejected at its first affected dependent byte-buffer proof; normal addition exits0. Publishedb1d05ee fixes source-input import closure: six adapter tests and allthree unchanged lexer tests pass through actual Stage3. Fresh Native53 and Stage3_51 sweeps use current source and newly compiled matching hosts; predecessor sweeps drain whole groups and retain all earlier results. Native51 forced-runtime-diagnostics failures remain separately explained and preserved; Native52 uses test-owned controls. The private Cinch candidate passes all43 module checks, every original instance-resolution guard, and allthree semantic-recognizer controls after exact owner/name/slot/class-arguments/factory authority. Remaining complete groups and fresh exporter19 continue. Imported conditional precondition failures reveal missing portable method roots: current checked library graphs carry Nat <, but not <=, >, >= or addition. Actual method bodies need checked declaration/dependency association; class/slot names supply no equations. Full matching suites, original100target/API audit, GADT/localforall, FFI, safe source overlays, Cinch proofAPI and Acceptance5 remain open."
     },
     {
       "title": "Finish the fresh bootstrap",
@@ -162,7 +158,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "89 of 230 complete groups passed; 1 running, 0 failed and 140 pending. Earlier compiler inputs; a matching published-source run remains required."
+      "detail": "0 of 230 complete groups passed; 0 running, 0 failed and 230 pending. Earlier compiler inputs; a matching published-source run remains required."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -170,7 +166,7 @@
     },
     {
       "title": "Finish the exact self-built compiler tests",
-      "detail": "52 of 93 complete groups passed; 1 running, 1 failed and 39 pending. Earlier compiler inputs; a matching published-source run remains required."
+      "detail": "0 of 93 complete groups passed; 0 running, 0 failed and 93 pending. Earlier compiler inputs; a matching published-source run remains required."
     },
     {
       "title": "Finish final external acceptance",
@@ -211,6 +207,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "All 43 compiler-source checks: passed. 14 of 14 complete groups passed; 0 running, 0 failed and 0 pending. runtime behavior: passed; bootstrap_eval: passed; library calls: passed; bootstrap_source_proofs: passed; bootstrap_source_constructors: passed; refinements and effects: passed; Core validation: passed; independent type checker: passed; bootstrap_decisions: passed; bootstrap_source_decisions: passed; bootstrap_export_interfaces: passed; bootstrap_source_projection: passed; arrays: passed; bootstrap_array_float_bits: passed.",
-  "activity": "Current d701d79 Rust suite: 89 of 230 complete groups passed; 1 running, 0 failed and 140 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 14 of 14 complete groups passed; 0 running, 0 failed and 0 pending. runtime behavior: passed; bootstrap_eval: passed; library calls: passed; bootstrap_source_proofs: passed; bootstrap_source_constructors: passed; refinements and effects: passed; Core validation: passed; independent type checker: passed; bootstrap_decisions: passed; bootstrap_source_decisions: passed; bootstrap_export_interfaces: passed; bootstrap_source_projection: passed; arrays: passed; bootstrap_array_float_bits: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 52 of 93 complete groups passed; 1 running, 1 failed and 39 pending. Proposed compiler repair (separate unpublished source): under-validation; 5 of 37 complete groups passed; 2 running, 0 failed and 30 pending.",
-  "updatedAt": "2026-11-05T10:03:02.534978+00:00"
+  "activity": "Current16cef82 Rust suite: 0 of 230 complete groups passed; 0 running, 0 failed and 230 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 14 of 14 complete groups passed; 0 running, 0 failed and 0 pending. runtime behavior: passed; bootstrap_eval: passed; library calls: passed; bootstrap_source_proofs: passed; bootstrap_source_constructors: passed; refinements and effects: passed; Core validation: passed; independent type checker: passed; bootstrap_decisions: passed; bootstrap_source_decisions: passed; bootstrap_export_interfaces: passed; bootstrap_source_projection: passed; arrays: passed; bootstrap_array_float_bits: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 0 of 93 complete groups passed; 0 running, 0 failed and 93 pending. Proposed compiler repair (separate unpublished source): under-validation; 23 of 37 complete groups passed; 1 running, 0 failed and 13 pending.",
+  "updatedAt": "2026-11-05T10:08:27.893062+00:00"
 }
