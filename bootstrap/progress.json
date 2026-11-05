@@ -224,8 +224,8 @@
   ],
   "blockers": [
     {
-      "title": "Constructor-scope fix published; full language and matching suites remain",
-      "detail": "Published45a8072 closes the hidden constructor-parameter Core-checking gap. All5 complete affected groups and13tests pass, including25 added scope controls, whole runtime/task/capture/cancellation cases, and exact43-module compiler/object validation. Source existential/indexed constructors still need scoped openings/refinement/runtime support. Earlier917f arrays13/15 and original interface/API6/9 retain their separate source scope. FullNative6b sweep and917f chain continue on frozen inputs; matching450711 bootstrap and all105 target acceptance remain open."
+      "title": "Stage2 rebuild running; constructor contracts and suite failures under test",
+      "detail": "Published45a8072 constructor-scope fix passes all5 complete affected groups and13tests, including25 scope controls and the full runtime/task checks. Fresh matching450711 Stage0/1 and smokes pass; actual Cinch Stage1 is rebuilding Stage2. Private constructor-local/indexed scheme work passes its first full source-constructor run including10 added controls; the trimmed-binder/interface revision is now undergoing full source/global/export checks, then43-module compiler/object and all9 original API groups. Original917f arrays13/15 and interface/API6/9 remain separately scoped. The frozen Native6b/5cea sweep has two retained failing groups: the separately repaired byte group and an old local-body rejection expectation. The exact original local-body input is valid under current checked numeric-body support and currentNative agrees; stronger false-bound/wrong-argument/recursive controls match Native and await the complete Cinch measure group. No whole current-source suite or all105-target acceptance claim."
     },
     {
       "title": "Investigate the recorded failure",
@@ -287,5 +287,5 @@
   "fullGoalComplete": false,
   "summary": "All 43 compiler-source checks: passed. 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_globals: passed; bootstrap_nominals: passed; runtime behavior: passed; bootstrap_external_frontend: passed; bootstrap_library_object: passed.",
   "activity": "Current published Rust compiler: full suite: 192 of 232 complete groups passed; 1 running, 2 failed and 37 pending. Stage builds and smoke checks: 2 of 4; chain state: building-stage2. Repair gates: 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_globals: passed; bootstrap_nominals: passed; runtime behavior: passed; bootstrap_external_frontend: passed; bootstrap_library_object: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
-  "updatedAt": "2026-11-05T22:53:36.274529+00:00"
+  "updatedAt": "2026-11-05T22:54:38.262897+00:00"
 }
