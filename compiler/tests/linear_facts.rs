@@ -420,3 +420,33 @@ fn machine_integer_arithmetic_never_implies_through_overflow() {
         0,
     );
 }
+
+
+#[test]
+fn generic_precondition_measures_use_the_checked_argument_telescope() {
+    expect_checks("generic-measure-carrier", r#"
+module Main where
+  take-index :: forall a. using (i < list-length xs) => (i :: Nat) -> (xs :: List a) -> Nat
+  take-index i xs = i
+  chars :: List Char -> Nat
+  chars xs = if 0 < list-length xs then take-index 0 xs else 0
+  numbers :: List Nat -> Nat
+  numbers xs = if 0 < list-length xs then take-index 0 xs else 0
+  main :: Int
+  main = 0
+"#);
+    expect_err("wrong-measure-argument-carrier", r#"
+module Main where
+  at :: using (i < list-length xs) => (i :: Nat) -> (xs :: Nat) -> Nat
+  at i xs = i
+  main :: Int
+  main = 0
+"#, &["index function argument carrier"]);
+    expect_err("undeclared-measure-argument", r#"
+module Main where
+  at :: using (i < list-length xs) => (i :: Nat) -> Nat
+  at i = i
+  main :: Int
+  main = 0
+"#, &["unsolved"]);
+}

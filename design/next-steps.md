@@ -1,5 +1,34 @@
 # Next steps (as of 2026-11-05)
 
+## Native generic measures and empty collection generalization (2026-11-05)
+
+The full Native sweep found the original loop-measure failure, while the
+final-stage sweep exposed its Native oracle's empty-list generalization bug.
+Preconditions now read the checked argument telescope, retain the callee's
+actual type/index/row/region/evidence instantiation, and normalize solved
+metadata before matching scoped facts. Branch facts retain the same generic
+measure identity. Numeric predicates still read borrowed contents and reject
+stale evidence after writes; compile-time call expectations remain intact.
+
+A copied syntactic value also quantifies private variables in its deferred
+dictionaries. One empty collection can consequently be used at both List Nat
+and List Bool. Captured, literal and code variables retain the existing value
+restriction. Every original case and assertion is retained.
+
+All 24 complete affected groups pass independently: 497 tests, all test
+targets, and all 43 unchanged c8d6 compiler modules. This includes the original
+32-case collection oracle and its actual compiled Cinch consumer, proof and
+syntax cases, the complete concurrency/ownership groups and all 185 library
+units. Whole-group low-heap replays pass with 32M heaps and RC/leak checks:
+9 linear-fact tests (10 zero-leak executable reports) and 19 surface tests
+(25 zero-leak reports). See `bootstrap/current-native-measure-collection-results.json`.
+
+The current four-stage c8d6 fixed point and explicit seed/provider pins are
+unchanged. Complete matching Native49 and final-Stage3 suite50 remain required;
+their predecessors and failures are preserved. Source total-body contracts,
+selected-method proof semantics, original API/100-target coverage and
+Acceptance 5 remain open. These scoped results do not establish completion.
+
 ## Current projection/proof-runtime compiler bootstraps from Cinch (2026-11-05)
 
 The current c8d6 compiler has a fresh independently audited Stage0/1/2/3

@@ -638,3 +638,18 @@ fn converter_failures_name_the_file_and_the_converter() {
     let err = check_entry(&dir, "Main.cinch").expect_err("unknown extension");
     assert!(err.contains("no converter"), "{err}");
 }
+
+
+#[test]
+fn generalized_empty_collection_dictionaries_keep_each_uses_element_type() {
+    let dir = write_project(&[("Main.cinch", r#"
+module Main where
+  is-empty :: forall a. List a -> Bool
+  is-empty xs = case xs of Nil -> True; Cons first rest -> False
+  main :: Int
+  main = let empty = [] in
+    if is-empty (empty :: List Nat) && is-empty (empty :: List Bool) then 0 else 1
+"#)]);
+    assert_eq!(run_entry(&dir, "Main.cinch"), Ok(0));
+    std::fs::remove_dir_all(dir).unwrap();
+}

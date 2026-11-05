@@ -543,6 +543,68 @@ impl Checker {
         ))
     }
 
+    /// Direct calls receive preconditions from the exact instantiation that
+    /// produced their callee, including type, index, row and evidence bindings.
+    fn infer_variable(&mut self, env: &mut Env, p: &ast::VarPath) -> Result<(ECore, Ty, Vec<PropOblig>)> {
+        if p.quals.is_empty()
+            && self.is_builtin_form(env, &p.name)
+        {
+            return Err(Error::at(
+                p.span(),
+                format!("{} must be applied in the bootstrap slice", p.name.text),
+            ));
+        }
+        if p.quals.is_empty() {
+            if let Some((l, s)) = env.lookup_name(&p.name) {
+                let (t, copy, obligations) = self.instantiate_local(l, &s);
+                let t = self.uni.zonk(&t);
+                // A bare use of a memo cell demands it and copies
+                // the cached value out; the binding name elaborates
+                // to `demand` followed by `copyOut` (laziness and
+                // reclamation specification, section 5). Memo
+                // cells cache `Share` values, so the copy always
+                // has structural evidence.
+                if let Ty::Lazy { eff, region, inner } = t {
+                    self.note_use(l, p.span(), &[], &env.dicts)?;
+                    self.new_want(
+                        ClassApp { class: "Copy".into(), args: vec![(*inner).clone()] },
+                        p.span(),
+                        env,
+                    );
+                    self.perform(&EffRow {
+                        labels: vec![EffLabel::with_arg("Eval", region)],
+                        tail: RowTail::Closed,
+                    })?;
+                    self.perform(&eff)?;
+                    return Ok((ECore::Demand(Box::new(ECore::Var(l)), (*inner).clone()), *inner, obligations));
+                }
+                let mut path = std::mem::take(&mut self.place_path);
+                path.reverse();
+                self.note_use(l, p.span(), &path, &env.dicts)?;
+                return Ok((copy.unwrap_or(ECore::Var(l)), t, obligations));
+            }
+        }
+        self.place_path.clear();
+        // The bare-`pure` rule: a bare `pure` reaches the class
+        // method through its constraint when one carries it.
+        if p.quals.is_empty()
+            && p.name.text == "pure"
+            && p.name.local_binding().is_none()
+            && p.name.resolved_binding().is_none()
+            && p.name.scoped_reference().is_none()
+            && env.lookup_name(&p.name).is_none()
+        {
+            if let Some(v) = self.constraint_pure(env) {
+                return self.value_use_with_obligations(&v, p.span(), env);
+            }
+        }
+        let v = self.resolve_var(p, p.span())?;
+        if matches!(v.kind, ValueKind::EffectOp { .. }) {
+            return self.operation_function_value(env, p, &v, p.span()).map(|(core, ty)| (core, ty, Vec::new()));
+        }
+        self.value_use_with_obligations(&v, p.span(), env)
+    }
+
     fn infer(&mut self, env: &mut Env, term: &ast::Term) -> Result<(ECore, Ty)> {
         let scope = self.compile_time.then(|| self.code_quantifiers.clone());
         let (core, ty) = self.infer_inner(env, term)?;
@@ -609,65 +671,7 @@ impl Checker {
                 *span,
                 "typed holes are not supported in the bootstrap slice",
             )),
-            ast::Term::Var(p) => {
-                if p.quals.is_empty()
-                    && self.is_builtin_form(env, &p.name)
-                {
-                    return Err(Error::at(
-                        p.span(),
-                        format!("{} must be applied in the bootstrap slice", p.name.text),
-                    ));
-                }
-                if p.quals.is_empty() {
-                    if let Some((l, s)) = env.lookup_name(&p.name) {
-                        let (t, copy) = self.instantiate_local(l, &s);
-                        let t = self.uni.zonk(&t);
-                        // A bare use of a memo cell demands it and copies
-                        // the cached value out; the binding name elaborates
-                        // to `demand` followed by `copyOut` (laziness and
-                        // reclamation specification, section 5). Memo
-                        // cells cache `Share` values, so the copy always
-                        // has structural evidence.
-                        if let Ty::Lazy { eff, region, inner } = t {
-                            self.note_use(l, p.span(), &[], &env.dicts)?;
-                            self.new_want(
-                                ClassApp { class: "Copy".into(), args: vec![(*inner).clone()] },
-                                p.span(),
-                                env,
-                            );
-                            self.perform(&EffRow {
-                                labels: vec![EffLabel::with_arg("Eval", region)],
-                                tail: RowTail::Closed,
-                            })?;
-                            self.perform(&eff)?;
-                            return Ok((ECore::Demand(Box::new(ECore::Var(l)), (*inner).clone()), *inner));
-                        }
-                        let mut path = std::mem::take(&mut self.place_path);
-                        path.reverse();
-                        self.note_use(l, p.span(), &path, &env.dicts)?;
-                        return Ok((copy.unwrap_or(ECore::Var(l)), t));
-                    }
-                }
-                self.place_path.clear();
-                // The bare-`pure` rule: a bare `pure` reaches the class
-                // method through its constraint when one carries it.
-                if p.quals.is_empty()
-                    && p.name.text == "pure"
-                    && p.name.local_binding().is_none()
-                    && p.name.resolved_binding().is_none()
-                    && p.name.scoped_reference().is_none()
-                    && env.lookup_name(&p.name).is_none()
-                {
-                    if let Some(v) = self.constraint_pure(env) {
-                        return self.value_use(&v, p.span(), env);
-                    }
-                }
-                let v = self.resolve_var(p, p.span())?;
-                if matches!(v.kind, ValueKind::EffectOp { .. }) {
-                    return self.operation_function_value(env, p, &v, p.span());
-                }
-                self.value_use(&v, p.span(), env)
-            }
+            ast::Term::Var(p) => self.infer_variable(env, p).map(|(core, ty, _)| (core, ty)),
             ast::Term::Con(p) => {
                 // A capitalized module parameter (`Seq :: ResultSequencing
                 // ConfigError`) is an ordinary binding of the module scope:
@@ -738,16 +742,6 @@ impl Checker {
                 // obligations now, an instance's after resolution.
                 // A qualified callee (`Data.Nat.nat-sub a b`) carries its
                 // obligations exactly like a bare one.
-                let callee_obligs = match &**f {
-                    ast::Term::Var(p) => match env.lookup_name(&p.name).filter(|_| p.quals.is_empty()) {
-                        Some((_, s)) => s.obligs.clone(),
-                        None => self
-                            .resolve_var(p, p.span())
-                            .map(|v| v.scheme.obligs.clone())
-                            .unwrap_or_default(),
-                    },
-                    _ => Vec::new(),
-                };
                 // Only a variable callee is "applied directly": its
                 // obligations discharge below. Any other callee form (a
                 // conditional, a parenthesized application) elaborates as
@@ -758,9 +752,16 @@ impl Checker {
                     &mut self.app_callee_depth,
                     usize::from(matches!(&**f, ast::Term::Var(_))),
                 );
-                let inferred = self.infer(env, f);
+                let inferred = match &**f {
+                    ast::Term::Var(path) => {
+                        let scope = self.compile_time.then(|| self.code_quantifiers.clone());
+                        self.infer_variable(env, path).map(|(core, ty, obligations)|
+                            (self.code_expectation(core, &ty, path.span(), scope), ty, obligations))
+                    }
+                    _ => self.infer(env, f).map(|(core, ty)| (core, ty, Vec::new())),
+                };
                 self.app_callee_depth = saved_depth;
-                let (mut core, mut ty) = inferred?;
+                let (mut core, mut ty, callee_obligs) = inferred?;
                 // A callee that writes memory at an unknown target (a
                 // foreign call, `eval`, a mutating `Bytes` primitive) is an
                 // opaque write that invalidates all mutable-location
@@ -4086,6 +4087,18 @@ impl Checker {
                         }
                     }
                 }
+                // Facts and signature obligations must retain the same
+                // checked instantiation of a generic measure. Dropping its
+                // type/dictionary arguments here invents a different opaque
+                // value from the one the dependent signature names.
+                if let ast::Term::Var(path) = &**f {
+                    if (!path.quals.is_empty() || env.lookup_name(&path.name).is_none())
+                        && self.resolve_var(path, *span).is_ok_and(|value|
+                            matches!(value.kind, ValueKind::TopFn)
+                                && Self::closed_index_signature(&value.scheme).is_none()) {
+                        return self.checked_term_index(t, env, None);
+                    }
+                }
                 let mut out = Vec::new();
                 for a in args {
                     out.push(self.idx_of_term(a, env)?);
@@ -6184,6 +6197,10 @@ impl Checker {
     }
 
     fn value_use(&mut self, v: &ValueInfo, span: ast::Span, env: &mut Env) -> Result<(ECore, Ty)> {
+        self.value_use_with_obligations(v, span, env).map(|(core, ty, _)| (core, ty))
+    }
+
+    fn value_use_with_obligations(&mut self, v: &ValueInfo, span: ast::Span, env: &mut Env) -> Result<(ECore, Ty, Vec<PropOblig>)> {
         self.record_editor_reference(span, ast::RefKind::Value, &v.module, &v.name);
         // `eval` uses are profile-gated and recorded wherever they
         // appear (supercompilation and JIT specification section 7).
@@ -6205,7 +6222,7 @@ impl Checker {
                     ));
                 }
                 let (ty, _ctx, _val_args, ptys) = self.instantiate_at(&v.scheme);
-                return Ok((ECore::Global(op.global_id(), ptys), ty));
+                return Ok((ECore::Global(op.global_id(), ptys), ty, Vec::new()));
             }
             ValueKind::StageFn | ValueKind::MacroFn => {
                 if !self.compile_time {
@@ -6218,7 +6235,7 @@ impl Checker {
                     ));
                 }
             }
-            ValueKind::BoolLit(b) => return Ok((ECore::Bool(*b), Ty::Bool)),
+            ValueKind::BoolLit(b) => return Ok((ECore::Bool(*b), Ty::Bool, Vec::new())),
             ValueKind::EffectOp { head, .. } => {
                 return Err(Error::at(
                     span,
@@ -6236,7 +6253,7 @@ impl Checker {
                 // proof terms and vanish at runtime (core specification
                 // section 3).
                 let (ty, _, _) = self.instantiate(&v.scheme);
-                return Ok((ECore::Unit, ty));
+                return Ok((ECore::Unit, ty, Vec::new()));
             }
             ValueKind::Ctor { field_erased, .. } => {
                 if self
@@ -6264,6 +6281,7 @@ impl Checker {
             _ => {}
         }
         let ((ty, ctx, val_args, ptys), stage_types) = self.instantiate_scoped(&v.scheme);
+        let obligations = Self::instantiated_obligations(&v.scheme, &stage_types);
         // Used as a value, a function keeps its result refinements,
         // including those naming its own arguments by position (they
         // name the same function's arguments wherever the value goes, and
@@ -6383,7 +6401,7 @@ impl Checker {
         };
         holes.extend(idx_holes);
         let core = if holes.is_empty() { core } else { app_spine(core, holes) };
-        Ok((core, ty))
+        Ok((core, ty, obligations))
     }
 
     // ------------------------------------------------------------ local declarations
@@ -7255,7 +7273,21 @@ impl Checker {
         let lit_metas = self.literal_metas();
         let mut code_metas = Vec::new();
         stored_code_metas(&self.uni.zonk(ty), &mut code_metas);
-        let mine = self.uni.free_metas(ty);
+        let mut mine = self.uni.free_metas(ty);
+        // A value's deferred dictionaries are copied with its definition.
+        // Quantify their private type variables too: an empty collection's
+        // element is not yet visible in its unconstrained container type.
+        // Captured/literal/code variables retain the ordinary restrictions.
+        let mut parts = CopyParts::default();
+        def_parts(def, &mut parts);
+        for want in self.wants.iter().filter(|want| parts.wants.contains(&want.id)) {
+            for argument in &want.class.args {
+                stored_code_metas(&self.uni.zonk(argument), &mut code_metas);
+                for meta in self.uni.free_metas(argument) {
+                    if !mine.contains(&meta) { mine.push(meta); }
+                }
+            }
+        }
         let quantify: Vec<EitherMeta> = mine
             .into_iter()
             .filter(|m| !env_metas.contains(m) && !lit_metas.contains(m) && !code_metas.contains(m))

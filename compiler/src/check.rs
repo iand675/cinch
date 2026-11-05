@@ -4293,6 +4293,10 @@ impl Checker {
     /// no evidence is refused naming the obligation and its discharge
     /// paths.
     fn discharge_oblig(&self, evidence: &Evidence, obl: &PTerm, span: ast::Span) -> Result<()> {
+        // Arguments have now solved the callee's actual instantiation. Resolve
+        // its metadata before matching scoped facts; this never specializes
+        // an unknown parameter or discards a type/dictionary identity.
+        let obl = &self.uni.resolve_prop(obl);
         let mut ov: Vec<String> = Vec::new();
         obl.free_vars(&mut ov);
         let mut forged: Option<(String, PTerm)> = None;
@@ -6915,6 +6919,16 @@ impl Checker {
         }
     }
 
+    /// Numeric predicates read the contents of a borrowed place, retaining
+    /// that place's identity for the existing write-invalidation checks.
+    /// Generic function argument inference still checks the complete carrier.
+    fn numeric_index_read_carrier(&self, ty: &Ty) -> Ty {
+        match ty {
+            Ty::Mut(_, inner) | Ty::Ref(_, inner) if self.int_view(inner).is_some() => self.numeric_index_read_carrier(inner),
+            other => self.refine_base(other).unwrap_or_else(|| other.clone()),
+        }
+    }
+
     fn check_captured_index_carrier(
         &self,
         name: &str,
@@ -6939,7 +6953,8 @@ impl Checker {
             trial.unify(actual, &expected).is_ok()
                 && trial.zonk(actual) == *actual && trial.zonk(&expected) == expected
         };
-        if !compatible(&actual) && !compatible(&carrier) {
+        if !compatible(&actual) && !compatible(&carrier)
+            && !compatible(&self.numeric_index_read_carrier(&actual)) {
             return Err(Error::at(
                 span,
                 format!("captured index `{name}` has kind {actual}, expected {expected}"),
@@ -7723,8 +7738,8 @@ impl Checker {
 
     fn proposition_indices(&self, left: &ast::Type, right: &ast::Type, vars: &[String]) -> Result<(ITerm, ITerm)> {
         let mut inference = IndexInference::new(&self.uni);
-        let left_ty = self.captured_index_carrier_in(&mut inference, left, vars, None)?;
-        let right_ty = self.captured_index_carrier_in(&mut inference, right, vars, left_ty.as_ref())?;
+        let left_ty = self.captured_index_carrier_in(&mut inference, left, vars, None)?.map(|ty| self.numeric_index_read_carrier(&ty));
+        let right_ty = self.captured_index_carrier_in(&mut inference, right, vars, left_ty.as_ref())?.map(|ty| self.numeric_index_read_carrier(&ty));
         let span = right.span();
         if let (Some(left), Some(right)) = (&left_ty, &right_ty) {
             let left = self.refine_base(left).unwrap_or_else(|| left.clone());
@@ -9265,6 +9280,7 @@ impl Checker {
         let mut params: Vec<String> = Vec::new();
         let mut ctx: Vec<(String, ClassApp)> = Vec::new();
         let mut obligs: Vec<PropOblig> = Vec::new();
+        let mut pending_predicates = Vec::new();
         // `forall` binders in order, with their kind hints.
         let mut binders: Vec<(String, Option<ParamKind>, ast::Span)> = Vec::new();
         // Rows occupy Scheme::row_params rather than the proper/index kind
@@ -9294,15 +9310,15 @@ impl Checker {
                 }
                 ast::Type::Using(cs, body, _) => {
                     for c in cs {
-                        match self.conv_oblig(c, &params)? {
-                            ConvOblig::Class(name, class) => ctx.push((name, class)),
-                            ConvOblig::Prop(PropOblig::Preserves { .. }) => {
+                        match c {
+                            ast::Oblig::Class(class) => ctx.push(self.conv_class(class, &params)?),
+                            ast::Oblig::Preserves { .. } => {
                                 return Err(Error::at(
                                     c.span(),
                                     "`Preserves` is the generic transfer's obligation on an instance; a signature's `using` context states per-argument predicates (`Ordered xs`) or class constraints",
                                 ))
                             }
-                            ConvOblig::Prop(o) => obligs.push(o),
+                            ast::Oblig::Pred(_) => pending_predicates.push(c),
                         }
                     }
                     rest = body;
@@ -9313,7 +9329,36 @@ impl Checker {
                         match kind { Some(ParamKind::Val(carrier)) => Some((name.clone(), carrier.clone())), _ => None }
                     }));
                     self.index_header_context.borrow_mut().push(ctx.clone());
-                    let t = self.conv_type(other, &params);
+                    let t: Result<Ty> = (|| {
+                        let t = self.conv_type(other, &params)?;
+                        // A precondition can precede the telescope it names.
+                        // Infer generic measure arguments from those checked
+                        // domains, rather than exporting an unsolved private
+                        // instantiation or guessing its type from the name.
+                        let mut syntax = other;
+                        let mut carrier = &t;
+                        loop {
+                            let (domain, result) = match carrier {
+                                Ty::Fun(domain, _, _, result) | Ty::Pi { dom: domain, cod: result, .. } => (domain, result),
+                                _ => break,
+                            };
+                            syntax = match syntax {
+                                ast::Type::DepFun(name, _, _, _, result, _) => {
+                                    self.index_carriers.borrow_mut().push((name.text.clone(), (**domain).clone()));
+                                    result
+                                }
+                                ast::Type::Fun { res, .. } => res,
+                                _ => break,
+                            };
+                            carrier = result;
+                        }
+                        for predicate in pending_predicates {
+                            if let ConvOblig::Prop(obligation) = self.conv_oblig(predicate, &params)? {
+                                obligs.push(obligation);
+                            }
+                        }
+                        Ok(t)
+                    })();
                     self.index_header_context.borrow_mut().pop();
                     self.index_carriers.borrow_mut().truncate(carriers_start);
                     let t = t?;
@@ -10027,14 +10072,15 @@ impl Checker {
     /// use of a let-generalized local is a copy of its definition at this
     /// instantiation (`Some`, [`Checker::gen_copy`]); any other local's
     /// use is the local itself.
-    fn instantiate_local(&mut self, l: LocalId, s: &Scheme) -> (Ty, Option<ECore>) {
-        let (t, _, _, ptys) = self.instantiate_at(s);
+    fn instantiate_local(&mut self, l: LocalId, s: &Scheme) -> (Ty, Option<ECore>, Vec<PropOblig>) {
+        let ((t, _, _, ptys), bindings) = self.instantiate_scoped(s);
+        let obligations = Self::instantiated_obligations(s, &bindings);
         let map: HashMap<crate::types::MetaId, Ty> = match self.gen_locals.get(&l) {
             Some(metas) if self.gen_defs.contains_key(&l) => metas.iter().copied().zip(ptys).collect(),
-            _ => return (t, None),
+            _ => return (t, None, obligations),
         };
         let (ty, body) = self.gen_copy(l, &map, &t);
-        (ty, Some(body))
+        (ty, Some(body), obligations)
     }
 
     /// A copy of the definition of the let-generalized local `l` for one
@@ -10204,6 +10250,17 @@ impl Checker {
     /// instantiation, whose classes lowering records.
     fn instantiate_at(&mut self, s: &Scheme) -> (Ty, Vec<InstantiatedConstraint>, Vec<Ty>, Vec<Ty>) {
         self.instantiate_scoped(s).0
+    }
+
+    fn instantiated_obligations(s: &Scheme, bindings: &StageTypeBindings) -> Vec<PropOblig> {
+        s.obligs.iter().map(|obligation| match obligation {
+            PropOblig::Pred(predicate) => PropOblig::Pred(Self::subst_prop_namespaces(
+                predicate, &bindings.types, &bindings.rows, &bindings.regions, &bindings.evidence)),
+            PropOblig::Preserves { method, pred } => PropOblig::Preserves {
+                method: method.clone(), pred: Self::subst_prop_namespaces(
+                    pred, &bindings.types, &bindings.rows, &bindings.regions, &bindings.evidence),
+            },
+        }).collect()
     }
 
     fn instantiate_scoped(&mut self, s: &Scheme) -> ((Ty, Vec<InstantiatedConstraint>, Vec<Ty>, Vec<Ty>), StageTypeBindings) {
