@@ -1,0 +1,56 @@
+{
+  "compiler_modules": 43,
+  "compiler_source_sha256": "31ac09d621b8f8bc7b13f64f3eb6f61965f96507d7f8683b8512d4156ff40fa0",
+  "full_goal_complete": false,
+  "preflight": {
+    "compiler_modules": 43,
+    "compiler_sha256": "3831e15e35fe29056868a701511d115f5e91732614bd25b408401683ee0ba99a",
+    "exit_code": 0,
+    "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "runtime_abi": 6,
+  "scope": "Fresh intentional matching ABI6 seed/provider pins. Actual pinned Rust Stage0 builds all43compiler source modules into Stage1; both stages pass fib, precedence and named-invalid-source refusal. Inputs/bundle/executables/smokes independently audited. Stage2/3, fixed point, positive final-stage arrays, matching complete suites and full proof/API/Acceptance5 remain open.",
+  "source_sha256": "4a86cf6b172497e0aa1e71a598eacbf6a6f98e0da9147b14fe4dc25d836b71ce",
+  "stages": [
+    {
+      "compiler_sha256": "18602d3da0c9348cc3cef4d6d0e400b2812adfd4ec61206cbf36426223d027a3",
+      "inputs": {
+        "host": {
+          "machine": "arm64",
+          "system": "Darwin"
+        },
+        "protocol": 4,
+        "seed": {
+          "description": "Intentional isolated ABI6 stage transition. Exact published b64710b Native compiler/runtime sources, no patch. Rebuild the same complete Cinch array/effect compiler source at Stage1/2/3. Earlier ABI5 stage evidence is not reused as ABI6 proof.",
+          "patch": "bootstrap/seed/stage0.patch",
+          "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "revision": "b64710b29e57c0b73dbfce8fa67c3bf1e581ea6c",
+          "runtime_abi": 6,
+          "schema": 1,
+          "source_sha256": "dbe00931df2b2ab7a14a56e4acc6653dc7a4d01a0dc1d3e1f4da22e9ce039ffb"
+        }
+      },
+      "stage": 0,
+      "stage_receipt_sha256": "132eeb4524fe2b3e1319625e5c3fa57b0a298297a553b239d8b8f105e318496a",
+      "status": "passed"
+    },
+    {
+      "compiler_sha256": "a82b73daa23b7b3ec157354e4adfd615d3c050fa15f4be1dadbcd12be9ce1414",
+      "inputs": {
+        "builder_sha256": "18602d3da0c9348cc3cef4d6d0e400b2812adfd4ec61206cbf36426223d027a3",
+        "built_by_stage": 0,
+        "host": {
+          "machine": "arm64",
+          "system": "Darwin"
+        },
+        "protocol": 4,
+        "source_sha256": "31ac09d621b8f8bc7b13f64f3eb6f61965f96507d7f8683b8512d4156ff40fa0"
+      },
+      "stage": 1,
+      "stage_receipt_sha256": "7a918dae0b2c9ee55810757b61e09acb50918d69683c447a97d7871ea6a7a795",
+      "status": "passed"
+    }
+  ],
+  "status": "passed-abi6-development-stage0-stage1-only",
+  "verified_at": "2026-11-05T01:13:36.838179+00:00"
+}

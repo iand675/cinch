@@ -1,5 +1,41 @@
 # Next steps (as of 2026-11-05)
 
+## ABI6 arrays and closed kernel effects (2026-11-05)
+
+The Cinch implementation now lowers immutable Array, Tensor and Columnar
+operations with checked element classes, physical layouts, ownership and
+constructor ABI guards. Closed Global, Fail, Reentrant and ThreadAffine rows
+survive source elaboration, independent Core checking, interface export/import
+and renamed facades. Defining intrinsic identity and exact polymorphic schemes
+remain mandatory. Machine-word literals and promotion follow the explicit
+64-bit bootstrap target, with signed and unsigned boundary refusals.
+
+All 24 complete affected groups pass independently: 104 unfiltered tests,
+all 43 compiler modules, 31 actual Cinch array programs with zero leaks,
+12 invalid scheme/kind/range controls, three malformed constructor layouts,
+and 20 exact F32/F64 payload patterns through updates, slices and mixed-format
+append. See `bootstrap/current-array-kernel-effects-results.json`. That source
+check used the prior ABI5 stage configuration; its implementation matches the
+new ABI6 compiler apart from the explicit RuntimeAbi configuration module.
+
+The seed and separate library-only provider are intentionally pinned to the
+published b64710b Rust source at ABI6, with verified source hashes and no patch.
+Fresh Stage0 and Stage1 build all 43 modules and pass all six smoke checks.
+Independent input, executable and source audits are in
+`bootstrap/current-abi6-development-stage-results.json`. Actual Stage1 also
+emits, links and executes generic and packed-U8 array clients; both return 42
+with 32M zero leaks and actual array runtime calls. See
+`bootstrap/current-abi6-development-array-results.json`.
+
+The current canonical compiler identity is
+`31ac09d621b8f8bc7b13f64f3eb6f61965f96507d7f8683b8512d4156ff40fa0`.
+Its ABI6 Stage2/3 rebuilds and fixed-point proof remain in progress. Earlier
+e2f/ABI5 bootstrap and complete-suite receipts retain their original scope;
+they do not prove this new compiler's final bootstrap. Full matching suites,
+all positive final-Stage3 arrays, original API parity, proof soundness and
+the remaining Acceptance gates remain required. The separate proof and decision-runtime
+repairs remain unpublished.
+
 ## Original Stage3 fixture gaps and evaluator imports (2026-11-05)
 
 The exact e2f Stage3 replay of all original interface fixture programs is

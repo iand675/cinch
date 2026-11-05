@@ -7,6 +7,7 @@ module Bootstrap.RuntimeIr where
   import Bootstrap.Infer (elaboration-core, elaboration-data, elaboration-effects, elaboration-classes, elaboration-instances, elaboration-bindings, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-conditional-target)
   import Bootstrap.Object (RuntimeObject, RuntimeUnit, object-words, object-unit, object-variant, object-dictionary, object-family, object-conditional-unit, object-closed-method-unit, object-string-layout, unit-symbol, unit-closure, unit-params, unit-result, llvm-object-symbol, llvm-data-bytes)
   import Bootstrap.Core
+  import Bootstrap.Builtin (array-plan, array-type-name)
   import Bootstrap.Index
   import Bootstrap.Nominal (interface-global)
   import Bootstrap.Instance
@@ -38,6 +39,7 @@ module Bootstrap.RuntimeIr where
     LambdaDemand :: String -> List (Nat, Nat) -> List (Nat, Nat) -> List Local -> CorePattern -> CoreTerm -> Demand
     StubDemand :: String -> List Nat -> Demand
     DictionaryDemand :: String -> List Nat -> Demand
+    ArrayDemand :: String -> List Nat -> Demand
     BuiltinDemand :: String -> Demand
     ExternalDemand :: RuntimeUnit -> Demand
   -- Bound scheme ids and opened rigid ids are separate namespaces.
@@ -208,6 +210,7 @@ module Bootstrap.RuntimeIr where
       UTuple fields -> if field-types context fields 0 then Some 1 else None
       other -> case type-head ty of
         UCon name kind -> if (same name "b.Io" && kind-equal kind (KFun KRegion KType)) || (same name "b.Scope" && kind-equal kind scope-kind) || (same name "b.Task" && kind-equal kind task-kind) then Some 0
+          else if array-type-name name && kind-equal kind (KFun KType KType) then Some 1
           else if (same name "Bytes" || same name "String") && kind-equal kind KType then Some 1 else
           (case data-declaration name (program-data datas) of
             Some d -> Some 1
@@ -282,6 +285,7 @@ module Bootstrap.RuntimeIr where
     LambdaDemand name bounds rigids saved parameter body -> name
     StubDemand name classes -> cat [name, ".app"]
     DictionaryDemand name classes -> dictionary-name name classes
+    ArrayDemand name classes -> array-symbol name classes
     BuiltinDemand name -> name
     ExternalDemand unit -> cat ["external:", unit-symbol unit]
   request-demand :: Demand -> Writer -> Writer
@@ -728,6 +732,116 @@ module Bootstrap.RuntimeIr where
   constructor-context d classes w = case class-bindings (core-data-params d) classes of
     None -> None
     Some bounds -> Some (RuntimeContext (writer-program w) bounds Nil Nil Nil)
+  -- Array workers specialize on checked element classes; packed constructors
+  -- carry their fixed format in their canonical operation identity.
+  array-binder-field :: CoreData -> UType -> Bool
+  array-binder-field d field = case (core-data-params d, field) of
+    ([parameter], UBound id name KType) -> quant-id parameter == id && kind-equal (quant-kind parameter) KType
+    other -> False
+  array-list-abi :: Writer -> Bool
+  array-list-abi w = case (data-declaration (interface-global "Data.Core.List") (writer-data w), constructor (interface-global "Data.Core.Nil") (writer-data w), constructor (interface-global "Data.Core.Cons") (writer-data w)) of
+    (Some d, Some (nil-owner, 0, nil-constructor), Some (cons-owner, 1, cons-constructor)) ->
+      same nil-owner (core-data-name d) && same cons-owner nil-owner && list-length (core-data-constructors d) == 2 && list-length (core-constructor-fields nil-constructor) == 0 &&
+      (case core-constructor-fields cons-constructor of
+        [element, UApp (UCon owner (KFun KType KType)) tail] -> same owner nil-owner && array-binder-field d element && array-binder-field d tail
+        other -> False)
+    other -> False
+  array-head-class :: List Nat -> Nat
+  array-head-class classes = case classes of Cons first rest -> first; Nil -> 0
+  array-argument-classes :: Nat -> List Nat -> List Nat
+  array-argument-classes operation classes = let element = array-head-class classes in
+    if operation == 0 then [1] else if operation == 1 then [2, element]
+    else if operation == 3 || operation == 16 then [1, 2]
+    else if operation == 4 then [1, 2, element]
+    else if operation == 5 then [1, 2, 2]
+    else if operation == 6 || operation == 7 || operation == 10 || operation == 13 then [1, 1]
+    else if operation == 11 then [1, 1, element] else [1]
+  array-symbol :: String -> List Nat -> String
+  array-symbol name classes = specialized-name name classes
+  array-call :: List CoreDefinition -> List Local -> Writer -> Span -> String -> List UType -> List String -> List CoreTerm -> (Writer, String)
+  array-call definitions locals w sp name actuals givens args = case array-plan name of
+    Some (operation, format, scheme) -> case class-vector (writer-context w) actuals of
+      Some classes -> if list-length givens /= 0 || list-length classes /= (if format /= 0 then 0 else if operation == 13 || operation == 17 || operation == 18 then 2 else 1) then
+        unsupported w sp "array intrinsic needs its exact checked representation parameters" else
+        let parameters = array-argument-classes operation classes in
+        let count = list-length parameters in
+        let worker = array-symbol name classes in
+        case expressions definitions locals (request-demand (ArrayDemand name classes) w) (take-terms count args) of
+          (ready, values) -> if list-length values < count then closure sp worker parameters values ready else
+            case call ready (symbol worker) values of (done, result) -> apply-terms definitions locals done result (drop-terms count args)
+      None -> unsupported w sp "array element needs a checked runtime representation"
+    None -> unsupported w sp "array operation is unavailable in the selected ABI"
+  array-drop-arguments :: List Nat -> Nat -> Writer -> Writer
+  array-drop-arguments classes index w = case classes of
+    Nil -> w
+    Cons first rest -> array-drop-arguments rest (index + 1) (if first == 0 then w else line w (cat ["  call void @cinch_drop(i64 %arg", nat-to-string index, ")"]))
+  array-option :: Writer -> Span -> Nat -> String -> String -> List String -> (Writer, String)
+  array-option w sp payload-class invalid runtime arguments =
+    case (constructor (interface-global "Data.Core.Some") (writer-data w), constructor (interface-global "Data.Core.None") (writer-data w)) of
+      (Some (owner, some-tag, some-constructor), Some (none-owner, none-tag, none-constructor)) ->
+        if not (same owner (interface-global "Data.Core.Option") && same owner none-owner) || some-tag /= 1 || none-tag /= 0 || list-length (core-constructor-fields some-constructor) /= 1 || list-length (core-constructor-fields none-constructor) /= 0 then unsupported w sp "array result needs its checked Option declaration" else
+        (case data-declaration owner (writer-data w) of
+          Some d -> if list-length (core-data-constructors d) /= 2 || not (case core-constructor-fields some-constructor of [field] -> array-binder-field d field; other -> False) then unsupported w sp "array Option payload disagrees with its checked parameter" else (case request-data sp d [payload-class] w of
+            (planned, descriptor) ->
+              let (one, failure) = fresh planned "arraynone" in let (two, success) = fresh one "arraysome" in
+              let (three, end) = fresh two "arraydone" in let (four, slot) = fresh three "%ptr" in
+              let (five, predicate) = fresh four "%v" in
+              let split = line (line (line five (cat ["  ", slot, " = alloca i64"])) (cat ["  ", predicate, " = icmp ne i64 ", invalid, ", 0"])) (cat ["  br i1 ", predicate, ", label %", failure, ", label %", success]) in
+              case allocate (line split (cat [failure, ":"])) (data-descriptor d descriptor none-tag) Nil of
+                (absent, none) -> let next = line (line (line absent (cat ["  store i64 ", none, ", ptr ", slot])) (cat ["  br label %", end])) (cat [success, ":"]) in
+                  case (if same runtime "" then (next, case arguments of Cons value rest -> value; Nil -> "0") else call next runtime arguments) of
+                    (read, payload) -> case allocate read (data-descriptor d descriptor some-tag) [payload] of
+                      (present, some) -> let joined = line (line (line present (cat ["  store i64 ", some, ", ptr ", slot])) (cat ["  br label %", end])) (cat [end, ":"]) in
+                        let (ready, value) = fresh joined "%v" in (line ready (cat ["  ", value, " = load i64, ptr ", slot]), value))
+          None -> unsupported w sp "array result has no defining Option family")
+      other -> unsupported w sp "array result has no checked Option constructors"
+  array-null-option :: Writer -> Span -> String -> String -> List String -> (Writer, String)
+  array-null-option w sp runtime result arguments = case call w runtime arguments of
+    (made, value) -> case compare-word made "eq" value "0" of
+      (checked, invalid) -> array-option checked sp 1 invalid "" [value]
+  array-lower :: Writer -> Nat -> Nat -> List Nat -> (Writer, String)
+  array-lower w operation format classes =
+    let sp = Span 0 0 1 1 in let element = array-head-class classes in
+    let storage = nat-to-string (if format == 0 then element else format) in
+    if operation == 0 then (if array-list-abi w then call w "@cinch_array_from_list" ["%arg0", storage] else unsupported w sp "array input disagrees with the checked List ABI")
+    else if operation == 1 then (case call w "@cinch_nat_to_len" ["%arg0"] of (ready, count) -> call ready "@cinch_array_replicate" [count, "%arg1", storage])
+    else if operation == 2 || operation == 14 || operation == 15 then
+      (case call w (if operation == 2 then "@cinch_array_len" else if operation == 14 then "@cinch_columnar_rows" else "@cinch_columnar_columns") ["%arg0"] of
+        (measured, count) -> call measured "@cinch_nat_from_i64" [count])
+    else if operation == 3 || operation == 16 then
+      (case call w "@cinch_nat_to_len" ["%arg1"] of
+        (indexed, index) -> case (if operation == 3 then
+          (case call indexed "@cinch_array_has" ["%arg0", index] of (ready, valid) -> compare-word ready "eq" valid "0")
+          else case call indexed "@cinch_columnar_rows" ["%arg0"] of (ready, count) -> compare-word ready "uge" index count) of
+          (checked, invalid) -> array-option checked sp element invalid (if operation == 3 then "@cinch_array_get" else "@cinch_columnar_get") ["%arg0", index])
+    else if operation == 4 then (case call w "@cinch_nat_to_len" ["%arg1"] of
+      (ready, index) -> array-null-option ready sp "@cinch_array_set" "" ["%arg0", index, "%arg2"])
+    else if operation == 5 then (case call w "@cinch_nat_to_len" ["%arg1"] of
+      (indexed, index) -> case call indexed "@cinch_nat_to_len" ["%arg2"] of
+        (ready, count) -> array-null-option ready sp "@cinch_array_slice" "" ["%arg0", index, count])
+    else if operation == 6 then call w "@cinch_array_append" ["%arg0", "%arg1"]
+    else if operation == 7 then array-null-option w sp "@cinch_tensor_reshape" "" ["%arg0", "%arg1"]
+    else if operation == 8 || operation == 9 then call w (if operation == 8 then "@cinch_tensor_shape" else "@cinch_tensor_data") ["%arg0"]
+    else if operation == 10 || operation == 11 then
+      (case call w "@cinch_tensor_index" ["%arg0", "%arg1"] of
+        (indexed, index) -> case compare-word indexed "slt" index "0" of
+          (checked, invalid) -> array-option checked sp (if operation == 10 then element else 1) invalid
+            (if operation == 10 then "@cinch_tensor_get" else "@cinch_tensor_set") (if operation == 10 then ["%arg0", index] else ["%arg0", index, "%arg2"]))
+    else if operation == 12 then call w "@cinch_columnar_column" ["%arg0"]
+    else if operation == 13 then (case request-object-shape sp classes w of
+      (ready, descriptor) -> array-null-option ready sp "@cinch_columnar_zip" "" ["%arg0", "%arg1", nat-to-string descriptor])
+    else if operation == 17 || operation == 18 then array-null-option w sp "@cinch_columnar_child" "" ["%arg0", if operation == 18 then "1" else "0"]
+    else if operation == 19 then array-null-option w sp "@cinch_columnar_array" "" ["%arg0"]
+    else unsupported w sp "unknown checked array operation"
+  array-worker :: String -> List Nat -> Writer -> Writer
+  array-worker name classes w = case array-plan name of
+    None -> refuse w (Span 0 0 1 1) "array worker unavailable in selected ABI"
+    Some (operation, format, scheme) ->
+      let parameters = array-argument-classes operation classes in
+      let started = line (line w (cat ["define i64 ", symbol (array-symbol name classes), "(", join (argument-words (value-parameters (list-length parameters) 0)), ") {"])) "entry:" in
+      case array-lower started operation format classes of
+        (made, result) -> let done = array-drop-arguments parameters 0 made in line (line done (cat ["  ret i64 ", result])) "}"
+
   builtin-known :: String -> Bool
   builtin-known name = machine-i64-builtin name || same name "b.newIO" || same name "b.ioWrite" || same name "b.ioSleep" || same name "b.pollCancel" || same name "cinch.runtime.bytesNew" || same name "cinch.runtime.bytesLen" || same name "cinch.runtime.bytesGet" || same name "cinch.runtime.textF64FromDecimal" || same name "cinch.runtime.textF64ToDecimal"
   machine-i64-builtin :: String -> Bool
@@ -783,7 +897,7 @@ module Bootstrap.RuntimeIr where
   direct-call :: List CoreDefinition -> List Local -> Writer -> Span -> String -> List UType -> List CoreTerm -> (Writer, String)
   direct-call definitions locals w sp name actuals args = call-name definitions locals w sp name actuals Nil args
   call-name :: List CoreDefinition -> List Local -> Writer -> Span -> String -> List UType -> List String -> List CoreTerm -> (Writer, String)
-  call-name definitions locals w sp name actuals givens args = if builtin-known name then builtin-call definitions locals w sp name actuals givens args else
+  call-name definitions locals w sp name actuals givens args = if (case array-plan name of Some plan -> True; None -> False) then array-call definitions locals w sp name actuals givens args else if builtin-known name then builtin-call definitions locals w sp name actuals givens args else
     case instance-named name (program-instances (writer-program w)) of
       Some factory -> case scheme-classes (writer-context w) (scheme-params (instance-scheme factory)) actuals of
         Some classes -> if (case args of Nil -> True; other -> False) && list-length givens == list-length (scheme-requirements (instance-scheme factory)) then
@@ -1742,6 +1856,7 @@ module Bootstrap.RuntimeIr where
           LambdaDemand name saved-bound saved-rigid saved parameter body -> workers definitions (lambda-worker definitions name saved-bound saved-rigid saved parameter body claimed)
           StubDemand name classes -> workers definitions (app-stub name classes claimed)
           DictionaryDemand name classes -> workers definitions (dictionary-worker definitions name classes claimed)
+          ArrayDemand name classes -> workers definitions (array-worker name classes claimed)
           BuiltinDemand name -> workers definitions (builtin-worker name claimed)
           ExternalDemand unit -> workers definitions (external-worker unit claimed)
   declarations :: String
@@ -1749,6 +1864,7 @@ module Bootstrap.RuntimeIr where
     "declare ptr @cinch_alloc_ctor(i64, i64)\ndeclare ptr @cinch_alloc_shaped(i64, i64, i64)\ndeclare ptr @memcpy(ptr, ptr, i64)\ndeclare void @cinch_layouts_register(ptr, i64)\n",
     "declare void @cinch_dup(i64)\ndeclare void @cinch_drop(i64)\ndeclare void @cinch_reclaim_enable()\ndeclare i64 @cinch_exit_check(i64)\n",
     "declare i64 @cinch_nat_to_len(i64)\ndeclare i64 @cinch_nat_from_i64(i64)\ndeclare i64 @cinch_int_from_nat(i64)\ndeclare i64 @cinch_bytes_new(i64)\ndeclare i64 @cinch_bytes_len(i64)\ndeclare i64 @cinch_bytes_get(i64, i64)\ndeclare i64 @cinch_bytes_from_data(ptr, i64)\ndeclare i64 @cinch_bytes_compare(i64, i64)\ndeclare i64 @cinch_io_write(i64)\ndeclare i64 @cinch_io_sleep(i64)\ndeclare i64 @cinch_task_poll_cancel()\ndeclare i64 @cinch_scope_open()\ndeclare i64 @cinch_scope_close(i64)\ndeclare i64 @cinch_task_spawn(i64, i64)\ndeclare i64 @cinch_task_join_all_or_cancel(i64, i64, i64, i64)\n",
+    "declare i64 @cinch_array_from_list(i64, i64)\ndeclare i64 @cinch_array_replicate(i64, i64, i64)\ndeclare i64 @cinch_array_len(i64)\ndeclare i64 @cinch_array_has(i64, i64)\ndeclare i64 @cinch_array_get(i64, i64)\ndeclare i64 @cinch_array_set(i64, i64, i64)\ndeclare i64 @cinch_array_slice(i64, i64, i64)\ndeclare i64 @cinch_array_append(i64, i64)\ndeclare i64 @cinch_tensor_reshape(i64, i64)\ndeclare i64 @cinch_tensor_shape(i64)\ndeclare i64 @cinch_tensor_data(i64)\ndeclare i64 @cinch_tensor_index(i64, i64)\ndeclare i64 @cinch_tensor_get(i64, i64)\ndeclare i64 @cinch_tensor_set(i64, i64, i64)\ndeclare i64 @cinch_columnar_column(i64)\ndeclare i64 @cinch_columnar_zip(i64, i64, i64)\ndeclare i64 @cinch_columnar_rows(i64)\ndeclare i64 @cinch_columnar_columns(i64)\ndeclare i64 @cinch_columnar_get(i64, i64)\ndeclare i64 @cinch_columnar_child(i64, i64)\ndeclare i64 @cinch_columnar_array(i64)\n",
     "declare i64 @cinch_text_f64_to_decimal(double)\ndeclare double @cinch_text_f64_from_decimal(i64)\n",
     "declare i64 @cinch_argv_init(i64, ptr)\ndeclare i64 @cinch_run_main(ptr)\n",
     "declare i64 @cinch_int_from_decimal(ptr, i64)\ndeclare i64 @cinch_nat_from_decimal(ptr, i64)\ndeclare i64 @cinch_int_to_i64(i64)\n",

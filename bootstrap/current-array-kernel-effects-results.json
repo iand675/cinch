@@ -1,0 +1,171 @@
+{
+  "cinch_runtime_programs": 31,
+  "compiler_source_sha256": "07e98079257521eb3ed39abe6bb155657373657ee5b8cfc65ef5e26ad1f89b07",
+  "exact_float_payloads": {
+    "F32": 10,
+    "F64": 10
+  },
+  "full_goal_complete": false,
+  "producer_scope": "All156Rust/prelude/runtime/Cargo inputs exactly match published b64710b/4c54224 production; own cache and actual test binaries, no cross-source Cargo reuse.",
+  "rows": [
+    {
+      "binary_sha256": "46643a93f9c689509e3ffd695e7b9ffc565023fcff7703e3baa52d3c56a849c4",
+      "log_sha256": "8e592ae81184181a9347007eb65cd3d28318740d0fa4893463bbe17070f6f3db",
+      "name": "bootstrap_typed_indices",
+      "tests": 1
+    },
+    {
+      "binary_sha256": "62d3ea10abffc676bc7f10b05927f619fbeb3444ae91c519689872c72b1d9d60",
+      "log_sha256": "745f23c7fc2d8017c5dcf09e23551d053b3de117b6c80be0025c053435c47e0c",
+      "name": "bootstrap_array_float_bits",
+      "tests": 1
+    },
+    {
+      "binary_sha256": "b3f9c62b0a8b98eefc831e55baa379c515b82f1f5614bf6422ae475b787cc346",
+      "log_sha256": "ca8a44fed76647c8562e6509daea9b376eb1453b007771ac28d92bd74dcda62a",
+      "name": "bootstrap_source_refinements",
+      "tests": 1
+    },
+    {
+      "binary_sha256": "a2d03169be10b9d84ecadc1784ad4f6e560858e208fd67ed890b3e65966bb9ed",
+      "log_sha256": "2482c9ae9628af1468223c2642f1a07d38304f5f0ecd57634284520961b227e9",
+      "name": "bootstrap_export_interfaces",
+      "tests": 1
+    },
+    {
+      "binary_sha256": "f6f7ee7beeeb5472569650d57ef9630eba7b27806d5fdf99437b4bed14ef98f3",
+      "log_sha256": "19a61c177cab933fbd0c61d18bc7d9e4c3a58385d72323db72edd5179a7897fb",
+      "name": "bootstrap_effect_types",
+      "tests": 1
+    },
+    {
+      "binary_sha256": "de51ccfb3a89f1e901c231d6b0aa01a89f04dc25a45de4a120a66022a0559633",
+      "log_sha256": "2e5f112d5bc86ccfd03d67f96bd6a4f594c6556d5754d34977beb0d789ddd4a3",
+      "name": "arrays",
+      "tests": 15
+    },
+    {
+      "binary_sha256": "bd1dfd3c39781ce547898ca91178bd8057de8ddb60f7a230ade080269d097d1c",
+      "log_sha256": "46f1289865290e19ae96b15d3216cfb34816ef7583f66c907c80d0bb29417eec",
+      "name": "bootstrap_source_decisions",
+      "tests": 1
+    },
+    {
+      "binary_sha256": "f5b7702600a25ca20921d8aab3cdf1b94a6040cf69fc826314055ca237367392",
+      "log_sha256": "8abfdb1c0f3f8e014306be76e6752641ec3a19b8e2aa90a69ce27ac21ce3e607",
+      "name": "bootstrap_nominals",
+      "tests": 1
+    },
+    {
+      "binary_sha256": "941864fe19d8c5769366f56398f746b3677c28a3821f34934e893a4cd11bfffd",
+      "log_sha256": "de8e92afb82f1c265867b8b600c5ada5bc2fca25ab69d2dcb687078774bb1949",
+      "name": "bootstrap_typing",
+      "tests": 1
+    },
+    {
+      "binary_sha256": "33cee6a71f489d3050355992ed68c82e45766568187f444a8d1ea9e8864df571",
+      "log_sha256": "4d4f1e6475963c6b9ffbd99eb5eb803ab23ad492046e7ace7274424d6285ae8c",
+      "name": "bootstrap_core",
+      "tests": 1
+    },
+    {
+      "binary_sha256": "c87a29b743c35efa389a04926a973cedc7c85923f00d73f5af958eff022a8607",
+      "log_sha256": "f1aea6433112f8365d043d9da24801be68461db6319e76d31ab29c7a8aab3f69",
+      "name": "bootstrap_pipeline",
+      "tests": 1
+    },
+    {
+      "binary_sha256": "55cdef6f9b9ea61b32ab99809af801a2bc7e164feafafadd0dca40675f842d49",
+      "log_sha256": "8e578140effc8f30721db37060bbbfece20e2927f10323c479e3e3153e399334",
+      "name": "bootstrap_runtime_ir",
+      "tests": 1
+    },
+    {
+      "binary_sha256": "df604f64efe0eacc976ed6064214dfb60402d2c60320baa9491135b83ebe8037",
+      "log_sha256": "ecfa282b910b20e6e328f0d385de4b346ceca1486aa7b3c5001bbf465db8c5bd",
+      "name": "bootstrap_runtime_objects",
+      "tests": 1
+    },
+    {
+      "binary_sha256": "09f5d4d38847551149c06aadd5577718d8153a6c942ca8399c2d826e4737262b",
+      "log_sha256": "420bb9774b00b0dc562a103ac6eae0025f3561b3e19a2f4a97d894bc2bd9053d",
+      "name": "bootstrap_machine_values",
+      "tests": 2
+    },
+    {
+      "binary_sha256": "ccadde1d960fa9ecd7d4f06563e57323604e28ed94a195b3847987b2320d3cec",
+      "log_sha256": "b85350fe8782641c816c0ab46039848ffaa5203918326f410287de565e410883",
+      "name": "bootstrap_value_indices",
+      "tests": 1
+    },
+    {
+      "binary_sha256": "2eff464c1110299050b63f7355a5162e64a92260a568b0222186226316ae284f",
+      "log_sha256": "3849e2bda02e8db13115837253c25e2aa11e3ca2a39a0c2c9f5573fad215430f",
+      "name": "bootstrap_value_kinds",
+      "tests": 1
+    },
+    {
+      "binary_sha256": "abacb31cf57051635820848dbd9e37d749759a69b662f86f6a7ed4d44f6709bb",
+      "log_sha256": "0130ef12d8252526108cc0d24af1f9c774e71d13a15b33d84d19c30ede2d6bfa",
+      "name": "interface_prelude_overrides",
+      "tests": 1
+    },
+    {
+      "binary_sha256": "e51b200c85421102cacd008db3fa89d9dc2c68a40586a4b552f320fe0645db61",
+      "log_sha256": "44727a121163d7bef02efde9e46d9662350e7c49410fcf00b919fcf6bcf7f78a",
+      "name": "prelude_split",
+      "tests": 15
+    },
+    {
+      "binary_sha256": "f919142a44b610799c1e67142627303f3fbb3214348fc460026ccd7f25bbff9a",
+      "log_sha256": "4b222c6e55a2c74cf1d01b147cfbfdac54edff593e7410a4327f9e7b7e768841",
+      "name": "prelude_lib",
+      "tests": 13
+    },
+    {
+      "binary_sha256": "f9aba9394646bcc674443915845821efca5f2abc1df81f89ab0a4a0189b8fd80",
+      "log_sha256": "d790569e48d0ba39c1a43c5b146c64a38b1dfdfb62d185cbfa175b1b36400f59",
+      "name": "ffi",
+      "tests": 12
+    },
+    {
+      "binary_sha256": "e18063e8ecf9db6f1f9a40b9cb2046275dc842fcc5fabca579354922ea73e798",
+      "log_sha256": "9b409a80e21452feb329fd8f2c774369778936b3a602386540991eb35bf9e040",
+      "name": "interface_nominals",
+      "tests": 1
+    },
+    {
+      "binary_sha256": "52d90c09084edc2dfd6ce9e9d962450cbcee45b03dfe3697d4efa93b12f7e4dc",
+      "log_sha256": "c7f5b278670ccc47bb7924c977e89434704b8e3434fdb440bd82db7a274b0795",
+      "name": "interface_class_contracts",
+      "tests": 1
+    },
+    {
+      "binary_sha256": "152b2ac7f559135e5813b00a43bad39e7c363473545adc33e3218b1baa0a79af",
+      "log_sha256": "869db3486bb7cbe427fceac13ffa57e0346f33404e1784ba29998894abbc5808",
+      "name": "staging",
+      "tests": 23
+    },
+    {
+      "binary_sha256": "ef3373b0de8b714544a3cc6b8dcd5d9287c9fdd0ea0b20aa48f02f3b59c11a46",
+      "log_sha256": "e1139b2c773bf3f201fb02f30588053dedc32bc03692ca8807ec213c602d4c4b",
+      "name": "params",
+      "tests": 7
+    }
+  ],
+  "scope": "Complete24affected groups withoutignored/filtered tests; all43compiler modules; 31actualCincharrayprograms zero leaks,12invalidscheme/kind/range refusals and3realmalformed-layout refusals; exact20floatbitpatterns withpersistentupdate/slice/mixedappend; closedGlobal/Fail/Reentrant/ThreadAffine source/export/import/facade semantics and erasure refusals; exact64bitIsize/Usizeboundary controls. Canonical compiler hash here uses the stillpinnedABI5stageconfiguration. Isolated matchingABI6Stage0/1andpositivearrayprobe are separate receipts; Stage2/3, complete final matching suites, proof/API/fullAcceptance5 remain required.",
+  "source": "/tmp/cinch-array-bootstrap-validation-15/source",
+  "source_check": {
+    "compiler": "/tmp/cinch-array-bootstrap-validation-15/cargo/debug/cinch",
+    "compiler_modules": 43,
+    "compiler_sha256": "b53e860fb08cb23a5cc8df1da373657b7e7ec43f151b205dd249190b008868c2",
+    "exit_code": 0,
+    "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "status": "passed"
+  },
+  "source_sha256": "efcd8b68319908c2d8f29fb2406aa62f9c8dd2e9d4cf78395bc8d339d37796b1",
+  "status": "passed-verified-complete-array-kernel-effects-candidate",
+  "tests": 104,
+  "verified_at": "2026-11-05T02:05:06.990000+00:00",
+  "whole_groups": 24
+}

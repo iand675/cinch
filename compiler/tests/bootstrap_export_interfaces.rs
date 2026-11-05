@@ -127,7 +127,29 @@ fn source_interfaces_preserve_private_nominals_and_defining_fixities() {
         match mutation { 0 => row.refinement = None, 1 => row.constructors = Some(vec![]), 2 => row.refinement.as_mut().unwrap().binder = "lo".into(), _ => row.kind = "opaque".into() }
         assert!(cinch::interface::Iface::from_json(&malformed.to_json()).is_err(), "malformed defining template {mutation}");
     }
-    assert_eq!(a.assumptions.primitives, ["cinch.runtime.textSha256"]);
+    assert_eq!(a.assumptions.primitives, ["cinch.runtime.arrayLen", "cinch.runtime.arrayReplicate", "cinch.runtime.textSha256"]);
+    assert_eq!(a.exports.foreign.len(), 2, "array intrinsics retain defining foreign authority");
+    for (local, external, alias) in [
+        ("array-copy", "cinch.runtime.arrayReplicate", "repeat-array"),
+        ("array-size", "cinch.runtime.arrayLen", "count-array"),
+    ] {
+        let row = a.exports.foreign.iter().find(|row| row.symbol == local).unwrap();
+        assert_eq!(row.external, external);
+        assert_eq!(row.abi, "ccall");
+        assert_eq!(row.kind, "intrinsic");
+        assert!(row.effects.is_empty());
+        let original = a.exports.values.iter().find(|value| value.name == local).unwrap();
+        let renamed = b.exports.values.iter().find(|value| value.name == alias).unwrap();
+        assert_eq!(original.symbol, renamed.symbol);
+        assert_eq!(original.resolved, renamed.resolved);
+    }
+    assert!(b.exports.foreign.is_empty(), "facades retain original defining identities");
+    for (name, effect) in [("global-source", "Global"), ("fail-source", "Fail"), ("reentrant-source", "Reentrant"), ("thread-source", "ThreadAffine")] {
+        let original = contract(a, name);
+        assert_eq!(original, contract(b, name));
+        assert!(original.scheme.contains(effect), "{name}: {}", original.scheme);
+        assert!(original.nominals.is_empty(), "kernel effect gained a fabricated defining nominal");
+    }
     assert!(b.assumptions.primitives.is_empty());
     assert!(!a.exports.types.iter().any(|t| t.name == "Local"));
     let signal = a.exports.values.iter().find(|v| v.name == "signal").expect("public operation contract");

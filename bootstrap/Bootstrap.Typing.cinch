@@ -61,7 +61,7 @@ module Bootstrap.Typing where
       && (case declaration of GlobalValue name role sc -> not (same role "constructor") || constructor-pure (scheme-body sc); other -> True)
       && global-types kinds rest
   kernel-effect-kinds :: List (String, Kind)
-  kernel-effect-kinds = [("#kernel.Handler", handler-kind), ("Diverge", KEffect), ("Blocking", KEffect), ("IO", KFun KRegion KEffect), ("Async", KFun KRegion KEffect), ("Cancel", KFun KRegion KEffect), ("Eval", KFun KRegion KEffect)]
+  kernel-effect-kinds = [("#kernel.Handler", handler-kind), ("Diverge", KEffect), ("Blocking", KEffect), ("Global", KEffect), ("Fail", KEffect), ("Reentrant", KEffect), ("ThreadAffine", KEffect), ("IO", KFun KRegion KEffect), ("Async", KFun KRegion KEffect), ("Cancel", KFun KRegion KEffect), ("Eval", KFun KRegion KEffect)]
   close-typing-context :: List (String, Kind) -> List CoreGlobal -> Option TypingContext
   close-typing-context kinds declarations = close-typing-context-with-effects kinds declarations Nil
   effect-kind-declared :: String -> Kind -> List (String, Kind) -> Bool

@@ -609,7 +609,7 @@ module Bootstrap.Resolve where
     DOpaque s name params kind -> if opaque-name-reserved name then (Nil, fail s "an opaque declaration cannot redefine a builtin type") else
       (Cons (DOpaque s (global-name home name) (rename-params visible Nil params)
         (rename-type visible (parameter-names params) kind)) Nil, Nil)
-    DData s name params ctors -> (Cons (DData s (global-name home name) (rename-params visible Nil params)
+    DData s name params ctors -> if has-name name ["Array", "Tensor", "Columnar"] then (Nil, fail s "an array primitive cannot be redefined") else (Cons (DData s (global-name home name) (rename-params visible Nil params)
       (rename-ctors home visible (parameter-names params) ctors)) Nil, Nil)
     DClass s name params members ->
       if same name "Copy" || same name "Share" then (Nil, fail s "Copy and Share are compiler-owned structural signatures and cannot be declared") else

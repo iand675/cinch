@@ -103,5 +103,29 @@ fn source_refinements_check_actual_values_and_preserve_effects() {
         if wanted != 0 { assert!(report.contains(diagnostic), "{name}: expected {diagnostic}: {report}"); }
         else { assert!(report.is_empty(), "{name}: {report}"); }
     }
+    // The full closed kernel vocabulary must survive source checking. A
+    // known label is still an effect: neither erasure nor a different label
+    // can satisfy its caller's row, and unknown/unsaturated labels are refused.
+    for effect in ["Diverge", "Blocking", "Global", "Fail", "Reentrant", "ThreadAffine"] {
+        for (name, caller, wanted) in [
+            ("propagated", format!("{{{effect}}}"), 0),
+            ("erased", String::new(), 4),
+            ("distinct", format!("{{{}}}", if effect == "Global" { "Blocking" } else { "Global" }), 4),
+        ] {
+            let source = format!("module Main where\n  next :: Unit ->{{{effect}}} Int\n  next unit = 42\n  use :: Unit ->{caller} Int\n  use unit = next unit\n  main :: Int\n  main = 0\n");
+            std::fs::write(dir.join("source.cinch"), &source).unwrap();
+            let output = std::process::Command::new(&exe).current_dir(&dir).output().unwrap();
+            let report = common::read_output(&dir, "refinement-report.txt");
+            assert_eq!(output.status.code(), Some(wanted), "{effect} {name}: {source}\n{report}");
+            if wanted == 0 { assert!(report.is_empty(), "{effect}: {report}"); }
+            else { assert!(report.contains("effect"), "{effect} {name}: {report}"); }
+        }
+    }
+    for label in ["Global Int", "NotAKernelEffect"] {
+        let source = format!("module Main where\n  bad :: Unit ->{{{label}}} Int\n  bad unit = 42\n  main :: Int\n  main = 0\n");
+        std::fs::write(dir.join("source.cinch"), source).unwrap();
+        let output = std::process::Command::new(&exe).current_dir(&dir).output().unwrap();
+        assert_eq!(output.status.code(), Some(4), "invalid effect {label}: {}", common::read_output(&dir, "refinement-report.txt"));
+    }
     common::cleanup(&dir);
 }

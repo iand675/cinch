@@ -1,6 +1,7 @@
 -- Checked schema8 interface production. Every public spelling is matched
 -- against a retained checked binding or defining data declaration.
 module Bootstrap.Export where
+  import Bootstrap.Builtin (array-plan)
   import Algebra.Semigroup
   import Bootstrap.Check (CheckedProgram, checked-elaboration, checked-surface)
   import Bootstrap.Ast (Program, Module, Decl, module-decls, program-modules, DClass, DInstance, DForeign, DRefine, DRecord, DEffect)
@@ -358,16 +359,37 @@ module Bootstrap.Export where
     Cons row rest -> if same (text (field "category" row)) "intrinsic" && has-symbol (text (field "binding" row)) (field "declarations" context) then
       insert-string (text (field "identity" row)) (source-primitives context rest)
       else source-primitives context rest
+  foreign-drop-prefix :: List Char -> List Char -> Option (List Char)
+  foreign-drop-prefix prefix full = case prefix of
+    Nil -> Some full
+    Cons first rest -> (case full of Cons actual more -> if char-code first == char-code actual then foreign-drop-prefix rest more else None; Nil -> None)
+  intrinsic-empty-result :: Json
+  intrinsic-empty-result = JObj "type" (JStr "") (JObj "class" (JStr "unit") (JObj "role" (JStr "value")
+    (JObj "allocator" (JStr "") (JObj "nullable" (JBool False) (JObj "width" (JNum 0)
+      (JObj "align" (JNum 1) (JObj "signed" (JBool False) (JObj "offsets" JArrEnd JObjEnd))))))))
+  array-foreign-row :: String -> Json -> Json
+  array-foreign-row local row = JObj "symbol" (JStr local) (JObj "abi" (JStr "ccall") (JObj "external" (field "identity" row) (JObj "type" (field "scheme" row) (JObj "effects" (JStr "") (JObj "notes" (JStr "") (JObj "kind" (JStr "intrinsic") (JObj "params" (JArrEnd) (JObj "result" (intrinsic-empty-result) (JObj "deallocator" (JStr "") (JObjEnd))))))))))
+  source-intrinsic-foreign :: Json -> List Json -> Json
+  source-intrinsic-foreign context rows = case rows of
+    Nil -> JArrEnd
+    Cons row rest -> let more = source-intrinsic-foreign context rest in
+      if not (same (text (field "category" row)) "intrinsic" && has-symbol (text (field "binding" row)) (field "declarations" context)
+        && (case array-plan (text (field "identity" row)) of Some plan -> True; None -> False)) then more else
+      (case export-global (text (field "binding" row)) of
+        Ok identity -> (case foreign-drop-prefix (unpack (string-concat (text (field "module" context)) ".")) (unpack identity) of
+          Some local -> insert-row "symbol" (array-foreign-row (pack local) row) more
+          None -> more)
+        Err error -> more)
   assumptions :: Json -> Json
   assumptions primitives = JObj "primitives" primitives (JObj "foreign" JArrEnd (JObj "declared" JArrEnd JObjEnd))
-  document :: Json -> String -> Json -> Json -> Json -> Json -> Json -> Json -> Json
-  document context source-hash dependencies values types signatures instances primitives =
+  document :: Json -> String -> Json -> Json -> Json -> Json -> Json -> Json -> Json -> Json
+  document context source-hash dependencies values types signatures instances primitives foreign-rows =
     JObj "schema" (JNum 8) (JObj "runtime_abi" (JNum runtime-abi-int)
       (JObj "language" (JStr "draft-0.2+amendments") (JObj "compiler" (JStr "cinch-self-hosted")
         (JObj "module" (field "module" context) (JObj "source_hash" (JStr source-hash)
           (JObj "imports" dependencies (JObj "params" JArrEnd
             (JObj "exports" (JObj "values" values (JObj "types" types (JObj "signatures" signatures
-              (JObj "instances" instances (JObj "foreign" JArrEnd (JObj "fixities" (sort-rows "op" (public-fixities (field "exports" context) (field "fixities" context))) JObjEnd))))))
+              (JObj "instances" instances (JObj "foreign" foreign-rows (JObj "fixities" (sort-rows "op" (public-fixities (field "exports" context) (field "fixities" context))) JObjEnd))))))
               (JObj "abi" (JObj "convention" (JStr "uniform-word, curried apply stub")
                 (JObj "symbols" (sorted-strings (symbols values)) (JObj "layouts" (layouts types) JObjEnd)))
                 (JObj "assumptions" (assumptions primitives) (JObj "assertions" JArrEnd
@@ -392,7 +414,7 @@ module Bootstrap.Export where
           (Ok (values, types), Ok dependencies, Ok hash) ->
             (case (signature-rows typed interfaces (field "exports" context) values types (elaboration-classes typed), instance-rows typed interfaces context (elaboration-instances typed)) of
               (Ok signatures, Ok instances) ->
-                let doc = document context hash dependencies values types signatures instances (source-primitives context (elaboration-contexts typed)) in
+                let doc = document context hash dependencies values types signatures instances (source-primitives context (elaboration-contexts typed)) (source-intrinsic-foreign context (elaboration-contexts typed)) in
                 (case export-loop typed interfaces source (Cons (name, interface-hash doc) produced) rest of
                   Err error -> Err error
                   Ok more -> Ok (Cons (name, doc) more))

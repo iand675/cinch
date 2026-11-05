@@ -71,7 +71,7 @@ module Bootstrap.ExportNominal where
   requirement-references requirements = case requirements of Nil -> Ok Nil; Cons r rest -> combine (type-references (requirement-type r)) (requirement-references rest)
   kernel-effect :: String -> Kind -> Bool
   kernel-effect name kind =
-    ((same name "Diverge" || same name "Blocking") && kind-equal kind KEffect)
+    ((same name "Diverge" || same name "Blocking" || same name "Global" || same name "Fail" || same name "Reentrant" || same name "ThreadAffine") && kind-equal kind KEffect)
     || ((same name "IO" || same name "Async" || same name "Cancel" || same name "Eval") && kind-equal kind (KFun KRegion KEffect))
   type-references :: UType -> Result String (List String)
   type-references ty = case ty of

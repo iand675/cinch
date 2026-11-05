@@ -1060,17 +1060,18 @@ module Bootstrap.Type where
   natural-carrier carrier = case carrier of UCon name KType -> same-tag name "Nat"; other -> False
   integer-carrier :: UType -> Bool
   integer-carrier carrier = mathematical-carrier carrier || promotable-carrier carrier
+  -- The supported bootstrap target uses 64-bit machine words.
   integer-bounds :: UType -> Option (Int, Int)
   integer-bounds carrier = case carrier of
     UCon name KType ->
       if same-tag name "I8" then Some (-128, 127)
       else if same-tag name "I16" then Some (-32768, 32767)
       else if same-tag name "I32" then Some (-2147483648, 2147483647)
-      else if same-tag name "I64" then Some (-9223372036854775808, 9223372036854775807)
+      else if same-tag name "I64" || same-tag name "Isize" then Some (-9223372036854775808, 9223372036854775807)
       else if same-tag name "U8" then Some (0, 255)
       else if same-tag name "U16" then Some (0, 65535)
       else if same-tag name "U32" then Some (0, 4294967295)
-      else if same-tag name "U64" then Some (0, 18446744073709551615)
+      else if same-tag name "U64" || same-tag name "Usize" then Some (0, 18446744073709551615)
       else None
     other -> None
   integer-literal-valid :: UType -> Int -> Bool
@@ -1122,7 +1123,7 @@ module Bootstrap.Type where
   typed-index-carrier :: UType -> Option UType
   typed-index-carrier value = value-carrier (type-kind value)
   promotable-carrier :: UType -> Bool
-  promotable-carrier carrier = case carrier of UCon name KType -> same-tag name "Nat" || same-tag name "I8" || same-tag name "I16" || same-tag name "I32" || same-tag name "I64" || same-tag name "U8" || same-tag name "U16" || same-tag name "U32" || same-tag name "U64"; other -> False
+  promotable-carrier carrier = case carrier of UCon name KType -> same-tag name "Nat" || same-tag name "I8" || same-tag name "I16" || same-tag name "I32" || same-tag name "I64" || same-tag name "U8" || same-tag name "U16" || same-tag name "U32" || same-tag name "U64" || same-tag name "Isize" || same-tag name "Usize"; other -> False
   math-operation :: String -> Bool
   math-operation op = same-tag op "+" || same-tag op "-" || same-tag op "*"
   math-index :: String -> IndexTerm -> IndexTerm -> IndexTerm

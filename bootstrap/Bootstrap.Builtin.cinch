@@ -8,7 +8,7 @@ module Bootstrap.Builtin where
   import Data.Json
   import Text.Lex (Span)
 
-  export builtin-bindings, builtin-declarations, intrinsic-contract
+  export builtin-bindings, builtin-declarations, intrinsic-contract, array-plan, array-type-name
 
   -- The selected runtime ABI's pure intrinsics. The returned scheme is checked
   -- against the declaration, not taken on trust from foreign source text.
@@ -30,7 +30,9 @@ module Bootstrap.Builtin where
     else if string-compare symbol "cinch.runtime.bytesLen" == 0 then Some ("Bytes -> Nat", "cinch_bytes_len")
     else if string-compare symbol "cinch.runtime.bytesGet" == 0 then Some ("Bytes -> Nat -> refined (0 <= out && out <= 255) Nat", "cinch_bytes_get")
     else if string-compare symbol "cinch.runtime.bytesNew" == 0 then Some ("Nat -> Bytes", "cinch_bytes_new")
-    else None
+    else case array-plan symbol of
+      Some (operation, format, scheme) -> Some (scheme, array-extern operation)
+      None -> None
 
   -- Visible spelling and canonical kernel identity. Runtime.newIO is the
   -- native compiler's qualified alias; other IO operations are unqualified.
@@ -98,3 +100,69 @@ module Bootstrap.Builtin where
     , decision-constructor "Yes" 0 "forall (p :: Prop). (h :: p) -> Dec p"
     , decision-constructor "No" 1 "forall (p :: Prop). (h :: Not p) -> Dec p"
     ]
+
+  -- ABI6 primitive type identities never come from source declarations.
+  array-type-name :: String -> Bool
+  array-type-name name = runtime-abi-int == 6 && (string-compare name "Array" == 0 || string-compare name "Tensor" == 0 || string-compare name "Columnar" == 0)
+
+  -- Operation, packed format (zero means the actual element class), canonical scheme.
+  -- Packed widths are the supported 64-bit bootstrap target's physical scalar widths.
+  array-plan :: String -> Option (Nat, Nat, String)
+  array-plan symbol = if runtime-abi-int /= 6 then None else
+    if string-compare symbol "cinch.runtime.arrayFromList" == 0 then Some (0, 0, "forall a. List a -> Array a")
+    else if string-compare symbol "cinch.runtime.arrayReplicate" == 0 then Some (1, 0, "forall a. Nat -> a -> Array a")
+    else if string-compare symbol "cinch.runtime.arrayLen" == 0 then Some (2, 0, "forall a. Array a -> Nat")
+    else if string-compare symbol "cinch.runtime.arrayGet" == 0 then Some (3, 0, "forall a. Array a -> Nat -> Option a")
+    else if string-compare symbol "cinch.runtime.arraySet" == 0 then Some (4, 0, "forall a. Array a -> Nat -> a -> Option (Array a)")
+    else if string-compare symbol "cinch.runtime.arraySlice" == 0 then Some (5, 0, "forall a. Array a -> Nat -> Nat -> Option (Array a)")
+    else if string-compare symbol "cinch.runtime.arrayAppend" == 0 then Some (6, 0, "forall a. Array a -> Array a -> Array a")
+    else if string-compare symbol "cinch.runtime.tensorReshape" == 0 then Some (7, 0, "forall a. Array Nat -> Array a -> Option (Tensor a)")
+    else if string-compare symbol "cinch.runtime.tensorShape" == 0 then Some (8, 0, "forall a. Tensor a -> Array Nat")
+    else if string-compare symbol "cinch.runtime.tensorData" == 0 then Some (9, 0, "forall a. Tensor a -> Array a")
+    else if string-compare symbol "cinch.runtime.tensorGet" == 0 then Some (10, 0, "forall a. Tensor a -> Array Nat -> Option a")
+    else if string-compare symbol "cinch.runtime.tensorSet" == 0 then Some (11, 0, "forall a. Tensor a -> Array Nat -> a -> Option (Tensor a)")
+    else if string-compare symbol "cinch.runtime.columnarColumn" == 0 then Some (12, 0, "forall a. Array a -> Columnar a")
+    else if string-compare symbol "cinch.runtime.columnarZip" == 0 then Some (13, 0, "forall a b. Columnar a -> Columnar b -> Option (Columnar (a, b))")
+    else if string-compare symbol "cinch.runtime.columnarRows" == 0 then Some (14, 0, "forall a. Columnar a -> Nat")
+    else if string-compare symbol "cinch.runtime.columnarColumns" == 0 then Some (15, 0, "forall a. Columnar a -> Nat")
+    else if string-compare symbol "cinch.runtime.columnarGet" == 0 then Some (16, 0, "forall a. Columnar a -> Nat -> Option a")
+    else if string-compare symbol "cinch.runtime.columnarLeft" == 0 then Some (17, 0, "forall a b. Columnar (a, b) -> Option (Columnar a)")
+    else if string-compare symbol "cinch.runtime.columnarRight" == 0 then Some (18, 0, "forall a b. Columnar (a, b) -> Option (Columnar b)")
+    else if string-compare symbol "cinch.runtime.columnarArray" == 0 then Some (19, 0, "forall a. Columnar a -> Option (Array a)")
+    else if string-compare symbol "cinch.runtime.arrayFromListI8" == 0 then Some (0, 385, "List I8 -> Array I8")
+    else if string-compare symbol "cinch.runtime.arrayFromListI16" == 0 then Some (0, 386, "List I16 -> Array I16")
+    else if string-compare symbol "cinch.runtime.arrayFromListI32" == 0 then Some (0, 388, "List I32 -> Array I32")
+    else if string-compare symbol "cinch.runtime.arrayFromListI64" == 0 then Some (0, 392, "List I64 -> Array I64")
+    else if string-compare symbol "cinch.runtime.arrayFromListU8" == 0 then Some (0, 257, "List U8 -> Array U8")
+    else if string-compare symbol "cinch.runtime.arrayFromListU16" == 0 then Some (0, 258, "List U16 -> Array U16")
+    else if string-compare symbol "cinch.runtime.arrayFromListU32" == 0 then Some (0, 260, "List U32 -> Array U32")
+    else if string-compare symbol "cinch.runtime.arrayFromListU64" == 0 then Some (0, 264, "List U64 -> Array U64")
+    else if string-compare symbol "cinch.runtime.arrayFromListF32" == 0 then Some (0, 260, "List F32 -> Array F32")
+    else if string-compare symbol "cinch.runtime.arrayFromListF64" == 0 then Some (0, 264, "List F64 -> Array F64")
+    else if string-compare symbol "cinch.runtime.arrayFromListChar" == 0 then Some (0, 260, "List Char -> Array Char")
+    else if string-compare symbol "cinch.runtime.arrayFromListUsize" == 0 then Some (0, 264, "List Usize -> Array Usize")
+    else if string-compare symbol "cinch.runtime.arrayFromListIsize" == 0 then Some (0, 392, "List Isize -> Array Isize")
+    else None
+  array-extern :: Nat -> String
+  array-extern operation =
+    if operation == 0 then "cinch_array_from_list"
+    else if operation == 1 then "cinch_array_replicate"
+    else if operation == 2 then "cinch_array_len"
+    else if operation == 3 then "cinch_array_get"
+    else if operation == 4 then "cinch_array_set"
+    else if operation == 5 then "cinch_array_slice"
+    else if operation == 6 then "cinch_array_append"
+    else if operation == 7 then "cinch_tensor_reshape"
+    else if operation == 8 then "cinch_tensor_shape"
+    else if operation == 9 then "cinch_tensor_data"
+    else if operation == 10 then "cinch_tensor_get"
+    else if operation == 11 then "cinch_tensor_set"
+    else if operation == 12 then "cinch_columnar_column"
+    else if operation == 13 then "cinch_columnar_zip"
+    else if operation == 14 then "cinch_columnar_rows"
+    else if operation == 15 then "cinch_columnar_columns"
+    else if operation == 16 then "cinch_columnar_get"
+    else if operation == 17 then "cinch_columnar_child"
+    else if operation == 18 then "cinch_columnar_child"
+    else if operation == 19 then "cinch_columnar_array"
+    else ""

@@ -92,7 +92,17 @@ module Main where
     , not (valid-type (UIndexPromote number))
     , not (valid-type (UIndexPromote (UIndex (UCon "F64" KType) (IBound id "float"))))
     , valid-type (UIndexPromote (UIndex machine (IBound id "machine")))
-    , not (valid-type (UIndexPromote (UIndex (UCon "Isize" KType) (IBound id "target-sized"))))
+    -- This bootstrap target is 64-bit: word-sized scalar projections now
+    -- have checked carriers, with the same explicit range refusals.
+    , valid-type (UIndexPromote (UIndex (UCon "Isize" KType) (IBound id "target-sized")))
+    , valid-type (UIndexPromote (UIndex (UCon "Usize" KType) (IBound id "target-sized-unsigned")))
+    , integer-literal-valid (UCon "Isize" KType) -9223372036854775808
+    , integer-literal-valid (UCon "Isize" KType) 9223372036854775807
+    , not (integer-literal-valid (UCon "Isize" KType) -9223372036854775809)
+    , not (integer-literal-valid (UCon "Isize" KType) 9223372036854775808)
+    , integer-literal-valid (UCon "Usize" KType) 18446744073709551615
+    , not (integer-literal-valid (UCon "Usize" KType) -1)
+    , not (integer-literal-valid (UCon "Usize" KType) 18446744073709551616)
     , not (valid-type (UIndexMath "+" projected number))
     , not (valid-type (UIndexMath "+" (UIndex machine (IBound id "m")) (UIndex machine (IBound other "n"))))
     , not (valid-type (UIndexMath "/" promoted number))

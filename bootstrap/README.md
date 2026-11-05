@@ -410,11 +410,17 @@ backend, writes LLVM without linking or execution, and clears stale IR if the
 emitter refuses a checked program. Mode and interface flags work in either order.
 The generated module must be linked with the matching `libcinchruntime.a`.
 `Bootstrap.RuntimeAbi` selects the exact interface/kernel ABI for a build:
-live Native builds select ABI6; the pinned stage builder renders ABI5 from
-its verified seed lock before hashing and exporting its source snapshot.
-That pinned chain still uses the matching ABI5 seed runtime and interfaces.
-Each build rejects other ABI versions and mixed interface sets. Selecting
-ABI6 does not add Cinch array lowering; those intrinsics remain unsupported.
+live Native builds and the current pinned stage builder select ABI6. The
+builder renders that choice from its verified seed lock before hashing and
+exporting the complete source snapshot; the separate library producer and
+runtime must match. Each build rejects other ABI versions and mixed interface
+sets. Cinch now lowers the checked ABI6 array intrinsics, including element
+class/layout and defining-interface authority checks. The previous ABI5 chain
+receipts remain historical; current ABI6 Stage0/1 and positive array clients
+pass, while Stage2/3 and full final acceptance remain in progress. See
+[current array validation](current-array-kernel-effects-results.json),
+[development stages](current-abi6-development-stage-results.json) and
+[actual Stage1 array clients](current-abi6-development-array-results.json).
 The real CLI test links and runs an exact bignum calculation, with zero leaks;
 the existing whole pipeline still passes. The complete updated compiler source
 also passes through Cinch in check-only mode. See [the emit-mode report](runtime-emit-results.json).

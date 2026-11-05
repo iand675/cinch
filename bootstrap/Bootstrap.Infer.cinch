@@ -16,7 +16,7 @@ module Bootstrap.Infer where
   import Bootstrap.Instance
   import Bootstrap.Global
   import Bootstrap.Typing
-  import Bootstrap.Builtin (builtin-declarations, intrinsic-contract)
+  import Bootstrap.Builtin (builtin-declarations, intrinsic-contract, array-plan, array-type-name)
   import Bootstrap.RuntimeAbi (runtime-abi-int)
   import Bootstrap.Dictionary (resolve-dictionary-definition-with, resolve-dictionary-term-with, resolve-ready-term, check-instance-coherence)
   import Bootstrap.Parse (parse-scheme)
@@ -38,6 +38,7 @@ module Bootstrap.Infer where
     ByteObservation :: String -> Option String -> ByteObservation
     TotalObservation :: String -> BodyBinding -> ByteObservation
     IdentityObservation :: String -> Scheme -> ByteObservation
+    ArrayObservation :: String -> Json -> ByteObservation
   data TypeContext where
     MkTypeContext :: List (String, Kind) -> List Decl -> List String -> List ByteObservation -> List CoreEffect -> List CoreClass -> TypeContext
   context-kind :: String -> TypeContext -> Option Kind
@@ -237,7 +238,9 @@ module Bootstrap.Infer where
       other -> primitive-type name)
     else primitive-type name
   primitive-kinds :: TypeContext
-  primitive-kinds = MkTypeContext (Cons ("b.Scope", scope-kind) (Cons ("b.Task", task-kind) (Cons ("b.Io", KFun KRegion KType) (Cons ("b.Dec", KFun KProp KType) (map-primitive ["Int", "Nat", "Bool", "Unit", "()", "String", "Char", "Bytes", "Sym", "Isize", "Usize", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "F32", "F64"])) ))) Nil Nil [ByteObservation "#kernel.bytes-length" None] Nil Nil
+  primitive-kinds = MkTypeContext (array-kinds <> Cons ("b.Scope", scope-kind) (Cons ("b.Task", task-kind) (Cons ("b.Io", KFun KRegion KType) (Cons ("b.Dec", KFun KProp KType) (map-primitive ["Int", "Nat", "Bool", "Unit", "()", "String", "Char", "Bytes", "Sym", "Isize", "Usize", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "F32", "F64"])) ))) Nil Nil [ByteObservation "#kernel.bytes-length" None] Nil Nil
+  array-kinds :: List (String, Kind)
+  array-kinds = if array-type-name "Array" then [("Array", KFun KType KType), ("Tensor", KFun KType KType), ("Columnar", KFun KType KType)] else Nil
   map-primitive :: List String -> List (String, Kind)
   map-primitive names = case names of Nil -> Nil; Cons name rest -> Cons (name, KType) (map-primitive rest)
   lookup-kind :: String -> List (String, Kind) -> Option Kind
@@ -838,7 +841,7 @@ module Bootstrap.Infer where
     other -> bad (type-expr-span labels) "malformed effect label spine" st
   convert-effect :: TypeContext -> List (String, UType) -> TypeExpr -> Store -> (UType, Store)
   convert-effect kinds locals label st = case label of
-    TName s name -> if has name ["Diverge", "Blocking"] then (UCon name KEffect, st)
+    TName s name -> if has name ["Diverge", "Blocking", "Global", "Fail", "Reentrant", "ThreadAffine"] then (UCon name KEffect, st)
       else convert-declared-effect kinds locals label st
     TApp s (TName h name) (TArg a (TName r region) (TArgsEnd end)) ->
       if has name ["IO", "Async", "Cancel", "Eval"] then (case lookup-local region locals of
@@ -1034,6 +1037,56 @@ module Bootstrap.Infer where
   add-kind sp name k kinds st = case context-kind name kinds of
     Some old -> (kinds, add-error sp (string-concat "duplicate type declaration: " name) st)
     None -> (context-add-kind name k kinds, st)
+  context-array-observation :: String -> TypeContext -> Option Json
+  context-array-observation name context = case context of MkTypeContext kinds aliases active observers effects source-classes -> array-observation name observers
+  array-observation :: String -> List ByteObservation -> Option Json
+  array-observation name observers = case observers of
+    Nil -> None
+    Cons (ArrayObservation binding row) rest -> if same name binding then Some row else array-observation name rest
+    Cons other rest -> array-observation name rest
+  context-add-array-observation :: String -> Json -> TypeContext -> TypeContext
+  context-add-array-observation identity row context = case context of
+    MkTypeContext kinds aliases active observers effects source-classes -> MkTypeContext kinds aliases active (Cons (ArrayObservation identity row) observers) effects source-classes
+  imported-array-observers :: Span -> String -> Json -> TypeContext -> Store -> (TypeContext, Store)
+  imported-array-observers sp owner rows context st = case rows of
+    JArr row rest -> case field "external" row of
+      JStr symbol -> (case array-plan symbol of
+        Some plan -> (case (field "symbol" row, field "kind" row, field "abi" row, field "effects" row, field "type" row) of
+          (JStr local, JStr category, JStr abi, JStr effects, JStr syntax) ->
+            if string-length local == 0 || not (same category "intrinsic" && same abi "ccall" && same effects "") then
+              imported-array-observers sp owner rest context (add-error sp "invalid imported array intrinsic authority" st)
+            else let identity = interface-global (string-concat-all [owner, ".", local]) in
+              (case context-array-observation identity context of
+                Some prior -> imported-array-observers sp owner rest context (add-error sp "duplicate imported array intrinsic authority" st)
+                None -> imported-array-observers sp owner rest (context-add-array-observation identity row context) st)
+          other -> imported-array-observers sp owner rest context (add-error sp "incomplete imported array intrinsic authority" st))
+        None -> imported-array-observers sp owner rest context st)
+      other -> imported-array-observers sp owner rest context st
+    JArrEnd -> (context, st)
+    other -> (context, add-error sp "invalid imported foreign contract table" st)
+  array-import-binding :: String -> TypeContext -> Bool
+  array-import-binding name context = case context-array-observation name context of Some row -> True; None -> False
+  check-array-kernel-scheme :: Span -> Scheme -> Scheme -> Store -> Store
+  check-array-kernel-scheme sp actual wanted st =
+    if not (array-quantifiers-match (scheme-params actual) (scheme-params wanted)) || list-length (scheme-requirements actual) /= 0 then
+      add-error sp "array intrinsic requires its exact polymorphic kernel scheme" st
+    else unify sp (scheme-body actual) (scheme-body wanted) st
+  register-imported-array :: Span -> String -> Scheme -> List (String, Kind) -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-imported-array sp name actual classes context env st = case context-array-observation name context of
+    Some row -> (case (field "external" row, field "type" row) of
+      (JStr symbol, JStr declared) -> (case array-plan symbol of
+        Some (operation, format, canonical) -> (case (parse-scheme symbol (string-to-bytes canonical), parse-scheme name (string-to-bytes declared)) of
+          (Parsed expected Nil, Parsed cached Nil) -> (case make-scheme False classes context Nil (array-canonical-type expected) st of
+            (wanted, ready) -> case make-scheme False classes context Nil (array-canonical-type cached) ready of
+              (foreign-scheme, checked) ->
+                let matched = check-array-kernel-scheme sp actual wanted (check-array-kernel-scheme sp foreign-scheme wanted checked) in
+                case lookup-binding name env of
+                  Some prior -> (env, add-error sp "duplicate imported array binding" matched)
+                  None -> (Cons (MkIntrinsicBinding name actual symbol) env, matched))
+          other -> (env, add-error sp "invalid imported array scheme cache" st))
+        None -> (env, add-error sp "imported array operation is unavailable in this ABI" st))
+      other -> (env, add-error sp "incomplete imported array binding" st))
+    None -> (env, add-error sp "imported array value lacks its defining foreign authority" st)
   imported-byte-observers :: Span -> String -> Json -> TypeContext -> Store -> (TypeContext, Store)
   imported-byte-observers sp owner rows kinds st = case rows of
     JArr row rest -> case (field "kind" row, field "abi" row, field "external" row) of
@@ -1053,7 +1106,8 @@ module Bootstrap.Infer where
   collect-kinds ds kinds st = case ds of
     Nil -> (kinds, st)
     Cons (DInterface sp owner hash metadata) rest -> case imported-byte-observers sp owner (field "foreign" (field "exports" metadata)) kinds st of
-      (more, checked) -> collect-kinds rest more checked
+      (more, checked) -> case imported-array-observers sp owner (field "foreign" (field "exports" metadata)) more checked of
+        (complete, ready) -> collect-kinds rest complete ready
     Cons d rest -> case d of
       -- An abstract carrier supplies a checked kind, never a constructor
       -- family. In particular it cannot justify an empty-case proof.
@@ -1460,7 +1514,8 @@ module Bootstrap.Infer where
       case imported-scheme sp classes kinds ty metadata st of
         (sc, ss) ->
           let checked = check-imported-contract sp name category sc metadata ss in
-          if same category "value" && byte-length-binding name kinds then
+          if same category "value" && array-import-binding name kinds then register-imported-array sp name sc classes kinds env checked
+          else if same category "value" && byte-length-binding name kinds then
             (if not (imported-observation-scheme name metadata kinds) then (env, add-error sp "imported byte observation foreign/value schemes disagree" checked) else case (scheme-params sc, scheme-requirements sc, scheme-body sc) of
               (Nil, Nil, UFun domain result) -> if same-type domain (primitive-type "Bytes") && same-type (predicate-base-carrier result) (primitive-type "Nat") then
                 (case lookup-binding name env of
@@ -1618,7 +1673,11 @@ module Bootstrap.Infer where
   register-intrinsic :: Span -> String -> String -> String -> String -> TypeExpr -> List (String, Kind) -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   register-intrinsic sp direction abi symbol name syntax classes kinds env st =
     if not (same direction "import" && same abi "ccall") then (env, add-error sp "runtime intrinsic requires foreign import ccall" st)
-    else case intrinsic-contract symbol of
+    else case array-plan symbol of
+      Some (operation, format, expected) -> register-array-intrinsic sp name symbol syntax expected classes kinds env st
+      None -> register-monomorphic-intrinsic sp symbol name syntax classes kinds env st
+  register-monomorphic-intrinsic :: Span -> String -> String -> TypeExpr -> List (String, Kind) -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-monomorphic-intrinsic sp symbol name syntax classes kinds env st = case intrinsic-contract symbol of
       None -> (env, add-error sp "foreign declarations are not supported without a checked runtime intrinsic contract" st)
       Some (text, external) -> case make-scheme False classes kinds Nil syntax st of
         (sc, checked) -> case (scheme-params sc, scheme-requirements sc) of
@@ -1632,6 +1691,31 @@ module Bootstrap.Infer where
                   else unify sp (scheme-body sc) ty prepared)
             other -> (env, add-error sp "invalid kernel intrinsic contract" checked)
           other -> (env, add-error sp "runtime intrinsic cannot be polymorphic or constrained" checked)
+  array-canonical-type :: TypeExpr -> TypeExpr
+  array-canonical-type syntax = case syntax of
+    TName sp name -> if same name "List" || same name "Option" then TName sp (interface-global (string-concat "Data.Core." name)) else syntax
+    TForall sp qs body -> TForall sp qs (array-canonical-type body)
+    TFun sp domain result -> TFun sp (array-canonical-type domain) (array-canonical-type result)
+    TApp sp head args -> TApp sp (array-canonical-type head) (array-canonical-arguments args)
+    TTuple sp fields -> TTuple sp (array-canonical-arguments fields)
+    other -> syntax
+  array-canonical-arguments :: TypeExpr -> TypeExpr
+  array-canonical-arguments args = case args of TArg sp ty rest -> TArg sp (array-canonical-type ty) (array-canonical-arguments rest); other -> args
+  array-quantifiers-match :: List Quant -> List Quant -> Bool
+  array-quantifiers-match actual expected = case (actual, expected) of
+    (Nil, Nil) -> True
+    (Cons a rest, Cons b more) -> quant-id a == quant-id b && kind-equal (quant-kind a) KType && kind-equal (quant-kind b) KType && array-quantifiers-match rest more
+    other -> False
+  register-array-intrinsic :: Span -> String -> String -> TypeExpr -> String -> List (String, Kind) -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-array-intrinsic sp name symbol syntax canonical classes kinds env st = case make-scheme False classes kinds Nil syntax st of
+    (actual, checked) -> case parse-scheme symbol (string-to-bytes canonical) of
+      Parsed expected Nil -> (case make-scheme False classes kinds Nil (array-canonical-type expected) checked of
+        (wanted, ready) -> if not (array-quantifiers-match (scheme-params actual) (scheme-params wanted)) || list-length (scheme-requirements actual) /= 0 then
+          (env, add-error sp "array intrinsic requires its exact polymorphic kernel scheme" ready)
+          else case lookup-binding name env of
+            Some prior -> (env, add-error sp "duplicate intrinsic binding" ready)
+            None -> (Cons (MkIntrinsicBinding name actual symbol) env, unify sp (scheme-body actual) (scheme-body wanted) ready))
+      other -> (env, add-error sp "invalid array kernel intrinsic contract" checked)
   kernel-metadata :: String -> List Decl -> Option Json
   kernel-metadata name ds = case ds of
     Nil -> None
@@ -2551,7 +2635,7 @@ module Bootstrap.Infer where
             other -> add-error sp "equality needs an Eq dictionary for this type" sb)
     else term-error sp "operator needs dictionary or NonZero proof elaboration" st
   comparable-names :: List String
-  comparable-names = ["Int", "Nat", "Bool", "Unit", "String", "Char", interface-global "Data.String.String"]
+  comparable-names = ["Int", "Nat", "Bool", "Unit", "String", "Char", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "Isize", "Usize", interface-global "Data.String.String"]
   comparable :: UType -> Bool
   comparable ty = case ty of UCon name KType -> has name comparable-names; other -> False
   tuple-type :: UType -> UType

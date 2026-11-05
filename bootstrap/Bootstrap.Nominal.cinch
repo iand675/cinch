@@ -3,6 +3,7 @@
 module Bootstrap.Nominal where
 
   import Bootstrap.Ast
+  import Bootstrap.Builtin (array-type-name)
   import Bootstrap.Report (Diagnostic, MkDiagnostic)
   import Data.Json
   import Text.Lex (Span)
@@ -26,7 +27,7 @@ module Bootstrap.Nominal where
   interface-global :: String -> String
   interface-global identity = string-concat "i." (encode (unpack identity))
   kernel-type-name :: String -> Bool
-  kernel-type-name name = has name ["Int", "Nat", "Bool", "Unit", "()", "Bytes", "Sym", "Char", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "F32", "F64"]
+  kernel-type-name name = array-type-name name || has name ["Int", "Nat", "Bool", "Unit", "()", "Bytes", "Sym", "Char", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "F32", "F64"]
   nonempty :: Json -> Bool
   nonempty doc = case doc of JStr value -> string-length value > 0; other -> False
   unique-strings :: Json -> List String -> Bool
@@ -206,7 +207,7 @@ module Bootstrap.Nominal where
     other -> fail (type-expr-span labels) "invalid resolved effect label spine"
   qualify-effect :: List String -> TypeExpr -> (TypeExpr, List Diagnostic)
   qualify-effect locals label = case label of
-    TName s name -> if has name ["Diverge", "Blocking"] then (label, Nil)
+    TName s name -> if has name ["Diverge", "Blocking", "Global", "Fail", "Reentrant", "ThreadAffine"] then (label, Nil)
       else fail s "resolved effect label needs a kernel contract"
     TApp s (TName h name) (TArg a (TName r region) (TArgsEnd end)) ->
       if has name ["IO", "Async", "Cancel", "Eval"] && has region locals then (label, Nil)

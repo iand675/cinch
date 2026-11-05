@@ -1,0 +1,93 @@
+{
+  "artifacts": [
+    {
+      "actual_runtime_calls": [
+        "replicate",
+        "get",
+        "len"
+      ],
+      "artifact_exit": 42,
+      "executable_sha256": "a24d1226bd4907686b8c23e9144051ef69d518dfac4da5b9bdc58ea798633cdf",
+      "ir_sha256": "691478f33dc992079f62e16556b2b62f69e30383827e4b1c7dc9dff1e4023505",
+      "name": "generic-array",
+      "source_sha256": "d9bf92515eec062b528c486005c348abc8ccf731653208b63fbe0e23bac8af55"
+    },
+    {
+      "actual_runtime_calls": [
+        "from_list",
+        "get"
+      ],
+      "artifact_exit": 42,
+      "executable_sha256": "fb8d48832e4dc0534ecfb1c0272076d3bee3100efd102b16c89de304123e859e",
+      "ir_sha256": "41333ed769dd905dc43b58d12eba7d55c98069b6eead2466c04c87598710ac0b",
+      "name": "packed-byte",
+      "source_sha256": "188ec431e2a54546fe5baf8d737fc2a06675be16121f28111d06130cd4db6364"
+    }
+  ],
+  "compiler_sha256": "a82b73daa23b7b3ec157354e4adfd615d3c050fa15f4be1dadbcd12be9ce1414",
+  "compiler_source_sha256": "31ac09d621b8f8bc7b13f64f3eb6f61965f96507d7f8683b8512d4156ff40fa0",
+  "full_goal_complete": false,
+  "heap_limit": "32M",
+  "rows": [
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "generic-array",
+      "phase": "emit",
+      "source_sha256": "d9bf92515eec062b528c486005c348abc8ccf731653208b63fbe0e23bac8af55",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "log_sha256": "6021f33487b85f8a9c5f9471588485ff4234e50e83be3e5c4c6e23dd0c32b455",
+      "name": "generic-array",
+      "phase": "link",
+      "source_sha256": "d9bf92515eec062b528c486005c348abc8ccf731653208b63fbe0e23bac8af55",
+      "status": "passed"
+    },
+    {
+      "exit_code": 42,
+      "expected": 42,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "generic-array",
+      "phase": "run",
+      "source_sha256": "d9bf92515eec062b528c486005c348abc8ccf731653208b63fbe0e23bac8af55",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "packed-byte",
+      "phase": "emit",
+      "source_sha256": "188ec431e2a54546fe5baf8d737fc2a06675be16121f28111d06130cd4db6364",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "log_sha256": "6021f33487b85f8a9c5f9471588485ff4234e50e83be3e5c4c6e23dd0c32b455",
+      "name": "packed-byte",
+      "phase": "link",
+      "source_sha256": "188ec431e2a54546fe5baf8d737fc2a06675be16121f28111d06130cd4db6364",
+      "status": "passed"
+    },
+    {
+      "exit_code": 42,
+      "expected": 42,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "packed-byte",
+      "phase": "run",
+      "source_sha256": "188ec431e2a54546fe5baf8d737fc2a06675be16121f28111d06130cd4db6364",
+      "status": "passed"
+    }
+  ],
+  "runtime_abi": 6,
+  "runtime_sha256": "9e94ea79532387a0924794572ecd3c5ac76301752932101c376ba71ced2a9541",
+  "scope": "Actual fresh ABI6 Stage1 independently audited: generic array replicate/get/len and packed U8 fromList/get each emit IR with actual array runtime calls, link against matching pinned ABI6 runtime and return42 with live0/immortal0/leaked0. Native only supplies the checked Core dependency and matching runtime. No Native frontend compiles either client. Development Stage1 evidence; finalStage3/fullpositivearray/API/proof/fullsuite/Acceptance5 remain required.",
+  "source_sha256": "4a86cf6b172497e0aa1e71a598eacbf6a6f98e0da9147b14fe4dc25d836b71ce",
+  "status": "passed-verified-positive-development-abi6-stage1-arrays",
+  "verified_at": "2026-11-05T01:23:53.673837+00:00"
+}
