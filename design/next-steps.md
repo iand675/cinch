@@ -1,5 +1,22 @@
 # Next steps (as of 2026-11-05)
 
+## Ordinary aliases retain their source index spelling (2026-11-05)
+
+The full Native sweep exposed a diagnostic regression: an ordinary alias of
+`n` made the existing failed bound print `(i + 1) <= i` rather than the source
+`(i + 1) <= n`. Index normalization now preserves ordinary source variables
+while retaining checked identity for captured bindings and quantified values.
+The original `linear_facts` test and its exact assertion are unchanged.
+
+All twelve complete affected groups pass: 150 tests, none ignored or filtered.
+All 43 current compiler modules check and every Native test target compiles.
+See `bootstrap/current-native-alias-index-results.json`. The full Native sweep
+continues on these exact inputs; its earlier failed snapshot remains recorded.
+The separate private Cinch loader/array candidate and its explicit 85f00ca
+seed/provider retain their own immutable inputs. Matching staged suites,
+original API/100-target coverage and Acceptance 5 remain open.
+
+
 ## Quantified proofs keep value identities; checked serializer follows binder scope (2026-11-05)
 
 The published Rust checker admits quantified values in signature predicates only

@@ -4114,8 +4114,13 @@ impl Checker {
             },
             ast::Term::Var(p) => {
                 if p.quals.is_empty() {
-                    if env.lookup_name(&p.name).is_some() {
-                        self.syntax_index_value(env, &p.name)?
+                    if let Some((local, _)) = env.lookup_name(&p.name) {
+                        let original = self.value_aliases.get(&local).copied().unwrap_or(local);
+                        if p.name.local_binding().is_some() || self.quantified_value_locals.contains(&original) {
+                            self.syntax_index_value(env, &p.name)?
+                        } else {
+                            ITerm::Var(p.name.text.clone())
+                        }
                     } else if p.name.local_binding().is_none() && matches!(p.name.text.as_str(), "toNat" | "length") {
                         ITerm::Fn(format!("<builtin>.{}", p.name.text))
                     } else {

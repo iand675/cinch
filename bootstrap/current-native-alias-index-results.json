@@ -1,0 +1,91 @@
+{
+  "all_test_targets_compile": true,
+  "artifacts": "/tmp/cinch-native-alias-index-validation-1",
+  "compiler_modules_checked": 43,
+  "compiler_source_sha256": "5cea0ea534153a8e0ee284a0f0d5f1db8506f951bbcfbe9984fff3add9bf3b2f",
+  "complete_groups": 12,
+  "filtered": 0,
+  "full_goal_complete": false,
+  "groups": [
+    {
+      "binary_sha256": "af88198dcb2faa34b9e3d44f8631ab361137f5935dbbab58a670ea9bfdacb710",
+      "log_sha256": "532436916b81b363afc58abbbdfcbf53975c9e4b77b3df1bf01705313af530b2",
+      "name": "linear_facts",
+      "tests": 9
+    },
+    {
+      "binary_sha256": "3ec90b6cbe61eee98731ceea9320f66c38e1684d9d7f3e39ad9ad07ccc50d4a0",
+      "log_sha256": "5732b26e258daa5a79aedd5f096b91105d4d29edb229f310bd8af46f43f771ee",
+      "name": "refinements",
+      "tests": 25
+    },
+    {
+      "binary_sha256": "4a75b586ebd0fb5883d4b4e401aed99bc55c60f296b8b7c8ae0265a932018b9d",
+      "log_sha256": "10ec3593ea14f68ada199af94b86bb4cf2a3a772b5dab1653c039e394880ba65",
+      "name": "dependent",
+      "tests": 14
+    },
+    {
+      "binary_sha256": "85103926a0a53af5577a7e74cc9a93315f4024047a697e6d67e897f1508126e7",
+      "log_sha256": "9bbec7da4b4d2213ded64b0411320cbbbf18e7ee692411c551d240896ab709dc",
+      "name": "interface_preconditions",
+      "tests": 1
+    },
+    {
+      "binary_sha256": "6a4047372c177f01286d068190c96ce1d3eb198ebb1b02dd5afe6d5b79b17f72",
+      "log_sha256": "05345ef5a1c9bbc32f3b9d18507416a9213b8872a0c5294c8b3d43d854685ffe",
+      "name": "interface_refinements",
+      "tests": 1
+    },
+    {
+      "binary_sha256": "c76c248d13106cc9822272212be5ca78de592274ac5d6983ca60701e4f539da7",
+      "log_sha256": "ffd9f6ff1a2f74b5e52d2decace7244b8d5bb137f6f91595a78c426dfcbe964a",
+      "name": "bootstrap_export_types",
+      "tests": 1
+    },
+    {
+      "binary_sha256": "888ceb44bcb25240b581780b0e188234150e10e0d730a285a44e9ad32adad572",
+      "log_sha256": "c35decc5de2dbe768450e3c3a9f665b17e92840103668a7243303c2ed0f4ca27",
+      "name": "bootstrap_export_interfaces",
+      "tests": 1
+    },
+    {
+      "binary_sha256": "836d36d4fa17417075f49dc648a64f5f61e0e220be99641a5b11a6224b051869",
+      "log_sha256": "441dd6249e38df7bb305ab1f3acaf0d304a41609d338db09f4961a240a81e0e9",
+      "name": "bootstrap_type_syntax",
+      "tests": 1
+    },
+    {
+      "binary_sha256": "67a888bab714ef697c70dcbae23be6a938ed1a9723241d072945d46df0994a55",
+      "log_sha256": "4694f3f7e55af8f60cb79a9f6b97cc406571602ddacf19a78471b957a28f2309",
+      "name": "proof_value_identity",
+      "tests": 1
+    },
+    {
+      "binary_sha256": "7b49622bc9275115abec3e21553581c0721cdc64c6fbf0c9cd8a877a5d20fff8",
+      "log_sha256": "8406eb36a1a5162dc09a0394d579ae3754c68c724cafee4593f543601a1e6a49",
+      "name": "evidence_invalidation",
+      "tests": 12
+    },
+    {
+      "binary_sha256": "13a271ff1ca9107be382dc087db24a351c7e7b6f82d5e5b34f537a8563c5b9d3",
+      "log_sha256": "98f10ac40dab19bb2c5a71044eea57e4198ac2fee6e0b7b03ad95dcd4cb4d2d1",
+      "name": "syntax_signature_scope",
+      "tests": 7
+    },
+    {
+      "binary_sha256": "03b19c4437a6ea79f9be35a94aa55e34d000e016905df20077c805e3378fb7ff",
+      "log_sha256": "f943c08917a2ab75d1a54283492f96e1402d30a1bd61433b5e61467326482d62",
+      "name": "syntax_objects",
+      "tests": 77
+    }
+  ],
+  "ignored": 0,
+  "native_cli_sha256": "9f3e64bb67bd5d52fecdd5b700b7a5311dc82f6e62b4f2b28c7191613f5b4984",
+  "native_source_sha256": "6b567529032465cde863607185da47aa7d5f9e5ecd99a596158174fd7efa6aa7",
+  "scope": "Narrow syntax index identity normalization to captured bindings and checked quantified value locals. Preserve ordinary alias source spelling and the original linear_facts assertion. All twelve complete affected groups pass; all43 compiler modules and every Native test target compile. Full current Native58 continues separately. The separate74f0 Cinch candidate and actual85 seed/provider retain their own immutable inputs. Complete matching Stage3 suites, original API/100-target coverage and Acceptance5 remain open.",
+  "source_sha256": "73e610e28f8fcce1b2b81430df1d52e9da1f6b2ffbcac2a972e2bbd0d1fbcd25",
+  "status": "passed-scoped-native-alias-index-identities",
+  "tests": 150,
+  "verified_at": "2026-11-05T16:58:30.551583+00:00"
+}
