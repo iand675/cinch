@@ -1,0 +1,371 @@
+{
+  "compiler_sha256": "ba36d3d3c262cb86df1e5f7afc92a9410b12581ef0632e613a03ca7c101e639b",
+  "rows": [
+    {
+      "command": [
+        "/tmp/cinch-final-bootstrap-chain-16/source/build/bootstrap/stage3/cinch",
+        "--emit-interfaces",
+        "--interfaces",
+        "/tmp/cinch-test-support-provider-4/interfaces.json",
+        "/tmp/cinch-final-interface-behavior-45/interface_kinds/source.cinch",
+        "/tmp/cinch-final-interface-behavior-45/interface_kinds/contract"
+      ],
+      "exit_code": 4,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "interface_kinds",
+      "pid": 48095,
+      "reference_sha256": "9f6b2d4e753dc90f0addeb33fab6a1a6f36ea129c2a0f5a845cf416c7c637e32",
+      "reference_source": "/tmp/cinch-current-native-source-check-45/source/compiler/tests/interface_kinds.rs",
+      "source_sha256": "81d2bf1c580df7cb81a858f7cd6ba515652ca13633a7bb9bad935a2966c033c9",
+      "status": "failed",
+      "worker_slot": 3
+    },
+    {
+      "artifacts": [
+        {
+          "interface_hash": "13692755075303842225",
+          "module": "A",
+          "path": "/tmp/cinch-final-interface-behavior-45/interface_nominals/contract.A.cinchif",
+          "sha256": "aa6b8904319c7283f393ced4770d54ad7563f026baf1a217731dc8d815f283fb"
+        },
+        {
+          "interface_hash": "7207836089961485523",
+          "module": "B",
+          "path": "/tmp/cinch-final-interface-behavior-45/interface_nominals/contract.B.cinchif",
+          "sha256": "795486fb26081b2ff9d366e044f05f74c5b88376f47d1b6c3cae4c5a68be0b47"
+        },
+        {
+          "interface_hash": "3207182461073076232",
+          "module": "Facade",
+          "path": "/tmp/cinch-final-interface-behavior-45/interface_nominals/contract.Facade.cinchif",
+          "sha256": "bef9afd7500efbd1f006da4c2f8a9748e17a3450016540b8c28a900b21788f6c"
+        },
+        {
+          "interface_hash": "11956301331982518241",
+          "module": "Main",
+          "path": "/tmp/cinch-final-interface-behavior-45/interface_nominals/contract.Main.cinchif",
+          "sha256": "c884858e91186af738ea05d1835e62d9d6362f6621fb0c17b415861e6e772dc7"
+        }
+      ],
+      "command": [
+        "/tmp/cinch-final-bootstrap-chain-16/source/build/bootstrap/stage3/cinch",
+        "--emit-interfaces",
+        "--interfaces",
+        "/tmp/cinch-test-support-provider-4/interfaces.json",
+        "/tmp/cinch-final-interface-behavior-45/interface_nominals/source.cinch",
+        "/tmp/cinch-final-interface-behavior-45/interface_nominals/contract"
+      ],
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "interface_nominals",
+      "pid": 48403,
+      "reference_sha256": "1c25c1443aa5d1954930a2996bc2b3740c308d95d101f07fb3dae9a28e79e31b",
+      "reference_source": "/tmp/cinch-current-native-source-check-45/source/compiler/tests/interface_nominals.rs",
+      "source_sha256": "4c6292b6c22760fdc9263d758b0b84f8cc83aa907036b4e10e3a395efb1c313d",
+      "status": "passed",
+      "worker_slot": 3
+    },
+    {
+      "command": [
+        "/tmp/cinch-final-bootstrap-chain-16/source/build/bootstrap/stage3/cinch",
+        "--emit-interfaces",
+        "--interfaces",
+        "/tmp/cinch-test-support-provider-4/interfaces.json",
+        "/tmp/cinch-final-interface-behavior-45/interface_class_contracts/source.cinch",
+        "/tmp/cinch-final-interface-behavior-45/interface_class_contracts/contract"
+      ],
+      "exit_code": 4,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "interface_class_contracts",
+      "pid": 66022,
+      "reference_sha256": "fc5d1b585a6b49d75510713eef592c78a29f7318a48feef75d01b79309b57d61",
+      "reference_source": "/tmp/cinch-current-native-source-check-45/source/compiler/tests/interface_class_contracts.rs",
+      "source_sha256": "539d5840823c139c4ec0a095aec5d831a269987b2a82c771bca756b58e6aa9d7",
+      "status": "failed",
+      "worker_slot": 2
+    },
+    {
+      "command": [
+        "/tmp/cinch-final-bootstrap-chain-16/source/build/bootstrap/stage3/cinch",
+        "--emit-interfaces",
+        "--interfaces",
+        "/tmp/cinch-test-support-provider-4/interfaces.json",
+        "/tmp/cinch-final-interface-behavior-45/interface_preconditions/source.cinch",
+        "/tmp/cinch-final-interface-behavior-45/interface_preconditions/contract"
+      ],
+      "exit_code": 4,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "interface_preconditions",
+      "pid": 78858,
+      "reference_sha256": "40047ff8b0f2e5638cfcf38f91a195fb42b9267734385ccb54e5e4cbb2aab8bf",
+      "reference_source": "/tmp/cinch-current-native-source-check-45/source/compiler/tests/interface_preconditions.rs",
+      "source_sha256": "b02407f52f0a7db1ccef0e0f252386174f5850cb11b2d51e3dfbca1756ed2705",
+      "status": "failed",
+      "worker_slot": 3
+    },
+    {
+      "artifacts": [
+        {
+          "interface_hash": "8418080668627435832",
+          "module": "Contract",
+          "path": "/tmp/cinch-final-interface-behavior-45/interface_refinements/contract.Contract.cinchif",
+          "sha256": "e7c9e5e9db8a3649d9d2c2bcaa096d16108a2aed0a963a4b92bf9a779d6933d1"
+        },
+        {
+          "interface_hash": "14459530778306333796",
+          "module": "Main",
+          "path": "/tmp/cinch-final-interface-behavior-45/interface_refinements/contract.Main.cinchif",
+          "sha256": "6e2875d51b3199ffd90cc25d7a665f10ba231496e3605019cf1e272f1bb3dcae"
+        }
+      ],
+      "command": [
+        "/tmp/cinch-final-bootstrap-chain-16/source/build/bootstrap/stage3/cinch",
+        "--emit-interfaces",
+        "--interfaces",
+        "/tmp/cinch-test-support-provider-4/interfaces.json",
+        "/tmp/cinch-final-interface-behavior-45/interface_refinements/source.cinch",
+        "/tmp/cinch-final-interface-behavior-45/interface_refinements/contract"
+      ],
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "interface_refinements",
+      "pid": 79562,
+      "reference_sha256": "ab51e27d5119c4d9855e689f5ac05b89924394366124e0575c07ab403f2f692d",
+      "reference_source": "/tmp/cinch-current-native-source-check-45/source/compiler/tests/interface_refinements.rs",
+      "source_sha256": "27a29d19c8f100dec00e7432e49f8e6ff24996c8fb2324bec15bb816eeda52da",
+      "status": "passed",
+      "worker_slot": 3
+    },
+    {
+      "artifacts": [
+        {
+          "interface_hash": "13082521729038086721",
+          "module": "A",
+          "path": "/tmp/cinch-final-interface-behavior-45/interface_refinement_closure/contract.A.cinchif",
+          "sha256": "ea3dd2e6f6af56c306d3fcc71017617de249e8259c5bc000e7efc6b9c769f4e2"
+        },
+        {
+          "interface_hash": "14519398615097606905",
+          "module": "Facade",
+          "path": "/tmp/cinch-final-interface-behavior-45/interface_refinement_closure/contract.Facade.cinchif",
+          "sha256": "7f9318e4a4e39e7f39f1d35b98ccdc0278e385543138cb0329187a58bd8909ee"
+        },
+        {
+          "interface_hash": "10916280602077015955",
+          "module": "Main",
+          "path": "/tmp/cinch-final-interface-behavior-45/interface_refinement_closure/contract.Main.cinchif",
+          "sha256": "95b7a197e3de01d8ce346c63546e20980882be0f6cbf7cfc7733f567740056a0"
+        }
+      ],
+      "command": [
+        "/tmp/cinch-final-bootstrap-chain-16/source/build/bootstrap/stage3/cinch",
+        "--emit-interfaces",
+        "--interfaces",
+        "/tmp/cinch-test-support-provider-4/interfaces.json",
+        "/tmp/cinch-final-interface-behavior-45/interface_refinement_closure/source.cinch",
+        "/tmp/cinch-final-interface-behavior-45/interface_refinement_closure/contract"
+      ],
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "interface_refinement_closure",
+      "pid": 79867,
+      "reference_sha256": "7edc1a3b9c6bcfc352f7b44d4cd8e76266c27d42ac63a87fb0c9c32b1b07c4c6",
+      "reference_source": "/tmp/cinch-current-native-source-check-45/source/compiler/tests/interface_refinement_closure.rs",
+      "source_sha256": "7ceef1f050a9baba3a760a25e339f336cbadbce0a745071992babb1e382bad88",
+      "status": "passed",
+      "worker_slot": 3
+    },
+    {
+      "artifacts": [
+        {
+          "interface_hash": "3239988256349306890",
+          "module": "A",
+          "path": "/tmp/cinch-final-interface-behavior-45/interface_region_effects/contract.A.cinchif",
+          "sha256": "5620f4680ed5d93f3c15893ebde2e5180edf0a0370ad0efaa9b008947892f852"
+        },
+        {
+          "interface_hash": "2677904931101317795",
+          "module": "Main",
+          "path": "/tmp/cinch-final-interface-behavior-45/interface_region_effects/contract.Main.cinchif",
+          "sha256": "a6ca97bd519f368db36fe1ef2fb43b8864901bd1b76e67f394aee43a7b4748e2"
+        }
+      ],
+      "command": [
+        "/tmp/cinch-final-bootstrap-chain-16/source/build/bootstrap/stage3/cinch",
+        "--emit-interfaces",
+        "--interfaces",
+        "/tmp/cinch-test-support-provider-4/interfaces.json",
+        "/tmp/cinch-final-interface-behavior-45/interface_region_effects/source.cinch",
+        "/tmp/cinch-final-interface-behavior-45/interface_region_effects/contract"
+      ],
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "interface_region_effects",
+      "pid": 80244,
+      "reference_sha256": "57b891008a369083a7ccfd407d1da72892e5e549e51c39b56cba72f3784e9e5d",
+      "reference_source": "/tmp/cinch-current-native-source-check-45/source/compiler/tests/interface_region_effects.rs",
+      "source_sha256": "fac038ceba2e60c3f270d65e13412867d39383185791b158a08ea25fde018eae",
+      "status": "passed",
+      "worker_slot": 3
+    },
+    {
+      "artifacts": [
+        {
+          "interface_hash": "4002108103154779074",
+          "module": "A",
+          "path": "/tmp/cinch-final-interface-behavior-45/interface_anonymous_contracts/contract.A.cinchif",
+          "sha256": "325f28c434c45051f72a7e14e97a28aded9a145eedef7d3212e826efa697f3f7"
+        },
+        {
+          "interface_hash": "6836710707091956670",
+          "module": "Facade",
+          "path": "/tmp/cinch-final-interface-behavior-45/interface_anonymous_contracts/contract.Facade.cinchif",
+          "sha256": "f66972f4c1e65cb9a6e63d29740b85085cea607c9809bbbea2e12a52df9f85e9"
+        },
+        {
+          "interface_hash": "15905402509657023108",
+          "module": "Main",
+          "path": "/tmp/cinch-final-interface-behavior-45/interface_anonymous_contracts/contract.Main.cinchif",
+          "sha256": "5c78a4cd7cecc156ffbefdd8b9021433af2b3235f07bd00f038c9f8a9058cc3e"
+        }
+      ],
+      "command": [
+        "/tmp/cinch-final-bootstrap-chain-16/source/build/bootstrap/stage3/cinch",
+        "--emit-interfaces",
+        "--interfaces",
+        "/tmp/cinch-test-support-provider-4/interfaces.json",
+        "/tmp/cinch-final-interface-behavior-45/interface_anonymous_contracts/source.cinch",
+        "/tmp/cinch-final-interface-behavior-45/interface_anonymous_contracts/contract"
+      ],
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "interface_anonymous_contracts",
+      "pid": 80664,
+      "reference_sha256": "6b16f6d5fdd9104f602373e62769c47a1876dbbbc40531a76c9581861555da8b",
+      "reference_source": "/tmp/cinch-current-native-source-check-45/source/compiler/tests/interface_anonymous_contracts.rs",
+      "source_sha256": "5e1c474a1cc0a855ac06751e6b58f2bd5baf54efc83b62eaf5ccd22a51b47370",
+      "status": "passed",
+      "worker_slot": 3
+    },
+    {
+      "artifacts": [
+        {
+          "interface_hash": "4252976406775632760",
+          "module": "Main",
+          "path": "/tmp/cinch-final-interface-behavior-45/interface_scope_task_source_owners/contract.Main.cinchif",
+          "sha256": "6b59ea65cfc0e583400b1a04c02f3edb3b762dee26e76dbf7f4583dbcd67ab3d"
+        },
+        {
+          "interface_hash": "16255390226420372256",
+          "module": "Scoped",
+          "path": "/tmp/cinch-final-interface-behavior-45/interface_scope_task_source_owners/contract.Scoped.cinchif",
+          "sha256": "3eab493f6a20963200b7b059caaf17de387ad6a03f8ebfd09f50049a6a266a31"
+        },
+        {
+          "interface_hash": "10013704175107322874",
+          "module": "Shadow",
+          "path": "/tmp/cinch-final-interface-behavior-45/interface_scope_task_source_owners/contract.Shadow.cinchif",
+          "sha256": "1b142e22913ad589633fcfcaf7140576230eec3f51fc80354e3b0cab33abba76"
+        }
+      ],
+      "command": [
+        "/tmp/cinch-final-bootstrap-chain-16/source/build/bootstrap/stage3/cinch",
+        "--emit-interfaces",
+        "--interfaces",
+        "/tmp/cinch-test-support-provider-4/interfaces.json",
+        "/tmp/cinch-final-interface-behavior-45/interface_scope_task_source_owners/source.cinch",
+        "/tmp/cinch-final-interface-behavior-45/interface_scope_task_source_owners/contract"
+      ],
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "interface_scope_task_source_owners",
+      "pid": 81048,
+      "reference_sha256": "57b891008a369083a7ccfd407d1da72892e5e549e51c39b56cba72f3784e9e5d",
+      "reference_source": "/tmp/cinch-current-native-source-check-45/source/compiler/tests/interface_region_effects.rs",
+      "source_sha256": "dd4b7b87369650606641f4f33bfe14fada7027dd1b8bb05aba88e04981514b85",
+      "status": "passed",
+      "worker_slot": 3
+    },
+    {
+      "command": [
+        "/tmp/cinch-final-bootstrap-chain-16/source/build/bootstrap/stage3/cinch",
+        "--emit-interfaces",
+        "--interfaces",
+        "/tmp/cinch-test-support-provider-4/interfaces.json",
+        "/tmp/cinch-final-interface-behavior-45/interface_prelude_category/source.cinch",
+        "/tmp/cinch-final-interface-behavior-45/interface_prelude_category/contract"
+      ],
+      "exit_code": 4,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "interface_prelude_category",
+      "pid": 81355,
+      "reference_sha256": "1d0b1cc10f9d1788183686a742e455c0ddbccb40f8b46720050c857a07e86630",
+      "reference_source": "/tmp/cinch-current-native-source-check-45/source/compiler/tests/interface_prelude_overrides.rs",
+      "source_sha256": "18313f2c58c1858f13a121d5a76ceab94a0993aea25786634f0f4af89936c25d",
+      "status": "failed",
+      "worker_slot": 3
+    },
+    {
+      "command": [
+        "/tmp/cinch-final-bootstrap-chain-16/source/build/bootstrap/stage3/cinch",
+        "--emit-interfaces",
+        "--interfaces",
+        "/tmp/cinch-test-support-provider-4/interfaces.json",
+        "/tmp/cinch-final-interface-behavior-45/interface_prelude_algebra/source.cinch",
+        "/tmp/cinch-final-interface-behavior-45/interface_prelude_algebra/contract"
+      ],
+      "exit_code": 4,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "interface_prelude_algebra",
+      "pid": 81544,
+      "reference_sha256": "1d0b1cc10f9d1788183686a742e455c0ddbccb40f8b46720050c857a07e86630",
+      "reference_source": "/tmp/cinch-current-native-source-check-45/source/compiler/tests/interface_prelude_overrides.rs",
+      "source_sha256": "2bfa5c797991a44d5c8904c294d54683ac6a0e68e69477275128f4a9db9615c7",
+      "status": "failed",
+      "worker_slot": 3
+    },
+    {
+      "command": [
+        "/tmp/cinch-final-bootstrap-chain-16/source/build/bootstrap/stage3/cinch",
+        "--emit-interfaces",
+        "--interfaces",
+        "/tmp/cinch-test-support-provider-4/interfaces.json",
+        "/tmp/cinch-final-interface-behavior-45/interface_prelude_core/source.cinch",
+        "/tmp/cinch-final-interface-behavior-45/interface_prelude_core/contract"
+      ],
+      "exit_code": 4,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "interface_prelude_core",
+      "pid": 81706,
+      "reference_sha256": "1d0b1cc10f9d1788183686a742e455c0ddbccb40f8b46720050c857a07e86630",
+      "reference_source": "/tmp/cinch-current-native-source-check-45/source/compiler/tests/interface_prelude_overrides.rs",
+      "source_sha256": "1bd48a3dc3ed8e808e3197d9d395c57948a1bf0d48ba38384427d97c7100ed37",
+      "status": "failed",
+      "worker_slot": 3
+    },
+    {
+      "command": [
+        "/tmp/cinch-final-bootstrap-chain-16/source/build/bootstrap/stage3/cinch",
+        "--emit-interfaces",
+        "--interfaces",
+        "/tmp/cinch-test-support-provider-4/interfaces.json",
+        "/tmp/cinch-final-interface-behavior-45/interface_prelude_ordering/source.cinch",
+        "/tmp/cinch-final-interface-behavior-45/interface_prelude_ordering/contract"
+      ],
+      "exit_code": 4,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "interface_prelude_ordering",
+      "pid": 81789,
+      "reference_sha256": "1d0b1cc10f9d1788183686a742e455c0ddbccb40f8b46720050c857a07e86630",
+      "reference_source": "/tmp/cinch-current-native-source-check-45/source/compiler/tests/interface_prelude_overrides.rs",
+      "source_sha256": "5d4d70a3566776ac67aee8cc53a71597184ae968801eb79b64114620173ef759",
+      "status": "failed",
+      "worker_slot": 3
+    }
+  ],
+  "scope": "Original interface fixture source programs emitted by exact final Stage3 and structurally validated independently. This supplements, and does not relabel, Native Rust API/schema mutation tests. Full semantic equivalence requires case-specific artifact/consumer audit.",
+  "source_sha256": "f66146e65f57de5153b7b2279c29ad9110ede1656bd00668cca06974879d950c",
+  "status": "failed",
+  "independent_audit": "All13originalfixtureinputs/actualStage3/logs/outputcontracts verified; six structural successes, seven actual frontend failures. No fullsemanticconsumer equivalence or Acceptance5 claim.",
+  "full_goal_complete": false
+}

@@ -1,5 +1,34 @@
 # Next steps (as of 2026-11-05)
 
+## Original Stage3 fixture gaps and evaluator imports (2026-11-05)
+
+The exact e2f Stage3 replay of all original interface fixture programs is
+complete: six emit structurally valid checked contracts and seven fail.
+The failures establish remaining indexed/GADT constructor and local-forall
+elaboration, general foreign declarations, source-defined total-body
+provenance for index calls, and safe replacement of source family homes
+already present in the supplied checked interface set. The original fixtures
+are unchanged. Structural successes do not prove their complete metadata,
+consumer or mutation semantics. See
+`bootstrap/current-original-interface-fixture-results.json`.
+
+`Run.Eval` now explicitly imports the public `VStr` and `VChr` constructors it
+uses. The complete original Native evaluator/oracle target passes. Exact
+Stage3 now resolves those names and reaches code generation, which still
+refuses missing decision/proof runtime layouts and lowering. That remaining
+failure is preserved in `bootstrap/current-eval-source-import-results.json`;
+this is a scoped source-import correction, not a passing Stage3 oracle.
+Native's expected-family constructor selection is an intentional source rule.
+The stopped source45 Stage3 sweep retains its original 26 passes and evaluator
+failure; a separate diagnostic continuation runs every remaining original
+group without hiding failures. Final complete matching suites remain required.
+
+Only the evaluator program's selective import changed. The 43-module e2f
+compiler source, pinned seed, runtime and Prelude are unchanged, so its genuine
+Stage0/1/2/3 fixed-point evidence remains valid. The isolated ABI6 compiler,
+proof repair and explicit projection candidates remain unpublished and need
+their own full gates. Original API coverage and Acceptance 5 remain open.
+
 ## Rust source family replacements keep their manifest position (2026-11-05)
 
 A byte-identical source copy of `Data.Core` previously made valid programs

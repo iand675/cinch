@@ -24,7 +24,7 @@ module Main where
   import Text.Lex (Span)
   import Bootstrap.Ast
   import Bootstrap.Report (Diagnostic, diagnostic-message, diagnostic-rung)
-  import Bootstrap.Eval (Value, VInt, eval-expr-in-program, eval-main, value-equal, render-value)
+  import Bootstrap.Eval (Value, VInt, VStr, VChr, eval-expr-in-program, eval-main, value-equal, render-value)
   import Bootstrap.Parse (parse-program)
   import Text.Parse (ParseOutcome, Parsed, Failed)
   import Data.Path (Path, path-from-string)

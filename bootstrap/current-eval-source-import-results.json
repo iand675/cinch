@@ -1,0 +1,30 @@
+{
+  "changes": [
+    "bootstrap/programs/Run.Eval.cinch"
+  ],
+  "compiler_source_sha256": "e2f15c51f24f38e74ddf61943d96d828cade2e60f2cdc7db67c6eafdefd3f0a5",
+  "full_goal_complete": false,
+  "pid": 95124,
+  "rows": [
+    {
+      "binary": "/tmp/cinch-eval-imports-validation-1/cargo/debug/deps/bootstrap_eval-10bf57868f1c1801",
+      "binary_sha256": "cb2ac31a9bb22e356d0a09e0cae3875a5ce8cbca31530683a0ae221b5e71dc36",
+      "exit_code": 0,
+      "log_sha256": "ae6fe17697649826aaa6adc30a9ce238abbd90d6baffd7c03d75f34fb7456a3c",
+      "name": "native",
+      "status": "passed"
+    },
+    {
+      "binary": "/tmp/cinch-eval-imports-validation-1/cargo/debug/deps/bootstrap_eval-10bf57868f1c1801",
+      "binary_sha256": "cb2ac31a9bb22e356d0a09e0cae3875a5ce8cbca31530683a0ae221b5e71dc36",
+      "exit_code": 101,
+      "log_sha256": "c2ba46d4d5bfc89a2f175ebfc31f323822b7cae0a26c359f59dc47792152853b",
+      "name": "actual-stage3",
+      "status": "failed"
+    }
+  ],
+  "source": "/tmp/cinch-eval-imports-validation-1/source",
+  "source_sha256": "cf99652a402f953cff62dba8b48f7a01d932931a5e2957f1bcf86310ced9c006",
+  "status": "failed",
+  "independent_audit": "Single explicit-import correction, unchanged canonical43/e2f compiler and seed. Entire originalNativeoraclePASS. ActualStage3 now resolves the constructors, then correctly reports existing unsupported runtime decision/proof lowering. Originalfailure preserved; fullStage3oracle remainsFAILED."
+}
