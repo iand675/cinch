@@ -516,6 +516,34 @@ impl TotalProducer<'_> {
 }
 
 impl Checker {
+    fn interface_method_bodies(&self, instance: &InstanceInfo) -> Vec<crate::interface::InstanceMethodBody> {
+        if instance.base || !instance.params.is_empty() || !instance.ctx.is_empty() || !instance.method_contracts.is_empty() { return Vec::new(); }
+        let Some(definition) = self.instance_defs.iter().find(|definition| definition.id == instance.base_id) else { return Vec::new() };
+        if definition.tparams != 0 || definition.subdict_count != 0 { return Vec::new(); }
+        definition.methods.iter().enumerate().filter_map(|(slot, implementation)| {
+            if *definition.own.get(slot)? != 0 { return None; }
+            let scheme = self.interface_method_schemes.get(implementation)?;
+            if !scheme.params.is_empty() || !scheme.idx_params.is_empty() || !scheme.val_params.is_empty()
+                || !scheme.prop_params.is_empty() || !scheme.evidence_params.is_empty() || !scheme.region_params.is_empty()
+                || !scheme.row_params.is_empty() || !scheme.ctx.is_empty() || !scheme.obligs.is_empty() { return None; }
+            let graph = self.interface_checked_bodies.as_ref()?;
+            let actual = graph.get(&implementation.0)?;
+            let mut ty = &scheme.ty; let mut parameters = Vec::new();
+            while let Ty::Fun(domain, _, row, result) = ty {
+                if !row.is_pure() { return None; }
+                parameters.push(plain_total_sort(domain)?); ty = result;
+            }
+            if parameters != actual.parameters || plain_total_sort(ty)? != actual.result { return None; }
+            let declaration = render_scheme(scheme);
+            if declaration != crate::interface::total_declaration(actual) { return None; }
+            Some(crate::interface::InstanceMethodBody {
+                slot: slot as u64, implementation: implementation.0.clone(),
+                resolved: crate::interface::ResolvedScheme { scheme: declaration, nominals: Vec::new(), measures: Vec::new() },
+                total_body: graph.closure([implementation.0.as_str()]).ok()?,
+            })
+        }).collect()
+    }
+
     fn interface_value_body(&self, value: &ValueInfo) -> Option<crate::total::CheckedGraph> {
         let scheme = &value.scheme;
         if !scheme.params.is_empty() || !scheme.idx_params.is_empty() || !scheme.val_params.is_empty()

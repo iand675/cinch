@@ -1,0 +1,125 @@
+{
+  "all_test_targets_compile": true,
+  "compiler_modules": 43,
+  "complete_groups": 10,
+  "filtered": 0,
+  "full_goal_complete": false,
+  "ignored": 0,
+  "native_compiler_sha256": "b80d57be97d491de69934ecf1eb0da4f2960394bd4b5916eef9f7f8ee8cf5f9a",
+  "new_metadata_controls": 7,
+  "original_test_files_byte_identical": 230,
+  "original_test_scope_preserved": true,
+  "production_changes": [
+    "compiler/src/check.rs",
+    "compiler/src/check_decls.rs",
+    "compiler/src/check_total.rs",
+    "compiler/src/interface.rs"
+  ],
+  "rows": [
+    {
+      "binary": "/tmp/cinch-native-method-body-validation-6/cargo/debug/deps/interface_method_bodies-9ce5b7cf61b5e1fd",
+      "binary_sha256": "fe56d8e8ecf6bbe2556c910df92ebaf5535a12fbada51d9c5c6a4f902cee7c5d",
+      "exit_code": 0,
+      "log_sha256": "686882e8cd3d28072a2a32e2a97a28b6053ecad388ff256612ea0815d3f12ea1",
+      "name": "interface_method_bodies",
+      "status": "passed"
+    },
+    {
+      "binary": "/tmp/cinch-native-method-body-validation-6/cargo/debug/deps/interface_total_bodies-b09b0156ee49e394",
+      "binary_sha256": "cd733e6468d2621d6a70362fe49c7683b8c04923e21a773b396a07c8553902a9",
+      "exit_code": 0,
+      "log_sha256": "f34046441f6009da695d05f427dbfa5e3e2db0fbfca23b06c4de0d2e8e966c67",
+      "name": "interface_total_bodies",
+      "status": "passed"
+    },
+    {
+      "binary": "/tmp/cinch-native-method-body-validation-6/cargo/debug/deps/interface_class_contracts-c7f87e16317c47a0",
+      "binary_sha256": "52985fb050f46d556a8ce07d09dfb2b1f830026bb7ccffc98ee7a9de687b62fa",
+      "exit_code": 0,
+      "log_sha256": "e885229ac72d2337cd21cc3e67ea3a22302bd135392895ffda27857b50140256",
+      "name": "interface_class_contracts",
+      "status": "passed"
+    },
+    {
+      "binary": "/tmp/cinch-native-method-body-validation-6/cargo/debug/deps/interface_prelude_overrides-5828e7970823fa26",
+      "binary_sha256": "61de44d5d4a46813f7c10058df57e4729eceb71b8014bc8f6c8eda69bc15a8b9",
+      "exit_code": 0,
+      "log_sha256": "b4bbcb3a5bc9cdc840e2e263b6b546c425dba8fa7a518fc7eecf24e313a79c4a",
+      "name": "interface_prelude_overrides",
+      "status": "passed"
+    },
+    {
+      "binary": "/tmp/cinch-native-method-body-validation-6/cargo/debug/deps/interface_preconditions-13b54d963ed22d8d",
+      "binary_sha256": "00bccba3010e3f6df97c60029674ba907184822f68f31a04507354587d81ff06",
+      "exit_code": 0,
+      "log_sha256": "0818da52aa732521e2a0d7b3da2f962b1e0f78bacbb74ca30d5f6df1e73d3269",
+      "name": "interface_preconditions",
+      "status": "passed"
+    },
+    {
+      "binary": "/tmp/cinch-native-method-body-validation-6/cargo/debug/deps/interface_conditional_methods-9cedc14156c67b84",
+      "binary_sha256": "f84c823f93044804856e954768daed53b54b007401cf199eb52059b0f9779c40",
+      "exit_code": 0,
+      "log_sha256": "e15cd05e737e3733c890aa26b9b896dc89805459cd2d261f3416d5007d451716",
+      "name": "interface_conditional_methods",
+      "status": "passed"
+    },
+    {
+      "binary": "/tmp/cinch-native-method-body-validation-6/cargo/debug/deps/interface_nominals-b971c55610e05eee",
+      "binary_sha256": "5a4a76218f4d978dcc83b7aa965adf103fd079ded8544ec60193c2eba7948dd3",
+      "exit_code": 0,
+      "log_sha256": "cc1647164c2c7827e877a11da0a4de8801919c6829c132fb5f4b75c568cb5ae0",
+      "name": "interface_nominals",
+      "status": "passed"
+    },
+    {
+      "binary": "/tmp/cinch-native-method-body-validation-6/cargo/debug/deps/comparison_method_facts-35bc69fda5acd39f",
+      "binary_sha256": "029236cb6e4814a8f6cc468aed55d0c04486edd5ce8b68e65a44ce72b2f8c33f",
+      "exit_code": 0,
+      "log_sha256": "3a30758321b11e5246d030acb3aa9fe7c8a68967d43f4687fd57a3a7602badca",
+      "name": "comparison_method_facts",
+      "status": "passed"
+    },
+    {
+      "binary": "/tmp/cinch-native-method-body-validation-6/cargo/debug/deps/linear_facts-3053f86ad6cef9db",
+      "binary_sha256": "909537f9724b4d1c91cffd1e69b9479862b11c9fe63481b1b36d463b4fbc8d71",
+      "exit_code": 0,
+      "log_sha256": "550bbf0af0fa4f699941943f963471f22a0b01dc7e4156bdf8075697c414600a",
+      "name": "linear_facts",
+      "status": "passed"
+    },
+    {
+      "binary": "/tmp/cinch-native-method-body-validation-6/cargo/debug/deps/cinch-92dfdd69e032d9a8",
+      "binary_sha256": "ad11782919f237815fe294a21eddbd6e7db723e305aa78357c0116112eaeadcb",
+      "exit_code": 0,
+      "log_sha256": "15da0fd5b491278f13c1a47d0859759c397d0bb535c6b77911cb27c35266ed73",
+      "name": "lib",
+      "status": "passed"
+    }
+  ],
+  "rules": [
+    "Optional method_bodies omitted when empty; opaque schema8 encoding unchanged.",
+    "Actual checked implementation declaration and exact typed graph closure associated with actual dictionary slot.",
+    "Unrestricted monomorphic pure total carriers only; conditional, generic, recursive and partial methods remain opaque.",
+    "Exact defining-module ownership including nested module prefixes; imported graph dependencies and shared definition agreement validated.",
+    "Private methods and helper bodies grant no public source names.",
+    "All five Nat comparison/addition roots survive export.",
+    "Malformed slot/root/declaration/unrelated graph/duplicate/missing factory and nested-owner payloads refused."
+  ],
+  "schema": 1,
+  "scope": "Native actual dictionary-method interface records only. Original tests and all43 published Cinch source modules preserved. Full bootstrap/full-suite goal remains open.",
+  "seed_and_provider_pins": "Explicit b64710b ABI6 pins unchanged; no new full bootstrap claim.",
+  "source_check": {
+    "compiler": "/tmp/cinch-native-method-body-validation-6/cargo/debug/cinch",
+    "compiler_modules": 43,
+    "compiler_sha256": "b80d57be97d491de69934ecf1eb0da4f2960394bd4b5916eef9f7f8ee8cf5f9a",
+    "exit_code": 0,
+    "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "status": "passed"
+  },
+  "source_sha256": "3fd54b1b4f96daf7cf4858fc7ed49df5654a9b96c6cef00715160a88bf4b2961",
+  "status": "passed-scoped-native-method-bodies",
+  "unique_tests": 224,
+  "verified_at": "2026-11-05T10:54:53.326095+00:00",
+  "zero_leak_reports": 65
+}

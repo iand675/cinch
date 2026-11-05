@@ -5496,6 +5496,12 @@ impl Checker {
                     e
                 }
             })?;
+            // Retain this exact checked callable declaration, rather than
+            // reconstructing a scheme from its class or method spelling.
+            if !transfer && mscheme.idx_params.is_empty() && mscheme.val_params.is_empty()
+                && mscheme.prop_params.is_empty() && mscheme.evidence_params.is_empty() {
+                self.interface_method_schemes.insert(gid.clone(), scheme.clone());
+            }
             method_fns.push(gid);
             seen.push(mname);
         }
@@ -16428,6 +16434,7 @@ impl Checker {
                 id: i.base_id.0.clone(),
                 class: i.target.class.clone(),
                 target: i.target.to_string(),
+                method_bodies: if resolved.is_some() { self.interface_method_bodies(i) } else { Vec::new() },
                 resolved,
                 method_contracts: i.method_contracts.iter().map(|(slot, name, scheme)| InstanceMethodContract {
                     slot: *slot as u64, name: name.clone(), scheme: render_scheme(scheme),

@@ -1,5 +1,31 @@
 # Next steps (as of 2026-11-05)
 
+## Native interfaces retain actual instance-method bodies (2026-11-05)
+
+Checked method implementations were absent from portable interfaces unless an
+unrelated exported value happened to call them. That dropped the actual Nat
+`<=`, `>`, `>=` and addition roots needed by the Cinch actual-body proof
+consumer. Native now emits separate optional instance `method_bodies`, tied to
+the actual dictionary slot, checked plain declaration and exact typed body
+closure. Private method and helper identities grant no public source names.
+
+All ten complete affected Native groups pass: 224 tests, with no ignored or
+filtered cases, plus all test targets compiling and all 43 published Cinch
+compiler modules checking. The seven new controls cover all five required Nat
+roots, private dependency closure, canonical serialization, malformed payloads,
+shared-definition disagreement and nested-module ownership. Every pre-existing
+integration test file is byte-identical. See
+`bootstrap/current-native-method-body-results.json`.
+
+The matching Cinch loader, exporter and proof consumer are still private and
+under validation; original imported-precondition and conditional-method tests
+remain required. The c8d6 compiler source and its genuine fixed-point evidence
+are unchanged. Supported method records change interface hashes intentionally;
+the explicit b64710b ABI6 seed/provider pins remain unchanged in this repair.
+A new source compiler and refreshed pins need their own full gates and fresh
+bootstrap. Complete matching suites, original API parity and Acceptance 5 remain
+open.
+
 ## Native runtime arithmetic retains actual implementation authority (2026-11-05)
 
 Runtime expressions crossing into dependent indices or refinement facts now

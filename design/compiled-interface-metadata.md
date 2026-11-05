@@ -7,13 +7,14 @@ where that chapter states obligations, this note fixes the mechanism.
 Status: design accepted for implementation (roadmap slice P3 in
 `compiler/CONFORMANCE.md`).
 
-The development interface schema is8 and the runtime ABI is5. Schema8 adds
-closed executable total-body payloads and complete defining measure declarations
-to the schema7 refinement and byte-observation contracts. The pinned seed was
-updated intentionally and its exact source and patch hashes are recorded in
-[the current checkpoint](../bootstrap/measure-contract-checkpoint-results.json).
-Stage0/1 pass six combined smokes; actual stage2 now reaches compiler body checking
-and fails there. The complete current Native-assisted suite is still running.
+The development interface schema is 8 and the runtime ABI is 6. Schema 8
+carries closed executable total-body payloads and complete defining measure
+declarations. The published c8d6 compiler has independently verified
+Stage0/1/2/3 fixed-point evidence in
+[the current bootstrap receipt](../bootstrap/current-projection-proof-bootstrap-results.json).
+Complete matching suites, original API parity and Acceptance 5 remain open.
+The explicitly pinned b64710b seed and separate library provider remain
+unchanged by the method-body metadata addition below.
 
 A value's `total_body` is null or a version1 closed, sorted first-order graph.
 Only a supported monomorphic ordinary pure signature can advertise one. The
@@ -30,11 +31,32 @@ Consumers check declaring modules, checked import closure and agreement of every
 shared body dependency across roots. The payload affects interface identity,
 so changing a defining body invalidates its semantic consumers.
 
-Source reification and independent Core typing retain actual global association
-and argument identities. Numeric class/slot reflection still needs replacement
-with actual selected method authority. Full proof/usage/totality, general typed
-runtime lowering and self-hosting remain required. Definition-owned fixities
-remain part of the exported contract; importers cannot override them.
+A closed unrestricted instance may additionally carry `method_bodies`. Each
+row associates an actual dictionary `slot` and `implementation` identity with
+its complete plain `resolved` declaration and exact closed `total_body`
+dependency graph. The declaration must match the graph's parameter/result
+carriers, and the implementation must match that dictionary's method table.
+The dictionary and implementation belong to the declaring module, including
+when distinct module names share a prefix. All graph dependencies belong to
+the checked import closure, and shared definitions must agree across roots.
+These records grant no public value or method names. Empty records are omitted,
+preserving the exact encoding of earlier opaque schema-8 instances; absence
+grants no executable semantics. Conditional, generic, recursive, effectful and
+partial implementations remain outside this first closed-body tier.
+
+The Native producer and decoder pass all ten affected complete groups and all
+43 published compiler-source modules; see
+[the method-body receipt](../bootstrap/current-native-method-body-results.json).
+The corresponding Cinch loader, exporter and actual-body proof consumer remain
+a private candidate under validation. That candidate requires its own complete
+gates and a fresh bootstrap before replacing the published compiler.
+
+The Rust checker derives arithmetic and comparison facts from the actual
+selected implementation. Source reification and independent Core typing retain
+actual global association and argument identities. Full proof/usage/totality,
+general typed runtime lowering and complete self-hosted API parity remain
+required. Definition-owned fixities remain part of the exported contract;
+importers cannot override them.
 
 Earlier format history follows. Schema 1 omitted signature proof
 preconditions and named refinements. Schema 2 added those facts but omitted
@@ -112,7 +134,8 @@ exports
                 methods: [{ name, slot, exports: [public name], scheme,
                 resolved, default? }] }
   instances     [{ id, class, target, ctx, resolved, methods: [symbol],
-                method_contracts: [{ slot, name, scheme }], implicit }]
+                method_contracts: [{ slot, name, scheme }],
+                method_bodies?: [{ slot, implementation, resolved, total_body }], implicit }]
   fixities      operator -> { assoc, prec }
   foreign       [{ symbol, abi, external, type, effects, notes }] (FFI
                 contracts; see the FFI specification for their obligations)

@@ -89,6 +89,7 @@ pub fn check_coherence(ifaces: &[Iface]) -> Result<(), CoherenceError> {
 pub fn verify_chain(ifaces: &[Iface]) -> Result<(), CoherenceError> {
     let by_module: BTreeMap<&str, &Iface> =
         ifaces.iter().map(|f| (f.module.as_str(), f)).collect();
+    let mut actual_definitions = BTreeMap::new();
     for f in ifaces {
         let mut reachable = std::collections::BTreeSet::new();
         let mut pending = vec![f.module.as_str()];
@@ -113,6 +114,27 @@ pub fn verify_chain(ifaces: &[Iface]) -> Result<(), CoherenceError> {
                             f.module, imp.module, imp.iface_hash, dep.iface_hash()
                         )));
                     }
+                }
+            }
+        }
+        for instance in &f.exports.instances {
+            for body in &instance.method_bodies {
+                let owner = |identity: &str| by_module.keys().filter(|module| identity.starts_with(&format!("{module}."))).max_by_key(|module| module.len()).copied();
+                if owner(&instance.id) != Some(f.module.as_str()) || owner(&body.implementation) != Some(f.module.as_str()) {
+                    return Err(CoherenceError(format!("method body {} is not owned by its declaring dictionary module {}", body.implementation, f.module)));
+                }
+            }
+        }
+        let graphs = f.exports.values.iter().filter_map(|value| value.total_body.as_ref())
+            .chain(f.exports.instances.iter().flat_map(|instance| &instance.method_bodies).map(|body| &body.total_body));
+        for graph in graphs {
+            for definition in graph.definitions() {
+                let owner = by_module.keys().filter(|module| definition.identity.starts_with(&format!("{module}."))).max_by_key(|module| module.len());
+                if owner.is_none_or(|owner| !reachable.contains(owner)) {
+                    return Err(CoherenceError(format!("total body dependency {} is outside the checked module closure of {}", definition.identity, f.module)));
+                }
+                if let Some(prior) = actual_definitions.insert(definition.identity.clone(), definition.clone()) {
+                    if prior != *definition { return Err(CoherenceError(format!("conflicting actual total body dependency: {}", definition.identity))); }
                 }
             }
         }
@@ -302,6 +324,9 @@ pub struct InstanceExport {
     /// identities. Null preserves unsupported proof or family dependencies.
     pub resolved: Option<ResolvedScheme>,
     pub method_contracts: Vec<InstanceMethodContract>,
+    /// Optional closed bodies for the dictionary's actual implementation
+    /// slots. This contract metadata grants no source import names.
+    pub method_bodies: Vec<InstanceMethodBody>,
     pub ctx: Vec<String>,
     pub methods: Vec<String>,
     /// Whether automatic resolution may select this instance (default
@@ -309,6 +334,14 @@ pub struct InstanceExport {
     /// dictionary is selected by name and may coexist with other
     /// implementations of the same class).
     pub implicit: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct InstanceMethodBody {
+    pub slot: u64,
+    pub implementation: String,
+    pub resolved: ResolvedScheme,
+    pub total_body: crate::total::CheckedGraph,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -718,7 +751,7 @@ impl Iface {
                 JsonValue::arr(&insts, |inst| {
                     let mut method_contracts = inst.method_contracts.clone();
                     method_contracts.sort();
-                    JsonValue::obj([
+                    let mut row = JsonValue::obj([
                         ("id", (&inst.id).into()),
                         ("class", (&inst.class).into()),
                         ("target", (&inst.target).into()),
@@ -750,7 +783,21 @@ impl Iface {
                         ("ctx", (&inst.ctx).into()),
                         ("methods", (&inst.methods).into()),
                         ("implicit", inst.implicit.into()),
-                    ])
+                    ]);
+                    // Absence grants no body authority and preserves the
+                    // exact canonical identity of older opaque records.
+                    if !inst.method_bodies.is_empty() {
+                        let mut bodies = inst.method_bodies.clone(); bodies.sort();
+                        if let JsonValue::Obj(fields) = &mut row {
+                            fields.insert("method_bodies".into(), JsonValue::arr(&bodies, |body| JsonValue::obj([
+                                ("slot", body.slot.into()),
+                                ("implementation", (&body.implementation).into()),
+                                ("resolved", resolved_scheme_json(Some(&body.resolved))),
+                                ("total_body", parse_json(&body.total_body.to_json()).expect("checked method body JSON")),
+                            ])));
+                        }
+                    }
+                    row
                 }),
             ),
             (
@@ -1113,6 +1160,7 @@ impl Iface {
                 target: field_str(o, "target")?,
                 resolved: field_resolved_scheme(o)?,
                 method_contracts,
+                method_bodies: read_instance_method_bodies(o)?,
                 ctx: field_list(o, "ctx")?,
                 methods: field_list(o, "methods")?,
                 implicit: field_bool(o, "implicit")?,
@@ -1122,6 +1170,14 @@ impl Iface {
                 || instances[..instances.len() - 1].iter().any(|i| i.id == instance.id)
                 || (!instance.method_contracts.is_empty() && instance.resolved.is_some()) {
                 return Err(ParseError("invalid instance contract or unresolved method preconditions".into()));
+            }
+            if !instance.method_bodies.is_empty() && (instance.resolved.is_none() || !instance.ctx.is_empty() || !instance.method_contracts.is_empty()) {
+                return Err(ParseError("method bodies require a closed unrestricted dictionary declaration".into()));
+            }
+            for body in &instance.method_bodies {
+                if instance.methods.get(body.slot as usize) != Some(&body.implementation) {
+                    return Err(ParseError("method body does not match the actual dictionary slot".into()));
+                }
             }
             for method in &instance.method_contracts {
                 if let Some(checked) = &method.checked {
@@ -1634,6 +1690,37 @@ fn parameter_json(p: &ParameterExport) -> JsonValue {
         ("kind", (&p.kind).into()),
         ("implicit", p.implicit.into()),
     ])
+}
+
+/// Canonical declaration of the plain first-order graph tier. Comparing it
+/// with the actual resolved scheme forbids erasing refinements, effects,
+/// dependent binders, ownership arrows or hidden proof/dictionary arguments.
+pub(crate) fn total_declaration(definition: &crate::total::Definition) -> String {
+    definition.parameters.iter().rev().fold(format!("{:?}", definition.result),
+        |result, parameter| format!("({parameter:?} -> {result})"))
+}
+
+fn read_instance_method_bodies(object: &BTreeMap<String, JsonValue>) -> Result<Vec<InstanceMethodBody>, ParseError> {
+    let Some(rows) = object.get("method_bodies") else { return Ok(Vec::new()) };
+    let mut bodies: Vec<InstanceMethodBody> = Vec::new();
+    for row in rows.as_array()? {
+        let row = row.as_object()?;
+        let slot = field_num(row, "slot")?;
+        let implementation = field_str(row, "implementation")?;
+        let resolved = field_resolved_scheme(row)?.ok_or_else(|| ParseError("method body has no resolved declaration".into()))?;
+        let graph = row.get("total_body").ok_or_else(|| ParseError("method has no total body".into()))?;
+        let total_body = crate::total::CheckedGraph::from_json(&graph.to_canonical_string()).map_err(|error| ParseError(error.0))?;
+        let definition = total_body.get(&implementation).ok_or_else(|| ParseError("method body has no actual implementation root".into()))?;
+        if implementation.is_empty() || bodies.iter().any(|body| body.slot == slot || body.implementation == implementation)
+            || total_body.closure([implementation.as_str()]).map_err(|error| ParseError(error.0))? != total_body {
+            return Err(ParseError("method body requires a distinct slot and exact implementation closure".into()));
+        }
+        if !resolved.nominals.is_empty() || !resolved.measures.is_empty() || resolved.scheme != total_declaration(definition) {
+            return Err(ParseError("method body sorts disagree with its actual closed declaration".into()));
+        }
+        bodies.push(InstanceMethodBody { slot, implementation, resolved, total_body });
+    }
+    Ok(bodies)
 }
 
 fn field_total_body(o: &BTreeMap<String, JsonValue>) -> Result<Option<crate::total::CheckedGraph>, ParseError> {
@@ -2149,6 +2236,7 @@ mod tests {
             target: "Add Int".into(),
             resolved: None,
             method_contracts: vec![],
+            method_bodies: vec![],
             ctx: vec![],
             methods: vec!["Main.Add_Int.+".into()],
             implicit: true,
@@ -2323,6 +2411,7 @@ mod tests {
             target: "Add Int".into(),
             resolved: None,
             method_contracts: vec![],
+            method_bodies: vec![],
             ctx: vec![],
             methods: vec![],
             implicit: true,
