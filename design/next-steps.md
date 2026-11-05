@@ -20,9 +20,14 @@ guard. None of the malformed programs is executed. See
 
 Cinch source, ABI and the pinned seed are unchanged, so the e2f bootstrap
 fixed-point proof below remains scoped to the same compiler and pinned inputs.
-The complete Native and test-host sweeps using the preceding Rust build are
-retained as earlier-producer evidence; fresh matching sweeps are queued for
-this Rust change. The recursive-proof defect, unpublished array/effect work,
+Fresh matching auxiliary checks pass independently on this Rust producer:
+171 runtime, 41 tooling and 39 editor tests. All 14 original external checks
+also pass through the unchanged exact e2f Stage3, including the separately
+classified Native API negative on the new host. Source snapshots, complete
+logs and executable hashes are independently audited in the current
+auxiliary and Stage3 external receipts. The complete Native and Stage3
+sweeps continue; preceding-producer results retain their original scope.
+The recursive-proof defect, unpublished array/effect work,
 positive ABI6 stage transition and original API/Acceptance 5 remain open.
 
 ## Current row compiler reaches a genuine fixed point (2026-11-05)

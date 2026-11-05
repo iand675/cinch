@@ -22,7 +22,7 @@
   ],
   "log_sha256": {
     "changed-redeclaration": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "class-identity": "09c28bc9613440002863fee11c84a13ec4819417607c51ace85936c86cfd6b50",
+    "class-identity": "9e186151ffe11642e849d7804cbee7b3821d5b9912c5a62690b33609dc5723b2",
     "direct": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "identical-redeclaration": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "mixed/emit": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
@@ -129,8 +129,8 @@
     }
   ],
   "scope": "All14 original external checks on exact final e2f Stage3, independently verified: mixed/passing runner emit/link/execution, exact full reports and zero leaks; defining-only fixities, separate renamed facades and identical/changed importer redeclaration refusals; all3 class_identity tests including2 actual Stage3 portable build/run paths and1 direct Native API negative. Actual artifacts, logs, source and compiler identities audited. Full Native/Stage3 suites, proof soundness, positive ABI6 arrays, originalAPI coverage and Acceptance5 remain open.",
-  "source": "/tmp/cinch-current-native-source-check-44/source",
-  "source_sha256": "d5d979aeeb8fff715155bd68e93406ed745de5afa730e0735680d2b8c4ed561d",
+  "source": "/tmp/cinch-current-native-source-check-45/source",
+  "source_sha256": "f66146e65f57de5153b7b2279c29ad9110ede1656bd00668cca06974879d950c",
   "status": "passed-exact-current-stage3-external-acceptance",
-  "verified_at": "2026-11-04T23:30:21.632395+00:00"
+  "verified_at": "2026-11-05T00:58:54.937478+00:00"
 }
