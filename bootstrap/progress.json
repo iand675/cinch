@@ -128,8 +128,8 @@
     },
     {
       "title": "Method bodies and proof checks",
-      "detail": "Rust: 12 of 12 complete groups passed; 0 running, 0 failed and 0 pending. All43 published compiler check: passed. Private Cinch candidate all43: passed. Complete original proof/interface groups: 18 of 19 complete groups passed; 1 running, 0 failed and 0 pending. Actual Cinch exporter and independent decoder: passed; 28 controls passed. Private implementations grant no public names; full new-source bootstrap remains required.",
-      "state": "running"
+      "detail": "Rust: 12 of 12 complete groups passed; 0 running, 0 failed and 0 pending. All43 published compiler check: passed. Private Cinch candidate all43: passed. Complete original proof/interface groups: 19 of 19 complete groups passed; 0 running, 0 failed and 0 pending. Actual Cinch exporter and independent decoder: passed; 28 controls passed. Private implementations grant no public names; full new-source bootstrap remains required.",
+      "state": "passed"
     },
     {
       "title": "Latest source: fresh bootstrap with updated pins",
@@ -153,7 +153,7 @@
     },
     {
       "title": "Retained prior Rust run: remaining groups",
-      "detail": "32 of 84 complete groups passed; 1 running, 0 failed and 51 pending.Exact original16cef source and binaries; the first145 passing groups and the original fixture failure remain preserved. The fixture repair is independently validated on published25b7e82; this diagnostic continuation does not claim a new full-source pass.",
+      "detail": "33 of 84 complete groups passed; 1 running, 0 failed and 50 pending.Exact original16cef source and binaries; the first145 passing groups and the original fixture failure remain preserved. The fixture repair is independently validated on published25b7e82; this diagnostic continuation does not claim a new full-source pass.",
       "state": "running"
     },
     {
@@ -237,5 +237,5 @@
   "fullGoalComplete": false,
   "summary": "All 43 compiler-source checks: passed. 14 of 14 complete groups passed; 0 running, 0 failed and 0 pending. runtime behavior: passed; bootstrap_eval: passed; library calls: passed; bootstrap_source_proofs: passed; bootstrap_source_constructors: passed; refinements and effects: passed; Core validation: passed; independent type checker: passed; bootstrap_decisions: passed; bootstrap_source_decisions: passed; bootstrap_export_interfaces: passed; bootstrap_source_projection: passed; arrays: passed; bootstrap_array_float_bits: passed.",
   "activity": "Pre-method-body16cef82 Rust suite (retained full run): 145 of 230 complete groups passed; 0 running, 1 failed and 84 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 14 of 14 complete groups passed; 0 running, 0 failed and 0 pending. runtime behavior: passed; bootstrap_eval: passed; library calls: passed; bootstrap_source_proofs: passed; bootstrap_source_constructors: passed; refinements and effects: passed; Core validation: passed; independent type checker: passed; bootstrap_decisions: passed; bootstrap_source_decisions: passed; bootstrap_export_interfaces: passed; bootstrap_source_projection: passed; arrays: passed; bootstrap_array_float_bits: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 75 of 93 complete groups passed; 1 running, 0 failed and 17 pending.",
-  "updatedAt": "2026-11-05T13:39:58.542950+00:00"
+  "updatedAt": "2026-11-05T13:42:40.724465+00:00"
 }
