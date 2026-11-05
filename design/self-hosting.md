@@ -1,5 +1,25 @@
 # Self-hosting
 
+## Method-proof compiler completes the bootstrap audit (2026-11-05)
+
+The frozen `74f0d661` compiler has an independently verified Stage0/1/2/3
+bootstrap. Stage1 rebuilds every compiler module into Stage2, which rebuilds
+Stage3. All twelve stage smoke checks pass. Stage2 and Stage3 have identical
+LLVM, executables and all 43 canonical compiler interfaces. Both executables
+hash to `ec948a720945da704bd4f9701d82a52bf00e2c7bb571dba35abfc7df7348a99c`.
+
+The compiler's interface-only entry consumer passes with no compiler source
+bodies. A real changed-source rebuild changes its diagnostic behavior. The
+independent auditor also validates the emitted interface sets through the
+Native public reader. This proves Acceptance 1-4 for that exact snapshot;
+see `bootstrap/current-method-proof-bootstrap-results.json`.
+
+The later published `5fc23130` library-object compiler and the private byte-
+observation repair need their own matching bootstrap and complete suites.
+The Native sweep's byte-observation failures remain visible. Original
+API/100-target coverage and Acceptance 5 remain open; this record is not a
+full-goal completion claim. Explicit 85f00ca seed/library pins are unchanged.
+
 ## Cinch emits and reloads a real closed library object (2026-11-05)
 
 Compiler `5fc23130` now exposes `--emit-object` through its actual checked
