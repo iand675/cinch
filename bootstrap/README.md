@@ -417,11 +417,20 @@ never falls back to the Rust frontend. With neither variable set, the existing
 Native path remains the default.
 
 The external path bundles the project's owned source files, invokes `--check`
-or `--compile-only`, and records inputs, arguments, outputs and status beneath
+or `--compile-only`, and can request `--emit-ir` or `--emit-object` from a
+selected compiler that implements those modes. It records inputs, arguments,
+outputs and status beneath
 `.cinch-self-tests/`. Build does not execute the artifact; run executes the
 successfully built artifact and retains its exit code. Only distinct base-family
 interfaces are accepted; Native-produced compiler implementation interfaces are
-refused. EmitIr is explicitly unsupported on this path for now.
+refused. LLVM output is copied to the requested output file, or printed when
+no file is requested. Object emission requires an explicit `CINCH_TEST_OBJECTS`
+configuration and asks the selected compiler for `.o`, `.ll`, `.abi.json` and
+`build/*.cinchif` outputs. An older selected compiler that lacks object mode
+still refuses; the adapter cannot supply that compiler feature itself.
+The actual Cinch object CLI is under separate development and validation.
+All eight complete adapter tests pass on the current Native producer; see
+`current-output-mode-adapter-results.json`.
 
 `compiler/examples/bootstrap_external_probe.rs` exercises all three supported
 modes through a compiled Cinch frontend, including multi-module input, a filename

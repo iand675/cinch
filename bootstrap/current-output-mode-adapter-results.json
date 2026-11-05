@@ -1,0 +1,16 @@
+{
+  "binary_sha256": "a0a87c4e6de796fa1e7726ba1628372a69dad71aac47e7b1e38bdb66fbe8145d",
+  "compiler_source_sha256": "ad6733eb77e92c5a2400c519c52e0bc4de7f6abc1d95e879da537bd42d59e5fc",
+  "filtered": 0,
+  "full_goal_complete": false,
+  "ignored": 0,
+  "log_sha256": "3ae9f2d61e7f692efc4dbf068d2343e904417ab61364d72f11e73f1c9dd6eb2a",
+  "native_rlib_sha256": "b9008bb6113767a9c027553cba3dc70ca05938cc2a1652c28de4670277d435ba",
+  "native_source_sha256": "6b567529032465cde863607185da47aa7d5f9e5ecd99a596158174fd7efa6aa7",
+  "scope": "Complete eight-test external-frontend adapter group, retaining all six original tests. New transport controls route LLVM/object output to a deliberately scripted selected compiler on invalid Cinch input, enforce explicit library dependency configuration and require actual output companions. No Native program frontend fallback. This proves adapter routing/refusals, not the actual compiler object mode. Published Cinch source/pins remain unchanged; the separate private object CLI and matching bootstrap/full-suite/API/Acceptance5 gates remain open.",
+  "source_sha256": "8c8e79ca489f02998adbf46b2649ede54a49a74f66e91bad2d39fe2c41c79a24",
+  "status": "passed-selected-frontend-output-adapter",
+  "tests": 8,
+  "verified_at": "2026-11-05T19:36:46.870295+00:00",
+  "whole_groups": 1
+}

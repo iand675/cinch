@@ -89,10 +89,13 @@ fn reachable_sources(files: &[PathBuf], entry: &Path) -> Vec<PathBuf> {
 }
 
 pub fn drive(frontend: &Frontend, mode: Mode, dir: &Path, entry: &str, out: Option<PathBuf>) -> Result<i32, String> {
+    drive_with_objects(frontend, mode, dir, entry, out, std::env::var_os("CINCH_TEST_OBJECTS").filter(|p| !p.is_empty()).map(PathBuf::from))
+}
+
+pub fn drive_with_objects(frontend: &Frontend, mode: Mode, dir: &Path, entry: &str, out: Option<PathBuf>, objects: Option<PathBuf>) -> Result<i32, String> {
     let compiler = frontend.compiler.canonicalize().map_err(|e| format!("selected compiler (no Native fallback): {e}"))?;
     let interfaces = frontend.interfaces.canonicalize().map_err(|e| format!("selected interfaces: {e}"))?;
     validate_interfaces(&interfaces)?;
-    if matches!(mode, Mode::EmitIr | Mode::EmitObject) { return Err(format!("external frontend {mode:?} mode is not implemented; refusing a Native fallback")) }
     let dir = dir.canonicalize().map_err(|e| e.to_string())?;
     let entry = dir.join(entry).canonicalize().map_err(|e| format!("external test entry: {e}"))?;
     if !entry.starts_with(&dir) { return Err("external test entry leaves its project".into()) }
@@ -113,11 +116,26 @@ pub fn drive(frontend: &Frontend, mode: Mode, dir: &Path, entry: &str, out: Opti
     }
     let source = work.join("source.cinch");
     std::fs::write(&source, bundle).map_err(|e| e.to_string())?;
-    let ir = work.join("output.ll");
-    let exe = out.map(|p| if p.is_absolute() { p } else { std::env::current_dir().unwrap_or_else(|_| dir.clone()).join(p) }).unwrap_or_else(|| work.join("program"));
+    let mut ir = work.join("output.ll");
+    let requested_output = out.is_some();
+    let exe = out.map(|p| if p.is_absolute() { p } else { std::env::current_dir().unwrap_or_else(|_| dir.clone()).join(p) }).unwrap_or_else(|| if mode == Mode::EmitObject { entry.with_extension("o") } else { work.join("program") });
     let report = work.join("link-report.txt");
-    let mut args = vec![if mode == Mode::Check { "--check".to_string() } else { "--compile-only".to_string() }, "--interfaces".into(), interfaces.display().to_string(), source.display().to_string(), ir.display().to_string()];
-    if mode != Mode::Check { args.extend([exe.display().to_string(), report.display().to_string()]); }
+    let flag = match mode { Mode::Check => "--check", Mode::EmitIr => "--emit-ir", Mode::EmitObject => "--emit-object", Mode::Build | Mode::Run => "--compile-only" };
+    let mut args = vec![flag.into(), "--interfaces".into(), interfaces.display().to_string()];
+    if mode == Mode::EmitObject {
+        let configuration = objects.ok_or("external object emission requires explicit CINCH_TEST_OBJECTS; refusing a Native fallback")?;
+        let configuration = configuration.canonicalize().map_err(|e| format!("selected library object configuration: {e}"))?;
+        ir = exe.with_extension("ll");
+        if exe == ir || exe == exe.with_extension("abi.json") { return Err("object output collides with its companions".into()); }
+        std::fs::create_dir_all(dir.join("build")).map_err(|e| e.to_string())?;
+        args.extend(["--objects".into(), configuration.display().to_string()]);
+    }
+    args.extend([source.display().to_string(), ir.display().to_string()]);
+    match mode {
+        Mode::EmitObject => args.extend([exe.display().to_string(), exe.with_extension("abi.json").display().to_string(), format!("{}/", dir.join("build").display())]),
+        Mode::Build | Mode::Run => args.extend([exe.display().to_string(), report.display().to_string()]),
+        Mode::Check | Mode::EmitIr => (),
+    }
     let receipt = Json::obj(vec![("compiler", Json::Str(compiler.display().to_string())), ("interfaces", Json::Str(interfaces.display().to_string())), ("entry", Json::Str(entry.display().to_string())), ("mode", Json::Str(format!("{mode:?}"))), ("arguments", Json::Arr(args.iter().cloned().map(Json::Str).collect())), ("inputs", Json::Arr(inputs))]);
     std::fs::write(work.join("invocation.json"), receipt.to_text()).map_err(|e| e.to_string())?;
     let output = std::process::Command::new(&compiler).args(&args).current_dir(&dir).output().map_err(|e| format!("invoke selected Cinch compiler (no Native fallback): {e}"))?;
@@ -133,6 +151,12 @@ pub fn drive(frontend: &Frontend, mode: Mode, dir: &Path, entry: &str, out: Opti
         Mode::Build => if exe.is_file() { Ok(0) } else { Err("selected compiler succeeded without an executable".into()) },
         // Match the Native driver: programs inherit the test caller's working directory.
         Mode::Run => std::process::Command::new(&exe).status().map_err(|e| e.to_string())?.code().ok_or_else(|| "external test artifact terminated without an exit code".into()),
-        Mode::EmitIr | Mode::EmitObject => unreachable!(),
+        Mode::EmitIr => if ir.is_file() {
+            if requested_output { std::fs::copy(&ir, &exe).map_err(|e| e.to_string())?; }
+            else { print!("{}", std::fs::read_to_string(&ir).map_err(|e| e.to_string())?); }
+            Ok(0)
+        } else { Err("selected compiler succeeded without LLVM output".into()) },
+        Mode::EmitObject => if exe.is_file() && ir.is_file() && exe.with_extension("abi.json").is_file() { Ok(0) }
+            else { Err("selected compiler succeeded without object companions".into()) },
     }
 }

@@ -1,5 +1,20 @@
 # Next steps (as of 2026-11-05)
 
+## Portable test output modes use the selected compiler (2026-11-05)
+
+The external test adapter now routes LLVM and object output requests to its
+selected frontend, requiring an explicit library dependency configuration for
+objects and checking that output companions exist. It retains source import
+closure selection, argument boundaries and refusal of a Native fallback.
+All eight complete adapter tests pass against the current Rust producer,
+including the six original controls. See
+`bootstrap/current-output-mode-adapter-results.json`.
+
+This is transport coverage. The actual Cinch library-object CLI is still private
+and under end-to-end validation; the published compiler source and stage pins
+are unchanged. Matching full self-built suites, original API/100-target coverage
+and Acceptance 5 remain required.
+
 ## Library ABI facts describe real public entries (2026-11-05)
 
 `emit-runtime-library-artifact-with-object` now returns actual LLVM public
