@@ -1,0 +1,39 @@
+{
+  "all43_check": {
+    "builder_sha256": "be97b34eafcdad1bdcd8c15ac956a79f1271eb124d5c460e378cda4f1db2a0dd",
+    "builder_source_sha256": "917f6e1fc2bc376224a6f2edb1ae951e73c364ff216cf558e2c714003cf6bc36",
+    "child_pid": 13497,
+    "compiler_modules": 43,
+    "compiler_source_sha256": "038faba053d76f5297d7996e9032066e10994dd69460b6f500a2ddb2645cfa58",
+    "diagnostics": "",
+    "exit_code": 0,
+    "full_goal_complete": false,
+    "interfaces_sha256": "067ab7c76c130a53b952b9d8fa0a0cfd7702bddf64e3dae51724c0275ae98163",
+    "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+    "pid": 13003,
+    "scope": "Actual917f Cinch compiler checks the exact full43 staged-driver inputs of the row-argument parser repair using55 authenticated85 library-only interfaces. Separate complete Native-built runtime syntax-tree/corpus groups execute the changed parser. This check does not build a new executable or prove a matching staged fixedpoint.",
+    "source": "/tmp/cinch-row-argument-source-check-1/source",
+    "source_sha256": "5af85c730b4c585352ed722d52e34fbbc9db5f6955039731150410c2093e05e2",
+    "status": "passed",
+    "worker_slot": 1
+  },
+  "compiler_modules_checked": 43,
+  "compiler_source_sha256": "038faba053d76f5297d7996e9032066e10994dd69460b6f500a2ddb2645cfa58",
+  "filtered": 0,
+  "full_goal_complete": false,
+  "ignored": 0,
+  "log_sha256": {
+    "bootstrap_parse": "7e5a59ad61fdad436f43d350ec4ef25c54c829462cb9cc5020e6fa36cc756bea",
+    "bootstrap_type_syntax": "4b20b1e1bd05bfcf79d7324e50b1cadf9d3358796f136c66d9a969877d76e599"
+  },
+  "malformed_row_inputs": 6,
+  "native_source_sha256": "6b567529032465cde863607185da47aa7d5f9e5ecd99a596158174fd7efa6aa7",
+  "schema": 1,
+  "scope": "Effect rows in a type application retain their actual structured labels and optional tail, using the existing row grammar. Original syntax-tree checks and complete parser corpus/agreement group pass unchanged apart from added coverage and two new diagnostic exit labels. Five added whole-scheme trees include empty/open/qualified rows and the exact nested Ref/Array/Thunk copy signature. Six malformed row arguments refuse; standalone rows remain non-atoms, matching the Native parser application boundary. Actual917f Cinch compiler independently checks all43 exact staged-driver inputs of this038f compiler; it does not build a new executable or establish a matching finalStage3. User row-family kinds, Thunk/Ref/Copy ownership, staging, existential/indexed constructors, typedFFI, source-prelude replacements, matching full suites/API105 and Acceptance5 remain open. The separate10f generic-row experiment and its unsupported Native oracle are not included.",
+  "source_sha256": "5af85c730b4c585352ed722d52e34fbbc9db5f6955039731150410c2093e05e2",
+  "status": "passed-row-argument-parser",
+  "structured_row_inputs": 5,
+  "tests": 2,
+  "verified_at": "2026-11-05T21:41:34.747920+00:00",
+  "whole_groups": 2
+}

@@ -4,7 +4,7 @@
 module Main where
 
   import Bootstrap.Ast
-  import Bootstrap.Parse (parse-program)
+  import Bootstrap.Parse (parse-program, parse-scheme)
   import Bootstrap.Check (check-program)
   import Bootstrap.Report (Diagnostic, diagnostic-message)
   import Text.Parse (ParseOutcome, Parsed, Failed)
@@ -328,6 +328,61 @@ module Main where
       other -> False
     other -> False
 
+  -- A row in type-argument position is not a declaration block or an
+  -- omitted argument. Keep its labels/tail and the following value type.
+  argument-row :: String -> String -> Option TypeExpr
+  argument-row head source = case parse-scheme "row-argument" (string-to-bytes source) of
+    Parsed (TApp s (TName hs actual) args) Nil -> if same actual head then
+      (case type-args-of args of
+        Cons (TRow rs labels tail) (Cons (TName ts value) Nil) -> if same value "Int" then Some (TRow rs labels tail) else None
+        other -> None)
+      else None
+    other -> None
+
+  empty-thunk :: TypeExpr -> Bool
+  empty-thunk ty = case ty of
+    TApp s (TName hs name) args -> same name "Thunk" && (case type-args-of args of
+      Cons (TRow rs (TArgsEnd end) None) (Cons (TName ts value) Nil) -> same value "Int"
+      other -> False)
+    other -> False
+  array-thunk :: TypeExpr -> Bool
+  array-thunk ty = case ty of
+    TApp s (TName hs name) args -> same name "Array" && (case type-args-of args of Cons inner Nil -> empty-thunk inner; other -> False)
+    other -> False
+  borrowed-array-thunk :: TypeExpr -> Bool
+  borrowed-array-thunk ty = case ty of
+    TApp s (TName hs name) args -> same name "Ref" && (case type-args-of args of
+      Cons (TName rs region) (Cons inner Nil) -> same region "r" && array-thunk inner
+      other -> False)
+    other -> False
+
+  row-arguments-ok :: Bool
+  row-arguments-ok =
+    (case argument-row "Thunk" "Thunk {} Int" of Some (TRow s (TArgsEnd end) None) -> True; other -> False)
+    && (case argument-row "Lazy" "Lazy {e} Int" of Some (TRow s (TArgsEnd end) (Some tail)) -> same tail "e"; other -> False)
+    && (case argument-row "Thunk" "Thunk {IO r, Fail} Int" of
+      Some (TRow s labels None) -> case type-args-of labels of
+        Cons first (Cons (TName ls second) Nil) -> label-is first "IO" "r" && same second "Fail"
+        other -> False
+      other -> False)
+    && (case argument-row "Carrier" "Carrier {Network.Read r, Foreign CApi | e} Int" of
+      Some (TRow s labels (Some tail)) -> same tail "e" && (case type-args-of labels of
+        Cons first (Cons second Nil) -> label-is first "Network.Read" "r" && label-is second "Foreign" "CApi"
+        other -> False)
+      other -> False)
+    && (case parse-scheme "array-copy-signature" (string-to-bytes "forall r. Ref r (Array (Thunk {} Int)) -> Array (Thunk {} Int)") of
+      Parsed (TForall s binders (TFun fs input output)) Nil -> (case forall-params-of binders of Cons parameter Nil -> same (param-name parameter) "r"; other -> False)
+        && borrowed-array-thunk input && array-thunk output
+      other -> False)
+
+  bad-row-argument :: String -> Bool
+  bad-row-argument source = case parse-scheme "malformed-row-argument" (string-to-bytes source) of Failed errors -> True; other -> False
+  malformed-row-arguments-refused :: Bool
+  malformed-row-arguments-refused = bad-row-argument "Thunk {IO r,} Int"
+    && bad-row-argument "Thunk {IO r |} Int" && bad-row-argument "Thunk {e | rest} Int"
+    && bad-row-argument "Thunk {1} Int" && bad-row-argument "Thunk {IO r Int"
+    && bad-row-argument "{Fail}"
+
   extra-checks :: Int
   extra-checks =
     if refusal-ok then
@@ -336,7 +391,7 @@ module Main where
           if tuple-check-ok then
             if handler-ok then
               if rows-ok && with-ok then
-                if malformed-refused "module X where\n  f :: Unit ->{IO r,} Unit\n" && malformed-refused "module X where\n  f :: Unit ->{IO r |} Unit\n" && malformed-refused "module X where\n  f :: Unit ->{1} Unit\n" && malformed-refused "module X where\n  f = with (io) in 0\n" then 0 else 18
+                if malformed-refused "module X where\n  f :: Unit ->{IO r,} Unit\n" && malformed-refused "module X where\n  f :: Unit ->{IO r |} Unit\n" && malformed-refused "module X where\n  f :: Unit ->{1} Unit\n" && malformed-refused "module X where\n  f = with (io) in 0\n" then (if row-arguments-ok then (if malformed-row-arguments-refused then 0 else 20) else 19) else 18
               else 17
             else 13
           else 12

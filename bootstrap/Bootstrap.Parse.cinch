@@ -2164,6 +2164,12 @@ module Bootstrap.Parse where
         case parse-type-atom toks src of
           POk a rest2 -> type-app-args head rest2 src (Cons a acc)
           PBad -> finish-type-app head toks acc
+      else if is-punct-t (lt-token t) "{" then
+        -- Effect rows are arguments of Thunk/Lazy and row-parameterized
+        -- constructors. Preserve their labels and tail as structured AST.
+        case parse-row (sp-of t) rest src of
+          POk row tail -> type-app-args head tail src (Cons row acc)
+          PBad -> PBad
       else finish-type-app head toks acc
     Nil -> finish-type-app head toks acc
 

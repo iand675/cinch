@@ -1,5 +1,29 @@
 # Next steps (as of 2026-11-05)
 
+## Row arguments preserve their complete syntax tree (2026-11-05)
+
+Compiler `038faba0` parses effect rows in type-argument position, including
+`Thunk {} Int`, open tails and qualified effect labels. It preserves labels,
+tails and the following value argument in the existing structured AST; it
+does not consume a row as a declaration block or drop it. Rows remain type
+arguments rather than standalone type atoms, matching the Rust parser's
+boundary.
+
+Both complete existing groups pass: the syntax-tree checks and the full parser
+corpus/agreement group, with none ignored or filtered. Five added whole-scheme
+tree checks include the exact original Ref/Array/Thunk copy signature; six
+malformed row inputs refuse. Actual compiler917f independently checks all43
+exact staged-driver inputs of this new compiler. See
+`bootstrap/current-row-argument-parser-results.json`.
+
+The separate generic user-row-family experiment is private: its Rust comparison
+finds that general declared Row parameters are still outside the current Native
+baseline. This parser change does not add such family kinds, Copy/borrow/Thunk
+semantics, staging or constructor/foreign support. The running917f chain retains
+its exact earlier inputs and is rebuilding Stage2. Matching038f bootstrap,
+complete suites, all original100 targets plus five additions and Acceptance5
+remain required. Existing failing array/API receipts retain their917f scope.
+
 ## Original array and interface/API groups expose the remaining gaps (2026-11-05)
 
 The published `917f6e1f` compiler runs the complete original fifteen-case
