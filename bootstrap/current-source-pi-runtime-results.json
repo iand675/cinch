@@ -1,0 +1,27 @@
+{
+  "cases": 46,
+  "compiler_source_preflight": {
+    "exit_code": 0,
+    "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "compiler_source_sha256": "31ac09d621b8f8bc7b13f64f3eb6f61965f96507d7f8683b8512d4156ff40fa0",
+  "full_goal_complete": false,
+  "rows": [
+    {
+      "binary": "/tmp/cinch-native-proof-pi-validation-2/cargo/debug/deps/bootstrap_source_pi-b6ea2f7e2716b35f",
+      "binary_sha256": "3aa8496479b05abfb9d0bcf71b4aed70124e731cc0c609c7a24820edbab61a12",
+      "exit_code": 0,
+      "log_sha256": "2e9138456208d3b33cc1207ab4e23e0b61daf1d870013eac39c37c853a2f25ee",
+      "name": "bootstrap_source_pi",
+      "status": "passed"
+    }
+  ],
+  "scope": "Complete original Pi group retains every original source case, with the stale ghost-value-index expectation corrected to specified implicit runtime binding semantics. Independently inspects matching opening/local identity and Nat types; unrelated value, Type and Prop names remain unbound. No production compiler source changes. Full matching suites and Acceptance5 remain required.",
+  "source": "/tmp/cinch-native-proof-pi-validation-2/source",
+  "source_sha256": "f99c38b66d31bd97660e012e91b89956a3573b0aec13a66eb2a4e4e177c6adf6",
+  "status": "passed-scoped-source-pi-runtime-identity",
+  "test_target_compile_check": {
+    "exit_code": 0,
+    "log_sha256": "70dca67deb440c92b9c9a0e29e05a80ae2a17fc37fd24c5a516117cae0056680"
+  }
+}

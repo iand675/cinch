@@ -52,7 +52,10 @@ fn source_dependent_functions_use_checked_argument_values() {
         ("unknown calls cannot be reflected", int, "loop :: Int -> Int\n  loop x = loop x\n  bad :: Int -> AtI 0\n  bad x = make-i (loop x)", Some("type mismatch")),
         ("zero cannot erase a partial argument", int, "loop :: Int -> Int\n  loop x = loop x\n  bad :: Int -> AtI 0\n  bad x = make-i (0 * loop x)", Some("type mismatch")),
         ("dependent declaration kind cannot capture caller binder", "  data Dep a (x :: a) where\n    Pack :: Dep a x\n", "bad :: forall a (x :: a). Dep Int x -> Int\n  bad value = 0", Some("binder-aware kind application")),
-        ("ghost forall index has no runtime binding", "", "bad :: forall (n :: Nat). Nat\n  bad = n", Some("unbound variable")),
+        ("implicit forall index has its actual runtime binding", "", "bad :: forall (n :: Nat). Nat\n  bad = n", None),
+        ("implicit index cannot invent an unrelated value", "", "bad :: forall (n :: Nat). Nat\n  bad = missing", Some("unbound variable")),
+        ("type parameter has no runtime value", "", "bad :: forall (a :: Type). Nat\n  bad = a", Some("unbound variable")),
+        ("proposition parameter has no runtime value", "", "bad :: forall (p :: Prop). Nat\n  bad = p", Some("unbound variable")),
     ];
     for (name, prefix, body, refusal) in cases {
         let source = format!("module Main where\n{prefix}  {body}\n  main :: Int\n  main = 0\n");

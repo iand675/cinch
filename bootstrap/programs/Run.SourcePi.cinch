@@ -33,6 +33,20 @@ module Main where
       Cons (MkCoreClause s Nil (CLet at ty id name sc rhs (CApply use out fun (CLocal ref arg slot display actuals)))) Nil -> id == slot
       other -> False
     None -> True
+  nat-carrier :: UType -> Bool
+  nat-carrier ty = case ty of UCon name KType -> same name "Nat"; other -> False
+  implicit-value-linked :: List CoreDefinition -> Bool
+  implicit-value-linked definitions = case find "bad" definitions of
+    Some d -> (case scheme-params (core-scheme d) of
+      [parameter] -> (case value-carrier (quant-kind parameter) of
+        Some carrier -> if nat-carrier carrier then
+          (case (opening-value-types (core-openings d), core-clauses d) of
+            ([(opened, declared)], [MkCoreClause sp Nil (CLocal at actual used name Nil)]) -> opened == used && nat-carrier declared && nat-carrier actual
+            other -> False)
+          else True
+        None -> True)
+      other -> True)
+    None -> True
   run :: Bytes -> (Int, String)
   run source = case parse-program "source-pi" source of
     Parsed program Nil -> let checked = check-program program in
@@ -40,7 +54,7 @@ module Main where
       let errors = elaboration-errors result in
       if list-length checked > 0 || list-length errors > 0 then
         (if list-length (elaboration-core result) == 0 then 4 else 93, render-diagnostics (checked <> errors))
-      else if all-closed (elaboration-core result) && linked (elaboration-core result) && let-retained (elaboration-core result) then (0, "")
+      else if all-closed (elaboration-core result) && linked (elaboration-core result) && let-retained (elaboration-core result) && implicit-value-linked (elaboration-core result) then (0, "")
       else (94, "source Pi lost its actual argument identity or retained an open Core index")
     other -> (2, "source parse failed")
   main :: Unit ->{IO r} Int

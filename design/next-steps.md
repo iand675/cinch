@@ -1,5 +1,17 @@
 # Next steps (as of 2026-11-05)
 
+## Source Pi runtime binding expectation (2026-11-05)
+
+The complete source-Pi group passes with every original source case retained.
+The implicit `forall (n :: Nat)` case now expects its specified runtime value
+binding. Its retained Core must connect the actual opened Nat slot to the
+same local identity and carrier; merely accepting the text cannot pass.
+Additional negative cases keep unrelated variables, type parameters and
+proposition parameters unavailable as runtime values. See
+`bootstrap/current-source-pi-runtime-results.json`. Production compiler
+modules are unchanged. The earlier failing sweeps remain preserved; full
+matching Native/self-built suites and Acceptance 5 remain required.
+
 ## Native proof, syntax hygiene and exact float repair (2026-11-05)
 
 The current Rust implementation rejects the original recursive, partial,
