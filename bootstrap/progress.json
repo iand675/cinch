@@ -58,7 +58,7 @@
     },
     {
       "title": "Complete suite on published ABI6array compiler",
-      "detail": "23 of 209 complete groups passed; 1 running, 0 failed and 185 pending.Every group includes ignored tests. State: running.",
+      "detail": "24 of 209 complete groups passed; 1 running, 0 failed and 184 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -72,8 +72,8 @@
       "state": "passed"
     },
     {
-      "title": "Earlier API checkpoint: exact Stage3 behavior",
-      "detail": "37 of 91 complete groups passed; 0 running, 1 failed and 53 pending.79 bootstrap groups, eight ordinary targets, three complete mixed consumers and the designed ABI5 array refusal. Native library fixtures remain explicit; selected compiler failures never fall back. Earlier compiler inputs; a matching published-source run remains required.",
+      "title": "Complete behavior through exact final Stage3",
+      "detail": "0 of 92 complete groups passed; 0 running, 0 failed and 92 pending.79 bootstrap groups, eight ordinary targets, three complete mixed consumers and the designed ABI5 array refusal. Native library fixtures remain explicit; selected compiler failures never fall back.",
       "state": "running"
     },
     {
@@ -145,11 +145,11 @@
   "blockers": [
     {
       "title": "Complete ABI6bootstrap, proof/API parity and final suites",
-      "detail": "Published9a7288e includes immutableArray/Tensor/Columnar lowering, exact physical/layout/defining-interface guards, closedGlobal/Fail/Reentrant/ThreadAffine semantics and explicit64bitword bounds. All24completeaffectedgroups/104tests and43modules pass independently, with31zero-leak arrayprograms and20exactF32/F64patterns. Stage0andStage1 build/smokes and two actualABI6Stage1 arrayclients are independently verified. Seed andlibrary-onlyprovider are intentionally pinned to exactb64710b ABI6sources. Stage2/3 andmatchingfullNative46/finalABI6Stage3suites are stillunproven. Previouse2f/ABI5chainandsweeps remain earlier-source evidence. The publishedRustrecursive false-proof remains accepted; verified33/current/float repair6 passes its originalPrelude regression and continues43groups before originalCLIcontrols. Explicitunrefine candidate5 passed all18directsemantic controls and its completefirstgroup; allninegroups remainrequired. Original13 interfacefixtures gave6structuralpasses/7failures: GADT/localforall, generalforeign declarations, sourcedtotalbodyprovenance andsafe sourcemodule replacement. Eval explicitimports now reachbackend, exposing missingruntimeDec/proof lowering; an isolated checkedDec candidate1 is queued. Original100target/API/fullAcceptance5 remainopen."
+      "detail": "Published9a7288e includes immutableArray/Tensor/Columnar lowering, exact physical/layout/defining-interface guards, closedGlobal/Fail/Reentrant/ThreadAffine semantics and explicit64bitword bounds. All24completeaffectedgroups/104tests and43modules pass independently, with31zero-leak arrayprograms and20exactF32/F64patterns. Stage0andStage1 build/smokes and two actualABI6Stage1 arrayclients are independently verified. Seed andlibrary-onlyprovider are intentionally pinned to exactb64710b ABI6sources. Stage2/3 andmatchingfullNative46/finalABI6Stage3suites are stillunproven. Previouse2f/ABI5chainandsweeps remain earlier-source evidence. The publishedRustrecursive false-proof remains accepted; verified33/current/float repair6 passes its originalPrelude regression and continues43groups before originalCLIcontrols. Explicitunrefine candidate5 passed all18directsemantic controls and its completefirstgroup; all nine complete groups now pass; its final 43-module check and independent audit remain required. Original13 interfacefixtures gave6structuralpasses/7failures: GADT/localforall, generalforeign declarations, sourcedtotalbodyprovenance andsafe sourcemodule replacement. Eval explicitimports now reachbackend, exposing missingruntimeDec/proof lowering; The checked Dec candidate executes its first three decision programs with zero leaks; its proof-refinement fixture now has its missing local type declaration and awaits a diagnostic replay. Original100target/API/fullAcceptance5 remainopen."
     },
     {
       "title": "Investigate the recorded failure",
-      "detail": "self-built tests: bootstrap_eval; Current recursive-proof counterexample is incorrectly accepted"
+      "detail": "Current recursive-proof counterexample is incorrectly accepted"
     },
     {
       "title": "Finish the fresh bootstrap",
@@ -157,7 +157,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "23 of 209 complete groups passed; 1 running, 0 failed and 185 pending."
+      "detail": "24 of 209 complete groups passed; 1 running, 0 failed and 184 pending."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -165,7 +165,7 @@
     },
     {
       "title": "Finish the exact self-built compiler tests",
-      "detail": "37 of 91 complete groups passed; 0 running, 1 failed and 53 pending. Earlier compiler inputs; a matching published-source run remains required."
+      "detail": "0 of 92 complete groups passed; 0 running, 0 failed and 92 pending."
     },
     {
       "title": "Finish final external acceptance",
@@ -206,6 +206,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "All 43 compiler-source checks: passed. 24 of 24 complete groups passed; 0 running, 0 failed and 0 pending. index scope and representation: passed; bootstrap_array_float_bits: passed; refinements and effects: passed; bootstrap_export_interfaces: passed; bootstrap_effect_types: passed; arrays: passed; bootstrap_source_decisions: passed; bootstrap_nominals: passed; independent type checker: passed; Core validation: passed; bootstrap_pipeline: passed; runtime behavior: passed; library calls: passed; bootstrap_machine_values: passed; bootstrap_value_indices: passed; bootstrap_value_kinds: passed; interface_prelude_overrides: passed; prelude_split: passed; prelude_lib: passed; ffi: passed; interface_nominals: passed; interface_class_contracts: passed; staging: passed; params: passed.",
-  "activity": "Complete suite on published ABI6array compiler: 23 of 209 complete groups passed; 1 running, 0 failed and 185 pending. Stage builds and smoke checks: 2 of 4; chain state: building-stage2. Repair gates: 24 of 24 complete groups passed; 0 running, 0 failed and 0 pending. index scope and representation: passed; bootstrap_array_float_bits: passed; refinements and effects: passed; bootstrap_export_interfaces: passed; bootstrap_effect_types: passed; arrays: passed; bootstrap_source_decisions: passed; bootstrap_nominals: passed; independent type checker: passed; Core validation: passed; bootstrap_pipeline: passed; runtime behavior: passed; library calls: passed; bootstrap_machine_values: passed; bootstrap_value_indices: passed; bootstrap_value_kinds: passed; interface_prelude_overrides: passed; prelude_split: passed; prelude_lib: passed; ffi: passed; interface_nominals: passed; interface_class_contracts: passed; staging: passed; params: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 37 of 91 complete groups passed; 0 running, 1 failed and 53 pending. Proposed compiler repair (separate unpublished source): failed; 0 of 9 complete groups passed; 0 running, 1 failed and 8 pending.",
-  "updatedAt": "2026-11-05T02:27:08.919309+00:00"
+  "activity": "Complete suite on published ABI6array compiler: 24 of 209 complete groups passed; 1 running, 0 failed and 184 pending. Stage builds and smoke checks: 2 of 4; chain state: building-stage2. Repair gates: 24 of 24 complete groups passed; 0 running, 0 failed and 0 pending. index scope and representation: passed; bootstrap_array_float_bits: passed; refinements and effects: passed; bootstrap_export_interfaces: passed; bootstrap_effect_types: passed; arrays: passed; bootstrap_source_decisions: passed; bootstrap_nominals: passed; independent type checker: passed; Core validation: passed; bootstrap_pipeline: passed; runtime behavior: passed; library calls: passed; bootstrap_machine_values: passed; bootstrap_value_indices: passed; bootstrap_value_kinds: passed; interface_prelude_overrides: passed; prelude_split: passed; prelude_lib: passed; ffi: passed; interface_nominals: passed; interface_class_contracts: passed; staging: passed; params: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 0 of 92 complete groups passed; 0 running, 0 failed and 92 pending. Proposed compiler repair (separate unpublished source): failed; 0 of 9 complete groups passed; 0 running, 1 failed and 8 pending.",
+  "updatedAt": "2026-11-05T02:28:30.913716+00:00"
 }
