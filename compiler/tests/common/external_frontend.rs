@@ -59,6 +59,35 @@ fn sources(root: &Path, dir: &Path, found: &mut Vec<PathBuf>) -> Result<(), Stri
     Ok(())
 }
 
+// Inventory headers only to choose source inputs. Program parsing, checking,
+// diagnostics and code generation remain the selected compiler's work.
+fn reachable_sources(files: &[PathBuf], entry: &Path) -> Vec<PathBuf> {
+    let headers = files.iter().map(|path| {
+        std::fs::read_to_string(path).ok().and_then(|text| cinch::driver::scan_file(&text, &path.display().to_string()).ok())
+    }).collect::<Vec<_>>();
+    let mut selected = BTreeSet::from([entry.to_path_buf()]);
+    loop {
+        let mut additional = BTreeSet::new();
+        for (index, path) in files.iter().enumerate().filter(|(_, path)| selected.contains(*path)) {
+            let Some(header) = &headers[index] else { continue };
+            for (_, imports) in &header.modules {
+                for (wanted, _) in imports {
+                    // Include every actual provider of a requested module;
+                    // duplicate-provider diagnostics belong to the compiler.
+                    for (candidate, metadata) in files.iter().zip(&headers) {
+                        if metadata.as_ref().is_some_and(|header| header.modules.iter().any(|(name, _)| name == wanted)) {
+                            additional.insert(candidate.clone());
+                        }
+                    }
+                }
+            }
+            let _ = path;
+        }
+        let before = selected.len(); selected.extend(additional);
+        if selected.len() == before { return selected.into_iter().collect(); }
+    }
+}
+
 pub fn drive(frontend: &Frontend, mode: Mode, dir: &Path, entry: &str, out: Option<PathBuf>) -> Result<i32, String> {
     let compiler = frontend.compiler.canonicalize().map_err(|e| format!("selected compiler (no Native fallback): {e}"))?;
     let interfaces = frontend.interfaces.canonicalize().map_err(|e| format!("selected interfaces: {e}"))?;
@@ -69,6 +98,7 @@ pub fn drive(frontend: &Frontend, mode: Mode, dir: &Path, entry: &str, out: Opti
     if !entry.starts_with(&dir) { return Err("external test entry leaves its project".into()) }
     let mut files = Vec::new(); sources(&dir, &dir, &mut files)?; files.sort();
     if !files.contains(&entry) { return Err("external test entry is not a project Cinch source".into()) }
+    let files = reachable_sources(&files, &entry);
     static NEXT: AtomicU64 = AtomicU64::new(0);
     let work = dir.join(".cinch-self-tests").join(format!("{}-{}", std::process::id(), NEXT.fetch_add(1, Ordering::SeqCst)));
     std::fs::create_dir_all(&work).map_err(|e| e.to_string())?;

@@ -1,5 +1,26 @@
 # Next steps (as of 2026-11-05)
 
+## Stage3 test inputs follow the entry import closure (2026-11-05)
+
+The portable test adapter now inventories source headers and bundles complete
+files reachable from the entry's imports. Lexer sample data such as attrs.cinch
+and ticks.cinch stays available to the test program without being compiled as
+modules. Imported modules in shared files and nested directories participate.
+Every duplicate provider of a requested module still reaches the selected
+compiler for its own diagnostic. Invalid entry text also reaches it; there is
+no Native program-checking fallback.
+
+All six complete adapter tests pass, retaining the four original cases and
+adding two dependency-input controls. All three original bootstrap lexer tests
+pass unchanged through actual c8d6 Stage3 executable 645dd0bb, including the
+whole-prelude corpus and the previously failing carrying-token forms. The
+original full-suite failure remains recorded. See
+`bootstrap/current-stage3-import-closure-results.json`.
+
+This is a scoped test-input repair; the complete current matching Native,
+self-built and API/Acceptance 5 gates remain open. The Cinch compiler source,
+bootstrap fixed point and seed/provider pins are unchanged.
+
 ## Native list and byte measure carriers (2026-11-05)
 
 The Rust checker now gives the baked `length` observation its actual checked

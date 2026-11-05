@@ -101,3 +101,42 @@ fn native_library_fixture_cannot_supply_bootstrap_implementation_interfaces() {
     assert!(error.contains("compiler implementation module Bootstrap.Forbidden"), "{error}");
     common::cleanup(&dir);
 }
+
+#[test]
+#[cfg(unix)]
+fn selected_frontend_bundles_imports_and_preserves_lexical_data_files() {
+    let (dir, frontend) = fixture();
+    let entry = "entry with\na newline.cinch";
+    std::fs::write(dir.join(entry), "module Main where\n  import Library\n  main :: Int\n  main = Library.value\n").unwrap();
+    // A requested provider may declare several modules in one file. Imports
+    // of every included module participate, including nested directories.
+    std::fs::write(dir.join("provider.cinch"), "module Library where\n  import Helper\n  value :: Int\n  value = Helper.value\nmodule Side where\n  import Nested\n").unwrap();
+    std::fs::write(dir.join("Helper.cinch"), "module Helper where\n  value :: Int\n  value = 37\n").unwrap();
+    std::fs::create_dir(dir.join("nested")).unwrap();
+    std::fs::write(dir.join("nested/Nested.cinch"), "module Nested where\n  value :: Int\n  value = 0\n").unwrap();
+    std::fs::write(dir.join("attrs.cinch"), "module M where\nmodule M where\n").unwrap();
+    std::fs::write(dir.join("ticks.cinch"), "not valid program source \"\n").unwrap();
+    assert_eq!(drive(&frontend, Mode::Check, &dir, entry, None).unwrap(), 0);
+    let invocation = invocations(&dir).pop().unwrap();
+    let bundle = std::fs::read_to_string(invocation.join("source.cinch")).unwrap();
+    let receipt = std::fs::read_to_string(invocation.join("invocation.json")).unwrap();
+    for path in ["provider.cinch", "Helper.cinch", "nested/Nested.cinch"] { assert!(receipt.contains(path), "{receipt}"); }
+    for data in ["attrs.cinch", "ticks.cinch"] { assert!(!receipt.contains(data), "{receipt}"); }
+    assert!(bundle.contains("module Side") && bundle.contains("module Nested"));
+    assert_eq!(std::fs::read_to_string(dir.join("attrs.cinch")).unwrap(), "module M where\nmodule M where\n");
+    common::cleanup(&dir);
+}
+
+#[test]
+#[cfg(unix)]
+fn duplicate_requested_providers_remain_in_the_selected_compiler_input() {
+    let (dir, frontend) = fixture();
+    let entry = "entry with\na newline.cinch";
+    std::fs::write(dir.join(entry), "module Main where\n  import Library\n").unwrap();
+    for name in ["first.cinch", "second.cinch"] { std::fs::write(dir.join(name), "module Library where\n  value :: Int\n  value = 0\n").unwrap(); }
+    drive(&frontend, Mode::Check, &dir, entry, None).unwrap();
+    let invocation = invocations(&dir).pop().unwrap();
+    let bundle = std::fs::read_to_string(invocation.join("source.cinch")).unwrap();
+    assert_eq!(bundle.matches("module Library").count(), 2, "duplicate declarations must reach the selected frontend");
+    common::cleanup(&dir);
+}
