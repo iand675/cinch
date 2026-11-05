@@ -3,7 +3,7 @@
   "estimate": 90,
   "commit": "95e3f72",
   "estimateNote": "Rough engineering estimate. Verified checks and remaining work are listed below.",
-  "status": "Current-source verification running",
+  "status": "Verification found a failure; correction required",
   "stages": [
     {
       "name": "Prior API Stage 0",
@@ -58,7 +58,7 @@
     },
     {
       "title": "Complete suite on published proof/runtime repair",
-      "detail": "0 of 228 complete groups passed; 0 running, 0 failed and 228 pending.Every group includes ignored tests. State: compiling-all-native-runners. Earlier compiler inputs; a matching published-source run remains required.",
+      "detail": "10 of 229 complete groups passed; 1 running, 1 failed and 217 pending.Every group includes ignored tests. State: running. Earlier compiler inputs; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -143,12 +143,16 @@
       "detail": "Published95e3f72 adds checked decision/proof runtime lowering and owned explicit unrefine, with all14completeaffectedgroups/28tests independently verified,134zero-leak runtimeclients,31arrayclients,20exactIEEEpatterns andall43compiler modules. Publisheded8f8ac corrects the stale implicitNat runtimebinding test and adds identity/erasurecontrols; all46original/currentcases pass. Published656cc37 repairs the Native recursive-proof counterexample, syntax hygiene and float literals (43groups/691tests and16CLIcommands). New canonical compiler c8d6 requires its own fresh Stage0/1/2/3chain and complete matching Native/Stage3/auxiliary/external suites; these are queued/running. The previous31ac chain proves only that earliercompiler. Its evaluator failure is preserved and motivates the now-published runtime repair. Source-defined totalbody reconstruction/admission nowpasses15runtimecontrols, including an ordinary same-spelledbytes-len observation; export and source-provenance forgerycontrols are still being validated. GADT/localforall, generalFFI, safe source-module replacement and the actualCinch proofAPI remain open. Full100originaltarget/APIcoverage and Acceptance5 remain required."
     },
     {
+      "title": "Investigate the recorded failure",
+      "detail": "Native compiler tests: concurrency"
+    },
+    {
       "title": "Finish the fresh bootstrap",
       "detail": " Earlier compiler inputs; a matching published-source run remains required. A matching final chain is not yet verified."
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "0 of 228 complete groups passed; 0 running, 0 failed and 228 pending. Earlier compiler inputs; a matching published-source run remains required."
+      "detail": "10 of 229 complete groups passed; 1 running, 1 failed and 217 pending. Earlier compiler inputs; a matching published-source run remains required."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -197,6 +201,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "All 43 compiler-source checks: passed. 14 of 14 complete groups passed; 0 running, 0 failed and 0 pending. runtime behavior: passed; bootstrap_eval: passed; library calls: passed; bootstrap_source_proofs: passed; bootstrap_source_constructors: passed; refinements and effects: passed; Core validation: passed; independent type checker: passed; bootstrap_decisions: passed; bootstrap_source_decisions: passed; bootstrap_export_interfaces: passed; bootstrap_source_projection: passed; arrays: passed; bootstrap_array_float_bits: passed.",
-  "activity": "Complete suite on published proof/runtime repair: 0 of 228 complete groups passed; 0 running, 0 failed and 228 pending. Stage builds and smoke checks: 2 of 4; chain state: building-stage2; earlier API source, not the published repair. Repair gates: 14 of 14 complete groups passed; 0 running, 0 failed and 0 pending. runtime behavior: passed; bootstrap_eval: passed; library calls: passed; bootstrap_source_proofs: passed; bootstrap_source_constructors: passed; refinements and effects: passed; Core validation: passed; independent type checker: passed; bootstrap_decisions: passed; bootstrap_source_decisions: passed; bootstrap_export_interfaces: passed; bootstrap_source_projection: passed; arrays: passed; bootstrap_array_float_bits: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 0 of 93 complete groups passed; 0 running, 0 failed and 93 pending. Proposed compiler repair (separate unpublished source): passed; 15 of 15 complete groups passed; 0 running, 0 failed and 0 pending.",
-  "updatedAt": "2026-11-05T04:34:39.199753+00:00"
+  "activity": "Complete suite on published proof/runtime repair: 10 of 229 complete groups passed; 1 running, 1 failed and 217 pending. Stage builds and smoke checks: 2 of 4; chain state: building-stage2; earlier API source, not the published repair. Repair gates: 14 of 14 complete groups passed; 0 running, 0 failed and 0 pending. runtime behavior: passed; bootstrap_eval: passed; library calls: passed; bootstrap_source_proofs: passed; bootstrap_source_constructors: passed; refinements and effects: passed; Core validation: passed; independent type checker: passed; bootstrap_decisions: passed; bootstrap_source_decisions: passed; bootstrap_export_interfaces: passed; bootstrap_source_projection: passed; arrays: passed; bootstrap_array_float_bits: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 0 of 93 complete groups passed; 0 running, 0 failed and 93 pending. Proposed compiler repair (separate unpublished source): passed; 15 of 15 complete groups passed; 0 running, 0 failed and 0 pending.",
+  "updatedAt": "2026-11-05T04:39:42.255573+00:00"
 }
