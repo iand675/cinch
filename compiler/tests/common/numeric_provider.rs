@@ -95,3 +95,22 @@ module Prelude where
     Ok(cinch::driver::PreludeSources { modules: parsed.modules, fixities: parsed.fixities,
         exported_fixities: parsed.exported_fixities, base: canonical.base })
 }
+
+/// Replace the requested method equation in its actual checked provider.
+/// Classes, instance identities, slots and all other definitions remain.
+pub fn replace_method(family: &mut cinch::driver::PreludeSources, module: &str, original: &str, old: &str, replacement: &str) -> cinch::Result<()> {
+    assert_eq!(original.matches(old).count(), 1);
+    let parsed = cinch::driver::parse_source(&original.replace(old, replacement), "selected-provider.cinch", &family.base, &family.exported_fixities)?;
+    let changed = parsed.modules.into_iter().next().unwrap();
+    let method_name = old.split_whitespace().next().unwrap().trim_matches(['(', ')']);
+    let (instance_name, equation) = changed.decls.iter().find_map(|declaration| {
+        let cinch::ast::Decl::Instance(instance) = declaration else { return None };
+        instance.methods.iter().find(|method| method.name.text == method_name).map(|method| (instance.name.text.clone(), method.clone()))
+    }).expect("actual changed method");
+    let destination = family.modules.iter_mut().find(|m| m.name.text == module).expect("actual defining module");
+    let instance = destination.decls.iter_mut().find_map(|declaration| match declaration {
+        cinch::ast::Decl::Instance(instance) if instance.name.text == instance_name => Some(instance), _ => None,
+    }).expect("same selected instance");
+    *instance.methods.iter_mut().find(|method| method.name.text == method_name).unwrap() = equation;
+    Ok(())
+}

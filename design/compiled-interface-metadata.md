@@ -23,6 +23,14 @@ lexical scope, dependency closure and acyclicity. Supported numeric result
 refinements must follow from independently derived body bounds. A pure scheme
 alone supplies no executable semantics.
 
+ABI-checked primitive values also retain their own defining roots when calls
+have been inlined into ordinary Core. Admission follows the actual `PrimOp`
+and complete callable declaration, including purity and absence of hidden
+arguments; a source name supplies no semantics. Renamed exports retain the
+original identity. Unknown foreign calls, wrapping machine arithmetic and
+partial/refined signatures remain outside this plain first-order tier. See
+[the primitive-value receipt](../bootstrap/current-native-primitive-body-results.json).
+
 A resolved scheme may carry `measures`, each with an `identity`, complete
 `resolved` defining scheme and `total_body`. These private declarations grant no
 source names. First-tier measure schemes cannot themselves reference further

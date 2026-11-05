@@ -1,0 +1,150 @@
+{
+  "all_test_targets_compile": true,
+  "compiler_modules": 43,
+  "complete_groups": 12,
+  "exact_reused_production_sha256": "4db767d5383303d3c908147cca0e14da6681daec2989e7bcfc157c4104344a81",
+  "filtered": 0,
+  "full_goal_complete": false,
+  "ignored": 0,
+  "native_compiler_sha256": "5fbb4e0a616a8ce9c09d5d0fd5418296fa575de534077ba3d1503959a333a5bd",
+  "new_tests": [
+    "compiler/tests/interface_primitive_bodies.rs"
+  ],
+  "original_total_body_tests_retained": [
+    "a_caller_retypes_changed_body_contracts_and_loses_cyclic_authority",
+    "body_graph_rechecks_scope_sorts_calls_and_total_dependencies",
+    "byte_contents_unknown_foreign_functions_and_recursion_are_not_stable_bodies",
+    "closed_selected_ordering_retains_its_actual_body_and_unknown_providers_stay_opaque",
+    "incremental_replacement_removes_stale_transitive_authority",
+    "native_width_has_actual_closed_method_and_primitive_bodies",
+    "total_artifact_round_trip_rejects_unrecognized_semantics"
+  ],
+  "production_changes": [
+    "compiler/src/check_total.rs"
+  ],
+  "rows": [
+    {
+      "binary": "/tmp/cinch-native-primitive-body-validation-3/interface_primitive_bodies",
+      "binary_sha256": "eab61b8aafb115371457ca702229b5932e6ca5778c13674070264e4410d84911",
+      "exit_code": 0,
+      "log_sha256": "5649bcca3515ce430a2d5074f033ffe7ecb093decca5b192feef78dd4470cd99",
+      "name": "interface_primitive_bodies",
+      "status": "passed"
+    },
+    {
+      "binary": "/tmp/cinch-native-primitive-body-validation-3/total_bodies",
+      "binary_sha256": "19fd1cb6a479102d214ec56e94c317290ecd16b347e1f35adbe7694901485e57",
+      "exit_code": 0,
+      "log_sha256": "4993d653949625a34163cf4903819c982d597fd678977566e65d5cb808a4a10b",
+      "name": "total_bodies",
+      "status": "passed"
+    },
+    {
+      "binary": "/tmp/cinch-native-primitive-body-validation-3/interface_method_bodies",
+      "binary_sha256": "cdd3fb0edca7d362d44022adb433d873bda67e9af1adc13aeabe7acdc5756079",
+      "exit_code": 0,
+      "log_sha256": "892013bab088028a98490fce320934f198f46b0851c69fe4aa899d312a7a2d72",
+      "name": "interface_method_bodies",
+      "status": "passed"
+    },
+    {
+      "binary": "/tmp/cinch-native-primitive-body-validation-3/interface_total_bodies",
+      "binary_sha256": "9d54abf334d449fe47708f57df846df88a28ed7cce14576d349d27faca49f6a4",
+      "exit_code": 0,
+      "log_sha256": "9f54c051058d5b186cc563303205dec6b2a55495340ef339dd1f7bf04ce3cf0c",
+      "name": "interface_total_bodies",
+      "status": "passed"
+    },
+    {
+      "binary": "/tmp/cinch-native-primitive-body-validation-3/interface_class_contracts",
+      "binary_sha256": "0042098c9aa0efc16d026cc9c79bf22cbaf1701fc9c914d897be2b24df027dc6",
+      "exit_code": 0,
+      "log_sha256": "d33100535786a8be004a21caf13d43e302dc56f7b1a8251ace3ae3b7973eb047",
+      "name": "interface_class_contracts",
+      "status": "passed"
+    },
+    {
+      "binary": "/tmp/cinch-native-primitive-body-validation-3/interface_prelude_overrides",
+      "binary_sha256": "222566d0c416a7b80df6f6c774d3e1d74f08cdc30851dcdc7dbd25e4f8c6c859",
+      "exit_code": 0,
+      "log_sha256": "0c56b610c9f42fcc8d40caa4311b1e2777da2906cded7cf3799523f961b10b2b",
+      "name": "interface_prelude_overrides",
+      "status": "passed"
+    },
+    {
+      "binary": "/tmp/cinch-native-primitive-body-validation-3/interface_preconditions",
+      "binary_sha256": "64fdc7c405aa664f02b95f8e2f6e88d99255f8621fa3f11a5af3061184c441d5",
+      "exit_code": 0,
+      "log_sha256": "e8c856ae096f37e15f26ac66acaff37dc199a4dea11ab997219d346de0f5187a",
+      "name": "interface_preconditions",
+      "status": "passed"
+    },
+    {
+      "binary": "/tmp/cinch-native-primitive-body-validation-3/interface_conditional_methods",
+      "binary_sha256": "47eb473a9a8863d78f01bcfe78dd958861e2531cddbbca315b2acac75ccc232b",
+      "exit_code": 0,
+      "log_sha256": "748ff14e8ccef1d669e7a471b832b3014e0a5b6995d5da66d84664c6a3ef5f71",
+      "name": "interface_conditional_methods",
+      "status": "passed"
+    },
+    {
+      "binary": "/tmp/cinch-native-primitive-body-validation-3/interface_nominals",
+      "binary_sha256": "cebe565ec0c2826f4a8e0ee1cd9eb69d1356d85d7c24c909a0bb2bf04897ac47",
+      "exit_code": 0,
+      "log_sha256": "fc8ebdead59c5147036fd9e95e55a9a3c06ed7b29d68df08a24f4c90d82519d0",
+      "name": "interface_nominals",
+      "status": "passed"
+    },
+    {
+      "binary": "/tmp/cinch-native-primitive-body-validation-3/comparison_method_facts",
+      "binary_sha256": "ad863b93dcf5be3174cbb4476ca59d10976755b87c672bc2d1242b36d486a5d8",
+      "exit_code": 0,
+      "log_sha256": "1ed51bb818c6570a088ce549adab0860b13f7cd33a0f933f075273fe00b202af",
+      "name": "comparison_method_facts",
+      "status": "passed"
+    },
+    {
+      "binary": "/tmp/cinch-native-primitive-body-validation-3/linear_facts",
+      "binary_sha256": "d5ee24ebccbbac2df4e8e7e5b3529bd4b28260a45bf4800ad2be66acd1c16fd3",
+      "exit_code": 0,
+      "log_sha256": "3853ca37f56e0cd8975615cd31caa39de54adc555e3b903fcf8340af4a0db98f",
+      "name": "linear_facts",
+      "status": "passed"
+    },
+    {
+      "binary": "/tmp/cinch-native-primitive-body-validation-1/cargo/debug/deps/cinch-92dfdd69e032d9a8",
+      "binary_sha256": "9621701163760caa5fa4aa5d553466ce767be52fec678323c69ffc13999399dd",
+      "exit_code": 0,
+      "log_sha256": "31fb3697b4721b07e85a81dc1e94de1321574d2a5a54abc47224b3007c442998",
+      "name": "lib",
+      "status": "passed"
+    }
+  ],
+  "schema": 1,
+  "scope": "Actual ABI-checked primitive defining values now carry body roots even when ordinary calls inline them. Full original body-graph assertions preserved with a valid isolated checked numeric provider; inconsistent full-library ordering variants are explicitly refused. This scoped result does not prove the full bootstrap goal.",
+  "seed_and_provider_pins": "Explicit b64710b ABI6 pins unchanged.",
+  "semantics": [
+    "Only actual ValueKind::Prim values with a supported ABI Op qualify.",
+    "Complete actual declaration must exactly match plain graph signature, including purity, ownership and absence of hidden erased arguments.",
+    "Partial/refined Nat conversions/subtraction/division, wrapping machine arithmetic and unknown foreign effects remain opaque.",
+    "Primitive declaration aliases preserve the actual defining identity; ordinary nat-add returns its actual source body.",
+    "Seven original total_bodies cases retained; an eighth checks that both constant ordering replacements invalidate their actual dependent Data.String proofs."
+  ],
+  "source_check": {
+    "compiler": "/tmp/cinch-native-primitive-body-validation-1/cargo/debug/cinch",
+    "compiler_modules": 43,
+    "compiler_sha256": "5fbb4e0a616a8ce9c09d5d0fd5418296fa575de534077ba3d1503959a333a5bd",
+    "exit_code": 0,
+    "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "status": "passed"
+  },
+  "source_sha256": "ab61b55eb10241a11c415d232d74db03a731c5d39cda78d83888ee6dafebaf49",
+  "status": "passed-scoped-native-primitive-bodies",
+  "test_fixture_changes": [
+    "compiler/tests/common/numeric_provider.rs",
+    "compiler/tests/total_bodies.rs"
+  ],
+  "unique_tests": 234,
+  "verified_at": "2026-11-05T12:11:13.756169+00:00",
+  "zero_leak_reports": 65
+}

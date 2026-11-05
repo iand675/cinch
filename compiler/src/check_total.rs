@@ -374,17 +374,38 @@ impl Checker {
         });
     }
     fn checked_total_bodies(&self) -> crate::total::CheckedGraph {
-        let primitives = self.fns.iter().filter_map(|function| {
+        let mut primitives: std::collections::BTreeMap<String, crate::total::Op> = self.fns.iter().filter_map(|function| {
             let operation = total_primitive(function.prim?)?;
             if function.params.len() != operation.signature().0.len() { return None }
             Some((function.id.0.clone(), operation))
         }).collect();
+        let mut roots = self.interface_total_bodies.keys().cloned().collect::<Vec<_>>();
+        // Primitive calls are inlined in checked Core. Their public defining
+        // values still have real ABI-checked bodies even when no ordinary
+        // function keeps a call edge to the primitive wrapper.
+        for value in self.qualified.values() {
+            let ValueKind::Prim(primitive) = &value.kind else { continue };
+            let Some(operation) = total_primitive(*primitive) else { continue };
+            let identity = fn_id(&value.module, &value.name).0;
+            let parameters = operation.signature().0.to_vec();
+            let definition = crate::total::Definition {
+                identity: identity.clone(), parameters: parameters.clone(), result: operation.signature().1,
+                body: crate::total::Expr::Primitive(operation, (0..parameters.len()).map(crate::total::Expr::Local).collect()),
+            };
+            // The full actual callable must match the plain graph tier.
+            // Hidden arguments, ownership, effects, dependent binders and
+            // refined/partial signatures cannot disappear through the sort.
+            if !value.scheme.evidence_params.is_empty()
+                || render_scheme(&value.scheme) != crate::interface::total_declaration(&definition) { continue }
+            primitives.insert(identity.clone(), operation);
+            roots.push(identity);
+        }
         let mut producer = TotalProducer {
             pending: &self.interface_total_bodies, instances: &self.instance_defs,
             primitives, graph: crate::total::CheckedGraph::empty(),
             visiting: std::collections::BTreeSet::new(), refused: std::collections::BTreeSet::new(),
         };
-        for identity in self.interface_total_bodies.keys() { producer.definition(identity); }
+        for identity in roots { producer.definition(&identity); }
         producer.graph
     }
 }

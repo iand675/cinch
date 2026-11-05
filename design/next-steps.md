@@ -1,5 +1,41 @@
 # Next steps (as of 2026-11-05)
 
+## ABI-checked primitive values keep their own body roots (2026-11-05)
+
+Inlining removed call edges to primitives such as `Data.Nat.nat-add`, leaving
+those actual public values without executable body contracts. Native now
+retains a root for each supported checked primitive whose complete callable
+scheme exactly matches the pure plain graph tier. Actual primitive identity,
+effects, hidden arguments, ownership and refinements govern admission; source
+names do not. Partial Nat operations, wrapping arithmetic and arbitrary foreign
+calls remain opaque.
+
+All twelve complete affected groups pass: 234 tests, no ignored or filtered
+cases, every test target compiling, all 43 published compiler modules and 65
+zero-leak reports. The original seven `total_bodies` tests remain, with their
+altered-ordering observation fixture isolated from unrelated string consumers.
+An eighth explicitly verifies that both constant ordering replacements reject
+the complete library's dependent string proofs. See
+`bootstrap/current-native-primitive-body-results.json`.
+
+The private Cinch compiler passes all 43 modules with the new Native producer.
+An identical actual Cinch exporter, given the corrected primitive metadata,
+now retains private helper bodies, changed arithmetic, identity methods and
+real calls between methods in a closed self dictionary, while omitting cyclic
+method bodies. Independent decoder and bignum semantic checks pass. A fresh
+full exporter build and the complete original nineteen proof/interface groups
+remain required before source publication. The original imported-precondition
+and conditional-method regressions pass on the preceding source, including
+all twenty caller cases and explicit body-context removal/refusal controls.
+
+The published c8d6 compiler and its genuine fixed-point evidence are unchanged.
+The earlier full Native run retains 145 passing groups and its original fixture
+failure; all remaining 84 groups continue diagnostically on those exact frozen
+inputs. The exact c8d6 Stage3 suite also continues. These results retain their
+original source scope. The b64710b ABI6 seed/provider pins remain explicit and
+unchanged. The new source compiler still needs fresh pins, full matching gates,
+a genuine bootstrap and the original API/Acceptance 5 audit.
+
 ## Native interfaces retain actual instance-method bodies (2026-11-05)
 
 Checked method implementations were absent from portable interfaces unless an

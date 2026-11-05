@@ -1,3 +1,5 @@
+#[path = "common/numeric_provider.rs"]
+mod numeric_provider;
 use cinch::total::{CheckedGraph, Definition, Expr, Op, Sort};
 fn definition(name: &str, parameters: Vec<Sort>, result: Sort, body: Expr) -> Definition {
     Definition { identity: name.into(), parameters, result, body }
@@ -89,18 +91,12 @@ fn closed_selected_ordering_retains_its_actual_body_and_unknown_providers_stay_o
     let original = include_str!("../prelude/Data/Nat.cinch");
     let method = "(<) x y = lt-i64 (nat-cmp x y) 0";
     assert_eq!(original.matches(method).count(), 1);
-    // Replace the defining module in the embedded family, preserving its
-    // dependency position. Treating Data.Nat as a user module would instead
-    // remove the home needed while the rest of the family is checked.
+    // Changing the global ordering also invalidates real consumers in the
+    // complete library. This observation test uses the independently checked
+    // numeric family; the complete-library refusal is checked separately below.
     let check_method = |body: &str| {
-        let mut family = cinch::driver::parse_prelude(&[]).unwrap();
-        let replacement = cinch::driver::parse_source(
-            &original.replace(method, body), "prelude/Data/Nat.cinch",
-            &family.base, &family.exported_fixities,
-        ).unwrap();
-        assert_eq!(replacement.modules.len(), 1);
-        let home = family.modules.iter_mut().find(|m| m.name.text == "Data.Nat").unwrap();
-        *home = replacement.modules.into_iter().next().unwrap();
+        let mut family = numeric_provider::family().unwrap();
+        numeric_provider::replace_method(&mut family, "Data.Nat", original, method, body).unwrap();
         let user = cinch::driver::parse_source(r#"module Main where
   selected :: Nat -> Nat
   selected n = if n < 128 then 1 else 2
@@ -123,6 +119,23 @@ fn closed_selected_ordering_retains_its_actual_body_and_unknown_providers_stay_o
     assert!(graph.get("Main.unknown").is_none());
     let changed = check_method("(<) x y = True");
     assert_ne!(changed.total_bodies.content("Main.selected"), Some(selected));
+}
+
+#[test]
+fn changed_ordering_cannot_reuse_the_embedded_string_proofs() {
+    let original = include_str!("../prelude/Data/Nat.cinch");
+    let method = "(<) x y = lt-i64 (nat-cmp x y) 0";
+    for replacement in ["(<) x y = False", "(<) x y = True"] {
+        let mut family = cinch::driver::parse_prelude(&[]).unwrap();
+        numeric_provider::replace_method(&mut family, "Data.Nat", original, method, replacement).unwrap();
+        let user = cinch::driver::parse_source("module Main where\n  main :: Int\n  main = 0\n", "changed-standard-ordering.cinch", &family.base, &family.exported_fixities).unwrap();
+        let mut context = cinch::driver::StagingCx::default();
+        context.fixities = family.fixities;
+        context.fixities.extend(user.fixities);
+        let error = cinch::check::check_program_multi(&family.modules, &user.modules,
+            &std::collections::HashMap::new(), &context).err().expect("changed ordering must recheck its real dependent string proofs");
+        assert!(error.message.contains("Data.String") && error.message.contains("obligation"), "{replacement}: {}", error.message);
+    }
 }
 
 #[test]
