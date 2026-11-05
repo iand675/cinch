@@ -1,5 +1,23 @@
 # Next steps (as of 2026-11-05)
 
+## Tuple-layout Option tests receive their observed library variant (2026-11-05)
+
+The explicit test library roots now include `Data.Option.is-none[T]` as well
+as its object-layout variant. Three original array and shape tests requested
+that tuple-layout variant and previously stopped before runtime execution.
+
+A fresh library-only object from the exact earlier ABI6 provider retains all
+55 checked interface identities and the same runtime. Replaying all fifteen
+original array tests through the same c8d6 Stage3 now yields ten passing and
+five failing tests, with no ignored or filtered cases. All three missing-variant
+cases pass; positive packed and float programs and original assertions remain.
+The Option source is byte-identical to the current published library. See
+`bootstrap/current-array-test-library-variant-results.json`.
+
+This corrects the test library inputs. The remaining copy/staging syntax,
+intrinsic alias and diagnostic, and object-emission failures remain open.
+This earlier Stage3 replay does not establish a current-source full-suite pass.
+
 ## Cinch consumes actual method bodies; full nineteen-group gate passes (2026-11-05)
 
 The published 29775 compiler retains actual checked dictionary-method bodies

@@ -1,0 +1,35 @@
+{
+  "added_root": {
+    "classes": "T",
+    "symbol": "Data.Option.is-none"
+  },
+  "artifacts": "/tmp/cinch-prior-stage3-arrays-provider-6",
+  "checked_at": "2026-11-05T14:53:36.140656+00:00",
+  "compiler_executable_sha256": "645dd0bbef9bfaec24666c171c2f1b39bd900533e72cb5ec8e7c5800b7bae902",
+  "compiler_source_sha256": "c8d6d87a8d1a698009b1ed820427a7a2bb67dab0f34d170accb41e42678ba985",
+  "full_goal_complete": false,
+  "interfaces": 55,
+  "log_sha256": "3da90442f87172bafafa3d4a2e8d4b64ffbe2fe0afe2b076467e0c74971dc386",
+  "metadata_sha256": "a1b3f89ca259ba62bf08f62e55d71276014e7e8779f3f0dd38c160c12ba310fa",
+  "object_sha256": "383d7ded54f38a888f735a9869b92e44161da52b61d00e0a4d2a71ff9775e7bf",
+  "provider_revision": "b64710b29e57c0b73dbfce8fa67c3bf1e581ea6c",
+  "provider_source_sha256": "dbe00931df2b2ab7a14a56e4acc6653dc7a4d01a0dc1d3e1f4da22e9ce039ffb",
+  "remaining_failures": [
+    "array_copy_evidence_depends_on_the_element_type",
+    "array_intrinsic_signatures_and_primitive_kinds_cannot_be_forged",
+    "array_library_objects_stamp_matching_abi_and_owned_types",
+    "array_runtime_aliases_are_alpha_equivalent_and_first_class",
+    "native_staging_refuses_arrays_by_name_until_the_evaluator_supports_them"
+  ],
+  "runtime_sha256": "2fab721751aa601f3ca72d7677f8520e5bdd37d93887275b5636fce478f959c6",
+  "scope": "Only the ABI6 is-none[T] library support correction is proven here. Entire original15-test arrays group replayed against the earlier c8d6 Stage3:10passed5failed, no ignored or filtered cases. All3 previous missing-variant failures now pass. This does not establish a current-source array suite or full frontend/API parity.",
+  "source_sha256": "c482ad044b5b0c43e0fe36c0ac144f4658399fed400639ab91a07ab74d76e229",
+  "status": "passed-scoped-array-test-library-variant",
+  "tests": {
+    "failed": 5,
+    "filtered": 0,
+    "ignored": 0,
+    "passed": 10
+  },
+  "unchanged_current_option_source_sha256": "d6a557314549a9576de94de2260fdd0d8005cb703eeb075274bbe9d54b7c6a49"
+}

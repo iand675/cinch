@@ -149,6 +149,10 @@
       "symbol": "Data.Option.is-none"
     },
     {
+      "classes": "T",
+      "symbol": "Data.Option.is-none"
+    },
+    {
       "classes": "OT",
       "symbol": "Data.HashMap.hash-map-delete"
     },
