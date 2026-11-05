@@ -58,7 +58,7 @@
     },
     {
       "title": "Complete suite on published ABI6array compiler",
-      "detail": "119 of 209 complete groups passed; 2 running, 0 failed and 88 pending.Every group includes ignored tests. State: running.",
+      "detail": "128 of 209 complete groups passed; 3 running, 0 failed and 78 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -157,7 +157,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "119 of 209 complete groups passed; 2 running, 0 failed and 88 pending."
+      "detail": "128 of 209 complete groups passed; 3 running, 0 failed and 78 pending."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -206,6 +206,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "All 43 compiler-source checks: passed. 24 of 24 complete groups passed; 0 running, 0 failed and 0 pending. index scope and representation: passed; bootstrap_array_float_bits: passed; refinements and effects: passed; bootstrap_export_interfaces: passed; bootstrap_effect_types: passed; arrays: passed; bootstrap_source_decisions: passed; bootstrap_nominals: passed; independent type checker: passed; Core validation: passed; bootstrap_pipeline: passed; runtime behavior: passed; library calls: passed; bootstrap_machine_values: passed; bootstrap_value_indices: passed; bootstrap_value_kinds: passed; interface_prelude_overrides: passed; prelude_split: passed; prelude_lib: passed; ffi: passed; interface_nominals: passed; interface_class_contracts: passed; staging: passed; params: passed.",
-  "activity": "Complete suite on published ABI6array compiler: 119 of 209 complete groups passed; 2 running, 0 failed and 88 pending. Stage builds and smoke checks: 4 of 4; chain state: building-stage3. Repair gates: 24 of 24 complete groups passed; 0 running, 0 failed and 0 pending. index scope and representation: passed; bootstrap_array_float_bits: passed; refinements and effects: passed; bootstrap_export_interfaces: passed; bootstrap_effect_types: passed; arrays: passed; bootstrap_source_decisions: passed; bootstrap_nominals: passed; independent type checker: passed; Core validation: passed; bootstrap_pipeline: passed; runtime behavior: passed; library calls: passed; bootstrap_machine_values: passed; bootstrap_value_indices: passed; bootstrap_value_kinds: passed; interface_prelude_overrides: passed; prelude_split: passed; prelude_lib: passed; ffi: passed; interface_nominals: passed; interface_class_contracts: passed; staging: passed; params: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 0 of 92 complete groups passed; 0 running, 0 failed and 92 pending. Proposed compiler repair (separate unpublished source): failed; 0 of 9 complete groups passed; 0 running, 1 failed and 8 pending.",
-  "updatedAt": "2026-11-05T02:44:11.481519+00:00"
+  "activity": "Complete suite on published ABI6array compiler: 128 of 209 complete groups passed; 3 running, 0 failed and 78 pending. Stage builds and smoke checks: 4 of 4; chain state: building-stage3. Repair gates: 24 of 24 complete groups passed; 0 running, 0 failed and 0 pending. index scope and representation: passed; bootstrap_array_float_bits: passed; refinements and effects: passed; bootstrap_export_interfaces: passed; bootstrap_effect_types: passed; arrays: passed; bootstrap_source_decisions: passed; bootstrap_nominals: passed; independent type checker: passed; Core validation: passed; bootstrap_pipeline: passed; runtime behavior: passed; library calls: passed; bootstrap_machine_values: passed; bootstrap_value_indices: passed; bootstrap_value_kinds: passed; interface_prelude_overrides: passed; prelude_split: passed; prelude_lib: passed; ffi: passed; interface_nominals: passed; interface_class_contracts: passed; staging: passed; params: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 0 of 92 complete groups passed; 0 running, 0 failed and 92 pending. Proposed compiler repair (separate unpublished source): failed; 0 of 9 complete groups passed; 0 running, 1 failed and 8 pending.",
+  "updatedAt": "2026-11-05T02:47:24.541340+00:00"
 }
