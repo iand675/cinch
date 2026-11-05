@@ -133,7 +133,7 @@
     },
     {
       "title": "Latest source: fresh bootstrap with updated pins",
-      "detail": "Explicit published25b7e82 seed and separate library-only producer. Stage0: passed-current-seed-only; provider: passed-current-library-only-provider. Fresh stages: 1 of4. Chain: waiting-complete-source-gates. Stages1/2/3 wait for all19 matching proof/interface groups; old c8d6 fixed-point evidence remains separate.",
+      "detail": "Explicit published25b7e82 seed and separate library-only producer. Stage0: passed-current-seed-only; provider: passed-current-library-only-provider. Fresh stages: 1 of4. Chain: stopped-before-stage1-new-source. Stages1/2/3 wait for all19 matching proof/interface groups; old c8d6 fixed-point evidence remains separate.",
       "state": "running"
     },
     {
@@ -237,5 +237,5 @@
   "fullGoalComplete": false,
   "summary": "All 43 compiler-source checks: passed. 14 of 14 complete groups passed; 0 running, 0 failed and 0 pending. runtime behavior: passed; bootstrap_eval: passed; library calls: passed; bootstrap_source_proofs: passed; bootstrap_source_constructors: passed; refinements and effects: passed; Core validation: passed; independent type checker: passed; bootstrap_decisions: passed; bootstrap_source_decisions: passed; bootstrap_export_interfaces: passed; bootstrap_source_projection: passed; arrays: passed; bootstrap_array_float_bits: passed.",
   "activity": "Pre-method-body16cef82 Rust suite (retained full run): 145 of 230 complete groups passed; 0 running, 1 failed and 84 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 14 of 14 complete groups passed; 0 running, 0 failed and 0 pending. runtime behavior: passed; bootstrap_eval: passed; library calls: passed; bootstrap_source_proofs: passed; bootstrap_source_constructors: passed; refinements and effects: passed; Core validation: passed; independent type checker: passed; bootstrap_decisions: passed; bootstrap_source_decisions: passed; bootstrap_export_interfaces: passed; bootstrap_source_projection: passed; arrays: passed; bootstrap_array_float_bits: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 73 of 93 complete groups passed; 1 running, 0 failed and 19 pending.",
-  "updatedAt": "2026-11-05T13:30:24.218669+00:00"
+  "updatedAt": "2026-11-05T13:32:06.241120+00:00"
 }
