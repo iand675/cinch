@@ -1,5 +1,20 @@
 //! Checked byte observations retain their input carrier, scope and primitive identity.
 mod common;
+
+fn fixture_sources(dir: &std::path::Path) -> std::collections::BTreeMap<std::ffi::OsString, Vec<u8>> {
+    std::fs::read_dir(dir).unwrap().map(|item| item.unwrap().path())
+        // source.cinch is runtime-fed input written after compiler creation.
+        .filter(|p| p.is_file() && p.extension().is_some_and(|e| e == "cinch") && p.file_name().unwrap() != "source.cinch")
+        .map(|p| (p.file_name().unwrap().to_owned(), std::fs::read(p).unwrap())).collect()
+}
+fn build_observer(dir: &std::path::Path, name: &str, cache_variable: &str) -> std::path::PathBuf {
+    if let Some(path) = std::env::var_os(cache_variable) {
+        assert!(common::external_frontend::configured().unwrap().is_none(), "a cached Native fixture cannot replace the selected Cinch frontend");
+        let path = std::path::PathBuf::from(path).canonicalize().unwrap();
+        assert_eq!(fixture_sources(dir), fixture_sources(path.parent().unwrap()), "cached observer compiler inputs changed");
+        path
+    } else { common::build(dir, "Main.cinch", name).expect("build actual Cinch observation checker") }
+}
 #[test]
 fn byte_observations_recheck_typed_input_scope_and_runtime_identity() {
     let dir=common::project("byte_observations", &[
@@ -26,7 +41,7 @@ fn source_observations_use_declared_primitive_identity_and_actual_buffer() {
         ("Bootstrap.Interface.cinch",include_str!("../../bootstrap/Bootstrap.Interface.cinch")),
         ("Main.cinch",include_str!("../../bootstrap/programs/Run.SourceRefinements.cinch")),
     ]);
-    let exe=common::build(&dir,"Main.cinch","source-observations").expect("build Cinch source observation checker");
+    let exe=build_observer(&dir,"source-observations","CINCH_TEST_BYTE_SOURCE_EMITTER");
     let cases=[
         ("byte read Int-promoted range alias","type ByteRange (lo :: Int) (hi :: Int) a = refine (out :: a) with lo <= out && out <= hi\n  foreign import ccall \"cinch.runtime.bytesGet\" raw-get :: Bytes -> Nat -> ByteRange 0 255 Nat\n  read :: Bytes -> Nat\n  read b = raw-get b 0",0),
         ("byte read rejects stronger bounds","foreign import ccall \"cinch.runtime.bytesGet\" raw-get :: Bytes -> Nat -> refined (out <= 254) Nat",4),
@@ -48,9 +63,17 @@ fn source_observations_use_declared_primitive_identity_and_actual_buffer() {
         ("once-bound observation","same :: (b :: Bytes) -> refined (out == extent b) Nat\n  same b = let size = extent b in size",0),
         ("arithmetic observation","next :: (b :: Bytes) -> refined (out == extent b + 1) Nat\n  next b = extent b + 1",0),
         ("different buffer cannot borrow fact","bad :: using (extent b > 0) => (b :: Bytes) -> (c :: Bytes) -> refined (out > 0) Nat\n  bad b c = extent c",4),
-        ("ordinary name cannot lend fact","bytes-len :: Bytes -> Nat\n  bytes-len b = 0\n  bad :: Bytes -> refined (out > 0) Nat\n  bad b = if bytes-len b > 0 then 0 else 1",4),
+        // This original input returns one: its zero-returning helper makes
+        // the false result branch unreachable. Actual checked body reduction
+        // can prove that now. Keep it, and make name authority's negative
+        // case claim an observation the ordinary function cannot establish.
+        ("ordinary certified body proves branch unreachable","bytes-len :: Bytes -> Nat\n  bytes-len b = 0\n  bad :: Bytes -> refined (out > 0) Nat\n  bad b = if bytes-len b > 0 then 0 else 1",0),
+        ("ordinary name cannot lend fact","bytes-len :: Bytes -> Nat\n  bytes-len b = 1\n  bad :: (b :: Bytes) -> refined (out == extent b) Nat\n  bad b = bytes-len b",4),
+        ("ordinary certified body keeps its own result","bytes-len :: Bytes -> Nat\n  bytes-len b = 1\n  same :: Bytes -> refined (out == 1) Nat\n  same b = bytes-len b",0),
         ("wrong source index operand","bad :: (n :: Nat) -> refined (out == extent n) Nat\n  bad n = n",4),
-        ("ordinary observation type call","reader :: Bytes -> Nat\n  reader b = 0\n  bad :: (b :: Bytes) -> refined (out == reader b) Nat\n  bad b = 0",4),
+        ("ordinary certified observation type call","reader :: Bytes -> Nat\n  reader b = 0\n  bad :: (b :: Bytes) -> refined (out == reader b) Nat\n  bad b = 0",0),
+        ("ordinary observation type call cannot claim another result","reader :: Bytes -> Nat\n  reader b = 1\n  bad :: (b :: Bytes) -> refined (out == reader b) Nat\n  bad b = 0",4),
+        ("recursive observation type call stays opaque","reader :: Bytes -> Nat\n  reader b = reader b\n  bad :: (b :: Bytes) -> refined (out == reader b) Nat\n  bad b = 0",4),
         ("missing bound buffer","bad :: refined (out == extent unknown) Nat\n  bad = 0",4),
         ("observation cannot strengthen","bad :: (b :: Bytes) -> refined (out > extent b) Nat\n  bad b = extent b",4),
         ("observation scope cannot escape","bad :: Bytes -> refined (out > 0) Nat\n  bad b = let ignored = if extent b > 0 then extent b else 1 in extent b",4),
@@ -105,7 +128,7 @@ fn imported_observation_identity_survives_a_renamed_facade() {
         }
     }
     rows.sort();std::fs::write(dir.join("interfaces.json"),format!("{{\"schema\":1,\"interfaces\":[{}]}}",rows.join(","))).unwrap();
-    let exe=common::build(&dir,"Main.cinch","imported-byte-observations").expect("build imported byte observer consumer");
+    let exe=build_observer(&dir,"imported-byte-observations","CINCH_TEST_BYTE_IMPORT_EMITTER");
     for (name,body,status) in [
         ("checked base refinement result","same :: (b :: Bytes) -> refined (out == bounded-measure b) Nat\n  same b = bounded-measure b",0),
         ("checked base refinement branch","positive :: Bytes -> refined (out > 0) Nat\n  positive b = if bounded-measure b > 0 then bounded-measure b else 1",0),
@@ -114,7 +137,9 @@ fn imported_observation_identity_survives_a_renamed_facade() {
         ("renamed primitive branch","positive :: Bytes -> refined (out > 0) Nat\n  positive b = if measure b > 0 then measure b else 1",0),
         ("defining using identity","keep :: using (n < measure b) => (b :: Bytes) -> (n :: Nat) -> refined (out < measure b) Nat\n  keep b n = n",0),
         ("different buffer","bad :: using (measure b > 0) => (b :: Bytes) -> (c :: Bytes) -> refined (out > 0) Nat\n  bad b c = measure c",4),
-        ("local shadow","measure :: Bytes -> Nat\n  measure b = 0\n  bad :: (b :: Bytes) -> refined (out == measure b) Nat\n  bad b = 0",4),
+        ("local shadow uses its own certified body","measure :: Bytes -> Nat\n  measure b = 0\n  bad :: (b :: Bytes) -> refined (out == measure b) Nat\n  bad b = 0",0),
+        ("local shadow cannot claim another result","measure :: Bytes -> Nat\n  measure b = 1\n  bad :: (b :: Bytes) -> refined (out == measure b) Nat\n  bad b = 0",4),
+        ("local shadow cannot borrow the primitive observation","measure :: Bytes -> Nat\n  measure b = 0\n  bad :: (b :: Bytes) -> refined (out == bounded-measure b) Nat\n  bad b = measure b",4),
     ]{
         let source=format!("module Main where\n  import Facade (measure, bounded-measure)\n  {body}\n  main :: Int\n  main = 0\n");
         std::fs::write(dir.join("source.cinch"),&source).unwrap();
@@ -147,5 +172,26 @@ fn imported_observation_identity_survives_a_renamed_facade() {
         assert_eq!(result.status.code(),Some(4),"{label}: {report}");
         assert!(report.contains(expected_message),"{label}: {report}");
     }
+    // A shape-correct body certificate must still agree with the actual
+    // intrinsic: a constant-zero Bytes -> Nat graph cannot describe bytesLen.
+    let mut changed = original.clone();
+    changed.exports.values.iter_mut().find(|v| v.name == "extent").unwrap().total_body = Some(cinch::total::CheckedGraph::check(vec![cinch::total::Definition {
+        identity: "A.extent".into(), parameters: vec![cinch::total::Sort::Bytes], result: cinch::total::Sort::Nat,
+        body: cinch::total::Expr::Number { sort: cinch::total::Sort::Nat, decimal: "0".into() },
+    }]).unwrap());
+    std::fs::write(&a_path, changed.to_json()).unwrap();
+    let mut input_rows = Vec::new();
+    for entry in std::fs::read_dir(producer.join("build")).unwrap() {
+        let path = entry.unwrap().path();
+        if path.extension().is_some_and(|s| s == "cinchif") {
+            let iface = Iface::from_json(&std::fs::read_to_string(&path).unwrap()).unwrap();
+            if iface.module != "Main" && iface.module != "Facade" { input_rows.push(format!("[{},{},{}]", quote(&iface.module), quote(&iface.iface_hash()), quote(&path.display().to_string()))); }
+        }
+    }
+    input_rows.sort(); std::fs::write(dir.join("interfaces.json"), format!("{{\"schema\":1,\"interfaces\":[{}]}}", input_rows.join(","))).unwrap();
+    let result = std::process::Command::new(&exe).current_dir(&dir).output().unwrap();
+    let report = common::read_output(&dir, "imported-report.txt");
+    assert_eq!(result.status.code(), Some(4), "contradictory primitive body: {report}");
+    assert!(report.contains("observation body disagrees with its primitive"), "{report}");
     common::cleanup(&producer);common::cleanup(&dir);
 }

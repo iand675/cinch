@@ -33,6 +33,7 @@ module Bootstrap.Infer where
 
   export needs-inference, infer-program, elaborate-program
   export Elaboration, elaboration-errors, elaboration-bindings, elaboration-contexts, elaboration-core
+  export elaboration-core-contracts-closed
   export CheckedBinding, checked-name, checked-scheme, checked-role, checked-body-binding, checked-guarded-binding, checked-method-matches, checked-conditional-target
   export elaboration-declarations, elaboration-data, elaboration-effects, elaboration-classes, elaboration-class-context, elaboration-instances
 
@@ -108,6 +109,19 @@ module Bootstrap.Infer where
   elaboration-contexts e = case e of MkElaboration errors bindings contexts core datas effects descriptions instances declarations -> contexts
   elaboration-core :: Elaboration -> List CoreDefinition
   elaboration-core e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations -> core; other -> Nil
+
+  -- A retained proof may cite actual helper or instance bodies. Recheck
+  -- it against the same checked declaration context, not an empty world.
+  -- The standalone Core API deliberately keeps its stricter empty context.
+  elaboration-core-contracts-closed :: Elaboration -> Bool
+  elaboration-core-contracts-closed result = case result of
+    MkElaboration Nil bindings contexts definitions datas effects descriptions instances declarations ->
+      closed-elaboration-definitions (env-body-context bindings) (env-guarded-bindings bindings) definitions
+    other -> False
+  closed-elaboration-definitions :: BodyBindings -> List GuardedBinding -> List CoreDefinition -> Bool
+  closed-elaboration-definitions bodies guards definitions = case definitions of
+    Nil -> True
+    Cons definition rest -> core-definition-checked-contracts-closed bodies guards definition && closed-elaboration-definitions bodies guards rest
 
   -- Only a successful elaboration exposes its defining declarations.
   -- Interface provenance comes from these resolved, checked definitions.
@@ -1499,6 +1513,10 @@ module Bootstrap.Infer where
         Some other -> (env, add-error sp "total body cannot replace another actual declaration" st)
         None -> (Cons (MkBodyBinding binding) env, st))
     None -> add-binding sp name sc "external" env st
+  byte-length-body :: BodyBinding -> Bool
+  byte-length-body binding = let wanted = (JObj "node" (JStr "primitive") (JObj "operation" (JStr "BytesLen")
+    (JObj "arguments" (JArr (JObj "node" (JStr "local") (JObj "slot" (JNum 0) JObjEnd)) JArrEnd) JObjEnd))) in
+    bytes-compare (canonical-bytes (total-body (binding-function binding))) (canonical-bytes wanted) == 0
   register-external :: Span -> String -> String -> TypeExpr -> Json -> List Json -> List (String, Kind) -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   register-external sp name category ty metadata rows classes kinds env st =
     if same category "builtin" then register-kernel sp name metadata classes kinds env st
@@ -1525,6 +1543,15 @@ module Bootstrap.Infer where
               (Nil, Nil, UFun domain result) -> if same-type domain (primitive-type "Bytes") && same-type (predicate-base-carrier result) (primitive-type "Nat") then
                 (case lookup-binding name env of
                   None -> (Cons (MkIntrinsicBinding name sc "cinch.runtime.bytesLen") env, checked)
+                  Some (MkIntrinsicBinding prior-name prior-scheme prior-symbol) ->
+                    if same prior-name name && same prior-symbol "cinch.runtime.bytesLen" && scheme-equivalent prior-scheme sc then (env, checked)
+                    else (env, add-error sp "duplicate imported observation binding" checked)
+                  Some (MkBodyBinding prior) -> if binding-matches name "external" sc prior && byte-length-body prior then
+                    -- Keep the checked body for callers whose portable graphs
+                    -- refer to it. Runtime reads use the independently checked
+                    -- intrinsic declaration in front, not a guessed name.
+                    (Cons (MkIntrinsicBinding name sc "cinch.runtime.bytesLen") env, checked)
+                    else (env, add-error sp "imported byte observation body disagrees with its primitive" checked)
                   Some prior -> (env, add-error sp "duplicate imported observation binding" checked))
                 else (env, add-error sp "imported byte observation disagrees with its checked value scheme" checked)
               other -> (env, add-error sp "imported byte observation requires its monomorphic pure unary scheme" checked))

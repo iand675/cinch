@@ -205,6 +205,33 @@ pub fn build(dir: &Path, entry: &str, out: &str) -> Result<PathBuf, String> {
     Ok(dir.join(out))
 }
 
+/// Reuse only an explicitly supplied, byte-identical Native-built Cinch
+/// refinement-checker fixture. The final selected frontend always builds it.
+pub fn build_refinement_checker(dir: &Path, out: &str) -> Result<PathBuf, String> {
+    let Some(path) = std::env::var_os("CINCH_TEST_REFINEMENT_EMITTER") else { return build(dir, "Main.cinch", out); };
+    if external_frontend::configured()?.is_some() { return Err("a cached Native checker cannot replace the selected Cinch frontend".into()); }
+    let path = PathBuf::from(path).canonicalize().map_err(|e| e.to_string())?;
+    let sources = |root: &Path| -> Result<std::collections::BTreeMap<std::ffi::OsString, Vec<u8>>, String> {
+        let mut files = std::collections::BTreeMap::new();
+        for item in std::fs::read_dir(root).map_err(|e| e.to_string())? {
+            let file = item.map_err(|e| e.to_string())?.path();
+            // Runtime-fed source.cinch is written after fixture compilation.
+            if file.is_file() && file.extension().is_some_and(|e| e == "cinch") && file.file_name().unwrap() != "source.cinch" {
+                files.insert(file.file_name().unwrap().to_owned(), std::fs::read(file).map_err(|e| e.to_string())?);
+            }
+        }
+        Ok(files)
+    };
+    let entry = std::fs::read(dir.join("Main.cinch")).map_err(|e| e.to_string())?;
+    if entry.as_slice() != include_bytes!("../../../bootstrap/programs/Run.SourceRefinements.cinch").as_slice() {
+        return Err("refinement fixture has another compiler entry".into());
+    }
+    if sources(dir)? != sources(path.parent().ok_or("cached checker has no source directory")?)? {
+        return Err("cached refinement checker source inputs changed".into());
+    }
+    Ok(path)
+}
+
 /// A file the program wrote in its project, as text.
 pub fn read_output(dir: &Path, name: &str) -> String {
     let path = dir.join(name);

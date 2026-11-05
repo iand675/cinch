@@ -25,7 +25,7 @@ fn source_machine_literals_and_refinements_keep_range_and_carrier() {
         ("Bootstrap.Interface.cinch", include_str!("../../bootstrap/Bootstrap.Interface.cinch")),
         ("Main.cinch", include_str!("../../bootstrap/programs/Run.SourceRefinements.cinch")),
     ]);
-    let exe = common::build(&dir, "Main.cinch", "machine-source").expect("build actual Cinch machine-value source checker");
+    let exe = common::build_refinement_checker(&dir, "machine-source").expect("build actual Cinch machine-value source checker");
     for (carrier, low, high, below, above) in [
         ("I8", "-128", "127", "-129", "128"),
         ("I16", "-32768", "32767", "-32769", "32768"),

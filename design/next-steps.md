@@ -1,5 +1,36 @@
 # Next steps (as of 2026-11-05)
 
+## Checked byte observations retain actual body authority (2026-11-05)
+
+Compiler `917f6e1f` accepts a renamed imported byte-length primitive even when
+its defining interface also carries the actual checked primitive body. The
+loader checks the exact foreign identity, pure scheme and canonical BytesLen
+body before adding an intrinsic view, retaining the body for portable callers.
+A well-typed constant-zero replacement body still refuses.
+
+The source refinement fixture independently rechecks retained Core using the
+successful elaboration's actual checked body and guard context. The standalone
+empty-context Core checker is unchanged. The original constant-helper and
+local-shadow inputs remain in the suite as valid certified-body cases; stronger
+false-result, false-primitive-observation and recursive-opaque controls preserve
+the name-authority boundary.
+
+Seven complete affected groups pass: eleven Rust tests and all 48 byte-
+observation runtime inputs. A separate exact 43-module compiler build and both
+complete adapter/object groups pass all nine tests, including the real owned
+client at 32M with poisoning and zero leaks. See
+`bootstrap/current-byte-observation-repair-results.json` for the independent
+source, executable, log and object audits and the distinct Native producer roles.
+
+The original Native58 failure stays recorded on its frozen older Cinch inputs.
+A fresh matching stage chain has passed Stage0; the previous independently
+verified Acceptance1-4 chain belongs to compiler74f0. Matching final suites,
+all original API behavior and Acceptance5 remain open. The required inventory
+in `bootstrap/current-frontend-acceptance-scope.json` retains all original100
+and adds five later groups: 96 portable and nine interface/API targets. Checker
+cache helpers cannot remove groups from selection. Full arrays, copyOut/borrow
+ownership, dictionary factories and generic object roots remain unfinished.
+
 ## Method-proof compiler completes the bootstrap audit (2026-11-05)
 
 The frozen `74f0d661` compiler has an independently verified Stage0/1/2/3

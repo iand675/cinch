@@ -10,7 +10,7 @@ fn buffer_aliases_keep_identity_and_do_not_borrow_other_buffer_facts() {
         ("Bootstrap.Interface.cinch",include_str!("../../bootstrap/Bootstrap.Interface.cinch")),
         ("Main.cinch",include_str!("../../bootstrap/programs/Run.SourceRefinements.cinch")),
     ]);
-    let exe=common::build(&dir,"Main.cinch","buffer-aliases").expect("build independent Core alias checker");
+    let exe=common::build_refinement_checker(&dir,"buffer-aliases").expect("build independent Core alias checker");
     for (name,body,status) in [
         ("direct buffer","same :: (b :: Bytes) -> refined (out == extent b) Nat\n  same b = extent b",0),
         ("strict buffer alias","same :: (b :: Bytes) -> refined (out == extent b) Nat\n  same b = let alias = b in extent alias",0),

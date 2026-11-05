@@ -10,15 +10,13 @@ module Main where
   import Effect.Fs (fs-read, fs-write)
   import Text.Parse (ParseOutcome, Parsed, Failed)
 
-  closed :: List CoreDefinition -> Bool
-  closed definitions = case definitions of Nil -> True; Cons definition rest -> core-definition-closed definition && closed rest
   run :: Bytes -> (Int, String)
   run source = case parse-program "refinement-source" source of
     Parsed program Nil -> case resolve-program program of
       (resolved, Nil) -> case check-program resolved of
         Nil -> let result = elaborate-program "refinement-source" resolved in
           case elaboration-errors result of
-            Nil -> if closed (elaboration-core result) then (0, "") else (94, "refinement Core did not retain checked evidence")
+            Nil -> if elaboration-core-contracts-closed result then (0, "") else (94, "refinement Core did not retain checked evidence")
             errors -> (4, render-diagnostics errors)
         errors -> (4, render-diagnostics errors)
       (resolved, errors) -> (4, render-diagnostics errors)

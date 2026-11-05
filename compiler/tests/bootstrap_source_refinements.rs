@@ -13,7 +13,7 @@ fn source_refinements_check_actual_values_and_preserve_effects() {
         ("Bootstrap.Interface.cinch", include_str!("../../bootstrap/Bootstrap.Interface.cinch")),
         ("Main.cinch", include_str!("../../bootstrap/programs/Run.SourceRefinements.cinch")),
     ]);
-    let exe = common::build(&dir, "Main.cinch", "source-refinements").expect("build the Cinch source refinement checker");
+    let exe = common::build_refinement_checker(&dir, "source-refinements").expect("build the Cinch source refinement checker");
     let cases = [
         ("opaque cannot replace builtin Nat", "opaque type Nat :: Type", 4, "cannot redefine a builtin type"),
         ("opaque cannot replace builtin Scope", "opaque type Scope :: Type", 4, "cannot redefine a builtin type"),

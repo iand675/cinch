@@ -1,0 +1,123 @@
+{
+  "affected_runs": [
+    {
+      "groups": {
+        "bootstrap_byte_observations": 3
+      },
+      "log_sha256": {
+        "bootstrap_byte_observations": "35523d6c29b137dd1907381cf66aab33872fd2f1830375ecfa0a6c5ba54e242e"
+      },
+      "path": "/tmp/cinch-current-byte-observations-repair-3",
+      "source_sha256": "21ed811cc890753c50d1bee56e870eb03705c7289b78485b6f2d09476e3793fa"
+    },
+    {
+      "groups": {
+        "bootstrap_buffer_aliases": 1,
+        "bootstrap_machine_values": 2,
+        "bootstrap_source_refinements": 1
+      },
+      "log_sha256": {
+        "bootstrap_buffer_aliases": "6b41d4b2c06a36c34bdc5d599f33c44eb57cf6960508bbf9fa93e4d941d801c0",
+        "bootstrap_machine_values": "71105cb34ed50edfea6da6537889e1ae1771af8989b036534def9ee7ea33e9aa",
+        "bootstrap_source_refinements": "c5fcbaad0ee136a8f3f6b1cc704ab3ea0ed25f97adbceece0bed9730341d0c14"
+      },
+      "path": "/tmp/cinch-byte-observation-regressions-1",
+      "source_sha256": "21aa2cd0e48f15692ff23c3051b1cc3e0635d3bf4a962b28a8b352175e253a5f"
+    },
+    {
+      "groups": {
+        "bootstrap_body_bindings": 2,
+        "bootstrap_globals": 1,
+        "bootstrap_imported_preconditions": 1
+      },
+      "log_sha256": {
+        "bootstrap_body_bindings": "d47ab49db91948c1262834f317b190d726e71452122dec38e38562f9289f73f8",
+        "bootstrap_globals": "4e8ff5e3c9970758c0959abfd27e7e17ebf04d361256135ea7b0a49558841e5d",
+        "bootstrap_imported_preconditions": "17b41a059636908a2c2690b597e7f4d25168f679924915f25b1f4756938848bb"
+      },
+      "path": "/tmp/cinch-byte-observation-proof-regressions-1",
+      "source_sha256": "21aa2cd0e48f15692ff23c3051b1cc3e0635d3bf4a962b28a8b352175e253a5f"
+    }
+  ],
+  "affected_rust_tests": 11,
+  "byte_inputs": {
+    "corrupt_interfaces": 3,
+    "imported": 10,
+    "nonce": 5,
+    "source": 30
+  },
+  "byte_observation_receipt": {
+    "binary_sha256": "6f59c67662858658ac931acef889ad499c23a0d086cc6acb79047b0c98b583ce",
+    "cached_emitters": {
+      "CINCH_TEST_BYTE_IMPORT_EMITTER": {
+        "path": "/private/var/folders/8w/44rf3zr512nd0pd0bwb70vfm0000gn/T/cinch_boot_imported_byte_observations_26546_2/imported-byte-observations",
+        "sha256": "a018b17674af07f74d1edded725e44354fac98913e653c54258435f48e8798af"
+      },
+      "CINCH_TEST_BYTE_SOURCE_EMITTER": {
+        "path": "/private/var/folders/8w/44rf3zr512nd0pd0bwb70vfm0000gn/T/cinch_boot_source_byte_observations_26546_3/source-observations",
+        "sha256": "1dc0e263082e2f1aaaf00273b5db648a0abf94a8f49d75af34400e3a34dfecdc"
+      }
+    },
+    "compiler_source_sha256": "917f6e1fc2bc376224a6f2edb1ae951e73c364ff216cf558e2c714003cf6bc36",
+    "filtered": 0,
+    "full_compiler_gate": "/tmp/cinch-byte-observation-full-compiler-validation-2/independent-verification.json",
+    "full_goal_complete": false,
+    "ignored": 0,
+    "imported_corruption_cases": 3,
+    "imported_input_cases": 10,
+    "log_sha256": "35523d6c29b137dd1907381cf66aab33872fd2f1830375ecfa0a6c5ba54e242e",
+    "native_rlib_sha256": "b9008bb6113767a9c027553cba3dc70ca05938cc2a1652c28de4670277d435ba",
+    "native_source_sha256": "6b567529032465cde863607185da47aa7d5f9e5ecd99a596158174fd7efa6aa7",
+    "nonce_inputs": 5,
+    "runtime_oracle_evidence": "/tmp/cinch-byte-name-authority-runtime-2/results.json",
+    "scope": "Complete3-test group. Existing actual-body binding is retained while the exact validated bytesLen intrinsic view is added. Foreign/body conflicts are refused, including a well-typed constant-zero forged body. Original constant-helper/shadow programs remain positive because actual checked bodies prove their equalities or unreachable branches; stronger false-result/primitive-observation and recursive opaque controls remain negative. Core evidence is independently rechecked in the actual opaque elaboration body/guard context; the standalone empty-context Core API is unchanged. Two identical previously Native-built Cinch checker fixtures are reused only after exact complete source-byte comparison and only with no selected self-built frontend; fresh currentNative6b host. Actual affected source callbacks and all43 compiler/libraryobject gates retained separately; full matching suites/API100/Acceptance5 remain open.",
+    "source_input_cases": 30,
+    "source_sha256": "21ed811cc890753c50d1bee56e870eb03705c7289b78485b6f2d09476e3793fa",
+    "status": "passed-current-byte-observation-group",
+    "tests": 3,
+    "verified_at": "2026-11-05T20:56:31.395601+00:00"
+  },
+  "byte_runtime_inputs": 48,
+  "compiler_object_tests": 9,
+  "compiler_source_sha256": "917f6e1fc2bc376224a6f2edb1ae951e73c364ff216cf558e2c714003cf6bc36",
+  "full_compiler_object_gate": {
+    "adapter_tests": 8,
+    "binary_sha256": "8fe5d3cd5b7dbfc39120259934d77dc7d93bebe6b2dd98003b185a4b8c9b9234",
+    "client_heap_limit": "32M",
+    "client_rc_debug": true,
+    "compiler_heap_limit": "256M",
+    "compiler_input_cases": 4,
+    "compiler_modules_checked": 43,
+    "compiler_rc_debug": false,
+    "compiler_sha256": "be97b34eafcdad1bdcd8c15ac956a79f1271eb124d5c460e378cda4f1db2a0dd",
+    "compiler_source_sha256": "917f6e1fc2bc376224a6f2edb1ae951e73c364ff216cf558e2c714003cf6bc36",
+    "full_goal_complete": false,
+    "interface_closure": 60,
+    "layout_words": 4224,
+    "library_units": 1842,
+    "log_sha256": "7da1db6e4d33d3617e484a6ab8fa9ff4ac03a3fe03e35ba99f988aaf7655029e",
+    "metadata_sha256": "8c9851ec35b1412a7650953b3bcedac9417a1c7d5bd466bccf355b9f86f774a8",
+    "method_families": 26,
+    "native_rlib_sha256": "c2e3b862e212fe0d8557461ea9160e97ab23aa7d44d37113f1e2f855eec5c394",
+    "new_units": 7,
+    "object_round_trip_tests": 1,
+    "object_sha256": "e2bddac9f26372ba5c2bf361087650fbec89860df066f38520510f0b6463db64",
+    "real_new_public_and_closure_symbols": 14,
+    "scope": "Actual Cinch CLI emits checked first-order function and concrete constructor bridges, exact final nominal/layout/method-family facts, checked source interfaces and a real closed dependency object combining authenticated library-only Native22 bytes with Cinch-generated code. Every original provider physical symbol/accessor and seven actual new units are independently confirmed in the final object. IR and object FNV and authenticated SHA identities verified, exact provider/object/final-consumer layout prefixes preserved, all43 actual compiler source bytes match the staged driver input set. A second real Cinch invocation reloads the object and interfaces and the linked array/owned-bignum/ADT client passes32M with poisoning and zero leaks. Private inventory grants no source name and failed rebuild invalidates prior metadata. Compiler uses normal reclamation with leak checks: poisoning quarantines cumulative parser allocations and is retained for the client, not the large compiler job. Reached source dictionaries are an explicit refusal; generic representation-root CLI requests, complete corresponding legacy runtime/whole15array/finalself-built/fullNative/originalAPI100/Acceptance5 gates remain open. No claim that this is the final self-built compiler or that the whole goal is complete.",
+    "seed_native_source_sha256": "22c91cf6c1855b049207612e9d94630850e880d5a49ea3e2c57c92aff7fdbe88",
+    "source_sha256": "2bb9a785ea0ddd58928453737a7c5fbb7f4d26fc50ab7fba7613bc55aa598014",
+    "status": "passed-actual-cinch-library-object-round-trip",
+    "tests": 9,
+    "verified_at": "2026-11-05T20:49:55.841684+00:00",
+    "whole_groups": 2,
+    "zero_leak_reports": 5
+  },
+  "full_goal_complete": false,
+  "native_source_sha256": "6b567529032465cde863607185da47aa7d5f9e5ecd99a596158174fd7efa6aa7",
+  "schema": 1,
+  "scope": "Seven complete affected groups pass on actual917f Cinch sources with current6b Native host. All48 byte-observation runtime inputs execute, including renamed defining intrinsic, retained original constant-body and shadow inputs, stronger false-result and false-primitive claims, recursive opaque control, wrong foreign identity and a well-typed contradictory body. Original valid programs remain under the actual certified-body semantics; changes do not grant authority from a helper spelling. The independentCore recheck uses the successful opaque Elaboration actual checked body/guard context; standalone empty-contextCore API is unchanged. Explicit cachedNative-built actualCinch checkers require complete fixture source byte identity and cannot replace a selected self-built frontend. Separate exact43module compiler/object/adapter gate passes on pinnedNative22 with actual owned32M poisoned zero-leak client. Native58 frozen5cea failure is preserved. Matching final bootstrap/fullNative/selfbuilt/API100/Acceptance5 and full15 arrays remain required.",
+  "status": "passed-current-byte-observation-repair",
+  "verified_at": "2026-11-05T21:15:57.456595+00:00",
+  "whole_affected_groups": 7,
+  "whole_compiler_object_groups": 2
+}
