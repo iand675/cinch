@@ -9930,6 +9930,10 @@ impl Checker {
     }
 
     fn finish(mut self, entry_modules: &[String], prelude_name: &str) -> Result<Program> {
+        // No speculative forward comparison can escape in an accepted
+        // program or its interfaces. Only actual checked selected bodies
+        // validate the facts cited while their declarations were forward.
+        self.check_used_comparisons()?;
         let _ = prelude_name;
         // Instantiation units emit their wrapper units last (module
         // parameters as module arguments): the target module's units are

@@ -1,5 +1,46 @@
 # Next steps (as of 2026-11-05)
 
+## Native selected comparison facts and typed ownership fixtures (2026-11-05)
+
+The Rust checker now resolves the actual comparison dictionary and reads its
+checked implementation, following bounded pure aliases, calls and lets.
+Class names and method slots grant no numeric equations. Lexical dictionaries
+without implementation authority still dispatch normally but supply no numeric
+facts. A body may be forward: only facts actually cited by a proof are recorded,
+and their selected-body certificates are verified before accepting the program.
+This retains the standard library's valid forward references while rejecting
+the changed-order dependent-result counterexample (previously accepted with
+runtime exit 42 instead of 0).
+
+All 20 complete affected groups pass independently: 447 unique tests, all 43
+unchanged c8d6 compiler modules, and all test targets typecheck. The 185-test
+library replay explicitly enables the debug ownership verifier, 32M heaps,
+RC poisoning and leak checks. Five handwritten Core fixtures now describe their
+allocated objects/dictionaries with the correct ownership class. The whole-value
+pattern fixture reads its actual payload rather than comparing an object as an
+I64; its expected result and every other assertion remain. The previous compiler
+reproduces all five original opt-in leak failures. Successful replays produce
+242 zero-leak reports. See `bootstrap/current-native-comparison-results.json`.
+The compiler's code-generation implementation is unchanged; its fixture updates
+are entirely under `cfg(test)`, with the compiled production prefix audited equal.
+
+These scoped checks do not establish the full outcome. A separate larger-input
+probe confirms that runtime arithmetic operands can still be mistaken for
+mathematical index arithmetic: an altered Nat addition passes the small class-law
+samples but accepts a false result claim and exits 42 instead of 0. This remains
+open. The preserved full b30 Native49 sweep stops at lattice: 58 groups pass,
+one group fails (seven original List Char measure cases resolve length as Bytes),
+and 170 remain pending. Fresh complete matching suites are required after repair.
+
+The separate unpublished Cinch source-body candidate now passes all 43 module
+checks, 16 actual exporter controls and every original bounded-width metadata
+assertion on Cinch-produced A/Facade contracts. Its complete runtime groups are
+still running. Profiling the retained 1,500-function case identifies repeated
+quadratic body-set validation inside per-definition/per-expression checks; cache
+validated opaque contexts while retaining every closure/authority check.
+The canonical c8d6 four-stage fixed point and explicit seed/provider pins remain
+unchanged. Original API/100-target coverage and Acceptance 5 remain open.
+
 ## Native generic measures and empty collection generalization (2026-11-05)
 
 The full Native sweep found the original loop-measure failure, while the

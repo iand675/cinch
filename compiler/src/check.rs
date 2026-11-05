@@ -2972,6 +2972,8 @@ struct Checker {
     /// Checked bodies retained for termination checks of computations inside
     /// erased evidence. A pure arrow alone grants no termination authority.
     erasure_bodies: HashMap<GlobalId, (Vec<LocalId>, ECore)>,
+    comparison_facts: HashMap<LocalId, Vec<ComparisonCertificate>>,
+    used_comparisons: RefCell<Vec<(ComparisonCertificate, ast::Span, String)>>,
     pending_erasure_checks: Vec<(String, ast::Span, ECore)>,
     erasure_checks: Vec<(String, ast::Span, ECore)>,
     /// Top-level bindings recorded for the eager-reference-cycle check
@@ -3625,6 +3627,8 @@ impl Checker {
             pending_refs: Vec::new(),
             logical_refs: HashMap::new(),
             erasure_bodies: HashMap::new(),
+            comparison_facts: HashMap::new(),
+            used_comparisons: RefCell::new(Vec::new()),
             pending_erasure_checks: Vec::new(),
             erasure_checks: Vec::new(),
             top_binds: Vec::new(),
@@ -3977,6 +3981,7 @@ impl Checker {
     /// evidence (reads a mutable location) can go stale; `Ref`-sourced and
     /// immutable evidence never do.
     fn record_ev_use(&self, l: LocalId, prop: &PTerm, env: &Env, use_span: ast::Span) {
+        self.note_comparison_use(l, use_span);
         if !self.ev_derivs.contains_key(&l) {
             return;
         }
@@ -4354,6 +4359,7 @@ impl Checker {
     /// over mutable state): staleness is checked after regions unify.
     fn note_ev_used(&self, items: &[&(String, PTerm, LocalId, Vec<String>)], span: ast::Span) {
         for (_, _, local, muts) in items {
+            self.note_comparison_use(*local, span);
             if self.ev_derivs.contains_key(local) && !muts.is_empty() {
                 self.ev_uses.borrow_mut().push((*local, muts.clone(), span));
             }
@@ -10219,7 +10225,11 @@ impl Checker {
                 }
                 for (_, predicate, local, _) in &mut call.evidence.items {
                     *predicate = rename.proposition(predicate);
+                    let original = *local;
                     *local = rename.local(*local);
+                    if let Some(certificates) = self.comparison_facts.get(&original).cloned() {
+                        self.comparison_facts.insert(*local, certificates);
+                    }
                 }
                 call.evidence.refined = call.evidence.refined.iter().map(|predicate| rename.proposition(predicate)).collect();
                 call.evidence.value_sorts = call.evidence.value_sorts.iter().map(|(local, sort)| (rename.local(*local), *sort)).collect();

@@ -6183,6 +6183,7 @@ mod tests {
                 String::from_utf8_lossy(&out.stderr)
             )
         });
+        eprint!("{}", String::from_utf8_lossy(&out.stderr));
         let _ = std::fs::remove_file(&ll);
         let _ = std::fs::remove_file(&bin);
         code
@@ -6894,24 +6895,25 @@ int main(void) {{
         // class Add a { add : a -> a -> a }; Add_Maybe delegates to its
         // subdict. Methods run through DictProj + __apply.
         let add_int = fndef("add_Int", &["a", "b"], app(p(arith(ArithOp::Add)), vec![v(0), v(1)]));
-        let add_maybe = fndef(
+        let mut add_maybe = fndef(
             "add_Maybe",
             &["d", "x", "y"],
             Core::Let(
-                LocalId(10), Class::Raw,
-                Box::new(Core::DictProj(Box::new(v(0)), 0, None, Class::Raw)),
+                LocalId(10), Class::Obj,
+                Box::new(Core::DictProj(Box::new(v(0)), 0, None, Class::Obj)),
                 Box::new(app(v(10), vec![v(1), v(2)])),
             ),
         );
+        add_maybe.repr.params = vec![Class::Obj, Class::Raw, Class::Raw];
         let body = Core::Let(
-            LocalId(10), Class::Raw,
+            LocalId(10), Class::Obj,
             Box::new(Core::InstDict(gid("Main.Add_Int"), vec![], vec![])),
             Box::new(Core::Let(
-                LocalId(11), Class::Raw,
+                LocalId(11), Class::Obj,
                 Box::new(Core::InstDict(gid("Main.Add_Maybe"), vec![v(10)], vec![])),
                 Box::new(Core::Let(
-                    LocalId(12), Class::Raw,
-                    Box::new(Core::DictProj(Box::new(v(11)), 0, None, Class::Raw)),
+                    LocalId(12), Class::Obj,
+                    Box::new(Core::DictProj(Box::new(v(11)), 0, None, Class::Obj)),
                     Box::new(app(v(12), vec![n(20), n(22)])),
                 )),
             )),
@@ -6961,13 +6963,13 @@ int main(void) {{
             ],
         };
         let body = Core::Let(
-            LocalId(10), Class::Raw,
+            LocalId(10), Class::Obj,
             Box::new(app(ct("T.Some"), vec![n(5)])),
             Box::new(Core::Let(
                 LocalId(11), Class::Raw,
                 Box::new(case_on(v(10), 20, 0)),
                 Box::new(Core::Let(
-                    LocalId(12), Class::Raw,
+                    LocalId(12), Class::Obj,
                     Box::new(ct("T.None")),
                     Box::new(Core::Let(
                         LocalId(13), Class::Raw,
@@ -6988,10 +6990,10 @@ int main(void) {{
         // The constructor closure goes through __apply to build Some 5.
         let some = ctor_fn("T.Some", &["x"], 0, 1);
         let body = Core::Let(
-            LocalId(10), Class::Raw,
+            LocalId(10), Class::Obj,
             Box::new(ct("T.Some")),
             Box::new(Core::Let(
-                LocalId(11), Class::Raw,
+                LocalId(11), Class::Obj,
                 Box::new(app(v(10), vec![n(5)])),
                 Box::new(Core::Case {
                     scrut: Box::new(v(11)),
@@ -7013,20 +7015,27 @@ int main(void) {{
 
     #[test]
     fn case_var_pattern_binds_scrutinee() {
-        // CPat::Var binds the scrutinee word in the default branch.
+        // CPat::Var binds the whole owned scrutinee in the default branch.
+        // Inspect its real payload; an object is not an I64 comparison operand.
         let some = ctor_fn("T.Some", &["x"], 0, 1);
         let body = Core::Let(
-            LocalId(10), Class::Raw,
+            LocalId(10), Class::Obj,
             Box::new(app(ct("T.Some"), vec![n(9)])),
             Box::new(Core::Case {
                 scrut: Box::new(v(10)),
                 alts: vec![CAlt::new(
-                    CPat::Var(LocalId(20), Class::Raw),
-                    Core::If(
-                        Box::new(app(p(cmp(CmpOp::Eq)), vec![v(20), v(20)])),
-                        CBranch::new(n(4)),
-                        CBranch::new(n(5)),
-                    ),
+                    CPat::Var(LocalId(20), Class::Obj),
+                    Core::Case {
+                        scrut: Box::new(v(20)),
+                        alts: vec![
+                            CAlt::new(CPat::con(0, vec![LocalId(21)]), Core::If(
+                                Box::new(app(p(cmp(CmpOp::Eq)), vec![v(21), n(9)])),
+                                CBranch::new(n(4)),
+                                CBranch::new(n(5)),
+                            )),
+                            CAlt::new(CPat::Wild, n(5)),
+                        ],
+                    },
                 )],
             }),
         );
@@ -7186,7 +7195,7 @@ int main(void) {{
             LocalId(2), Class::Raw,
             Box::new(app(p(arith(ArithOp::Sub)), vec![v(1), n(1)])),
             Box::new(Core::Let(
-                LocalId(4), Class::Raw,
+                LocalId(4), Class::Obj,
                 Box::new(app(ct("T.box"), vec![v(1)])),
                 Box::new(Core::Case {
                     scrut: Box::new(v(4)),

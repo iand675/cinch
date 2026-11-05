@@ -1,6 +1,202 @@
 // Native producer for portable total bodies. Ordinary callable schemes and
 // class/slot spellings grant no semantics; resolve the actual closed method
 // field, then inspect its checked body and fixed primitive operations.
+
+/// A bounded symbolic execution of an actual checked comparison. Parameters
+/// carry their exact scalar type; the only observations admitted below are
+/// fixed comparison primitives. A Bool constant is never a numeric equation.
+#[derive(Clone, Debug, PartialEq)]
+enum ComparisonReading {
+    Argument(usize, Ty),
+    Ordering(Ty, usize, usize),
+    Predicate(IdxCmp, Ty, usize, usize),
+    Word(i64),
+    Bool(bool),
+    Function(GlobalId, Vec<ComparisonReading>),
+    Primitive(PrimOp),
+    Dictionary(GlobalId),
+}
+
+fn reverse_comparison(cmp: IdxCmp) -> IdxCmp {
+    match cmp {
+        IdxCmp::Lt => IdxCmp::Gt, IdxCmp::Le => IdxCmp::Ge,
+        IdxCmp::Gt => IdxCmp::Lt, IdxCmp::Ge => IdxCmp::Le,
+        other => other,
+    }
+}
+fn negate_comparison(cmp: IdxCmp) -> IdxCmp {
+    match cmp {
+        IdxCmp::Lt => IdxCmp::Ge, IdxCmp::Le => IdxCmp::Gt,
+        IdxCmp::Gt => IdxCmp::Le, IdxCmp::Ge => IdxCmp::Lt,
+        IdxCmp::Eq => IdxCmp::Ne, IdxCmp::Ne => IdxCmp::Eq,
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct ComparisonCertificate {
+    dictionary: GlobalId,
+    slot: usize,
+    carrier: Ty,
+    comparison: IdxCmp,
+}
+
+impl Checker {
+    fn checked_comparison_method(&self, want: &Want, slot: usize, ty: &Ty, anticipated: IdxCmp) -> Option<ComparisonCertificate> {
+        let wanted = self.uni.zonk_class(&want.class);
+        if wanted.args.iter().any(|ty| !self.uni.free_metas(ty).is_empty()) { return None }
+        // Use the ordinary resolver with a private inference store. This
+        // preserves visibility, lexical priority and instance specificity;
+        // speculative inspection must not commit constraints or transfers.
+        let mut resolver = DictionaryResolver { checker: self, uni: self.uni.clone(), transfers: Vec::new() };
+        let Solved(DictExpr::Instance(id, dictionaries, types)) = resolver.solve(&wanted, &want.scope, 0, want.span).ok()? else { return None };
+        if !dictionaries.is_empty() || !types.is_empty()
+            || resolver.transfers.iter().any(|transfer| !transfer.obligs.is_empty() || transfer.container.is_some() || !transfer.subdicts.is_empty()) { return None }
+        // Forward declarations may be selected before their bodies. Their
+        // anticipated reading is a proof obligation, never a trusted axiom:
+        // only cited facts are checked against actual bodies before finish.
+        let comparison = if self.instance_defs.iter().any(|d| d.id == id) {
+            self.read_selected_comparison(&id, slot, ty)?
+        } else { anticipated };
+        Some(ComparisonCertificate { dictionary: id, slot, carrier: ty.clone(), comparison })
+    }
+
+    fn read_selected_comparison(&self, id: &GlobalId, slot: usize, ty: &Ty) -> Option<IdxCmp> {
+        let implementation = self.closed_comparison_method(id, slot)?;
+        let args = vec![ComparisonReading::Argument(0, ty.clone()), ComparisonReading::Argument(1, ty.clone())];
+        let result = self.read_comparison_call(implementation, args, &mut 4096, &mut Vec::new())?;
+        match result {
+            ComparisonReading::Predicate(cmp, carrier, 0, 1) if carrier == *ty => Some(cmp),
+            ComparisonReading::Predicate(cmp, carrier, 1, 0) if carrier == *ty => Some(reverse_comparison(cmp)),
+            _ => None,
+        }
+    }
+
+    fn note_comparison_use(&self, local: LocalId, span: ast::Span) {
+        if let Some(certificates) = self.comparison_facts.get(&local) {
+            let mut used = self.used_comparisons.borrow_mut();
+            for certificate in certificates {
+                if !used.iter().any(|(old, _, _)| old == certificate) {
+                    used.push((certificate.clone(), span, self.current_module.clone()));
+                }
+            }
+        }
+    }
+
+    fn check_used_comparisons(&self) -> Result<()> {
+        for (certificate, span, module) in self.used_comparisons.borrow().iter() {
+            if self.read_selected_comparison(&certificate.dictionary, certificate.slot, &certificate.carrier) != Some(certificate.comparison) {
+                return Err(Error::at(*span, format!(
+                    "a refinement obligation cites a comparison fact whose actual selected implementation {} at slot {} does not establish {:?} over {} (in {module})",
+                    certificate.dictionary.0, certificate.slot, certificate.comparison, certificate.carrier)));
+            }
+        }
+        Ok(())
+    }
+
+    fn closed_comparison_method(&self, id: &GlobalId, slot: usize) -> Option<&GlobalId> {
+        let instance = self.instance_defs.iter().find(|d| d.id == *id)?;
+        if instance.tparams != 0 || instance.subdict_count != 0 || *instance.own.get(slot)? != 0 { return None }
+        instance.methods.get(slot)
+    }
+
+    fn read_comparison_call(&self, id: &GlobalId, args: Vec<ComparisonReading>, fuel: &mut usize, visiting: &mut Vec<GlobalId>) -> Option<ComparisonReading> {
+        *fuel = fuel.checked_sub(1)?;
+        if visiting.len() >= 64 || visiting.contains(id) { return None }
+        if let Some(function) = self.fns.iter().find(|function| function.id == *id) {
+            if let Some(op) = function.prim {
+                if function.params.len() != args.len() { return None }
+                return comparison_primitive(op, &args);
+            }
+        }
+        // These are checked pure bodies retained before runtime lowering,
+        // with their real parameter identities. No names or class slots
+        // supply an equation, and foreign/effectful/assumed prims are absent.
+        let (parameters, body) = self.erasure_bodies.get(id)?;
+        if args.len() < parameters.len() { return Some(ComparisonReading::Function(id.clone(), args)) }
+        if args.len() != parameters.len() { return None }
+        let locals = parameters.iter().copied().zip(args).collect();
+        visiting.push(id.clone());
+        let result = self.read_comparison_core(body, &locals, fuel, visiting);
+        visiting.pop();
+        result
+    }
+
+    fn read_comparison_core(&self, body: &ECore, locals: &HashMap<LocalId, ComparisonReading>, fuel: &mut usize, visiting: &mut Vec<GlobalId>) -> Option<ComparisonReading> {
+        use ComparisonReading as R;
+        *fuel = fuel.checked_sub(1)?;
+        Some(match body {
+            ECore::Var(id) => locals.get(id)?.clone(),
+            ECore::Int(value) => R::Word(*value),
+            ECore::Bool(value) => R::Bool(*value),
+            ECore::Prim(op) => R::Primitive(*op),
+            ECore::Global(id, actuals) if actuals.is_empty() => {
+                if self.erasure_bodies.get(id).is_some_and(|(params, _)| params.is_empty()) {
+                    return self.read_comparison_call(id, Vec::new(), fuel, visiting);
+                }
+                R::Function(id.clone(), Vec::new())
+            }
+            ECore::MkClos { fn_id, env } => R::Function(fn_id.clone(), env.iter().map(|arg| self.read_comparison_core(arg, locals, fuel, visiting)).collect::<Option<_>>()?),
+            ECore::InstDict(id, dictionaries, types, _) if dictionaries.is_empty() && types.is_empty() => R::Dictionary(id.clone()),
+            ECore::DictProj(dictionary, slot, _, _) => {
+                let R::Dictionary(id) = self.read_comparison_core(dictionary, locals, fuel, visiting)? else { return None };
+                R::Function(self.closed_comparison_method(&id, *slot)?.clone(), Vec::new())
+            }
+            ECore::Let(id, value, body) => {
+                let value = self.read_comparison_core(value, locals, fuel, visiting)?;
+                let mut nested = locals.clone(); nested.insert(*id, value);
+                return self.read_comparison_core(body, &nested, fuel, visiting);
+            }
+            ECore::App(function, arguments) => {
+                let mut groups = vec![arguments.as_slice()]; let mut head = &**function;
+                while let ECore::App(function, arguments) = head { groups.push(arguments.as_slice()); head = function; }
+                let function = self.read_comparison_core(head, locals, fuel, visiting)?;
+                let mut args = Vec::new();
+                for group in groups.into_iter().rev() {
+                    for arg in group { args.push(self.read_comparison_core(arg, locals, fuel, visiting)?); }
+                }
+                return match function {
+                    R::Primitive(op) => comparison_primitive(op, &args),
+                    R::Function(id, mut captures) => { captures.extend(args); self.read_comparison_call(&id, captures, fuel, visiting) }
+                    _ => None,
+                };
+            }
+            ECore::If(condition, yes, no) => {
+                match self.read_comparison_core(condition, locals, fuel, visiting)? {
+                    R::Bool(true) => return self.read_comparison_core(&yes.body, locals, fuel, visiting),
+                    R::Bool(false) => return self.read_comparison_core(&no.body, locals, fuel, visiting),
+                    R::Predicate(..) => {
+                        let yes = self.read_comparison_core(&yes.body, locals, fuel, visiting)?;
+                        let no = self.read_comparison_core(&no.body, locals, fuel, visiting)?;
+                        if yes != no { return None }
+                        yes
+                    }
+                    _ => return None,
+                }
+            }
+            _ => return None,
+        })
+    }
+}
+
+fn comparison_primitive(op: PrimOp, arguments: &[ComparisonReading]) -> Option<ComparisonReading> {
+    use ComparisonReading as R;
+    let cmp = |op| match op {
+        CmpOp::Eq => IdxCmp::Eq, CmpOp::Ne => IdxCmp::Ne, CmpOp::Lt => IdxCmp::Lt,
+        CmpOp::Le => IdxCmp::Le, CmpOp::Gt => IdxCmp::Gt, CmpOp::Ge => IdxCmp::Ge,
+    };
+    match (op, arguments) {
+        (PrimOp::Nat(NatOp::Cmp), [R::Argument(a, Ty::Nat), R::Argument(b, Ty::Nat)]) => Some(R::Ordering(Ty::Nat, *a, *b)),
+        (PrimOp::Int(IntOp::Cmp), [R::Argument(a, Ty::Int), R::Argument(b, Ty::Int)]) => Some(R::Ordering(Ty::Int, *a, *b)),
+        (PrimOp::Cmp { ty: Scalar::I64, op }, [R::Ordering(ty, a, b), R::Word(0)]) => Some(R::Predicate(cmp(op), ty.clone(), *a, *b)),
+        (PrimOp::Cmp { ty: Scalar::I64, op }, [R::Word(0), R::Ordering(ty, a, b)]) => Some(R::Predicate(reverse_comparison(cmp(op)), ty.clone(), *a, *b)),
+        (PrimOp::Cmp { ty, op }, [R::Argument(a, Ty::Prim(left)), R::Argument(b, Ty::Prim(right))])
+            if (ty.is_int_like() || ty == Scalar::Char) && ty == *left && ty == *right => Some(R::Predicate(cmp(op), Ty::Prim(ty), *a, *b)),
+        (PrimOp::NotBool, [R::Predicate(cmp, ty, a, b)]) => Some(R::Predicate(negate_comparison(*cmp), ty.clone(), *a, *b)),
+        (PrimOp::NotBool, [R::Bool(value)]) => Some(R::Bool(!value)),
+        _ => None,
+    }
+}
+
 impl Checker {
     fn total_sort(&self, ty: &Ty, seen: &mut Vec<Ty>) -> Option<crate::total::Sort> {
         use crate::total::Sort;
@@ -332,7 +528,7 @@ impl Checker {
         let value = self.checked_nat_reading(env, core, 0)?;
         let mut names = self.term_names(env, &value)?;
         names.push((name.to_owned(), local));
-        Some(Fact { prop: PTerm::Cmp(IdxCmp::Eq, Box::new(ITerm::Var(name.to_owned())), Box::new(value)), at: self.ev_writes.len(), names })
+        Some(Fact { prop: PTerm::Cmp(IdxCmp::Eq, Box::new(ITerm::Var(name.to_owned())), Box::new(value)), at: self.ev_writes.len(), names, comparisons: Vec::new() })
     }
     fn checked_nat_reading(&self, env: &Env, core: &ECore, depth: usize) -> Option<ITerm> {
         if depth > 64 { return None }

@@ -2952,15 +2952,15 @@ impl Checker {
         // is read off that elaboration.
         let read = match self.cond_comparison(env, cond)? {
             Some((test, None)) => return Ok((test, Vec::new(), Vec::new())),
-            Some((test, Some(prop))) => Some((test, negate_fact(&prop), prop)),
+            Some((test, Some((prop, certificate)))) => Some((test, negate_fact(&prop), prop, vec![certificate])),
             None => self
                 .cond_predicate(env, cond)?
-                .map(|(test, prop)| (test, PTerm::Not(Box::new(prop.clone())), prop)),
+                .map(|(test, prop)| (test, PTerm::Not(Box::new(prop.clone())), prop, Vec::new())),
         };
-        if let Some((test, neg, pos)) = read {
+        if let Some((test, neg, pos, certificates)) = read {
             let at = self.ev_writes.len();
-            let pos = self.mk_fact(env, pos, at).into_iter().collect();
-            let neg = self.mk_fact(env, neg, at).into_iter().collect();
+            let pos = self.mk_fact(env, pos, at).map(|mut f| { f.comparisons = certificates.clone(); f }).into_iter().collect();
+            let neg = self.mk_fact(env, neg, at).map(|mut f| { f.comparisons = certificates; f }).into_iter().collect();
             return Ok((test, pos, neg));
         }
         Ok((self.check(env, cond, &Ty::Bool)?, Vec::new(), Vec::new()))
@@ -3040,7 +3040,7 @@ impl Checker {
         &mut self,
         env: &mut Env,
         cond: &ast::Term,
-    ) -> Result<Option<(ECore, Option<PTerm>)>> {
+    ) -> Result<Option<(ECore, Option<(PTerm, ComparisonCertificate)>)>> {
         let ast::Term::App(f, args, _) = cond else {
             return Ok(None);
         };
@@ -3065,21 +3065,26 @@ impl Checker {
         &self,
         env: &Env,
         test: &ECore,
-        cmp: IdxCmp,
+        declared_cmp: IdxCmp,
         lhs: &ast::Term,
         rhs: &ast::Term,
-    ) -> Option<PTerm> {
+    ) -> Option<(PTerm, ComparisonCertificate)> {
         let mut head = test;
         while let ECore::App(f, _) = head {
             head = f;
         }
-        let ECore::DictProj(dict, _, _, _) = head else { return None };
+        let ECore::DictProj(dict, slot, _, _) = head else { return None };
         let ECore::Hole(want) = &**dict else { return None };
         let w = self.wants.iter().find(|w| w.id == *want)?;
         let compared = self.uni.zonk(w.class.args.first()?);
         if !fact_numeric(&compared) {
             return None;
         }
+        // An Ord/Eq declaration describes a callable, not its equation.
+        // Resolve this exact want (including lexical dictionaries), then
+        // read only the selected implementation's checked computation.
+        let certificate = self.checked_comparison_method(w, *slot, &compared, declared_cmp)?;
+        let cmp = certificate.comparison;
         if !self.fact_term_ok(env, lhs) || !self.fact_term_ok(env, rhs) {
             return None;
         }
@@ -3092,7 +3097,7 @@ impl Checker {
         let prop = PTerm::Cmp(cmp, Box::new(li), Box::new(ri));
         match self.static_obligation(&prop) {
             Err(_) | Ok(ObligStatus::Timeout | ObligStatus::Unsupported) => None,
-            Ok(_) => Some(prop),
+            Ok(_) => Some((prop, certificate)),
         }
     }
 
@@ -3301,7 +3306,7 @@ impl Checker {
             .into_iter()
             .map(|v| env.lookup(&v).map(|(l, _)| (v, l)))
             .collect::<Option<Vec<_>>>()?;
-        Some(Fact { prop, at, names })
+        Some(Fact { prop, at, names, comparisons: Vec::new() })
     }
 
     /// A `case` scrutinee elaborated for what its value states (the
@@ -3410,7 +3415,7 @@ impl Checker {
     /// guard falls through inside its own branch).
     fn branch_facts(reading: &Reading, key: &BranchKey) -> Vec<Fact> {
         let at = reading.end;
-        let mk = |prop: PTerm, names: &[(String, LocalId)]| Fact { prop, at, names: names.to_vec() };
+        let mk = |prop: PTerm, names: &[(String, LocalId)]| Fact { prop, at, names: names.to_vec(), comparisons: Vec::new() };
         match (&reading.kind, key) {
             (ReadingKind::Bool { pos, .. }, BranchKey::Bool(true)) => pos.clone(),
             (ReadingKind::Bool { neg, .. }, BranchKey::Bool(false)) => neg.clone(),
@@ -3460,7 +3465,7 @@ impl Checker {
             for n in bound {
                 let facts: Vec<Fact> = value_facts(&ITerm::Var(n.clone()), key)
                     .into_iter()
-                    .map(|prop| Fact { prop, at: now, names: vec![(n.clone(), *l)] })
+                    .map(|prop| Fact { prop, at: now, names: vec![(n.clone(), *l)], comparisons: Vec::new() })
                     .collect();
                 self.bind_facts(&mut r.env, &facts, now, span)?;
             }
@@ -3505,6 +3510,7 @@ impl Checker {
             }
             for atom in pred_conjuncts(&f.prop) {
                 let l = self.fresh_local();
+                if !f.comparisons.is_empty() { self.comparison_facts.insert(l, f.comparisons.clone()); }
                 self.bind_local(
                     env,
                     COND_FACT,
@@ -3560,7 +3566,7 @@ impl Checker {
                 prop = prop.subst(v, &ITerm::Var(n.clone()));
                 names.push((n, *l));
             }
-            out.push(Fact { prop, at: now, names });
+            out.push(Fact { prop, at: now, names, comparisons: Vec::new() });
         }
         self.bind_facts(env, &out, now, span)
     }
@@ -8846,6 +8852,7 @@ const COND_FACT: &str = "%cond";
 /// scope where a name denotes another value does not receive it).
 #[derive(Clone, Debug)]
 pub(crate) struct Fact {
+    comparisons: Vec<ComparisonCertificate>,
     prop: PTerm,
     at: usize,
     names: Vec<(String, LocalId)>,
@@ -8946,7 +8953,8 @@ fn fact_or(a: Vec<Fact>, b: Vec<Fact>) -> Vec<Fact> {
             names.push((n.clone(), *l));
         }
     }
-    vec![Fact { prop: PTerm::Or(Box::new(conj(&a)), Box::new(conj(&b))), at, names }]
+    let comparisons = a.iter().chain(&b).flat_map(|f| f.comparisons.iter().cloned()).collect();
+    vec![Fact { prop: PTerm::Or(Box::new(conj(&a)), Box::new(conj(&b))), at, names, comparisons }]
 }
 
 /// A comparison's refutation as the complementary comparison (`not (x <
