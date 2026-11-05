@@ -1,5 +1,31 @@
 # Next steps (as of 2026-11-05)
 
+## Current Cinch method-body candidate: exporter and auxiliary gates (2026-11-05)
+
+The private 29775 compiler now passes its all-43 module check and all 28 fresh
+actual-exporter controls. The original interface metadata assertions and proof
+clients remain intact. Independent decoding and execution of the emitted method
+graphs confirm private helper closure, changed arithmetic, identity and real
+calls between methods; cyclic bodies stay opaque.
+
+All 251 matching auxiliary tests pass: 171 runtime, 41 tooling and 39 editor
+checks, with no skipped cases. Source identities, executable identity and complete
+logs are independently audited. See
+`bootstrap/current-cinch-method-body-progress.json` for the exact private source
+scope and the recorded full proof/interface gate status.
+
+A deliberate refresh to the published 25b7e82 Native seed and separate library
+producer is prepared privately. The fresh Stage0 passes all three smoke checks.
+The separate library-only object passes its ABI, artifact, package-closure and
+55-interface decoder audit and contains no Bootstrap implementation modules.
+The genuine Stage1/2/3 rebuild waits for all nineteen matching proof/interface
+groups. A fresh complete Native sweep is queued on the same source and pins.
+
+This receipt publishes evidence, not the private compiler or refreshed pins.
+Main still contains c8d6 and its explicit b64710b pins. Full matching suites,
+the original interface/API coverage and Acceptance 5 remain open. Retained prior
+runs keep their original source scope and do not substitute for those gates.
+
 ## ABI-checked primitive values keep their own body roots (2026-11-05)
 
 Inlining removed call edges to primitives such as `Data.Nat.nat-add`, leaving

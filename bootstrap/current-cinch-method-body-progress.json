@@ -1,0 +1,350 @@
+{
+  "schema": 1,
+  "status": "passed-scoped-private-cinch-candidate",
+  "recorded_at": "2026-11-05T12:52:33.855322+00:00",
+  "compiler_source_sha256": "29775cd823d34f64e8ed526fda149c499309dc61cf73d664220e11ae745e8550",
+  "source_published": false,
+  "pins_published": false,
+  "full_goal_complete": false,
+  "source_check": "all43 passed",
+  "actual_exporter": {
+    "compiler_modules": 43,
+    "compiler_sha256": "ab1b1f30f3ba2a3914d765c4388bea431a6c16459f1536bebb6442d87a13f124",
+    "compiler_source_sha256": "29775cd823d34f64e8ed526fda149c499309dc61cf73d664220e11ae745e8550",
+    "controls": 28,
+    "full_goal_complete": false,
+    "independent_replay": "Exact Owner documents equal independently inspected input-replay3; real helper +1/+2, identity and chained method compute correctly for0,7,bignum input; cycle omitted.",
+    "native_validator_sha256": "a543c3d63d1db3e4416ab351eeb9ee95ab4fd4906391f0e6cdbb7669e3b2dae9",
+    "rows": [
+      {
+        "exit_code": 0,
+        "expected": 0,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "name": "build-native-validator",
+        "status": "passed"
+      },
+      {
+        "exit_code": 0,
+        "expected": 0,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "name": "emit-current-library-method-contracts",
+        "status": "passed"
+      },
+      {
+        "exit_code": 0,
+        "expected": 0,
+        "log_sha256": "2342cd5f3cd618b31aae1d26a08eb0b8fc0230d0861d07ba8dd122216a4c5699",
+        "name": "validate-current-library-method-contracts",
+        "status": "passed"
+      },
+      {
+        "exit_code": 0,
+        "expected": 0,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "name": "build",
+        "status": "passed"
+      },
+      {
+        "exit_code": 4,
+        "expected": 4,
+        "log_sha256": "606bf3d213b597ffda44f3ef6c845c35ca5dbaa6a21c1fca3dca0d3a7e1aa211",
+        "name": "cyclic-measure-refused",
+        "status": "passed",
+        "zero_leaks": true
+      },
+      {
+        "exit_code": 0,
+        "expected": 0,
+        "log_sha256": "632b943ec9ecbbea79309a3d570f6eb064e363002d5196f179c35fece4b23387",
+        "name": "original-interface-preconditions",
+        "status": "passed",
+        "zero_leaks": true
+      },
+      {
+        "exit_code": 0,
+        "expected": 0,
+        "log_sha256": "3d115658b830e60b81a2128d96ac9b8c249ff3d7c8d348511ae86fccaeea8e09",
+        "name": "validate-original-interface-preconditions",
+        "status": "passed"
+      },
+      {
+        "exit_code": 0,
+        "expected": 0,
+        "log_sha256": "c3d39122b8d494fe5ea5a734f063b11f68682d0c9fb25ec1ed96d3f70cb8c6c6",
+        "name": "original-assertions",
+        "status": "passed"
+      },
+      {
+        "exit_code": 0,
+        "expected": 0,
+        "log_sha256": "4c08f2b5bf8bf3b713f3542bdb5a28489cad55f67f82bb05a979e85845eb424d",
+        "name": "private-dependency-and-facade",
+        "status": "passed",
+        "zero_leaks": true
+      },
+      {
+        "exit_code": 0,
+        "expected": 0,
+        "log_sha256": "f6fd68acd3d30f3e1b40efcfeeec548d25530436f526aacaa19afa3c3f3ffba1",
+        "name": "validate-private-dependency-and-facade",
+        "status": "passed"
+      },
+      {
+        "exit_code": 4,
+        "expected": 4,
+        "log_sha256": "e4ec200ab693e15664139b486fd67e9d59ec1e0e83f53716dad7d7d9110da6f1",
+        "name": "wrong-measure-sort-refused",
+        "status": "passed",
+        "zero_leaks": true
+      },
+      {
+        "exit_code": 0,
+        "expected": 0,
+        "log_sha256": "2676210345856aa5109227fed0cb568fe9e1c515f1d7531387dfc7017cfbf56d",
+        "name": "changed-interface-total-bodies",
+        "status": "passed",
+        "zero_leaks": true
+      },
+      {
+        "exit_code": 0,
+        "expected": 0,
+        "log_sha256": "f6fd68acd3d30f3e1b40efcfeeec548d25530436f526aacaa19afa3c3f3ffba1",
+        "name": "validate-changed-interface-total-bodies",
+        "status": "passed"
+      },
+      {
+        "exit_code": 0,
+        "expected": 0,
+        "log_sha256": "3bcfef7d3b0bb2ae3251541cbd3b3edee70cd777304f09fc614936d6f3fc3106",
+        "name": "original-interface-total-bodies",
+        "status": "passed",
+        "zero_leaks": true
+      },
+      {
+        "exit_code": 0,
+        "expected": 0,
+        "log_sha256": "f6fd68acd3d30f3e1b40efcfeeec548d25530436f526aacaa19afa3c3f3ffba1",
+        "name": "validate-original-interface-total-bodies",
+        "status": "passed"
+      },
+      {
+        "exit_code": 0,
+        "expected": 0,
+        "log_sha256": "46d75380f729ac066009bbaabf153d6bc037c694e2aef034d53178a502439712",
+        "name": "own-private-method-bodies",
+        "status": "passed",
+        "zero_leaks": true
+      },
+      {
+        "exit_code": 0,
+        "expected": 0,
+        "log_sha256": "9663d047d02e414b28574c3614bdf91bb1fe1fb478b3405d7339ff4a965d654e",
+        "name": "validate-own-private-method-bodies",
+        "status": "passed"
+      },
+      {
+        "exit_code": 0,
+        "expected": 0,
+        "log_sha256": "46d75380f729ac066009bbaabf153d6bc037c694e2aef034d53178a502439712",
+        "name": "changed-private-method-bodies",
+        "status": "passed",
+        "zero_leaks": true
+      },
+      {
+        "exit_code": 0,
+        "expected": 0,
+        "log_sha256": "9663d047d02e414b28574c3614bdf91bb1fe1fb478b3405d7339ff4a965d654e",
+        "name": "validate-changed-private-method-bodies",
+        "status": "passed"
+      },
+      {
+        "exit_code": 0,
+        "expected": 0,
+        "log_sha256": "3cc662567fb05a33ac346ef124def15d5a73680328ff85dfa6c4465f4dd1d05d",
+        "name": "own-self-method-calls",
+        "status": "passed",
+        "zero_leaks": true
+      },
+      {
+        "exit_code": 0,
+        "expected": 0,
+        "log_sha256": "9663d047d02e414b28574c3614bdf91bb1fe1fb478b3405d7339ff4a965d654e",
+        "name": "validate-own-self-method-calls",
+        "status": "passed"
+      },
+      {
+        "exit_code": 0,
+        "expected": 0,
+        "log_sha256": "9c72c168cb6a976939c71bbf080d9bc683a02ccbe6f13f65e054d3fb9bb90e92",
+        "name": "original-interface-preconditions-client-positive",
+        "status": "passed",
+        "zero_leaks": true
+      },
+      {
+        "exit_code": 4,
+        "expected": 4,
+        "log_sha256": "2db6029f72b99020fb0efd2daeb26942f4dadd5b866cb7e9db81bb702c8b8e83",
+        "name": "original-interface-preconditions-client-missing-proof",
+        "status": "passed",
+        "zero_leaks": true
+      },
+      {
+        "exit_code": 0,
+        "expected": 0,
+        "log_sha256": "575dff57fd6d78e320638bff004e8efdbedab2837314462388c2a1b0a6da0057",
+        "name": "private-dependency-and-facade-client-positive",
+        "status": "passed",
+        "zero_leaks": true
+      },
+      {
+        "exit_code": 4,
+        "expected": 4,
+        "log_sha256": "40bae7f4c6419a83491909847ebca5ed67cc9647ef60ccf0a0236072868a9f68",
+        "name": "private-dependency-and-facade-client-missing-proof",
+        "status": "passed",
+        "zero_leaks": true
+      },
+      {
+        "name": "own-private-method-bodies-actual-body-and-private-scope",
+        "status": "passed"
+      },
+      {
+        "name": "changed-private-method-bodies-actual-body-and-private-scope",
+        "status": "passed"
+      },
+      {
+        "name": "actual-self-dictionary-slot-and-cycle-refusal",
+        "status": "passed"
+      }
+    ],
+    "schema": 1,
+    "scope": "Fresh actual Cinch exporter from current43 inputs, compiled by exact Native primitive producer. All original export/metadata/consumer controls retained. Full matching19groups, new seed/provider pins, genuine bootstrap and complete API/suites stillrequired.",
+    "source_snapshot_sha256": "1cb82cbb9f49dee0b4112eaa991ffb0f47b9fe245cb824f25a003aef1496d48b",
+    "status": "passed-actual-cinch-method-body-export",
+    "verified_at": "2026-11-05T12:23:46.194560+00:00",
+    "zero_leak_reports": 13
+  },
+  "auxiliary": {
+    "compiler_sha256": "674b4aebbd58a084f7d65ccf4ac9dcbcf31c244238bc8e0da0c72bef6f5be11f",
+    "compiler_source_sha256": "29775cd823d34f64e8ed526fda149c499309dc61cf73d664220e11ae745e8550",
+    "full_goal_complete": false,
+    "runtime_tests": 171,
+    "scope": "Complete unchanged matching runtime/tooling/editor suites, logs, source identity and actual current Stage0 independently verified. These are auxiliary gates; they do not establish the new Cinch bootstrap or full compiler/API parity.",
+    "seed_revision": "25b7e822e806ac767585cd34e9078ecd2a080c17",
+    "source_sha256": "a35f8007bd163b4888aa9f24cc88f49dcfb4c0cc32509ddc37ae78f0b2f0176f",
+    "status": "passed-matching-auxiliary-audit",
+    "syntax_editor_tests": 39,
+    "tooling_tests": 41,
+    "verified_at": "2026-11-05T12:50:24.280259+00:00"
+  },
+  "prepared_stage0": {
+    "compiler_sha256": "674b4aebbd58a084f7d65ccf4ac9dcbcf31c244238bc8e0da0c72bef6f5be11f",
+    "full_goal_complete": false,
+    "native_source_sha256": "255f06b66561d5f47030b56e6fdb32f51fa7876c9f46787ed3f07580b211714b",
+    "revision": "25b7e822e806ac767585cd34e9078ecd2a080c17",
+    "scope": "Fresh current Native Stage0 only, exact new explicit pin/archive inputs, all three smoke checks. Library provider and actualCinchStage1/2/3 are separate pending gates.",
+    "smokes": [
+      "fib",
+      "precedence",
+      "named-refusal"
+    ],
+    "status": "passed-current-seed-only",
+    "verified_at": "2026-11-05T12:33:28.052309+00:00"
+  },
+  "prepared_library_provider": {
+    "artifacts": 62,
+    "compiler_implementation_units": false,
+    "decoder_log_sha256": "2342cd5f3cd618b31aae1d26a08eb0b8fc0230d0861d07ba8dd122216a4c5699",
+    "full_goal_complete": false,
+    "interfaces": 55,
+    "native_decoder_sha256": "a543c3d63d1db3e4416ab351eeb9ee95ab4fd4906391f0e6cdbb7669e3b2dae9",
+    "native_source_sha256": "255f06b66561d5f47030b56e6fdb32f51fa7876c9f46787ed3f07580b211714b",
+    "revision": "25b7e822e806ac767585cd34e9078ecd2a080c17",
+    "runtime_abi": 6,
+    "scope": "Fresh separate library-only producer with exact pinned archived Native inputs, all artifact identities, actual base package closure, object ABI and Native interface decoding independently verified. It supplies no Bootstrap implementation modules.",
+    "status": "passed-current-library-only-provider",
+    "verified_at": "2026-11-05T12:50:25.198394+00:00"
+  },
+  "complete_proof_interface_gate": {
+    "status": "running",
+    "rows": [
+      {
+        "name": "bootstrap_total_semantics",
+        "status": "passed"
+      },
+      {
+        "name": "bootstrap_instance_resolution",
+        "status": "passed"
+      },
+      {
+        "name": "bootstrap_body_bindings",
+        "status": "passed"
+      },
+      {
+        "name": "bootstrap_core",
+        "status": "passed"
+      },
+      {
+        "name": "bootstrap_globals",
+        "status": "passed"
+      },
+      {
+        "name": "bootstrap_typing",
+        "status": "passed"
+      },
+      {
+        "name": "bootstrap_infer",
+        "status": "passed"
+      },
+      {
+        "name": "bootstrap_check",
+        "status": "passed"
+      },
+      {
+        "name": "bootstrap_export_interfaces",
+        "status": "passed"
+      },
+      {
+        "name": "bootstrap_export_types",
+        "status": "passed"
+      },
+      {
+        "name": "bootstrap_total",
+        "status": "passed"
+      },
+      {
+        "name": "bootstrap_typed_indices",
+        "status": "running"
+      },
+      {
+        "name": "bootstrap_source_refinements",
+        "status": "pending"
+      },
+      {
+        "name": "bootstrap_source_proofs",
+        "status": "pending"
+      },
+      {
+        "name": "bootstrap_load",
+        "status": "pending"
+      },
+      {
+        "name": "bootstrap_interface",
+        "status": "pending"
+      },
+      {
+        "name": "bootstrap_function_preconditions",
+        "status": "pending"
+      },
+      {
+        "name": "bootstrap_imported_preconditions",
+        "status": "pending"
+      },
+      {
+        "name": "bootstrap_conditional_methods",
+        "status": "pending"
+      }
+    ]
+  },
+  "scope": "Verified progress for the private29775 Cinch implementation and deliberately prepared25b7e82 seed/library pins. Main retains its c8d6 compiler and b64710b pins. Fresh Stage1/2/3, all19 proof/interface groups, full matching Native/self-built sweeps, original API parity and Acceptance5 remain required."
+}
