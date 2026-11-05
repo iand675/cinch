@@ -58,7 +58,7 @@
     },
     {
       "title": "Complete compiler sweep; Eval import fix checked separately",
-      "detail": "189 of 208 complete groups passed; 1 running, 0 failed and 18 pending.Every group includes ignored tests. State: running.",
+      "detail": "189 of 208 complete groups passed; 2 running, 0 failed and 17 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -133,8 +133,8 @@
     },
     {
       "title": "Proposed compiler repair",
-      "detail": "Separate unpublished source: running. All 43 compiler modules: pending. 24 of 24 complete groups passed; 0 running, 0 failed and 0 pending. This does not replace current-source or final Stage3 acceptance.",
-      "state": "running"
+      "detail": "Separate unpublished source: passed. All 43 compiler modules: passed. 24 of 24 complete groups passed; 0 running, 0 failed and 0 pending. This does not replace current-source or final Stage3 acceptance.",
+      "state": "passed"
     },
     {
       "title": "Recursive proof must be rejected",
@@ -153,7 +153,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "189 of 208 complete groups passed; 1 running, 0 failed and 18 pending."
+      "detail": "189 of 208 complete groups passed; 2 running, 0 failed and 17 pending."
     },
     {
       "title": "Finish the exact self-built compiler tests",
@@ -194,6 +194,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "The fresh current-source compiler chain passes its smoke tests, matching Stage2/Stage3 IR, executable and all 43 canonical interfaces, actual API consumption and changed-source behavior. Complete tests and the final acceptance audit remain separate requirements.",
-  "activity": "Complete compiler sweep; Eval import fix checked separately: 189 of 208 complete groups passed; 1 running, 0 failed and 18 pending. Stage builds and smoke checks: 4 of 4; chain state: passed. Repair gates: 9 of 9 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_nominals: passed; bootstrap_export_interfaces: passed; bootstrap_pipeline: passed; interface_region_effects: passed; bootstrap_source_effects: passed; effects: passed; hk: passed; params: passed; folded_literal_ownership: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 31 of 91 complete groups passed; 1 running, 1 failed and 58 pending. Proposed compiler repair (separate unpublished source): running; 24 of 24 complete groups passed; 0 running, 0 failed and 0 pending.",
-  "updatedAt": "2026-11-05T02:01:41.828426+00:00"
+  "activity": "Complete compiler sweep; Eval import fix checked separately: 189 of 208 complete groups passed; 2 running, 0 failed and 17 pending. Stage builds and smoke checks: 4 of 4; chain state: passed. Repair gates: 9 of 9 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_nominals: passed; bootstrap_export_interfaces: passed; bootstrap_pipeline: passed; interface_region_effects: passed; bootstrap_source_effects: passed; effects: passed; hk: passed; params: passed; folded_literal_ownership: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 31 of 91 complete groups passed; 1 running, 1 failed and 58 pending. Proposed compiler repair (separate unpublished source): passed; 24 of 24 complete groups passed; 0 running, 0 failed and 0 pending.",
+  "updatedAt": "2026-11-05T02:02:44.011497+00:00"
 }
