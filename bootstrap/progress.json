@@ -58,7 +58,7 @@
     },
     {
       "title": "Current published Rust compiler: full suite",
-      "detail": "95 of 232 complete groups passed; 1 running, 0 failed and 136 pending.Every group includes ignored tests. State: running.",
+      "detail": "99 of 232 complete groups passed; 1 running, 0 failed and 132 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -143,7 +143,7 @@
     },
     {
       "title": "Latest source: complete fresh Rust sweep",
-      "detail": "95 of 232 complete groups passed; 1 running, 0 failed and 136 pending. State: running. All fresh test binaries use the matching source paths and explicit new pins; all cases run, including ignored cases. Retained prior results remain separately scoped.",
+      "detail": "99 of 232 complete groups passed; 1 running, 0 failed and 132 pending. State: running. All fresh test binaries use the matching source paths and explicit new pins; all cases run, including ignored cases. Retained prior results remain separately scoped.",
       "state": "running"
     },
     {
@@ -175,7 +175,7 @@
   "blockers": [
     {
       "title": "Library-object emission is being implemented",
-      "detail": "Published alias diagnostic fix14ca215 passes150tests/12completegroups. Updated private library-root backend passes all43 module checks; its full link/ownership test is running and three original runtime groups are queued. The initial two-object artifact demo links and runs at32M with zero leaks. Full object ABI metadata and CLI/adapter remain open. The fresh staged chain waits for all19 matching source groups; full Rust sweep continues."
+      "detail": "Disk-full interruption recovered by clearing old incremental caches; completed groups retained. Exact subtraction input passes (prior92was report-write failure/stale diagnostic). New library root backend passes all43 and full linked ownership test; first original runtime group also passes. Typed ABI units/layouts and actual public/closure entries are queued for verification. Full closed-object metadata, CLI/adapter, complete suites and bootstrap acceptance remain open."
     },
     {
       "title": "Investigate the recorded failure",
@@ -187,7 +187,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "95 of 232 complete groups passed; 1 running, 0 failed and 136 pending."
+      "detail": "99 of 232 complete groups passed; 1 running, 0 failed and 132 pending."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -236,6 +236,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "All 43 compiler-source checks: passed. 12 of 12 complete groups passed; 0 running, 0 failed and 0 pending. linear_facts: passed; refinements: passed; dependent: passed; interface_preconditions: passed; interface_refinements: passed; bootstrap_export_types: passed; bootstrap_export_interfaces: passed; bootstrap_type_syntax: passed; proof_value_identity: passed; evidence_invalidation: passed; syntax_signature_scope: passed; syntax_objects: passed.",
-  "activity": "Current published Rust compiler: full suite: 95 of 232 complete groups passed; 1 running, 0 failed and 136 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 12 of 12 complete groups passed; 0 running, 0 failed and 0 pending. linear_facts: passed; refinements: passed; dependent: passed; interface_preconditions: passed; interface_refinements: passed; bootstrap_export_types: passed; bootstrap_export_interfaces: passed; bootstrap_type_syntax: passed; proof_value_identity: passed; evidence_invalidation: passed; syntax_signature_scope: passed; syntax_objects: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
-  "updatedAt": "2026-11-05T17:42:47.510087+00:00"
+  "activity": "Current published Rust compiler: full suite: 99 of 232 complete groups passed; 1 running, 0 failed and 132 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 12 of 12 complete groups passed; 0 running, 0 failed and 0 pending. linear_facts: passed; refinements: passed; dependent: passed; interface_preconditions: passed; interface_refinements: passed; bootstrap_export_types: passed; bootstrap_export_interfaces: passed; bootstrap_type_syntax: passed; proof_value_identity: passed; evidence_invalidation: passed; syntax_signature_scope: passed; syntax_objects: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
+  "updatedAt": "2026-11-05T17:43:49.596600+00:00"
 }
