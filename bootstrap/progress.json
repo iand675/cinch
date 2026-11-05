@@ -174,8 +174,8 @@
   ],
   "blockers": [
     {
-      "title": "Verify narrowed alias fix and refreshed bootstrap",
-      "detail": "Published85checkpoint141tests/11groups pass, but full57 exposedoneoriginal alias-spelling regression in linear_facts. Narrowedfollowup6b5675passesall48earlytests/all43/alltargets;12completegroups finishing andfull58running. Private74f0 DRecordbuiltin guardandexplicit85seed/provider ready. Freshchain3seed3smokes/provider55interfaces62artifacts independentlypass;171runtime+41tooling+39editor=251matchingtests independentlypass. Stages1-3waitall19currentsourceproof/interfacegroups. Arraymatrixfixture runtimebuilt; original31programs/31zeroleaks/3forgeryrefusals pass in1test/14filtereddiagnostic, full15lateststillrequired. ActualcopyOut/Thunkrow, staging,ObjectEmit,originalAPI/Acceptance5remainopen."
+      "title": "Library-object emission is being implemented",
+      "detail": "The new checked-root library backend is under validation: separately assembled LLVM objects, representation specializations, closures and ownership. Full ABI metadata and the original EmitObject test remain required. Published alias diagnostic repair:150 tests across12 complete groups; the full Rust sweep and separate fresh bootstrap continue."
     },
     {
       "title": "Investigate the recorded failure",
@@ -237,5 +237,5 @@
   "fullGoalComplete": false,
   "summary": "All 43 compiler-source checks: passed. 12 of 12 complete groups passed; 0 running, 0 failed and 0 pending. linear_facts: passed; refinements: passed; dependent: passed; interface_preconditions: passed; interface_refinements: passed; bootstrap_export_types: passed; bootstrap_export_interfaces: passed; bootstrap_type_syntax: passed; proof_value_identity: passed; evidence_invalidation: passed; syntax_signature_scope: passed; syntax_objects: passed.",
   "activity": "Current published Rust compiler: full suite: 28 of 232 complete groups passed; 1 running, 0 failed and 203 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 12 of 12 complete groups passed; 0 running, 0 failed and 0 pending. linear_facts: passed; refinements: passed; dependent: passed; interface_preconditions: passed; interface_refinements: passed; bootstrap_export_types: passed; bootstrap_export_interfaces: passed; bootstrap_type_syntax: passed; proof_value_identity: passed; evidence_invalidation: passed; syntax_signature_scope: passed; syntax_objects: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
-  "updatedAt": "2026-11-05T16:59:58.691347+00:00"
+  "updatedAt": "2026-11-05T17:04:00.639852+00:00"
 }
