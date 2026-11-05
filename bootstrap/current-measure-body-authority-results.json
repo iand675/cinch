@@ -1,0 +1,61 @@
+{
+  "checker_inputs": 21,
+  "compiler_source_sha256": "4507111e3092b40354e6714464574729313c7e9ffe5a12b3d872ca7303efacc5",
+  "filtered": 0,
+  "full_goal_complete": false,
+  "ignored": 0,
+  "log_sha256": "281a15173633c42693f4fb4e545ad654a9d79d1909c05de4b2ae82b48124031e",
+  "native_oracle": {
+    "compiler_sha256": "e524d1d9b31752a09014c3ac94d6b41a331261537d26446bbe676a560fef8d25",
+    "native_source_sha256": "6b567529032465cde863607185da47aa7d5f9e5ecd99a596158174fd7efa6aa7",
+    "rows": [
+      {
+        "accepted": true,
+        "diagnostic": "",
+        "exit_code": 0,
+        "matched": true,
+        "name": "checked local body retains its true precondition",
+        "source": "/tmp/cinch-measure-body-authority-work-1/0.cinch",
+        "source_sha256": "67df1d293687529deb731e5aebb351dec70dff48926bdb6c0130be58228fdf57"
+      },
+      {
+        "accepted": false,
+        "diagnostic": "5:11: the obligation `(Main.fake n) > 4` needs `Dec` evidence or a branch fact at this use (discharge it in the `Dec`/`decide` world: `case decide ((Main.fake n) > 4) of Yes w -> ...`, under a branch condition that implies it (`if ... then`, a guard, or the left operand of `&&`), or pass an argument whose refinement implies it): no evidence for `(Main.fake n) > 4` is in scope here (in /tmp/cinch-measure-body-authority-work-1/1.cinch)\n",
+        "exit_code": 1,
+        "matched": true,
+        "name": "local body cannot establish a false result",
+        "source": "/tmp/cinch-measure-body-authority-work-1/1.cinch",
+        "source_sha256": "33ea5fe11395b640ae748c2333f7a4677275f23789db5e4f2717de07bac3d109"
+      },
+      {
+        "accepted": false,
+        "diagnostic": "5:13: the obligation `(Main.fake m) == (Main.fake n)` needs `Dec` evidence or a branch fact at this use (discharge it in the `Dec`/`decide` world: `case decide ((Main.fake m) == (Main.fake n)) of Yes w -> ...`, under a branch condition that implies it (`if ... then`, a guard, or the left operand of `&&`), or pass an argument whose refinement implies it): no evidence for `(Main.fake m) == (Main.fake n)` is in scope here (in /tmp/cinch-measure-body-authority-work-1/2.cinch)\n",
+        "exit_code": 1,
+        "matched": true,
+        "name": "local body keeps its actual argument",
+        "source": "/tmp/cinch-measure-body-authority-work-1/2.cinch",
+        "source_sha256": "6439e35b17761297359386da6eca1d31b353877b80b9f0434ef67fad47294840"
+      },
+      {
+        "accepted": false,
+        "diagnostic": "5:11: the obligation `(Main.fake n) > 4` needs `Dec` evidence or a branch fact at this use (discharge it in the `Dec`/`decide` world: `case decide ((Main.fake n) > 4) of Yes w -> ...`, under a branch condition that implies it (`if ... then`, a guard, or the left operand of `&&`), or pass an argument whose refinement implies it): no evidence for `(Main.fake n) > 4` is in scope here (in /tmp/cinch-measure-body-authority-work-1/3.cinch)\n",
+        "exit_code": 1,
+        "matched": true,
+        "name": "recursive helper supplies no numeric authority",
+        "source": "/tmp/cinch-measure-body-authority-work-1/3.cinch",
+        "source_sha256": "99643c341a5e1b63919b7a7f280bd8fa66bb20f63f749aa8793ee577f1c81f33"
+      }
+    ],
+    "status": "passed"
+  },
+  "native_source_sha256": "6b567529032465cde863607185da47aa7d5f9e5ecd99a596158174fd7efa6aa7",
+  "new_negative_inputs": 6,
+  "rlib_sha256": "b9008bb6113767a9c027553cba3dc70ca05938cc2a1652c28de4670277d435ba",
+  "schema": 1,
+  "scope": "Complete original measure-contract test passes on current450711 Cinch checker/Native6b host. All original source cases and adversarial imported-contract mutations remain. The exact original fake n=1 / using(fake n<=4) helper is retained as a positive because its precondition is true and checked local numeric bodies are supported; currentNative independently agrees. Added false-result-bound, wrong-actual-argument and recursive-helper refusals run under both original and changed imported libraries, for21 actual runtime-fed checker inputs total. Original changed/wrong-argument conditional skip is unchanged; no Rust tests ignored or filtered. CurrentNative independently checks all4 retained/new local helper controls. No compiler production source changed. This corrects an obsolete unsupported-feature expectation, not the false-claim safety requirement; original byte/measure sweep failures stay preserved under their older frozen test/source scope. Matching full suites/all105 targets and Acceptance5 remain required.",
+  "source_sha256": "c90bd2d02cb40b40026c7e1d70619ec6dc8cf6d903b55ccd9f2b66eafecad261",
+  "status": "passed-current-measure-body-authority",
+  "tests": 1,
+  "verified_at": "2026-11-05T23:12:49.828029+00:00",
+  "whole_groups": 1
+}

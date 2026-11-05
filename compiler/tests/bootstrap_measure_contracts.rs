@@ -115,7 +115,10 @@ fn compiled_cinch_checks_actual_imported_measures_and_changed_bodies() {
             ("ordinary retained call", "answer :: Nat\n  answer = previous (measure 7)", 0),
             ("same actual argument", "safe :: Nat -> Nat -> Nat\n  safe n m = if measure n <= 2 then same-argument n m else 0", 0),
             ("wrong actual argument", "bad :: Nat -> Nat -> Nat\n  bad n m = if measure m <= 2 then same-argument n m else 0", 4),
-            ("no authority from local body", "fake :: Nat -> Nat\n  fake n = 1\n  bad :: using (fake n <= 4) => (n :: Nat) -> Nat\n  bad n = n", 4),
+            ("checked local body retains its true precondition", "fake :: Nat -> Nat\n  fake n = 1\n  bad :: using (fake n <= 4) => (n :: Nat) -> Nat\n  bad n = n", 0),
+            ("local body cannot establish a false result", "fake :: Nat -> Nat\n  fake n = 1\n  bad :: Nat -> refined (out > 4) Nat\n  bad n = fake n", 4),
+            ("local body keeps its actual argument", "fake :: Nat -> Nat\n  fake n = n\n  bad :: (n :: Nat) -> (m :: Nat) -> refined (out == fake n) Nat\n  bad n m = fake m", 4),
+            ("recursive helper supplies no numeric authority", "fake :: Nat -> Nat\n  fake n = fake n\n  bad :: Nat -> refined (out > 4) Nat\n  bad n = fake n", 4),
             ("private source name remains private", "bad :: Nat\n  bad = A.hidden 7", 4),
             ("real encoding header", "safe :: Bytes -> Nat -> Nat\n  safe buffer cp = if bytes-len buffer >= 4 then utf8-encode-into buffer 0 cp else 0", 0),
         ];

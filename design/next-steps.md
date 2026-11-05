@@ -135,6 +135,18 @@ and adds five later groups: 96 portable and nine interface/API targets. Checker
 cache helpers cannot remove groups from selection. Full arrays, copyOut/borrow
 ownership, dictionary factories and generic object roots remain unfinished.
 
+The related complete measure-contract group now passes all21 runtime-fed
+checker inputs. Its original constant-one helper and true `fake n <= 4`
+precondition remain as a positive; rejecting that source was an obsolete
+unsupported-feature expectation after checked local numeric bodies were added.
+Three new refusals under both imported-library variants cover false result
+bounds, different actual arguments and recursive helpers without numeric body
+authority. All four retained/new local controls independently agree with the
+current Rust compiler. Original imported-contract mutation checks remain.
+See `bootstrap/current-measure-body-authority-results.json`; compiler production
+sources are unchanged, and complete matching suites remain required.
+
+
 ## Method-proof compiler completes the bootstrap audit (2026-11-05)
 
 The frozen `74f0d661` compiler has an independently verified Stage0/1/2/3
