@@ -57,8 +57,8 @@
       "state": "passed"
     },
     {
-      "title": "Pre-method-body16cef82 Rust suite (retained full run)",
-      "detail": "145 of 230 complete groups passed; 0 running, 1 failed and 84 pending.Every group includes ignored tests. State: stopped-after-failure. Earlier compiler inputs; a matching published-source run remains required.",
+      "title": "Corrected Rust compiler: complete suite",
+      "detail": "0 of 232 complete groups passed; 0 running, 0 failed and 232 pending.Every group includes ignored tests. State: waiting-corrected-quantified-scope-gates. Earlier compiler inputs; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -143,7 +143,7 @@
     },
     {
       "title": "Latest source: complete fresh Rust sweep",
-      "detail": "135 of 232 complete groups passed; 1 running, 0 failed and 96 pending. State: running. All fresh test binaries use the matching source paths and explicit new pins; all cases run, including ignored cases. Retained prior results remain separately scoped.",
+      "detail": "0 of 232 complete groups passed; 0 running, 0 failed and 232 pending. State: waiting-corrected-quantified-scope-gates. All fresh test binaries use the matching source paths and explicit new pins; all cases run, including ignored cases. Retained prior results remain separately scoped.",
       "state": "running"
     },
     {
@@ -175,11 +175,11 @@
   "blockers": [
     {
       "title": "Preserve quantified value identities through dependent types and proofs",
-      "detail": "Published method-body compiler passes all19 whole proof/interface groups. Latest5cea serializer passes43 controls and all7 original metadata assertions. Strong quantified-value tests exposed a lost valid result proof and two dependent-index mismatches in the private Rust repair; Work5 now shares checked identities between types and term indices and normalizes obligations using the evidence use scope. Ten complete groups and all43 are running in validation4. Current Native55 is an earlier Native25 source sweep and is not evidence for the new Rust repair. Earlier Stage3 sweep remains90/93 groups green; eight individual array cases are red, three because of an observed missing is-none[T] test-library variant. A matching library-only support object is being prepared without changing compiler interfaces or falling back to the Rust frontend. Full matching new bootstrap/Stage3/API/Acceptance5 still required."
+      "detail": "Private quantified-value identity repair now passes the stronger positive/negative regression and all14 original dependent tests using fresh hosts linked to the exact production library. All Native test targets compile; all43 compiler modules and all10 complete affected groups are being checked in validation4. Complete Native56 uses these same exact fresh binaries after its early whole-group gates; earlier Native25 sweep55 is preserved separately. Library-only provider6 admits the observed is-none[T] variant with55 unchanged interface identities, and all15 original arrays tests are replaying through old c8d6 Stage3. Full matching current bootstrap/Stage3/API/Acceptance5 remain open."
     },
     {
       "title": "Investigate the recorded failure",
-      "detail": "Native compiler tests: total_bodies; self-built tests: bootstrap_total_semantics; self-built tests: bootstrap_type_syntax; self-built tests: arrays"
+      "detail": "self-built tests: bootstrap_total_semantics; self-built tests: bootstrap_type_syntax; self-built tests: arrays"
     },
     {
       "title": "Finish the fresh bootstrap",
@@ -187,7 +187,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "145 of 230 complete groups passed; 0 running, 1 failed and 84 pending. Earlier compiler inputs; a matching published-source run remains required."
+      "detail": "0 of 232 complete groups passed; 0 running, 0 failed and 232 pending. Earlier compiler inputs; a matching published-source run remains required."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -236,6 +236,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "All 43 compiler-source checks: passed. 19 of 19 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_total_semantics: passed; bootstrap_instance_resolution: passed; bootstrap_body_bindings: passed; Core validation: passed; bootstrap_globals: passed; independent type checker: passed; inference: passed; typechecker: passed; bootstrap_export_interfaces: passed; bootstrap_export_types: passed; bootstrap_total: passed; index scope and representation: passed; refinements and effects: passed; bootstrap_source_proofs: passed; bootstrap_load: passed; bootstrap_interface: passed; bootstrap_function_preconditions: passed; bootstrap_imported_preconditions: passed; bootstrap_conditional_methods: passed.",
-  "activity": "Pre-method-body16cef82 Rust suite (retained full run): 145 of 230 complete groups passed; 0 running, 1 failed and 84 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 19 of 19 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_total_semantics: passed; bootstrap_instance_resolution: passed; bootstrap_body_bindings: passed; Core validation: passed; bootstrap_globals: passed; independent type checker: passed; inference: passed; typechecker: passed; bootstrap_export_interfaces: passed; bootstrap_export_types: passed; bootstrap_total: passed; index scope and representation: passed; refinements and effects: passed; bootstrap_source_proofs: passed; bootstrap_load: passed; bootstrap_interface: passed; bootstrap_function_preconditions: passed; bootstrap_imported_preconditions: passed; bootstrap_conditional_methods: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
-  "updatedAt": "2026-11-05T14:48:58.656347+00:00"
+  "activity": "Corrected Rust compiler: complete suite: 0 of 232 complete groups passed; 0 running, 0 failed and 232 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 19 of 19 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_total_semantics: passed; bootstrap_instance_resolution: passed; bootstrap_body_bindings: passed; Core validation: passed; bootstrap_globals: passed; independent type checker: passed; inference: passed; typechecker: passed; bootstrap_export_interfaces: passed; bootstrap_export_types: passed; bootstrap_total: passed; index scope and representation: passed; refinements and effects: passed; bootstrap_source_proofs: passed; bootstrap_load: passed; bootstrap_interface: passed; bootstrap_function_preconditions: passed; bootstrap_imported_preconditions: passed; bootstrap_conditional_methods: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
+  "updatedAt": "2026-11-05T14:50:00.962726+00:00"
 }
