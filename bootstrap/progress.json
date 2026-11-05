@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "estimate": 90,
-  "commit": "25b7e822e806ac767585cd34e9078ecd2a080c17",
+  "commit": "bc02c7c975ce793d7cf5fb50d85626af361ee8bc",
   "estimateNote": "Rough engineering estimate. Verified checks and remaining work are listed below.",
   "status": "Verification found a failure; correction required",
   "stages": [
@@ -38,7 +38,7 @@
     },
     {
       "title": "Current repair gates",
-      "detail": "14 of 14 complete groups passed; 0 running, 0 failed and 0 pending. runtime behavior: passed; bootstrap_eval: passed; library calls: passed; bootstrap_source_proofs: passed; bootstrap_source_constructors: passed; refinements and effects: passed; Core validation: passed; independent type checker: passed; bootstrap_decisions: passed; bootstrap_source_decisions: passed; bootstrap_export_interfaces: passed; bootstrap_source_projection: passed; arrays: passed; bootstrap_array_float_bits: passed. All 43 source-module check: passed.",
+      "detail": "19 of 19 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_total_semantics: passed; bootstrap_instance_resolution: passed; bootstrap_body_bindings: passed; Core validation: passed; bootstrap_globals: passed; independent type checker: passed; inference: passed; typechecker: passed; bootstrap_export_interfaces: passed; bootstrap_export_types: passed; bootstrap_total: passed; index scope and representation: passed; refinements and effects: passed; bootstrap_source_proofs: passed; bootstrap_load: passed; bootstrap_interface: passed; bootstrap_function_preconditions: passed; bootstrap_imported_preconditions: passed; bootstrap_conditional_methods: passed. All 43 source-module check: passed.",
       "state": "passed"
     },
     {
@@ -73,7 +73,7 @@
     },
     {
       "title": "Earlier API checkpoint: exact Stage3 behavior",
-      "detail": "87 of 93 complete groups passed; 1 running, 2 failed and 3 pending.81 complete bootstrap groups, eight ordinary and four mixed targets. Includes all positive ABI6 arrays, exact float patterns and the new projection group. Every case runs; direct Native operations remain separately classified. Earlier compiler inputs; a matching published-source run remains required.",
+      "detail": "87 of 93 complete groups passed; 1 running, 3 failed and 2 pending.81 complete bootstrap groups, eight ordinary and four mixed targets. Includes all positive ABI6 arrays, exact float patterns and the new projection group. Every case runs; direct Native operations remain separately classified. Earlier compiler inputs; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -175,11 +175,11 @@
   "blockers": [
     {
       "title": "Repair quantified-value preconditions in the Rust checker",
-      "detail": "All19 original method proof/interface groups pass independently (23tests). Latest5cea Cinch source passesall43, all43actualexportcontrols andall7unchangedoriginalmetadataassertionblocks with20zeroLeaks. Fresh5cea seed,55-interface separateprovider and251 matchingauxiliarytests pass independently. The four full interfacegroups retain3passes and1failure: newcollisioncontrol emitsvalidforallNatprecondition, butNative25 wronglyrequiresitsquantifiedvalue tobeafunctionargument. ActualRustfixandpositive/missing/wrongkindcontrols arecompiling, withalltargets/all43andsixwholegroups. Regressionunchanged; freshbootstrapstoppedbeforeStage1. FullNative55runningeverypublishedtest; original145+oldfixturefailureand34diagnosticpasses retained, unfinishedoldcontinuationretired. Finalcurrentbootstrap/fullNative/Stage3/API/Acceptance5remainopen."
+      "detail": "Publishedbc02c7c nowcontainsactualCinchmethodbodycompiler29775, exact25seed/providerpins andallregressions. All19 full proof/interfacegroups(23tests),all43modules,28actualexportcontrols and251auxpass independently. Newerserializer5ceapasses43actualexportcontrols/all7originalmetadataassertions and251aux; oneaddedtypeprintercollisionrevealedNativeforallvaluefalse-refusal. ActualRustfix compilesalltargets/all43;5of6completeaffectedgroupspassandfinalwriter runs, correctedexact TypeSyntaxdiagnosticgroup also runs. No failingcase removed. Fresh5ceabootstrapstoppedbeforeStage1atprerequisite. FullNative55remainsbaseline25/5cea evidence, completeactualStage3andallAPI/Acceptance5remainopen."
     },
     {
       "title": "Investigate the recorded failure",
-      "detail": "Native compiler tests: total_bodies; self-built tests: bootstrap_total_semantics; self-built tests: bootstrap_type_syntax"
+      "detail": "Native compiler tests: total_bodies; self-built tests: bootstrap_total_semantics; self-built tests: bootstrap_type_syntax; self-built tests: arrays"
     },
     {
       "title": "Finish the fresh bootstrap",
@@ -195,7 +195,7 @@
     },
     {
       "title": "Finish the exact self-built compiler tests",
-      "detail": "87 of 93 complete groups passed; 1 running, 2 failed and 3 pending. Earlier compiler inputs; a matching published-source run remains required."
+      "detail": "87 of 93 complete groups passed; 1 running, 3 failed and 2 pending. Earlier compiler inputs; a matching published-source run remains required."
     },
     {
       "title": "Finish final external acceptance",
@@ -232,10 +232,10 @@
       "title": "Earlier source: Changed-source rebuilding verified"
     }
   ],
-  "candidateSource": null,
+  "candidateSource": "29775cd823d34f64e8ed526fda149c499309dc61cf73d664220e11ae745e8550",
   "candidatePublished": true,
   "fullGoalComplete": false,
-  "summary": "All 43 compiler-source checks: passed. 14 of 14 complete groups passed; 0 running, 0 failed and 0 pending. runtime behavior: passed; bootstrap_eval: passed; library calls: passed; bootstrap_source_proofs: passed; bootstrap_source_constructors: passed; refinements and effects: passed; Core validation: passed; independent type checker: passed; bootstrap_decisions: passed; bootstrap_source_decisions: passed; bootstrap_export_interfaces: passed; bootstrap_source_projection: passed; arrays: passed; bootstrap_array_float_bits: passed.",
-  "activity": "Pre-method-body16cef82 Rust suite (retained full run): 145 of 230 complete groups passed; 0 running, 1 failed and 84 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 14 of 14 complete groups passed; 0 running, 0 failed and 0 pending. runtime behavior: passed; bootstrap_eval: passed; library calls: passed; bootstrap_source_proofs: passed; bootstrap_source_constructors: passed; refinements and effects: passed; Core validation: passed; independent type checker: passed; bootstrap_decisions: passed; bootstrap_source_decisions: passed; bootstrap_export_interfaces: passed; bootstrap_source_projection: passed; arrays: passed; bootstrap_array_float_bits: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 87 of 93 complete groups passed; 1 running, 2 failed and 3 pending.",
-  "updatedAt": "2026-11-05T14:02:57.119129+00:00"
+  "summary": "All 43 compiler-source checks: passed. 19 of 19 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_total_semantics: passed; bootstrap_instance_resolution: passed; bootstrap_body_bindings: passed; Core validation: passed; bootstrap_globals: passed; independent type checker: passed; inference: passed; typechecker: passed; bootstrap_export_interfaces: passed; bootstrap_export_types: passed; bootstrap_total: passed; index scope and representation: passed; refinements and effects: passed; bootstrap_source_proofs: passed; bootstrap_load: passed; bootstrap_interface: passed; bootstrap_function_preconditions: passed; bootstrap_imported_preconditions: passed; bootstrap_conditional_methods: passed.",
+  "activity": "Pre-method-body16cef82 Rust suite (retained full run): 145 of 230 complete groups passed; 0 running, 1 failed and 84 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 19 of 19 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_total_semantics: passed; bootstrap_instance_resolution: passed; bootstrap_body_bindings: passed; Core validation: passed; bootstrap_globals: passed; independent type checker: passed; inference: passed; typechecker: passed; bootstrap_export_interfaces: passed; bootstrap_export_types: passed; bootstrap_total: passed; index scope and representation: passed; refinements and effects: passed; bootstrap_source_proofs: passed; bootstrap_load: passed; bootstrap_interface: passed; bootstrap_function_preconditions: passed; bootstrap_imported_preconditions: passed; bootstrap_conditional_methods: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 87 of 93 complete groups passed; 1 running, 3 failed and 2 pending.",
+  "updatedAt": "2026-11-05T14:08:39.591485+00:00"
 }
