@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "estimate": 90,
-  "commit": "7408eed",
+  "commit": "656cc37",
   "estimateNote": "Rough engineering estimate. Verified checks and remaining work are listed below.",
   "status": "Verification found a failure; correction required",
   "stages": [
@@ -57,8 +57,8 @@
       "state": "passed"
     },
     {
-      "title": "Complete suite on published ABI6array compiler",
-      "detail": "197 of 209 complete groups passed; 2 running, 1 failed and 9 pending.Every group includes ignored tests. State: running.",
+      "title": "Earlier Rust source: complete ABI6 compiler sweep",
+      "detail": "199 of 209 complete groups passed; 0 running, 1 failed and 9 pending.Every group includes ignored tests. State: stopped-after-failure. Earlier compiler inputs; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -73,13 +73,13 @@
     },
     {
       "title": "Complete behavior through exact final Stage3",
-      "detail": "19 of 92 complete groups passed; 1 running, 0 failed and 72 pending.80 complete bootstrap groups, eight ordinary targets and four mixed groups, including all 15 positive ABI6 array tests and the exact F32/F64 payload group. Explicit Native fixture/API paths remain classified; every selected frontend failure stays visible.",
+      "detail": "28 of 92 complete groups passed; 1 running, 1 failed and 62 pending.80 complete bootstrap groups, eight ordinary targets and four mixed groups, including all 15 positive ABI6 array tests and the exact F32/F64 payload group. Explicit Native fixture/API paths remain classified; every selected frontend failure stays visible.",
       "state": "running"
     },
     {
-      "title": "Current runtime, tooling and editor checks",
-      "detail": "runtime: passed; tooling: passed; syntax-editor: passed. All three complete matching-source gates are required.",
-      "state": "passed"
+      "title": "Earlier API checkpoint: runtime, tooling and editor checks",
+      "detail": "runtime: passed; tooling: passed; syntax-editor: passed. All three complete matching-source gates are required. Earlier compiler inputs; a matching published-source run remains required.",
+      "state": "running"
     },
     {
       "title": "Exact final Stage3 acceptance",
@@ -99,11 +99,6 @@
     {
       "title": "Published Rust scoped literals: 83 tests passed",
       "detail": "All six complete suites, all 43 compiler modules and the original complete interface producer passed independently. Literal refinements use actual scoped facts while invalid predicates and ranges remain rejected. Full matching suites remain required.",
-      "state": "passed"
-    },
-    {
-      "title": "Published Rust source-module ordering: 87 tests passed",
-      "detail": "All nine complete affected groups and all 43 compiler modules pass independently. Exact Core/Ordering source replacements keep their defining manifest slot; existing category/algebra overrides retain checked dependency hashes. The original array CLI control now checks and emits; all three malformed cases are refused. Full matching suites remain required.",
       "state": "passed"
     },
     {
@@ -133,35 +128,39 @@
     },
     {
       "title": "Proposed compiler repair",
-      "detail": "Separate unpublished source: running. All 43 compiler modules: pending. 7 of 14 complete groups passed; 1 running, 0 failed and 6 pending. This does not replace current-source or final Stage3 acceptance.",
+      "detail": "Separate unpublished source: running. All 43 compiler modules: pending. 13 of 14 complete groups passed; 1 running, 0 failed and 0 pending. This does not replace current-source or final Stage3 acceptance.",
       "state": "running"
     },
     {
-      "title": "Recursive proof must be rejected",
-      "detail": "The exact published Rust compiler accepts a looping proposition function as evidence for false Zero9. This expected rejection currently succeeds. The independent repair must be verified and integrated; green existing suites do not close this defect.",
-      "state": "failed"
+      "title": "Published Native proof, syntax and float repair",
+      "detail": "43 complete groups / 691 tests, 16 original CLI commands and all 43 current compiler modules pass independently. Invalid recursive/partial/cyclic/wrong-carrier proofs are rejected; valid induction and hygiene controls remain accepted. This is scoped Native evidence; complete matching suites and the Cinch proof API remain required.",
+      "state": "passed"
     }
   ],
   "blockers": [
     {
-      "title": "Complete ABI6bootstrap, proof/API parity and final suites",
-      "detail": "Published9a7288e includes immutableArray/Tensor/Columnar lowering, exact physical/layout/defining-interface guards, closedGlobal/Fail/Reentrant/ThreadAffine semantics and explicit64bitword bounds. All24completeaffectedgroups/104tests and43modules pass independently, with31zero-leak arrayprograms and20exactF32/F64patterns. Stage0andStage1 build/smokes and two actualABI6Stage1 arrayclients are independently verified. Seed andlibrary-onlyprovider are intentionally pinned to exactb64710b ABI6sources. All four ABI6 stages, the identical Stage2/3 LLVM/executable/43interfaces, interface-only entry consumption and the actual changed-source behavior now pass independent audit; Acceptance1\u20134 is proved and published in e22262a. Full Native46/finalStage3/auxiliary/external suites remain running. Previouse2f/ABI5chainandsweeps remain earlier-source evidence. The publishedRustrecursive false-proof remains accepted; The unpublished Native proof/hygiene/float repair6 independently passes all43groups/691tests, all43modules and16originalCLIcommands, including precise invalid-proof refusals and both valid induction controls. Explicit unrefine candidate5 independently passes all nine complete groups and all43 compiler modules; all18 direct semantic controls also pass. Original13 interfacefixtures gave6structuralpasses/7failures: GADT/localforall, generalforeign declarations, sourcedtotalbodyprovenance andsafe sourcemodule replacement. Eval explicitimports now reachbackend, exposing missingruntimeDec/proof lowering; Checked Dec executes its first three programs with zero leaks. The corrected proof-refinement replay exposes missing erased-function calling semantics; Delayed zero-runtime-argument proof closures now pass six actual Cinch programs, including owned captures, reuse, nested proofs and non-eager divergence. Combined64groups are running. A further staged named-proof worker candidate preserves all late equation alternatives and awaits actual runtime controls. Original100target/API/fullAcceptance5 remainopen. The compiler-only library object omitted actual List Int length variant needed by original allocation tests. Fresh test-only ABI6provider5 now contains explicit test roots, with all55checkedlibrary identities and runtime unchanged; all92Stage3groups rerun in47, while original46failures stay recorded. Combined repair1 has passed its complete runtimeIR and original Native evaluator groups; remaining64-group gates continue. Published9ef1d7c fixes actual ABI6 tooling fixtures with both5/6controls; all41toolingtests pass. All14original finalStage3externalchecks pass independently through matchingtestprovider. Published7408eed independently records all171runtime/41tooling/39editor gates; runtimecomponentretainsactualexecutionidentity aftercompleteinputequality. Namedproofstagedworkers now independentlypass all10positiveclients plusoriginalrefinement, all42zero-leaks, includinglateequationdispatch andownedcapture. Combinedsource2merges this lowering andall10regressions withcurrentNativeproof/float/unrefine; all14affectedcompletegroups and43modules queued/running. All209Native/92finalStage3groups, fulloriginalAPI andproof/Acceptance5 remainrequired."
+      "title": "Runtime/proof repair, original API parity and complete suites",
+      "detail": "Published656cc37 fixes the Native proof counterexample, staged syntax hygiene and exact float literals. Independent evidence:43 complete groups/691tests,16 originalCLI commands and all43current compiler modules. The unchanged ABI6Cinch31ac compiler has a verified4-stage fixed point (Acceptance1-4). Its actual finalStage3 evaluator currently fails on missing decision/proof runtime lowering. Combined candidate2 passes13 of14complete affectedgroups, including all15arraytests; its finalfloatgroup is running. WholeNative46 stopped on a stale ghost-index expectation; its correction retains the exact source and adds runtime identity and erased-Type/Prop controls. A fresh full Native sweep is required for the new Rust implementation. Source-defined total-body provenance/export is being implemented and is not yet validated end-to-end. GADT/localforall, generalFFI, safe source-module replacement and actual Cinch proofAPI remain open. All100originaltargets and Acceptance5 remain required. Earlier failed runs and source identities are preserved."
     },
     {
       "title": "Investigate the recorded failure",
-      "detail": "Native compiler tests: bootstrap_source_pi; Current recursive-proof counterexample is incorrectly accepted"
+      "detail": "Native compiler tests: bootstrap_source_pi; self-built tests: bootstrap_eval"
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "197 of 209 complete groups passed; 2 running, 1 failed and 9 pending."
+      "detail": "199 of 209 complete groups passed; 0 running, 1 failed and 9 pending. Earlier compiler inputs; a matching published-source run remains required."
+    },
+    {
+      "title": "Finish matching runtime, tooling and editor checks",
+      "detail": "runtime: passed; tooling: passed; syntax-editor: passed. Earlier compiler inputs; a matching published-source run remains required."
     },
     {
       "title": "Finish the exact self-built compiler tests",
-      "detail": "19 of 92 complete groups passed; 1 running, 0 failed and 72 pending."
+      "detail": "28 of 92 complete groups passed; 1 running, 1 failed and 62 pending."
     },
     {
       "title": "Complete the coverage and acceptance audit",
-      "detail": "Account for all 100 harness targets, the pinned ABI5 array boundary and every Acceptance1-5 requirement. Passing counts alone cannot close this audit."
+      "detail": "Account for all 100 harness targets, the actual positive ABI6 array/runtime behavior and every Acceptance1-5 requirement. Passing counts alone cannot close this audit."
     }
   ],
   "milestones": [
@@ -194,6 +193,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "The fresh current-source compiler chain passes its smoke tests, matching Stage2/Stage3 IR, executable and all 43 canonical interfaces, actual API consumption and changed-source behavior. Complete tests and the final acceptance audit remain separate requirements.",
-  "activity": "Complete suite on published ABI6array compiler: 197 of 209 complete groups passed; 2 running, 1 failed and 9 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-abi6-chain-awaiting-independent-audit. Repair gates: 24 of 24 complete groups passed; 0 running, 0 failed and 0 pending. index scope and representation: passed; bootstrap_array_float_bits: passed; refinements and effects: passed; bootstrap_export_interfaces: passed; bootstrap_effect_types: passed; arrays: passed; bootstrap_source_decisions: passed; bootstrap_nominals: passed; independent type checker: passed; Core validation: passed; bootstrap_pipeline: passed; runtime behavior: passed; library calls: passed; bootstrap_machine_values: passed; bootstrap_value_indices: passed; bootstrap_value_kinds: passed; interface_prelude_overrides: passed; prelude_split: passed; prelude_lib: passed; ffi: passed; interface_nominals: passed; interface_class_contracts: passed; staging: passed; params: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 19 of 92 complete groups passed; 1 running, 0 failed and 72 pending. Proposed compiler repair (separate unpublished source): running; 7 of 14 complete groups passed; 1 running, 0 failed and 6 pending.",
-  "updatedAt": "2026-11-05T04:00:35.107566+00:00"
+  "activity": "Earlier Rust source: complete ABI6 compiler sweep: 199 of 209 complete groups passed; 0 running, 1 failed and 9 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-abi6-chain-awaiting-independent-audit. Repair gates: 24 of 24 complete groups passed; 0 running, 0 failed and 0 pending. index scope and representation: passed; bootstrap_array_float_bits: passed; refinements and effects: passed; bootstrap_export_interfaces: passed; bootstrap_effect_types: passed; arrays: passed; bootstrap_source_decisions: passed; bootstrap_nominals: passed; independent type checker: passed; Core validation: passed; bootstrap_pipeline: passed; runtime behavior: passed; library calls: passed; bootstrap_machine_values: passed; bootstrap_value_indices: passed; bootstrap_value_kinds: passed; interface_prelude_overrides: passed; prelude_split: passed; prelude_lib: passed; ffi: passed; interface_nominals: passed; interface_class_contracts: passed; staging: passed; params: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 28 of 92 complete groups passed; 1 running, 1 failed and 62 pending. Proposed compiler repair (separate unpublished source): running; 13 of 14 complete groups passed; 1 running, 0 failed and 0 pending.",
+  "updatedAt": "2026-11-05T04:18:44.024190+00:00"
 }
