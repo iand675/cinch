@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "estimate": 90,
-  "commit": "2174e1015b53f2f24bdd596203eaaa8cb6b0a5c4",
+  "commit": "7e6bfd792984a4a198e0a81b87cdf8200d9c71dc",
   "estimateNote": "Rough engineering estimate. Verified checks and remaining work are listed below.",
   "status": "Verification found a failure; correction required",
   "stages": [
@@ -38,7 +38,7 @@
     },
     {
       "title": "Current repair gates",
-      "detail": "5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. runtime behavior: passed; bootstrap_runtime_emit: passed; library calls: passed; bootstrap_runtime_library: passed; bootstrap_runtime_library_abi: passed. All 43 source-module check: passed.",
+      "detail": "6 of 6 complete groups passed; 0 running, 0 failed and 0 pending. runtime behavior: passed; bootstrap_runtime_emit: passed; library calls: passed; bootstrap_runtime_library: passed; bootstrap_runtime_library_abi: passed; bootstrap_external_frontend: passed. All 43 source-module check: passed.",
       "state": "passed"
     },
     {
@@ -133,7 +133,7 @@
     },
     {
       "title": "Latest source: fresh bootstrap with updated pins",
-      "detail": "Explicit published85f00ca seed and separate library-only producer. Stage0: passed-current-seed-only; provider: passed-current-library-only-provider. Fresh stages: 2 of4. Chain: building-stage2. Stages1/2/3 wait for all19 matching proof/interface groups; old c8d6 fixed-point evidence remains separate.",
+      "detail": "Explicit published85f00ca seed and separate library-only producer. Stage0: passed-current-seed-only; provider: passed-current-library-only-provider. Fresh stages: 3 of4. Chain: building-stage3. Stages1/2/3 wait for all19 matching proof/interface groups; old c8d6 fixed-point evidence remains separate.",
       "state": "running"
     },
     {
@@ -174,8 +174,8 @@
   ],
   "blockers": [
     {
-      "title": "Validate real Cinch library-object output and reload",
-      "detail": "Published2174e10 retains its five scoped component passes. A private6c0c052 candidate now wires the actual Cinch object CLI, checked source interfaces, closed provider/new-object linking and final content hashes. Seven adapter tests pass; the real Cinch CLI/object/reload/client integration and matching all43 module gate are running. New source dictionary factory/method metadata remains an explicit refusal. Fresh74f0 Stage2 and the Native6b full suite continue separately. Full matching self-built/API/Acceptance5 gates remain open."
+      "title": "Validate real library-object production and consumer round trip",
+      "detail": "Published7e6bfd7 routes output modes through the selected compiler; all8adapter controls pass on currentNative6b. The actual privateCinch object CLI built successfully but exceeded its256MB compiler heap while reading the full provider; its identical executable is now replaying with1G, retaining32MB client leak checks. Concrete constructor roots and exact method-family facts are a further private improvement. Source dictionary factory metadata, fresh matching staged/fullself-built/API/Acceptance5 gates remain open. Existing74f0Stage2 and Native6b full sweep continue separately."
     },
     {
       "title": "Investigate the recorded failure",
@@ -235,7 +235,7 @@
   "candidateSource": "ad6733eb77e92c5a2400c519c52e0bc4de7f6abc1d95e879da537bd42d59e5fc",
   "candidatePublished": true,
   "fullGoalComplete": false,
-  "summary": "All 43 compiler-source checks: passed. 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. runtime behavior: passed; bootstrap_runtime_emit: passed; library calls: passed; bootstrap_runtime_library: passed; bootstrap_runtime_library_abi: passed.",
-  "activity": "Current published Rust compiler: full suite: 157 of 232 complete groups passed; 1 running, 0 failed and 74 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. runtime behavior: passed; bootstrap_runtime_emit: passed; library calls: passed; bootstrap_runtime_library: passed; bootstrap_runtime_library_abi: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
-  "updatedAt": "2026-11-05T19:28:45.682486+00:00"
+  "summary": "All 43 compiler-source checks: passed. 6 of 6 complete groups passed; 0 running, 0 failed and 0 pending. runtime behavior: passed; bootstrap_runtime_emit: passed; library calls: passed; bootstrap_runtime_library: passed; bootstrap_runtime_library_abi: passed; bootstrap_external_frontend: passed.",
+  "activity": "Current published Rust compiler: full suite: 157 of 232 complete groups passed; 1 running, 0 failed and 74 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 6 of 6 complete groups passed; 0 running, 0 failed and 0 pending. runtime behavior: passed; bootstrap_runtime_emit: passed; library calls: passed; bootstrap_runtime_library: passed; bootstrap_runtime_library_abi: passed; bootstrap_external_frontend: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
+  "updatedAt": "2026-11-05T19:38:37.026838+00:00"
 }
