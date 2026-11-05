@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "estimate": 90,
-  "commit": "7e6bfd792984a4a198e0a81b87cdf8200d9c71dc",
+  "commit": "34493227f5992cc0ea07550627e22aefe4f3bf52",
   "estimateNote": "Rough engineering estimate. Verified checks and remaining work are listed below.",
   "status": "Verification found a failure; correction required",
   "stages": [
@@ -38,7 +38,7 @@
     },
     {
       "title": "Current repair gates",
-      "detail": "6 of 6 complete groups passed; 0 running, 0 failed and 0 pending. runtime behavior: passed; bootstrap_runtime_emit: passed; library calls: passed; bootstrap_runtime_library: passed; bootstrap_runtime_library_abi: passed; bootstrap_external_frontend: passed. All 43 source-module check: passed.",
+      "detail": "2 of 2 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_external_frontend: passed; bootstrap_library_object: passed. All 43 source-module check: passed.",
       "state": "passed"
     },
     {
@@ -58,7 +58,7 @@
     },
     {
       "title": "Current published Rust compiler: full suite",
-      "detail": "158 of 232 complete groups passed; 1 running, 1 failed and 72 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "159 of 232 complete groups passed; 1 running, 1 failed and 71 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -143,7 +143,7 @@
     },
     {
       "title": "Latest source: complete fresh Rust sweep",
-      "detail": "158 of 232 complete groups passed; 1 running, 1 failed and 72 pending. State: running. All fresh test binaries use the matching source paths and explicit new pins; all cases run, including ignored cases. Retained prior results remain separately scoped.",
+      "detail": "159 of 232 complete groups passed; 1 running, 1 failed and 71 pending. State: running. All fresh test binaries use the matching source paths and explicit new pins; all cases run, including ignored cases. Retained prior results remain separately scoped.",
       "state": "running"
     },
     {
@@ -174,8 +174,8 @@
   ],
   "blockers": [
     {
-      "title": "Validate real library-object production and consumer round trip",
-      "detail": "Published7e6bfd7 routes output modes through the selected compiler; all8adapter controls pass on currentNative6b. The actual privateCinch object CLI built successfully but exceeded its256MB compiler heap while reading the full provider; its identical executable is now replaying with1G, retaining32MB client leak checks. Concrete constructor roots and exact method-family facts are a further private improvement. Source dictionary factory metadata, fresh matching staged/fullself-built/API/Acceptance5 gates remain open. Existing74f0Stage2 and Native6b full sweep continue separately."
+      "title": "Library objects pass; repair byte-observation aliases and finish full acceptance",
+      "detail": "Published3449322: all43exact compiler modules build, both complete affected groups pass(8adapter+1realroundtrip), and the original arrayobject case passesunchanged(14othercasesexplicitlyfiltered). Independent audit verifies1842actualunits,7newunits/14publicsymbols, hashes, descriptorprefixes, interfaces and32MBpoisonedzero-leakclient. Source dictionary factories and generic root requests remainopen. Native6bfull58 nowhas a byte-observationgroupfailure; current5fcCLI reproducesduplicateimportedobservationbinding. Originalordinaryzerohelpercaseisacceptedbycurrentcheck; its standaloneCore/wholegroupneedsreplay. Fresh74Stage2/3executablesmatch andsmokespass; finalinterface/changed-sourceauditcontinues onthatseparatesnapshot. MatchingfullNative/selfbuilt/API100/Acceptance5 remainrequired."
     },
     {
       "title": "Investigate the recorded failure",
@@ -187,7 +187,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "158 of 232 complete groups passed; 1 running, 1 failed and 72 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "159 of 232 complete groups passed; 1 running, 1 failed and 71 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -232,10 +232,10 @@
       "title": "Earlier source: Changed-source rebuilding verified"
     }
   ],
-  "candidateSource": "ad6733eb77e92c5a2400c519c52e0bc4de7f6abc1d95e879da537bd42d59e5fc",
+  "candidateSource": "5fc231303d013a26370cb09dc46d85f65a5ef9235ea138fe9102ab28a47d3825",
   "candidatePublished": true,
   "fullGoalComplete": false,
-  "summary": "All 43 compiler-source checks: passed. 6 of 6 complete groups passed; 0 running, 0 failed and 0 pending. runtime behavior: passed; bootstrap_runtime_emit: passed; library calls: passed; bootstrap_runtime_library: passed; bootstrap_runtime_library_abi: passed; bootstrap_external_frontend: passed.",
-  "activity": "Current published Rust compiler: full suite: 158 of 232 complete groups passed; 1 running, 1 failed and 72 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 6 of 6 complete groups passed; 0 running, 0 failed and 0 pending. runtime behavior: passed; bootstrap_runtime_emit: passed; library calls: passed; bootstrap_runtime_library: passed; bootstrap_runtime_library_abi: passed; bootstrap_external_frontend: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
-  "updatedAt": "2026-11-05T19:50:03.037867+00:00"
+  "summary": "All 43 compiler-source checks: passed. 2 of 2 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_external_frontend: passed; bootstrap_library_object: passed.",
+  "activity": "Current published Rust compiler: full suite: 159 of 232 complete groups passed; 1 running, 1 failed and 71 pending. Stage builds and smoke checks: 4 of 4; chain state: building-stage3; earlier API source, not the published repair. Repair gates: 2 of 2 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_external_frontend: passed; bootstrap_library_object: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
+  "updatedAt": "2026-11-05T20:01:03.720495+00:00"
 }
