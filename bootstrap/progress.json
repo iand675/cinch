@@ -73,7 +73,7 @@
     },
     {
       "title": "Complete behavior through exact final Stage3",
-      "detail": "17 of 91 complete groups passed; 1 running, 0 failed and 73 pending.79 bootstrap groups, eight ordinary targets, three complete mixed consumers and the designed ABI5 array refusal. Native library fixtures remain explicit; selected compiler failures never fall back.",
+      "detail": "18 of 91 complete groups passed; 1 running, 0 failed and 72 pending.79 bootstrap groups, eight ordinary targets, three complete mixed consumers and the designed ABI5 array refusal. Native library fixtures remain explicit; selected compiler failures never fall back.",
       "state": "running"
     },
     {
@@ -145,7 +145,7 @@
   "blockers": [
     {
       "title": "Finish final suites, proof soundness, and ABI6 arrays",
-      "detail": "The published b64710b Rust producer retains the verified 43-module e2f Stage0\u20133 fixed point. Fresh matching runtime171/tooling41/editor39 and all14 actual Stage3 external checks now pass independent audits; complete Native45 and Stage3 suites continue. The published Rust binary still accepts the original recursive false proof. The isolated verified peer27 repair passes all four original invalid-proof refusals and both valid induction controls; a fresh combined source33 proof/name-capture integration with current Rust family, row and float-conversion fixes is compiling and must pass its own 43 complete groups and original CLI controls before publication. The unpublished Cinch array/effect candidate passes all31 zero-leak runtime programs, 12 type/kind/range negatives, three malformed-layout refusals, all20 exact F32/F64 bit-pattern controls, all20 closed-effect controls and real writer/importer/renamed-facade checks. Its preceding full run passed15groups then failed an obsolete expectation that Isize promotion is unsupported. The fresh24-group run retains the preceding failure; its corrected complete typed-index group now passes with explicit64-bit signed/unsigned boundary controls. An isolated ABI6 chain is queued with matching b64710b seed/provider pins and a new43-module identity; Stage2/3 wait for all24focusedgroups. No ABI5 stage/producer artifacts or Cargo caches are reused for ABI6. Positive ABI6 stage pin/new chain, original API parity and full Acceptance5 remain open."
+      "detail": "The published b64710b Rust producer retains the verified 43-module e2f Stage0\u20133 fixed point. Fresh matching runtime171/tooling41/editor39 and all14 actual Stage3 external checks now pass independent audits; complete Native45 and Stage3 suites continue. The published Rust binary still accepts the original recursive false proof. The isolated verified peer27 repair passes all four original invalid-proof refusals and both valid induction controls; a fresh combined source33 proof/name-capture integration with current Rust family, row and float-conversion fixes is compiling and must pass its own 43 complete groups and original CLI controls before publication. The unpublished Cinch array/effect candidate passes all31 zero-leak runtime programs, 12 type/kind/range negatives, three malformed-layout refusals, all20 exact F32/F64 bit-pattern controls, all20 closed-effect controls and real writer/importer/renamed-facade checks. Its preceding full run passed15groups then failed an obsolete expectation that Isize promotion is unsupported. The fresh24-group run retains the preceding failure; its corrected complete typed-index group now passes with explicit64-bit signed/unsigned boundary controls. An isolated ABI6 chain is queued with matching b64710b seed/provider pins and a new43-module identity; Stage2/3 wait for all24focusedgroups. No ABI5 stage/producer artifacts or Cargo caches are reused for ABI6. Positive ABI6 stage pin/new chain, original API parity and full Acceptance5 remain open. The isolated self-hosted API follow-up adds explicit unrefine through the existing checked CForget node. Whole affected groups, metadata-forgery refusals, local shadowing and direct source controls are queued; actual owned-integer/projected-function runtime cases are prepared for the next frozen test snapshot. No proof-induction parity claim."
     },
     {
       "title": "Investigate the recorded failure",
@@ -157,7 +157,7 @@
     },
     {
       "title": "Finish the exact self-built compiler tests",
-      "detail": "17 of 91 complete groups passed; 1 running, 0 failed and 73 pending."
+      "detail": "18 of 91 complete groups passed; 1 running, 0 failed and 72 pending."
     },
     {
       "title": "Complete the coverage and acceptance audit",
@@ -194,6 +194,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "The fresh current-source compiler chain passes its smoke tests, matching Stage2/Stage3 IR, executable and all 43 canonical interfaces, actual API consumption and changed-source behavior. Complete tests and the final acceptance audit remain separate requirements.",
-  "activity": "Complete suite on published Rust family-home fix: 144 of 208 complete groups passed; 1 running, 0 failed and 63 pending. Stage builds and smoke checks: 4 of 4; chain state: passed. Repair gates: 9 of 9 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_nominals: passed; bootstrap_export_interfaces: passed; bootstrap_pipeline: passed; interface_region_effects: passed; bootstrap_source_effects: passed; effects: passed; hk: passed; params: passed; folded_literal_ownership: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 17 of 91 complete groups passed; 1 running, 0 failed and 73 pending. Proposed compiler repair (separate unpublished source): running; 3 of 24 complete groups passed; 1 running, 0 failed and 20 pending.",
-  "updatedAt": "2026-11-05T01:08:01.365547+00:00"
+  "activity": "Complete suite on published Rust family-home fix: 144 of 208 complete groups passed; 1 running, 0 failed and 63 pending. Stage builds and smoke checks: 4 of 4; chain state: passed. Repair gates: 9 of 9 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_nominals: passed; bootstrap_export_interfaces: passed; bootstrap_pipeline: passed; interface_region_effects: passed; bootstrap_source_effects: passed; effects: passed; hk: passed; params: passed; folded_literal_ownership: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 18 of 91 complete groups passed; 1 running, 0 failed and 72 pending. Proposed compiler repair (separate unpublished source): running; 3 of 24 complete groups passed; 1 running, 0 failed and 20 pending.",
+  "updatedAt": "2026-11-05T01:09:03.454269+00:00"
 }
