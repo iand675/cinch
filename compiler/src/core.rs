@@ -1835,7 +1835,7 @@ pub enum Core {
         name_holes: Vec<usize>,
     },
     /// A macro argument's raw token tree: a `Syntax` value.
-    SyntaxLit(Vec<crate::lexer::Token>),
+    SyntaxLit(Vec<crate::lexer::Token>, crate::syntax::SyntaxScope),
     /// A compile-time string constant (`String` values).
     StrLit(String),
 }
@@ -1898,6 +1898,44 @@ pub enum StageOp {
     NameToSym,
     /// `sym-to-name s`: reify a `Sym` as the `Name` of its spelling.
     SymToName,
+    /// Native scoped syntax construction. Bindings are opaque compile-time
+    /// handles; these operations never substitute identifier strings.
+    SyntaxNewBinding,
+    SyntaxCapture,
+    SyntaxCaptureUnder,
+    SyntaxReference,
+    SyntaxLetIn,
+    SyntaxLambda,
+    SyntaxApply,
+    NameAppend,
+    NamePrefix,
+    NameSuffix,
+    NameJoin,
+    SyntaxDefinition,
+    SyntaxRecord,
+    SyntaxRecordDeclaration,
+    SyntaxRenameDeclarations,
+    SyntaxEmptyDeclarations,
+    SyntaxAppendDeclarations,
+    SyntaxLinkDeclarations,
+    SyntaxSpecializeDeclarationType,
+    SyntaxItems,
+    SyntaxName,
+    SyntaxError,
+    SyntaxCaptureType,
+    SyntaxDeclarationType,
+    SyntaxSignatureType,
+    SyntaxFunctionCode,
+    SyntaxDeclarationReference,
+    SyntaxApplyType,
+    SyntaxFunctionType,
+    SyntaxTupleType,
+    SyntaxSpecializeType,
+    SyntaxAddConstructor,
+    SyntaxExportDeclaration,
+    SyntaxAddEquations,
+    SyntaxPackCode,
+    SyntaxTupleCode,
 }
 
 impl StageOp {
@@ -1926,6 +1964,43 @@ impl StageOp {
             "strLen" => StrLen,
             "name-to-sym" => NameToSym,
             "sym-to-name" => SymToName,
+            "syntax-new-binding" => SyntaxNewBinding,
+            "syntax-capture" => SyntaxCapture,
+            "syntax-capture-under" => SyntaxCaptureUnder,
+            "syntax-reference" => SyntaxReference,
+            "syntax-let-in" => SyntaxLetIn,
+            "syntax-lambda" => SyntaxLambda,
+            "syntax-apply" => SyntaxApply,
+            "name-append" => NameAppend,
+            "name-prefix" => NamePrefix,
+            "name-suffix" => NameSuffix,
+            "name-join" => NameJoin,
+            "syntax-definition" => SyntaxDefinition,
+            "syntax-record" => SyntaxRecord,
+            "syntax-record-declaration" => SyntaxRecordDeclaration,
+            "syntax-rename-declarations" => SyntaxRenameDeclarations,
+            "syntax-error" => SyntaxError,
+            "syntax-name" => SyntaxName,
+            "syntax-items" => SyntaxItems,
+            "syntax-link-declarations" => SyntaxLinkDeclarations,
+            "syntax-specialize-declaration-type" => SyntaxSpecializeDeclarationType,
+            "syntax-append-declarations" => SyntaxAppendDeclarations,
+            "syntax-empty-declarations" => SyntaxEmptyDeclarations,
+            "syntax-capture-type" => SyntaxCaptureType,
+            "syntax-declaration-type" => SyntaxDeclarationType,
+            "syntax-signature-type" => SyntaxSignatureType,
+            "syntax-function-code" => SyntaxFunctionCode,
+            "syntax-declaration-reference" => SyntaxDeclarationReference,
+            "syntax-apply-type" => SyntaxApplyType,
+            "syntax-function-type" => SyntaxFunctionType,
+            "syntax-tuple-type" => SyntaxTupleType,
+            "syntax-specialize-type" => SyntaxSpecializeType,
+            "syntax-add-constructor" => SyntaxAddConstructor,
+            "syntax-export-declaration" => SyntaxExportDeclaration,
+            "syntax-add-equations" => SyntaxAddEquations,
+            "syntax-pack-code" => SyntaxPackCode,
+            "syntax-tuple-code" => SyntaxTupleCode,
+
             _ => return None,
         })
     }
@@ -1955,6 +2030,43 @@ impl StageOp {
             StrLen => "strLen",
             NameToSym => "name-to-sym",
             SymToName => "sym-to-name",
+            SyntaxNewBinding => "syntax-new-binding",
+            SyntaxCapture => "syntax-capture",
+            SyntaxCaptureUnder => "syntax-capture-under",
+            SyntaxReference => "syntax-reference",
+            SyntaxLetIn => "syntax-let-in",
+            SyntaxLambda => "syntax-lambda",
+            SyntaxApply => "syntax-apply",
+            NameAppend => "name-append",
+            NamePrefix => "name-prefix",
+            NameSuffix => "name-suffix",
+            NameJoin => "name-join",
+            SyntaxDefinition => "syntax-definition",
+            SyntaxRecord => "syntax-record",
+            SyntaxRecordDeclaration => "syntax-record-declaration",
+            SyntaxRenameDeclarations => "syntax-rename-declarations",
+            SyntaxError => "syntax-error",
+            SyntaxName => "syntax-name",
+            SyntaxItems => "syntax-items",
+            SyntaxLinkDeclarations => "syntax-link-declarations",
+            SyntaxSpecializeDeclarationType => "syntax-specialize-declaration-type",
+            SyntaxAppendDeclarations => "syntax-append-declarations",
+            SyntaxEmptyDeclarations => "syntax-empty-declarations",
+            SyntaxCaptureType => "syntax-capture-type",
+            SyntaxDeclarationType => "syntax-declaration-type",
+            SyntaxSignatureType => "syntax-signature-type",
+            SyntaxFunctionCode => "syntax-function-code",
+            SyntaxDeclarationReference => "syntax-declaration-reference",
+            SyntaxApplyType => "syntax-apply-type",
+            SyntaxFunctionType => "syntax-function-type",
+            SyntaxTupleType => "syntax-tuple-type",
+            SyntaxSpecializeType => "syntax-specialize-type",
+            SyntaxAddConstructor => "syntax-add-constructor",
+            SyntaxExportDeclaration => "syntax-export-declaration",
+            SyntaxAddEquations => "syntax-add-equations",
+            SyntaxPackCode => "syntax-pack-code",
+            SyntaxTupleCode => "syntax-tuple-code",
+
         };
         GlobalId(format!("<builtin>.Stage.{n}"))
     }
@@ -2067,6 +2179,14 @@ pub enum Value {
     PrimFn { op: PrimOp, args: Vec<Value> },
     /// A typed code value: the hygienically prepared template.
     Code(crate::ast::Term),
+    /// Existential code in heterogeneous construction lists; all annotations
+    /// and binding identities remain on the tree until ordinary checking.
+    PackedCode(crate::ast::Term),
+    /// Opaque, source-scoped native type syntax, never a runtime object.
+    TypeSyntax(crate::ast::Type),
+    /// An opaque compile-time lexical binding. Its spelling grants no source
+    /// authority; references carry the native quotation binding identity.
+    SyntaxBinding(crate::syntax::ScopedValue),
     /// A declaration-group value.
     Decls(Vec<crate::ast::Decl>),
     /// A token-tree value; `origin` names the module the tokens were
@@ -2074,6 +2194,7 @@ pub enum Value {
     Syntax {
         tokens: Vec<crate::lexer::Token>,
         origin: String,
+        scope: crate::syntax::SyntaxScope,
     },
     /// A compile-time string.
     Str(String),
@@ -3176,7 +3297,7 @@ fn tail_groups(program: &Program) -> Vec<(TailGroup, Option<usize>)> {
             Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Var(_)
             | Core::Global(..) | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_)
             | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc
-            | Core::SyntaxLit(_) | Core::StrLit(_) => {}
+            | Core::SyntaxLit(..) | Core::StrLit(_) => {}
             Core::Quote { holes, body, .. } => {
                 for h in holes {
                     all_calls(h, fns, insts, foreigns, out);
@@ -3466,7 +3587,7 @@ fn calls_walk(
         Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit
         | Core::Var(_) | Core::Global(..) | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_)
         | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc
-        | Core::SyntaxLit(_) | Core::StrLit(_) => {}
+        | Core::SyntaxLit(..) | Core::StrLit(_) => {}
         Core::Quote { holes, body, .. } => {
             for h in holes {
                 calls_walk(h, false, fns, insts, foreigns, callees, out);
@@ -3825,7 +3946,7 @@ fn core_eq(a: &Core, b: &Core) -> bool {
         (Core::Demand(d1, c1), Core::Demand(d2, c2)) => c1 == c2 && core_eq(d1, d2),
         (Core::LazyInit(l1, t1), Core::LazyInit(l2, t2)) => l1 == l2 && core_eq(t1, t2),
         (Core::StrLit(s1), Core::StrLit(s2)) => s1 == s2,
-        (Core::SyntaxLit(t1), Core::SyntaxLit(t2)) => format!("{t1:?}") == format!("{t2:?}"),
+        (Core::SyntaxLit(t1, s1), Core::SyntaxLit(t2, s2)) => s1 == s2 && format!("{t1:?}") == format!("{t2:?}"),
         _ => false,
     }
 }
@@ -3854,7 +3975,7 @@ pub fn walk_locals(e: &Core, f: &mut impl FnMut(LocalId)) {
     match e {
         Core::Var(l) => f(*l),
         Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
-        | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_)
+        | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(..)
         | Core::StrLit(_) => {}
         Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) => walk_locals(d, f),
         Core::InstDict(_, args, _) | Core::App(_, args) => {
@@ -3938,7 +4059,7 @@ fn use_range(e: &Core, l: LocalId) -> (usize, usize) {
             }
         }
         Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
-        | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_)
+        | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(..)
         | Core::StrLit(_) => (0, 0),
         Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) => use_range(d, l),
         Core::InstDict(_, args, _) | Core::App(_, args) => {
@@ -4053,7 +4174,7 @@ fn renumber_core(e: &Core, nparams: usize) -> Core {
         match e {
             Core::Var(l) => note(*l, map, next),
             Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
-            | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_)
+            | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(..)
             | Core::StrLit(_) => {}
             Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) => assign(d, map, next),
             Core::InstDict(_, args, _) | Core::App(_, args) => {
@@ -4145,7 +4266,7 @@ pub(crate) fn rename_core_locals(e: &Core, map: &HashMap<LocalId, LocalId>) -> C
         Core::Fault => Core::Fault,
         Core::LazyAlloc => Core::LazyAlloc,
         Core::BoxAlloc => Core::BoxAlloc,
-        Core::SyntaxLit(t) => Core::SyntaxLit(t.clone()),
+        Core::SyntaxLit(t, scope) => Core::SyntaxLit(t.clone(), scope.clone()),
         Core::StrLit(s) => Core::StrLit(s.clone()),
         Core::DictProj(d, i, s, c) => Core::DictProj(Box::new(rw(d)), *i, s.clone(), *c),
         Core::Proj(d, f) => Core::Proj(Box::new(rw(d)), f.clone()),
@@ -4277,7 +4398,7 @@ fn instantiate(
             Core::Fault => Core::Fault,
             Core::LazyAlloc => Core::LazyAlloc,
             Core::BoxAlloc => Core::BoxAlloc,
-            Core::SyntaxLit(t) => Core::SyntaxLit(t.clone()),
+            Core::SyntaxLit(t, scope) => Core::SyntaxLit(t.clone(), scope.clone()),
             Core::StrLit(s) => Core::StrLit(s.clone()),
             Core::DictProj(d, i, s, c) => {
                 Core::DictProj(Box::new(go(d, holes, binds, ren, next)), *i, s.clone(), *c)
@@ -4484,7 +4605,7 @@ fn match_pat(
         }
         (Core::LazyInit(_, t1), Core::LazyInit(_, t2)) => match_pat(t1, holes, t2, binds, cb),
         (Core::StrLit(s1), Core::StrLit(s2)) => s1 == s2,
-        (Core::SyntaxLit(t1), Core::SyntaxLit(t2)) => format!("{t1:?}") == format!("{t2:?}"),
+        (Core::SyntaxLit(t1, s1), Core::SyntaxLit(t2, s2)) => s1 == s2 && format!("{t1:?}") == format!("{t2:?}"),
         _ => false,
     }
 }
@@ -4960,7 +5081,7 @@ fn has_alloc(e: &Core) -> bool {
             Core::Prim(PrimOp::Delay) => *found = true,
             Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
             | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_)
-            | Core::Fault | Core::SyntaxLit(_) | Core::StrLit(_)
+            | Core::Fault | Core::SyntaxLit(..) | Core::StrLit(_)
             | Core::Var(_) => {}
             Core::DictProj(d, ..) | Core::Proj(d, _) => go(d, found),
             Core::InstDict(_, args, _) | Core::App(_, args) | Core::Lam { env: args, .. } => {
@@ -5013,7 +5134,7 @@ fn scan_calls(e: &Core, f: &mut impl FnMut(&GlobalId)) {
     match e {
         Core::Global(g, _) => f(g),
         Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Ctor(..)
-        | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_) | Core::StrLit(_)
+        | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(..) | Core::StrLit(_)
         | Core::Var(_) => {}
         Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) => scan_calls(d, f),
         Core::InstDict(_, args, _) | Core::App(_, args) => {
@@ -5073,7 +5194,7 @@ fn scan_memo(e: &Core, n: &mut usize) {
         | Core::BoxGet(..) | Core::Demand(..) => *n += 1,
         Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
         | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_)
-        | Core::Fault | Core::SyntaxLit(_) | Core::StrLit(_)
+        | Core::Fault | Core::SyntaxLit(..) | Core::StrLit(_)
         | Core::Var(_) => {}
         Core::DictProj(d, ..) | Core::Proj(d, _) => scan_memo(d, n),
         Core::Dup(_, _, body) | Core::Drop(_, _, body) => scan_memo(body, n),
@@ -5132,7 +5253,7 @@ fn weights_ok(e: &Core) -> bool {
                 }
             }
             Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
-            | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_)
+            | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(..)
             | Core::StrLit(_) | Core::Var(_) => {}
             Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) | Core::BoxGet(d, _) => {
                 go(d, ok)
@@ -5168,7 +5289,7 @@ fn scope_ok(e: &Core, nparams: usize) -> bool {
         match e {
             Core::Var(l) => bound.contains(l),
             Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
-            | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_)
+            | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(..)
             | Core::StrLit(_) => true,
             Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) | Core::BoxGet(d, _) => {
                 go(d, bound)
@@ -5303,7 +5424,7 @@ fn body_impure(e: &Core) -> bool {
             }
             Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
             | Core::Ctor(..) | Core::SpliceVal(_) | Core::LazyAlloc | Core::BoxAlloc
-            | Core::SyntaxLit(_) | Core::StrLit(_) | Core::Var(_) => {}
+            | Core::SyntaxLit(..) | Core::StrLit(_) | Core::Var(_) => {}
             Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) | Core::BoxGet(d, _) => {
                 go(d, bad)
             }
@@ -6154,7 +6275,7 @@ pub(crate) fn child_slots(e: &mut Core) -> Vec<&mut Core> {
     let mut out: Vec<&mut Core> = Vec::new();
     match e {
         Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
-        | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_)
+        | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(..)
         | Core::StrLit(_) | Core::Var(_) => {}
         Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) | Core::BoxGet(d, _) => {
             out.push(&mut **d)
@@ -6347,7 +6468,7 @@ fn alpha_eq(a: &Core, b: &Core) -> bool {
                 true
             }
             (Core::StrLit(s1), Core::StrLit(s2)) => s1 == s2,
-            (Core::SyntaxLit(t1), Core::SyntaxLit(t2)) => format!("{t1:?}") == format!("{t2:?}"),
+            (Core::SyntaxLit(t1, s1), Core::SyntaxLit(t2, s2)) => s1 == s2 && format!("{t1:?}") == format!("{t2:?}"),
             _ => false,
         }
     }
@@ -6749,7 +6870,7 @@ pub(crate) fn child_slots_imm(e: &Core) -> Vec<&Core> {
     let mut out: Vec<&Core> = Vec::new();
     match e {
         Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
-        | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_)
+        | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(..)
         | Core::StrLit(_) | Core::Var(_) => {}
         Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) | Core::BoxGet(d, _) => {
             out.push(&**d)

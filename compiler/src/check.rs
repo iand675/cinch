@@ -10,10 +10,10 @@
 use crate::ast;
 use crate::repr::Class;
 use crate::core::{ArithMode, ArithOp, BytesOp, CAlt, CBranch, CPat, CmpOp, ConcOp, Core, FieldAccess, FieldShape, FnDef, GlobalId, InstanceDef, IntOp, LocalId, NatOp, PrimOp, Program, ProjField, SymOp};
-use crate::types::{BYTE_LENGTH_INDEX, ClassApp, EffLabel, EffRow, EitherMeta, IntSort, IxParam, ITerm, IdxCmp, IdxOp, Mult, PTerm, PredFn, PropOblig, PtrRole, RowTail, Scalar, Scheme, Sort, Sorts, Ty, Unifier, c_abi_scalar, collect_row_names, default_mult, linear_entails, pred_alpha_eq, pred_binder, pred_conjuncts, pred_entails, pred_implies};
+use crate::types::{BYTE_LENGTH_INDEX, ClassApp, EffLabel, EffRow, EitherMeta, IntSort, IxParam, IndexHead, IndexInstantiation, IndexArgument, IndexEvidence, ITerm, IdxCmp, IdxOp, Mult, PTerm, PredFn, PropOblig, PtrRole, RowTail, Scalar, Scheme, Sort, Sorts, Ty, Unifier, c_abi_scalar, collect_row_names, default_mult, linear_entails, pred_alpha_eq, pred_binder, pred_conjuncts, pred_entails, pred_implies};
 use crate::{Error, Result};
 use SolveOutcome::{Solved, Ambiguous};
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
 
 // ---------------------------------------------------------------- elaboration IR
@@ -135,17 +135,17 @@ enum ECore {
         name_holes: Vec<usize>,
     },
     /// A macro argument's raw token tree (`Syntax` values).
-    SyntaxLit(Vec<crate::lexer::Token>),
+    SyntaxLit(Vec<crate::lexer::Token>, crate::syntax::SyntaxScope),
     /// A compile-time string constant (`String` values).
     StrLit(String),
 }
 
 #[derive(Clone, Debug)]
-enum DictExpr {
-    Binder(LocalId),
+enum DictExpr<B = LocalId> {
+    Binder(B),
     /// An instance dictionary: the instance, its sub-dictionaries, and
     /// the types its own parameters matched.
-    Instance(GlobalId, Vec<DictExpr>, Vec<Ty>),
+    Instance(GlobalId, Vec<DictExpr<B>>, Vec<Ty>),
     /// Structural evidence for the compiler-known `Copy` class: a marker
     /// class has no methods, so its dictionary is a plain unit word.
     Marker,
@@ -153,9 +153,88 @@ enum DictExpr {
 
 /// One want's resolution: determined now, or several instances still match
 /// and the fixpoint must retry after the other wants commit.
-enum SolveOutcome {
-    Solved(DictExpr),
+enum SolveOutcome<B = LocalId> {
+    Solved(DictExpr<B>),
     Ambiguous,
+}
+
+/// A dictionary binder in an index telescope. Header parameters are bound
+/// by their Scheme context; runtime binders come only from actual LocalIds.
+#[derive(Clone)]
+struct IndexDictionaryBinding(ITerm);
+
+impl From<LocalId> for IndexDictionaryBinding {
+    fn from(local: LocalId) -> Self {
+        Self(ITerm::Evidence(IndexEvidence::Local(local.0)))
+    }
+}
+
+fn dictionary_parameter(name: &str) -> IndexEvidence {
+    IndexEvidence::Parameter(name.into())
+}
+
+impl<B> DictExpr<B> {
+    fn index_with(&self, uni: &Unifier, binder: &dyn Fn(&B) -> ITerm) -> ITerm {
+        let (head, types, dictionaries) = match self {
+            Self::Binder(binding) => return binder(binding),
+            Self::Instance(head, dictionaries, types) => (IndexHead::Dictionary(head.0.clone()),
+                types.iter().map(|ty| uni.zonk(ty)).collect(), dictionaries.iter().map(|dictionary| dictionary.index_with(uni, binder)).collect()),
+            Self::Marker => (IndexHead::Marker, Vec::new(), Vec::new()),
+        };
+        ITerm::Inst(Box::new(IndexInstantiation { head, types, dictionaries, arguments: Vec::new() }))
+    }
+}
+
+#[derive(Clone)]
+struct IndexLambdaBinder {
+    name: ast::Name,
+    variable: String,
+    carrier: Option<Ty>,
+}
+
+struct IndexSignature {
+    ty: Ty,
+    types: Vec<Ty>,
+    dictionaries: Vec<ITerm>,
+    arguments: Vec<IndexArgument>,
+}
+
+struct PendingIndexDictionary {
+    parameter: ITerm,
+    class: ClassApp,
+    scope: Vec<(IndexDictionaryBinding, ClassApp)>,
+    span: ast::Span,
+}
+
+struct PendingIndexProof {
+    scheme: Scheme,
+    substitutions: HashMap<String, Ty>,
+    rows: HashMap<String, RowTail>,
+    regions: HashMap<String, String>,
+    evidence: HashMap<IndexEvidence, ITerm>,
+    signature: Ty,
+    arguments: Vec<ast::Type>,
+    variables: Vec<String>,
+    span: ast::Span,
+}
+
+struct IndexInference {
+    uni: Unifier,
+    dictionaries: Vec<PendingIndexDictionary>,
+    proofs: Vec<PendingIndexProof>,
+    transfers: Vec<DictionaryTransfer>,
+    regions: Vec<String>,
+}
+
+impl IndexInference {
+    fn new(uni: &Unifier) -> Self { Self { uni: uni.clone(), dictionaries: Vec::new(), proofs: Vec::new(), transfers: Vec::new(), regions: Vec::new() } }
+}
+
+#[derive(Clone)]
+struct InstantiatedConstraint {
+    name: String,
+    class: ClassApp,
+    witness: ITerm,
 }
 
 /// The instance-solver's hint when a wanted class mentions an unresolved
@@ -200,6 +279,17 @@ fn method_site(s: &Scheme, ptys: &[Ty]) -> Option<(String, Vec<Ty>)> {
 }
 
 impl Checker {
+    fn resolution_instances(&self) -> &[InstanceInfo] {
+        self.declaration_seed.as_deref().unwrap_or(&self.instance_list)
+    }
+
+    fn resolution_class_indices(&self, class: &str) -> Option<Vec<usize>> {
+        match &self.declaration_seed {
+            Some(instances) => Some(instances.iter().enumerate().filter_map(|(index, instance)|
+                (instance.target.class == class).then_some(index)).collect()),
+            None => self.instances.get(class).cloned(),
+        }
+    }
     fn runtime_method_site(&self, module: &str, scheme: &Scheme, ptys: &[Ty]) -> Result<Option<(String, Vec<Ty>)>> {
         let Some((class, own)) = method_site(scheme, ptys) else { return Ok(None) };
         let signature = self.qualified_sigs.get(&(module.to_string(), class.clone()))
@@ -219,7 +309,7 @@ fn free_locals(e: &ECore, bound: &mut Vec<LocalId>, out: &mut Vec<LocalId>) {
         }
         ECore::Int(_) | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstString { .. } | ECore::ConstSym(_) | ECore::Lit(_) | ECore::Bool(_) | ECore::Unit | ECore::Global(..)
         | ECore::Ctor(..) | ECore::Prim(_) | ECore::Foreign(_) | ECore::Hole(_) | ECore::QuoteHole(_) | ECore::IdxPending(_) | ECore::Fault
-        | ECore::SyntaxLit(_) | ECore::StrLit(_) => {}
+        | ECore::SyntaxLit(..) | ECore::StrLit(_) => {}
         ECore::Quote { holes, .. } | ECore::DeclsQuote { holes, .. } => {
             for h in holes {
                 free_locals(h, bound, out);
@@ -316,7 +406,7 @@ fn hoist_lambdas(e: &mut ECore, hint: &str, counter: &mut usize, fns: &mut Vec<H
         | ECore::QuoteHole(_)
         | ECore::IdxPending(_)
         | ECore::Fault
-        | ECore::SyntaxLit(_)
+        | ECore::SyntaxLit(..)
         | ECore::StrLit(_) => {}
         ECore::Quote { holes, body, .. } => {
             for h in holes {
@@ -414,7 +504,7 @@ fn assign_locals(e: &ECore, map: &mut HashMap<LocalId, LocalId>, next: &mut usiz
         ECore::Var(l) => note_local(*l, map, next),
         ECore::Int(_) | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstString { .. } | ECore::ConstSym(_) | ECore::Lit(_) | ECore::Bool(_) | ECore::Unit | ECore::Global(..)
         | ECore::Ctor(..) | ECore::Prim(_) | ECore::Foreign(_) | ECore::Hole(_) | ECore::QuoteHole(_) | ECore::IdxPending(_) | ECore::Fault
-        | ECore::SyntaxLit(_) | ECore::StrLit(_) => {}
+        | ECore::SyntaxLit(..) | ECore::StrLit(_) => {}
         ECore::Quote { holes, body, .. } => {
             for h in holes {
                 assign_locals(h, map, next);
@@ -487,7 +577,7 @@ fn assign_locals(e: &ECore, map: &mut HashMap<LocalId, LocalId>, next: &mut usiz
 }
 
 fn rewrite_locals(e: &ECore, map: &HashMap<LocalId, LocalId>) -> ECore {
-    remap_ecore(e, &Remap { locals: map, units: None, tys: None })
+    remap_ecore(e, &Remap { locals: map, units: None, tys: None, deferred: None })
 }
 
 /// A renaming of an elaborated body: its locals, and optionally its
@@ -497,13 +587,74 @@ struct Remap<'a> {
     locals: &'a HashMap<LocalId, LocalId>,
     units: Option<&'a HashMap<GlobalId, GlobalId>>,
     tys: Option<&'a dyn Fn(&Ty) -> Ty>,
+    deferred: Option<&'a CopyDeferred>,
 }
 
 impl Remap<'_> {
     fn ty(&self, t: &Ty) -> Ty {
         match self.tys {
             Some(f) => f(t),
-            None => t.clone(),
+            None => t.subst_evidence(&self.evidence()).subst_local_values(&self.local_values()),
+        }
+    }
+
+    fn evidence(&self) -> HashMap<IndexEvidence, ITerm> {
+        self.locals.iter().map(|(old, new)|
+            (IndexEvidence::Local(old.0), ITerm::Evidence(IndexEvidence::Local(new.0)))).collect()
+    }
+
+    fn index(&self, term: &ITerm) -> ITerm {
+        let Ty::Idx(mapped) = self.ty(&Ty::Idx(Box::new(term.clone()))) else { unreachable!() };
+        *mapped
+    }
+
+    fn local_values(&self) -> HashMap<LocalId, ITerm> {
+        self.locals.iter().map(|(old, new)| (*old, ITerm::LocalValue(*new))).collect()
+    }
+
+    fn proposition(&self, proposition: &PTerm) -> PTerm {
+        let Ty::Prp(mapped) = self.ty(&Ty::Prp(Box::new(proposition.clone()))) else { unreachable!() };
+        *mapped
+    }
+
+    fn local(&self, local: LocalId) -> LocalId {
+        self.locals.get(&local).copied().unwrap_or(local)
+    }
+
+    fn class(&self, class: &ClassApp) -> ClassApp {
+        ClassApp { class: class.class.clone(), args: self.tys(&class.args) }
+    }
+
+    fn scheme(&self, scheme: &Scheme) -> Scheme {
+        let mut scheme = scheme.clone();
+        scheme.ty = self.ty(&scheme.ty);
+        for parameter in &mut scheme.idx_params {
+            if let IxParam::Val(_, carrier) = parameter { *carrier = self.ty(carrier); }
+        }
+        for (_, carrier) in &mut scheme.val_params { *carrier = self.ty(carrier); }
+        for (_, class) in &mut scheme.ctx { class.args = self.tys(&class.args); }
+        for obligation in &mut scheme.obligs {
+            let (PropOblig::Pred(predicate) | PropOblig::Preserves { pred: predicate, .. }) = obligation;
+            let Ty::Prp(mapped) = self.ty(&Ty::Prp(Box::new(predicate.clone()))) else { unreachable!() };
+            *predicate = *mapped;
+        }
+        for parameter in &mut scheme.evidence_params {
+            if let IndexEvidence::Local(local) = parameter {
+                *local = self.locals.get(&LocalId(*local)).map_or(*local, |new| new.0);
+            }
+        }
+        scheme
+    }
+
+    fn annotation(&self, annotation: &mut ast::Type) {
+        match annotation {
+            ast::Type::Elaborated(scheme, _) => **scheme = self.scheme(scheme),
+            ast::Type::IndexOperand(term, carrier, _) => {
+                let Ty::Idx(mapped) = self.ty(&Ty::Idx(term.clone())) else { unreachable!() };
+                *term = mapped;
+                **carrier = self.ty(carrier);
+            }
+            _ => {}
         }
     }
 
@@ -543,19 +694,27 @@ fn remap_ecore(e: &ECore, r: &Remap) -> ECore {
         ECore::Ctor(g, t) => ECore::Ctor(g.clone(), r.tys(t)),
         ECore::Prim(p) => ECore::Prim(*p),
         ECore::Foreign(n) => ECore::Foreign(n.clone()),
-        ECore::Hole(h) => ECore::Hole(*h),
+        ECore::Hole(h) => ECore::Hole(r.deferred.and_then(|copy| copy.wants.get(h)).copied().unwrap_or(*h)),
         ECore::QuoteHole(h) => ECore::QuoteHole(*h),
-        ECore::IdxPending(i) => ECore::IdxPending(*i),
+        ECore::IdxPending(i) => ECore::IdxPending(r.deferred.and_then(|copy| copy.indices.get(i)).copied().unwrap_or(*i)),
         ECore::Fault => ECore::Fault,
-        ECore::SyntaxLit(toks) => ECore::SyntaxLit(toks.clone()),
+        ECore::SyntaxLit(toks, scope) => ECore::SyntaxLit(toks.clone(), scope.clone()),
         ECore::StrLit(s) => ECore::StrLit(s.clone()),
         ECore::Quote { template, holes, body } => ECore::Quote {
-            template: template.clone(),
+            template: {
+                let mut template = template.clone();
+                template.visit_types_mut(&mut |annotation| r.annotation(annotation));
+                template
+            },
             holes: holes.iter().map(|h| remap_ecore(h, r)).collect(),
             body: Box::new(remap_ecore(body, r)),
         },
         ECore::DeclsQuote { template, holes, name_holes } => ECore::DeclsQuote {
-            template: template.clone(),
+            template: template.iter().map(|declaration| {
+                let mut declaration = declaration.clone();
+                declaration.visit_types_mut(&mut |annotation| r.annotation(annotation));
+                declaration
+            }).collect(),
             holes: holes.iter().map(|h| remap_ecore(h, r)).collect(),
             name_holes: name_holes.clone(),
         },
@@ -640,67 +799,83 @@ fn remap_ecore(e: &ECore, r: &Remap) -> ECore {
 /// parameters, `case` pattern binders), and the units it names (its
 /// globals and closures; the `letrec` units among them are copied with a
 /// let-generalized local's definition).
-fn def_parts(e: &ECore, binders: &mut Vec<LocalId>, units: &mut Vec<GlobalId>) {
+#[derive(Default)]
+struct CopyParts {
+    binders: Vec<LocalId>,
+    units: Vec<GlobalId>,
+    wants: std::collections::BTreeSet<usize>,
+    indices: std::collections::BTreeSet<usize>,
+}
+
+#[derive(Default)]
+struct CopyDeferred {
+    wants: HashMap<usize, usize>,
+    indices: HashMap<usize, usize>,
+}
+
+fn def_parts(e: &ECore, parts: &mut CopyParts) {
     match e {
         ECore::Int(_) | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstString { .. } | ECore::ConstSym(_)
         | ECore::Lit(_) | ECore::Bool(_) | ECore::Unit | ECore::Var(_) | ECore::Ctor(..) | ECore::Prim(_)
-        | ECore::Foreign(_) | ECore::Hole(_) | ECore::QuoteHole(_) | ECore::IdxPending(_) | ECore::Fault
-        | ECore::LazyAlloc | ECore::BoxAlloc | ECore::SyntaxLit(_) | ECore::StrLit(_) => {}
-        ECore::Global(g, _) => units.push(g.clone()),
-        ECore::LitFold { body, .. } => def_parts(body, binders, units),
+        | ECore::Foreign(_) | ECore::QuoteHole(_) | ECore::Fault
+        | ECore::LazyAlloc | ECore::BoxAlloc | ECore::SyntaxLit(..) | ECore::StrLit(_) => {}
+        ECore::Hole(want) => { parts.wants.insert(*want); }
+        ECore::IdxPending(index) => { parts.indices.insert(*index); }
+        ECore::Global(g, _) => parts.units.push(g.clone()),
+        ECore::LitFold { body, .. } => def_parts(body, parts),
         ECore::Quote { holes, body, .. } => {
             for h in holes {
-                def_parts(h, binders, units);
+                def_parts(h, parts);
             }
-            def_parts(body, binders, units);
+            def_parts(body, parts);
         }
         ECore::DeclsQuote { holes, .. } => {
             for h in holes {
-                def_parts(h, binders, units);
+                def_parts(h, parts);
             }
         }
-        ECore::DictProj(d, ..) | ECore::Proj(d, ..) | ECore::Demand(d, _) | ECore::BoxGet(d, _) => def_parts(d, binders, units),
-        ECore::LazyInit(_, v) | ECore::BoxInit(_, v, _) | ECore::RefSet(_, v) => def_parts(v, binders, units),
+        ECore::DictProj(d, ..) | ECore::Proj(d, ..) | ECore::Demand(d, _) | ECore::BoxGet(d, _) => def_parts(d, parts),
+        ECore::LazyInit(_, v) | ECore::BoxInit(_, v, _) | ECore::RefSet(_, v) => def_parts(v, parts),
         ECore::InstDict(_, args, _, _) => {
             for a in args {
-                def_parts(a, binders, units);
+                def_parts(a, parts);
             }
         }
         ECore::App(f, args) => {
-            def_parts(f, binders, units);
+            def_parts(f, parts);
             for a in args {
-                def_parts(a, binders, units);
+                def_parts(a, parts);
             }
         }
         ECore::MkClos { fn_id, env } => {
-            units.push(fn_id.clone());
+            parts.units.push(fn_id.clone());
             for a in env {
-                def_parts(a, binders, units);
+                def_parts(a, parts);
             }
         }
         ECore::Lam { params, body } => {
-            binders.extend(params.iter().copied());
-            def_parts(body, binders, units);
+            parts.binders.extend(params.iter().copied());
+            def_parts(body, parts);
         }
         ECore::Let(l, v, body) => {
-            binders.push(*l);
-            def_parts(v, binders, units);
-            def_parts(body, binders, units);
+            parts.binders.push(*l);
+            def_parts(v, parts);
+            def_parts(body, parts);
         }
         ECore::If(c, t, f) => {
-            def_parts(c, binders, units);
-            def_parts(&t.body, binders, units);
-            def_parts(&f.body, binders, units);
+            def_parts(c, parts);
+            def_parts(&t.body, parts);
+            def_parts(&f.body, parts);
         }
         ECore::Case { scrut, alts } => {
-            def_parts(scrut, binders, units);
+            def_parts(scrut, parts);
             for a in alts {
                 match &a.pat {
-                    CPat::Var(l, _) => binders.push(*l),
-                    CPat::Con { fields, .. } => binders.extend(fields.iter().copied()),
+                    CPat::Var(l, _) => parts.binders.push(*l),
+                    CPat::Con { fields, .. } => parts.binders.extend(fields.iter().copied()),
                     CPat::Wild => {}
                 }
-                def_parts(&a.body, binders, units);
+                def_parts(&a.body, parts);
             }
         }
     }
@@ -714,7 +889,7 @@ fn resolve_lit_words(e: &mut ECore, lits: &[ECore]) {
         ECore::Int(_) | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstString { .. } | ECore::ConstSym(_) | ECore::Bool(_) | ECore::Unit | ECore::Var(_)
         | ECore::Global(..)
         | ECore::Ctor(..) | ECore::Prim(_) | ECore::Foreign(_) | ECore::Hole(_) | ECore::QuoteHole(_) | ECore::IdxPending(_) | ECore::Fault | ECore::LazyAlloc | ECore::BoxAlloc
-        | ECore::SyntaxLit(_) | ECore::StrLit(_) => {}
+        | ECore::SyntaxLit(..) | ECore::StrLit(_) => {}
         ECore::Quote { holes, body, .. } => {
             for h in holes {
                 resolve_lit_words(h, lits);
@@ -783,7 +958,7 @@ fn resolve_idx_words(e: &mut ECore, vals: &[ECore]) {
         | ECore::Fault
         | ECore::LazyAlloc
         | ECore::BoxAlloc
-        | ECore::SyntaxLit(_)
+        | ECore::SyntaxLit(..)
         | ECore::StrLit(_) => {}
         ECore::Quote { holes, body, .. } => {
             for h in holes {
@@ -899,7 +1074,7 @@ fn fold_blocked(e: &ECore) -> bool {
         | ECore::QuoteHole(_)
         | ECore::IdxPending(_)
         | ECore::Fault
-        | ECore::SyntaxLit(_)
+        | ECore::SyntaxLit(..)
         | ECore::StrLit(_)
         | ECore::Demand(..)
         | ECore::LazyAlloc
@@ -1106,11 +1281,11 @@ impl<'a> LowerCx<'a> {
 
 impl crate::repr::TypeReprs for Checker {
     fn adt(&self, name: &str, args: &[Ty]) -> crate::repr::AdtRepr {
-        let kinds = match self.types.get(name) {
-            Some(k) if !k.is_empty() => k,
+        let kind = match self.known_type(name) {
+            Some(k) => k,
             _ => return crate::repr::AdtRepr::Obj,
         };
-        if let Some(r) = kinds.iter().find_map(|k| k.refine.as_ref()) {
+        if let Some(r) = kind.refine.as_ref() {
             let mut map: HashMap<String, Ty> = HashMap::new();
             for (p, a) in r.params.iter().zip(args) {
                 map.insert(p.clone(), a.clone());
@@ -1119,7 +1294,7 @@ impl crate::repr::TypeReprs for Checker {
         }
         // A foreign opaque type's values come only from foreign calls:
         // they are handles the foreign side owns.
-        if kinds.iter().all(|k| k.opaque) {
+        if kind.opaque {
             return crate::repr::AdtRepr::Raw;
         }
         crate::repr::AdtRepr::Obj
@@ -1225,7 +1400,7 @@ fn lower(e: &ECore, cx: &LowerCx) -> crate::core::Core {
         }
         ECore::QuoteHole(idx) => C::SpliceVal(*idx),
         ECore::Quote { template, holes, body } => C::Quote {
-            template: template.clone(),
+            template: cx.ck.lower_code_expectation(template),
             holes: holes.iter().map(low).collect(),
             body: Some(Box::new(low(body))),
         },
@@ -1234,7 +1409,7 @@ fn lower(e: &ECore, cx: &LowerCx) -> crate::core::Core {
             holes: holes.iter().map(low).collect(),
             name_holes: name_holes.clone(),
         },
-        ECore::SyntaxLit(toks) => C::SyntaxLit(toks.clone()),
+        ECore::SyntaxLit(toks, scope) => C::SyntaxLit(toks.clone(), scope.clone()),
         ECore::StrLit(s) => C::StrLit(s.clone()),
         ECore::Fault => C::Fault,
         ECore::MkClos { fn_id, env } => C::Lam {
@@ -1471,7 +1646,7 @@ pub(crate) enum ConvOblig {
 /// sub-dictionary of the instance's construction) or a refinement
 /// obligation (its per-argument predicates and the generic transfer's
 /// `Preserves` validity condition).
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub(crate) enum InstCtx {
     Dict(String, ClassApp),
     Oblig(PropOblig),
@@ -1509,6 +1684,7 @@ struct MatchCand {
 /// refinements"): the arguments and the `Prop`-typed evidence in scope
 /// at the call, recorded for the discharge after instance resolution
 /// (the `Dec` evidence path; D192 staleness applies).
+#[derive(Clone)]
 struct PropCall {
     /// The method call's dictionary want.
     want: usize,
@@ -1540,6 +1716,7 @@ struct PropCall {
 pub(crate) struct Evidence {
     pub items: Vec<(String, PTerm, LocalId, Vec<String>)>,
     pub sorts: Vec<(String, IntSort)>,
+    pub value_sorts: Vec<(LocalId, IntSort)>,
     pub refined: Vec<PTerm>,
 }
 
@@ -1580,6 +1757,9 @@ struct TransferOblig {
 struct TypeKind {
     module: String,
     name: String,
+    /// Stable nominal identity in checked types. Public names and import
+    /// aliases remain surface spellings; they must not drive unification.
+    identity: String,
     arity: usize,
     /// Each parameter's kind, in declaration order: type parameters,
     /// index values (`Vec (n :: Nat)`'s `n`), and proposition parameters
@@ -1601,6 +1781,38 @@ struct TypeKind {
     refine: Option<RefineInfo>,
 }
 
+fn nominal_identity(module: &str, name: &ast::Name) -> String {
+    if let Some(identity) = name.intrinsic_type_identity(module) { return identity.into(); }
+    // Intrinsic aliases name specific logical definitions, not every
+    // type in a familiar module. Keep those definitions stable when a
+    // source provider replaces its embedded copy. The registry itself is
+    // built only from the compiler-owned family, never caller source.
+    static INTRINSICS: std::sync::OnceLock<HashMap<(String, String), String>> = std::sync::OnceLock::new();
+    let intrinsic = INTRINSICS.get_or_init(|| {
+        fn collect(decl: &ast::Decl, owner: &str, out: &mut HashMap<(String, String), String>) {
+            let name = match decl {
+                ast::Decl::Attributed { inner, .. } => return collect(inner, owner, out),
+                ast::Decl::Data(d) => &d.name,
+                ast::Decl::Record(r) | ast::Decl::Codata(r) => &r.name,
+                ast::Decl::Refine(r) => &r.name,
+                ast::Decl::OpaqueType(o) => &o.name,
+                _ => return,
+            };
+            if let Some(identity) = name.intrinsic_type_identity(owner) {
+                out.insert((owner.into(), name.text.clone()), identity.into());
+            }
+        }
+        let family = crate::driver::parse_prelude(&[]).expect("embedded family parses before nominal checking");
+        let mut out = HashMap::new();
+        for module in family.modules {
+            for decl in &module.decls { collect(decl, &module.name.text, &mut out); }
+        }
+        out
+    });
+    intrinsic.get(&(module.into(), name.text.clone())).cloned()
+        .unwrap_or_else(|| format!("{module}.{}", name.text))
+}
+
 #[derive(Clone)]
 struct SigInfo {
     module: String,
@@ -1620,7 +1832,7 @@ struct SigInfo {
     laws: Vec<(String, Scheme)>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 struct InstanceInfo {
     module: String,
     name: String,
@@ -1645,6 +1857,31 @@ struct InstanceInfo {
     method_obligs: Vec<(usize, String, Vec<PTerm>)>,
     /// Checked per-method signatures retained for interface proof contracts.
     method_contracts: Vec<(usize, String, Scheme)>,
+}
+
+impl InstanceInfo {
+    fn closed_declaration_header(&self) -> bool {
+        let empty = Unifier::new();
+        let closed = |ty: &Ty| !ty.has_declaration_pending() && empty.owns_all_metas(ty);
+        let class_closed = |class: &ClassApp| class.args.iter().all(&closed);
+        let proposition_closed = |proposition: &PTerm| closed(&Ty::Prp(Box::new(proposition.clone())));
+        let obligation_closed = |obligation: &PropOblig| match obligation {
+            PropOblig::Pred(predicate) | PropOblig::Preserves { pred: predicate, .. } => proposition_closed(predicate),
+        };
+        class_closed(&self.target)
+            && self.ctx.iter().all(|context| match context {
+                InstCtx::Dict(_, class) => class_closed(class),
+                InstCtx::Oblig(obligation) => obligation_closed(obligation),
+            })
+            && self.method_obligs.iter().all(|(_, _, predicates)| predicates.iter().all(&proposition_closed))
+            && self.method_contracts.iter().all(|(_, _, scheme)| {
+                closed(&scheme.ty)
+                    && scheme.ctx.iter().all(|(_, class)| class_closed(class))
+                    && scheme.obligs.iter().all(&obligation_closed)
+                    && scheme.idx_params.iter().all(|parameter| match parameter { IxParam::Val(_, ty) => closed(ty), _ => true })
+                    && scheme.val_params.iter().all(|(_, ty)| closed(ty))
+            })
+    }
 }
 
 /// One module parameter of a parameterized module (`module M (x :: T)
@@ -1700,6 +1937,7 @@ struct Want {
     /// A method call's dictionary want (its instance's per-argument
     /// refinement obligations discharge at the call's arguments).
     method: bool,
+    evidence_index: Option<ITerm>,
 }
 
 /// A deferred integer literal (primitive types specification, section 7):
@@ -1719,13 +1957,34 @@ struct PendLit {
 /// argument, so its solved index term is reified to runtime code once
 /// unification is complete (core specification section 3: witnesses
 /// execution needs are retained).
+#[derive(Clone, Default)]
+struct IndexRuntimeScope {
+    values: HashMap<String, LocalId>,
+    locals: HashSet<LocalId>,
+    dictionaries: HashSet<LocalId>,
+}
+
+#[derive(Clone, Default)]
+struct LawFrame {
+    values: HashMap<String, crate::core::Value>,
+    dictionaries: HashMap<IndexEvidence, crate::core::Value>,
+}
+
+impl std::ops::Deref for LawFrame {
+    type Target = HashMap<String, crate::core::Value>;
+    fn deref(&self) -> &Self::Target { &self.values }
+}
+impl std::ops::DerefMut for LawFrame {
+    fn deref_mut(&mut self) -> &mut Self::Target { &mut self.values }
+}
+
 struct IdxPend {
     /// The instantiated index metavariable.
     iterm: ITerm,
     /// Name to local mapping at the use site, for reifying variables.
-    names: HashMap<String, LocalId>,
-    /// The value's type selects the `Nat` or `Int` runtime.
-    nat: bool,
+    scope: IndexRuntimeScope,
+    /// The checked carrier selects the complete runtime representation.
+    carrier: Ty,
     span: ast::Span,
 }
 
@@ -1753,9 +2012,44 @@ pub(crate) struct EvWrite {
 struct Env {
     locals: Vec<(String, LocalId, Scheme)>,
     dicts: Vec<(LocalId, ClassApp)>,
+    syntax_locals: HashMap<ast::LocalBinding, usize>,
+    syntax_dictionaries: HashMap<ast::LocalBinding, LocalId>,
 }
 
 impl Env {
+    fn syntax_scope(&mut self, module: &str, span: ast::Span) -> crate::syntax::SyntaxScope {
+        let mut names = Vec::new();
+        for (slot, (spelling, _, _)) in self.locals.iter().enumerate().rev() {
+            if spelling.starts_with(['#', '$']) || names.iter().any(|n: &ast::Name| n.text == *spelling) { continue; }
+            let key = self.syntax_locals.iter().find(|(_, index)| **index == slot).map(|(key, _)| key.clone())
+                .unwrap_or_else(|| {
+                    let key = ast::LocalBinding::fresh();
+                    self.syntax_locals.insert(key.clone(), slot);
+                    key
+                });
+            names.push(ast::Name::bound(spelling, span, key));
+        }
+        let dictionaries = self.dicts.iter().map(|(local, _)| {
+            if let Some((binding, _)) = self.syntax_dictionaries.iter().find(|(_, candidate)| *candidate == local) { return binding.clone(); }
+            let binding = ast::LocalBinding::fresh();
+            self.syntax_dictionaries.insert(binding.clone(), *local);
+            binding
+        }).collect();
+        crate::syntax::SyntaxScope::from_names(module, names).with_dictionary_bindings(dictionaries)
+    }
+    fn name_slot(&self, name: &ast::Name) -> Option<usize> {
+        if let Some(binding) = name.local_binding() {
+            return self.syntax_locals.get(binding).copied().filter(|slot| *slot < self.locals.len());
+        }
+        if name.resolved_binding().is_some() || name.scoped_reference().is_some() || name.declaration_binding().is_some() { return None; }
+        self.locals.iter().rposition(|(spelling, _, _)| *spelling == name.text)
+    }
+
+    fn lookup_name(&self, name: &ast::Name) -> Option<(LocalId, Scheme)> {
+        let (_, local, scheme) = self.locals.get(self.name_slot(name)?)?;
+        Some((*local, scheme.clone()))
+    }
+
     fn lookup(&self, name: &str) -> Option<(LocalId, Scheme)> {
         self.locals
             .iter()
@@ -1775,6 +2069,8 @@ struct MemoGroup {
 /// A user-declared effect (`effect L r where op :: ...`): its label and
 /// its operations (design/effects-capabilities-sequencing.md section 2).
 struct EffectInfo {
+    module: String,
+    name: String,
     /// The effect's region parameter name, when the label is `L r`.
     region_param: Option<String>,
     /// Operation name and scheme, in declaration order; the vtable slot is
@@ -1909,6 +2205,31 @@ fn env_free_metas(uni: &Unifier, env: &Env) -> Vec<EitherMeta> {
         }
     }
     out
+}
+
+/// A stored Code object has one payload expectation. Quantifying that
+/// expectation would re-evaluate a producer when the stored object is used.
+/// Function bodies may produce fresh Code on each invocation, so arrows stop
+/// this walk; containers of already-created Code do not.
+fn stored_code_metas(ty: &Ty, out: &mut Vec<EitherMeta>) {
+    match ty {
+        Ty::Adt(name, _) if name == "Code" => ty.free_metas(out),
+        Ty::Adt(_, arguments) | Ty::Tuple(arguments) => {
+            for argument in arguments { stored_code_metas(argument, out); }
+        }
+        Ty::Sigma { dom, cod, .. } => {
+            stored_code_metas(dom, out);
+            stored_code_metas(cod, out);
+        }
+        Ty::Ptr { pointee: inner, .. } | Ty::Thunk { inner, .. }
+        | Ty::Lazy { inner, .. } | Ty::Later(inner) | Ty::Ref(_, inner)
+        | Ty::Mut(_, inner) => stored_code_metas(inner, out),
+        Ty::App(head, arguments) => {
+            stored_code_metas(head, out);
+            for argument in arguments { stored_code_metas(argument, out); }
+        }
+        _ => {}
+    }
 }
 
 // ---------------------------------------------------------------- usage tracking
@@ -2195,33 +2516,7 @@ fn escape_regions(ty: &Ty, out: &mut Vec<String>) {
 /// invalidation over mutable state): collecting them lets the checker
 /// classify an evidence item as reading a mutable location's contents.
 fn collect_idx_reads(t: &ITerm, out: &mut Vec<String>) {
-    match t {
-        ITerm::Var(n) => {
-            if !out.iter().any(|x| x == n) {
-                out.push(n.clone());
-            }
-        }
-        ITerm::App(f, args) => {
-            collect_idx_reads(f, out);
-            for a in args {
-                collect_idx_reads(a, out);
-            }
-        }
-        ITerm::Bin(_, a, b) => {
-            collect_idx_reads(a, out);
-            collect_idx_reads(b, out);
-        }
-        ITerm::Lam(x, body) => {
-            let mut inner = Vec::new();
-            collect_idx_reads(body, &mut inner);
-            for v in inner {
-                if v != *x && !out.iter().any(|x| x == &v) {
-                    out.push(v);
-                }
-            }
-        }
-        ITerm::Num(_) | ITerm::Fn(_) | ITerm::MVar(_) => {}
-    }
+    t.free_vars(out);
 }
 
 /// Whether every occurrence of the binder in an index term sits under
@@ -2232,7 +2527,8 @@ fn collect_idx_reads(t: &ITerm, out: &mut Vec<String>) {
 fn measure_covers(t: &ITerm, binder: &str, byte_length: bool) -> bool {
     match t {
         ITerm::Var(n) => n != binder,
-        ITerm::Num(_) | ITerm::Fn(_) | ITerm::MVar(_) => true,
+        ITerm::Inst(_) => !t.mentions(binder),
+        ITerm::LocalValue(_) | ITerm::Num(_) | ITerm::Evidence(_) | ITerm::Fn(_) | ITerm::MVar(_) => true,
         ITerm::Lam(_, body) => measure_covers(body, binder, byte_length),
         ITerm::Bin(_, a, b) => measure_covers(a, binder, byte_length) && measure_covers(b, binder, byte_length),
         ITerm::App(f, args) => {
@@ -2413,6 +2709,18 @@ pub(crate) fn conc_result_ty(e: &Ty, v: &Ty) -> Ty {
 
 // ---------------------------------------------------------------- the checker
 
+/// A source reference resolved by the ordinary checker, including captured
+/// macro operands. Kept outside interfaces/runtime ABI and requested only by
+/// editor analysis; source spelling is never re-resolved in an insertion scope.
+#[derive(Clone, Debug)]
+pub(crate) struct CheckedReference {
+    pub module: String,
+    pub owner: String,
+    pub name: String,
+    pub kind: ast::RefKind,
+    pub span: ast::Span,
+}
+
 /// A non-fatal diagnostic reported by the compiler (attribute
 /// annotations specification section 2: the branch weight reports are
 /// reported and the weights dropped, never a hard failure).
@@ -2528,6 +2836,16 @@ struct Checker {
     default_ids: HashMap<(String, String, String), String>,
     instances: HashMap<String, Vec<usize>>,
     instance_list: Vec<InstanceInfo>,
+    declaration_seed: Option<Vec<InstanceInfo>>,
+    collecting_declarations: bool,
+    // Ordinary headers that depend on names produced by staging are kept as
+    // source AST, never as provisional checked types or evidence.
+    defer_generated_headers: bool,
+    deferred_headers: HashMap<(String, String), (ast::Decl, Vec<ast::Attribute>)>,
+    declaration_bindings: HashMap<(ast::LocalBinding, ast::RefKind), (String, String)>,
+    provisional_declarations: bool,
+    declaration_needs_headers: Cell<bool>,
+    declaration_pending: Cell<usize>,
     fns: Vec<FnDef>,
     lam_counter: usize,
     /// `letrec` member lambdas awaiting their code generation unit:
@@ -2565,6 +2883,10 @@ struct Checker {
     module_surface: HashMap<String, HashMap<String, SurfaceName>>,
     /// Top-level signature schemes, keyed by `(module, name)`.
     top_schemes: HashMap<(String, String), Scheme>,
+    /// The runtime values introduced by a function's implicit telescope.
+    /// Macro captures and equation checking must share their lexical handles.
+    syntax_implicit_values: HashMap<(String, String), Vec<ast::Name>>,
+    syntax_context_values: HashMap<(String, String), Vec<ast::Name>>,
     /// Top-level equations, keyed by module and name.
     top_eqs: Vec<(String, String, ast::Equation)>,
     /// Finished instance dictionaries.
@@ -2595,13 +2917,12 @@ struct Checker {
     /// Effects performed in the current checking scope.
     perf: EffRow,
     /// Fresh-name counter for memo regions.
-    region_counter: usize,
+    region_counter: Cell<usize>,
     /// The prelude module, home of `List`, `Cons` and `Nil` for list
     /// literal and list pattern desugaring.
     prelude_module: String,
     /// Tuple constructor code generation units already synthesized, by
     /// arity.
-    tuple_ctors: Vec<usize>,
     /// Integer literals awaiting type determination, in creation order.
     literal_pends: Vec<PendLit>,
     /// Collection literals' fold boundaries, in creation order (surface
@@ -2648,6 +2969,11 @@ struct Checker {
     /// Each logical definition's logical references, for the mutual
     /// recursion check (a looping function must not inhabit a `Prop`).
     logical_refs: HashMap<(String, String), Vec<(String, String)>>,
+    /// Checked bodies retained for termination checks of computations inside
+    /// erased evidence. A pure arrow alone grants no termination authority.
+    erasure_bodies: HashMap<GlobalId, (Vec<LocalId>, ECore)>,
+    pending_erasure_checks: Vec<(String, ast::Span, ECore)>,
+    erasure_checks: Vec<(String, ast::Span, ECore)>,
     /// Top-level bindings recorded for the eager-reference-cycle check
     /// (the guarded-letrec rule extended to the top level, where the
     /// `letrec` fixpoint discipline does not reach): `(unit id, name,
@@ -2724,6 +3050,10 @@ struct Checker {
     proof_value_scopes: HashMap<LocalId, HashMap<String, LocalId>>,
     /// Direct strict-let aliases preserve the same runtime value identity.
     value_aliases: HashMap<LocalId, LocalId>,
+    /// Typed pattern equalities for the current erased proof branch. Subjects
+    /// and fields use lexical identities, so a shadow cannot retarget them.
+    proof_pattern_equalities: HashMap<LocalId, ITerm>,
+    proof_pattern_values: HashSet<LocalId>,
     /// Binders whose class is fixed without a type: dictionaries,
     /// capability evidence and markers.
     local_cls: HashMap<LocalId, crate::repr::Class>,
@@ -2774,6 +3104,8 @@ struct Checker {
     place_path: Vec<String>,
     /// User-declared effects by name (`effect L where ...`).
     effects: HashMap<String, EffectInfo>,
+    /// Definition sites, independent of their public spelling and row label.
+    effect_bindings: HashMap<(String, String), String>,
     /// Codata types by `(module, type name)` (codata and guardedness
     /// design, section 2): a record of delayed observations, built only by
     /// its observed construction form and eliminated only by observation.
@@ -2799,6 +3131,34 @@ struct Checker {
     /// Staging (P9): true while checking compile-time code (`stage`
     /// definitions, macros, `generate` blocks, and quotation splices).
     compile_time: bool,
+    /// Preserve the actual type-directed bindings of checked quotation
+    /// nodes. Their clones share immutable resolution cells; source tokens
+    /// and raw captured spellings do not carry this authority.
+    record_quote_bindings: bool,
+    /// The source that requests the current proof goal. Captured proof
+    /// syntax keeps its own origin; goal-directed diagnostics use this site.
+    proof_goal_site: Option<ast::Span>,
+    editor_references: RefCell<Option<Vec<CheckedReference>>>,
+    editor_modules: HashSet<String>,
+    scoped_type_env: RefCell<Vec<Env>>,
+    /// Checked source-header value binders, before runtime locals exist.
+    /// Captured references use their authoritative Env path instead.
+    index_carriers: RefCell<Vec<(String, Ty)>>,
+    /// Lambda references select opaque source handles, independently of the
+    /// alpha-convertible spelling used by the kernel's bound-variable IR.
+    index_lambda_binders: RefCell<Vec<IndexLambdaBinder>>,
+    index_lambda_counter: Cell<usize>,
+    index_header_context: RefCell<Vec<Vec<(String, ClassApp)>>>,
+    index_dictionary_scope: RefCell<Vec<Vec<(IndexDictionaryBinding, ClassApp)>>>,
+    law_index_context: RefCell<Option<Vec<(String, ClassApp)>>>,
+    /// Quantified binders of the definition currently checking staged Code.
+    /// These are native rigidification identities, never source spellings
+    /// collected from a generated fragment.
+    code_quantifiers: Scheme,
+    /// Checked compile-time references and their full use-site instantiations.
+    /// These private identities never enter runtime interfaces or object data.
+    stage_calls: RefCell<HashMap<String, StageCall>>,
+    stage_definition_scopes: HashMap<String, (Scheme, Scheme)>,
     /// Staging: the quotation template's hole types, indexed by
     /// `SpliceHole`.
     hole_tys: Vec<Ty>,
@@ -2820,7 +3180,7 @@ struct Checker {
     stage_inputs: Vec<StageInput>,
     /// Staging: declarations emitted by executed generators, keyed by the
     /// module they belong to.
-    stage_emitted: std::collections::HashMap<String, Vec<crate::ast::Decl>>,
+    stage_emitted: std::collections::HashMap<String, Vec<(crate::ast::Decl, crate::ast::Span)>>,
     /// Staging: the build mode (refresh, replay, live).
     stage_mode: StageMode,
     /// Module to source file, for expansion provenance.
@@ -2933,7 +3293,9 @@ struct Checker {
     /// until regions unify, since a call's effect-row region may only
     /// resolve during constraint solving). Each is the evidence local, the
     /// mutable locations its statement reads, and the use span.
-    ev_uses: Vec<(LocalId, Vec<String>, ast::Span)>,
+    /// Type conversion can share proof discharge without changing inference;
+    /// its evidence uses enter this same deferred staleness journal.
+    ev_uses: RefCell<Vec<(LocalId, Vec<String>, ast::Span)>>,
     /// A branch fact's in-condition window: the write-log range between
     /// its test and the end of the condition that holds it (`p || g m`
     /// tests `p`, then `g` may write before the branch is taken). Writes
@@ -2954,10 +3316,10 @@ struct Checker {
     /// Refinement transfers recorded at resolved wants (refinement types
     /// design, "composability"): checked in the law layer after every
     /// module's bodies are known.
-    transfer_obligs: Vec<TransferOblig>,
+    transfer_obligs: RefCell<Vec<TransferOblig>>,
     /// The (dictionary, point, method) keys already recorded: one check
     /// per transfer however many uses resolve to it.
-    transfer_seen: HashSet<(String, String, String)>,
+    transfer_seen: RefCell<HashSet<(String, String, String)>>,
     /// Method and function applications whose instance or signature
     /// carries refinement obligations: the arguments and the evidence in
     /// scope at the call, for the discharge after resolution (the `Dec`
@@ -3050,7 +3412,7 @@ impl ImportView {
 /// One export-surface entry (surface grammar local amendments section
 /// 11): the definition a surface name names. A re-export names another
 /// module's definition under the exporting module's surface name.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct SurfaceName {
     module: String,
     name: String,
@@ -3119,6 +3481,13 @@ fn value_index_id(value: &ValueInfo) -> String {
     }
 }
 
+fn index_value_label(value: &ValueInfo) -> String {
+    match value.kind {
+        ValueKind::Prim(PrimOp::Bytes(BytesOp::Len)) => "byte-length".into(),
+        _ => fn_id(&value.module, &value.name).0,
+    }
+}
+
 /// The named functions a proposition's index terms apply, with the
 /// argument count of each use (a bare reference is arity zero).
 fn index_heads(p: &PTerm, out: &mut Vec<(String, usize)>) {
@@ -3130,9 +3499,17 @@ fn index_heads(p: &PTerm, out: &mut Vec<(String, usize)>) {
         };
         match t {
             ITerm::Fn(h) => push(h, 0),
+            ITerm::Inst(call) => {
+                if let IndexHead::Function(head) = &call.head { push(head, 0); }
+                for argument in call.terms() { term(argument, out); }
+            },
             ITerm::App(f, args) => {
                 match &**f {
                     ITerm::Fn(h) => push(h, args.len()),
+                    ITerm::Inst(call) => {
+                        if let IndexHead::Function(head) = &call.head { push(head, args.len()); }
+                        for argument in call.terms() { term(argument, out); }
+                    },
                     other => term(other, out),
                 }
                 args.iter().for_each(|a| term(a, out));
@@ -3142,7 +3519,7 @@ fn index_heads(p: &PTerm, out: &mut Vec<(String, usize)>) {
                 term(b, out);
             }
             ITerm::Lam(_, b) => term(b, out),
-            ITerm::Var(_) | ITerm::Num(_) | ITerm::MVar(_) => {}
+            ITerm::Var(_) | ITerm::LocalValue(_) | ITerm::Evidence(_) | ITerm::Num(_) | ITerm::MVar(_) => {}
         }
     }
     match p {
@@ -3197,6 +3574,14 @@ impl Checker {
             default_ids: HashMap::new(),
             instances: HashMap::new(),
             instance_list: Vec::new(),
+            declaration_seed: None,
+            collecting_declarations: false,
+            defer_generated_headers: false,
+            deferred_headers: HashMap::new(),
+            declaration_bindings: HashMap::new(),
+            provisional_declarations: false,
+            declaration_needs_headers: Cell::new(false),
+            declaration_pending: Cell::new(0),
             fns: Vec::new(),
             lam_counter: 0,
             pending_rec: Vec::new(),
@@ -3213,6 +3598,8 @@ impl Checker {
             data_imports: Vec::new(),
             module_surface: HashMap::new(),
             top_schemes: HashMap::new(),
+            syntax_implicit_values: HashMap::new(),
+            syntax_context_values: HashMap::new(),
             top_eqs: Vec::new(),
             instance_defs: Vec::new(),
             instance_defs_pending: Vec::new(),
@@ -3221,9 +3608,8 @@ impl Checker {
             shadowed_modules: std::collections::HashSet::new(),
             self_instance: None,
             perf: EffRow::pure(),
-            region_counter: 0,
+            region_counter: Cell::new(0),
             prelude_module: String::new(),
-            tuple_ctors: Vec::new(),
             literal_pends: Vec::new(),
             literal_folds: Vec::new(),
             fold_scx: None,
@@ -3238,6 +3624,9 @@ impl Checker {
             current_logical: None,
             pending_refs: Vec::new(),
             logical_refs: HashMap::new(),
+            erasure_bodies: HashMap::new(),
+            pending_erasure_checks: Vec::new(),
+            erasure_checks: Vec::new(),
             top_binds: Vec::new(),
             top_edges: Vec::new(),
             record_top_value: false,
@@ -3264,6 +3653,8 @@ impl Checker {
             local_tys: HashMap::new(),
             proof_value_scopes: HashMap::new(),
             value_aliases: HashMap::new(),
+            proof_pattern_equalities: HashMap::new(),
+            proof_pattern_values: HashSet::new(),
             local_cls: HashMap::new(),
             local_origin: HashMap::new(),
             cur_tparams: Vec::new(),
@@ -3281,6 +3672,7 @@ impl Checker {
             task_captures: Vec::new(),
             place_path: Vec::new(),
             effects: HashMap::new(),
+            effect_bindings: HashMap::new(),
             codata_types: HashSet::new(),
             effect_ops: HashMap::new(),
             conts: Vec::new(),
@@ -3289,6 +3681,20 @@ impl Checker {
             seq_binders: Vec::new(),
             current_cont: Vec::new(),
             compile_time: false,
+            record_quote_bindings: false,
+            proof_goal_site: None,
+            editor_references: RefCell::new(None),
+            editor_modules: HashSet::new(),
+            scoped_type_env: RefCell::new(Vec::new()),
+            index_carriers: RefCell::new(Vec::new()),
+            index_lambda_binders: RefCell::new(Vec::new()),
+            index_lambda_counter: Cell::new(0),
+            index_header_context: RefCell::new(Vec::new()),
+            index_dictionary_scope: RefCell::new(Vec::new()),
+            law_index_context: RefCell::new(None),
+            code_quantifiers: Scheme::mono(Ty::Unit),
+            stage_calls: RefCell::new(HashMap::new()),
+            stage_definition_scopes: HashMap::new(),
             hole_tys: Vec::new(),
             staging: std::collections::HashSet::new(),
             macros: std::collections::HashMap::new(),
@@ -3330,12 +3736,12 @@ impl Checker {
             rewrites: Vec::new(),
             ev_writes: Vec::new(),
             ev_derivs: HashMap::new(),
-            ev_uses: Vec::new(),
+            ev_uses: RefCell::new(Vec::new()),
             ev_pre: HashMap::new(),
             col_readings: HashMap::new(),
             inline_cols: HashMap::new(),
-            transfer_obligs: Vec::new(),
-            transfer_seen: HashSet::new(),
+            transfer_obligs: RefCell::new(Vec::new()),
+            transfer_seen: RefCell::new(HashSet::new()),
             prop_calls: Vec::new(),
             app_callee_depth: 0,
             param_facts: Vec::new(),
@@ -3373,9 +3779,9 @@ impl Checker {
     }
 
     /// A fresh memo region name, e.g. `r#3`.
-    fn fresh_region(&mut self) -> String {
-        let n = self.region_counter;
-        self.region_counter += 1;
+    fn fresh_region(&self) -> String {
+        let n = self.region_counter.get();
+        self.region_counter.set(n + 1);
         format!("r#{n}")
     }
 
@@ -3416,7 +3822,7 @@ impl Checker {
         self.obligations.clear();
         self.ev_writes.clear();
         self.ev_derivs.clear();
-        self.ev_uses.clear();
+        self.ev_uses.get_mut().clear();
         self.ev_pre.clear();
         self.col_readings.clear();
         self.inline_cols.clear();
@@ -3485,6 +3891,26 @@ impl Checker {
         Ok(())
     }
 
+    /// Register the binding carried by syntax, alongside the ordinary source
+    /// spelling. Looking up a captured handle never falls back to that spelling.
+    fn bind_syntax_local(
+        &mut self, env: &mut Env, name: &ast::Name, l: LocalId,
+        scheme: Scheme, mult: Option<Mult>, span: ast::Span,
+    ) -> Result<()> {
+        if let Some(binding) = name.local_binding() {
+            if env.syntax_locals.get(binding).and_then(|slot| env.locals.get(*slot))
+                .is_some_and(|(_, previous, _)| *previous != l)
+            {
+                return Err(Error::at(span, format!("syntax binding `{}` is introduced twice in the same lexical scope", name.text)));
+            }
+        }
+        self.bind_local(env, &name.text, l, scheme, mult, span)?;
+        if let Some(binding) = name.local_binding() {
+            env.syntax_locals.insert(binding.clone(), env.locals.len() - 1);
+        }
+        Ok(())
+    }
+
     /// The mutable locations an evidence item's statement reads (evidence
     /// invalidation over mutable state): the regions of `Mut` and `Ref`
     /// borrows named by the proposition's index terms, split by borrow
@@ -3494,28 +3920,16 @@ impl Checker {
         collect_prop_reads(q, &mut vars);
         let mut muts = Vec::new();
         let mut refs = Vec::new();
-        for v in vars {
-            let binding = env.lookup(&v).or_else(|| {
-                // Logical provenance can still name a hidden outer local.
-                // These handles are never ordinary source bindings.
-                let id = v.strip_prefix("$proof-value:")?.parse::<usize>().ok()?;
-                env.locals.iter().find(|(_, local, _)| local.0 == id)
-                    .map(|(_, local, scheme)| (*local, scheme.clone()))
-            });
-            if let Some((_, s)) = binding {
-                match self.uni.zonk(&s.ty) {
-                    Ty::Mut(r, _) => {
-                        if !muts.contains(&r) {
-                            muts.push(r);
-                        }
-                    }
-                    Ty::Ref(r, _) => {
-                        if !refs.contains(&r) {
-                            refs.push(r);
-                        }
-                    }
-                    _ => {}
-                }
+        let mut locals = Vec::new();
+        q.local_values(&mut locals);
+        let bindings = vars.iter().filter_map(|name| env.lookup(name))
+            .chain(locals.iter().filter_map(|id| env.locals.iter().find(|(_, local, _)| local == id)
+                .map(|(_, local, scheme)| (*local, scheme.clone()))));
+        for (_, scheme) in bindings {
+            match self.uni.zonk(&scheme.ty) {
+                Ty::Mut(region, _) => { if !muts.contains(&region) { muts.push(region); } }
+                Ty::Ref(region, _) => { if !refs.contains(&region) { refs.push(region); } }
+                _ => {}
             }
         }
         (muts, refs)
@@ -3562,7 +3976,7 @@ impl Checker {
     /// call's effect-row region may only resolve there. Only `Mut`-sourced
     /// evidence (reads a mutable location) can go stale; `Ref`-sourced and
     /// immutable evidence never do.
-    fn record_ev_use(&mut self, l: LocalId, prop: &PTerm, env: &Env, use_span: ast::Span) {
+    fn record_ev_use(&self, l: LocalId, prop: &PTerm, env: &Env, use_span: ast::Span) {
         if !self.ev_derivs.contains_key(&l) {
             return;
         }
@@ -3570,7 +3984,7 @@ impl Checker {
         if muts.is_empty() {
             return;
         }
-        self.ev_uses.push((l, muts, use_span));
+        self.ev_uses.borrow_mut().push((l, muts, use_span));
     }
 
     /// The evidence in scope at a call (the `Dec` evidence path and
@@ -3580,6 +3994,11 @@ impl Checker {
     /// derived about) no longer speaks about what that name now denotes
     /// and is left out. Sorts and refined predicates come from each
     /// name's innermost binding only.
+    fn values_in_scope(&self, env: &Env, values: &[LocalId]) -> bool {
+        values.iter().all(|id| self.proof_pattern_values.contains(id) || env.locals.iter().any(|(_, local, _)|
+            local == id || self.value_aliases.get(local).is_some_and(|original| original == id)))
+    }
+
     fn evidence_in(&self, env: &Env) -> Evidence {
         let mut out = Evidence::default();
         // Logical local identities remain scoped even if their source name
@@ -3588,8 +4007,16 @@ impl Checker {
             if scheme.params.is_empty() {
                 if let Some((sort, _)) = self.int_view(&self.uni.zonk(&scheme.ty)) {
                     let original = self.value_aliases.get(local).copied().unwrap_or(*local);
-                    let name = format!("$proof-value:{}", original.0);
-                    if !out.sorts.iter().any(|(old, _)| *old == name) { out.sorts.push((name, sort)); }
+                    if !out.value_sorts.iter().any(|(old, _)| *old == original) { out.value_sorts.push((original, sort)); }
+                }
+            }
+        }
+        for local in &self.proof_pattern_values {
+            if let Some(ty) = self.local_tys.get(local) {
+                if let Some((sort, _)) = self.int_view(&self.uni.zonk(ty)) {
+                    if !out.value_sorts.iter().any(|(old, _)| old == local) {
+                        out.value_sorts.push((*local, sort));
+                    }
                 }
             }
         }
@@ -3618,6 +4045,8 @@ impl Checker {
                     None => self.refine_view(&t),
                 };
                 if let Some(rv) = rv {
+                    let mut values = Vec::new(); rv.pred.local_values(&mut values);
+                    if !self.values_in_scope(env, &values) { continue; }
                     let mut fv = Vec::new();
                     rv.pred.free_vars(&mut fv);
                     if fv.iter().all(|v| {
@@ -3631,6 +4060,8 @@ impl Checker {
             let q = self.uni.resolve_prop(q);
             let origin = self.proof_value_scopes.get(local);
             let q = origin.map(|source| self.proof_values_in_scope(&q, source, env)).unwrap_or(q);
+            let mut values = Vec::new(); q.local_values(&mut values);
+            if !self.values_in_scope(env, &values) { continue; }
             let mut fv = Vec::new();
             q.free_vars(&mut fv);
             // `later` already holds this binder's own name, which its
@@ -3708,7 +4139,7 @@ impl Checker {
             .into_iter()
             .filter_map(|(h, k)| self.fn_int_sort(&h, k).map(|s| (h, k, s)))
             .collect();
-        let sorts = Sorts { vars: ev.sorts.clone(), fns };
+        let sorts = Sorts { vars: ev.sorts.clone(), values: ev.value_sorts.clone(), fns };
         let proofs = linear_entails(&hyps, obl, &sorts)?;
         let mut used = Vec::new();
         for i in proofs.iter().flat_map(|p| p.hyps_used()) {
@@ -3778,7 +4209,12 @@ impl Checker {
                     terms(a, out);
                     terms(b, out);
                 }
-                ITerm::Lam(..) | ITerm::Var(_) | ITerm::Num(_) | ITerm::MVar(_) => {}
+                ITerm::Inst(call) => {
+                    // Evidenceful globals need their instantiated result carrier
+                    // before exporting result facts; do not use a bare scheme.
+                    for argument in call.terms() { terms(argument, out); }
+                }
+                ITerm::Lam(..) | ITerm::Var(_) | ITerm::LocalValue(_) | ITerm::Evidence(_) | ITerm::Num(_) | ITerm::MVar(_) => {}
             }
         }
         fn preds<'a>(p: &'a PTerm, out: &mut Vec<(&'a str, &'a [ITerm], &'a ITerm)>) {
@@ -3856,7 +4292,7 @@ impl Checker {
     /// that establishes a different fact is refused as forged evidence;
     /// no evidence is refused naming the obligation and its discharge
     /// paths.
-    fn discharge_oblig(&mut self, evidence: &Evidence, obl: &PTerm, span: ast::Span) -> Result<()> {
+    fn discharge_oblig(&self, evidence: &Evidence, obl: &PTerm, span: ast::Span) -> Result<()> {
         let mut ov: Vec<String> = Vec::new();
         obl.free_vars(&mut ov);
         let mut forged: Option<(String, PTerm)> = None;
@@ -3912,10 +4348,10 @@ impl Checker {
 
     /// Record the evidence items a discharge read (evidence invalidation
     /// over mutable state): staleness is checked after regions unify.
-    fn note_ev_used(&mut self, items: &[&(String, PTerm, LocalId, Vec<String>)], span: ast::Span) {
+    fn note_ev_used(&self, items: &[&(String, PTerm, LocalId, Vec<String>)], span: ast::Span) {
         for (_, _, local, muts) in items {
             if self.ev_derivs.contains_key(local) && !muts.is_empty() {
-                self.ev_uses.push((*local, muts.clone(), span));
+                self.ev_uses.borrow_mut().push((*local, muts.clone(), span));
             }
         }
     }
@@ -3925,7 +4361,7 @@ impl Checker {
     /// A use whose evidence a later write invalidated is rejected, naming
     /// the derivation site and the invalidating mutation.
     fn check_ev_uses(&mut self) -> Result<()> {
-        let uses = std::mem::take(&mut self.ev_uses);
+        let uses = std::mem::take(self.ev_uses.get_mut());
         for (l, muts, use_span) in uses {
             let Some(&(deriv_len, deriv_span)) = self.ev_derivs.get(&l) else {
                 continue;
@@ -4594,10 +5030,10 @@ impl Checker {
     /// machine scalars and the mathematical types, immutable products of
     /// `Copy` parts, and shared borrows. `Bytes` is a mutable buffer;
     /// closures, thunks, memo cells and `Mut` borrows are not duplicable.
-    fn copy_structural(
+    fn copy_structural<B>(
         &self,
         ty: &Ty,
-        scope: &[(LocalId, ClassApp)],
+        scope: &[(B, ClassApp)],
         seen: &mut Vec<(String, Vec<Ty>)>,
     ) -> bool {
         match ty {
@@ -4646,7 +5082,7 @@ impl Checker {
                     return true;
                 }
                 seen.push((name.clone(), args.clone()));
-                let info = match self.lookup_type(&[name]) {
+                let info = match self.lookup_known_type(name) {
                     Ok(i) => i,
                     Err(_) => return false,
                 };
@@ -4902,7 +5338,7 @@ impl Checker {
         let pends = std::mem::take(&mut self.idx_pends);
         let mut vals: Vec<ECore> = Vec::with_capacity(pends.len());
         for p in &pends {
-            vals.push(self.reify_idx(&p.iterm, &p.names, p.nat, p.span)?);
+            vals.push(self.reify_index_value(&p.iterm, &p.scope, &p.carrier, p.span)?);
         }
         Ok(vals)
     }
@@ -4948,7 +5384,7 @@ impl Checker {
             | ECore::QuoteHole(_)
             | ECore::IdxPending(_)
             | ECore::Fault
-            | ECore::SyntaxLit(_)
+            | ECore::SyntaxLit(..)
             | ECore::StrLit(_)
             | ECore::LazyAlloc
             | ECore::BoxAlloc => {}
@@ -5038,7 +5474,7 @@ impl Checker {
         let (args, field_types) = match self.uni.zonk(ty) {
             Ty::Tuple(types) => (types.clone(), types),
             Ty::Adt(name, args) => {
-                let info = self.lookup_type(&[&name]).ok()?;
+                let info = self.lookup_known_type(&name).ok()?;
                 let cname = ctor.rsplit('.').next()?;
                 let defining = self.ctor_of_type(&info, cname).ok()?;
                 if format!("{}.{}", defining.module, defining.name) != *ctor { return None; }
@@ -5058,25 +5494,151 @@ impl Checker {
         Some(out)
     }
 
+    fn reify_index_value(&self, value: &ITerm, names: &IndexRuntimeScope, carrier: &Ty, span: ast::Span) -> Result<ECore> {
+        let carrier = self.uni.zonk(carrier);
+        let carrier = self.refine_base(&carrier).unwrap_or(carrier);
+        if let ITerm::Num(digits) = self.uni.resolve_idx(value) {
+            if carrier == Ty::Prim(Scalar::Char) {
+                let code = digits.parse::<u32>().ok().filter(|code| char::from_u32(*code).is_some())
+                    .ok_or_else(|| Error::at(span, "index character is not a Unicode scalar value"))?;
+                return Ok(ECore::Int(code as i64));
+            }
+            return self.literal_const(&carrier, &digits, span);
+        }
+        self.reify_idx(value, names, carrier == Ty::Nat, span)
+    }
+
+    /// Read the complete checked telescope using declaration-owned parameter
+    /// names. Erased arguments remain metadata and never enter the runtime ABI.
+    fn index_instantiation_bindings(scheme: &Scheme, call: &IndexInstantiation, span: ast::Span) -> Result<(HashMap<String, Ty>, HashMap<String, EffRow>, HashMap<String, String>, HashMap<IndexEvidence, ITerm>)> {
+        let expected = scheme.idx_params.len() + scheme.val_params.len() + scheme.prop_params.len() + scheme.row_params.len() + scheme.region_params.len() + scheme.evidence_params.len();
+        if scheme.params.len() != call.types.len() || scheme.ctx.len() != call.dictionaries.len() || expected != call.arguments.len() {
+            return Err(Error::at(span, "index function has an incomplete checked telescope"));
+        }
+        let mut types: HashMap<_, _> = scheme.params.iter().cloned().zip(call.types.iter().cloned()).collect();
+        let mut evidence = HashMap::new();
+        for ((name, _), dictionary) in scheme.ctx.iter().zip(&call.dictionaries) {
+            evidence.insert(dictionary_parameter(name), dictionary.clone());
+        }
+        let mut arguments = call.arguments.iter();
+        for parameter in &scheme.idx_params {
+            let value = match (parameter, arguments.next().expect("length checked")) {
+                (IxParam::Val(..), IndexArgument::Value { value, runtime: false, .. }) => Ty::Idx(Box::new(value.clone())),
+                (IxParam::Prop(..), IndexArgument::Proposition(prop)) => Ty::Prp(Box::new(prop.clone())),
+                _ => return Err(Error::at(span, "index parameter kind does not match its checked telescope")),
+            };
+            types.insert(parameter.name().to_string(), value);
+        }
+        for (name, _) in &scheme.val_params {
+            let IndexArgument::Value { value, runtime: true, .. } = arguments.next().expect("length checked") else {
+                return Err(Error::at(span, "implicit value does not match its checked telescope"));
+            };
+            types.insert(name.clone(), Ty::Idx(Box::new(value.clone())));
+        }
+        for name in &scheme.prop_params {
+            let IndexArgument::Proposition(prop) = arguments.next().expect("length checked") else {
+                return Err(Error::at(span, "proposition does not match its checked telescope"));
+            };
+            types.insert(name.clone(), Ty::Prp(Box::new(prop.clone())));
+        }
+        let mut rows = HashMap::new();
+        for name in &scheme.row_params {
+            let IndexArgument::Row(row) = arguments.next().expect("length checked") else {
+                return Err(Error::at(span, "effect row does not match its checked telescope"));
+            };
+            rows.insert(name.clone(), row.clone());
+        }
+        let mut regions = HashMap::new();
+        for name in &scheme.region_params {
+            let IndexArgument::Region(region) = arguments.next().expect("length checked") else {
+                return Err(Error::at(span, "region does not match its checked telescope"));
+            };
+            regions.insert(name.clone(), region.clone());
+        }
+        for parameter in &scheme.evidence_params {
+            let IndexArgument::Evidence(value) = arguments.next().expect("length checked") else {
+                return Err(Error::at(span, "dictionary identity does not match its checked telescope"));
+            };
+            evidence.insert(parameter.clone(), value.clone());
+        }
+        Ok((types, rows, regions, evidence))
+    }
+
+    fn instantiated_index_type(&self, scheme: &Scheme, call: &IndexInstantiation, span: ast::Span) -> Result<Ty> {
+        let (types, rows, regions, evidence) = Self::index_instantiation_bindings(scheme, call, span)?;
+        let mut uni = self.uni.clone();
+        let mut tails = HashMap::new();
+        for (name, row) in rows {
+            let fresh = uni.fresh_row();
+            uni.unify_rows(&fresh, &row).map_err(|error| Error::at(span, error))?;
+            tails.insert(name, fresh.tail);
+        }
+        let ty = uni.zonk(&Self::subst_namespaces(&scheme.ty, &types, &tails, &regions, &evidence));
+        if !self.uni.owns_all_metas(&ty) {
+            return Err(Error::at(span, "instantiated index carrier retains private inference variables"));
+        }
+        Ok(ty)
+    }
+
+    fn index_function_carrier(&self, term: &ITerm, span: ast::Span) -> Result<Option<Ty>> {
+        match self.uni.resolve_idx(term) {
+            ITerm::LocalValue(local) => Ok(self.local_tys.get(&local).map(|ty| self.uni.zonk(ty))),
+            ITerm::Inst(call) => match &call.head {
+                IndexHead::Function(head) => self.qualified.values().find(|value| value_index_id(value) == *head)
+                    .map(|value| self.instantiated_index_type(&value.scheme, &call, span)).transpose(),
+                _ => Ok(None),
+            },
+            ITerm::Fn(head) if head == BYTE_LENGTH_INDEX => Ok(Some(Ty::fun(Ty::Bytes, Ty::Nat))),
+            ITerm::Fn(head) => Ok(self.qualified.values().find(|value| value_index_id(value) == head)
+                .and_then(|value| Self::closed_index_signature(&value.scheme))),
+            ITerm::App(head, args) => {
+                let mut carrier = self.index_function_carrier(&head, span)?;
+                for arg in args {
+                    carrier = match carrier {
+                        Some(Ty::Fun(_, _, _, cod)) => Some(*cod),
+                        Some(Ty::Pi { var, cod, .. }) => Some(cod.subst_idx(&var, &arg)),
+                        _ => None,
+                    };
+                }
+                Ok(carrier)
+            }
+            _ => Ok(None),
+        }
+    }
+
     /// An index term as runtime code (core specification section 3:
     /// witnesses execution needs are retained, and only executable
     /// definitions can be reified).
     fn reify_idx(
         &self,
         it: &ITerm,
-        names: &HashMap<String, LocalId>,
+        names: &IndexRuntimeScope,
         nat: bool,
         span: ast::Span,
     ) -> Result<ECore> {
         Ok(match self.uni.resolve_idx(it) {
             ITerm::Num(d) => ECore::ConstBig { nat, digits: d },
+            ITerm::LocalValue(local) => {
+                if !names.locals.contains(&local) {
+                    return Err(Error::at(span, "index value escaped its checked runtime scope"));
+                }
+                ECore::Var(local)
+            }
             ITerm::Lam(_, _) => {
                 return Err(Error::at(
                     span,
                     "an index-level lambda has no runtime value at this call site",
                 ))
             }
-            ITerm::Var(n) => match names.get(&n) {
+            ITerm::Evidence(IndexEvidence::Local(local)) => {
+                let local = LocalId(local);
+                if !names.dictionaries.contains(&local) {
+                    return Err(Error::at(span, "index dictionary escaped its checked runtime scope"));
+                }
+                ECore::Var(local)
+            }
+            ITerm::Evidence(IndexEvidence::Parameter(_)) => return Err(Error::at(span, "index dictionary parameter was not instantiated")),
+            ITerm::Var(n) => match names.values.get(&n) {
                 Some(l) => ECore::Var(*l),
                 None => {
                     return Err(Error::at(
@@ -5085,6 +5647,30 @@ impl Checker {
                     ))
                 }
             },
+            ITerm::Inst(call) => {
+                let dictionaries = call.dictionaries.iter().map(|term| self.reify_idx(term, names, nat, span)).collect::<Result<Vec<_>>>()?;
+                match &call.head {
+                    IndexHead::Dictionary(head) => ECore::InstDict(GlobalId(head.clone()), dictionaries, call.types.clone(), false),
+                    IndexHead::Marker => ECore::Unit,
+                    IndexHead::DeclarationPending(_) => return Err(Error::at(span, "provisional declaration evidence cannot become runtime code")),
+                    IndexHead::Function(head) => {
+                        self.check_executable(head, span)?;
+                        let mut arguments = dictionaries;
+                        for (value, carrier) in call.runtime_values() { arguments.push(self.reify_index_value(value, names, carrier, span)?); }
+                        if let Some(value) = self.qualified.values().find(|value| value_index_id(value) == *head) {
+                            if let ValueKind::Method { idx, .. } = value.kind {
+                                if arguments.is_empty() { return Err(Error::at(span, "index method has no checked dictionary")); }
+                                let dictionary = arguments.remove(0);
+                                let carrier = self.instantiated_index_type(&value.scheme, &call, span)?;
+                                let carrier = if arguments.is_empty() { carrier } else { Ty::fun(Ty::Unit, carrier) };
+                                let function = ECore::DictProj(Box::new(dictionary), idx,
+                                    self.runtime_method_site(&value.module, &value.scheme, &call.types)?, carrier);
+                                app_spine(function, arguments)
+                            } else { app_spine(ECore::Global(GlobalId(head.clone()), call.types.clone()), arguments) }
+                        } else { return Err(Error::at(span, "instantiated index function is no longer available")); }
+                    }
+                }
+            }
             ITerm::Fn(g) if g == BYTE_LENGTH_INDEX => ECore::Prim(PrimOp::Bytes(BytesOp::Len)),
             ITerm::Fn(g) => {
                 self.check_executable(&g, span)?;
@@ -5092,8 +5678,19 @@ impl Checker {
             }
             ITerm::App(f, args) => {
                 let mut cores = vec![self.reify_idx(&f, names, nat, span)?];
+                let mut carrier = self.index_function_carrier(&f, span)?;
                 for a in &args {
-                    cores.push(self.reify_idx(a, names, nat, span)?);
+                    match carrier.take() {
+                        Some(Ty::Fun(domain, _, _, result)) => {
+                            cores.push(self.reify_index_value(a, names, &domain, span)?);
+                            carrier = Some(*result);
+                        }
+                        Some(Ty::Pi { var, dom, cod, .. }) => {
+                            cores.push(self.reify_index_value(a, names, &dom, span)?);
+                            carrier = Some(cod.subst_idx(&var, a));
+                        }
+                        _ => cores.push(self.reify_idx(a, names, nat, span)?),
+                    }
                 }
                 let head = cores.remove(0);
                 app_spine(head, cores)
@@ -5176,6 +5773,12 @@ impl Checker {
         if let Some(m) = self.module_surface.get(module) {
             return m.get(name).cloned();
         }
+        self.declared_surface_def(module, name)
+    }
+
+    /// A module's own declaration identity, independent of its previous
+    /// public surface. Surface rebuilding must be able to add new outputs.
+    fn declared_surface_def(&self, module: &str, name: &str) -> Option<SurfaceName> {
         let declared = self
             .values
             .get(name)
@@ -5192,7 +5795,8 @@ impl Checker {
                 .map(|ss| ss.iter().any(|s| s.module == module))
                 .unwrap_or(false)
             || self.instance_defs_pending.iter().any(|(m, i)| m == module && i.name.text == name)
-            || self.instance_list.iter().any(|i| i.module == module && i.name == name);
+            || self.instance_list.iter().any(|i| i.module == module && i.name == name)
+            || self.deferred_headers.contains_key(&(module.to_string(), name.to_string()));
         if declared {
             Some(SurfaceName {
                 module: module.to_string(),
@@ -5388,7 +5992,7 @@ impl Checker {
     /// The inline plan for a nested boundary-layout aggregate (its own
     /// recorded layout, boxed out by `tag` when projected).
     fn inline_layout(&self, name: &str) -> Option<FieldShape> {
-        let info = self.lookup_type(&[name]).ok()?;
+        let info = self.lookup_known_type(name).ok()?;
         let layout = self
             .type_layouts
             .get(&(info.module.clone(), info.name.clone()))?;
@@ -5417,6 +6021,19 @@ impl Checker {
             slot += 1;
         }
         Some(FieldShape::Inline { size: layout.size, tag, fields })
+    }
+
+    fn record_editor_reference(&self, span: ast::Span, kind: ast::RefKind, owner: &str, name: &str) {
+        if !self.editor_modules.contains(&self.current_module)
+            || crate::lexer::expansion_of(span).is_some()
+        {
+            return;
+        }
+        if let Some(references) = self.editor_references.borrow_mut().as_mut() {
+            references.push(CheckedReference {
+                module: self.current_module.clone(), owner: owner.into(), name: name.into(), kind, span,
+            });
+        }
     }
 
     fn lookup_type(&self, parts: &[&str]) -> Result<TypeKind> {
@@ -5459,7 +6076,111 @@ impl Checker {
         }
     }
 
+    fn lookup_type_path(&self, path: &ast::ConPath) -> Result<TypeKind> {
+        if let Some(binding) = path.segments.last().and_then(|name| name.declaration_binding()) {
+            let (owner, name) = self.declaration_bindings.get(&(binding.clone(), ast::RefKind::Type))
+                .ok_or_else(|| Error::at(path.span(), "owned syntax type is not bound by this declaration group"))?;
+            return self.types.get(name).and_then(|types| types.iter().find(|ty| &ty.module == owner)).cloned()
+                .ok_or_else(|| Error::at(path.span(), format!("unknown type {owner}.{name}")));
+        }
+        if let Some(binding) = path.segments.last().and_then(|n| n.resolved_binding()) {
+            if binding.kind() != ast::RefKind::Type {
+                return Err(Error::at(path.span(), "a resolved value is not a type name"));
+            }
+            return self.types.get(binding.name()).and_then(|ts| ts.iter().find(|t| t.module == binding.module()))
+                .cloned().ok_or_else(|| Error::at(path.span(), "resolved syntax type is no longer available"));
+        }
+        if let Some(scope) = path.segments.last().and_then(|name| name.scoped_reference()) {
+            let info = scope.candidates(ast::RefKind::Type).iter().find_map(|binding| {
+                self.types.get(binding.name()).and_then(|ts| ts.iter().find(|t| t.module == binding.module()))
+            }).cloned().ok_or_else(|| Error::at(path.span(), format!("unknown type {} (not bound in captured source scope {})", path.parts().join("."), scope.origin())))?;
+            if self.record_quote_bindings { path.segments.last().unwrap().record_binding(ast::RefKind::Type, &info.module, &info.name); }
+            return Ok(info);
+        }
+        let info = self.lookup_type(&path.parts())?;
+        if self.record_quote_bindings {
+            if let Some(name) = path.segments.last() {
+                name.record_binding(ast::RefKind::Type, &info.module, &info.name);
+            }
+        }
+        Ok(info)
+    }
+
+    /// Inspect an already checked type, rather than resolve source spelling.
+    /// A private type can occur in checked generated code without becoming
+    /// an import. AST names must still go through `lookup_type_path` (or the
+    /// surface-gated `lookup_type`), so raw captured names gain no access.
+    fn lookup_known_type(&self, name: &str) -> Result<TypeKind> {
+        self.known_type(name).cloned().ok_or_else(|| Error::plain(format!("checked type {name} has no unambiguous definition")))
+    }
+
+    fn known_type(&self, identity: &str) -> Option<&TypeKind> {
+        // Dictionary families use the declaring signature's identity, just as
+        // ordinary nominal types use their defining owner below. A local data
+        // carrier such as `Main.Bits` cannot collide with legacy class `Bits`.
+        // Looking up a
+        // checked identity must not depend on insertion-site source imports.
+        if let Some(signature) = self.class_sigs.get(identity).and_then(|rows| rows.first()) {
+            return self.qualified_types.get(&(signature.module.clone(), signature.name.clone()));
+        }
+        let name = identity.rsplit('.').next()?;
+        let kinds = self.types.get(name)?;
+        let mut matching = kinds.iter().filter(|k| k.identity == identity);
+        let first = matching.next()?;
+        if matching.next().is_none() { return Some(first); }
+        // Dictionary types still use the class identity selected by the
+        // class scope. Ordinary nominal types have unique owner identities.
+        for (module, name) in self.scope_candidates(name) {
+            if let Some(kind) = kinds.iter().find(|k| k.module == module && k.name == name && k.identity == identity) {
+                return Some(kind);
+            }
+        }
+        None
+    }
+
+    fn signature_at(&self, owner: &str, name: &str) -> Option<SigInfo> {
+        if owner == "<builtin>" && matches!(name, "Copy" | "Share" | "Io") {
+            let (name, parameter) = if name == "Io" { ("Io", "r") } else { ("Copy", "a") };
+            return Some(SigInfo {
+                module: "<builtin>".into(), name: name.into(),
+                params: vec![parameter.into()], param_kinds: vec![ParamKind::Type],
+                methods: Vec::new(), defaults: Vec::new(), laws: Vec::new(),
+            });
+        }
+        self.qualified_sigs.get(&(owner.into(), name.into())).cloned()
+    }
+
     fn lookup_sig(&self, path: &ast::ConPath) -> Result<SigInfo> {
+        let name = path.segments.last().ok_or_else(|| Error::plain("empty signature path"))?;
+        let unavailable = || Error::at(path.span(), "captured signature is no longer available");
+        let info = if let Some(binding) = name.declaration_binding() {
+            let (owner, member) = self.declaration_bindings.get(&(binding.clone(), ast::RefKind::Type))
+                .ok_or_else(|| Error::at(path.span(), "owned signature is not bound by this declaration group"))?;
+            self.signature_at(owner, member).ok_or_else(unavailable)?
+        } else if name.local_binding().is_some() {
+            return Err(Error::at(path.span(), "a captured local name is not a signature"));
+        } else if let Some(binding) = name.resolved_binding() {
+            if binding.kind() != ast::RefKind::Type {
+                return Err(Error::at(path.span(), "this captured name is not a signature type"));
+            }
+            self.signature_at(binding.module(), binding.name()).ok_or_else(unavailable)?
+        } else if let Some(scope) = name.scoped_reference() {
+            if scope.kind() != ast::RefKind::Type {
+                return Err(Error::at(path.span(), "this captured name is not a signature type"));
+            }
+            scope.candidates(ast::RefKind::Type).iter()
+                .find_map(|binding| self.signature_at(binding.module(), binding.name()))
+                .ok_or_else(|| Error::at(path.span(), format!("unknown signature {} (not bound in captured source scope {})", path.parts().join("."), scope.origin())))?
+        } else {
+            self.lookup_source_sig(path)?
+        };
+        if self.record_quote_bindings {
+            name.record_binding(ast::RefKind::Type, &info.module, &info.name);
+        }
+        Ok(info)
+    }
+
+    fn lookup_source_sig(&self, path: &ast::ConPath) -> Result<SigInfo> {
         let parts = path.parts();
         match parts.as_slice() {
             [name] => {
@@ -5471,20 +6192,7 @@ impl Checker {
                 // runtime capability head (decision D21): its instances
                 // are runtime objects supplied lexically, never declared.
                 if matches!(*name, "Copy" | "Share" | "Io") {
-                    let (name, params) = if *name == "Io" {
-                        ("Io", vec!["r".into()])
-                    } else {
-                        ("Copy", vec!["a".into()])
-                    };
-                    return Ok(SigInfo {
-                        module: "<builtin>".into(),
-                        name: name.into(),
-                        params: params.clone(),
-                        param_kinds: vec![ParamKind::Type; params.len()],
-                        methods: Vec::new(),
-                        defaults: Vec::new(),
-                        laws: Vec::new(),
-                    });
+                    return Ok(self.signature_at("<builtin>", name).unwrap());
                 }
                 self.sigs
                     .get(*name)
@@ -5519,6 +6227,18 @@ impl Checker {
         }
     }
 
+    fn scoped_values(&self, scope: &ast::ScopedReference) -> Vec<ValueInfo> {
+        scope.candidates(ast::RefKind::Value).iter().filter_map(|binding| {
+            self.qualified.get(&(binding.module().into(), binding.name().into())).cloned()
+        }).collect()
+    }
+
+    fn scoped_constructors(&self, scope: &ast::ScopedReference) -> Vec<ValueInfo> {
+        scope.constructor_candidates().into_iter().filter_map(|binding| {
+            self.qualified.get(&(binding.module().into(), binding.name().into())).cloned()
+        }).collect()
+    }
+
     fn signature_key(&self, module: &str, name: &str) -> String {
         // Embedded families keep the compiler-known keys used by primitive
         // operators and collection literals. A source replacement of such a
@@ -5536,31 +6256,39 @@ impl Checker {
         if self.qualified_sigs.contains_key(&(info.module.clone(), info.name.clone())) {
             self.signature_key(&info.module, &info.name)
         } else {
-            info.name.clone()
+            info.identity.clone()
         }
     }
 
-    fn lookup_type_key(&self, name: &str) -> Result<TypeKind> {
-        // Ordinary data keys still use their lexical spelling. In
-        // particular a local `Bits` carrier must not become the legacy
-        // Algebra.Bits signature merely because that family is registered.
-        // Qualified semantic signature keys fall through to the registry.
-        if let Ok(kind) = self.lookup_type(&[name]) {
-            return Ok(kind);
-        }
-        if let Some(signature) = self.class_sigs.get(name).and_then(|rows| rows.first()) {
-            if let Some(kind) = self.qualified_types.get(&(signature.module.clone(), signature.name.clone())) {
-                return Ok(kind.clone());
-            }
-        }
-        self.lookup_type(&[name])
-    }
 
     fn resolve_var(&self, p: &ast::VarPath, span: ast::Span) -> Result<ValueInfo> {
+        if let Some(binding) = p.name.declaration_binding() {
+            let key = self.declaration_bindings.get(&(binding.clone(), ast::RefKind::Value))
+                .ok_or_else(|| Error::at(span, "owned syntax value is not bound by this declaration group"))?;
+            return self.qualified.get(key).cloned()
+                .ok_or_else(|| Error::at(span, "owned syntax value is not available"));
+        }
+        if p.name.local_binding().is_some() {
+            return Err(Error::at(span, format!("captured local `{}` is not in scope", p.name.text)));
+        }
+        if let Some(binding) = p.name.resolved_binding() {
+            if binding.kind() != ast::RefKind::Value {
+                return Err(Error::at(span, "a resolved type is not a value name"));
+            }
+            return self.qualified.get(&(binding.module().into(), binding.name().into())).cloned()
+                .ok_or_else(|| Error::at(span, "resolved syntax value is no longer available"));
+        }
+        if let Some(scope) = p.name.scoped_reference() {
+            let value = self.scoped_values(scope).into_iter().next().ok_or_else(|| Error::at(span,
+                format!("unknown name {} (not bound in captured source scope {})",
+                    p.quals.iter().map(|q| q.text.as_str()).chain(std::iter::once(p.name.text.as_str())).collect::<Vec<_>>().join("."), scope.origin())))?;
+            if self.record_quote_bindings { p.name.record_binding(ast::RefKind::Value, &value.module, &value.name); }
+            return Ok(value);
+        }
         // The registered name is the unit's real name: a qualified
         // spelling (`U32.wrappingAdd`) is an alias over it, and code
         // generation ids derive from the registered pair.
-        match p.quals.as_slice() {
+        let value = match p.quals.as_slice() {
             [] => self.lookup_value(None, &p.name.text).map_err(|e| Error::at(span, e.message)),
             [q] => self
                 .lookup_value(Some(&q.text), &p.name.text)
@@ -5568,15 +6296,36 @@ impl Checker {
             _ => {
                 Err(Error::at(span, "qualified names deeper than Module.name are not supported"))
             }
+        }?;
+        if self.record_quote_bindings {
+            p.name.record_binding(ast::RefKind::Value, &value.module, &value.name);
         }
+        Ok(value)
     }
 
     fn resolve_con(&self, p: &ast::ConPath, span: ast::Span) -> Result<ValueInfo> {
+        if let Some(binding) = p.segments.last().and_then(|name| name.declaration_binding()) {
+            let key = self.declaration_bindings.get(&(binding.clone(), ast::RefKind::Value))
+                .ok_or_else(|| Error::at(span, "owned syntax constructor is not bound by this declaration group"))?;
+            return self.qualified.get(key).cloned()
+                .ok_or_else(|| Error::at(span, "owned syntax constructor is not available"));
+        }
+        if let Some(binding) = p.segments.last().and_then(|n| n.resolved_binding()) {
+            if binding.kind() != ast::RefKind::Value {
+                return Err(Error::at(span, "a resolved type is not a constructor name"));
+            }
+            return self.qualified.get(&(binding.module().into(), binding.name().into())).cloned()
+                .ok_or_else(|| Error::at(span, "resolved syntax constructor is no longer available"));
+        }
+        if let Some(scope) = p.segments.last().and_then(|name| name.scoped_reference()) {
+            return self.scoped_values(scope).into_iter().next().ok_or_else(|| Error::at(span,
+                format!("unknown constructor {} (not bound in captured source scope {})", p.parts().join("."), scope.origin())));
+        }
         let parts = p.parts();
         let (module, name) = match parts.as_slice() {
             [name] => {
                 let v = self.lookup_value(None, name)?;
-                (v.module.clone(), name.to_string())
+                (v.module.clone(), v.name.clone())
             }
             [q, name] => {
                 // Module-qualified (through the import scope, surface
@@ -5657,10 +6406,17 @@ impl Checker {
         if n < 2 {
             return Err(Error::at(span, "a tuple needs at least two components"));
         }
-        if !self.tuple_ctors.contains(&n) {
-            self.tuple_ctors.push(n);
+        let id = GlobalId(format!("Tuple.{n}"));
+        // Stage compilation moves newly produced units into its evaluator.
+        // A cached arity does not mean the constructor remains in the target
+        // program. Register against the actual owner registry on every use.
+        if let Some(existing) = self.fns.iter().find(|unit| unit.id == id) {
+            if existing.ctor != Some((0, n)) {
+                return Err(Error::at(span, "a tuple constructor conflicts with an existing unit"));
+            }
+        } else {
             self.fns.push(FnDef {
-                id: GlobalId(format!("Tuple.{n}")),
+                id: id.clone(),
                 params: (0..n).map(|i| format!("f{i}")).collect(),
                 body: crate::core::Core::Unit,
                 prim: None,
@@ -5680,7 +6436,7 @@ impl Checker {
                 },
             });
         }
-        Ok(GlobalId(format!("Tuple.{n}")))
+        Ok(id)
     }
 
     // ------------------------------------------------------------ type conversion
@@ -5746,6 +6502,21 @@ impl Checker {
         self.conv_kind(ty, vars, Some(&ParamKind::Type))
     }
 
+    fn with_type_values<T>(&self, env: &Env, apply: impl FnOnce(&Self) -> Result<T>) -> Result<T> {
+        self.scoped_type_env.borrow_mut().push(env.clone());
+        let result = apply(self);
+        self.scoped_type_env.borrow_mut().pop();
+        result
+    }
+
+    fn conv_type_in_env(&self, env: &Env, ty: &ast::Type, vars: &[String]) -> Result<Ty> {
+        self.with_type_values(env, |checker| checker.conv_type(ty, vars))
+    }
+
+    fn conv_scheme_in_env(&self, env: &Env, ty: &ast::Type) -> Result<Scheme> {
+        self.with_type_values(env, |checker| checker.conv_scheme(ty))
+    }
+
     /// Convert a type against its expected kind. `expect: None` suppresses
     /// kind notes: an argument slot whose kind is not yet known (an
     /// unannotated parameter of the type being declared) carries no
@@ -5804,9 +6575,8 @@ impl Checker {
     fn check_refine_instance(&self, t: &Ty, span: ast::Span) -> Result<()> {
         let Ty::Adt(name, args) = t else { return Ok(()) };
         let Some(r) = self
-            .types
-            .get(name)
-            .and_then(|ks| ks.iter().find_map(|k| k.refine.as_ref()))
+            .known_type(name)
+            .and_then(|k| k.refine.as_ref())
         else {
             return Ok(());
         };
@@ -5837,7 +6607,7 @@ impl Checker {
                 ParamKind::Type
             }
             Ty::Adt(name, args) => {
-                let info = self.lookup_type_key(name)?;
+                let info = self.lookup_known_type(name)?;
                 if args.len() > info.arity {
                     return Err(Error::at(
                         span,
@@ -5875,7 +6645,7 @@ impl Checker {
                         span,
                         format!(
                             "type {name} must be fully applied (expects {} arguments)",
-                            self.lookup_type_key(name)?.arity
+                            self.lookup_known_type(name)?.arity
                         ),
                     ));
                 }
@@ -5938,7 +6708,39 @@ impl Checker {
     /// Convert an index expression (a value in type position): a variable,
     /// a numeral, mathematical arithmetic, or an application of a named
     /// total definition (dependent core kernel design, section 2).
+    fn index_lambda_binding(&self, name: &ast::Name) -> Option<IndexLambdaBinder> {
+        self.index_lambda_binders.borrow().iter().rev().find(|binder| {
+            match name.local_binding() {
+                Some(binding) => binder.name.local_binding() == Some(binding),
+                None if name.scoped_reference().is_some() || name.resolved_binding().is_some()
+                    || name.declaration_binding().is_some() => false,
+                None => binder.name.local_binding().is_none() && binder.name.text == name.text,
+            }
+        }).cloned()
+    }
+
+    fn fresh_index_lambda_variable(&self) -> String {
+        let next = self.index_lambda_counter.get();
+        self.index_lambda_counter.set(next + 1);
+        format!("$index-lambda:{next}")
+    }
+
+    fn with_index_lambda<T>(&self, binder: IndexLambdaBinder,
+        check: impl FnOnce(&Self) -> Result<T>) -> Result<T> {
+        let start = self.index_lambda_binders.borrow().len();
+        self.index_lambda_binders.borrow_mut().push(binder);
+        let result = check(self);
+        self.index_lambda_binders.borrow_mut().truncate(start);
+        result
+    }
+
     fn conv_idx(&self, ty: &ast::Type, vars: &[String], kind: &Ty) -> Result<ITerm> {
+        self.conv_idx_expected(ty, vars, Some(kind))
+    }
+
+    fn conv_idx_expected(&self, ty: &ast::Type, vars: &[String], expected: Option<&Ty>) -> Result<ITerm> {
+        let fallback = Ty::Nat;
+        let kind = expected.unwrap_or(&fallback);
         let mut args: Vec<&ast::Type> = Vec::new();
         let mut cur = ty;
         loop {
@@ -5954,6 +6756,23 @@ impl Checker {
         let head = cur;
         let span = ty.span();
         match head {
+            ast::Type::IndexAnnotated(value, annotation, _) => {
+                let carrier = self.conv_type(annotation, vars)?;
+                let value = self.conv_idx_expected(value, vars, Some(&carrier))?;
+                let (arguments, result) = self.index_arguments(Some(carrier), &args, vars, kind, span)?;
+                if let (Some(expected), Some(actual)) = (expected, result) {
+                    self.check_captured_index_carrier("annotated operand", &actual, expected, span)?;
+                }
+                Ok(if arguments.is_empty() { value } else { ITerm::App(Box::new(value), arguments) })
+            }
+            ast::Type::IndexOperand(value, carrier, _) => {
+                let (arguments, result) = self.index_arguments(Some((**carrier).clone()), &args, vars, kind, span)?;
+                if let (Some(expected), Some(actual)) = (expected, result) {
+                    self.check_captured_index_carrier("annotated operand", &actual, expected, span)?;
+                }
+                let value = self.uni.resolve_idx(value);
+                Ok(if arguments.is_empty() { value } else { ITerm::App(Box::new(value), arguments) })
+            }
             ast::Type::Num(s, _) => {
                 if !args.is_empty() {
                     return Err(Error::at(span, "a numeral takes no arguments"));
@@ -5961,6 +6780,62 @@ impl Checker {
                 Ok(ITerm::Num(s.clone()))
             }
             ast::Type::Var(n, _) => {
+                if let Some(binding) = self.index_lambda_binding(n) {
+                    let value = ITerm::Var(binding.variable);
+                    let (arguments, result) = self.index_arguments(binding.carrier, &args, vars, kind, span)?;
+                    if let (Some(expected), Some(actual)) = (expected, result) {
+                        self.check_captured_index_carrier("index lambda parameter", &actual, expected, span)?;
+                    }
+                    return Ok(if arguments.is_empty() { value } else { ITerm::App(Box::new(value), arguments) });
+                }
+                // Mathematical operators and the baked observation vocabulary
+                // retain their index meaning even if ordinary values shadow
+                // those spellings. Explicit index-lambda variables keep the
+                // existing variable rule for named observations.
+                if !args.is_empty() {
+                    if let Some(op) = match n.source_spelling() {
+                        "+" => Some(IdxOp::Add), "-" => Some(IdxOp::Sub), "*" => Some(IdxOp::Mul), _ => None,
+                    } {
+                        if args.len() != 2 { return Err(Error::at(span, format!("`{}` takes two index arguments", n.source_spelling()))); }
+                        return Ok(ITerm::Bin(op, Box::new(self.conv_idx(args[0], vars, kind)?), Box::new(self.conv_idx(args[1], vars, kind)?)));
+                    }
+                    if matches!(n.source_spelling(), "length" | "toNat")
+                        && (!vars.contains(&n.text) || n.local_binding().is_some() || n.scoped_reference().is_some() || n.resolved_binding().is_some())
+                    {
+                        return self.idx_app(n.source_spelling(), Some(n), &args, vars, expected, n.span);
+                    }
+                }
+                let ordinary_local = !vars.contains(&n.text)
+                    && n.scoped_reference().is_none()
+                    && n.resolved_binding().is_none()
+                    && self.scoped_type_env.borrow().last()
+                        .is_some_and(|env| env.lookup_name(n).is_some());
+                if n.local_binding().is_some() || ordinary_local {
+                    let scopes = self.scoped_type_env.borrow();
+                    let env = scopes.last().ok_or_else(|| Error::at(n.span,
+                        format!("captured local `{}` has no type elaboration scope", n.text)))?;
+                    let (local, scheme) = env.lookup_name(n).ok_or_else(|| Error::at(n.span,
+                        format!("captured local `{}` is not in scope", n.text)))?;
+                    if !scheme.params.is_empty() || (!args.is_empty() && Self::closed_index_signature(&scheme).is_none()) {
+                        return Err(Error::at(n.span, "a captured index needs a monomorphic value binding"));
+                    }
+                    let mut value = self.syntax_index_value(env, n)?;
+                    // A type-level binder cannot capture a runtime value
+                    // merely by having the same printed name.
+                    if matches!(&value, ITerm::Var(name) if vars.contains(name)) {
+                        let original = self.value_aliases.get(&local).copied().unwrap_or(local);
+                        value = ITerm::LocalValue(original);
+                    }
+                    drop(scopes);
+                    let (arguments, result) = self.index_arguments(Some(scheme.ty), &args, vars, kind, span)?;
+                    if let Some(expected) = expected {
+                        self.check_captured_index_carrier(&n.text, &result.ok_or_else(|| Error::at(span, "captured index has no checked result carrier"))?, expected, n.span)?;
+                    }
+                    return Ok(if arguments.is_empty() { value } else { ITerm::App(Box::new(value), arguments) });
+                }
+                if n.scoped_reference().is_some() || n.resolved_binding().is_some() {
+                    return self.idx_app(n.source_spelling(), Some(n), &args, vars, expected, n.span);
+                }
                 if args.is_empty() {
                     if !vars.contains(&n.text) {
                         // A bare named total definition is an index
@@ -5968,39 +6843,33 @@ impl Checker {
                         // named helper a law's equation mentions
                         // (primitive operations and inline target IR
                         // specification section 5).
-                        return self.idx_app(&n.text, &args, vars, kind, n.span);
+                        return self.idx_app(&n.text, Some(n), &args, vars, expected, n.span);
+                    }
+                    let carrier = self.index_carriers.borrow().iter().rev().find(|(name, _)| name == &n.text).map(|(_, carrier)| carrier.clone());
+                    if let (Some(expected), Some(actual)) = (expected, carrier) {
+                        self.check_captured_index_carrier("index parameter", &actual, expected, n.span)?;
                     }
                     self.note_kind(&n.text, ParamKind::Val(kind.clone()));
                     return Ok(ITerm::Var(n.text.clone()));
                 }
-                if let Some(opc) = match n.text.as_str() {
-                    "+" => Some(IdxOp::Add),
-                    "-" => Some(IdxOp::Sub),
-                    "*" => Some(IdxOp::Mul),
-                    _ => None,
-                } {
-                    if args.len() != 2 {
-                        return Err(Error::at(
-                            span,
-                            format!("`{}` takes two index arguments", n.text),
-                        ));
-                    }
-                    return Ok(ITerm::Bin(
-                        opc,
-                        Box::new(self.conv_idx(args[0], vars, kind)?),
-                        Box::new(self.conv_idx(args[1], vars, kind)?),
-                    ));
-                }
                 if vars.contains(&n.text) {
-                    // An index variable applied to index arguments
-                    // (`f (g x)` inside a lifting function).
+                    let carrier = self.index_carriers.borrow().iter().rev().find(|(name, _)| name == &n.text).map(|(_, carrier)| carrier.clone());
+                    if let Some(carrier) = carrier {
+                        let (arguments, result) = self.index_arguments(Some(carrier), &args, vars, kind, span)?;
+                        if let (Some(expected), Some(actual)) = (expected, result) {
+                            self.check_captured_index_carrier("index function parameter", &actual, expected, n.span)?;
+                        }
+                        return Ok(ITerm::App(Box::new(ITerm::Var(n.text.clone())), arguments));
+                    }
+                    // Unclassified header parameters still collect their kind
+                    // constraints; checked carriers use the telescope above.
                     let mut out = Vec::new();
                     for a in args {
                         out.push(self.conv_idx(a, vars, kind)?);
                     }
                     return Ok(ITerm::App(Box::new(ITerm::Var(n.text.clone())), out));
                 }
-                self.idx_app(&n.text, &args, vars, kind, n.span)
+                self.idx_app(&n.text, Some(n), &args, vars, expected, n.span)
             }
             ast::Type::Con(p, cspan) => {
                 let parts = p.parts();
@@ -6011,15 +6880,22 @@ impl Checker {
                     ));
                 }
                 let name = parts.join(".");
-                self.idx_app(&name, &args, vars, kind, *cspan)
+                self.idx_app(&name, p.segments.last(), &args, vars, expected, *cspan)
             }
             ast::Type::Lam(n, body, _) => {
                 // `\x -> t` in index position: a lambda over index
                 // values (its binder binds the body's index variables).
                 let mut inner = vars.to_vec();
-                inner.push(n.text.clone());
-                let b = self.conv_idx(body, &inner, kind)?;
-                let lam = ITerm::Lam(n.text.clone(), Box::new(b));
+                if n.local_binding().is_none() { inner.push(n.text.clone()); }
+                let variable = self.fresh_index_lambda_variable();
+                let (domain, result) = match expected {
+                    Some(Ty::Fun(domain, _, _, result)) => (Some((**domain).clone()), Some((**result).clone())),
+                    Some(Ty::Pi { var, dom, cod, .. }) => (Some((**dom).clone()), Some(cod.subst_idx(var, &ITerm::Var(variable.clone())))),
+                    _ => (None, None),
+                };
+                let b = self.with_index_lambda(IndexLambdaBinder { name: n.clone(), variable: variable.clone(), carrier: domain },
+                    |checker| checker.conv_idx_expected(body, &inner, result.as_ref()))?;
+                let lam = ITerm::Lam(variable, Box::new(b));
                 if args.is_empty() {
                     Ok(lam)
                 } else {
@@ -6037,34 +6913,781 @@ impl Checker {
         }
     }
 
+    fn check_captured_index_carrier(
+        &self,
+        name: &str,
+        actual: &Ty,
+        expected: &Ty,
+        span: ast::Span,
+    ) -> Result<()> {
+        let actual = self.uni.zonk(actual);
+        let expected = self.uni.zonk(expected);
+        // Forget only an established refinement toward its carrier. The
+        // requested predicate must remain intact.
+        let carrier = self
+            .refine_view(&actual)
+            .and_then(|r| r.base)
+            .unwrap_or_else(|| actual.clone());
+        // Inference arrows may still contain an unspecified multiplicity.
+        // Ordinary compatibility permits that placeholder, but it must not
+        // specialize a type/index/row/region while comparing index carriers.
+        let compatible = |actual: &Ty| {
+            if *actual == expected { return true; }
+            let mut trial = self.uni.clone();
+            trial.unify(actual, &expected).is_ok()
+                && trial.zonk(actual) == *actual && trial.zonk(&expected) == expected
+        };
+        if !compatible(&actual) && !compatible(&carrier) {
+            return Err(Error::at(
+                span,
+                format!("captured index `{name}` has kind {actual}, expected {expected}"),
+            ));
+        }
+        Ok(())
+    }
+
+    /// A concrete domain telescope needs no speculative specialization of
+    /// the enclosing checker while converting its index arguments.
+    fn closed_index_signature(scheme: &Scheme) -> Option<Ty> {
+        (scheme.params.is_empty()
+            && scheme.con_params.is_empty()
+            && scheme.idx_params.is_empty()
+            && scheme.val_params.is_empty()
+            && scheme.prop_params.is_empty()
+            && scheme.row_params.is_empty()
+            && scheme.region_params.is_empty()
+            && scheme.evidence_params.is_empty()
+            && scheme.ctx.is_empty()
+            && scheme.obligs.is_empty())
+        .then(|| scheme.ty.clone())
+    }
+
+    /// Infer generic index domains in a private store. Only a fully resolved
+    /// signature leaves it; private metavariables must never reach conv_idx or
+    /// specialize the surrounding checker. Evidence-bearing telescopes remain
+    /// explicit rather than losing their constraints during this conversion.
+    fn with_index_dictionary_scope<T>(&self, source: &ast::Name, apply: impl FnOnce(&Self) -> Result<T>) -> Result<T> {
+        let Some(bindings) = source.scoped_reference().and_then(ast::ScopedReference::dictionary_bindings) else { return apply(self) };
+        let mut scope = Vec::new();
+        if !bindings.is_empty() {
+            let environments = self.scoped_type_env.borrow();
+            let environment = environments.last().ok_or_else(|| Error::at(source.span, "captured dictionary scope is no longer available"))?;
+            for binding in bindings {
+                let local = environment.syntax_dictionaries.get(binding).ok_or_else(|| Error::at(source.span, "captured dictionary binding escaped its lexical scope"))?;
+                let class = environment.dicts.iter().find(|(candidate, _)| candidate == local)
+                    .map(|(_, class)| class.clone()).ok_or_else(|| Error::at(source.span, "captured dictionary is no longer in scope"))?;
+                scope.push((IndexDictionaryBinding::from(*local), class));
+            }
+        }
+        self.index_dictionary_scope.borrow_mut().push(scope);
+        let result = apply(self);
+        self.index_dictionary_scope.borrow_mut().pop();
+        result
+    }
+
+    fn index_signature(
+        &self,
+        scheme: &Scheme,
+        args: &[&ast::Type],
+        vars: &[String],
+        expected: Option<&Ty>,
+        span: ast::Span,
+    ) -> Result<Option<IndexSignature>> {
+        let mut inference = IndexInference::new(&self.uni);
+        let Some(mut signature) = self.index_signature_in(&mut inference, scheme, args, vars, expected, span)? else { return Ok(None) };
+        self.finish_index_inference(&mut inference)?;
+        signature.ty = inference.uni.zonk(&signature.ty);
+        let metadata = inference.uni.resolve_idx(&ITerm::Inst(Box::new(IndexInstantiation {
+            head: IndexHead::Marker, types: signature.types,
+            dictionaries: signature.dictionaries, arguments: signature.arguments,
+        })));
+        let metadata_ty = Ty::Idx(Box::new(metadata));
+        self.check_index_export(&inference, &signature.ty, span)?;
+        self.check_index_export(&inference, &metadata_ty, span)?;
+        let Ty::Idx(metadata) = metadata_ty else { unreachable!() };
+        let ITerm::Inst(metadata) = *metadata else { unreachable!() };
+        signature.types = metadata.types;
+        signature.dictionaries = metadata.dictionaries;
+        signature.arguments = metadata.arguments;
+        self.commit_index_inference(&mut inference)?;
+        Ok(Some(signature))
+    }
+
+    fn check_index_export(&self, inference: &IndexInference, ty: &Ty, span: ast::Span) -> Result<()> {
+        if !self.provisional_declarations && !self.uni.owns_all_metas(ty) {
+            return Err(Error::at(span, "generic index function has an unsolved quantified instantiation"));
+        }
+        let mut rows = Vec::new(); let mut regions = Vec::new();
+        collect_row_names(ty, &mut rows, &mut regions);
+        if regions.iter().any(|region| inference.regions.contains(region)) {
+            return Err(Error::at(span, "generic index function has an unsolved region instantiation"));
+        }
+        Ok(())
+    }
+
+    fn provisional_index_dictionary(&self) -> ITerm {
+        let id = self.declaration_pending.get();
+        self.declaration_pending.set(id + 1);
+        ITerm::Inst(Box::new(IndexInstantiation {
+            head: IndexHead::DeclarationPending(id), types: vec![], dictionaries: vec![], arguments: vec![],
+        }))
+    }
+
+    fn index_carrier_at(&self, uni: &Unifier, actual: &Ty, expected: &Ty) -> Ty {
+        let actual = uni.zonk(actual);
+        let expected = uni.zonk(expected);
+        let comparison = self.refine_view(&actual).is_some_and(|view| Self::is_comparison_refinement(&view));
+        if self.refine_view(&expected).is_none() && (!matches!(expected, Ty::Meta(_)) || comparison) {
+            self.refine_base(&actual).unwrap_or(actual)
+        } else {
+            actual
+        }
+    }
+
+    fn index_signature_in(
+        &self,
+        inference: &mut IndexInference,
+        scheme: &Scheme,
+        args: &[&ast::Type],
+        vars: &[String],
+        expected: Option<&Ty>,
+        span: ast::Span,
+    ) -> Result<Option<IndexSignature>> {
+        if scheme.con_params.iter().any(|(name, _)| !scheme.params.contains(name)) {
+            return Err(Error::at(span, "index function has an incomplete constructor telescope"));
+        }
+        let mut substitutions = HashMap::new();
+        for name in &scheme.params {
+            substitutions.insert(name.clone(), inference.uni.fresh());
+        }
+        for parameter in &scheme.idx_params {
+            let value = match parameter {
+                IxParam::Val(..) => inference.uni.fresh_idx(),
+                IxParam::Prop(..) => inference.uni.fresh_prop(),
+            };
+            substitutions.insert(parameter.name().to_string(), value);
+        }
+        for (name, _) in &scheme.val_params { substitutions.insert(name.clone(), inference.uni.fresh_idx()); }
+        for name in &scheme.prop_params { substitutions.insert(name.clone(), inference.uni.fresh_prop()); }
+        let mut evidence = HashMap::new();
+        for (name, _) in &scheme.ctx { evidence.insert(dictionary_parameter(name), inference.uni.fresh_idx_term()); }
+        for parameter in &scheme.evidence_params { evidence.entry(parameter.clone()).or_insert_with(|| inference.uni.fresh_idx_term()); }
+        let rows: HashMap<_, _> = scheme.row_params.iter().map(|name| (name.clone(), inference.uni.fresh_row().tail)).collect();
+        let regions: HashMap<_, _> = scheme.region_params.iter().map(|name| {
+            let region = self.fresh_region();
+            inference.uni.note_flex_region(&region);
+            inference.regions.push(region.clone());
+            (name.clone(), region)
+        }).collect();
+        let signature = Self::subst_namespaces(&scheme.ty, &substitutions, &rows, &regions, &evidence);
+        let unresolved = |ty: &Ty| !self.uni.owns_all_metas(ty);
+        let mut result = signature.clone();
+        let mut domains = Vec::new();
+        for arg in args {
+            let (domain, effect, codomain, binder) = match inference.uni.zonk(&result) {
+                Ty::Fun(dom, _, eff, cod) => (*dom, eff, *cod, None),
+                Ty::Pi {
+                    var, dom, eff, cod, ..
+                } => (*dom, eff, *cod, Some(var)),
+                other => {
+                    return Err(Error::at(
+                        span,
+                        format!("index applies non-function carrier {other}"),
+                    ))
+                }
+            };
+            if !inference.uni.resolve_row(&effect).is_pure() {
+                return Err(Error::at(span, "index function application must be pure"));
+            }
+            if let Some(actual) = self.captured_index_carrier_in(inference, arg, vars, Some(&domain)).map_err(|error| Error::at(span, format!("index function argument carrier: {}", error.message)))? {
+                // Ordinary argument checking treats comparison refinements
+                // as carrier facts even under an open expectation. Semantic
+                // refinement points retain their type and instance selection.
+                let actual = self.index_carrier_at(&inference.uni, &actual, &domain);
+                inference.uni.unify(&actual, &domain).map_err(|e| {
+                    Error::at(span, format!("index function argument carrier: {e}"))
+                })?;
+            }
+            domains.push((domain.clone(), *arg));
+            result = if let Some(name) = binder.filter(|name| codomain.mentions_idx(name)) {
+                let domain = inference.uni.zonk(&domain);
+                if unresolved(&domain) {
+                    return Err(Error::at(
+                        span,
+                        "dependent index argument has no inferred carrier",
+                    ));
+                }
+                codomain.subst_idx(&name, &self.conv_idx(arg, vars, &domain)?)
+            } else {
+                codomain
+            };
+        }
+        if let Some(expected) = expected {
+            let actual = self.index_carrier_at(&inference.uni, &result, expected);
+            inference.uni.unify(&actual, expected)
+                .map_err(|e| Error::at(span, format!("index function result kind: {e}")))?;
+        }
+        // Numerical index literals default only after checked operands and the
+        // expected result have constrained shared generic parameters.
+        for (domain, arg) in domains {
+            if let ast::Type::Num(digits, _) = arg {
+                let domain = inference.uni.zonk(&domain);
+                if matches!(domain, Ty::Meta(_)) {
+                    inference.uni.unify(
+                        &domain,
+                        &if digits.starts_with('-') {
+                            Ty::Int
+                        } else {
+                            Ty::Nat
+                        },
+                    )
+                    .map_err(|e| Error::at(span, e))?;
+                }
+                let domain = inference.uni.zonk(&domain);
+                if !matches!(&domain, Ty::Nat | Ty::Int)
+                    && !matches!(&domain, Ty::Prim(primitive) if primitive.is_int_like())
+                {
+                    return Err(Error::at(
+                        arg.span(),
+                        format!("index literal needs a numeric carrier, got {domain}"),
+                    ));
+                }
+                if domain == Ty::Nat && digits.starts_with('-') {
+                    return Err(Error::at(
+                        arg.span(),
+                        "negative index literal cannot inhabit Nat",
+                    ));
+                }
+            }
+        }
+        let mut scope: Vec<(IndexDictionaryBinding, ClassApp)> = self.index_header_context.borrow().iter()
+            .flatten().map(|(name, class)| (IndexDictionaryBinding(ITerm::Evidence(dictionary_parameter(name))), class.clone())).collect();
+        if let Some(env) = self.scoped_type_env.borrow().last() {
+            scope.extend(env.dicts.iter().map(|(local, class)| (IndexDictionaryBinding::from(*local), class.clone())));
+        }
+        if let Some(captured) = self.index_dictionary_scope.borrow().last() { scope = captured.clone(); }
+        let mut dictionaries = Vec::new();
+        for (name, class) in &scheme.ctx {
+            let parameter = &evidence[&dictionary_parameter(name)];
+            inference.dictionaries.push(PendingIndexDictionary {
+                parameter: parameter.clone(), class: Self::subst_class_namespaces(class, &substitutions, &rows, &regions, &evidence), scope: scope.clone(), span,
+            });
+            dictionaries.push(parameter.clone());
+        }
+        let types = scheme.params.iter().map(|name| substitutions[name].clone()).collect();
+        let mut arguments = Vec::new();
+        for parameter in &scheme.idx_params {
+            arguments.push(match parameter {
+                IxParam::Val(name, carrier) => {
+                    let Ty::Idx(value) = &substitutions[name] else { unreachable!() };
+                    IndexArgument::Value { value: (**value).clone(), carrier: Self::subst_namespaces(carrier, &substitutions, &rows, &regions, &evidence), runtime: false }
+                }
+                IxParam::Prop(name) => {
+                    let Ty::Prp(prop) = &substitutions[name] else { unreachable!() };
+                    IndexArgument::Proposition((**prop).clone())
+                }
+            });
+        }
+        for (name, carrier) in &scheme.val_params {
+            let Ty::Idx(value) = &substitutions[name] else { unreachable!() };
+            arguments.push(IndexArgument::Value { value: (**value).clone(), carrier: Self::subst_namespaces(carrier, &substitutions, &rows, &regions, &evidence), runtime: true });
+        }
+        for name in &scheme.prop_params {
+            let Ty::Prp(prop) = &substitutions[name] else { unreachable!() };
+            arguments.push(IndexArgument::Proposition((**prop).clone()));
+        }
+        arguments.extend(scheme.row_params.iter().map(|name| IndexArgument::Row(EffRow { labels: Vec::new(), tail: rows[name].clone() })));
+        arguments.extend(scheme.region_params.iter().map(|name| IndexArgument::Region(regions[name].clone())));
+        arguments.extend(scheme.evidence_params.iter().map(|parameter| IndexArgument::Evidence(evidence[parameter].clone())));
+        if !scheme.obligs.is_empty() {
+            inference.proofs.push(PendingIndexProof {
+                scheme: scheme.clone(), substitutions, rows, regions, evidence, signature: signature.clone(),
+                arguments: args.iter().map(|argument| (**argument).clone()).collect(), variables: vars.to_vec(), span,
+            });
+        }
+        Ok(Some(IndexSignature { ty: signature, types, dictionaries, arguments }))
+    }
+
+    fn finish_index_inference(&self, inference: &mut IndexInference) -> Result<()> {
+        let mut resolver = DictionaryResolver { checker: self, uni: inference.uni.clone(), transfers: Vec::new() };
+        let mut pending = std::mem::take(&mut inference.dictionaries);
+        while !pending.is_empty() {
+            let mut remaining = Vec::new(); let mut progress = false;
+            for request in pending {
+                let selection = if self.law_index_context.borrow().is_some() {
+                    let mut scope = request.scope.clone();
+                    scope.extend(self.law_index_context.borrow().as_ref().expect("law context").iter()
+                        .map(|(name, class)| (IndexDictionaryBinding(ITerm::Evidence(dictionary_parameter(name))), class.clone())));
+                    match resolver.lexical(&request.class, &scope) {
+                        Some(dictionary) => Solved(dictionary),
+                        None => {
+                            let class = resolver.uni.zonk_class(&request.class);
+                            if class.args.iter().any(|ty| !self.uni.owns_type_metas(ty)) {
+                                return Err(Error::at(request.span, "a law's dictionary arguments must be determined by its binders"));
+                            }
+                            let mut context = self.law_index_context.borrow_mut();
+                            let context = context.as_mut().expect("law context");
+                            let name = format!("#law-evidence:{}", context.len());
+                            context.push((name.clone(), class));
+                            Solved(DictExpr::Binder(IndexDictionaryBinding(ITerm::Evidence(dictionary_parameter(&name)))))
+                        }
+                    }
+                } else if let Some(dictionary) = resolver.lexical(&request.class, &request.scope) {
+                    Solved(dictionary)
+                } else {
+                    let class = resolver.uni.zonk_class(&request.class);
+                    if self.collecting_declarations && !self.provisional_declarations && self.declaration_seed.is_none()
+                        && class.class != "Copy" && !is_capability_class(&class.class) {
+                        self.declaration_needs_headers.set(true);
+                        return Err(Error::at(request.span, "index declaration evidence needs the complete instance headers"));
+                    }
+                    match resolver.solve(&request.class, &request.scope, 0, request.span) {
+                        Ok(Solved(dictionary)) => Solved(dictionary),
+                        Ok(Ambiguous) => {
+                            if self.collecting_declarations { self.declaration_needs_headers.set(true); }
+                            Ambiguous
+                        }
+                        Err(_) if self.provisional_declarations => {
+                            Solved(DictExpr::Binder(IndexDictionaryBinding(self.provisional_index_dictionary())))
+                        }
+                        Err(error) => {
+                            if self.collecting_declarations { self.declaration_needs_headers.set(true); }
+                            return Err(error);
+                        }
+                    }
+                };
+                match selection {
+                    Solved(dictionary) => {
+                        let actual = dictionary.index_with(&resolver.uni, &|binding| binding.0.clone());
+                        if !self.provisional_declarations && actual.has_declaration_pending() {
+                            return Err(Error::at(request.span, "unresolved declaration evidence in strict header checking"));
+                        }
+                        resolver.uni.unify_idx(&request.parameter, &actual).map_err(|error| Error::at(request.span, error))?;
+                        progress = true;
+                    }
+                    Ambiguous => remaining.push(request),
+                }
+            }
+            if !progress {
+                if self.provisional_declarations {
+                    for request in remaining {
+                        resolver.uni.unify_idx(&request.parameter, &self.provisional_index_dictionary())
+                            .map_err(|error| Error::at(request.span, error))?;
+                    }
+                    break;
+                }
+                let request = &remaining[0];
+                return Err(Error::at(request.span, format!("ambiguous index dictionary for {}", resolver.uni.zonk_class(&request.class))));
+            }
+            pending = remaining;
+        }
+        let DictionaryResolver { uni, transfers, .. } = resolver;
+        inference.transfers.extend(transfers);
+        inference.uni = uni;
+        if self.provisional_declarations {
+            inference.proofs.clear();
+            return Ok(());
+        }
+        for proof in std::mem::take(&mut inference.proofs) {
+            let substitutions = proof.substitutions.into_iter().map(|(name, ty)| (name, inference.uni.zonk(&ty))).collect();
+            let regions = proof.regions.into_iter().map(|(name, region)| (name, inference.uni.resolve_region(&region))).collect();
+            let signature = inference.uni.zonk(&proof.signature);
+            if !self.uni.owns_all_metas(&signature) {
+                return Err(Error::at(proof.span, "index proof arguments have an unsolved carrier"));
+            }
+            let arguments: Vec<_> = proof.arguments.iter().collect();
+            self.check_index_obligations(&inference.uni, &proof.scheme, &substitutions, &proof.rows, &regions, &proof.evidence, &inference.uni.zonk(&proof.signature), &arguments, &proof.variables, proof.span)?;
+        }
+        Ok(())
+    }
+
+    fn commit_index_inference(&self, inference: &mut IndexInference) -> Result<()> {
+        if self.provisional_declarations {
+            inference.transfers.clear();
+            return Ok(());
+        }
+        if inference.uni.has_declaration_pending() {
+            return Err(Error::plain("unresolved declaration evidence in strict index inference"));
+        }
+        for transfer in &inference.transfers {
+            let wanted = inference.uni.zonk_class(&transfer.wanted);
+            if wanted.args.iter().any(|ty| !self.uni.owns_all_metas(ty)) {
+                return Err(Error::at(transfer.span, "index dictionary transfer has an unsolved carrier"));
+            }
+        }
+        for transfer in std::mem::take(&mut inference.transfers) {
+            self.record_transfer_in(&inference.uni, &self.resolution_instances()[transfer.instance], &transfer.obligs,
+                transfer.container, &transfer.wanted, &transfer.subdicts, transfer.span)?;
+        }
+        Ok(())
+    }
+
+    /// Index applications use the same proposition checker as ordinary term
+    /// applications. Proofs are erased, but their obligations are never erased
+    /// before checking. Positional arguments retain their actual lexical names.
+    fn check_index_obligations(
+        &self, uni: &Unifier, scheme: &Scheme, substitutions: &HashMap<String, Ty>, rows: &HashMap<String, RowTail>, regions: &HashMap<String, String>, evidence: &HashMap<IndexEvidence, ITerm>, signature: &Ty,
+        args: &[&ast::Type], vars: &[String], span: ast::Span,
+    ) -> Result<()> {
+        if scheme.obligs.is_empty() { return Ok(()); }
+        let (arguments, _) = self.index_arguments(Some(signature.clone()), args, vars, &Ty::Unit, span)?;
+        for obligation in &scheme.obligs {
+            let PropOblig::Pred(predicate) = obligation else {
+                return Err(Error::at(span, "an index signature cannot carry an instance transfer obligation"));
+            };
+            // Resolve in the same inference store: a substituted row may
+            // contribute labels as well as a tail, and its IDs belong here.
+            let predicate = Self::subst_prop_namespaces(predicate, substitutions, rows, regions, evidence);
+            let mut predicate = uni.resolve_prop(&predicate);
+            let mut names = Vec::new(); predicate.free_vars(&mut names);
+            let mut positions = Vec::new();
+            for name in names {
+                let position = name.strip_prefix("$a").and_then(|index| index.parse::<usize>().ok())
+                    .ok_or_else(|| Error::at(span, format!("index obligation `{predicate}` names no argument of this function")))?;
+                let argument = arguments.get(position).ok_or_else(|| Error::at(span,
+                    format!("index obligation `{predicate}` must be discharged at a fully applied call")))?;
+                predicate = predicate.subst(&name, argument);
+                positions.push(position);
+            }
+            if self.decide_closed_oblig(&predicate, span)? { continue; }
+            let mut static_ok = false;
+            for position in positions {
+                if let Some(carrier) = self.captured_index_carrier(args[position], vars)? {
+                    static_ok |= self.static_discharge(&carrier, &predicate);
+                }
+            }
+            if static_ok { continue; }
+            let env = self.scoped_type_env.borrow().last().cloned().unwrap_or_default();
+            self.discharge_oblig(&self.evidence_in(&env), &predicate, span)?;
+        }
+        Ok(())
+    }
+
+    fn captured_index_carrier(&self, ty: &ast::Type, vars: &[String]) -> Result<Option<Ty>> {
+        let mut inference = IndexInference::new(&self.uni);
+        let result = self.captured_index_carrier_in(&mut inference, ty, vars, None)?;
+        self.finish_index_inference(&mut inference)?;
+        let result = result.map(|ty| inference.uni.zonk(&ty));
+        if let Some(result) = &result { self.check_index_export(&inference, result, ty.span())?; }
+        self.commit_index_inference(&mut inference)?;
+        Ok(result)
+    }
+
+    fn captured_index_carrier_in(&self, inference: &mut IndexInference, ty: &ast::Type, vars: &[String], expected: Option<&Ty>) -> Result<Option<Ty>> {
+        if let ast::Type::IndexAnnotated(value, annotation, _) = ty {
+            let carrier = self.conv_type(annotation, vars)?;
+            if let Some(actual) = self.captured_index_carrier_in(inference, value, vars, Some(&carrier))? {
+                let actual = self.index_carrier_at(&inference.uni, &actual, &carrier);
+                inference.uni.unify(&actual, &carrier).map_err(|error| Error::at(ty.span(), error))?;
+            }
+            return Ok(Some(inference.uni.zonk(&carrier)));
+        }
+        if let ast::Type::IndexOperand(_, carrier, _) = ty {
+            return Ok(Some(inference.uni.zonk(carrier)));
+        }
+        if let ast::Type::Lam(name, body, span) = ty {
+            let Some(expected) = expected.map(|ty| inference.uni.zonk(ty)) else { return Ok(None) };
+            let variable = self.fresh_index_lambda_variable();
+            let (domain, result) = match &expected {
+                Ty::Fun(domain, _, _, result) => ((**domain).clone(), (**result).clone()),
+                Ty::Pi { var, dom, cod, .. } => ((**dom).clone(), cod.subst_idx(var, &ITerm::Var(variable.clone()))),
+                _ => return Err(Error::at(*span, "an index lambda needs a function carrier")),
+            };
+            let mut variables = vars.to_vec();
+            if name.local_binding().is_none() { variables.push(name.text.clone()); }
+            let actual = self.with_index_lambda(IndexLambdaBinder { name: name.clone(), variable, carrier: Some(domain) },
+                |checker| checker.captured_index_carrier_in(inference, body, &variables, Some(&result)))?;
+            if let Some(actual) = actual {
+                let actual = self.index_carrier_at(&inference.uni, &actual, &result);
+                inference.uni.unify(&actual, &result).map_err(|error| Error::at(*span, error))?;
+            }
+            return Ok(Some(inference.uni.zonk(&expected)));
+        }
+        let mut head = ty;
+        let mut args = Vec::new();
+        while let ast::Type::App(f, arg, _) = head {
+            args.push(&**arg);
+            head = f;
+        }
+        args.reverse();
+        let name = match head {
+            ast::Type::Var(name, _) => name,
+            ast::Type::Con(path, _) => match path.segments.last() {
+                Some(name) => name,
+                None => return Ok(None),
+            },
+            _ => return Ok(None),
+        };
+        if matches!(head, ast::Type::Var(..)) {
+            if let Some(binding) = self.index_lambda_binding(name) {
+                let Some(carrier) = binding.carrier else { return Ok(None) };
+                if args.is_empty() { return Ok(Some(inference.uni.zonk(&carrier))); }
+                let signature = self.index_signature_in(inference, &Scheme::mono(carrier), &args, vars, expected, ty.span())?
+                    .ok_or_else(|| Error::at(ty.span(), "index lambda parameter has no checked carrier"))?;
+                let (_, result) = self.index_arguments(Some(signature.ty), &args, vars, &Ty::Nat, ty.span())?;
+                return Ok(result);
+            }
+        }
+        if matches!(head, ast::Type::Var(..)) && matches!(name.source_spelling(), "+" | "-" | "*") && args.len() == 2 {
+            let left = self.captured_index_carrier_in(inference, args[0], vars, None)?;
+            let right = self.captured_index_carrier_in(inference, args[1], vars, left.as_ref())?;
+            if let (Some(left), Some(right)) = (&left, &right) {
+                let left = self.refine_base(left).unwrap_or_else(|| left.clone());
+                let right = self.refine_base(right).unwrap_or_else(|| right.clone());
+                inference.uni.unify(&left, &right).map_err(|error| Error::at(ty.span(), error))?;
+            }
+            let carrier = inference.uni.zonk(&left.or(right).or_else(|| expected.cloned()).unwrap_or(Ty::Nat));
+            return Ok(Some(self.refine_base(&carrier).unwrap_or(carrier)));
+        }
+        if matches!(head, ast::Type::Var(..)) && !args.is_empty()
+            && (!vars.contains(&name.text) || name.local_binding().is_some() || name.scoped_reference().is_some() || name.resolved_binding().is_some()) {
+            let carrier = match name.source_spelling() {
+                "length" => Some(Ty::fun(Ty::Bytes, Ty::Nat)),
+                "toNat" => {
+                    let operand = self.captured_index_carrier_in(inference, args[0], vars, None)?;
+                    match operand.map(|ty| inference.uni.zonk(&ty)) {
+                        Some(carrier) => {
+                            let carrier = self.refine_base(&carrier).unwrap_or(carrier);
+                            if !matches!(&carrier, Ty::Prim(primitive) if primitive.is_int_like()) {
+                                return Err(Error::at(ty.span(), "toNat index operand needs a machine integer"));
+                            }
+                            Some(Ty::fun(carrier, Ty::Nat))
+                        }
+                        None => return Ok(None),
+                    }
+                }
+                _ => None,
+            };
+            if let Some(carrier) = carrier {
+                let scheme = Scheme::mono(carrier);
+                let Some(signature) = self.index_signature_in(inference, &scheme, &args, vars, expected, ty.span())? else { unreachable!() };
+                let (_, result) = self.index_arguments(Some(signature.ty), &args, vars, &Ty::Nat, ty.span())?;
+                return Ok(result);
+            }
+        }
+        if name.local_binding().is_none() && name.resolved_binding().is_none()
+            && name.scoped_reference().is_none() && vars.contains(&name.text) {
+            if let Some((_, carrier)) = self.index_carriers.borrow().iter().rev().find(|(binder, _)| binder == &name.text) {
+                let mut result = carrier.clone();
+                for argument in &args {
+                    result = match result {
+                        Ty::Fun(_, _, _, cod) => *cod,
+                        Ty::Pi { var, dom, cod, .. } => cod.subst_idx(&var, &self.conv_idx(argument, vars, &dom)?),
+                        _ => return Ok(None),
+                    };
+                }
+                return Ok(Some(result));
+            }
+        }
+        let value_scheme = |value: ValueInfo| {
+            let label = index_value_label(&value);
+            (value.scheme, Some(label))
+        };
+        let scheme = if name.local_binding().is_some() {
+            let scopes = self.scoped_type_env.borrow();
+            scopes
+                .last()
+                .and_then(|env| env.lookup_name(name))
+                .map(|(_, scheme)| (scheme, None))
+        } else if let Some(binding) = name.resolved_binding() {
+            if binding.kind() != ast::RefKind::Value {
+                return Ok(None);
+            }
+            self.qualified
+                .get(&(binding.module().into(), binding.name().into()))
+                .cloned().map(value_scheme)
+        } else if let Some(scope) = name.scoped_reference() {
+            self.scoped_values(scope)
+                .into_iter()
+                .next()
+                .map(value_scheme)
+        } else if matches!(head, ast::Type::Var(..)) && !vars.contains(&name.text) {
+            // Ordinary source annotations use their lexical environment too.
+            // Captured/resolved names took their authoritative paths above;
+            // they must never fall back to insertion-site spelling lookup.
+            self.scoped_type_env.borrow().last()
+                .and_then(|env| env.lookup_name(name)).map(|(_, scheme)| (scheme, None))
+                .or_else(|| self.lookup_value(None, &name.text).ok().map(value_scheme))
+        } else if let ast::Type::Con(path, _) = head {
+            let text = path.segments.iter().map(|name| name.text.as_str()).collect::<Vec<_>>().join(".");
+            self.lookup_value(None, &text).or_else(|error| match text.rsplit_once('.') {
+                Some((qualifier, base)) => self.lookup_value(Some(qualifier), base),
+                None => Err(error),
+            }).ok().map(value_scheme)
+        } else {
+            None
+        };
+        let Some((scheme, label)) = scheme else {
+            return Ok(None);
+        };
+        let Some(signature) = self.with_index_dictionary_scope(name, |checker|
+            checker.index_signature_in(inference, &scheme, &args, vars, expected, ty.span()))
+            .map_err(|mut error| {
+                if let Some(label) = label {
+                    error.message = format!("index function `{label}`: {}", error.message);
+                }
+                error
+            })? else {
+            return Ok(None);
+        };
+        let mut result = inference.uni.zonk(&signature.ty);
+        for arg in args {
+            result = match result {
+                Ty::Fun(_, _, _, cod) => *cod,
+                Ty::Pi { var, dom, cod, .. } => {
+                    cod.subst_idx(&var, &self.conv_idx(arg, vars, &dom)?)
+                }
+                _ => return Ok(None),
+            };
+        }
+        Ok(Some(inference.uni.zonk(&result)))
+    }
+
+    fn index_arguments(
+        &self,
+        mut signature: Option<Ty>,
+        args: &[&ast::Type],
+        vars: &[String],
+        kind: &Ty,
+        span: ast::Span,
+    ) -> Result<(Vec<ITerm>, Option<Ty>)> {
+        let mut out = Vec::new();
+        for arg in args {
+            let (domain, next, binder) = match signature.take().map(|ty| self.uni.zonk(&ty)) {
+                Some(Ty::Fun(domain, _, effect, result)) => {
+                    if !self.uni.resolve_row(&effect).is_pure() {
+                        return Err(Error::at(span, "index function application must be pure"));
+                    }
+                    (*domain, Some(*result), None)
+                }
+                Some(Ty::Pi {
+                    var, dom, eff, cod, ..
+                }) => {
+                    if !self.uni.resolve_row(&eff).is_pure() {
+                        return Err(Error::at(span, "index function application must be pure"));
+                    }
+                    (*dom, Some(*cod), Some(var))
+                }
+                Some(other) => {
+                    return Err(Error::at(
+                        span,
+                        format!("index applies non-function carrier {other}"),
+                    ))
+                }
+                None => (kind.clone(), None, None),
+            };
+            let argument = self.conv_idx(arg, vars, &domain)?;
+            signature = next.map(|ty| match binder {
+                Some(name) => ty.subst_idx(&name, &argument),
+                None => ty,
+            });
+            out.push(argument);
+        }
+        Ok((out, signature))
+    }
+
     /// An application in index position: `toNat limit`, `length bytes`,
     /// or a named total definition.
     fn idx_app(
         &self,
         name: &str,
+        source: Option<&ast::Name>,
         args: &[&ast::Type],
         vars: &[String],
-        kind: &Ty,
+        expected: Option<&Ty>,
+        span: ast::Span,
+    ) -> Result<ITerm> {
+        match source {
+            Some(reference) => self.with_index_dictionary_scope(reference, |checker| checker.idx_app_in_scope(name, source, args, vars, expected, span)),
+            None => self.idx_app_in_scope(name, source, args, vars, expected, span),
+        }
+    }
+
+    fn idx_app_in_scope(
+        &self,
+        name: &str,
+        source: Option<&ast::Name>,
+        args: &[&ast::Type],
+        vars: &[String],
+        expected: Option<&Ty>,
         span: ast::Span,
     ) -> Result<ITerm> {
         // The builtin index vocabulary shadows ordinary names in index
         // position (decision D29): `length` over `Bytes` and `toNat` over
         // machine integers are total, executable, and reduce nowhere in
         // conversion.
+        let fallback = Ty::Nat;
+        let kind = expected.unwrap_or(&fallback);
+        let mut signature = None;
+        let mut type_arguments = Vec::new();
+        let mut dictionaries = Vec::new();
+        let mut implicit_arguments = Vec::new();
         let head = if matches!(name, "toNat" | "length") {
+            if name == "length" {
+                signature = Some(Ty::fun(Ty::Bytes, Ty::Nat));
+            } else if let Some(actual) = args.first().map(|arg| self.captured_index_carrier(arg, vars)).transpose()?.flatten() {
+                let base = self.refine_base(&actual).unwrap_or(actual);
+                if !matches!(&base, Ty::Prim(primitive) if primitive.is_int_like()) {
+                    return Err(Error::at(
+                        span,
+                        "toNat index operand needs a machine integer",
+                    ));
+                }
+                signature = Some(Ty::fun(base, Ty::Nat));
+            }
             format!("<builtin>.{name}")
+        } else if let Some(binding) = source.and_then(|n| n.resolved_binding()) {
+            if binding.kind() != ast::RefKind::Value {
+                return Err(Error::at(span, "a resolved type is not an index value"));
+            }
+            let value = self
+                .qualified
+                .get(&(binding.module().into(), binding.name().into()))
+                .ok_or_else(|| Error::at(span, "resolved syntax index is no longer available"))?;
+            if let Some(checked) = self.index_signature(&value.scheme, args, vars, expected, span)? {
+                signature = Some(checked.ty); type_arguments = checked.types; dictionaries = checked.dictionaries; implicit_arguments = checked.arguments;
+            }
+            value_index_id(value)
+        } else if let Some((source, scope)) =
+            source.and_then(|name| name.scoped_reference().map(|scope| (name, scope)))
+        {
+            let value = self
+                .scoped_values(scope)
+                .into_iter()
+                .next()
+                .ok_or_else(|| {
+                    Error::at(
+                        span,
+                        format!(
+                            "unknown index {name} (not bound in captured source scope {})",
+                            scope.origin()
+                        ),
+                    )
+                })?;
+            if self.record_quote_bindings {
+                source.record_binding(ast::RefKind::Value, &value.module, &value.name);
+            }
+            if let Some(checked) = self.index_signature(&value.scheme, args, vars, expected, span)? {
+                signature = Some(checked.ty); type_arguments = checked.types; dictionaries = checked.dictionaries; implicit_arguments = checked.arguments;
+            }
+            value_index_id(&value)
         } else {
             // A qualified name resolves through the same qualifier
             // machinery as term position (`List.map` is `Data.List`'s
             // `map` through the import's short qualifier).
-            let found = self.lookup_value(None, name).or_else(|e| {
-                match name.rsplit_once('.') {
+            let found = self
+                .lookup_value(None, name)
+                .or_else(|e| match name.rsplit_once('.') {
                     Some((qual, base)) => self.lookup_value(Some(qual), base),
                     None => Err(e),
-                }
-            });
+                });
             match found {
-                Ok(v) => value_index_id(&v),
+                Ok(v) => {
+                    if let Some(checked) = self.index_signature(&v.scheme, args, vars, expected, span)? {
+                        signature = Some(checked.ty); type_arguments = checked.types; dictionaries = checked.dictionaries; implicit_arguments = checked.arguments;
+                    }
+                    value_index_id(&v)
+                }
                 Err(_) => {
                     return Err(Error::at(
                         span,
@@ -6073,11 +7696,49 @@ impl Checker {
                 }
             }
         };
-        let mut out = Vec::new();
-        for a in args {
-            out.push(self.conv_idx(a, vars, kind)?);
+        if signature.is_none() && !matches!(name, "length" | "toNat") && source.is_some_and(|name| {
+            name.local_binding().is_some() || name.scoped_reference().is_some() || name.resolved_binding().is_some()
+        }) {
+            return Err(Error::at(span, "captured index function requires its quantified evidence telescope; it cannot be discarded"));
         }
-        Ok(ITerm::app_fn(head, out))
+        let (out, result) = self.index_arguments(signature, args, vars, kind, span)?;
+        if source.is_some_and(|name| {
+            name.local_binding().is_some()
+                || name.scoped_reference().is_some()
+                || name.resolved_binding().is_some()
+        }) {
+            if let (Some(actual), Some(expected)) = (result, expected) {
+                self.check_captured_index_carrier(name, &actual, expected, span)?;
+            }
+        }
+        if type_arguments.is_empty() && dictionaries.is_empty() && implicit_arguments.is_empty() { return Ok(ITerm::app_fn(head, out)); }
+        let head = ITerm::Inst(Box::new(IndexInstantiation {
+            head: IndexHead::Function(head), types: type_arguments,
+            dictionaries, arguments: implicit_arguments,
+        }));
+        Ok(if out.is_empty() { head } else { ITerm::App(Box::new(head), out) })
+    }
+
+    fn proposition_indices(&self, left: &ast::Type, right: &ast::Type, vars: &[String]) -> Result<(ITerm, ITerm)> {
+        let mut inference = IndexInference::new(&self.uni);
+        let left_ty = self.captured_index_carrier_in(&mut inference, left, vars, None)?;
+        let right_ty = self.captured_index_carrier_in(&mut inference, right, vars, left_ty.as_ref())?;
+        let span = right.span();
+        if let (Some(left), Some(right)) = (&left_ty, &right_ty) {
+            let left = self.refine_base(left).unwrap_or_else(|| left.clone());
+            let right_carrier = self.refine_base(right).unwrap_or_else(|| right.clone());
+            inference.uni.unify(&left, &right_carrier).map_err(|error| Error::at(span, error))?;
+        }
+        self.finish_index_inference(&mut inference)?;
+        let carrier = left_ty.or(right_ty).map(|ty| {
+            let ty = inference.uni.zonk(&ty);
+            self.refine_base(&ty).unwrap_or(ty)
+        });
+        if carrier.as_ref().is_some_and(|ty| !self.uni.owns_all_metas(ty)) {
+            return Err(Error::at(left.span(), "proposition operands have an unsolved carrier"));
+        }
+        self.commit_index_inference(&mut inference)?;
+        Ok((self.conv_idx_expected(left, vars, carrier.as_ref())?, self.conv_idx_expected(right, vars, carrier.as_ref())?))
     }
 
     /// Convert a proposition: a comparison over index values, `Eq x y`,
@@ -6129,19 +7790,12 @@ impl Checker {
                         ))
                     }
                 };
-                let unit = Ty::Nat;
-                Ok(PTerm::Cmp(
-                    cmp,
-                    Box::new(self.conv_idx(args[0], vars, &unit)?),
-                    Box::new(self.conv_idx(args[1], vars, &unit)?),
-                ))
+                let (left, right) = self.proposition_indices(args[0], args[1], vars)?;
+                Ok(PTerm::Cmp(cmp, Box::new(left), Box::new(right)))
             }
             ast::Type::Con(p, _) if p.parts() == ["Eq"] && args.len() == 2 => {
-                let unit = Ty::Nat;
-                Ok(PTerm::Eq(
-                    Box::new(self.conv_idx(args[0], vars, &unit)?),
-                    Box::new(self.conv_idx(args[1], vars, &unit)?),
-                ))
+                let (left, right) = self.proposition_indices(args[0], args[1], vars)?;
+                Ok(PTerm::Eq(Box::new(left), Box::new(right)))
             }
             ast::Type::Con(p, _) if p.parts() == ["Not"] && args.len() == 1 => {
                 Ok(PTerm::Not(Box::new(self.conv_prop(args[0], vars)?)))
@@ -6156,25 +7810,20 @@ impl Checker {
                 let name = p.parts().join(".");
                 let pf = PredFn::lookup(&name);
                 if let Some(pf) = pf {
-                    let unit = Ty::Nat;
-                    let operand = self.conv_idx(args[0], vars, &unit)?;
+                    // Structural predicates also decide lists, strings and
+                    // other containers. A numeric expectation here would
+                    // incorrectly constrain a checked operand's result type.
+                    let operand = self.conv_idx_expected(args[0], vars, None)?;
                     return Ok(PTerm::Pred(pf, Box::new(operand)));
                 }
                 // A named refinement's predicate applied to a value
                 // (`Sorted xs`, `NonEmpty xs`): nominal names are named
                 // predicates for readability, nothing more.
-                let info = self.lookup_type(&p.parts()).ok();
-                let tk = info.and_then(|i| {
-                    self.types
-                        .get(&i.name)?
-                        .iter()
-                        .find(|t| t.refine.is_some())
-                        .cloned()
-                });
+                let info = self.lookup_type_path(p).ok();
+                let tk = info.filter(|i| i.refine.is_some());
                 if let Some(r) = tk.and_then(|t| t.refine) {
                     if r.params.is_empty() {
-                        let unit = Ty::Nat;
-                        let operand = self.conv_idx(args[0], vars, &unit)?;
+                        let operand = self.conv_idx_expected(args[0], vars, Some(&r.base))?;
                         return Ok(Checker::subst_pt(
                             &r.pred,
                             &HashMap::from([(
@@ -6197,9 +7846,7 @@ impl Checker {
                 // predicate of the type `InRange 0 255 Nat`): one
                 // spelling for the type and its predicate.
                 let name = p.parts().join(".");
-                let tk = self.lookup_type(&p.parts()).ok().and_then(|i| {
-                    self.types.get(&i.name)?.iter().find(|t| t.refine.is_some()).cloned()
-                });
+                let tk = self.lookup_type_path(p).ok().filter(|i| i.refine.is_some());
                 if let Some(tk) = tk {
                     let r = tk.refine.clone().expect("refine is some");
                     let idx: Vec<&String> = r
@@ -6310,10 +7957,8 @@ impl Checker {
     /// A list-shaped container: constructors that distinguish the empty
     /// form (no runtime fields) from a non-empty (element-tail) form.
     fn list_shaped(&self, name: &str) -> bool {
-        self.types
-            .get(name)
-            .map(|tks| {
-                tks.iter().any(|tk| {
+        self.known_type(name)
+            .map(|tk| {
                     let mut empties = 0usize;
                     let mut non_empties = 0usize;
                     for (cname, _) in &tk.ctors {
@@ -6332,7 +7977,6 @@ impl Checker {
                         }
                     }
                     empties >= 1 && non_empties >= 1
-                })
             })
             .unwrap_or(false)
     }
@@ -6419,7 +8063,7 @@ impl Checker {
                 _ => None,
             },
             Ty::Adt(name, args) => {
-                let tk = self.types.get(name)?.iter().find(|t| t.refine.is_some())?;
+                let tk = self.known_type(name).filter(|t| t.refine.is_some())?;
                 let r = tk.refine.as_ref()?;
                 let mut map: HashMap<String, Ty> = HashMap::new();
                 for (i, p) in r.params.iter().enumerate() {
@@ -6534,9 +8178,9 @@ impl Checker {
                 }
                 // A named refinement's predicate (`refined Sorted`):
                 // nominal names are named predicates for readability.
-                let info = self.lookup_type(&p.parts()).ok();
+                let info = self.lookup_type_path(p).ok();
                 if let Some(tk) =
-                    info.and_then(|i| self.types.get(&i.name)?.iter().find(|t| t.refine.is_some()).cloned())
+                    info.filter(|i| i.refine.is_some())
                 {
                     let r = tk.refine.expect("refine is some");
                     return Ok(Checker::subst_pt(
@@ -6647,7 +8291,7 @@ impl Checker {
                 index_heads(p, &mut heads);
             }
             let fns = heads.into_iter().filter_map(|(h, k)| self.fn_int_sort(&h, k).map(|s| (h, k, s))).collect();
-            linear_entails(hyps, goal, &Sorts { vars: vars.clone(), fns }).is_some()
+            linear_entails(hyps, goal, &Sorts { vars: vars.clone(), fns, values: vec![] }).is_some()
         };
         if let Some(pre) = &pre {
             if !entails(&facts, pre) {
@@ -6699,11 +8343,7 @@ impl Checker {
                 _ => None,
             };
         }
-        let tk = self
-            .types
-            .get(name)?
-            .iter()
-            .find(|t| t.refine.is_some())?;
+        let tk = self.known_type(name)?;
         let r = tk.refine.as_ref()?;
         let mut map: HashMap<String, Ty> = HashMap::new();
         for (i, p) in r.params.iter().enumerate() {
@@ -6730,11 +8370,7 @@ impl Checker {
     /// structure), for the preservation obligation's result scan.
     fn ty_refine_mention(&self, t: &Ty) -> Option<String> {
         if let Ty::Adt(n, args) = t {
-            if self
-                .types
-                .get(n)
-                .map(|ts| ts.iter().any(|tk| tk.refine.is_some()))
-                .unwrap_or(false)
+            if self.known_type(n).is_some_and(|tk| tk.refine.is_some())
             {
                 return Some(n.clone());
             }
@@ -6764,17 +8400,47 @@ impl Checker {
 
     /// Convert an effect row. Label arguments are region names; the tail is
     /// a rigid row variable from the enclosing `forall`.
+    fn effect_head(&self, path: &ast::ConPath, declared: bool) -> Result<String> {
+        let name = path.segments.last().ok_or_else(|| Error::plain("empty effect path"))?;
+        let lookup = |owner: &str, member: &str| self.effect_bindings.get(&(owner.to_string(), member.to_string())).cloned();
+        if let Some(binding) = name.declaration_binding() {
+            let (owner, member) = self.declaration_bindings.get(&(binding.clone(), ast::RefKind::Effect))
+                .ok_or_else(|| Error::at(name.span, "owned syntax effect is not bound by this declaration group"))?;
+            return lookup(owner, member).ok_or_else(|| Error::at(name.span, "owned syntax effect has no checked declaration"));
+        }
+        if let Some(binding) = name.resolved_binding() {
+            if binding.kind() != ast::RefKind::Effect { return Err(Error::at(name.span, "this captured name is not an effect")); }
+            return lookup(binding.module(), binding.name()).ok_or_else(|| Error::at(name.span, "resolved syntax effect is no longer available"));
+        }
+        if let Some(scope) = name.scoped_reference() {
+            if scope.kind() != ast::RefKind::Effect { return Err(Error::at(name.span, "this captured name is not an effect")); }
+            if let Some(binding) = scope.candidates(ast::RefKind::Effect).first() {
+                return lookup(binding.module(), binding.name()).ok_or_else(|| Error::at(name.span, "captured effect is no longer available"));
+            }
+            if declared || path.segments.len() != 1 { return Err(Error::at(name.span, format!("unknown effect {} (not bound in captured source scope {})", path.parts().join("."), scope.origin()))); }
+            // Existing open rows also contain symbolic labels, including
+            // Foreign, Diverge and capability effects without operation tables.
+            // A frozen symbolic label never acquires a caller's owned effect.
+            return Ok(path.parts().join("."));
+        }
+        if name.local_binding().is_some() { return Err(Error::at(name.span, "a value binding is not an effect name")); }
+        let reference = ast::RefSite { kind: ast::RefKind::Effect,
+            quals: path.segments[..path.segments.len()-1].iter().map(|n| n.text.clone()).collect(),
+            name: name.text.clone(), span: path.span() };
+        if let Some((owner, member)) = self.resolve_top(&self.current_module, &reference) {
+            if let Some(head) = lookup(&owner, &member) { return Ok(head); }
+        }
+        if path.segments.len() == 1 {
+            if self.effects.contains_key(&name.text) { return Ok(name.text.clone()); }
+            if !declared { return Ok(name.text.clone()); }
+        }
+        Err(Error::at(name.span, format!("unknown effect {}", path.parts().join("."))))
+    }
+
     fn conv_row(&self, e: &ast::EffectRow, vars: &[String]) -> Result<EffRow> {
         let mut labels = Vec::new();
         for (path, args) in &e.labels {
-            let parts = path.parts();
-            let head = parts[0].to_string();
-            if parts.len() != 1 {
-                return Err(Error::at(
-                    path.span(),
-                    "effect label paths deeper than one segment are not supported",
-                ));
-            }
+            let head = self.effect_head(path, false)?;
             let arg = match args.as_slice() {
                 [] => None,
                 [n] => Some(n.text.clone()),
@@ -7188,7 +8854,7 @@ impl Checker {
         // bare variables are not noted.
         let info = match cur {
             ast::Type::Con(p, span) => {
-                Some(self.lookup_type(&p.parts()).map_err(|_| {
+                Some(self.lookup_type_path(p).map_err(|_| {
                     Error::at(*span, format!("unknown type {}", p.parts().join(".")))
                 })?)
             }
@@ -7241,6 +8907,13 @@ impl Checker {
         expect: Option<&ParamKind>,
     ) -> Result<Ty> {
         match ty {
+            ast::Type::IndexOperand(value, _, _) => Ok(Ty::Idx(Box::new(self.uni.resolve_idx(value)))),
+            ast::Type::IndexAnnotated(..) => Ok(Ty::Idx(Box::new(self.conv_idx_expected(ty, vars, None)?))),
+            ast::Type::Elaborated(scheme, span) => {
+                Self::closed_index_signature(scheme).ok_or_else(|| Error::at(
+                    *span, "a polymorphic Code expectation must be instantiated by annotation checking",
+                ))
+            }
             ast::Type::Lam(_, _, span) => Err(Error::at(
                 *span,
                 "an index-level lambda (`\\x -> ...`) is a value in an index position, not a type",
@@ -7286,7 +8959,7 @@ impl Checker {
                         if let Some(s) = c_abi_scalar(name) {
                             return Ok(Ty::Prim(s));
                         }
-                        let info = self.lookup_type(&parts).map_err(|_| {
+                        let info = self.lookup_type_path(p).map_err(|_| {
                             Error::at(*span, format!("unknown type {}", parts.join(".")))
                         })?;
                         // Full application is enforced by `conv_type`; here a
@@ -7294,7 +8967,7 @@ impl Checker {
                         Ok(Ty::Adt(self.type_key(&info), Vec::new()))
                     }
                     _ => {
-                        let info = self.lookup_type(&parts).map_err(|_| {
+                        let info = self.lookup_type_path(p).map_err(|_| {
                             Error::at(*span, format!("unknown type {}", parts.join(".")))
                         })?;
                         // Full application is enforced by `conv_type`; here a
@@ -7304,6 +8977,9 @@ impl Checker {
                 }
             }
             ast::Type::Var(n, _) => {
+                if n.local_binding().is_some() {
+                    return Err(Error::at(n.span, "a captured lexical value is not a type variable"));
+                }
                 if vars.contains(&n.text) {
                     if let Some(k) = expect {
                         self.note_kind(&n.text, k.clone());
@@ -7362,7 +9038,10 @@ impl Checker {
                     Ty::Prp(_) => self.note_kind(&name.text, ParamKind::Prop),
                     other => self.note_kind(&name.text, ParamKind::Val(other.clone())),
                 }
-                let cod = self.conv_type(res, &vars2)?;
+                self.index_carriers.borrow_mut().push((name.text.clone(), dom.clone()));
+                let cod = self.conv_type(res, &vars2);
+                self.index_carriers.borrow_mut().pop();
+                let cod = cod?;
                 let _ = span;
                 if cod.mentions_idx(&name.text) {
                     Ok(Ty::pi(name.text.clone(), dom, m, eff, cod))
@@ -7382,7 +9061,10 @@ impl Checker {
                     Ty::Prp(_) => self.note_kind(&name.text, ParamKind::Prop),
                     other => self.note_kind(&name.text, ParamKind::Val(other.clone())),
                 }
-                let cod = self.conv_type(body, &vars2)?;
+                self.index_carriers.borrow_mut().push((name.text.clone(), dom.clone()));
+                let cod = self.conv_type(body, &vars2);
+                self.index_carriers.borrow_mut().pop();
+                let cod = cod?;
                 if cod.mentions_idx(&name.text) {
                     Ok(Ty::sigma(name.text.clone(), dom, cod))
                 } else {
@@ -7624,7 +9306,15 @@ impl Checker {
                     rest = body;
                 }
                 other => {
-                    let t = self.conv_type(other, &params)?;
+                    let carriers_start = self.index_carriers.borrow().len();
+                    self.index_carriers.borrow_mut().extend(binders.iter().filter_map(|(name, kind, _)| {
+                        match kind { Some(ParamKind::Val(carrier)) => Some((name.clone(), carrier.clone())), _ => None }
+                    }));
+                    self.index_header_context.borrow_mut().push(ctx.clone());
+                    let t = self.conv_type(other, &params);
+                    self.index_header_context.borrow_mut().pop();
+                    self.index_carriers.borrow_mut().truncate(carriers_start);
+                    let t = t?;
                     // A signature's refinement obligations name the
                     // signature's dependent arguments (`using (Sorted xs,
                     // Sorted ys)` over `(xs :: T) -> (ys :: T) -> ...`):
@@ -7736,6 +9426,7 @@ impl Checker {
                         }
                     }
                     let scheme = Scheme {
+                        evidence_params: Vec::new(),
                         con_params,
                         params: type_params,
                         idx_params: Vec::new(),
@@ -7814,7 +9505,7 @@ impl Checker {
                     // not by an unrelated sibling type argument.
                     for a in args { if !matches!(a, Ty::Prp(_)) { self.check_length_type(a, env, 0, span)?; } }
                 } else {
-                    let info = self.types.get(name).and_then(|xs| xs.first());
+                    let info = self.known_type(name);
                     for (i, a) in args.iter().enumerate() {
                         if let (Ty::Idx(it), Some(ParamKind::Val(carrier))) = (a, info.and_then(|x| x.param_kinds.get(i))) {
                             self.check_length_index(it, Some(carrier), env, span)?;
@@ -7859,6 +9550,7 @@ impl Checker {
     fn length_in_index(it: &ITerm) -> bool {
         match it {
             ITerm::Fn(n) => n == BYTE_LENGTH_INDEX,
+            ITerm::Inst(call) => call.terms().any(Self::length_in_index),
             ITerm::App(f, xs) => Self::length_in_index(f) || xs.iter().any(Self::length_in_index),
             ITerm::Bin(_, a, b) => Self::length_in_index(a) || Self::length_in_index(b),
             ITerm::Lam(_, body) => Self::length_in_index(body),
@@ -7938,6 +9630,23 @@ impl Checker {
                 self.length_index_unify(&actual, &cod, uni, span)?;
                 Ok(Ty::fun_mult(*dom, mult, eff, *cod))
             }
+            ITerm::Inst(call) => {
+                let IndexHead::Function(head) = &call.head else {
+                    return Err(Error::at(span, "dictionary evidence is not a numeric index operand"));
+                };
+                let Some((module, name)) = head.rsplit_once('.') else {
+                    return Err(Error::at(span, "index function has no checked owner"));
+                };
+                let value = self.qualified.get(&(module.into(), name.into()))
+                    .ok_or_else(|| Error::at(span, "index function is no longer available"))?;
+                if value.scheme.params.len() != call.types.len() {
+                    return Err(Error::at(span, "index function has an incomplete type instantiation"));
+                }
+                self.instantiated_index_type(&value.scheme, &call, span)
+            }
+            ITerm::LocalValue(local) => self.local_tys.get(local).map(|ty| uni.zonk(ty))
+                .ok_or_else(|| Error::at(span, "captured index value has no checked carrier")),
+            ITerm::Evidence(_) => Err(Error::at(span, "dictionary evidence is not a numeric index operand")),
             ITerm::MVar(_) => Err(Error::at(span, "byte-length index operand has an unsolved carrier")),
         }
     }
@@ -8083,78 +9792,87 @@ impl Checker {
     /// Substitute type parameters (by type), row variables (by tail) and
     /// region names (by fresh name). Index-level variables substitute from
     /// the same map: an index parameter's entry is a `Ty::Idx` value.
-    fn subst_full(
+    fn subst_full(t: &Ty, types: &HashMap<String, Ty>, rows: &HashMap<String, RowTail>, regions: &HashMap<String, String>) -> Ty {
+        Self::subst_namespaces(t, types, rows, regions, &HashMap::new())
+    }
+
+    fn subst_index_full(term: &ITerm, types: &HashMap<String, Ty>, rows: &HashMap<String, RowTail>, regions: &HashMap<String, String>) -> ITerm {
+        Self::subst_index_namespaces(term, types, rows, regions, &HashMap::new())
+    }
+
+    fn subst_prop_full(prop: &PTerm, types: &HashMap<String, Ty>, rows: &HashMap<String, RowTail>, regions: &HashMap<String, String>) -> PTerm {
+        Self::subst_prop_namespaces(prop, types, rows, regions, &HashMap::new())
+    }
+
+    fn subst_class_namespaces(class: &ClassApp, types: &HashMap<String, Ty>, rows: &HashMap<String, RowTail>, regions: &HashMap<String, String>, evidence: &HashMap<IndexEvidence, ITerm>) -> ClassApp {
+        ClassApp { class: class.class.clone(), args: class.args.iter().map(|ty| Self::subst_namespaces(ty, types, rows, regions, evidence)).collect() }
+    }
+
+    fn subst_namespaces(
         t: &Ty,
         types: &HashMap<String, Ty>,
         rows: &HashMap<String, RowTail>,
         regions: &HashMap<String, String>,
+        evidence: &HashMap<IndexEvidence, ITerm>,
     ) -> Ty {
         match t {
             Ty::Param(p) => types.get(p).cloned().unwrap_or_else(|| t.clone()),
-            Ty::Idx(it) => Ty::Idx(Box::new(Checker::subst_it(it, types))),
-            Ty::Prp(p) => Ty::Prp(Box::new(Checker::subst_pt(p, types))),
+            Ty::Idx(it) => Ty::Idx(Box::new(Checker::subst_index_namespaces(it, types, rows, regions, evidence))),
+            Ty::Prp(p) => Ty::Prp(Box::new(Checker::subst_prop_namespaces(p, types, rows, regions, evidence))),
             Ty::Pi { var, dom, mult, eff, cod } => {
-                let cod = if types.contains_key(var) {
-                    (**cod).clone()
-                } else {
-                    Checker::subst_full(cod, types, rows, regions)
-                };
+                let (var, cod) = Self::subst_bound_type(var, cod, types, rows, regions, evidence);
                 Ty::Pi {
-                    var: var.clone(),
-                    dom: Box::new(Checker::subst_full(dom, types, rows, regions)),
+                    var,
+                    dom: Box::new(Checker::subst_namespaces(dom, types, rows, regions, evidence)),
                     mult: *mult,
                     eff: subst_row(eff, rows, regions),
                     cod: Box::new(cod),
                 }
             }
             Ty::Sigma { var, dom, cod } => {
-                let cod = if types.contains_key(var) {
-                    (**cod).clone()
-                } else {
-                    Checker::subst_full(cod, types, rows, regions)
-                };
+                let (var, cod) = Self::subst_bound_type(var, cod, types, rows, regions, evidence);
                 Ty::Sigma {
-                    var: var.clone(),
-                    dom: Box::new(Checker::subst_full(dom, types, rows, regions)),
+                    var,
+                    dom: Box::new(Checker::subst_namespaces(dom, types, rows, regions, evidence)),
                     cod: Box::new(cod),
                 }
             }
             Ty::Adt(n, args) => Ty::Adt(
                 n.clone(),
                 args.iter()
-                    .map(|a| Checker::subst_full(a, types, rows, regions))
+                    .map(|a| Checker::subst_namespaces(a, types, rows, regions, evidence))
                     .collect(),
             ),
             Ty::Tuple(args) => Ty::Tuple(
                 args.iter()
-                    .map(|a| Checker::subst_full(a, types, rows, regions))
+                    .map(|a| Checker::subst_namespaces(a, types, rows, regions, evidence))
                     .collect(),
             ),
             Ty::Fun(a, m, e, b) => Ty::fun_mult(
-                Checker::subst_full(a, types, rows, regions),
+                Checker::subst_namespaces(a, types, rows, regions, evidence),
                 *m,
                 subst_row(e, rows, regions),
-                Checker::subst_full(b, types, rows, regions),
+                Checker::subst_namespaces(b, types, rows, regions, evidence),
             ),
             Ty::Thunk { eff, inner } => Ty::Thunk {
                 eff: subst_row(eff, rows, regions),
-                inner: Box::new(Checker::subst_full(inner, types, rows, regions)),
+                inner: Box::new(Checker::subst_namespaces(inner, types, rows, regions, evidence)),
             },
             Ty::Later(inner) => {
-                Ty::Later(Box::new(Checker::subst_full(inner, types, rows, regions)))
+                Ty::Later(Box::new(Checker::subst_namespaces(inner, types, rows, regions, evidence)))
             }
             Ty::Lazy { eff, region, inner } => Ty::Lazy {
                 eff: subst_row(eff, rows, regions),
                 region: regions.get(region).cloned().unwrap_or_else(|| region.clone()),
-                inner: Box::new(Checker::subst_full(inner, types, rows, regions)),
+                inner: Box::new(Checker::subst_namespaces(inner, types, rows, regions, evidence)),
             },
             Ty::Ref(region, inner) => Ty::Ref(
                 regions.get(region).cloned().unwrap_or_else(|| region.clone()),
-                Box::new(Checker::subst_full(inner, types, rows, regions)),
+                Box::new(Checker::subst_namespaces(inner, types, rows, regions, evidence)),
             ),
             Ty::Mut(region, inner) => Ty::Mut(
                 regions.get(region).cloned().unwrap_or_else(|| region.clone()),
-                Box::new(Checker::subst_full(inner, types, rows, regions)),
+                Box::new(Checker::subst_namespaces(inner, types, rows, regions, evidence)),
             ),
             Ty::Region(r) => Ty::Region(regions.get(r).cloned().unwrap_or_else(|| r.clone())),
             Ty::Handler { label, input, output, eff, resumption } => Ty::Handler {
@@ -8165,8 +9883,8 @@ impl Checker {
                         .as_ref()
                         .map(|a| regions.get(a).cloned().unwrap_or_else(|| a.clone())),
                 },
-                input: Box::new(Checker::subst_full(input, types, rows, regions)),
-                output: Box::new(Checker::subst_full(output, types, rows, regions)),
+                input: Box::new(Checker::subst_namespaces(input, types, rows, regions, evidence)),
+                output: Box::new(Checker::subst_namespaces(output, types, rows, regions, evidence)),
                 eff: subst_row(eff, rows, regions),
                 resumption: *resumption,
             },
@@ -8176,10 +9894,10 @@ impl Checker {
             // a`), and a head replaced by a type former saturates to its
             // image (`f a` with `f := (->) r` is `r -> a`).
             Ty::App(h, args) => {
-                let h = Checker::subst_full(h, types, rows, regions);
+                let h = Checker::subst_namespaces(h, types, rows, regions, evidence);
                 let args: Vec<Ty> = args
                     .iter()
-                    .map(|a| Checker::subst_full(a, types, rows, regions))
+                    .map(|a| Checker::subst_namespaces(a, types, rows, regions, evidence))
                     .collect();
                 Ty::apply_spine(h, args)
             }
@@ -8187,21 +9905,62 @@ impl Checker {
         }
     }
 
+    fn subst_bound_type(
+        name: &str, cod: &Ty, types: &HashMap<String, Ty>,
+        rows: &HashMap<String, RowTail>, regions: &HashMap<String, String>, evidence: &HashMap<IndexEvidence, ITerm>,
+    ) -> (String, Ty) {
+        let mut inner = types.clone();
+        inner.remove(name);
+        let mut binder = name.to_owned();
+        let mut cod = cod.clone();
+        if inner.values().any(|ty| ty.mentions_idx(name)) || evidence.values().any(|value| value.mentions(name)) {
+            binder.push_str("$sub");
+            while cod.mentions_idx(&binder) || inner.values().any(|ty| ty.mentions_idx(&binder)) || evidence.values().any(|value| value.mentions(&binder)) || inner.contains_key(&binder) {
+                binder.push('$');
+            }
+            cod = cod.subst_idx(name, &ITerm::Var(binder.clone()));
+        }
+        (binder, Self::subst_namespaces(&cod, &inner, rows, regions, evidence))
+    }
+
     /// Substitute index-level variables in an index term from the map.
     fn subst_it(t: &ITerm, map: &HashMap<String, Ty>) -> ITerm {
+        Self::subst_index_full(t, map, &HashMap::new(), &HashMap::new())
+    }
+
+    fn subst_index_namespaces(t: &ITerm, map: &HashMap<String, Ty>, rows: &HashMap<String, RowTail>, regions: &HashMap<String, String>, evidence: &HashMap<IndexEvidence, ITerm>) -> ITerm {
         match t {
+            ITerm::Inst(call) => ITerm::Inst(Box::new(call.map(
+                &mut |ty| Self::subst_namespaces(ty, map, rows, regions, evidence),
+                &mut |term| Self::subst_index_namespaces(term, map, rows, regions, evidence),
+            ))),
+            ITerm::Lam(name, body) => {
+                let mut inner = map.clone();
+                inner.remove(name);
+                let mut binder = name.clone();
+                let mut body = (**body).clone();
+                if inner.values().any(|ty| ty.mentions_idx(name)) || evidence.values().any(|value| value.mentions(name)) {
+                    binder.push_str("$sub");
+                    while body.mentions(&binder) || inner.values().any(|ty| ty.mentions_idx(&binder)) || evidence.values().any(|value| value.mentions(&binder)) || inner.contains_key(&binder) {
+                        binder.push('$');
+                    }
+                    body = body.subst(name, &ITerm::Var(binder.clone()));
+                }
+                ITerm::Lam(binder, Box::new(Self::subst_index_namespaces(&body, &inner, rows, regions, evidence)))
+            }
+            ITerm::Evidence(binding) => evidence.get(binding).cloned().unwrap_or_else(|| t.clone()),
             ITerm::Var(n) => match map.get(n) {
                 Some(Ty::Idx(it)) => (**it).clone(),
                 _ => t.clone(),
             },
             ITerm::App(f, args) => ITerm::App(
-                Box::new(Checker::subst_it(f, map)),
-                args.iter().map(|a| Checker::subst_it(a, map)).collect(),
+                Box::new(Checker::subst_index_namespaces(f, map, rows, regions, evidence)),
+                args.iter().map(|a| Checker::subst_index_namespaces(a, map, rows, regions, evidence)).collect(),
             ),
             ITerm::Bin(op, a, b) => ITerm::Bin(
                 *op,
-                Box::new(Checker::subst_it(a, map)),
-                Box::new(Checker::subst_it(b, map)),
+                Box::new(Checker::subst_index_namespaces(a, map, rows, regions, evidence)),
+                Box::new(Checker::subst_index_namespaces(b, map, rows, regions, evidence)),
             ),
             other => other.clone(),
         }
@@ -8209,6 +9968,10 @@ impl Checker {
 
     /// Substitute index-level variables in a proposition from the map.
     fn subst_pt(p: &PTerm, map: &HashMap<String, Ty>) -> PTerm {
+        Self::subst_prop_full(p, map, &HashMap::new(), &HashMap::new())
+    }
+
+    fn subst_prop_namespaces(p: &PTerm, map: &HashMap<String, Ty>, rows: &HashMap<String, RowTail>, regions: &HashMap<String, String>, evidence: &HashMap<IndexEvidence, ITerm>) -> PTerm {
         match p {
             PTerm::Var(n) => match map.get(n) {
                 Some(Ty::Prp(q)) => (**q).clone(),
@@ -8217,24 +9980,24 @@ impl Checker {
             },
             PTerm::Cmp(op, a, b) => PTerm::Cmp(
                 *op,
-                Box::new(Checker::subst_it(a, map)),
-                Box::new(Checker::subst_it(b, map)),
+                Box::new(Checker::subst_index_namespaces(a, map, rows, regions, evidence)),
+                Box::new(Checker::subst_index_namespaces(b, map, rows, regions, evidence)),
             ),
             PTerm::Eq(a, b) => PTerm::Eq(
-                Box::new(Checker::subst_it(a, map)),
-                Box::new(Checker::subst_it(b, map)),
+                Box::new(Checker::subst_index_namespaces(a, map, rows, regions, evidence)),
+                Box::new(Checker::subst_index_namespaces(b, map, rows, regions, evidence)),
             ),
-            PTerm::Not(q) => PTerm::Not(Box::new(Checker::subst_pt(q, map))),
+            PTerm::Not(q) => PTerm::Not(Box::new(Checker::subst_prop_namespaces(q, map, rows, regions, evidence))),
             PTerm::And(a, b) => PTerm::And(
-                Box::new(Checker::subst_pt(a, map)),
-                Box::new(Checker::subst_pt(b, map)),
+                Box::new(Checker::subst_prop_namespaces(a, map, rows, regions, evidence)),
+                Box::new(Checker::subst_prop_namespaces(b, map, rows, regions, evidence)),
             ),
             PTerm::Or(a, b) => PTerm::Or(
-                Box::new(Checker::subst_pt(a, map)),
-                Box::new(Checker::subst_pt(b, map)),
+                Box::new(Checker::subst_prop_namespaces(a, map, rows, regions, evidence)),
+                Box::new(Checker::subst_prop_namespaces(b, map, rows, regions, evidence)),
             ),
             PTerm::Pred(pf, a) => {
-                PTerm::Pred(*pf, Box::new(Checker::subst_it(a, map)))
+                PTerm::Pred(*pf, Box::new(Checker::subst_index_namespaces(a, map, rows, regions, evidence)))
             }
             other => other.clone(),
         }
@@ -8253,7 +10016,7 @@ impl Checker {
     /// metavariables, and region names are freshened to new rigid names.
     /// The returned list is the instantiated form of `val_params`: each
     /// entry becomes a runtime argument at the use site (insert-and-solve).
-    fn instantiate(&mut self, s: &Scheme) -> (Ty, Vec<(String, ClassApp)>, Vec<Ty>) {
+    fn instantiate(&mut self, s: &Scheme) -> (Ty, Vec<InstantiatedConstraint>, Vec<Ty>) {
         let (t, ctx, vals, _) = self.instantiate_at(s);
         (t, ctx, vals)
     }
@@ -8268,7 +10031,8 @@ impl Checker {
             Some(metas) if self.gen_defs.contains_key(&l) => metas.iter().copied().zip(ptys).collect(),
             _ => return (t, None),
         };
-        (t, Some(self.gen_copy(l, &map)))
+        let (ty, body) = self.gen_copy(l, &map, &t);
+        (ty, Some(body))
     }
 
     /// A copy of the definition of the let-generalized local `l` for one
@@ -8281,64 +10045,166 @@ impl Checker {
     /// fresh unit id. Fresh binders follow the originals' id order,
     /// because a `letrec` unit takes its captured locals sorted by id, in
     /// the order its call sites pass them.
-    fn gen_copy(&mut self, l: LocalId, map: &HashMap<crate::types::MetaId, Ty>) -> ECore {
+    fn gen_copy(&mut self, l: LocalId, map: &HashMap<crate::types::MetaId, Ty>, ty: &Ty) -> (Ty, ECore) {
         let def = self.gen_defs[&l].clone();
+        self.copy_checked_definition(&def, map, &StageTypeBindings::default(), ty)
+    }
+
+    /// Copy an elaborated body, retaining its captured locals and remapping
+    /// every owned binder, deferred check and nested recursive unit. A
+    /// universally checked annotation substitutes rigid namespaces here;
+    /// inferred let-polymorphism substitutes metavariables instead.
+    fn copy_checked_definition(
+        &mut self, def: &ECore, map: &HashMap<crate::types::MetaId, Ty>,
+        scope: &StageTypeBindings, ty: &Ty,
+    ) -> (Ty, ECore) {
         let rec: HashMap<GlobalId, usize> =
             self.pending_rec.iter().enumerate().map(|(i, (id, _))| (id.clone(), i)).collect();
-        let mut binders = Vec::new();
-        let mut named = Vec::new();
-        def_parts(&def, &mut binders, &mut named);
-        // The reachable `letrec` units, transitively.
-        let mut units: Vec<usize> = Vec::new();
-        while let Some(g) = named.pop() {
-            if let Some(&i) = rec.get(&g) {
+        let mut parts = CopyParts::default();
+        def_parts(&def, &mut parts);
+        // Reachable letrec bodies and checked stage-call metadata belong to
+        // this copy too. Merely copying their references keeps stale locals.
+        let mut units = Vec::new();
+        let mut calls = std::collections::BTreeMap::new();
+        while let Some(global) = parts.units.pop() {
+            if let Some(&i) = rec.get(&global) {
                 if !units.contains(&i) {
                     units.push(i);
-                    def_parts(&self.pending_rec[i].1, &mut binders, &mut named);
+                    def_parts(&self.pending_rec[i].1, &mut parts);
                 }
             }
+            if let Some(call) = self.stage_calls.borrow().get(&global.0).cloned() {
+                calls.insert(global.0.clone(), call);
+            }
         }
-        binders.sort_by_key(|b| b.0);
-        binders.dedup();
-        let mut locals: HashMap<LocalId, LocalId> = HashMap::with_capacity(binders.len());
-        for b in binders {
-            let n = self.fresh_local();
-            if let Some(t) = self.local_tys.get(&b) {
-                let t = self.uni.subst_metas(t, map);
-                self.local_tys.insert(n, t);
-            }
-            if let Some(c) = self.local_cls.get(&b).copied() {
-                self.local_cls.insert(n, c);
-            }
-            if let Some(o) = self.local_origin.get(&b).copied() {
-                self.local_origin.insert(n, o);
-            }
-            locals.insert(b, n);
+        parts.binders.sort_by_key(|binder| binder.0);
+        parts.binders.dedup();
+        let mut locals = HashMap::with_capacity(parts.binders.len());
+        for old in parts.binders {
+            let new = self.fresh_local();
+            if let Some(class) = self.local_cls.get(&old).copied() { self.local_cls.insert(new, class); }
+            if let Some(origin) = self.local_origin.get(&old).copied() { self.local_origin.insert(new, origin); }
+            locals.insert(old, new);
         }
-        let mut ids: HashMap<GlobalId, GlobalId> = HashMap::with_capacity(units.len());
+        let originals: Vec<_> = self.wants.iter().filter(|want| parts.wants.contains(&want.id)).cloned().collect();
+        let mut deferred = CopyDeferred::default();
+        let mut witnesses = HashMap::new();
+        for want in &originals {
+            deferred.wants.insert(want.id, self.want_counter);
+            self.want_counter += 1;
+            if let Some(ITerm::MVar(variable)) = want.evidence_index.as_ref().map(|index| self.uni.resolve_idx(index)) {
+                witnesses.entry(variable).or_insert_with(|| self.uni.fresh_idx_term());
+            }
+        }
+        for (offset, index) in parts.indices.iter().enumerate() {
+            deferred.indices.insert(*index, self.idx_pends.len() + offset);
+        }
+        let mut ids = HashMap::new();
         for &i in &units {
             let id = GlobalId(format!("{}.letrec#{}", self.current_module, self.lam_counter));
             self.lam_counter += 1;
             ids.insert(self.pending_rec[i].0.clone(), id);
         }
-        let (out, copies) = {
+        let first_call = self.stage_calls.borrow().len();
+        for (offset, original) in calls.keys().enumerate() {
+            ids.insert(GlobalId(original.clone()), GlobalId(format!("<checked-stage-call:{}>", first_call + offset)));
+        }
+        let mut call_rows = HashMap::new();
+        let mut call_regions = HashMap::new();
+        for (original, call) in &calls {
+            let mut rows = HashMap::new();
+            for (name, tail) in &call.arguments.rows {
+                let row = self.uni.resolve_row(&EffRow { labels: Vec::new(), tail: tail.clone() });
+                let row = subst_row(&row, &scope.rows, &scope.regions);
+                // A row argument is stored as a tail. Preserve any solved
+                // labels by binding a fresh tail to the complete copied row.
+                let fresh = self.uni.fresh_row();
+                self.uni.unify_rows(&fresh, &row).expect("a fresh row accepts the checked row");
+                rows.insert(name.clone(), fresh.tail);
+            }
+            call_rows.insert(original.clone(), rows);
+            call_regions.insert(original.clone(), call.arguments.regions.iter().map(|(name, region)| {
+                let region = self.uni.resolve_region(region);
+                (name.clone(), scope.regions.get(&region).cloned().unwrap_or(region))
+            }).collect::<HashMap<_, _>>());
+        }
+        let (copy_type, out, copies, wants, indices, prop_calls, stage_calls, local_types) = {
             let uni = &self.uni;
-            let tys = |t: &Ty| uni.subst_metas(t, map);
-            let r = Remap { locals: &locals, units: Some(&ids), tys: Some(&tys) };
-            let copies: Vec<(GlobalId, ECore)> = units
-                .iter()
-                .map(|&i| (ids[&self.pending_rec[i].0].clone(), remap_ecore(&self.pending_rec[i].1, &r)))
-                .collect();
-            (remap_ecore(&def, &r), copies)
+            let evidence: HashMap<_, _> = locals.iter().map(|(old, new)|
+                (IndexEvidence::Local(old.0), ITerm::Evidence(IndexEvidence::Local(new.0)))).collect();
+            // Rename the body's own bindings before inserting caller type
+            // arguments. Their free witnesses and locals belong to the caller
+            // even when they coincide with a binding in the original body.
+            let local_values = locals.iter().map(|(old, new)| (*old, ITerm::LocalValue(*new))).collect();
+            let tys = |ty: &Ty| uni.subst_metas(&Self::subst_namespaces(
+                &uni.zonk(ty).subst_index_metas(&witnesses).subst_evidence(&evidence).subst_local_values(&local_values),
+                &scope.types, &scope.rows, &scope.regions, &scope.evidence,
+            ), map);
+            let rename = Remap { locals: &locals, units: Some(&ids), tys: Some(&tys), deferred: Some(&deferred) };
+            // Complete the renaming first: types can refer to dictionaries
+            // allocated after the value binder whose type retains them.
+            let local_types: Vec<_> = locals.iter().filter_map(|(old, new)|
+                self.local_tys.get(old).map(|ty| (*new, rename.ty(ty)))).collect();
+            let wants: Vec<_> = originals.iter().map(|want| Want {
+                id: deferred.wants[&want.id], class: rename.class(&want.class), span: want.span,
+                scope: want.scope.iter().map(|(local, class)| (rename.local(*local), rename.class(class))).collect(),
+                method: want.method, evidence_index: want.evidence_index.as_ref().map(|index| rename.index(index)),
+            }).collect();
+            let indices: Vec<_> = parts.indices.iter().map(|index| {
+                let pending = &self.idx_pends[*index];
+                IdxPend {
+                    iterm: rename.index(&pending.iterm), carrier: rename.ty(&pending.carrier), span: pending.span,
+                    scope: IndexRuntimeScope {
+                        values: pending.scope.values.iter().map(|(name, local)| (name.clone(), rename.local(*local))).collect(),
+                        locals: pending.scope.locals.iter().map(|local| rename.local(*local)).collect(),
+                        dictionaries: pending.scope.dictionaries.iter().map(|local| rename.local(*local)).collect(),
+                    },
+                }
+            }).collect();
+            let prop_calls: Vec<_> = self.prop_calls.iter().filter_map(|call| {
+                let want = *deferred.wants.get(&call.want)?;
+                let mut call = call.clone();
+                call.want = want;
+                for (value, ty, _) in &mut call.args {
+                    *value = value.as_ref().map(|value| rename.index(value));
+                    *ty = rename.ty(ty);
+                }
+                for (_, predicate, local, _) in &mut call.evidence.items {
+                    *predicate = rename.proposition(predicate);
+                    *local = rename.local(*local);
+                }
+                call.evidence.refined = call.evidence.refined.iter().map(|predicate| rename.proposition(predicate)).collect();
+                call.evidence.value_sorts = call.evidence.value_sorts.iter().map(|(local, sort)| (rename.local(*local), *sort)).collect();
+                Some(call)
+            }).collect();
+            let stage_calls: Vec<_> = calls.iter().map(|(original, call)| {
+                let arguments = StageTypeBindings {
+                    types: call.arguments.types.iter().map(|(name, ty)| (name.clone(), rename.ty(ty))).collect(),
+                    evidence: call.arguments.evidence.iter().map(|(name, index)| (name.clone(), rename.index(index))).collect(),
+                    rows: call_rows[original].clone(), regions: call_regions[original].clone(),
+                };
+                (ids[&GlobalId(original.clone())].0.clone(), StageCall { target: rename.unit(&call.target), arguments })
+            }).collect();
+            let copies: Vec<_> = units.iter().map(|&i|
+                (ids[&self.pending_rec[i].0].clone(), remap_ecore(&self.pending_rec[i].1, &rename))).collect();
+            (rename.ty(ty), remap_ecore(&def, &rename), copies, wants, indices, prop_calls, stage_calls, local_types)
         };
+        self.local_tys.extend(local_types);
+        self.wants.extend(wants);
+        self.idx_pends.extend(indices);
+        self.prop_calls.extend(prop_calls);
+        self.stage_calls.borrow_mut().extend(stage_calls);
         self.pending_rec.extend(copies);
-        out
+        (copy_type, out)
     }
-
     /// [`Checker::instantiate`], also returning the metavariables the
     /// scheme's type parameters took, in `params` order: the use site's
     /// instantiation, whose classes lowering records.
-    fn instantiate_at(&mut self, s: &Scheme) -> (Ty, Vec<(String, ClassApp)>, Vec<Ty>, Vec<Ty>) {
+    fn instantiate_at(&mut self, s: &Scheme) -> (Ty, Vec<InstantiatedConstraint>, Vec<Ty>, Vec<Ty>) {
+        self.instantiate_scoped(s).0
+    }
+
+    fn instantiate_scoped(&mut self, s: &Scheme) -> ((Ty, Vec<InstantiatedConstraint>, Vec<Ty>, Vec<Ty>), StageTypeBindings) {
         let mut types = HashMap::new();
         let mut param_tys = Vec::with_capacity(s.params.len());
         for p in &s.params {
@@ -8378,12 +10244,19 @@ impl Checker {
             self.uni.note_flex_region(&fresh);
             regions.insert(p.clone(), fresh);
         }
+        let mut evidence = HashMap::new();
+        for (name, _) in &s.ctx { evidence.insert(dictionary_parameter(name), self.uni.fresh_idx_term()); }
+        for parameter in &s.evidence_params { evidence.entry(parameter.clone()).or_insert_with(|| self.uni.fresh_idx_term()); }
         let ctx = s
             .ctx
             .iter()
-            .map(|(n, c)| (n.clone(), Self::subst_full_class(c, &types, &rows, &regions)))
+            .map(|(n, c)| InstantiatedConstraint {
+                name: n.clone(), class: Self::subst_class_namespaces(c, &types, &rows, &regions, &evidence),
+                witness: evidence[&dictionary_parameter(n)].clone(),
+            })
             .collect();
-        (Self::subst_full(&s.ty, &types, &rows, &regions), ctx, val_args, param_tys)
+        let result = (Self::subst_namespaces(&s.ty, &types, &rows, &regions, &evidence), ctx, val_args, param_tys);
+        (result, StageTypeBindings { types, rows, regions, evidence })
     }
 
     fn subst_full_class(
@@ -8405,7 +10278,7 @@ impl Checker {
     /// Turn a scheme into a definition signature with rigid parameters.
     /// Index and implicit value parameters keep their names: the
     /// definition's equation patterns and body mention them by name.
-    fn rigidify(&mut self, s: &Scheme) -> (Ty, Vec<(String, ClassApp)>, HashMap<String, Ty>) {
+    fn rigidify(&mut self, s: &Scheme) -> (Ty, Vec<(String, ClassApp, LocalId)>, StageTypeBindings) {
         let mut types = HashMap::new();
         for p in &s.params {
             types.insert(p.clone(), Ty::Param(self.fresh_param(p)));
@@ -8434,15 +10307,42 @@ impl Checker {
         for p in &s.region_params {
             regions.insert(p.clone(), self.fresh_param(p));
         }
-        let ctx = s
-            .ctx
-            .iter()
-            .map(|(n, c)| (n.clone(), Self::subst_full_class(c, &types, &rows, &regions)))
-            .collect();
+        let mut dictionary_locals = Vec::new();
+        let mut evidence = HashMap::new();
+        for parameter in &s.evidence_params { evidence.insert(parameter.clone(), ITerm::Evidence(parameter.clone())); }
+        for (name, _) in &s.ctx {
+            let local = self.fresh_local();
+            evidence.insert(dictionary_parameter(name), IndexDictionaryBinding::from(local).0);
+            dictionary_locals.push(local);
+        }
+        let ctx: Vec<_> = s.ctx.iter().zip(dictionary_locals).map(|((name, class), local)|
+            (name.clone(), Self::subst_class_namespaces(class, &types, &rows, &regions, &evidence), local)).collect();
+        let mut scope = Scheme::mono(Ty::Unit);
+        scope.params = s.params.iter().filter_map(|p| match types.get(p) {
+            Some(Ty::Param(name)) => Some(name.clone()), _ => None,
+        }).collect();
+        scope.con_params = s.con_params.iter().filter_map(|(p, arity)| match types.get(p) {
+            Some(Ty::Param(name)) => Some((name.clone(), *arity)), _ => None,
+        }).collect();
+        scope.idx_params = s.idx_params.iter().map(|p| match p {
+            IxParam::Val(n, dom) => IxParam::Val(n.clone(), Self::subst_namespaces(dom, &types, &rows, &regions, &evidence)),
+            IxParam::Prop(n) => IxParam::Prop(n.clone()),
+        }).collect();
+        scope.idx_params.extend(s.val_params.iter().map(|(n, dom)|
+            IxParam::Val(n.clone(), Self::subst_namespaces(dom, &types, &rows, &regions, &evidence))));
+        scope.idx_params.extend(s.prop_params.iter().cloned().map(IxParam::Prop));
+        scope.row_params = s.row_params.iter().filter_map(|p| match &rows[p] {
+            RowTail::Rigid(name) => Some(name.clone()), _ => None,
+        }).collect();
+        scope.region_params = s.region_params.iter().map(|p| regions[p].clone()).collect();
+        scope.ctx = ctx.iter().map(|(name, class, _)| (name.clone(), class.clone())).collect();
+        scope.evidence_params = ctx.iter().map(|(_, _, local)| IndexEvidence::Local(local.0)).collect();
+        scope.evidence_params.extend(s.evidence_params.iter().cloned());
+        self.code_quantifiers = scope;
         (
-            Self::subst_full(&s.ty, &types, &rows, &regions),
+            Self::subst_namespaces(&s.ty, &types, &rows, &regions, &evidence),
             ctx,
-            types,
+            StageTypeBindings { types, rows, regions, evidence },
         )
     }
 
@@ -8457,7 +10357,14 @@ impl Checker {
             span,
             scope: env.dicts.clone(),
             method: false,
+            evidence_index: None,
         });
+        id
+    }
+
+    fn new_context_want(&mut self, constraint: &InstantiatedConstraint, span: ast::Span, env: &Env) -> usize {
+        let id = self.new_want(constraint.class.clone(), span, env);
+        self.wants.last_mut().expect("new want").evidence_index = Some(constraint.witness.clone());
         id
     }
 
@@ -8474,6 +10381,10 @@ impl Checker {
             for &i in &pending {
                 match self.solve(&wants[i].class, &wants[i].scope, 0, wants[i].span)? {
                     Solved(d) => {
+                        if let Some(index) = &wants[i].evidence_index {
+                            let actual = d.index_with(&self.uni, &|local| IndexDictionaryBinding::from(*local).0);
+                            self.uni.unify_idx(index, &actual).map_err(|error| Error::at(wants[i].span, error))?;
+                        }
                         solutions.insert(wants[i].id, d);
                         progress = true;
                     }
@@ -8542,356 +10453,16 @@ impl Checker {
         depth: usize,
         span: ast::Span,
     ) -> Result<SolveOutcome> {
-        if depth > 16 {
-            return Err(Error::at(span, "dictionary resolution too deep (recursive instance?)"));
+        let mut resolver = DictionaryResolver { checker: self, uni: self.uni.clone(), transfers: Vec::new() };
+        let result = resolver.solve(wanted, scope, depth, span);
+        let DictionaryResolver { uni, transfers, .. } = resolver;
+        self.uni = uni;
+        for transfer in transfers {
+            let instance = self.instance_list[transfer.instance].clone();
+            self.record_transfer(&instance, &transfer.obligs, transfer.container,
+                &transfer.wanted, &transfer.subdicts, transfer.span)?;
         }
-        let wanted_z = self.uni.zonk_class(wanted);
-        // Visible `using` binders win over instances, nearest first (the
-        // nearest explicitly introduced provider binds the name).
-        for (local, binder) in scope.iter().rev() {
-            let binder_z = self.uni.zonk_class(binder);
-            if binder_z.class == wanted_z.class {
-                let mut trial = self.uni.clone();
-                let ok = trial.unify(
-                    &Ty::Adt(binder_z.class.clone(), binder_z.args.clone()),
-                    &Ty::Adt(wanted_z.class.clone(), wanted_z.args.clone()),
-                );
-                if ok.is_ok() {
-                    self.uni = trial;
-                    return Ok(Solved(DictExpr::Binder(*local)));
-                }
-            }
-        }
-        // Runtime capabilities are lexical evidence only: there are no
-        // `Io` instances, and nothing global is searched (decision D21).
-        if is_capability_class(&wanted_z.class) {
-            return Err(Error::at(
-                span,
-                format!(
-                    "no {wanted_z} capability in scope; supply one lexically with `with (io = ...) in` or `f @{{io = ...}}`, or take it in a `using` clause"
-                ),
-            ));
-        }
-        let class = wanted_z.class.clone();
-        // The `Copy` class is compiler-known with structural instances
-        // (ownership and usage design, section 3); there are no user
-        // instances and its dictionary is a marker.
-        if class == "Copy" {
-            if let [t] = wanted_z.args.as_slice() {
-                if !self.uni.free_metas(t).is_empty() {
-                    // An undetermined literal may still fix the type.
-                    return Ok(Ambiguous);
-                }
-                return if self.copy_structural(t, scope, &mut Vec::new()) {
-                    Ok(Solved(DictExpr::Marker))
-                } else {
-                    Err(Error::at(
-                        span,
-                        format!(
-                            "no Copy evidence for {t} (copying needs a Copy type or a `using (copy :: Copy a)` constraint)"
-                        ),
-                    ))
-                };
-            }
-            return Err(Error::at(
-                span,
-                format!("Copy expects exactly one type argument, got {wanted_z}"),
-            ));
-        }
-        // Collection literals default their container when nothing else
-        // determines it (surface grammar local amendments section 10):
-        // `[..]` unconstrained is a `List`, `{..}` a `Map`.
-        if class == "FromList" && wanted_z.args.len() == 2 {
-            if matches!(self.uni.zonk(&wanted_z.args[0]), Ty::Meta(_)) {
-                let list = Ty::Adt("List".into(), vec![wanted_z.args[1].clone()]);
-                self.uni
-                    .unify(&wanted_z.args[0], &list)
-                    .map_err(|m| Error::at(span, m))?;
-            }
-        } else if class == "FromMap" && wanted_z.args.len() == 3 {
-            if matches!(self.uni.zonk(&wanted_z.args[0]), Ty::Meta(_)) {
-                let map = Ty::Adt(
-                    "Map".into(),
-                    vec![wanted_z.args[1].clone(), wanted_z.args[2].clone()],
-                );
-                self.uni
-                    .unify(&wanted_z.args[0], &map)
-                    .map_err(|m| Error::at(span, m))?;
-            }
-        }
-        let wanted_z = self.uni.zonk_class(wanted);
-        let wanted_app = Ty::Adt(class.clone(), wanted_z.args.clone());
-        let mut matches: Vec<MatchCand> = Vec::new();
-        if let Some(idxs) = self.instances.get(&class).cloned() {
-            for i in idxs {
-                if !self.instance_list[i].implicit && Some(i) != self.self_instance {
-                    continue;
-                }
-                // A parameterized module's declared instance needs its
-                // module's parameters: it resolves only inside that module,
-                // where the parameters are the definition's leading
-                // dictionary binders (module parameters as module
-                // arguments). Each instantiation publishes its own copy.
-                if self.instance_list[i].base
-                    && self.instance_list[i].module != self.current_module
-                    && Some(i) != self.self_instance
-                {
-                    continue;
-                }
-                let inst = &self.instance_list[i];
-                // One-way match: the instance's parameters become fresh
-                // metavariables and the target is unified with the wanted
-                // class application in a trial unifier, so a candidate that
-                // fails leaves no bindings. A wanted metavariable is
-                // determined by the unique matching instance, which is what
-                // fixes literal types (primitive types specification,
-                // section 7). Predicate parameters (`refined p T`'s `p`)
-                // become proposition metavariables and bind by proposition
-                // unification in the lattice match.
-                let prop_params = Self::prop_param_names(&inst.params, &inst.target);
-                let mut fresh: HashMap<String, Ty> = HashMap::new();
-                for p in &inst.params {
-                    fresh.insert(
-                        p.clone(),
-                        if prop_params.contains(p) {
-                            self.uni.fresh_prop()
-                        } else {
-                            self.uni.fresh()
-                        },
-                    );
-                }
-                let target = Self::subst_class(&inst.target, &fresh);
-                let mut trial = self.uni.clone();
-                let target_app = Ty::Adt(class.clone(), target.args.clone());
-                // Structural matching first (the ordinary case), then the
-                // refinement lattice: a head at `refined h` serves every
-                // want whose predicate implies `h` (the value weakens to
-                // the head), and a plain head serves refined wants (the
-                // container's methods at the point).
-                let matched = trial.unify(&target_app, &wanted_app).is_ok()
-                    || self.lattice_match(&target.args, &wanted_z.args, &mut trial);
-                if !matched {
-                    continue;
-                }
-                // A candidate whose target leaves an instance parameter
-                // bound only to an UNDETERMINED metavariable is not
-                // applicable to THIS want; it is not a malformed
-                // instance. `Eq (Down a)` structurally matches a want
-                // `Eq ?x` (from an unannotated literal, say) by binding
-                // `?x := Down ?a`, which determines nothing, and the
-                // wanted type is meant to come from the context (literal
-                // defaulting, D7) rather than from an instance chosen
-                // here. Skipping the candidate lets a later candidate or
-                // the deferral below handle the want; erroring here
-                // aborted the whole obligation as soon as any instance
-                // with a parameter sat earlier in the family than the
-                // nullary instance that used to answer it.
-                let mut sub = HashMap::new();
-                let mut determined = true;
-                for p in &inst.params {
-                    let t = trial.zonk(&fresh[p]);
-                    if t == fresh[p] {
-                        determined = false;
-                        break;
-                    }
-                    sub.insert(p.clone(), t);
-                }
-                if !determined {
-                    continue;
-                }
-                let mut cond = self.head_cond(&target.args, &trial);
-                for item in &inst.ctx {
-                    if let InstCtx::Oblig(PropOblig::Pred(p)) = item {
-                        // A constraint-form instance's applicability
-                        // condition is its obligation set (ordered by the
-                        // same implication lattice).
-                        let p = Checker::subst_pt(p, &sub);
-                        let p = trial.resolve_prop(&p);
-                        cond = Some(match cond {
-                            None => p,
-                            Some(q) => PTerm::And(Box::new(q), Box::new(p)),
-                        });
-                    }
-                }
-                matches.push(MatchCand {
-                    idx: i,
-                    sub,
-                    trial,
-                    cond,
-                    generic_head: !prop_params.is_empty(),
-                });
-            }
-        }
-        if matches.is_empty() {
-            return Err(Error::at(
-                span,
-                format!(
-                    "no instance for {wanted_z}{}",
-                    undetermined_hint(&self.uni, &wanted_z)
-                ),
-            ));
-        }
-        // Most-specific lattice resolution (refinement types design,
-        // "instance heads at refinements"): among the candidates whose
-        // heads the want matches, the strongest head condition wins (the
-        // implication lattice); a predicate-parameterized head (the
-        // generic transfer) loses a tie to a stated head. Incomparable
-        // strongest candidates have no winner: the coherence error.
-        let stronger = |a: &Option<PTerm>, b: &Option<PTerm>| {
-            Self::cond_implies(a, b) && !Self::cond_implies(b, a)
-        };
-        let maximal: Vec<usize> = (0..matches.len())
-            .filter(|&c| {
-                !(0..matches.len()).any(|o| o != c && stronger(&matches[o].cond, &matches[c].cond))
-            })
-            .collect();
-        // The maximal candidates group into strength-equivalence classes
-        // (mutually implying head conditions); classes are pairwise
-        // incomparable.
-        let mut classes: Vec<Vec<usize>> = Vec::new();
-        for &c in &maximal {
-            match classes
-                .iter_mut()
-                .find(|cl| Self::cond_implies(&matches[c].cond, &matches[cl[0]].cond))
-            {
-                Some(cl) => cl.push(c),
-                None => classes.push(vec![c]),
-            }
-        }
-        let ground = self.uni.free_metas(&wanted_app).is_empty();
-        let ambiguous = if classes.len() > 1 {
-            if !ground {
-                return Ok(Ambiguous);
-            }
-            // Incomparable strongest heads at a common refinement: no
-            // winner (the coherence rule, D119 extended).
-            let a = &self.instance_list[matches[classes[0][0]].idx];
-            let b = &self.instance_list[matches[classes[1][0]].idx];
-            let point = wanted_z
-                .args
-                .iter()
-                .find_map(|t| self.refine_view(t))
-                .map(|v| v.pred.to_string())
-                .unwrap_or_else(|| wanted_z.to_string());
-            return Err(Error::at(
-                span,
-                format!(
-                    "coherence: instances `{}` (head {}) and `{}` (head {}) are incomparable constrained instances, and both match this refinement ({point}) (the coherence rule: a use at a common refinement needs one most-specific instance; state one head with a predicate implying the other)",
-                    a.name, a.target, b.name, b.target
-                ),
-            ));
-        } else {
-            // One strongest class: a stated head beats the generic
-            // transfer (most-specific, like typeclass instance selection);
-            // unresolved ties defer to the fixpoint like any
-            // underdetermined want.
-            let class = &classes[0];
-            let stated: Vec<usize> = class
-                .iter()
-                .copied()
-                .filter(|&c| !matches[c].generic_head)
-                .collect();
-            match stated.as_slice() {
-                [only] => Some(*only),
-                [] if class.len() == 1 => Some(class[0]),
-                _ => None,
-            }
-        };
-        let pick = match ambiguous {
-            Some(p) => p,
-            None => return Ok(Ambiguous),
-        };
-        let cand = &matches[pick];
-        let (idx, sub, trial) = (cand.idx, cand.sub.clone(), cand.trial.clone());
-                // A unique match that leaves an instance parameter bound
-                // only to an undetermined literal defers to literal
-                // defaulting (decision D7): `[1]` with no other constraint
-                // is a `List Int`, not an unsolved literal type.
-                let lits = self.literal_metas();
-                let undetermined = sub.values().any(|t| {
-                    matches!(t, Ty::Meta(m) if lits.contains(&EitherMeta::Type(*m)))
-                });
-                if undetermined {
-                    return Ok(Ambiguous);
-                }
-                let (ctx, base_id, base) = {
-                    let inst = &self.instance_list[idx];
-                    (inst.ctx.clone(), inst.base_id.clone(), inst.base)
-                };
-                self.uni = trial.clone();
-                let mut subs = Vec::new();
-                // The module's own instance dictionary closes over the
-                // module's parameters (the definition's leading binders).
-                if base {
-                    for (_, l, _) in &self.cur_mod_params {
-                        subs.push(DictExpr::Binder(*l));
-                    }
-                }
-                let mut obligs: Vec<PropOblig> = Vec::new();
-                let mut container: Option<GlobalId> = None;
-                let mut subdicts: Vec<(String, Vec<Ty>)> = Vec::new();
-                for item in &ctx {
-                    let c = match item {
-                        InstCtx::Dict(_, c) => Self::subst_class(c, &sub),
-                        InstCtx::Oblig(o) => {
-                            obligs.push(Self::subst_oblig(o, &sub));
-                            continue;
-                        }
-                    };
-                    match self.solve(&c, scope, depth + 1, span)? {
-                        Solved(d) => {
-                            // A sub-dictionary is applied inside the
-                            // outer instance's methods, never at a call
-                            // the caller sees: an instance whose methods
-                            // carry obligations over their own arguments
-                            // cannot serve one.
-                            if let DictExpr::Instance(id, _, _) = &d {
-                                if let Some(si) = self
-                                    .instance_list
-                                    .iter()
-                                    .find(|i| i.base_id == *id && !i.method_obligs.is_empty())
-                                {
-                                    let cz = self.uni.zonk_class(&c);
-                                    return Err(Error::at(
-                                        span,
-                                        Self::method_oblig_refusal(si, &cz.to_string()),
-                                    ));
-                                }
-                            }
-                            // The generic transfer's rep-identity
-                            // dictionary is the container's: the same-class
-                            // sub-dictionary names its owner for the law
-                            // rows.
-                            if container.is_none() && c.class == class {
-                                if let DictExpr::Instance(id, _, _) = &d {
-                                    container = Some(id.clone());
-                                }
-                            }
-                            subdicts.push((c.class.clone(), c.args.clone()));
-                            subs.push(d);
-                        }
-                        Ambiguous => {
-                            let cz = self.uni.zonk_class(&c);
-                            return Err(Error::at(
-                                span,
-                                format!(
-                                    "ambiguous instances for {cz}{}",
-                                    undetermined_hint(&self.uni, &cz)
-                                ),
-                            ));
-                        }
-                    }
-                }
-                let inst_info = self.instance_list[idx].clone();
-                self.record_transfer(&inst_info, &obligs, container, wanted, &subdicts, span)?;
-                // The dictionary's class vector ranges over the instance's
-                // own parameters, as the match bound them.
-                let tys: Vec<Ty> = inst_info
-                    .params
-                    .iter()
-                    .map(|p| sub.get(p).cloned().unwrap_or(Ty::Unit))
-                    .collect();
-                Ok(Solved(DictExpr::Instance(base_id, subs, tys)))
+        result
     }
 
     /// The instance parameters a target states as proposition variables
@@ -9285,7 +10856,20 @@ impl Checker {
     /// `Preserves` obligation is the same check stated as its validity
     /// condition.
     fn record_transfer(
-        &mut self,
+        &self,
+        inst: &InstanceInfo,
+        obligs: &[PropOblig],
+        container: Option<GlobalId>,
+        wanted: &ClassApp,
+        subdicts: &[(String, Vec<Ty>)],
+        span: ast::Span,
+    ) -> Result<()> {
+        self.record_transfer_in(&self.uni, inst, obligs, container, wanted, subdicts, span)
+    }
+
+    fn record_transfer_in(
+        &self,
+        uni: &Unifier,
         inst: &InstanceInfo,
         obligs: &[PropOblig],
         container: Option<GlobalId>,
@@ -9301,7 +10885,7 @@ impl Checker {
         else {
             return Ok(());
         };
-        let wanted = self.uni.zonk_class(wanted);
+        let wanted = uni.zonk_class(wanted);
         let scope = match &container {
             Some(g) => g.0.clone(),
             None => format!("{}.{}", inst.module, inst.name),
@@ -9333,7 +10917,7 @@ impl Checker {
                         other => break other,
                     }
                 };
-                let direct = self.uni.conv_eq(&res, arg);
+                let direct = uni.conv_eq(&res, arg);
                 let nested = !direct && self.ty_refine_mention(&res).is_some();
                 if !direct && !nested {
                     continue;
@@ -9341,11 +10925,11 @@ impl Checker {
                 // One check per (dictionary, point, method): the same
                 // transfer resolved at several uses checks once.
                 let key = (scope.clone(), rv.pred.to_string(), mname.clone());
-                if !self.transfer_seen.insert(key) {
+                if !self.transfer_seen.borrow_mut().insert(key) {
                     continue;
                 }
                 let _ = &obligs;
-                self.transfer_obligs.push(TransferOblig {
+                self.transfer_obligs.borrow_mut().push(TransferOblig {
                     container: scope.clone(),
                     module: inst.module.clone(),
                     instance: inst.name.clone(),
@@ -9380,7 +10964,7 @@ impl Checker {
             | ECore::Unit | ECore::Var(_) | ECore::Global(..)
             | ECore::Ctor(..) | ECore::Prim(_) | ECore::Foreign(_) | ECore::QuoteHole(_)
             | ECore::IdxPending(_) | ECore::Fault
-            | ECore::SyntaxLit(_) | ECore::StrLit(_) => e.clone(),
+            | ECore::SyntaxLit(..) | ECore::StrLit(_) => e.clone(),
             ECore::BoxAlloc => ECore::BoxAlloc,
             ECore::BoxInit(l, v, t) => {
                 ECore::BoxInit(*l, Box::new(self.fill_holes(v, sol)?), t.clone())
@@ -9508,6 +11092,8 @@ impl Checker {
         if p.segments.len() != 1 {
             return None;
         }
+        if p.segments[0].resolved_binding().is_some() { return None; }
+        if p.segments[0].scoped_reference().is_some_and(|scope| scope.origin() != self.current_module) { return None; }
         let name = &p.segments[0].text;
         self.cur_mod_params
             .iter()
@@ -9603,9 +11189,12 @@ fn shifted_meta(meta: &crate::core::FnMeta, k: usize) -> crate::core::FnMeta {
 // lives in `check_terms.rs`; declaration collection and program assembly in
 // `check_decls.rs`. Both are included at module scope.
 include!("check_terms.rs");
+include!("check_code.rs");
+include!("check_dictionary.rs");
 include!("check_decls.rs");
 include!("check_interface.rs");
 include!("check_total.rs");
+include!("check_erasure.rs");
 
 #[cfg(test)]
 mod proof_value_scope_tests {
@@ -9616,6 +11205,507 @@ mod proof_value_scope_tests {
         env.locals.push(("payload".into(), LocalId(1), Scheme::mono(Ty::Unit)));
         env.locals.push(("payload".into(), LocalId(2), Scheme::mono(Ty::Unit)));
         assert_eq!(env.lookup("payload").unwrap().0, LocalId(2));
-        assert!(env.lookup("$proof-value:1").is_none());
+        assert!(env.lookup(&ITerm::LocalValue(LocalId(1)).to_string()).is_none());
+        let captured = PTerm::Eq(Box::new(ITerm::Var("payload".into())), Box::new(ITerm::num(0)));
+        let checker = Checker::new();
+        assert_eq!(checker.proof_values_in_scope(&captured,
+            &HashMap::from([("payload".into(), LocalId(1))]), &env),
+            PTerm::Eq(Box::new(ITerm::LocalValue(LocalId(1))), Box::new(ITerm::num(0))));
+    }
+}
+
+#[cfg(test)]
+mod index_substitution_tests {
+    use super::*;
+
+    #[test]
+    fn index_headers_wait_for_complete_instances_even_when_one_matches() {
+        let mut checker = Checker::new();
+        checker.collecting_declarations = true;
+        let class = ClassApp { class: "SampleMeasure".into(), args: vec![Ty::Int] };
+        checker.instance_list.push(InstanceInfo {
+            module: "Library".into(), name: "MeasureInt".into(), params: vec![], ctx: vec![], target: class.clone(),
+            base_id: GlobalId("Library.MeasureInt".into()), implicit: true, base: false,
+            method_obligs: vec![], method_contracts: vec![],
+        });
+        checker.instances.insert(class.class.clone(), vec![0]);
+        let request = |checker: &Checker| {
+            let mut inference = IndexInference::new(&checker.uni);
+            let witness = inference.uni.fresh_idx_term();
+            inference.dictionaries.push(PendingIndexDictionary {
+                parameter: witness.clone(), class: class.clone(), scope: vec![], span: ast::Span { line: 1, col: 1 },
+            });
+            (inference, witness)
+        };
+        let (mut incomplete, _) = request(&checker);
+        assert!(checker.finish_index_inference(&mut incomplete).is_err());
+        assert!(checker.declaration_needs_headers.get());
+        checker.declaration_seed = Some(checker.instance_list.clone());
+        let (mut complete, witness) = request(&checker);
+        checker.finish_index_inference(&mut complete).unwrap();
+        assert!(matches!(complete.uni.resolve_idx(&witness), ITerm::Inst(call)
+            if call.head == IndexHead::Dictionary("Library.MeasureInt".into())));
+    }
+
+    #[test]
+    fn index_generic_copy_owns_its_deferred_evidence_and_preserves_outer_captures() {
+        let mut checker = Checker::new();
+        let span = ast::Span { line: 1, col: 1 };
+        let binding = checker.fresh_local();
+        let outer = checker.fresh_local();
+        let inner = checker.fresh_local();
+        let argument = checker.fresh_local();
+        let parameter = checker.uni.fresh();
+        let Ty::Meta(meta) = parameter else { unreachable!() };
+        let witness = checker.uni.fresh_idx_term();
+        let class = ClassApp { class: "SampleMeasure".into(), args: vec![] };
+        let mut environment = Env::default();
+        environment.dicts = vec![(outer, class.clone()), (inner, class.clone())];
+        let want = checker.new_context_want(&InstantiatedConstraint {
+            name: "provider".into(), class, witness: witness.clone(),
+        }, span, &environment);
+        checker.idx_pends.push(IdxPend {
+            iterm: witness.clone(), carrier: Ty::Nat, span,
+            scope: IndexRuntimeScope {
+                values: HashMap::from([("item".into(), argument)]),
+                locals: HashSet::from([argument]),
+                dictionaries: HashSet::from([outer, inner]),
+            },
+        });
+        checker.prop_calls.push(PropCall {
+            want, method: None, args: vec![(Some(witness.clone()), parameter.clone(), span)],
+            evidence: Evidence { items: vec![("source".into(), PTerm::Eq(Box::new(witness.clone()), Box::new(witness.clone())), inner, vec![])],
+                value_sorts: vec![(argument, IntSort::Nat), (outer, IntSort::Nat)], ..Evidence::default() },
+            residual_fun: false, span,
+        });
+        let stage_id = GlobalId("<checked-stage-call:0>".into());
+        checker.stage_calls.borrow_mut().insert(stage_id.0.clone(), StageCall {
+            target: GlobalId("Library.helper".into()),
+            arguments: StageTypeBindings {
+                types: HashMap::from([("a".into(), parameter.clone())]),
+                evidence: HashMap::from([(dictionary_parameter("provider"), witness.clone())]),
+                ..StageTypeBindings::default()
+            },
+        });
+        let original_type = Ty::Tuple(vec![parameter.clone(), Ty::Idx(Box::new(witness.clone())),
+            Ty::Idx(Box::new(ITerm::LocalValue(inner))), Ty::Idx(Box::new(ITerm::LocalValue(argument))),
+            Ty::Idx(Box::new(ITerm::LocalValue(outer)))]);
+        checker.local_tys.insert(inner, original_type.clone());
+        checker.gen_defs.insert(binding, ECore::Lam {
+            params: vec![argument], body: Box::new(ECore::Let(inner, Box::new(ECore::Unit), Box::new(ECore::App(
+                Box::new(ECore::Global(stage_id.clone(), vec![parameter])), vec![ECore::Hole(want), ECore::IdxPending(0), ECore::Var(outer)],
+            )))),
+        });
+        let caller_argument = Ty::Tuple(vec![Ty::Prim(Scalar::U32),
+            Ty::Idx(Box::new(ITerm::Evidence(IndexEvidence::Local(inner.0)))), Ty::Idx(Box::new(witness.clone())),
+            Ty::Idx(Box::new(ITerm::LocalValue(inner)))]);
+        let (copy_type, body) = checker.gen_copy(binding, &HashMap::from([(meta, caller_argument.clone())]), &original_type);
+        let ECore::Lam { params, body } = body else { panic!("lost function") };
+        let ECore::Let(new_inner, _, body) = *body else { panic!("lost provider") };
+        let ECore::App(head, args) = *body else { panic!("lost call") };
+        let ECore::Global(new_stage, types) = *head else { panic!("lost stage metadata") };
+        let [ECore::Hole(new_want), ECore::IdxPending(new_index), ECore::Var(captured)] = args.as_slice() else { panic!("lost deferred call records") };
+        assert_ne!(params[0], argument);
+        assert_ne!(new_inner, inner);
+        assert_eq!(*captured, outer);
+        assert_ne!(*new_want, want);
+        assert_eq!(checker.wants[0].scope[1].0, inner);
+        assert_eq!(checker.wants[1].scope[1].0, new_inner);
+        assert_eq!(checker.wants[1].scope[0].0, outer);
+        assert_eq!(types, vec![caller_argument.clone()]);
+        assert_ne!(new_stage, stage_id);
+        let pending = &checker.idx_pends[*new_index];
+        assert_eq!(pending.scope.values["item"], params[0]);
+        assert_eq!(pending.scope.locals, HashSet::from([params[0]]));
+        assert_eq!(pending.scope.dictionaries, HashSet::from([outer, new_inner]));
+        assert_eq!(checker.prop_calls[1].want, *new_want);
+        assert_eq!(checker.prop_calls[1].evidence.items[0].2, new_inner);
+        assert_eq!(checker.prop_calls[1].evidence.value_sorts, vec![(params[0], IntSort::Nat), (outer, IntSort::Nat)]);
+        let call = checker.stage_calls.borrow()[&new_stage.0].clone();
+        assert_eq!(call.arguments.types["a"], caller_argument);
+        checker.solve_wants().unwrap();
+        let expected = Ty::Tuple(vec![checker.uni.zonk(&caller_argument), Ty::Idx(Box::new(ITerm::Evidence(IndexEvidence::Local(new_inner.0)))),
+            Ty::Idx(Box::new(ITerm::LocalValue(new_inner))), Ty::Idx(Box::new(ITerm::LocalValue(params[0]))),
+            Ty::Idx(Box::new(ITerm::LocalValue(outer)))]);
+        assert_eq!(checker.uni.zonk(&copy_type), expected);
+        assert_eq!(checker.uni.zonk(&checker.local_tys[&new_inner]), expected);
+        assert_eq!(checker.uni.resolve_idx(&call.arguments.evidence[&dictionary_parameter("provider")]), ITerm::Evidence(IndexEvidence::Local(new_inner.0)));
+        assert_eq!(checker.uni.resolve_idx(&checker.idx_pends[*new_index].iterm), ITerm::Evidence(IndexEvidence::Local(new_inner.0)));
+        assert_eq!(checker.uni.resolve_idx(&witness), ITerm::Evidence(IndexEvidence::Local(inner.0)));
+    }
+
+    #[test]
+    fn index_substitution_does_not_capture_callers_same_named_evidence() {
+        let caller = ITerm::Evidence(dictionary_parameter("provider"));
+        let original = Ty::Tuple(vec![Ty::Param("a".into()), Ty::Idx(Box::new(caller.clone()))]);
+        let result = Checker::subst_namespaces(&original,
+            &HashMap::from([("a".into(), Ty::Idx(Box::new(caller.clone())))]),
+            &HashMap::new(), &HashMap::new(),
+            &HashMap::from([(dictionary_parameter("provider"), ITerm::Evidence(IndexEvidence::Local(12)))]));
+        assert_eq!(result, Ty::Tuple(vec![Ty::Idx(Box::new(caller)), Ty::Idx(Box::new(ITerm::Evidence(IndexEvidence::Local(12))))]));
+    }
+
+    #[test]
+    fn checked_body_copy_instantiates_stage_call_rows_and_regions() {
+        let mut checker = Checker::new();
+        let stage = GlobalId("<checked-stage-call:0>".into());
+        let row = EffRow { labels: vec![EffLabel::with_arg("Read", "region#rigid")], tail: RowTail::Rigid("row#rigid".into()) };
+        let ty = Ty::fun_eff(Ty::Unit, row.clone(), Ty::Region("region#rigid".into()));
+        let solved = checker.uni.fresh_row();
+        checker.uni.unify_rows(&solved, &row).unwrap();
+        checker.stage_calls.borrow_mut().insert(stage.0.clone(), StageCall {
+            target: GlobalId("Library.helper".into()),
+            arguments: StageTypeBindings {
+                types: HashMap::from([("a".into(), ty.clone())]),
+                rows: HashMap::from([("e".into(), solved.tail)]),
+                regions: HashMap::from([("r".into(), "region#rigid".into())]),
+                ..StageTypeBindings::default()
+            },
+        });
+        let scope = StageTypeBindings {
+            rows: HashMap::from([("row#rigid".into(), RowTail::Closed)]),
+            regions: HashMap::from([("region#rigid".into(), "caller-region".into())]),
+            ..StageTypeBindings::default()
+        };
+        let (_, copied) = checker.copy_checked_definition(&ECore::Global(stage.clone(), vec![ty]), &HashMap::new(), &scope, &Ty::Unit);
+        let ECore::Global(copied, _) = copied else { panic!("lost stage call") };
+        assert_ne!(copied, stage);
+        let call = checker.stage_calls.borrow()[&copied.0].clone();
+        let expected = EffRow::closed(vec![EffLabel::with_arg("Read", "caller-region")]);
+        assert_eq!(checker.uni.resolve_row(&EffRow { labels: vec![], tail: call.arguments.rows["e"].clone() }), expected);
+        assert_eq!(call.arguments.regions["r"], "caller-region");
+        assert_eq!(call.arguments.types["a"], Ty::fun_eff(Ty::Unit, expected, Ty::Region("caller-region".into())));
+        assert_eq!(checker.stage_calls.borrow()[&stage.0].arguments.regions["r"], "region#rigid");
+    }
+
+    #[test]
+    fn index_dictionary_reification_requires_checked_runtime_scope() {
+        let checker = Checker::new();
+        let span = ast::Span { line: 1, col: 1 };
+        let evidence = ITerm::Evidence(IndexEvidence::Local(7));
+        let mut scope = IndexRuntimeScope::default();
+        scope.values.insert("$dictionary-local:7".into(), LocalId(8));
+        assert!(checker.reify_idx(&evidence, &scope, true, span).is_err());
+        scope.dictionaries.insert(LocalId(7));
+        assert!(matches!(checker.reify_idx(&evidence, &scope, true, span).unwrap(), ECore::Var(LocalId(7))));
+        assert!(matches!(checker.reify_idx(&ITerm::Var("$dictionary-local:7".into()), &scope, true, span).unwrap(), ECore::Var(LocalId(8))));
+    }
+
+    #[test]
+    fn index_quote_copy_remaps_native_metadata_without_rebinding_source_names() {
+        let span = ast::Span { line: 1, col: 1 };
+        let name = ast::Name::bound("captured", span, ast::LocalBinding::fresh());
+        let identity = |local| Ty::Idx(Box::new(ITerm::Evidence(IndexEvidence::Local(local))));
+        let mut scope = Scheme::mono(Ty::Tuple(vec![identity(0), identity(1)]));
+        scope.evidence_params.push(IndexEvidence::Local(0));
+        scope.ctx.push(("provider".into(), ClassApp { class: "Measure".into(), args: vec![identity(1)] }));
+        scope.obligs.push(PropOblig::Pred(PTerm::Eq(Box::new(ITerm::Evidence(IndexEvidence::Local(0))), Box::new(ITerm::num(42)))));
+        let template = ast::Term::Ann(Box::new(ast::Term::Var(ast::VarPath { quals: vec![], name: name.clone() })), ast::Type::Elaborated(Box::new(scope), span), span);
+        let quote = ECore::Quote { template: Box::new(template), holes: vec![], body: Box::new(ECore::Var(LocalId(0))) };
+        let ECore::Quote { template, body, .. } = rewrite_locals(&quote, &HashMap::from([(LocalId(0), LocalId(1)), (LocalId(1), LocalId(2))])) else { panic!("lost quote") };
+        assert!(matches!(*body, ECore::Var(LocalId(1))));
+        let ast::Term::Ann(body, ast::Type::Elaborated(scope, _), _) = *template else { panic!("lost checked annotation") };
+        assert_eq!(scope.ty, Ty::Tuple(vec![identity(1), identity(2)]));
+        assert_eq!(scope.evidence_params, vec![IndexEvidence::Local(1)]);
+        assert_eq!(scope.ctx[0].1.args, vec![identity(2)]);
+        assert!(matches!(&scope.obligs[0], PropOblig::Pred(PTerm::Eq(left, _)) if **left == ITerm::Evidence(IndexEvidence::Local(1))));
+        let ast::Term::Var(path) = *body else { panic!("lost source reference") };
+        assert_eq!(path.name.local_binding(), name.local_binding());
+    }
+
+    #[test]
+    fn separate_dictionary_calls_keep_separate_dependent_result_indices() {
+        let mut checker = Checker::new();
+        let class = ClassApp { class: "SampleMeasure".into(), args: vec![] };
+        let mut scheme = Scheme::mono(Ty::Adt("Tagged".into(), vec![Ty::Idx(Box::new(ITerm::Inst(Box::new(IndexInstantiation {
+            head: IndexHead::Function("Measures.measure".into()), types: vec![],
+            dictionaries: vec![ITerm::Evidence(dictionary_parameter("provider"))], arguments: vec![],
+        }))))]));
+        scheme.ctx.push(("provider".into(), class.clone()));
+        let first = checker.fresh_local(); let second = checker.fresh_local();
+        let mut environment = Env::default();
+        environment.dicts.push((first, class.clone()));
+        let (first_type, first_context, _) = checker.instantiate(&scheme);
+        checker.new_context_want(&first_context[0], ast::Span { line: 1, col: 1 }, &environment);
+        environment.dicts.push((second, class));
+        let (second_type, second_context, _) = checker.instantiate(&scheme);
+        checker.new_context_want(&second_context[0], ast::Span { line: 2, col: 1 }, &environment);
+        checker.solve_wants().unwrap();
+        let first_type = checker.uni.zonk(&first_type);
+        let second_type = checker.uni.zonk(&second_type);
+        assert!(first_type.mentions_evidence(&IndexEvidence::Local(first.0)));
+        assert!(second_type.mentions_evidence(&IndexEvidence::Local(second.0)));
+        assert!(!crate::types::ty_eq(&first_type, &second_type));
+        assert!(checker.uni.unify(&first_type, &second_type).is_err());
+    }
+
+    #[test]
+    fn native_substitution_preserves_instantiated_types_rows_regions_and_evidence() {
+        let call = ITerm::Inst(Box::new(IndexInstantiation {
+            head: IndexHead::Function("Measure.measure".into()),
+            types: vec![Ty::fun_eff(Ty::Param("a".into()), EffRow { labels: vec![EffLabel::with_arg("Read", "r")], tail: RowTail::Rigid("e".into()) }, Ty::Region("r".into()))],
+            dictionaries: vec![ITerm::Var("dict".into())], arguments: vec![
+                IndexArgument::Value { value: ITerm::Var("n".into()), carrier: Ty::Nat, runtime: true },
+                IndexArgument::Row(EffRow { labels: vec![EffLabel::with_arg("Read", "r")], tail: RowTail::Rigid("e".into()) }),
+                IndexArgument::Region("r".into()),
+                IndexArgument::Proposition(PTerm::Eq(Box::new(ITerm::Var("n".into())), Box::new(ITerm::num(7)))),
+            ],
+        }));
+        let types = HashMap::from([("a".into(), Ty::Bool), ("dict".into(), Ty::Idx(Box::new(ITerm::Var("provider#7".into())))), ("n".into(), Ty::Idx(Box::new(ITerm::num(7))))]);
+        let result = Checker::subst_full(&Ty::Idx(Box::new(call)), &types,
+            &HashMap::from([("e".into(), RowTail::Closed)]), &HashMap::from([("r".into(), "scope#9".into())]));
+        let Ty::Idx(term) = result else { panic!("lost index") };
+        let ITerm::Inst(call) = *term else { panic!("erased instantiation") };
+        assert_eq!(call.types, vec![Ty::fun_eff(Ty::Bool, EffRow::closed(vec![EffLabel::with_arg("Read", "scope#9")]), Ty::Region("scope#9".into()))]);
+        assert_eq!(call.dictionaries, vec![ITerm::Var("provider#7".into())]);
+        assert_eq!(call.arguments, vec![
+            IndexArgument::Value { value: ITerm::num(7), carrier: Ty::Nat, runtime: true },
+            IndexArgument::Row(EffRow::closed(vec![EffLabel::with_arg("Read", "scope#9")])),
+            IndexArgument::Region("scope#9".into()),
+            IndexArgument::Proposition(PTerm::Eq(Box::new(ITerm::num(7)), Box::new(ITerm::num(7)))),
+        ]);
+    }
+
+    #[test]
+    fn a_shadowed_index_parameter_does_not_block_other_substitutions() {
+        let ty = Ty::pi("n", Ty::Nat, Mult::Many, EffRow::pure(), Ty::Tuple(vec![Ty::Param("a".into()), Ty::Idx(Box::new(ITerm::Var("n".into())))]));
+        let result = Checker::subst_ty(&ty, &HashMap::from([("n".into(), Ty::Idx(Box::new(ITerm::num(99)))), ("a".into(), Ty::Bool)]));
+        assert_eq!(result, Ty::pi("n", Ty::Nat, Mult::Many, EffRow::pure(), Ty::Tuple(vec![Ty::Bool, Ty::Idx(Box::new(ITerm::Var("n".into())))])));
+    }
+}
+
+#[cfg(test)]
+mod local_value_capability_tests {
+    use super::*;
+
+    #[test]
+    fn local_value_reification_and_export_require_structural_authority() {
+        let mut checker = Checker::new();
+        let outer = checker.fresh_local();
+        let inner = checker.fresh_local();
+        let value = ITerm::LocalValue(outer);
+        let span = ast::Span { line: 1, col: 1 };
+        let mut scope = IndexRuntimeScope::default();
+        scope.values.insert("payload".into(), inner);
+        scope.values.insert(value.to_string(), outer);
+        assert!(checker.reify_idx(&value, &scope, true, span).is_err());
+        scope.locals.insert(outer);
+        assert!(matches!(checker.reify_idx(&value, &scope, true, span), Ok(ECore::Var(id)) if id == outer));
+        let mut portable = InterfaceIndexScope::default();
+        portable.locals.insert(value.to_string(), InterfaceIndexSort::Mathematical);
+        assert!(checker.portable_index(&value, &portable).is_none());
+    }
+
+    #[test]
+    fn hidden_value_reads_keep_the_original_mutable_region_and_numeric_sort() {
+        let checker = Checker::new();
+        let outer = LocalId(1);
+        let inner = LocalId(2);
+        let mut env = Env::default();
+        env.locals.push(("payload".into(), outer, Scheme::mono(Ty::Mut("original".into(), Box::new(Ty::Nat)))));
+        env.locals.push(("payload".into(), inner, Scheme::mono(Ty::Mut("replacement".into(), Box::new(Ty::Nat)))));
+        let prop = PTerm::Eq(Box::new(ITerm::LocalValue(outer)), Box::new(ITerm::num(0)));
+        assert_eq!(checker.ev_footprint(&prop, &env), (vec!["original".into()], vec![]));
+        env.locals = vec![("payload".into(), outer, Scheme::mono(Ty::Nat)),
+            ("payload".into(), inner, Scheme::mono(Ty::Nat))];
+        let evidence = checker.evidence_in(&env);
+        assert!(evidence.value_sorts.contains(&(outer, IntSort::Nat)));
+        let sorts = Sorts { values: evidence.value_sorts, ..Sorts::default() };
+        let nonnegative = PTerm::Cmp(IdxCmp::Ge, Box::new(ITerm::LocalValue(outer)), Box::new(ITerm::num(0)));
+        assert!(linear_entails(&[], &nonnegative, &sorts).is_some());
+    }
+}
+
+#[cfg(test)]
+mod index_lambda_identity_tests {
+    use super::*;
+
+    #[test]
+    fn index_lambda_handles_survive_renaming_and_cannot_be_guessed() {
+        let checker = Checker::new();
+        let span = ast::Span { line: 1, col: 1 };
+        let handle = ast::LocalBinding::fresh();
+        let owner = ast::Name::bound("item", span, handle.clone());
+        let renamed = ast::Name::bound("renamed", span, handle);
+        let other = ast::Name::bound("item", span, ast::LocalBinding::fresh());
+        let variable = checker.fresh_index_lambda_variable();
+        checker.with_index_lambda(IndexLambdaBinder { name: owner.clone(), variable: variable.clone(), carrier: Some(Ty::Nat) }, |checker| {
+            assert_eq!(checker.index_lambda_binding(&renamed).unwrap().variable, variable);
+            assert!(checker.index_lambda_binding(&other).is_none());
+            assert!(checker.index_lambda_binding(&ast::Name::new("item", span)).is_none());
+            assert!(checker.index_lambda_binding(&ast::Name::new(variable.clone(), span)).is_none());
+            let term = ast::Type::Var(renamed.clone(), span);
+            assert_eq!(checker.conv_idx_expected(&term, &[], Some(&Ty::Nat))?, ITerm::Var(variable.clone()));
+            let forged = ast::Type::Var(ast::Name::new(variable.clone(), span), span);
+            assert!(checker.conv_idx_expected(&forged, &[], Some(&Ty::Nat)).is_err());
+            Ok(())
+        }).unwrap();
+        assert!(checker.index_lambda_binding(&owner).is_none());
+    }
+
+    #[test]
+    fn nested_index_lambda_scopes_restore_after_failure() {
+        let checker = Checker::new();
+        let span = ast::Span { line: 1, col: 1 };
+        let outer = ast::Name::bound("item", span, ast::LocalBinding::fresh());
+        let inner = ast::Name::bound("item", span, ast::LocalBinding::fresh());
+        let outer_variable = checker.fresh_index_lambda_variable();
+        let inner_variable = checker.fresh_index_lambda_variable();
+        assert_ne!(outer_variable, inner_variable);
+        checker.with_index_lambda(IndexLambdaBinder { name: outer.clone(), variable: outer_variable.clone(), carrier: Some(Ty::Nat) }, |checker| {
+            let failed: Result<()> = checker.with_index_lambda(IndexLambdaBinder { name: inner.clone(), variable: inner_variable.clone(), carrier: Some(Ty::Bool) }, |checker| {
+                assert_eq!(checker.index_lambda_binding(&outer).unwrap().variable, outer_variable);
+                assert_eq!(checker.index_lambda_binding(&inner).unwrap().variable, inner_variable);
+                Err(Error::at(span, "intentional scope failure"))
+            });
+            assert!(failed.is_err());
+            assert!(checker.index_lambda_binding(&inner).is_none());
+            assert_eq!(checker.index_lambda_binding(&outer).unwrap().variable, outer_variable);
+            Ok(())
+        }).unwrap();
+        assert!(checker.index_lambda_binders.borrow().is_empty());
+    }
+}
+
+#[cfg(test)]
+mod index_carrier_compatibility_tests {
+    use super::*;
+
+    #[test]
+    fn carrier_usage_holes_do_not_authorize_type_index_or_effect_specialization() {
+        let mut checker = Checker::new();
+        let span = ast::Span { line: 1, col: 1 };
+        let inferred = Ty::fun(Ty::Nat, Ty::Nat);
+        let unrestricted = Ty::fun_mult(Ty::Nat, Mult::Many, EffRow::pure(), Ty::Nat);
+        assert!(checker.check_captured_index_carrier("f", &unrestricted, &inferred, span).is_ok());
+        let linear = Ty::fun_mult(Ty::Nat, Mult::One, EffRow::pure(), Ty::Nat);
+        assert!(checker.check_captured_index_carrier("f", &linear, &unrestricted, span).is_err());
+        let unknown_type = checker.uni.fresh();
+        assert!(checker.check_captured_index_carrier("x", &unknown_type, &Ty::Nat, span).is_err());
+        assert_eq!(checker.uni.zonk(&unknown_type), unknown_type);
+        let unknown_index = checker.uni.fresh_idx_term();
+        assert!(checker.check_captured_index_carrier("x", &Ty::Idx(Box::new(unknown_index.clone())), &Ty::Idx(Box::new(ITerm::num(0))), span).is_err());
+        assert_eq!(checker.uni.resolve_idx(&unknown_index), unknown_index);
+        let unknown_effect = checker.uni.fresh_row();
+        let effectful = Ty::fun_mult(Ty::Nat, Mult::Many, unknown_effect.clone(), Ty::Nat);
+        assert!(checker.check_captured_index_carrier("f", &effectful, &unrestricted, span).is_err());
+        assert_eq!(checker.uni.resolve_row(&unknown_effect), unknown_effect);
+    }
+}
+
+#[cfg(test)]
+mod signature_scope_tests {
+    use super::*;
+
+    fn signature(owner: &str, name: &str) -> SigInfo {
+        SigInfo { module: owner.into(), name: name.into(), params: vec!["a".into()],
+            param_kinds: vec![ParamKind::Type], methods: vec![], defaults: vec![], laws: vec![] }
+    }
+
+    fn captured(path: ast::ConPath, scope: ast::GlobalScope) -> ast::ConPath {
+        let span = path.span();
+        let ty = ast::capture_type_in_declaration_scope(&ast::Type::Con(path, span), &[],
+            Some(std::sync::Arc::new(scope)), &[], &[], &[]).unwrap();
+        let ast::Type::Con(path, _) = ty else { panic!("signature path") };
+        path
+    }
+
+    #[test]
+    fn signature_scope_uses_frozen_owners_and_never_repairs_absent_or_wrong_kind_names() {
+        let mut checker = Checker::new();
+        checker.current_module = "Main".into();
+        for owner in ["Library", "Main"] {
+            let sig = signature(owner, "Private");
+            checker.sigs.entry("Private".into()).or_default().push(sig.clone());
+            checker.qualified_sigs.insert((owner.into(), "Private".into()), sig);
+        }
+        let span = ast::Span { line: 1, col: 1 };
+        let path = || ast::ConPath { segments: vec![ast::Name::new("Private", span)] };
+        assert_eq!(checker.lookup_sig(&path()).unwrap().module, "Main");
+        let mut scope = ast::GlobalScope::new("Library");
+        scope.insert(ast::RefKind::Type, vec!["Private".into()], "Library", "Private");
+        assert_eq!(checker.lookup_sig(&captured(path(), scope)).unwrap().module, "Library");
+        assert!(checker.lookup_sig(&captured(path(), ast::GlobalScope::new("Before"))).is_err());
+        let wrong_kind = path();
+        wrong_kind.segments[0].record_binding(ast::RefKind::Value, "Main", "Private");
+        assert!(checker.lookup_sig(&wrong_kind).is_err());
+        let local = ast::ConPath { segments: vec![ast::Name::bound("Private", span, ast::LocalBinding::fresh())] };
+        assert!(checker.lookup_sig(&local).is_err());
+    }
+
+    #[test]
+    fn signature_scope_owned_handles_select_their_actual_member_without_spelling_fallback() {
+        let mut checker = Checker::new();
+        checker.qualified_sigs.insert(("Library".into(), "Actual".into()), signature("Library", "Actual"));
+        let span = ast::Span { line: 1, col: 1 };
+        let binding = ast::LocalBinding::fresh();
+        checker.declaration_bindings.insert((binding.clone(), ast::RefKind::Type), ("Library".into(), "Actual".into()));
+        let path = ast::ConPath { segments: vec![ast::Name::new("Decoy", span).with_declaration_binding(binding)] };
+        assert_eq!(checker.lookup_sig(&path).unwrap().name, "Actual");
+        let absent = ast::ConPath { segments: vec![ast::Name::new("Actual", span).with_declaration_binding(ast::LocalBinding::fresh())] };
+        assert!(checker.lookup_sig(&absent).is_err());
+    }
+
+    #[test]
+    fn signature_scope_keeps_synthetic_builtin_classes_available_to_captures() {
+        let checker = Checker::new();
+        let span = ast::Span { line: 1, col: 1 };
+        for (source, expected) in [("Copy", "Copy"), ("Share", "Copy"), ("Io", "Io")] {
+            let path = ast::ConPath { segments: vec![ast::Name::new(source, span)] };
+            let info = checker.lookup_sig(&captured(path, (*checker.syntax_global_scope("Main")).clone())).unwrap();
+            assert_eq!(info.module, "<builtin>");
+            assert_eq!(info.name, expected);
+        }
+    }
+}
+
+#[cfg(test)]
+mod owned_effect_scope_tests {
+    use super::*;
+
+    #[test]
+    fn frozen_symbolic_labels_and_type_names_cannot_acquire_an_owned_effect() {
+        let mut checker = Checker::new();
+        checker.current_module = "Main".into();
+        checker.effect_bindings.insert(("Main".into(), "Event".into()), "Main.Event".into());
+        checker.effects.insert("Main.Event".into(), EffectInfo { module: "Main".into(), name: "Event".into(), region_param: None, ops: vec![] });
+        let span = ast::Span { line: 1, col: 1 };
+        let path = ast::ConPath { segments: vec![ast::Name::new("Event", span)] };
+        assert_eq!(checker.effect_head(&path, false).unwrap(), "Main.Event");
+        let annotation = ast::Type::Fun { arg: Box::new(ast::Type::Unit(span)), mult: None,
+            eff: Some(ast::EffectRow { labels: vec![(path.clone(), vec![])], tail: None, span }),
+            res: Box::new(ast::Type::Unit(span)), span };
+        let captured = ast::capture_type_in_declaration_scope(&annotation, &[], Some(std::sync::Arc::new(ast::GlobalScope::new("Before"))), &[], &[], &[]).unwrap();
+        let ast::Type::Fun { eff: Some(row), .. } = captured else { panic!("function annotation") };
+        assert_eq!(checker.effect_head(&row.labels[0].0, false).unwrap(), "Event");
+        assert!(checker.effect_head(&row.labels[0].0, true).is_err());
+        let mut scope = ast::GlobalScope::new("Main");
+        scope.insert(ast::RefKind::Type, vec!["Event".into()], "Main", "Event");
+        scope.insert(ast::RefKind::Effect, vec!["Event".into()], "Main", "Event");
+        let captured = ast::capture_type_in_declaration_scope(&ast::Type::Con(path, span), &[], Some(std::sync::Arc::new(scope)), &[], &[], &[]).unwrap();
+        let ast::Type::Con(type_name, _) = captured else { panic!("type name") };
+        assert!(checker.effect_head(&type_name, false).is_err());
+    }
+}
+
+#[cfg(test)]
+mod owned_effect_qualified_scope_tests {
+    use super::*;
+
+    #[test]
+    fn an_unbound_qualified_label_cannot_spell_a_private_owned_head() {
+        let mut checker = Checker::new();
+        checker.current_module = "Outside".into();
+        checker.effect_bindings.insert(("Owner".into(), "Secret".into()), "Owner.Secret".into());
+        checker.effects.insert("Owner.Secret".into(), EffectInfo { module: "Owner".into(), name: "Secret".into(), region_param: None, ops: vec![] });
+        let span = ast::Span { line: 1, col: 1 };
+        let path = ast::ConPath { segments: vec![ast::Name::new("Owner", span), ast::Name::new("Secret", span)] };
+        assert!(checker.effect_head(&path, false).is_err());
+        let annotation = ast::Type::Fun { arg: Box::new(ast::Type::Unit(span)), mult: None,
+            eff: Some(ast::EffectRow { labels: vec![(path, vec![])], tail: None, span }),
+            res: Box::new(ast::Type::Unit(span)), span };
+        let captured = ast::capture_type_in_declaration_scope(&annotation, &[], Some(std::sync::Arc::new(ast::GlobalScope::new("Outside"))), &[], &[], &[]).unwrap();
+        let ast::Type::Fun { eff: Some(row), .. } = captured else { panic!("function annotation") };
+        assert!(checker.effect_head(&row.labels[0].0, false).is_err());
     }
 }

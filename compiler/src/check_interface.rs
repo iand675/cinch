@@ -49,7 +49,7 @@ impl Checker {
     fn interface_measure_signature(&self, identity: &str) -> Option<(Vec<InterfaceIndexSort>, InterfaceIndexSort)> {
         let value = self.qualified.values().find(|value| fn_id(&value.module, &value.name).0 == identity)?;
         let sc = &value.scheme;
-        if !sc.params.is_empty() || !sc.idx_params.is_empty() || !sc.val_params.is_empty()
+        if !sc.params.is_empty() || !sc.evidence_params.is_empty() || !sc.idx_params.is_empty() || !sc.val_params.is_empty()
             || !sc.prop_params.is_empty() || !sc.region_params.is_empty() || !sc.row_params.is_empty()
             || !sc.ctx.is_empty() || !sc.obligs.is_empty() { return None }
         let convert = |ty: &Ty| match ty {
@@ -207,7 +207,7 @@ impl Checker {
         &mut self, module: &str, name: &str, source: &ast::Type,
         scheme: &Scheme, inherited: &[ast::TypeBinder], class: Option<&SigInfo>, class_target: bool,
     ) {
-        if !scheme.idx_params.is_empty()
+        if !scheme.evidence_params.is_empty() || !scheme.idx_params.is_empty()
             || scheme.val_params.iter().any(|(_, ty)| !matches!(ty, Ty::Nat | Ty::Int | Ty::Bytes))
             || !scheme.prop_params.is_empty() || !scheme.row_params.is_empty() { return }
         let mut references = std::collections::BTreeSet::new();

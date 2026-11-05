@@ -6,6 +6,23 @@
 use cinch::driver::{driver_with, run_source_with, Mode, StageMode, StagingCx};
 use std::path::PathBuf;
 
+#[test]
+fn staged_evaluation_runs_recursive_instance_dictionary_methods() {
+    let source = r#"module Main where
+  signature Down where
+    down :: Nat -> Nat
+  implicit instance RecursiveDown :: Down where
+    down n = if n == 0 then 0 else down (n - 1)
+  stage done :: Bool
+  stage done = down 3 == 0
+  generate do
+    if done then emit (quoteDecls where { answer :: Int; answer = 42 }) else emit (quoteDecls where { answer :: Int; answer = 1 })
+  main :: Int
+  main = answer
+"#;
+    assert_eq!(run(source).unwrap(), 42);
+}
+
 fn run(src: &str) -> Result<i32, String> {
     run_source_with(src, &mut StagingCx::default()).map_err(|e| e.to_string())
 }

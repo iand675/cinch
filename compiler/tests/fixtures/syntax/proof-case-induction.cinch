@@ -1,0 +1,8 @@
+module Main where
+  data Count where
+    Z :: Count
+    S :: Count -> Count
+  same :: (value :: Count) -> Eq value value
+  same value = case value of Z -> refl; S next -> congr S (same next)
+  main :: Int
+  main = 42

@@ -586,6 +586,29 @@ fn json_decodes_a_declared_record_type() {
 }
 
 #[test]
+fn typed_json_f32_rounds_once_at_the_target_precision() {
+    // Decimal residuals smaller than f64 precision still decide which f32
+    // neighbour is nearest. Include ties in both directions and both signs.
+    let cases = [
+        ("1.000000059604644775390625", "feq-f32 value 1"),
+        ("1.0000000596046447753906250000000000000001", "feq-f32 value (add-f32 1 (div-f32 1 8388608))"),
+        ("1.0000001788139343261718749999999999999999", "feq-f32 value (add-f32 1 (div-f32 1 8388608))"),
+        ("1.000000178813934326171875", "feq-f32 value (add-f32 1 (div-f32 1 4194304))"),
+        ("-1.0000000596046447753906250000000000000001", "feq-f32 value (neg-f32 (add-f32 1 (div-f32 1 8388608)))"),
+        ("-1.0000001788139343261718749999999999999999", "feq-f32 value (neg-f32 (add-f32 1 (div-f32 1 8388608)))"),
+        ("3.4028235677973366163753939545814256844799999e38", "feq-f32 value 340282346638528859811704183484516925440"),
+        ("-0.0", "feq-f32 (div-f32 1 value) (neg-f32 (div-f32 1 0))"),
+    ];
+    for (number, predicate) in cases {
+        let source = format!("module Main where\n  value :: F32\n  import data \"number.json\" as value\n  main :: Int\n  main = if {predicate} then 0 else 1\n");
+        let dir = write_project(&[("number.json", number), ("Main.cinch", &source)]);
+        assert_eq!(run_entry(&dir, "Main.cinch").expect("typed F32 JSON import"), 0, "decimal {number}");
+        assert!(manifest_has(&dir, "\"converter\":\"json\""));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+#[test]
 fn converter_failures_name_the_file_and_the_converter() {
     let dir = write_project(&[
         ("config.json", "{not json"),

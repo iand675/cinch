@@ -32,6 +32,74 @@ fn actual_expected_goals_and_multiple_facts_drive_search() {
 }
 
 #[test]
+fn native_macro_contracts_preserve_goals_scope_and_checked_evidence() {
+    let macros = r#"
+  macro helper :: forall a. Syntax -> Code a
+  macro helper source = Syntax.capture source
+  macro attempt :: forall a. Code a
+  macro attempt = helper!(Proof.search "assumption linear")
+  macro relay :: forall a. Syntax -> Code a
+  macro relay source = Syntax.capture source
+"#;
+    checks(&format!(r#"{macros}
+  safe :: (i :: Nat) -> (n :: Nat) -> Option (Fin n)
+  safe i n = case decide (i < n) of
+    Yes bound -> let saved = i in let i = n in Some (Fin saved (relay!(attempt!())))
+    No _ -> None
+"#));
+    refuses(&format!(r#"{macros}
+  unsafe :: (i :: Nat) -> (n :: Nat) -> Fin n
+  unsafe i n = Fin i (relay!(attempt!()))
+"#), "could not prove");
+    refuses(&format!(r#"{macros}
+  unsafe :: (i :: Nat) -> (n :: Nat) -> Option (Fin n)
+  unsafe i n = case decide (i < n) of
+    Yes bound -> let i = n in Some (Fin i (relay!(attempt!())))
+    No _ -> None
+"#), "could not prove");
+    refuses(&format!(r#"{macros}
+  unsafe :: forall region. Mut region Nat -> Option (Fin 5)
+  unsafe m = case decide (copyOut m < 5) of
+    Yes bound -> let unit = refSet m 9 in Some (Fin (copyOut m) (relay!(attempt!())))
+    No _ -> None
+"#), "stale evidence");
+    refuses(r#"
+  macro helper :: forall a. Syntax -> Code a
+  macro helper source = Syntax.capture source
+  macro dishonest :: Code Int
+  macro dishonest = helper!(Proof.search "assumption")
+  unsafe :: (i :: Nat) -> (n :: Nat) -> Option (Fin n)
+  unsafe i n = case decide (i < n) of
+    Yes bound -> Some (Fin i (dishonest!()))
+    No _ -> None
+"#, "needs an expected proposition");
+}
+
+#[test]
+fn native_tactic_diagnostics_keep_the_goal_insertion_site() {
+    let source = r#"module Library where
+  export attempt
+  macro helper :: forall a. Syntax -> Code a
+  macro helper source = Syntax.capture source
+  macro attempt :: forall a. Code a
+  macro attempt = helper!(Proof.search "linear")
+module Main where
+  import stage Library
+  unsafe :: (i :: Nat) -> (n :: Nat) -> Fin n
+  unsafe i n = Fin i (attempt!())
+  main :: Int
+  main = 0
+"#;
+    let error = check_sources(source, "native-tactic-diagnostic.cinch")
+        .err().expect("a missing fact cannot be supplied by the macro's definition scope");
+    assert!(error.message.contains("could not prove `i < n`"), "{error}");
+    let line = source.lines().position(|line| line.contains("unsafe i n =")).unwrap();
+    let column = source.lines().nth(line).unwrap().find("attempt!").unwrap();
+    let span = error.span.expect("the requested goal has a source site");
+    assert_eq!((span.line as usize, span.col as usize), (line + 1, column + 1), "{error}");
+}
+
+#[test]
 fn a_failed_assumption_does_not_solve_an_arithmetic_goal() {
     refuses(r#"
   safe :: (i :: Nat) -> (n :: Nat) -> Option (Fin n)
@@ -144,7 +212,7 @@ fn arithmetic_certificate_checker_refuses_changed_goal_facts_and_empty_certifica
     let n = ITerm::Var("n".into());
     let goal = PTerm::Cmp(IdxCmp::Lt, Box::new(i.clone()), Box::new(n.clone()));
     let hyps = vec![goal.clone()];
-    let sorts = Sorts { vars: vec![("i".into(), IntSort::Nat), ("n".into(), IntSort::Nat)], fns: vec![] };
+    let sorts = Sorts { vars: vec![("i".into(), IntSort::Nat), ("n".into(), IntSort::Nat)], fns: vec![], values: vec![] };
     let proof = linear_entails(&hyps, &goal, &sorts).expect("a checked certificate").remove(0);
     assert!(check_linear_proof(&hyps, &proof, &sorts));
     assert!(!check_linear_proof(&[], &proof, &sorts));

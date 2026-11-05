@@ -1,5 +1,29 @@
 # Next steps (as of 2026-11-05)
 
+## Native proof, syntax hygiene and exact float repair (2026-11-05)
+
+The current Rust implementation rejects the original recursive, partial,
+cyclic and wrong-carrier proof counterexamples while retaining both valid
+induction programs. Staged syntax keeps defining identities, caller scope
+and typed namespaces; exact F32 literals parse directly at their declared
+precision, including decimal carry boundaries. Proof erasure checks the
+termination of discarded computations and finalizes erased value indices.
+
+All 43 complete affected Native groups pass independently: 691 tests without
+ignored or filtered cases, the original 16 proof/hygiene CLI commands,
+and all 43 current published Cinch compiler modules. Actual portable syntax
+clients also execute with 32M heaps and zero leaks. See
+`bootstrap/current-native-proof-repair-results.json`; it preserves the tested
+source, binary and input hashes and the actual scope of each execution.
+
+This closes the recorded Native proof counterexample for this implementation.
+It does not port that proof API to the Cinch compiler. The full matching
+Native suite, exact final self-built suites and original API/Acceptance 5
+remain required. The 43 Cinch compiler modules and explicit b64710b ABI6
+seed/provider pins are unchanged. Earlier failed runs remain preserved.
+The old source-Pi ghost-index expectation also needs correction to the
+specified runtime value-index behavior, with erasure/identity controls.
+
 ## ABI6 tooling and original external checks (2026-11-05)
 
 All 41 tooling tests pass on the current explicit ABI6 pin. Two integration

@@ -1,0 +1,349 @@
+module ChoreographySyntax where
+  export declare
+  import LocalWire
+
+  stage same :: Name -> Name -> Bool
+  stage same left right = name-to-sym left == name-to-sym right
+
+  stage role-names :: List Syntax -> List Name
+  stage role-names rows = case rows of
+    Nil -> []
+    Cons row rest -> Cons (Syntax.name row) (role-names rest)
+
+  stage edges :: List Syntax -> List (Name, Name, Name)
+  stage edges rows = case rows of
+    Nil -> []
+    Cons row rest -> case Syntax.items row of
+      [origin, destination, label] -> Cons (Syntax.name origin, Syntax.name destination, Syntax.name label) (edges rest)
+      _ -> Syntax.error "a choreography message needs sender, receiver and label"
+
+  stage arms :: List Syntax -> List (Name, List (Name, Name, Name))
+  stage arms rows = case rows of
+    Nil -> []
+    Cons row rest -> case Syntax.items row of
+      [label, messages] -> Cons (Syntax.name label, edges (Syntax.items messages)) (arms rest)
+      _ -> Syntax.error "a choreography branch needs a label and messages"
+
+  stage member :: Name -> List Name -> Bool
+  stage member name names = case names of
+    Nil -> False
+    Cons first rest -> if same name first then True else member name rest
+
+  stage unique :: List Name -> Bool
+  stage unique names = case names of
+    Nil -> True
+    Cons first rest -> if member first rest then False else unique rest
+
+  stage edge-labels :: List (Name, Name, Name) -> List Name
+  stage edge-labels messages = case messages of
+    Nil -> []
+    Cons (origin, destination, label) rest -> Cons label (edge-labels rest)
+
+  stage arm-labels :: List (Name, List (Name, Name, Name)) -> List Name
+  stage arm-labels branches = case branches of
+    Nil -> []
+    Cons (label, messages) rest -> Cons label (arm-labels rest)
+
+  stage count-names :: List Name -> Nat
+  stage count-names names = case names of
+    Nil -> 0
+    Cons first rest -> 1 + count-names rest
+
+  stage count-edges :: List (Name, Name, Name) -> Nat
+  stage count-edges messages = case messages of
+    Nil -> 0
+    Cons edge rest -> 1 + count-edges rest
+
+  stage valid-edges :: List Name -> List (Name, Name, Name) -> Bool
+  stage valid-edges roles messages = case messages of
+    Nil -> True
+    Cons (origin, destination, label) rest -> member origin roles && member destination roles && valid-edges roles rest
+
+  stage valid-arms :: List Name -> List (Name, List (Name, Name, Name)) -> Bool
+  stage valid-arms roles branches = case branches of
+    Nil -> True
+    Cons (label, messages) rest -> count-edges messages > 0 && valid-edges roles messages && valid-arms roles rest
+
+  stage project :: Name -> List (Name, Name, Name) -> List (Name, Name, Name)
+  stage project role messages = case messages of
+    Nil -> []
+    Cons (origin, destination, label) rest ->
+      if same origin role || same destination role
+      then Cons (origin, destination, label) (project role rest)
+      else project role rest
+
+  stage prefix-base :: Name -> Name -> Name
+  stage prefix-base protocol role = Name.append (Name.append protocol role) (sym-to-name 'P)
+
+  stage branch-base :: Name -> Name -> Name -> Name
+  stage branch-base protocol role arm = Name.append (Name.append (Name.append protocol role) arm) (sym-to-name 'S)
+
+  stage indexed :: Name -> Nat -> Name
+  stage indexed base index = Name.suffix base (Stage.natStr index)
+
+  stage choice-name :: Name -> Name -> Name
+  stage choice-name protocol role = Name.append (Name.append protocol (sym-to-name 'ChoiceWire)) role
+
+  stage offer-name :: Name -> Name -> Name
+  stage offer-name protocol role = Name.append (Name.append protocol (sym-to-name 'Offer)) role
+
+  stage choice-constructor :: Name -> Name -> Name -> Name
+  stage choice-constructor protocol arm role = Name.append (Name.append (Name.append protocol arm) (sym-to-name 'Wire)) role
+
+  stage offer-constructor :: Name -> Name -> Name -> Name
+  stage offer-constructor protocol arm role = Name.append (Name.append protocol arm) role
+
+  stage wrapper :: Name -> Declarations
+  stage wrapper name = Syntax.renameDeclarations (sym-to-name 'MkState) (Name.prefix "Mk" name)
+    (Syntax.renameDeclarations (sym-to-name 'State) name
+      (quoteDecls where { export State; data State where { MkState :: Nat -> State } }))
+
+  stage empty-data :: Name -> Declarations
+  stage empty-data name = Syntax.renameDeclarations (sym-to-name 'Empty) name
+    (quoteDecls where { export Empty; data Empty where {} })
+
+  stage state-series :: Name -> Nat -> List (Name, Name, Name) -> Declarations
+  stage state-series base index messages = Syntax.appendDeclarations (wrapper (indexed base index))
+    (case messages of { Nil -> Syntax.emptyDeclarations; Cons edge rest -> state-series base (index + 1) rest })
+
+  stage wire-data :: Name -> List (Name, Name, Name) -> Declarations
+  stage wire-data base messages = case messages of
+    Nil -> Syntax.emptyDeclarations
+    Cons (origin, destination, label) rest -> Syntax.appendDeclarations (wrapper (Name.append base label)) (wire-data base rest)
+
+  stage branch-wire-data :: Name -> List (Name, List (Name, Name, Name)) -> Declarations
+  stage branch-wire-data protocol branches = case branches of
+    Nil -> Syntax.emptyDeclarations
+    Cons (label, messages) rest -> Syntax.appendDeclarations
+      (wire-data (Name.append (Name.append protocol (sym-to-name 'Wire)) label) messages)
+      (branch-wire-data protocol rest)
+
+  stage role-branch-data :: Name -> Name -> List (Name, List (Name, Name, Name)) -> Declarations
+  stage role-branch-data protocol role branches = case branches of
+    Nil -> Syntax.emptyDeclarations
+    Cons (label, messages) rest -> Syntax.appendDeclarations
+      (state-series (branch-base protocol role label) 0 (project role messages))
+      (role-branch-data protocol role rest)
+
+  stage role-data :: Name -> Name -> List Name -> List (Name, Name, Name) -> List (Name, List (Name, Name, Name)) -> Declarations
+  stage role-data protocol decider roles messages branches = case roles of
+    Nil -> Syntax.emptyDeclarations
+    Cons role rest -> Syntax.appendDeclarations
+      (state-series (prefix-base protocol role) 0 (project role messages))
+      (Syntax.appendDeclarations (role-branch-data protocol role branches)
+        (Syntax.appendDeclarations
+          (if same role decider then Syntax.emptyDeclarations else
+            Syntax.appendDeclarations (empty-data (choice-name protocol role)) (empty-data (offer-name protocol role)))
+          (role-data protocol decider rest messages branches)))
+
+  stage nat-type :: TypeSyntax
+  stage nat-type = Syntax.signatureType (sym-to-name 'value) (quoteDecls where { value :: Nat })
+
+  stage thunk-type :: TypeSyntax -> TypeSyntax
+  stage thunk-type payload = Syntax.applyType
+    (Syntax.signatureType (sym-to-name 'value) (quoteDecls where { value :: Thunk {} })) payload
+
+  stage add-role-choices :: Name -> Name -> List (Name, List (Name, Name, Name)) -> Declarations -> Declarations
+  stage add-role-choices protocol role branches context = case branches of
+    Nil -> context
+    Cons (label, messages) rest ->
+      let wireType = Syntax.functionType nat-type (Syntax.declarationType (choice-name protocol role) context) in
+      let withWire = Syntax.addConstructor (choice-name protocol role) (choice-constructor protocol label role) wireType context in
+      let stateType = thunk-type (Syntax.declarationType (indexed (branch-base protocol role label) 0) withWire) in
+      let offerType = Syntax.functionType stateType (Syntax.declarationType (offer-name protocol role) withWire) in
+      let withOffer = Syntax.addConstructor (offer-name protocol role) (offer-constructor protocol label role) offerType withWire in
+      add-role-choices protocol role rest (Syntax.exportDeclaration (offer-constructor protocol label role) withOffer)
+
+  stage add-choices :: Name -> Name -> List Name -> List (Name, List (Name, Name, Name)) -> Declarations -> Declarations
+  stage add-choices protocol decider roles branches context = case roles of
+    Nil -> context
+    Cons role rest -> add-choices protocol decider rest branches
+      (if same role decider then context else add-role-choices protocol role branches context)
+
+  -- Link a constructor first, then remove its now-empty placeholder type.
+  stage connect :: Name -> Name -> Name -> Name -> Declarations -> Declarations -> Declarations
+  stage connect sourceType sourceConstructor actualType actualConstructor context group =
+    Syntax.linkDeclarations sourceType actualType context
+      (Syntax.linkDeclarations sourceConstructor actualConstructor context group)
+
+  stage connect-wrapper :: Name -> Name -> Name -> Declarations -> Declarations -> Declarations
+  stage connect-wrapper sourceType sourceConstructor actualType context group =
+    connect sourceType sourceConstructor actualType (Name.prefix "Mk" actualType) context group
+
+  stage start-function :: Name -> Name -> Declarations -> Declarations
+  stage start-function function stateType context = Syntax.renameDeclarations (sym-to-name 'begin) function
+    (connect-wrapper (sym-to-name 'State) (sym-to-name 'MkState) stateType context
+      (quoteDecls where {
+        export begin;
+        data State where { MkState :: Nat -> State };
+        begin :: Unit -> Thunk {} State;
+        begin unit = LocalWire.suspend (\() -> MkState 0) }))
+
+  stage close-function :: Name -> Name -> Declarations -> Declarations
+  stage close-function function stateType context = Syntax.renameDeclarations (sym-to-name 'finish) function
+    (connect-wrapper (sym-to-name 'State) (sym-to-name 'MkState) stateType context
+      (quoteDecls where {
+        export finish;
+        data State where { MkState :: Nat -> State };
+        finish :: Thunk {} State %1 -> Nat;
+        finish endpoint = case LocalWire.take endpoint of { MkState count -> count } }))
+
+  stage send-function :: Name -> Name -> Name -> Name -> Declarations -> Declarations
+  stage send-function function beforeType afterType wireType context = Syntax.renameDeclarations (sym-to-name 'sendStep) function
+    (connect-wrapper (sym-to-name 'Before) (sym-to-name 'MkBefore) beforeType context
+      (connect-wrapper (sym-to-name 'After) (sym-to-name 'MkAfter) afterType context
+        (connect-wrapper (sym-to-name 'Wire) (sym-to-name 'MkWire) wireType context
+          (quoteDecls where {
+            export sendStep;
+            data Before where { MkBefore :: Nat -> Before };
+            data After where { MkAfter :: Nat -> After };
+            data Wire where { MkWire :: Nat -> Wire };
+            sendStep :: Thunk {} Before %1 -> Nat -> (Thunk {} After, Thunk {} Wire);
+            sendStep endpoint payload = case LocalWire.take endpoint of {
+              MkBefore count -> (LocalWire.suspend (\() -> MkAfter (count + 1)), LocalWire.suspend (\() -> MkWire payload)) } }))))
+
+  stage receive-function :: Name -> Name -> Name -> Name -> Declarations -> Declarations
+  stage receive-function function beforeType afterType wireType context = Syntax.renameDeclarations (sym-to-name 'receiveStep) function
+    (connect-wrapper (sym-to-name 'Before) (sym-to-name 'MkBefore) beforeType context
+      (connect-wrapper (sym-to-name 'After) (sym-to-name 'MkAfter) afterType context
+        (connect-wrapper (sym-to-name 'Wire) (sym-to-name 'MkWire) wireType context
+          (quoteDecls where {
+            export receiveStep;
+            data Before where { MkBefore :: Nat -> Before };
+            data After where { MkAfter :: Nat -> After };
+            data Wire where { MkWire :: Nat -> Wire };
+            receiveStep :: Thunk {} Before %1 -> Thunk {} Wire %1 -> (Thunk {} After, Nat);
+            receiveStep endpoint packet = case LocalWire.take endpoint of {
+              MkBefore count -> case LocalWire.take packet of {
+                MkWire payload -> (LocalWire.suspend (\() -> MkAfter (count + 1)), payload) } } }))))
+
+  stage message-functions :: Name -> Name -> Name -> Name -> Nat -> List (Name, Name, Name) -> Declarations -> Declarations
+  stage message-functions role stateBase wireBase functionBase index messages context = case messages of
+    Nil -> Syntax.emptyDeclarations
+    Cons (origin, destination, label) rest -> Syntax.appendDeclarations
+      (if same origin role then
+         send-function (Name.prefix "send-" (Name.join "-" functionBase label)) (indexed stateBase index)
+           (indexed stateBase (index + 1)) (Name.append wireBase label) context
+       else
+         receive-function (Name.prefix "receive-" (Name.join "-" functionBase label)) (indexed stateBase index)
+           (indexed stateBase (index + 1)) (Name.append wireBase label) context)
+      (message-functions role stateBase wireBase functionBase (index + 1) rest context)
+
+  stage role-branch-functions :: Name -> Name -> List (Name, List (Name, Name, Name)) -> Declarations -> Declarations
+  stage role-branch-functions protocol role branches context = case branches of
+    Nil -> Syntax.emptyDeclarations
+    Cons (label, messages) rest ->
+      let localEdges = project role messages in
+      let stateBase = branch-base protocol role label in
+      let functionBase = Name.join "-" (Name.join "-" protocol label) role in
+      Syntax.appendDeclarations
+        (message-functions role stateBase (Name.append (Name.append protocol (sym-to-name 'Wire)) label) functionBase 0 localEdges context)
+        (Syntax.appendDeclarations
+          (close-function (Name.prefix "close-" functionBase) (indexed stateBase (count-edges localEdges)) context)
+          (role-branch-functions protocol role rest context))
+
+  stage packet-code :: Declarations -> Name -> Code Nat -> PackedCode
+  stage packet-code context constructor count =
+    let make = Syntax.declarationReference constructor context in
+    Syntax.packCode [| LocalWire.suspend (\() -> $(make) $(count)) |]
+
+  stage peer-codes :: Name -> Name -> Name -> List Name -> Declarations -> Code Nat -> List PackedCode
+  stage peer-codes protocol decider arm roles context count = case roles of
+    Nil -> []
+    Cons role rest -> if same role decider then peer-codes protocol decider arm rest context count else
+      Cons (packet-code context (choice-constructor protocol arm role) count) (peer-codes protocol decider arm rest context count)
+
+  stage peer-types :: Name -> Name -> List Name -> Declarations -> List TypeSyntax
+  stage peer-types protocol decider roles context = case roles of
+    Nil -> []
+    Cons role rest -> if same role decider then peer-types protocol decider rest context else
+      Cons (thunk-type (Syntax.declarationType (choice-name protocol role) context)) (peer-types protocol decider rest context)
+
+  stage choose-function :: Name -> Name -> List Name -> Nat -> Name -> Declarations -> Declarations
+  stage choose-function protocol decider roles prefixCount arm context =
+    let stateType = indexed (branch-base protocol decider arm) 0 in
+    let binding = Syntax.newBinding (sym-to-name 'count) in
+    let count = Syntax.reference binding in
+    let components = Cons (packet-code context (Name.prefix "Mk" stateType) count) (peer-codes protocol decider arm roles context count) in
+    let productType = Syntax.tupleType (Cons (thunk-type (Syntax.declarationType stateType context)) (peer-types protocol decider roles context)) in
+    let builder = Syntax.lambda binding (Syntax.tupleCode components) in
+    let group = quoteDecls where {
+      export choose;
+      opaque type Product :: Type;
+      data Before where { MkBefore :: Nat -> Before };
+      choose :: Thunk {} Before %1 -> Product;
+      choose endpoint = case LocalWire.take endpoint of { MkBefore count -> $(builder) count } } in
+    Syntax.renameDeclarations (sym-to-name 'choose) (Name.prefix "choose-" (Name.join "-" protocol arm))
+      (connect-wrapper (sym-to-name 'Before) (sym-to-name 'MkBefore) (indexed (prefix-base protocol decider) prefixCount) context
+        (Syntax.specializeType (sym-to-name 'Product) productType group))
+
+  stage choose-functions :: Name -> Name -> List Name -> Nat -> List (Name, List (Name, Name, Name)) -> Declarations -> Declarations
+  stage choose-functions protocol decider roles prefixCount branches context = case branches of
+    Nil -> Syntax.emptyDeclarations
+    Cons (label, messages) rest -> Syntax.appendDeclarations
+      (choose-function protocol decider roles prefixCount label context)
+      (choose-functions protocol decider roles prefixCount rest context)
+
+  stage dispatch-clauses :: Name -> Name -> List (Name, List (Name, Name, Name)) -> Declarations -> Declarations -> Declarations
+  stage dispatch-clauses protocol role branches context dispatcher = case branches of
+    Nil -> dispatcher
+    Cons (label, messages) rest ->
+      let clause = quoteDecls where {
+        data Choice where { MkChoice :: Nat -> Choice };
+        data State where { MkState :: Nat -> State };
+        data Offer where { MkOffer :: Thunk {} State -> Offer };
+        branch count (MkChoice decision) = MkOffer (LocalWire.suspend (\() -> MkState count)) } in
+      let linked = connect (sym-to-name 'Choice) (sym-to-name 'MkChoice) (choice-name protocol role) (choice-constructor protocol label role) context
+            (connect (sym-to-name 'Offer) (sym-to-name 'MkOffer) (offer-name protocol role) (offer-constructor protocol label role) context
+              (connect-wrapper (sym-to-name 'State) (sym-to-name 'MkState) (indexed (branch-base protocol role label) 0) context clause)) in
+      dispatch-clauses protocol role rest context (Syntax.addEquations (sym-to-name 'branch) (sym-to-name 'dispatch) dispatcher linked)
+
+  stage offer-function :: Name -> Name -> Nat -> List (Name, List (Name, Name, Name)) -> Declarations -> Declarations
+  stage offer-function protocol role prefixCount branches context =
+    let base = quoteDecls where { opaque type ChoiceSlot :: Type; opaque type OfferSlot :: Type; dispatch :: Nat -> ChoiceSlot -> OfferSlot } in
+    let header = Syntax.linkDeclarations (sym-to-name 'ChoiceSlot) (choice-name protocol role) context
+          (Syntax.linkDeclarations (sym-to-name 'OfferSlot) (offer-name protocol role) context base) in
+    let dispatcher = dispatch-clauses protocol role branches context header in
+    let invoke = Syntax.functionCode (sym-to-name 'dispatch) dispatcher in
+    let group = quoteDecls where {
+      export offer;
+      data Before where { MkBefore :: Nat -> Before };
+      opaque type ChoiceSlot :: Type;
+      opaque type OfferSlot :: Type;
+      offer :: Thunk {} Before %1 -> Thunk {} ChoiceSlot %1 -> OfferSlot;
+      offer endpoint packet = case LocalWire.take endpoint of { MkBefore count -> $(invoke) count (LocalWire.take packet) } } in
+    let linked = Syntax.linkDeclarations (sym-to-name 'ChoiceSlot) (choice-name protocol role) context
+          (Syntax.linkDeclarations (sym-to-name 'OfferSlot) (offer-name protocol role) context
+            (connect-wrapper (sym-to-name 'Before) (sym-to-name 'MkBefore) (indexed (prefix-base protocol role) prefixCount) context group)) in
+    Syntax.renameDeclarations (sym-to-name 'offer) (Name.prefix "offer-" (Name.join "-" protocol role)) linked
+
+  stage role-functions :: Name -> Name -> List Name -> List Name -> List (Name, Name, Name) -> List (Name, List (Name, Name, Name)) -> Declarations -> Declarations
+  stage role-functions protocol decider allRoles roles messages branches context = case roles of
+    Nil -> Syntax.emptyDeclarations
+    Cons role rest ->
+      let localEdges = project role messages in
+      let functionBase = Name.join "-" protocol role in
+      Syntax.appendDeclarations
+        (start-function (Name.prefix "start-" functionBase) (indexed (prefix-base protocol role) 0) context)
+        (Syntax.appendDeclarations
+          (message-functions role (prefix-base protocol role) (Name.append protocol (sym-to-name 'Wire)) functionBase 0 localEdges context)
+          (Syntax.appendDeclarations
+            (if same role decider then choose-functions protocol decider allRoles (count-edges localEdges) branches context else
+              offer-function protocol role (count-edges localEdges) branches context)
+            (Syntax.appendDeclarations (role-branch-functions protocol role branches context)
+              (role-functions protocol decider allRoles rest messages branches context))))
+
+  macro declare :: Name -> Syntax -> Syntax -> Name -> Syntax -> Declarations
+  macro declare protocol roleRows messageRows decider branchRows =
+    let roles = role-names (Syntax.items roleRows) in
+    let messages = edges (Syntax.items messageRows) in
+    let branches = arms (Syntax.items branchRows) in
+    if count-names roles < 2 || count-edges messages == 0 || count-names (arm-labels branches) < 2
+      || not (unique roles) || not (unique (edge-labels messages)) || not (unique (arm-labels branches))
+      || not (member decider roles) || not (valid-edges roles messages) || not (valid-arms roles branches)
+    then Syntax.error "invalid choreography roles, messages or branches"
+    else
+      let base = Syntax.appendDeclarations (wire-data (Name.append protocol (sym-to-name 'Wire)) messages)
+            (Syntax.appendDeclarations (branch-wire-data protocol branches) (role-data protocol decider roles messages branches)) in
+      let context = add-choices protocol decider roles branches base in
+      Syntax.appendDeclarations context (role-functions protocol decider roles roles messages branches context)

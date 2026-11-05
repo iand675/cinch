@@ -1,0 +1,16 @@
+module A where
+  export Token, make
+  data Token where
+    AToken :: Token
+  macro make :: Syntax -> Code Token
+  macro make ignored = [| AToken |]
+module B where
+  data Token where
+    BToken :: Token
+module Main where
+  import stage A (make)
+  import B
+  wrong :: B.Token
+  wrong = make!(())
+  main :: Int
+  main = 0

@@ -1,0 +1,22 @@
+module Main where
+  value :: Bool
+  value = True
+  witness :: Bool
+  witness = False
+  stage family :: Declarations
+  stage family = quoteDecls where
+    type Refined = refine (value :: Nat) with value < 5
+    make :: Nat -> Nat -> Option Refined
+    make value candidate = case decide (value < 5) of
+      Yes witness -> Some (Refined value witness)
+      No _ -> None
+  generate do
+    emit (Syntax.renameDeclarations (sym-to-name 'make) (sym-to-name 'small-build)
+      (Syntax.renameDeclarations (sym-to-name 'Refined) (sym-to-name 'Small) family))
+    emit (Syntax.renameDeclarations (sym-to-name 'make) (sym-to-name 'other-build)
+      (Syntax.renameDeclarations (sym-to-name 'Refined) (sym-to-name 'Other) family))
+  main :: Int
+  main = case (small-build 3 9, small-build 9 3, other-build 4 8, other-build 8 4) of
+    (Some first, None, Some second, None) ->
+      if unrefine first == 3 && unrefine second == 4 then 42 else 0
+    _ -> 0

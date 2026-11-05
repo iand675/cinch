@@ -966,7 +966,7 @@ module Main where
         &[
             "`#[no-raw-ptr]` on Main.hold",
             "pointer rule (JPL rule 9)",
-            "the opaque type `H` appears in the signature",
+            "the opaque type `Main.H` appears in the signature",
         ],
     );
 }

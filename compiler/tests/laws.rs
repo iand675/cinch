@@ -184,3 +184,42 @@ module LawAssume where
         "{declared}"
     );
 }
+
+#[test]
+fn rewrite_equations_retain_generic_instantiations_and_explicit_annotations() {
+    let source = r#"module Main where
+  echo :: forall a. a -> a
+  echo value = value
+  through :: (Int -> Int) -> Int -> Int
+  through function value = function value
+  signature EchoEquations where
+    sameWord :: (x :: U32) -> Eq (echo x) (echo x)
+    sameInteger :: (x :: Int) -> Eq (echo x) (echo x)
+    sameLambda :: (x :: Int) -> Eq (through (\y -> echo y) x) (through (\y -> echo y) x)
+  rewrite wordEcho forall (x :: U32). where
+    match (echo :: U32 -> U32) (x :: U32)
+    replace echo x
+    justify EchoEquations.sameWord x
+  rewrite integerEcho forall (x :: Int). where
+    match (echo :: Int -> Int) (x :: Int)
+    replace echo x
+    justify EchoEquations.sameInteger x
+  rewrite lambdaEcho forall (x :: Int). where
+    match through (\y -> echo y) x
+    replace through (\y -> echo y) x
+    justify EchoEquations.sameLambda x
+  main :: Int
+  main = 42
+"#;
+    check_sources(source, "annotated-generic-rewrites.cinch")
+        .expect("both instantiations preserve their checked equation and annotations");
+    for (name, before, after) in [
+        ("different-word-equation", "replace echo x\n    justify EchoEquations.sameWord", "replace echo 1\n    justify EchoEquations.sameWord"),
+        ("different-integer-equation", "replace echo x\n    justify EchoEquations.sameInteger", "replace echo 1\n    justify EchoEquations.sameInteger"),
+        ("different-lambda-equation", "replace through (\\y -> echo y) x", "replace through (\\y -> echo 1) x"),
+    ] {
+        let wrong = source.replace(before, after);
+        assert_ne!(wrong, source, "the refusal fixture must change its equation");
+        expect_err(name, &wrong, "justification does not prove");
+    }
+}

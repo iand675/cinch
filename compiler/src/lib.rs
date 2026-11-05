@@ -24,6 +24,7 @@ pub mod specialize;
 pub mod store;
 pub mod types;
 pub mod total;
+pub mod syntax;
 
 use std::fmt;
 

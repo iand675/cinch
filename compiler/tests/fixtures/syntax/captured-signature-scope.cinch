@@ -1,0 +1,30 @@
+module Builders where
+  export typed
+  macro typed :: Syntax -> Syntax -> Syntax -> Declarations
+  macro typed signatureSource body provider =
+    Syntax.specializeType (sym-to-name 'Slot) (Syntax.captureType signatureSource)
+      (quoteDecls where {
+        opaque type Slot :: Type;
+        selected :: Slot;
+        selected value = $(Syntax.capture body) value;
+        answer :: Int;
+        answer = with (dict = $(Syntax.capture provider)) in selected 40 })
+module Caller where
+  export family
+  import stage Builders
+  signature Private a where
+    mark :: a -> Int
+  instance Word :: Private Int where
+    mark value = value + 2
+  stage family :: Declarations
+  stage family = typed!((using (dict :: Private Int) => Int -> Int), mark, Word)
+module Main where
+  import stage Caller
+  signature Private a where
+    mark :: a -> Int
+  instance Word :: Private Int where
+    mark value = 0
+  generate do
+    emit family
+  main :: Int
+  main = answer

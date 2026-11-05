@@ -24,7 +24,7 @@ use std::path::PathBuf;
 /// `needle`.
 fn expect_err(name: &str, src: &str, needles: &[&str]) {
     match check_sources(src, name) {
-        Ok(_) => panic!("{name}: expected an error, but the program checked"),
+        Ok(program) => panic!("{name}: expected an error, but the program checked; law results: {:#?}", program.laws),
         Err(e) => {
             let msg = e.to_string();
             for n in needles {

@@ -1,0 +1,36 @@
+module ProtocolSyntax where
+  export declare
+
+  stage stateDeclarations :: Name -> Declarations
+  stage stateDeclarations name = Syntax.renameDeclarations (sym-to-name 'State) name
+    (quoteDecls where { data State where { State :: Nat -> State } })
+
+  stage states :: List Syntax -> Declarations
+  stage states rows = case rows of
+    Nil -> Syntax.emptyDeclarations
+    Cons row rest -> Syntax.appendDeclarations (stateDeclarations (Syntax.name row)) (states rest)
+
+  -- Before/After are owned placeholders. Linking removes their definitions
+  -- and points the signature, constructor pattern and body at actual states.
+  stage transition :: Declarations -> Syntax -> Declarations
+  stage transition context row = case Syntax.items row of
+    [name, fromName, toName] ->
+      let group = quoteDecls where {
+        data Before where { Before :: Nat -> Before };
+        data After where { After :: Nat -> After };
+        advance :: Before %1 -> After;
+        advance endpoint = case endpoint of { Before count -> After (count + 1) } }
+      in Syntax.renameDeclarations (sym-to-name 'advance) (Syntax.name name)
+        (Syntax.linkDeclarations (sym-to-name 'After) (Syntax.name toName) context
+          (Syntax.linkDeclarations (sym-to-name 'Before) (Syntax.name fromName) context group))
+    _ -> Syntax.error "a protocol transition needs a name, source and destination"
+
+  stage transitions :: Declarations -> List Syntax -> Declarations
+  stage transitions context rows = case rows of
+    Nil -> Syntax.emptyDeclarations
+    Cons row rest -> Syntax.appendDeclarations (transition context row) (transitions context rest)
+
+  macro declare :: Syntax -> Syntax -> Declarations
+  macro declare stateRows transitionRows =
+    let context = states (Syntax.items stateRows) in
+    Syntax.appendDeclarations context (transitions context (Syntax.items transitionRows))

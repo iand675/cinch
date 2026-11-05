@@ -146,11 +146,16 @@ struct Def {
     kind: SymKind,
     line: u32,
     col: u32,
+    /// An expansion owns this definition; its call site is a navigation
+    /// destination, not a physical definition token in the source file.
+    generated: bool,
 }
 
 /// A reference site in workspace coordinates.
 #[derive(Clone, Debug)]
 struct Ref {
+    /// Actual checked owner/name, when the checker supplied this reference.
+    target: Option<(String, String)>,
     kind: RefKind,
     quals: Vec<String>,
     name: String,
@@ -671,7 +676,8 @@ impl Analysis {
                 term,
             });
         let prelude = self.ensure_prelude();
-        let res = check::check_program_multi_full_probe(
+        let mut checked_references = Vec::new();
+        let res = check::check_program_multi_full_probe_indexed(
             &prelude.modules,
             &modules,
             &hashes,
@@ -679,9 +685,39 @@ impl Analysis {
             &adapters,
             &crate::core::TargetProfile::native(),
             probe_arg.as_ref(),
+            &mut checked_references,
         );
         match res {
-            Ok((_, ifaces, _stage, diags, probe_out)) => {
+            Ok((_, ifaces, stage, diags, probe_out)) => {
+                for (module, declarations) in &stage.generated_syntax {
+                    let Some(file) = self.modules.get(module).map(|state| state.file.clone()) else { continue };
+                    let base = self.band_of(&file);
+                    let mut definitions = Vec::new();
+                    let mut signatures = HashMap::new();
+                    for (declaration, emission) in declarations {
+                        let conv = |_| workspace_position(base, expansion_call_site(*emission));
+                        index_defs(declaration, &mut definitions, &mut signatures, &conv);
+                    }
+                    for definition in &mut definitions { definition.generated = true; }
+                    let state = self.modules.get_mut(module).expect("indexed module");
+                    state.defs.extend(definitions);
+                    state.sig_text.extend(signatures);
+                }
+                for reference in checked_references {
+                    let (file, line, col) = self.unband(reference.span);
+                    // Captured definition-site syntax may be checked in a
+                    // different module. Its real source span locates the
+                    // entry; its checked target supplies binding authority.
+                    let source_module = self.modules.get(&reference.module)
+                        .filter(|state| state.file == file).map(|_| reference.module.clone())
+                        .or_else(|| self.modules.iter().find(|(_, state)| state.file == file).map(|(name, _)| name.clone()));
+                    let Some(state) = source_module.and_then(|name| self.modules.get_mut(&name)) else { continue };
+                    state.refs.retain(|site| site.line != line || site.col != col);
+                    state.refs.push(Ref {
+                        kind: reference.kind, quals: Vec::new(), name: reference.name.clone(), line, col,
+                        target: Some((reference.owner, reference.name)),
+                    });
+                }
                 for iface in ifaces {
                     self.ifaces.insert(iface.module.clone(), iface);
                 }
@@ -890,7 +926,7 @@ impl Analysis {
                 continue;
             }
             for d in &st.defs {
-                if d.line == line && d.col == col {
+                if !d.generated && d.line == line && d.col == col {
                     return Some((
                         name.clone(),
                         Site::Def(d.name.clone(), d.kind),
@@ -901,7 +937,10 @@ impl Analysis {
                 if r.line == line && r.col == col {
                     return Some((
                         name.clone(),
-                        Site::Ref(r.kind, r.quals.clone(), r.name.clone()),
+                        match &r.target {
+                            Some((owner, target)) => Site::BoundRef(r.kind, owner.clone(), target.clone()),
+                            None => Site::Ref(r.kind, r.quals.clone(), r.name.clone()),
+                        },
                     ));
                 }
             }
@@ -974,7 +1013,8 @@ impl Analysis {
                     | SymKind::Law
                     | SymKind::EffectOp
             ),
-            RefKind::Type => matches!(k, SymKind::Type | SymKind::Class | SymKind::Effect),
+            RefKind::Type => matches!(k, SymKind::Type | SymKind::Class),
+            RefKind::Effect => matches!(k, SymKind::Effect),
         };
         st.defs
             .iter()
@@ -1077,6 +1117,11 @@ impl Analysis {
                 return Some(format!("```cinch\n{name} :: {text}\n```"));
             }
             Site::Ref(kind, quals, name) => (*kind, quals.clone(), name.clone()),
+            Site::BoundRef(kind, owner, name) => {
+                let (_, symbol_kind, target) = self.def_in(owner, *kind, name)?;
+                let text = self.scheme_of(owner, &target, symbol_kind)?;
+                return Some(format!("```cinch\n{name} :: {text}\n```"));
+            }
         };
         let (owner, kind, _) = self.resolve(&module, rkind, &quals, &name)?;
         let text = self.scheme_of(&owner, &name, kind)?;
@@ -1090,6 +1135,7 @@ impl Analysis {
         let (owner, _, name) = match &site {
             Site::Def(name, kind) => (module.clone(), *kind, name.clone()),
             Site::Ref(kind, quals, name) => self.resolve(&module, *kind, quals, name)?,
+            Site::BoundRef(kind, owner, name) => self.def_in(owner, *kind, name)?,
         };
         let st = self
             .modules
@@ -1385,6 +1431,7 @@ impl Analysis {
 enum Site {
     Def(String, SymKind),
     Ref(RefKind, Vec<String>, String),
+    BoundRef(RefKind, String, String),
 }
 
 /// Is `module` one of the embedded prelude family?
@@ -1440,16 +1487,7 @@ pub fn parse_term(src: &str, fix: &FixityTable) -> crate::Result<ast::Term> {
 /// Index one parsed module: definition and reference sites in workspace
 /// coordinates, plus rendered signature text.
 fn index_module(file: &str, base: u64, modu: &ast::Module) -> ModuleState {
-    let conv = |s: Span| -> (u32, u32) {
-        (
-            if s.line as u64 >= base {
-                s.line - (base as u32 - 1)
-            } else {
-                s.line
-            },
-            s.col,
-        )
-    };
+    let conv = |s: Span| workspace_position(base, s);
     let mut st = ModuleState {
         file: file.to_string(),
         imports: Vec::new(),
@@ -1468,6 +1506,7 @@ fn index_module(file: &str, base: u64, modu: &ast::Module) -> ModuleState {
         for r in refs {
             let (line, col) = conv(r.span);
             st.refs.push(Ref {
+                target: None,
                 kind: r.kind,
                 quals: r.quals,
                 name: r.name,
@@ -1477,6 +1516,17 @@ fn index_module(file: &str, base: u64, modu: &ast::Module) -> ModuleState {
         }
     }
     st
+}
+
+fn workspace_position(base: u64, span: Span) -> (u32, u32) {
+    (if span.line as u64 >= base { span.line - (base as u32 - 1) } else { span.line }, span.col)
+}
+
+/// Nested expansions retain each template's coordinates. A generated
+/// definition navigates to the outer source invocation that emitted it.
+fn expansion_call_site(mut span: Span) -> Span {
+    while let Some(site) = crate::lexer::expansion_of(span) { span = site.call; }
+    span
 }
 
 /// The shipped source name of an embedded prelude module (go-to-
@@ -1502,7 +1552,7 @@ fn index_defs(
 ) {
     let add = |name: &ast::Name, kind: SymKind, defs: &mut Vec<Def>| {
         let (line, col) = conv(name.span);
-        defs.push(Def { name: name.text.clone(), kind, line, col });
+        defs.push(Def { name: name.text.clone(), kind, line, col, generated: false });
     };
     match d {
         Decl::ValueSig { name, ty, .. } => {
@@ -1611,6 +1661,9 @@ fn render_type_head(t: &interface::TypeExport) -> String {
 pub fn render_ast_type(t: &ast::Type) -> String {
     use ast::Type;
     match t {
+        Type::Elaborated(scheme, _) => scheme.ty.to_string(),
+        Type::IndexOperand(value, _, _) => value.to_string(),
+        Type::IndexAnnotated(value, annotation, _) => format!("({} :: {})", render_ast_type(value), render_ast_type(annotation)),
         Type::Con(p, _) => p.parts().join("."),
         Type::Var(n, _) => n.text.clone(),
         Type::App(f, a, _) => {
@@ -1777,6 +1830,9 @@ pub fn render_value(ty: &Ty, v: &Value) -> String {
         }
         Value::Dict { .. } => "<dictionary>".to_string(),
         Value::Code(_) => "<code>".to_string(),
+        Value::PackedCode(_) => "<packed code>".to_string(),
+        Value::TypeSyntax(_) => "<type syntax>".to_string(),
+        Value::SyntaxBinding(_) => "<syntax binding>".to_string(),
         Value::Decls(_) => "<decls>".to_string(),
         Value::Syntax { .. } => "<syntax>".to_string(),
         Value::Secret { name, .. } => format!("<secret {name}>"),

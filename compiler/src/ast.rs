@@ -4,17 +4,202 @@
 
 pub use crate::lexer::Span;
 use crate::{Error, Result};
+use std::sync::{Arc, OnceLock};
 
 #[derive(Clone, Debug)]
 pub struct Name {
     pub text: String,
     pub span: Span,
+    // Checker transformations clone syntax before resolving patterns. All
+    // copies of this lexical node must retain the same checked binding.
+    resolved: Arc<OnceLock<ResolvedName>>,
+    intrinsic_type: Option<Arc<IntrinsicTypeName>>,
+    local: Option<LocalBinding>,
+    scoped: Option<Arc<ScopedReference>>,
+    declaration: Option<LocalBinding>,
+}
+
+/// An opaque lexical binder, independent of its current printed spelling.
+/// Cloning syntax preserves this handle; a new binder gets a distinct handle.
+#[derive(Clone)]
+pub struct LocalBinding(Arc<()>);
+
+impl LocalBinding {
+    pub(crate) fn fresh() -> Self { Self(Arc::new(())) }
+}
+
+impl PartialEq for LocalBinding {
+    fn eq(&self, other: &Self) -> bool { Arc::ptr_eq(&self.0, &other.0) }
+}
+impl Eq for LocalBinding {}
+impl std::hash::Hash for LocalBinding {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        std::hash::Hash::hash(&Arc::as_ptr(&self.0), state);
+    }
+}
+impl std::fmt::Debug for LocalBinding {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Process addresses are not a reproducible syntax representation.
+        f.write_str("LocalBinding")
+    }
+}
+
+#[derive(Debug)]
+struct IntrinsicTypeName {
+    owner: String,
+    spelling: String,
+    identity: String,
 }
 
 impl Name {
     pub fn new(text: impl Into<String>, span: Span) -> Self {
-        Name { text: text.into(), span }
+        Name { text: text.into(), span, resolved: Arc::new(OnceLock::new()), intrinsic_type: None, local: None, scoped: None, declaration: None }
     }
+
+    /// A binding selected by the compiler's definition-site resolver.
+    /// Source tokens and reified spellings cannot manufacture this metadata.
+    pub fn resolved_binding(&self) -> Option<&ResolvedName> { self.resolved.get() }
+
+    pub fn local_binding(&self) -> Option<&LocalBinding> { self.local.as_ref() }
+
+    pub fn scoped_reference(&self) -> Option<&ScopedReference> { self.scoped.as_deref() }
+
+    /// A member of a native declaration group. Its printed name is descriptive;
+    /// only the quotation machinery can create the opaque identity.
+    pub(crate) fn declaration_binding(&self) -> Option<&LocalBinding> { self.declaration.as_ref() }
+
+    pub(crate) fn with_declaration_binding(&self, binding: LocalBinding) -> Self {
+        let mut name = Self::new(self.text.clone(), self.span);
+        name.declaration = Some(binding);
+        name
+    }
+
+    pub(crate) fn source_spelling(&self) -> &str {
+        self.scoped_reference().map(ScopedReference::spelling).unwrap_or(&self.text)
+    }
+
+    fn in_global_scope(&self, scope: &GlobalScope, kind: RefKind, path: Vec<String>) -> Self {
+        if self.local.is_some() || self.resolved_binding().is_some() || self.scoped.is_some() || self.declaration.is_some() { return self.clone(); }
+        let mut name = self.clone();
+        name.scoped = Some(Arc::new(scope.reference(kind, path)));
+        name
+    }
+
+    pub(crate) fn bound(text: impl Into<String>, span: Span, binding: LocalBinding) -> Self {
+        let mut name = Self::new(text, span);
+        name.local = Some(binding);
+        name
+    }
+
+    pub(crate) fn record_binding(&self, kind: RefKind, module: &str, name: &str) {
+        let _ = self.resolved.set(ResolvedName { kind, module: module.into(), name: name.into() });
+    }
+
+    /// Only the embedded-family parser marks an actual intrinsic
+    /// declaration. A module spelling, file name or copied reference is
+    /// insufficient, and moving the declaration changes its owner.
+    pub(crate) fn mark_intrinsic_type(&mut self, owner: &str, identity: String) {
+        self.intrinsic_type = Some(Arc::new(IntrinsicTypeName {
+            owner: owner.into(), spelling: self.text.clone(), identity,
+        }));
+    }
+
+    pub(crate) fn intrinsic_type_identity(&self, owner: &str) -> Option<&str> {
+        self.intrinsic_type.as_ref().filter(|id| id.owner == owner && id.spelling == self.text)
+            .map(|id| id.identity.as_str())
+    }
+
+    fn resolved(text: String, span: Span, kind: RefKind, module: String, name: String) -> Self {
+        Self { text, span, resolved: Arc::new(OnceLock::from(ResolvedName { kind, module, name })), intrinsic_type: None, local: None, scoped: None, declaration: None }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ResolvedName {
+    kind: RefKind,
+    module: String,
+    name: String,
+}
+
+/// A source reference's frozen visibility, including an empty candidate set.
+/// Constructors retain alternatives until their expected type is available.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ScopedReference {
+    origin: String,
+    spelling: String,
+    kind: RefKind,
+    values: Vec<ResolvedName>,
+    types: Vec<ResolvedName>,
+    effects: Vec<ResolvedName>,
+    constructors: Vec<ResolvedName>,
+    special: bool,
+    dictionaries: Option<Vec<LocalBinding>>,
+}
+
+impl ScopedReference {
+    pub(crate) fn dictionary_bindings(&self) -> Option<&[LocalBinding]> { self.dictionaries.as_deref() }
+    pub fn origin(&self) -> &str { &self.origin }
+    pub fn spelling(&self) -> &str { &self.spelling }
+    pub fn kind(&self) -> RefKind { self.kind }
+    pub fn candidates(&self, kind: RefKind) -> &[ResolvedName] {
+        match kind { RefKind::Value => &self.values, RefKind::Type => &self.types, RefKind::Effect => &self.effects }
+    }
+    pub fn is_special_form(&self) -> bool { self.special }
+    pub fn constructor_candidates(&self) -> Vec<&ResolvedName> {
+        let mut candidates: Vec<_> = self.values.iter().collect();
+        for candidate in &self.constructors {
+            if !candidates.contains(&candidate) { candidates.push(candidate); }
+        }
+        candidates
+    }
+}
+
+/// Compiler-created source visibility. A descriptive module string cannot
+/// create this capability through the public syntax-object API.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct GlobalScope {
+    module: String,
+    names: Arc<std::collections::BTreeMap<(u8, Vec<String>), Vec<ResolvedName>>>,
+    constructors: Arc<std::collections::BTreeMap<Vec<String>, Vec<ResolvedName>>>,
+    dictionaries: Option<Vec<LocalBinding>>,
+}
+
+impl GlobalScope {
+    pub(crate) fn new(module: &str) -> Self { Self { module: module.into(), names: Default::default(), constructors: Default::default(), dictionaries: None } }
+    pub(crate) fn with_dictionary_bindings(mut self, dictionaries: Vec<LocalBinding>) -> Self {
+        self.dictionaries = Some(dictionaries); self
+    }
+    pub(crate) fn has_dictionary_bindings(&self) -> bool { self.dictionaries.is_some() }
+    pub(crate) fn dictionary_bindings(&self) -> Option<&[LocalBinding]> { self.dictionaries.as_deref() }
+    pub(crate) fn module(&self) -> &str { &self.module }
+    pub(crate) fn insert_constructor(&mut self, module: &str, name: &str) {
+        let candidate = ResolvedName { kind: RefKind::Value, module: module.into(), name: name.into() };
+        let candidates = Arc::make_mut(&mut self.constructors).entry(vec![name.into()]).or_default();
+        if !candidates.contains(&candidate) { candidates.push(candidate); }
+    }
+    pub(crate) fn insert(&mut self, kind: RefKind, path: Vec<String>, module: &str, name: &str) {
+        let entry = ResolvedName { kind, module: module.into(), name: name.into() };
+        let candidates = Arc::make_mut(&mut self.names).entry((kind as u8, path)).or_default();
+        if !candidates.contains(&entry) { candidates.push(entry); }
+    }
+    fn reference(&self, kind: RefKind, path: Vec<String>) -> ScopedReference {
+        // Ordinary source lookup selects one binding. Retain alternatives
+        // only for the separate expected-family constructor rule.
+        let values = self.names.get(&(RefKind::Value as u8, path.clone())).and_then(|names| names.first()).cloned().into_iter().collect::<Vec<_>>();
+        let types = self.names.get(&(RefKind::Type as u8, path.clone())).and_then(|names| names.first()).cloned().into_iter().collect::<Vec<_>>();
+        let effects = self.names.get(&(RefKind::Effect as u8, path.clone())).and_then(|names| names.first()).cloned().into_iter().collect::<Vec<_>>();
+        let constructors = self.constructors.get(&path).cloned().unwrap_or_default();
+        let spelling = path.last().cloned().unwrap_or_default();
+        let special = kind == RefKind::Value && path.len() == 1 && values.is_empty()
+            && (builtin_syntax_form(&spelling) || spelling == "pure");
+        ScopedReference { origin: self.module.clone(), spelling, kind, values, types, effects, constructors, special, dictionaries: self.dictionaries.clone() }
+    }
+}
+
+impl ResolvedName {
+    pub fn kind(&self) -> RefKind { self.kind }
+    pub fn module(&self) -> &str { &self.module }
+    pub fn name(&self) -> &str { &self.name }
 }
 
 /// `con_id { "." con_id }`.
@@ -100,6 +285,18 @@ impl Oblig {
 
 #[derive(Clone, Debug)]
 pub enum Type {
+    /// A native macro's instantiated `Code` result expectation. This is not
+    /// source syntax or proof of the body's type: the ordinary annotation
+    /// checker must check the expanded term against it. Checked nominal and
+    /// lexical identities must not be resolved again by printed spelling.
+    Elaborated(Box<crate::types::Scheme>, Span),
+    /// An already checked term operand used by the shared index converter.
+    /// This internal leaf preserves an explicit carrier without printing and
+    /// reparsing the term. It is never accepted by the source parser.
+    IndexOperand(Box<crate::types::ITerm>, Box<crate::types::Ty>, Span),
+    /// A term annotation deferred until its surrounding index binders exist.
+    /// Internal bridge syntax only; the source parser cannot create it.
+    IndexAnnotated(Box<Type>, Box<Type>, Span),
     /// `Int`, `Bool`, `T`, `M.T`.
     Con(ConPath, Span),
     /// Type variable `a`.
@@ -145,7 +342,10 @@ pub enum Type {
 impl Type {
     pub fn span(&self) -> Span {
         match self {
-            Type::Con(_, s)
+            Type::Elaborated(_, s)
+            | Type::IndexOperand(_, _, s)
+            | Type::IndexAnnotated(_, _, s)
+            | Type::Con(_, s)
             | Type::Var(_, s)
             | Type::App(_, _, s)
             | Type::AppRow(_, _, s)
@@ -250,9 +450,22 @@ pub enum LocalDecl {
 pub struct TokenTree {
     pub tokens: Vec<crate::lexer::Token>,
     pub span: Span,
+    /// Captured lexical value bindings. `None` is an unscoped parser tree;
+    /// `Some([])` is an authoritative empty lexical scope.
+    pub lexical: Option<Vec<Name>>,
+    pub(crate) globals: Option<Arc<GlobalScope>>,
+    /// Quoted declarations visible at this capture site. These are owned
+    /// capabilities, not globals looked up by their eventual public spelling.
+    pub(crate) declarations: Option<Vec<(RefKind, Name)>>,
 }
 
 impl TokenTree {
+    /// Raw syntax has no captured binding authority until the compiler
+    /// snapshots its actual source scope.
+    pub fn new(tokens: Vec<crate::lexer::Token>, span: Span) -> Self {
+        Self { tokens, span, lexical: None, globals: None, declarations: None }
+    }
+
     /// The tree's top-level groups, split on commas outside nested
     /// delimiters (the macro parameter binding form: `m!(a, b)` binds two
     /// groups). The delimiters of the outermost tree are not part of the
@@ -286,7 +499,7 @@ impl TokenTree {
                 | crate::lexer::Tok::RBrace
                 | crate::lexer::Tok::RQuote => depth -= 1,
                 crate::lexer::Tok::Comma if depth == 0 => {
-                    groups.push(TokenTree { tokens: std::mem::take(&mut cur), span: self.span });
+                    groups.push(TokenTree { tokens: std::mem::take(&mut cur), span: self.span, lexical: self.lexical.clone(), globals: self.globals.clone(), declarations: self.declarations.clone() });
                     continue;
                 }
                 _ => {}
@@ -294,8 +507,16 @@ impl TokenTree {
             cur.push(t.clone());
         }
         if !cur.is_empty() || groups.is_empty() {
-            groups.push(TokenTree { tokens: cur, span: self.span });
+            groups.push(TokenTree { tokens: cur, span: self.span, lexical: self.lexical.clone(), globals: self.globals.clone(), declarations: self.declarations.clone() });
         }
+        groups
+    }
+
+    /// Checking and evaluation agree: empty delimiters mean zero arguments
+    /// for a nullary macro, but one empty Syntax argument for a unary macro.
+    pub(crate) fn macro_arg_groups(&self, arity: usize) -> Vec<TokenTree> {
+        let mut groups = self.arg_groups();
+        if arity == 0 && groups.len() == 1 && groups[0].tokens.is_empty() { groups.clear(); }
         groups
     }
 }
@@ -525,6 +746,226 @@ impl Term {
             | Term::MacroCall { span: s, .. }
             | Term::SpliceHole { span: s, .. } => *s,
             Term::Handler(h) => h.span,
+        }
+    }
+}
+
+// Structural annotation traversal deliberately leaves names and lexical
+// scopes alone. In particular, copying checked metadata must not run the
+// quotation hygiene walk again and allocate new source binding handles.
+impl Type {
+    pub fn visit_mut(&mut self, visit: &mut impl FnMut(&mut Type)) {
+        match self {
+            Type::App(a, b, _) | Type::IndexAnnotated(a, b, _) | Type::DepFun(_, a, _, _, b, _) | Type::Sigma(_, a, b, _) => {
+                a.visit_mut(visit);
+                b.visit_mut(visit);
+            }
+            Type::Fun { arg, res, .. } => {
+                arg.visit_mut(visit);
+                res.visit_mut(visit);
+            }
+            Type::AppRow(body, _, _) | Type::Lam(_, body, _) => body.visit_mut(visit),
+            Type::Forall(binders, body, _) => {
+                visit_binder_types(binders, visit);
+                body.visit_mut(visit);
+            }
+            Type::Using(obligations, body, _) => {
+                visit_obligation_types(obligations, visit);
+                body.visit_mut(visit);
+            }
+            Type::Tuple(types, _) | Type::Infix(types, _, _) => {
+                for ty in types { ty.visit_mut(visit); }
+            }
+            Type::Elaborated(..) | Type::IndexOperand(..) | Type::Con(..)
+            | Type::Var(..) | Type::Unit(..) | Type::Num(..) => {}
+        }
+        visit(self);
+    }
+}
+
+fn visit_binder_types(binders: &mut [TypeBinder], visit: &mut impl FnMut(&mut Type)) {
+    for binder in binders {
+        if let Some(annotation) = &mut binder.ann { annotation.visit_mut(visit); }
+    }
+}
+
+fn visit_obligation_types(obligations: &mut [Oblig], visit: &mut impl FnMut(&mut Type)) {
+    for obligation in obligations {
+        match obligation {
+            Oblig::Class(constraint) => for ty in &mut constraint.args { ty.visit_mut(visit); },
+            Oblig::Pred(ty) | Oblig::Preserves { pred: ty, .. } => ty.visit_mut(visit),
+        }
+    }
+}
+
+impl LocalDecl {
+    fn visit_types_mut(&mut self, visit: &mut impl FnMut(&mut Type)) {
+        match self {
+            LocalDecl::Sig { ty, .. } => ty.visit_mut(visit),
+            LocalDecl::Eq { body, .. } | LocalDecl::Bind { body, .. }
+            | LocalDecl::Lazy { body, .. } => body.visit_types_mut(visit),
+        }
+    }
+}
+
+impl DoStmt {
+    fn visit_types_mut(&mut self, visit: &mut impl FnMut(&mut Type)) {
+        match self {
+            DoStmt::Bind { term, .. } | DoStmt::Expr { term, .. } => term.visit_types_mut(visit),
+            DoStmt::Let { decls, .. } => for declaration in decls { declaration.visit_types_mut(visit); },
+        }
+    }
+}
+
+impl Term {
+    pub fn visit_types_mut(&mut self, visit: &mut impl FnMut(&mut Type)) {
+        match self {
+            Term::App(head, arguments, _) => {
+                head.visit_types_mut(visit);
+                for argument in arguments { argument.visit_types_mut(visit); }
+            }
+            Term::Lam(_, body, _) | Term::Neg(body, _) | Term::Proj(body, _, _)
+            | Term::CpsWrap(body, _) | Term::Quote { body, .. }
+            | Term::Splice { body, .. } => body.visit_types_mut(visit),
+            Term::Let(declarations, body, _) | Term::Letrec(declarations, body, _) => {
+                for declaration in declarations { declaration.visit_types_mut(visit); }
+                body.visit_types_mut(visit);
+            }
+            Term::If { cond, then, els, .. } => {
+                cond.visit_types_mut(visit);
+                then.visit_types_mut(visit);
+                els.visit_types_mut(visit);
+            }
+            Term::Case(scrutinee, alternatives, _) => {
+                scrutinee.visit_types_mut(visit);
+                for alternative in alternatives {
+                    if let Some(guard) = &mut alternative.guard { guard.visit_types_mut(visit); }
+                    alternative.body.visit_types_mut(visit);
+                }
+            }
+            Term::Ann(body, annotation, _) => {
+                body.visit_types_mut(visit);
+                annotation.visit_mut(visit);
+            }
+            Term::Infix(terms, _, _) | Term::Tuple(terms, _) | Term::List(terms, _) => {
+                for term in terms { term.visit_types_mut(visit); }
+            }
+            Term::Map(entries, _) => for (key, value) in entries {
+                key.visit_types_mut(visit);
+                value.visit_types_mut(visit);
+            },
+            Term::Range(first, second, last, _) => {
+                first.visit_types_mut(visit);
+                if let Some(second) = second { second.visit_types_mut(visit); }
+                last.visit_types_mut(visit);
+            }
+            Term::Record(_, fields, _) => for (_, value) in fields { value.visit_types_mut(visit); },
+            Term::Do(statements, _) => for statement in statements { statement.visit_types_mut(visit); },
+            Term::Handle(body, handler, _) | Term::With { value: body, body: handler, .. } => {
+                body.visit_types_mut(visit);
+                handler.visit_types_mut(visit);
+            }
+            Term::Handler(handler) => {
+                handler.ret_body.visit_types_mut(visit);
+                for clause in &mut handler.clauses { clause.body.visit_types_mut(visit); }
+            }
+            Term::CapApply { head, supplies, .. } => {
+                head.visit_types_mut(visit);
+                for (_, value) in supplies { value.visit_types_mut(visit); }
+            }
+            Term::QuoteDecls { decls, .. } => for declaration in decls { declaration.visit_types_mut(visit); },
+            Term::Forget { atoms, value, .. } => {
+                for atom in atoms { atom.visit_mut(visit); }
+                value.visit_types_mut(visit);
+            }
+            Term::Narrow { value, target, witness, .. } => {
+                value.visit_types_mut(visit);
+                target.visit_mut(visit);
+                witness.visit_types_mut(visit);
+            }
+            Term::Var(..) | Term::Con(..) | Term::Int(..) | Term::Str(..) | Term::Char(..)
+            | Term::Sym(..) | Term::Unit(..) | Term::Hole(..) | Term::SeqOp(..)
+            | Term::MacroCall { .. } | Term::SpliceHole { .. } => {}
+        }
+    }
+}
+
+impl Equation {
+    fn visit_types_mut(&mut self, visit: &mut impl FnMut(&mut Type)) {
+        self.body.visit_types_mut(visit);
+        for declaration in &mut self.locals { declaration.visit_types_mut(visit); }
+    }
+}
+
+impl Decl {
+    pub fn visit_types_mut(&mut self, visit: &mut impl FnMut(&mut Type)) {
+        match self {
+            Decl::Signature(signature) => {
+                visit_binder_types(&mut signature.params, visit);
+                for declaration in &mut signature.member_decls { declaration.visit_types_mut(visit); }
+                for (_, ty) in signature.methods.iter_mut().chain(&mut signature.laws) { ty.visit_mut(visit); }
+                for equation in &mut signature.defaults { equation.visit_types_mut(visit); }
+            }
+            Decl::Instance(instance) => {
+                visit_obligation_types(&mut instance.ctx, visit);
+                instance.target.visit_mut(visit);
+                for equation in &mut instance.methods { equation.visit_types_mut(visit); }
+                for (_, ty) in &mut instance.method_sigs { ty.visit_mut(visit); }
+            }
+            Decl::Data(data) => {
+                visit_binder_types(&mut data.params, visit);
+                for constructor in &mut data.ctors { constructor.ty.visit_mut(visit); }
+            }
+            Decl::Record(record) | Decl::Codata(record) => {
+                visit_binder_types(&mut record.params, visit);
+                for field in &mut record.fields { field.ty.visit_mut(visit); }
+            }
+            Decl::ValueSig { ty, .. } => ty.visit_mut(visit),
+            Decl::Equation { eq, .. } => eq.visit_types_mut(visit),
+            Decl::NameSpliced { name_tm, inner } => {
+                name_tm.visit_types_mut(visit);
+                inner.visit_types_mut(visit);
+            }
+            Decl::Foreign(foreign) => foreign.ty.visit_mut(visit),
+            Decl::Prim(primitive) => {
+                primitive.ty.visit_mut(visit);
+                for body in &mut primitive.bodies {
+                    if let Some(condition) = &mut body.when { condition.visit_types_mut(visit); }
+                    if let Some(evidence) = &mut body.justify { evidence.visit_types_mut(visit); }
+                    for usage in &mut body.uses { usage.ty.visit_mut(visit); }
+                }
+            }
+            Decl::Refine(refinement) => {
+                visit_binder_types(&mut refinement.params, visit);
+                refinement.base.visit_mut(visit);
+                refinement.pred.visit_mut(visit);
+            }
+            Decl::OpaqueType(opaque) => {
+                visit_binder_types(&mut opaque.params, visit);
+                opaque.kind.visit_mut(visit);
+            }
+            Decl::Effect(effect) => for (_, ty) in &mut effect.ops { ty.visit_mut(visit); },
+            Decl::Attributed { inner, .. } => inner.visit_types_mut(visit),
+            Decl::Generate { stmts, .. } => for statement in stmts { statement.visit_types_mut(visit); },
+            Decl::Rewrite(rewrite) => {
+                visit_binder_types(&mut rewrite.binders, visit);
+                visit_obligation_types(&mut rewrite.ctx, visit);
+                rewrite.match_tm.visit_types_mut(visit);
+                rewrite.replace_tm.visit_types_mut(visit);
+                if let Some(condition) = &mut rewrite.require { condition.visit_types_mut(visit); }
+                rewrite.justify.visit_types_mut(visit);
+            }
+            Decl::Upgrade(upgrade) => {
+                if let Some(migration) = &mut upgrade.migrate { migration.visit_types_mut(visit); }
+                if let Some(relation) = &mut upgrade.related { relation.visit_types_mut(visit); }
+            }
+            Decl::Contract(contract) => for clause in &mut contract.clauses {
+                match clause {
+                    ContractClause::Formula { body, .. } | ContractClause::AssumeProp { body } => body.visit_types_mut(visit),
+                    ContractClause::AssumeNamed { .. } => {}
+                }
+            },
+            Decl::Import(..) | Decl::ImportData(..) | Decl::Export(..) | Decl::Fixity(..) => {}
         }
     }
 }
@@ -1074,10 +1515,11 @@ pub struct Module {
 
 /// The namespace a top-level name resolves in: values (including
 /// constructors and operators), or types.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum RefKind {
     Value,
     Type,
+    Effect,
 }
 
 /// A top-level name reference found by [`collect_term_refs`] or
@@ -1093,7 +1535,7 @@ pub struct RefSite {
 
 /// Definition-site resolution of a bare name to its owning `(module,
 /// name)`; `None` when the name does not resolve there.
-pub type NameResolver<'a> = &'a dyn Fn(RefKind, &str) -> Option<(String, String)>;
+pub type NameResolver<'a> = &'a dyn Fn(&RefSite) -> Option<(String, String)>;
 
 fn ref_of_path(kind: RefKind, segments: &[Name], span: Span) -> RefSite {
     RefSite {
@@ -1203,6 +1645,7 @@ pub fn collect_term_refs(t: &Term, out: &mut Vec<RefSite>) {
             collect_term_refs(h, out);
         }
         Term::Handler(h) => {
+            out.push(ref_of_path(RefKind::Effect, &h.effect.segments, h.effect.span()));
             collect_term_refs(&h.ret_body, out);
             for c in &h.clauses {
                 collect_term_refs(&c.body, out);
@@ -1312,6 +1755,7 @@ pub fn collect_decl_refs(d: &Decl, out: &mut Vec<RefSite>) {
             for c in &r.ctx {
                 match c {
                     Oblig::Class(c) => {
+                        out.push(ref_of_path(RefKind::Type, &c.class.segments, c.span));
                         for a in &c.args {
                             collect_type_refs(a, out);
                         }
@@ -1424,10 +1868,18 @@ pub fn collect_decl_refs(d: &Decl, out: &mut Vec<RefSite>) {
 
 /// Every top-level name a type references.
 pub fn collect_type_refs(t: &Type, out: &mut Vec<RefSite>) {
+    let row = match t {
+        Type::AppRow(_, row, _) => Some(row),
+        Type::Fun { eff, .. } | Type::DepFun(_, _, _, eff, _, _) => eff.as_ref(),
+        _ => None,
+    };
+    if let Some(row) = row {
+        for (label, _) in &row.labels { out.push(ref_of_path(RefKind::Effect, &label.segments, label.span())); }
+    }
     match t {
         Type::Con(p, span) => out.push(ref_of_path(RefKind::Type, &p.segments, *span)),
-        Type::Var(_, _) | Type::Unit(_) | Type::Num(_, _) => {}
-        Type::App(a, b, _) => {
+        Type::Elaborated(_, _) | Type::IndexOperand(..) | Type::Var(_, _) | Type::Unit(_) | Type::Num(_, _) => {}
+        Type::App(a, b, _) | Type::IndexAnnotated(a, b, _) => {
             collect_type_refs(a, out);
             collect_type_refs(b, out);
         }
@@ -1442,6 +1894,7 @@ pub fn collect_type_refs(t: &Type, out: &mut Vec<RefSite>) {
             for c in cs {
                 match c {
                     Oblig::Class(c) => {
+                        out.push(ref_of_path(RefKind::Type, &c.class.segments, c.span));
                         for a in &c.args {
                             collect_type_refs(a, out);
                         }
@@ -1487,13 +1940,19 @@ pub struct HygCx<'a> {
     /// references to them stay bare and bind the generated declarations.
     pub own_values: Vec<String>,
     pub own_types: Vec<String>,
+    pub owned_declarations: Vec<(RefKind, Name)>,
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct HygScope {
-    /// `(spelled, fresh)` pairs; the last one wins (shadowing).
-    values: Vec<(String, String)>,
+    /// `(original, rewritten)` binders; references with handles match by
+    /// identity, while unresolved source names use lexical shadowing.
+    values: Vec<(Name, Name)>,
     types: Vec<(String, String)>,
+    index_lambdas: Vec<LocalBinding>,
+    capture: bool,
+    source: bool,
+    globals: Option<Arc<GlobalScope>>,
 }
 
 impl HygScope {
@@ -1501,11 +1960,35 @@ impl HygScope {
         HygScope::default()
     }
 
-    fn lookup_value(&self, n: &str) -> Option<&str> {
-        self.values.iter().rev().find(|(a, _)| a == n).map(|(_, b)| b.as_str())
+    fn lookup_value(&self, n: &Name) -> Option<&Name> {
+        if n.resolved_binding().is_some() || n.scoped_reference().is_some() || n.declaration_binding().is_some() { return None; }
+        self.values.iter().rev().find(|(old, _)| match n.local_binding() {
+            Some(key) => old.local_binding() == Some(key),
+            None => old.text == n.text,
+        }).map(|(_, new)| new)
+    }
+
+    fn bind_value(&mut self, old: &Name, new: &Name) {
+        self.values.push((old.clone(), new.clone()));
+    }
+
+    pub(crate) fn capture(values: &[Name]) -> Self {
+        Self { values: values.iter().map(|n| (n.clone(), n.clone())).collect(),
+            types: Vec::new(), index_lambdas: Vec::new(), capture: true, source: false, globals: None }
     }
     fn lookup_type(&self, n: &str) -> Option<&str> {
         self.types.iter().rev().find(|(a, _)| a == n).map(|(_, b)| b.as_str())
+    }
+
+    fn scoped<T>(&mut self, apply: impl FnOnce(&mut Self) -> Result<T>) -> Result<T> {
+        let values = self.values.len();
+        let types = self.types.len();
+        let index_lambdas = self.index_lambdas.len();
+        let result = apply(self);
+        self.values.truncate(values);
+        self.types.truncate(types);
+        self.index_lambdas.truncate(index_lambdas);
+        result
     }
 }
 
@@ -1513,23 +1996,59 @@ fn fresh_name(cx: &mut HygCx, base: &str) -> String {
     (cx.fresh)(base)
 }
 
-fn qualify_value(cx: &HygCx, path: &VarPath, span: Span) -> Result<VarPath> {
-    if !path.quals.is_empty() || cx.own_values.iter().any(|n| *n == path.name.text) {
-        return Ok(path.clone());
+fn fresh_value_name(cx: &mut HygCx, sc: &HygScope, old: &Name) -> Name {
+    if sc.capture {
+        if old.local_binding().is_some() { return old.clone(); }
+        return Name::bound(old.text.clone(), old.span, LocalBinding::fresh());
     }
-    match (cx.resolve)(RefKind::Value, &path.name.text) {
-        // Builtins are in scope everywhere and cannot be redefined: a
-        // bare name keeps them (and stays readable in diagnostics).
-        Some((module, name)) if module == "<builtin>" => {
-            Ok(VarPath {
-                quals: Vec::new(),
-                name: Name::new(name, path.name.span),
-            })
+    Name::bound(fresh_name(cx, &old.text), old.span, LocalBinding::fresh())
+}
+
+fn owned_declaration_name(cx: &HygCx, kind: RefKind, source: &Name) -> Option<Name> {
+    let (_, declaration) = cx.owned_declarations.iter().rev()
+        .find(|(namespace, name)| *namespace == kind && name.text == source.text)?;
+    let mut name = declaration.with_declaration_binding(declaration.declaration_binding().unwrap().clone());
+    name.span = source.span;
+    Some(name)
+}
+
+pub(crate) fn builtin_syntax_form(name: &str) -> bool {
+    matches!(name, "delay" | "force" | "demand" | "copyOut" | "borrow" | "mutBorrow" | "refSet" | "decide" | "ignore" | "unrefine")
+}
+
+fn qualify_value(cx: &HygCx, path: &VarPath, span: Span) -> Result<VarPath> {
+    if path.name.local_binding().is_some() || path.name.scoped_reference().is_some() || path.name.declaration_binding().is_some() { return Ok(path.clone()); }
+    if let Some(binding) = path.name.resolved_binding() {
+        let mut name = path.name.clone();
+        name.text = binding.name.clone();
+        return Ok(VarPath { quals: vec![Name::new(binding.module.clone(), span)], name });
+    }
+    if path.quals.is_empty() {
+        if let Some(name) = owned_declaration_name(cx, RefKind::Value, &path.name) {
+            return Ok(VarPath { quals: Vec::new(), name });
         }
+    }
+    if path.quals.is_empty() && cx.own_values.iter().any(|n| *n == path.name.text) {
+        let mut owned = path.clone();
+        if let Some(name) = owned_declaration_name(cx, RefKind::Value, &path.name) { owned.name = name; }
+        return Ok(owned);
+    }
+    let site = RefSite { kind: RefKind::Value, quals: path.quals.iter().map(|n| n.text.clone()).collect(), name: path.name.text.clone(), span };
+    match (cx.resolve)(&site) {
         Some((module, name)) => Ok(VarPath {
-            quals: vec![Name::new(module, span)],
-            name: Name::new(name, path.name.span),
+            quals: vec![Name::new(module.clone(), span)],
+            name: Name::resolved(name.clone(), path.name.span, RefKind::Value, module, name),
         }),
+        None if path.quals.is_empty() && builtin_syntax_form(&path.name.text) => {
+            // An unshadowed form is selected where the quotation is made.
+            // Carry that authority explicitly so insertion-site bindings
+            // cannot capture it. An actual definition-site binding above
+            // still shadows the form under the ordinary language rule.
+            let globals = GlobalScope::new("<builtin>");
+            Ok(VarPath { quals: Vec::new(), name: path.name.in_global_scope(
+                &globals, RefKind::Value, vec![path.name.text.clone()],
+            ) })
+        }
         None => Err(Error::at(
             path.span(),
             format!(
@@ -1541,15 +2060,31 @@ fn qualify_value(cx: &HygCx, path: &VarPath, span: Span) -> Result<VarPath> {
 }
 
 fn qualify_con(cx: &HygCx, path: &ConPath, span: Span) -> Result<ConPath> {
-    if path.segments.len() > 1 || cx.own_values.iter().any(|n| *n == path.segments[0].text) {
-        return Ok(path.clone());
+    if path.segments.last().is_some_and(|n| n.scoped_reference().is_some() || n.declaration_binding().is_some()) { return Ok(path.clone()); }
+    if let Some(binding) = path.segments.last().and_then(|n| n.resolved_binding()) {
+        let mut name = path.segments.last().unwrap().clone();
+        name.text = binding.name.clone();
+        let mut segments = Vec::new();
+        if binding.module != "<builtin>" { segments.push(Name::new(binding.module.clone(), span)); }
+        segments.push(name);
+        return Ok(ConPath { segments });
     }
-    match (cx.resolve)(RefKind::Value, &path.segments[0].text) {
+    if path.segments.len() == 1 {
+        if let Some(name) = owned_declaration_name(cx, RefKind::Value, &path.segments[0]) {
+            return Ok(ConPath { segments: vec![name] });
+        }
+    }
+    if path.segments.len() == 1 && cx.own_values.iter().any(|n| *n == path.segments[0].text) {
+        let name = owned_declaration_name(cx, RefKind::Value, &path.segments[0]).unwrap_or_else(|| path.segments[0].clone());
+        return Ok(ConPath { segments: vec![name] });
+    }
+    let site = ref_of_path(RefKind::Value, &path.segments, span);
+    match (cx.resolve)(&site) {
         Some((module, name)) if module == "<builtin>" => Ok(ConPath {
-            segments: vec![Name::new(name, path.segments[0].span)],
+            segments: vec![Name::resolved(name.clone(), path.segments.last().unwrap().span, RefKind::Value, module, name)],
         }),
         Some((module, name)) => Ok(ConPath {
-            segments: vec![Name::new(module, span), Name::new(name, path.segments[0].span)],
+            segments: vec![Name::new(module.clone(), span), Name::resolved(name.clone(), path.segments.last().unwrap().span, RefKind::Value, module, name)],
         }),
         None => Err(Error::at(
             span,
@@ -1562,16 +2097,27 @@ fn qualify_con(cx: &HygCx, path: &ConPath, span: Span) -> Result<ConPath> {
 }
 
 fn qualify_type_con(cx: &HygCx, path: &ConPath, span: Span) -> Result<ConPath> {
-    if path.segments.len() > 1 || cx.own_types.iter().any(|n| *n == path.segments[0].text) {
-        return Ok(path.clone());
+    if path.segments.last().is_some_and(|n| n.scoped_reference().is_some() || n.declaration_binding().is_some()) { return Ok(path.clone()); }
+    if path.segments.last().is_some_and(|n| n.resolved_binding().is_some()) { return Ok(path.clone()); }
+    if path.segments.len() == 1 {
+        if let Some(name) = owned_declaration_name(cx, RefKind::Type, &path.segments[0]) {
+            return Ok(ConPath { segments: vec![name] });
+        }
     }
-    match (cx.resolve)(RefKind::Type, &path.segments[0].text) {
-        Some((module, name)) if module == "<builtin>" => Ok(ConPath {
-            segments: vec![Name::new(name, path.segments[0].span)],
-        }),
-        Some((module, name)) => Ok(ConPath {
-            segments: vec![Name::new(module, span), Name::new(name, path.segments[0].span)],
-        }),
+    if path.segments.len() == 1 && cx.own_types.iter().any(|n| *n == path.segments[0].text) {
+        let name = owned_declaration_name(cx, RefKind::Type, &path.segments[0]).unwrap_or_else(|| path.segments[0].clone());
+        return Ok(ConPath { segments: vec![name] });
+    }
+    let site = ref_of_path(RefKind::Type, &path.segments, span);
+    match (cx.resolve)(&site) {
+        Some((module, name)) => {
+            let captured = path.clone();
+            // Resolution is authority carried by the Name, not a printed
+            // module prefix. Preserve lexical type-former recognition and
+            // the original alias/spelling alongside that checked owner.
+            captured.segments.last().unwrap().record_binding(RefKind::Type, &module, &name);
+            Ok(captured)
+        }
         None => Err(Error::at(
             span,
             format!(
@@ -1583,49 +2129,61 @@ fn qualify_type_con(cx: &HygCx, path: &ConPath, span: Span) -> Result<ConPath> {
 }
 
 fn hyg_pat(p: &Pat, cx: &mut HygCx, sc: &mut HygScope) -> Result<Pat> {
+    hyg_pat_named(p, cx, sc, &[])
+}
+
+/// Preallocated names tie a local signature to its definition, and make
+/// recursive and memo groups visible before their bodies are traversed.
+fn hyg_pat_named(p: &Pat, cx: &mut HygCx, sc: &mut HygScope, names: &[(Name, Name)]) -> Result<Pat> {
+    let allocate = |cx: &mut HygCx, sc: &HygScope, name: &Name| {
+        names.iter().find(|(old, _)| match name.local_binding() {
+            Some(key) => old.local_binding() == Some(key),
+            None => old.text == name.text,
+        }).map(|(_, new)| new.clone()).unwrap_or_else(|| fresh_value_name(cx, sc, name))
+    };
     Ok(match p {
         Pat::Var(n, s) => {
-            let f = fresh_name(cx, &n.text);
-            sc.values.push((n.text.clone(), f.clone()));
-            Pat::Var(Name::new(f, n.span), *s)
+            let f = allocate(cx, sc, n);
+            sc.bind_value(n, &f);
+            Pat::Var(f, *s)
         }
         Pat::Wild(s) => Pat::Wild(*s),
         Pat::Unit(s) => Pat::Unit(*s),
         Pat::Int(v, s) => Pat::Int(v.clone(), *s),
         Pat::Sym(v, s) => Pat::Sym(v.clone(), *s),
         Pat::Con(path, pats, s) => {
-            let path = qualify_con(cx, path, *s)?;
+            let path = if sc.capture { capture_con(path, RefKind::Value, sc, cx) } else { qualify_con(cx, path, *s)? };
             let mut out = Vec::new();
             for x in pats {
-                out.push(hyg_pat(x, cx, sc)?);
+                out.push(hyg_pat_named(x, cx, sc, names)?);
             }
             Pat::Con(path, out, *s)
         }
         Pat::As(n, inner, s) => {
-            let inner = hyg_pat(inner, cx, sc)?;
-            let f = fresh_name(cx, &n.text);
-            sc.values.push((n.text.clone(), f.clone()));
-            Pat::As(Name::new(f, n.span), Box::new(inner), *s)
+            let inner = hyg_pat_named(inner, cx, sc, names)?;
+            let f = allocate(cx, sc, n);
+            sc.bind_value(n, &f);
+            Pat::As(f, Box::new(inner), *s)
         }
         Pat::Tuple(pats, s) => {
             let mut out = Vec::new();
             for x in pats {
-                out.push(hyg_pat(x, cx, sc)?);
+                out.push(hyg_pat_named(x, cx, sc, names)?);
             }
             Pat::Tuple(out, *s)
         }
         Pat::List(pats, s) => {
             let mut out = Vec::new();
             for x in pats {
-                out.push(hyg_pat(x, cx, sc)?);
+                out.push(hyg_pat_named(x, cx, sc, names)?);
             }
             Pat::List(out, *s)
         }
         Pat::Record(path, fields, s) => {
-            let path = qualify_con(cx, path, *s)?;
+            let path = if sc.capture { capture_con(path, RefKind::Value, sc, cx) } else { qualify_con(cx, path, *s)? };
             let mut out = Vec::new();
             for (f, x) in fields {
-                out.push((f.clone(), hyg_pat(x, cx, sc)?));
+                out.push((f.clone(), hyg_pat_named(x, cx, sc, names)?));
             }
             Pat::Record(path, out, *s)
         }
@@ -1633,30 +2191,112 @@ fn hyg_pat(p: &Pat, cx: &mut HygCx, sc: &mut HygScope) -> Result<Pat> {
 }
 
 fn hyg_type(t: &Type, cx: &mut HygCx, sc: &mut HygScope) -> Result<Type> {
+    if sc.source { return Ok(t.clone()); }
+    sc.scoped(|sc| hyg_type_scoped(t, cx, sc))
+}
+
+fn hyg_effect_path(path: &ConPath, cx: &HygCx, sc: &HygScope) -> Result<ConPath> {
+    let Some(name) = path.segments.last() else { return Ok(path.clone()) };
+    if name.declaration_binding().is_some() || name.resolved_binding().is_some()
+        || name.scoped_reference().is_some() || name.local_binding().is_some() { return Ok(path.clone()); }
+    if path.segments.len() == 1 {
+        if let Some(owned) = owned_declaration_name(cx, RefKind::Effect, name) {
+            return Ok(ConPath { segments: vec![owned] });
+        }
+    }
+    if sc.source { return Ok(path.clone()); }
+    if sc.capture { return Ok(capture_con(path, RefKind::Effect, sc, cx)); }
+    let reference = ref_of_path(RefKind::Effect, &path.segments, path.span());
+    if let Some((module, member)) = (cx.resolve)(&reference) {
+        let mut out = path.clone();
+        *out.segments.last_mut().unwrap() = Name::resolved(name.text.clone(), name.span, RefKind::Effect, module, member);
+        return Ok(out);
+    }
+    let symbolic = GlobalScope::new("<quoted-effect>");
+    let mut out = path.clone();
+    *out.segments.last_mut().unwrap() = name.in_global_scope(&symbolic, RefKind::Effect,
+        path.segments.iter().map(|segment| segment.text.clone()).collect());
+    Ok(out)
+}
+
+fn hyg_effect_row(row: &EffectRow, cx: &HygCx, sc: &HygScope) -> Result<EffectRow> {
+    let rename = |name: &Name| {
+        if name.local_binding().is_none() && name.scoped_reference().is_none() && name.resolved_binding().is_none() {
+            if let Some(fresh) = sc.lookup_type(&name.text) { return Name::new(fresh, name.span); }
+        }
+        name.clone()
+    };
+    Ok(EffectRow {
+        labels: row.labels.iter().map(|(label, arguments)| Ok((hyg_effect_path(label, cx, sc)?, arguments.iter().map(rename).collect()))).collect::<Result<_>>()?,
+        tail: row.tail.as_ref().map(rename),
+        span: row.span,
+    })
+}
+
+fn hyg_type_scoped(t: &Type, cx: &mut HygCx, sc: &mut HygScope) -> Result<Type> {
     Ok(match t {
-        Type::Con(path, s) => Type::Con(qualify_type_con(cx, path, *s)?, *s),
-        Type::Var(n, s) => match sc.lookup_type(&n.text) {
-            Some(f) => Type::Var(Name::new(f, n.span), *s),
-            None => Type::Var(n.clone(), *s),
+        Type::Elaborated(_, _) | Type::IndexOperand(..) => t.clone(),
+        Type::IndexAnnotated(value, annotation, span) => Type::IndexAnnotated(
+            Box::new(hyg_type_scoped(value, cx, sc)?), Box::new(hyg_type_scoped(annotation, cx, sc)?), *span),
+        Type::Con(path, s) => {
+            if path.segments.len() == 1 && path.segments[0].local_binding().is_none()
+                && path.segments[0].scoped_reference().is_none() && path.segments[0].resolved_binding().is_none() && path.segments[0].declaration_binding().is_none()
+            {
+                if let Some(fresh) = sc.lookup_type(&path.segments[0].text) {
+                    return Ok(Type::Con(ConPath { segments: vec![Name::new(fresh, path.segments[0].span)] }, *s));
+                }
+            }
+            let own = sc.capture && path.segments.len() == 1
+                && cx.own_types.contains(&path.segments[0].text)
+                && path.segments[0].local_binding().is_none()
+                && path.segments[0].scoped_reference().is_none()
+                && path.segments[0].resolved_binding().is_none();
+            Type::Con(if own { path.clone() } else if sc.capture { capture_con(path, RefKind::Type, sc, cx) } else { qualify_type_con(cx, path, *s)? }, *s)
+        },
+        Type::Var(n, s) => {
+            if n.local_binding().is_none() && n.scoped_reference().is_none() && n.resolved_binding().is_none() && n.declaration_binding().is_none() {
+                if let Some(f) = sc.lookup_type(&n.text) {
+                    return Ok(Type::Var(Name::new(f, n.span), *s));
+                }
+            }
+            let mut name = sc.lookup_value(n).map(|new| {
+                if !sc.capture && n.local_binding().is_none()
+                    && !new.local_binding().is_some_and(|binding| sc.index_lambdas.contains(binding)) {
+                    // Existing index elaboration consumes alpha-renamed names;
+                    // explicit captured handles must keep their identity.
+                    Name::new(new.text.clone(), n.span)
+                } else { new.clone() }
+            }).unwrap_or_else(|| n.clone());
+            name.span = n.span;
+            if sc.capture {
+                name = capture_value(&VarPath { quals: Vec::new(), name }, sc, cx).name;
+            } else if name.local_binding().is_none() && name.scoped_reference().is_none()
+                && name.resolved_binding().is_none()
+                && !cx.own_values.contains(&name.text)
+                && !matches!(name.text.as_str(), "+" | "-" | "*" | "length" | "toNat")
+            {
+                // A free lowercase name in a type is an index value or
+                // helper. Bind it at quotation construction, just as a free
+                // ordinary value; do not defer lookup to the insertion site.
+                name = qualify_value(cx, &VarPath { quals: Vec::new(), name }, *s)?.name;
+            }
+            Type::Var(name, *s)
         },
         Type::App(a, b, s) => {
             Type::App(Box::new(hyg_type(a, cx, sc)?), Box::new(hyg_type(b, cx, sc)?), *s)
         }
-        Type::AppRow(a, r, s) => Type::AppRow(Box::new(hyg_type(a, cx, sc)?), r.clone(), *s),
+        Type::AppRow(a, r, s) => Type::AppRow(Box::new(hyg_type(a, cx, sc)?), hyg_effect_row(r, cx, sc)?, *s),
         Type::Lam(n, b, s) => {
-            // An index lambda's binder binds its body's index variables
-            // (they spell as `Type::Var`), so it renames like a template
-            // binder.
-            let f = fresh_name(cx, &n.text);
-            sc.types.push((n.text.clone(), f.clone()));
-            let b = hyg_type(b, cx, sc)?;
-            sc.types.pop();
-            Type::Lam(Name::new(f, n.span), Box::new(b), *s)
+            let binder = fresh_value_name(cx, sc, n);
+            sc.bind_value(n, &binder);
+            sc.index_lambdas.push(binder.local_binding().expect("fresh index binding").clone());
+            let body = hyg_type(b, cx, sc)?;
+            Type::Lam(binder, Box::new(body), *s)
         }
         Type::Fun { arg, mult, eff, res, span } => Type::Fun {
             arg: Box::new(hyg_type(arg, cx, sc)?),
             mult: mult.clone(),
-            eff: eff.clone(),
+            eff: eff.as_ref().map(|row| hyg_effect_row(row, cx, sc)).transpose()?,
             res: Box::new(hyg_type(res, cx, sc)?),
             span: *span,
         },
@@ -1681,6 +2321,11 @@ fn hyg_type(t: &Type, cx: &mut HygCx, sc: &mut HygScope) -> Result<Type> {
             for c in cs {
                 out.push(match c.clone() {
                     Oblig::Class(mut c) => {
+                        c.class = if sc.capture {
+                            capture_con(&c.class, RefKind::Type, sc, cx)
+                        } else {
+                            qualify_type_con(cx, &c.class, c.span)?
+                        };
                         for a in &mut c.args {
                             *a = hyg_type(a, cx, sc)?;
                         }
@@ -1701,8 +2346,9 @@ fn hyg_type(t: &Type, cx: &mut HygCx, sc: &mut HygScope) -> Result<Type> {
             let f = fresh_name(cx, &n.text);
             sc.types.push((n.text.clone(), f.clone()));
             let b = hyg_type(b, cx, sc)?;
+            let eff = eff.as_ref().map(|row| hyg_effect_row(row, cx, sc)).transpose()?;
             sc.types.pop();
-            Type::DepFun(Name::new(f, n.span), Box::new(a), mult.clone(), eff.clone(), Box::new(b), *s)
+            Type::DepFun(Name::new(f, n.span), Box::new(a), mult.clone(), eff, Box::new(b), *s)
         }
         Type::Sigma(n, a, b, s) => {
             let a = hyg_type(a, cx, sc)?;
@@ -1731,38 +2377,103 @@ fn hyg_type(t: &Type, cx: &mut HygCx, sc: &mut HygScope) -> Result<Type> {
     })
 }
 
-fn hyg_local(d: &LocalDecl, cx: &mut HygCx, sc: &mut HygScope) -> Result<LocalDecl> {
-    Ok(match d {
-        LocalDecl::Sig { name, ty, span } => {
-            let ty = hyg_type(ty, cx, sc)?;
-            let f = fresh_name(cx, &name.text);
-            sc.values.push((name.text.clone(), f.clone()));
-            LocalDecl::Sig { name: Name::new(f, name.span), ty, span: *span }
+fn pat_names(p: &Pat, names: &mut Vec<Name>) {
+    match p {
+        Pat::Var(n, _) => names.push(n.clone()),
+        Pat::As(n, inner, _) => { names.push(n.clone()); pat_names(inner, names); }
+        Pat::Con(_, pats, _) | Pat::Tuple(pats, _) | Pat::List(pats, _) => {
+            for p in pats { pat_names(p, names); }
         }
-        LocalDecl::Eq { name, pats, body, span } => {
-            let f = fresh_name(cx, &name.text);
-            sc.values.push((name.text.clone(), f.clone()));
-            let mut new_pats = Vec::new();
-            for p in pats {
-                new_pats.push(hyg_pat(p, cx, sc)?);
+        Pat::Record(_, fields, _) => { for (_, p) in fields { pat_names(p, names); } }
+        _ => {}
+    }
+}
+
+fn hyg_locals(decls: &[LocalDecl], recursive: bool, cx: &mut HygCx, sc: &mut HygScope) -> Result<Vec<LocalDecl>> {
+    let mut signatures = Vec::new();
+    for d in decls {
+        if let LocalDecl::Sig { name, ty, span } = d {
+            if signatures.iter().any(|(old, _, _): &(Name, Type, Span)| old.text == name.text) {
+                return Err(Error::at(*span, format!("duplicate local signature for {}", name.text)));
             }
-            let body = hyg_term(body, cx, sc)?;
-            LocalDecl::Eq { name: Name::new(f, name.span), pats: new_pats, body, span: *span }
+            signatures.push((name.clone(), hyg_type(ty, cx, sc)?, *span));
         }
-        LocalDecl::Bind { pat, body, span } => {
-            let body = hyg_term(body, cx, sc)?;
-            let pat = hyg_pat(pat, cx, sc)?;
-            LocalDecl::Bind { pat, body, span: *span }
+    }
+    let mut bindings = Vec::new();
+    let mut defined = Vec::new();
+    for d in decls {
+        let mut names = Vec::new();
+        match d {
+            LocalDecl::Eq { name, .. } => names.push(name.clone()),
+            LocalDecl::Bind { pat, .. } | LocalDecl::Lazy { pat, .. } => pat_names(pat, &mut names),
+            _ => {}
         }
-        LocalDecl::Lazy { pat, body, span } => {
-            let body = hyg_term(body, cx, sc)?;
-            let pat = hyg_pat(pat, cx, sc)?;
-            LocalDecl::Lazy { pat, body, span: *span }
+        let mut fresh = Vec::new();
+        for name in names {
+            if recursive && defined.contains(&name.text) {
+                return Err(Error::at(name.span, format!("duplicate binding `{}` in the `letrec` group", name.text)));
+            }
+            defined.push(name.text.clone());
+            let new = fresh_value_name(cx, sc, &name);
+            fresh.push((name, new));
         }
-    })
+        if recursive || matches!(d, LocalDecl::Lazy { .. }) {
+            sc.values.extend(fresh.iter().cloned());
+        }
+        bindings.push(fresh);
+    }
+    let mut output = vec![Vec::new(); decls.len()];
+    for (index, d) in decls.iter().enumerate() {
+        let names = &bindings[index];
+        // An annotation belongs to the binding, never to a separate fresh
+        // identifier. Repeated strict shadowing still gets distinct binders.
+        for (old, new) in names {
+            if let Some((_, ty, span)) = signatures.iter().find(|(n, _, _)| n.text == old.text) {
+                output[index].push(LocalDecl::Sig { name: { let mut n = new.clone(); n.span = *span; n }, ty: ty.clone(), span: *span });
+            }
+        }
+        let renamed = match d {
+            LocalDecl::Sig { .. } | LocalDecl::Lazy { .. } => continue,
+            LocalDecl::Eq { name, pats, body, span } => {
+                let mut inner = sc.clone();
+                let pats = pats.iter().map(|p| hyg_pat(p, cx, &mut inner)).collect::<Result<Vec<_>>>()?;
+                let body = hyg_term(body, cx, &mut inner)?;
+                let new = names[0].1.clone();
+                if !recursive { sc.bind_value(name, &new); }
+                LocalDecl::Eq { name: new, pats, body, span: *span }
+            }
+            LocalDecl::Bind { pat, body, span } => {
+                let body = hyg_term(body, cx, sc)?;
+                let pat = hyg_pat_named(pat, cx, sc, names)?;
+                LocalDecl::Bind { pat, body, span: *span }
+            }
+        };
+        output[index].push(renamed);
+    }
+    // Memo bodies see the complete strict group and all memo cells, matching
+    // elaboration. Their binders were allocated before any strict body.
+    for (index, d) in decls.iter().enumerate() {
+        if let LocalDecl::Lazy { pat, body, span } = d {
+            let body = hyg_term(body, cx, sc)?;
+            let mut inner = sc.clone();
+            let pat = hyg_pat_named(pat, cx, &mut inner, &bindings[index])?;
+            output[index].push(LocalDecl::Lazy { pat, body, span: *span });
+        }
+    }
+    // Even an unused annotation is checked by the ordinary local checker.
+    for (name, ty, span) in signatures {
+        if !defined.contains(&name.text) {
+            output.push(vec![LocalDecl::Sig { name: Name::new(fresh_name(cx, &name.text), name.span), ty, span }]);
+        }
+    }
+    Ok(output.into_iter().flatten().collect())
 }
 
 fn hyg_alt(a: &Alt, cx: &mut HygCx, sc: &mut HygScope) -> Result<Alt> {
+    sc.scoped(|sc| hyg_alt_scoped(a, cx, sc))
+}
+
+fn hyg_alt_scoped(a: &Alt, cx: &mut HygCx, sc: &mut HygScope) -> Result<Alt> {
     let pat = hyg_pat(&a.pat, cx, sc)?;
     let guard = match &a.guard {
         Some(g) => Some(hyg_term(g, cx, sc)?),
@@ -1787,10 +2498,7 @@ fn hyg_do_stmt(s: &DoStmt, cx: &mut HygCx, sc: &mut HygScope) -> Result<DoStmt> 
             DoStmt::Bind { pat, term, span: *span }
         }
         DoStmt::Let { decls, span } => DoStmt::Let {
-            decls: decls
-                .iter()
-                .map(|d| hyg_local(d, cx, sc))
-                .collect::<Result<Vec<_>>>()?,
+            decls: hyg_locals(decls, false, cx, sc)?,
             span: *span,
         },
         DoStmt::Expr { term, span } => DoStmt::Expr { term: hyg_term(term, cx, sc)?, span: *span },
@@ -1801,20 +2509,146 @@ fn hyg_do_stmt(s: &DoStmt, cx: &mut HygCx, sc: &mut HygScope) -> Result<DoStmt> 
 /// the definition site. `SpliceHole`s pass through: substituted syntax is
 /// caller code and keeps its own binding relationships.
 pub fn hyg_term(t: &Term, cx: &mut HygCx, sc: &mut HygScope) -> Result<Term> {
+    // A term's lexical bindings never escape into its sibling expressions.
+    // Restore stack lengths even on errors, without cloning an increasingly
+    // large lexical environment at every node of a nested quotation.
+    sc.scoped(|sc| hyg_term_scoped(t, cx, sc))
+}
+
+/// Resolve lexical references in captured source using the quotation walk's
+/// binding rules. Freeze source globals without crossing a quotation's phase.
+pub(crate) fn capture_term(t: &Term, values: &[Name], globals: Option<Arc<GlobalScope>>) -> Result<Term> {
+    capture_term_in_declarations(t, values, globals, &[])
+}
+
+pub(crate) fn capture_term_in_declarations(
+    t: &Term, values: &[Name], globals: Option<Arc<GlobalScope>>, declarations: &[(RefKind, Name)],
+) -> Result<Term> {
+    let resolve = |_: &RefSite| None;
+    let mut spelling = |name: &str| name.to_string();
+    let mut cx = HygCx { resolve: &resolve, fresh: &mut spelling, own_values: vec![], own_types: vec![], owned_declarations: declarations.to_vec() };
+    let mut scope = HygScope::capture(values);
+    scope.globals = globals;
+    hyg_term(t, &mut cx, &mut scope)
+}
+
+/// The same lexical/phase walk for a standalone captured type. Its own
+/// quantifiers bind internally; free type and index names retain source
+/// authority when this tree is put inside a generated declaration.
+pub(crate) fn capture_type(t: &Type, values: &[Name], globals: Option<Arc<GlobalScope>>) -> Result<Type> {
+    capture_type_in_declaration(t, values, globals, &[], &[])
+}
+
+pub(crate) fn capture_type_in_declaration(
+    t: &Type, values: &[Name], globals: Option<Arc<GlobalScope>>,
+    own_types: &[String], preceding_fields: &[String],
+) -> Result<Type> {
+    capture_type_in_declaration_scope(t, values, globals, own_types, preceding_fields, &[])
+}
+
+pub(crate) fn capture_type_in_declaration_scope(
+    t: &Type, values: &[Name], globals: Option<Arc<GlobalScope>>,
+    own_types: &[String], preceding_fields: &[String], declarations: &[(RefKind, Name)],
+) -> Result<Type> {
+    let resolve = |_: &RefSite| None;
+    let mut spelling = |name: &str| name.to_string();
+    let mut cx = HygCx { resolve: &resolve, fresh: &mut spelling, own_values: vec![], own_types: own_types.to_vec(), owned_declarations: declarations.to_vec() };
+    let mut scope = HygScope::capture(values);
+    scope.globals = globals;
+    // Field binders use the declaration telescope, like native quotations;
+    // captured/resolved references are never selected by their spelling.
+    scope.types.extend(preceding_fields.iter().map(|name| (name.clone(), name.clone())));
+    hyg_type(t, &mut cx, &mut scope)
+}
+
+/// Record source macro scopes without rewriting unrelated source references
+/// or stepping into a quotation's separate phase.
+pub(crate) fn scope_equation(eq: &Equation, values: &[Name], globals: Arc<GlobalScope>) -> Result<Equation> {
+    let resolve = |_: &RefSite| None;
+    let mut spelling = |name: &str| name.to_string();
+    let mut cx = HygCx { resolve: &resolve, fresh: &mut spelling, own_values: vec![], own_types: vec![], owned_declarations: Vec::new() };
+    let mut scope = HygScope::capture(values);
+    scope.source = true;
+    scope.globals = Some(globals);
+    hyg_equation(eq, &mut cx, &mut scope)
+}
+
+fn capture_value(path: &VarPath, sc: &HygScope, cx: &HygCx) -> VarPath {
+    if sc.source { return path.clone(); }
+    if path.quals.is_empty() && path.name.local_binding().is_none()
+        && path.name.resolved_binding().is_none() && path.name.scoped_reference().is_none()
+        && path.name.declaration_binding().is_none()
+    {
+        if let Some(name) = owned_declaration_name(cx, RefKind::Value, &path.name) {
+            return VarPath { quals: Vec::new(), name };
+        }
+    }
+    let Some(scope) = &sc.globals else { return path.clone() };
+    let mut out = path.clone();
+    let mut parts: Vec<_> = path.quals.iter().map(|n| n.text.clone()).collect();
+    parts.push(path.name.text.clone());
+    out.name = path.name.in_global_scope(scope, RefKind::Value, parts);
+    out
+}
+
+fn capture_con(path: &ConPath, kind: RefKind, sc: &HygScope, cx: &HygCx) -> ConPath {
+    if sc.source { return path.clone(); }
+    if let [source] = path.segments.as_slice() {
+        if source.local_binding().is_none() && source.resolved_binding().is_none()
+            && source.scoped_reference().is_none() && source.declaration_binding().is_none()
+        {
+            if let Some(name) = owned_declaration_name(cx, kind, source) {
+                return ConPath { segments: vec![name] };
+            }
+        }
+    }
+    let Some(scope) = &sc.globals else { return path.clone() };
+    let mut out = path.clone();
+    if let Some(name) = out.segments.last_mut() {
+        *name = name.in_global_scope(scope, kind, path.segments.iter().map(|n| n.text.clone()).collect());
+    }
+    out
+}
+
+fn scoped_tokens(args: &TokenTree, sc: &HygScope, cx: &HygCx) -> TokenTree {
+    let mut out = args.clone();
+    if out.globals.is_none() { out.globals = sc.globals.clone(); }
+    if out.declarations.is_none() { out.declarations = Some(cx.owned_declarations.clone()); }
+    out.lexical = Some(match &args.lexical {
+        Some(names) => names.iter().map(|name| {
+            let mut mapped = sc.lookup_value(name).cloned().unwrap_or_else(|| name.clone());
+            mapped.text = name.text.clone();
+            mapped.span = name.span;
+            mapped
+        }).collect(),
+        None => {
+            let mut names = Vec::new();
+            for (old, new) in sc.values.iter().rev() {
+                if names.iter().any(|n: &Name| n.text == old.text) { continue; }
+                let mut name = new.clone();
+                name.text = old.text.clone();
+                names.push(name);
+            }
+            names
+        }
+    });
+    out
+}
+
+fn hyg_term_scoped(t: &Term, cx: &mut HygCx, sc: &mut HygScope) -> Result<Term> {
     Ok(match t {
         Term::Var(p) => {
+            if sc.source { return Ok(t.clone()); }
             if p.quals.is_empty() {
-                if let Some(f) = sc.lookup_value(&p.name.text) {
-                    let f = f.to_string();
-                    return Ok(Term::Var(VarPath {
-                        quals: Vec::new(),
-                        name: Name::new(f, p.name.span),
-                    }));
+                if let Some(f) = sc.lookup_value(&p.name) {
+                    let mut name = f.clone();
+                    name.span = p.name.span;
+                    return Ok(Term::Var(VarPath { quals: Vec::new(), name }));
                 }
             }
-            Term::Var(qualify_value(cx, p, p.span())?)
+            Term::Var(if sc.capture { capture_value(p, sc, cx) } else { qualify_value(cx, p, p.span())? })
         }
-        Term::Con(p) => Term::Con(qualify_con(cx, p, p.span())?),
+        Term::Con(p) => Term::Con(if sc.capture { capture_con(p, RefKind::Value, sc, cx) } else { qualify_con(cx, p, p.span())? }),
         Term::Int(v, s) => Term::Int(v.clone(), *s),
         Term::Str(v, s) => Term::Str(v.clone(), *s),
         Term::Char(v, s) => Term::Char(v.clone(), *s),
@@ -1841,10 +2675,7 @@ pub fn hyg_term(t: &Term, cx: &mut HygCx, sc: &mut HygScope) -> Result<Term> {
         }
         Term::Let(decls, body, s) | Term::Letrec(decls, body, s) => {
             let rec = matches!(t, Term::Letrec(..));
-            let mut new_decls = Vec::new();
-            for d in decls {
-                new_decls.push(hyg_local(d, cx, sc)?);
-            }
+            let new_decls = hyg_locals(decls, rec, cx, sc)?;
             let body = hyg_term(body, cx, sc)?;
             if rec {
                 Term::Letrec(new_decls, Box::new(body), *s)
@@ -1924,7 +2755,7 @@ pub fn hyg_term(t: &Term, cx: &mut HygCx, sc: &mut HygScope) -> Result<Term> {
         ),
         Term::Proj(e, n, s) => Term::Proj(Box::new(hyg_term(e, cx, sc)?), n.clone(), *s),
         Term::Record(p, fields, s) => {
-            let p = qualify_con(cx, p, *s)?;
+            let p = if sc.capture { capture_con(p, RefKind::Value, sc, cx) } else { qualify_con(cx, p, *s)? };
             let mut out = Vec::new();
             for (n, e) in fields {
                 out.push((n.clone(), hyg_term(e, cx, sc)?));
@@ -1945,22 +2776,28 @@ pub fn hyg_term(t: &Term, cx: &mut HygCx, sc: &mut HygScope) -> Result<Term> {
         ),
         Term::Handler(h) => {
             let mut h = (**h).clone();
-            let ret_body = hyg_term(&h.ret_body, cx, sc)?;
-            h.ret_body = ret_body;
-            let ret_pat = hyg_pat(&h.ret_pat, cx, sc)?;
-            h.ret_pat = ret_pat;
+            h.effect = hyg_effect_path(&h.effect, cx, sc)?;
+            let mut ret_scope = sc.clone();
+            h.ret_pat = hyg_pat(&h.ret_pat, cx, &mut ret_scope)?;
+            h.ret_body = hyg_term(&h.ret_body, cx, &mut ret_scope)?;
             let mut clauses = Vec::new();
             for c in &h.clauses {
+                let mut clause_scope = sc.clone();
+                let sc = &mut clause_scope;
                 let mut c = c.clone();
+                if c.op.local_binding().is_none() && c.op.declaration_binding().is_none()
+                    && c.op.resolved_binding().is_none() && c.op.scoped_reference().is_none() {
+                    if let Some(owned) = owned_declaration_name(cx, RefKind::Value, &c.op) { c.op = owned; }
+                }
                 let mut pats = Vec::new();
                 for p in &c.pats {
                     pats.push(hyg_pat(p, cx, sc)?);
                 }
                 c.pats = pats;
                 if let Some(r) = &c.resume {
-                    let f = fresh_name(cx, &r.text);
-                    sc.values.push((r.text.clone(), f.clone()));
-                    c.resume = Some(Name::new(f, r.span));
+                    let f = fresh_value_name(cx, sc, r);
+                    sc.bind_value(r, &f);
+                    c.resume = Some(f);
                 }
                 c.body = hyg_term(&c.body, cx, sc)?;
                 if c.resume.is_some() {
@@ -1973,12 +2810,19 @@ pub fn hyg_term(t: &Term, cx: &mut HygCx, sc: &mut HygScope) -> Result<Term> {
         }
         Term::With { name, value, body, span } => {
             let value = hyg_term(value, cx, sc)?;
-            let f = fresh_name(cx, &name.text);
-            sc.values.push((name.text.clone(), f.clone()));
+            let f = fresh_value_name(cx, sc, name);
+            sc.bind_value(name, &f);
+            let globals = sc.globals.clone();
+            if let (Some(scope), Some(binding)) = (&globals, f.local_binding()) {
+                let mut dictionaries = scope.dictionary_bindings().unwrap_or_default().to_vec();
+                dictionaries.push(binding.clone());
+                sc.globals = Some(Arc::new((**scope).clone().with_dictionary_bindings(dictionaries)));
+            }
             let body = hyg_term(body, cx, sc)?;
+            sc.globals = globals;
             sc.values.pop();
             Term::With {
-                name: Name::new(f, name.span),
+                name: f,
                 value: Box::new(value),
                 body: Box::new(body),
                 span: *span,
@@ -1993,39 +2837,52 @@ pub fn hyg_term(t: &Term, cx: &mut HygCx, sc: &mut HygScope) -> Result<Term> {
             Term::CapApply { head: Box::new(head), supplies: out, span: *span }
         }
         Term::CpsWrap(e, s) => Term::CpsWrap(Box::new(hyg_term(e, cx, sc)?), *s),
+        Term::Quote { .. } | Term::QuoteDecls { .. } | Term::Splice { .. } if sc.capture => t.clone(),
         Term::Quote { body, span } => Term::Quote {
             body: Box::new(hyg_term(body, cx, sc)?),
             span: *span,
         },
         Term::QuoteDecls { decls, span } => {
-            let mut out = Vec::new();
-            for d in decls {
-                out.push(hyg_decl(d, cx, sc)?);
+            let mut decls = decls.clone();
+            let owned = crate::syntax::declarations::bind_group(&mut decls);
+            let saved = (cx.own_values.len(), cx.own_types.len(), cx.owned_declarations.len());
+            for (kind, name) in &owned {
+                match kind {
+                    RefKind::Value => cx.own_values.push(name.text.clone()),
+                    RefKind::Type => cx.own_types.push(name.text.clone()),
+                    RefKind::Effect => {},
+                }
             }
-            Term::QuoteDecls { decls: out, span: *span }
+            cx.owned_declarations.extend(owned);
+            let result = decls.iter().map(|decl| hyg_decl(decl, cx, sc)).collect::<Result<Vec<_>>>();
+            cx.own_values.truncate(saved.0);
+            cx.own_types.truncate(saved.1);
+            cx.owned_declarations.truncate(saved.2);
+            Term::QuoteDecls { decls: result?, span: *span }
         }
         Term::Splice { body, span } => Term::Splice {
             body: Box::new(hyg_term(body, cx, sc)?),
             span: *span,
         },
         Term::MacroCall { path, args, span } => {
-            let path = qualify_value(cx, path, *span)?;
-            Term::MacroCall { path, args: args.clone(), span: *span }
+            let path = if sc.capture { capture_value(path, sc, cx) } else { qualify_value(cx, path, *span)? };
+            Term::MacroCall { path, args: scoped_tokens(args, sc, cx), span: *span }
         }
     })
 }
 
 fn hyg_equation(eq: &Equation, cx: &mut HygCx, sc: &mut HygScope) -> Result<Equation> {
+    sc.scoped(|sc| hyg_equation_scoped(eq, cx, sc))
+}
+
+fn hyg_equation_scoped(eq: &Equation, cx: &mut HygCx, sc: &mut HygScope) -> Result<Equation> {
     // The equation's own name is a generated declaration's chosen name:
     // it stays as written and binds at the insertion site.
     let mut pats = Vec::new();
     for p in &eq.pats {
         pats.push(hyg_pat(p, cx, sc)?);
     }
-    let mut locals = Vec::new();
-    for l in &eq.locals {
-        locals.push(hyg_local(l, cx, sc)?);
-    }
+    let locals = hyg_locals(&eq.locals, false, cx, sc)?;
     let body = hyg_term(&eq.body, cx, sc)?;
     Ok(Equation {
         attrs: eq.attrs.clone(),
@@ -2039,12 +2896,52 @@ fn hyg_equation(eq: &Equation, cx: &mut HygCx, sc: &mut HygScope) -> Result<Equa
 
 /// Alpha-rename and definition-site qualify one template declaration.
 pub fn hyg_decl(d: &Decl, cx: &mut HygCx, sc: &mut HygScope) -> Result<Decl> {
+    sc.scoped(|sc| hyg_decl_scoped(d, cx, sc))
+}
+
+fn hyg_decl_scoped(d: &Decl, cx: &mut HygCx, sc: &mut HygScope) -> Result<Decl> {
     Ok(match d {
         Decl::Import(i) => Decl::Import(i.clone()),
         Decl::ImportData(d) => Decl::ImportData(d.clone()),
-        Decl::Export(e) => Decl::Export(e.clone()),
-        Decl::Fixity(f) => Decl::Fixity(f.clone()),
-        Decl::OpaqueType(o) => Decl::OpaqueType(o.clone()),
+        Decl::Export(e) => {
+            let mut export = e.clone();
+            for item in &mut export.items {
+                if let ExportItem::Name(name) = item {
+                    if name.declaration_binding().is_none() && name.resolved_binding().is_none()
+                        && name.scoped_reference().is_none() && name.local_binding().is_none()
+                    {
+                        if let Some(owned) = owned_declaration_name(cx, RefKind::Type, name)
+                            .or_else(|| owned_declaration_name(cx, RefKind::Value, name))
+                            .or_else(|| owned_declaration_name(cx, RefKind::Effect, name)) { *name = owned; }
+                    }
+                }
+            }
+            Decl::Export(export)
+        }
+        Decl::Fixity(f) => {
+            let mut fixity = f.clone();
+            for name in &mut fixity.ops {
+                if name.declaration_binding().is_none() && name.resolved_binding().is_none()
+                    && name.scoped_reference().is_none() && name.local_binding().is_none()
+                {
+                    if let Some(owned) = owned_declaration_name(cx, RefKind::Value, name) { *name = owned; }
+                }
+            }
+            Decl::Fixity(fixity)
+        },
+        Decl::OpaqueType(o) => {
+            let mut o = o.clone();
+            for binder in &mut o.params {
+                if let Some(annotation) = &binder.ann {
+                    binder.ann = Some(hyg_type(annotation, cx, sc)?);
+                }
+                let fresh = fresh_name(cx, &binder.name.text);
+                sc.types.push((binder.name.text.clone(), fresh.clone()));
+                binder.name = Name::new(fresh, binder.name.span);
+            }
+            o.kind = hyg_type(&o.kind, cx, sc)?;
+            Decl::OpaqueType(o)
+        }
         Decl::Foreign(f) => {
             let mut f = f.clone();
             f.ty = hyg_type(&f.ty, cx, sc)?;
@@ -2113,9 +3010,9 @@ pub fn hyg_decl(d: &Decl, cx: &mut HygCx, sc: &mut HygScope) -> Result<Decl> {
             let mut methods = Vec::new();
             for (n, ty) in &s.methods {
                 let ty = hyg_type(ty, cx, sc)?;
-                let f = fresh_name(cx, &n.text);
-                sc.values.push((n.text.clone(), f.clone()));
-                methods.push((Name::new(f, n.span), ty));
+                let f = Name::new(fresh_name(cx, &n.text), n.span);
+                sc.bind_value(n, &f);
+                methods.push((f, ty));
             }
             s.methods = methods;
             // A default follows its method's fresh name, so it still
@@ -2123,8 +3020,10 @@ pub fn hyg_decl(d: &Decl, cx: &mut HygCx, sc: &mut HygScope) -> Result<Decl> {
             let mut defaults = Vec::new();
             for eq in &s.defaults {
                 let mut eq = hyg_equation(eq, cx, sc)?;
-                if let Some((_, f)) = sc.values.iter().rev().find(|(orig, _)| *orig == eq.name.text) {
-                    eq.name = Name::new(f.clone(), eq.name.span);
+                if let Some(f) = sc.lookup_value(&eq.name) {
+                    let mut name = f.clone();
+                    name.span = eq.name.span;
+                    eq.name = name;
                 }
                 defaults.push(eq);
             }
@@ -2132,9 +3031,9 @@ pub fn hyg_decl(d: &Decl, cx: &mut HygCx, sc: &mut HygScope) -> Result<Decl> {
             let mut laws = Vec::new();
             for (n, ty) in &s.laws {
                 let ty = hyg_type(ty, cx, sc)?;
-                let f = fresh_name(cx, &n.text);
-                sc.values.push((n.text.clone(), f.clone()));
-                laws.push((Name::new(f, n.span), ty));
+                let f = Name::new(fresh_name(cx, &n.text), n.span);
+                sc.bind_value(n, &f);
+                laws.push((f, ty));
             }
             s.laws = laws;
             Decl::Signature(s)
@@ -2224,6 +3123,7 @@ pub fn hyg_decl(d: &Decl, cx: &mut HygCx, sc: &mut HygScope) -> Result<Decl> {
         Decl::Record(r) | Decl::Codata(r) => {
             let is_codata = matches!(d, Decl::Codata(_));
             let mut r = r.clone();
+            let type_start = sc.types.len();
             let mut params = Vec::new();
             for b in &r.params {
                 let mut b = b.clone();
@@ -2239,12 +3139,11 @@ pub fn hyg_decl(d: &Decl, cx: &mut HygCx, sc: &mut HygScope) -> Result<Decl> {
             for fd in &r.fields {
                 let mut fd = fd.clone();
                 fd.ty = hyg_type(&fd.ty, cx, sc)?;
+                sc.types.push((fd.name.text.clone(), fd.name.text.clone()));
                 fields.push(fd);
             }
             r.fields = fields;
-            for _ in &params {
-                sc.types.pop();
-            }
+            sc.types.truncate(type_start);
             r.params = params;
             if is_codata {
                 Decl::Codata(r)
@@ -2254,14 +3153,21 @@ pub fn hyg_decl(d: &Decl, cx: &mut HygCx, sc: &mut HygScope) -> Result<Decl> {
         }
         Decl::Effect(e) => {
             let mut e = e.clone();
+            let type_start = sc.types.len();
+            for parameter in &mut e.params {
+                let fresh = fresh_name(cx, &parameter.text);
+                sc.types.push((parameter.text.clone(), fresh.clone()));
+                *parameter = Name::new(fresh, parameter.span);
+            }
             let mut ops = Vec::new();
             for (n, ty) in &e.ops {
                 let ty = hyg_type(ty, cx, sc)?;
-                let f = fresh_name(cx, &n.text);
-                sc.values.push((n.text.clone(), f.clone()));
-                ops.push((Name::new(f, n.span), ty));
+                let f = if n.declaration_binding().is_some() { n.clone() } else { fresh_value_name(cx, sc, n) };
+                sc.bind_value(n, &f);
+                ops.push((f, ty));
             }
             e.ops = ops;
+            sc.types.truncate(type_start);
             Decl::Effect(e)
         }
         Decl::ValueSig { name, modifier, owned_attrs, ty, span } => {
@@ -2565,6 +3471,10 @@ pub enum HoleExpr {
 /// inside a nested quotation belongs to the enclosing template (modules
 /// specification section 8).
 pub fn collect_template_holes(t: &mut Term, holes: &mut Vec<HoleExpr>) {
+    collect_template_holes_with_macros(t, holes, true)
+}
+
+fn collect_template_holes_with_macros(t: &mut Term, holes: &mut Vec<HoleExpr>, macros: bool) {
     match t {
         Term::Var(_)
         | Term::Con(_)
@@ -2580,6 +3490,7 @@ pub fn collect_template_holes(t: &mut Term, holes: &mut Vec<HoleExpr>) {
             holes.push(HoleExpr::Term(body.clone()));
             *t = Term::SpliceHole { idx, span: *span };
         }
+        Term::MacroCall { .. } if !macros => {},
         Term::MacroCall { path, args, span } => {
             let idx = holes.len();
             holes.push(HoleExpr::Macro {
@@ -2590,71 +3501,71 @@ pub fn collect_template_holes(t: &mut Term, holes: &mut Vec<HoleExpr>) {
             *t = Term::SpliceHole { idx, span: *span };
         }
         Term::App(f, args, _) => {
-            collect_template_holes(f, holes);
+            collect_template_holes_with_macros(f, holes, macros);
             for a in args {
-                collect_template_holes(a, holes);
+                collect_template_holes_with_macros(a, holes, macros);
             }
         }
-        Term::Lam(_, body, _) => collect_template_holes(body, holes),
+        Term::Lam(_, body, _) => collect_template_holes_with_macros(body, holes, macros),
         Term::Let(decls, body, _) | Term::Letrec(decls, body, _) => {
             for d in decls {
                 match d {
                     LocalDecl::Eq { body, .. }
                     | LocalDecl::Bind { body, .. }
-                    | LocalDecl::Lazy { body, .. } => collect_template_holes(body, holes),
+                    | LocalDecl::Lazy { body, .. } => collect_template_holes_with_macros(body, holes, macros),
                     LocalDecl::Sig { .. } => {}
                 }
             }
-            collect_template_holes(body, holes);
+            collect_template_holes_with_macros(body, holes, macros);
         }
         Term::If { cond, then, els, .. } => {
-            collect_template_holes(cond, holes);
-            collect_template_holes(then, holes);
-            collect_template_holes(els, holes);
+            collect_template_holes_with_macros(cond, holes, macros);
+            collect_template_holes_with_macros(then, holes, macros);
+            collect_template_holes_with_macros(els, holes, macros);
         }
         Term::Case(scrut, alts, _) => {
-            collect_template_holes(scrut, holes);
+            collect_template_holes_with_macros(scrut, holes, macros);
             for alt in alts {
                 if let Some(g) = &mut alt.guard {
-                    collect_template_holes(g, holes);
+                    collect_template_holes_with_macros(g, holes, macros);
                 }
-                collect_template_holes(&mut alt.body, holes);
+                collect_template_holes_with_macros(&mut alt.body, holes, macros);
             }
         }
-        Term::Ann(e, _, _) => collect_template_holes(e, holes),
-        Term::Forget { value, .. } => collect_template_holes(value, holes),
+        Term::Ann(e, _, _) => collect_template_holes_with_macros(e, holes, macros),
+        Term::Forget { value, .. } => collect_template_holes_with_macros(value, holes, macros),
         Term::Narrow { value, witness, .. } => {
-            collect_template_holes(value, holes);
-            collect_template_holes(witness, holes);
+            collect_template_holes_with_macros(value, holes, macros);
+            collect_template_holes_with_macros(witness, holes, macros);
         }
         Term::Infix(ts, _, _) => {
             for x in ts {
-                collect_template_holes(x, holes);
+                collect_template_holes_with_macros(x, holes, macros);
             }
         }
-        Term::Neg(e, _) => collect_template_holes(e, holes),
+        Term::Neg(e, _) => collect_template_holes_with_macros(e, holes, macros),
         Term::Tuple(ts, _) | Term::List(ts, _) => {
             for x in ts {
-                collect_template_holes(x, holes);
+                collect_template_holes_with_macros(x, holes, macros);
             }
         }
         Term::Map(kvs, _) => {
             for (k, v) in kvs {
-                collect_template_holes(k, holes);
-                collect_template_holes(v, holes);
+                collect_template_holes_with_macros(k, holes, macros);
+                collect_template_holes_with_macros(v, holes, macros);
             }
         }
         Term::Range(start, step, end, _) => {
-            collect_template_holes(start, holes);
+            collect_template_holes_with_macros(start, holes, macros);
             if let Some(x) = step {
-                collect_template_holes(x, holes);
+                collect_template_holes_with_macros(x, holes, macros);
             }
-            collect_template_holes(end, holes);
+            collect_template_holes_with_macros(end, holes, macros);
         }
-        Term::Proj(e, _, _) => collect_template_holes(e, holes),
+        Term::Proj(e, _, _) => collect_template_holes_with_macros(e, holes, macros),
         Term::Record(_, fields, _) => {
             for (_, e) in fields {
-                collect_template_holes(e, holes);
+                collect_template_holes_with_macros(e, holes, macros);
             }
         }
         Term::Do(stmts, _) => {
@@ -2679,33 +3590,36 @@ pub fn collect_template_holes(t: &mut Term, holes: &mut Vec<HoleExpr>) {
             }
         }
         Term::Handle(e, h, _) => {
-            collect_template_holes(e, holes);
-            collect_template_holes(h, holes);
+            collect_template_holes_with_macros(e, holes, macros);
+            collect_template_holes_with_macros(h, holes, macros);
         }
         Term::Handler(h) => {
-            collect_template_holes(&mut h.ret_body, holes);
+            collect_template_holes_with_macros(&mut h.ret_body, holes, macros);
             for c in &mut h.clauses {
-                collect_template_holes(&mut c.body, holes);
+                collect_template_holes_with_macros(&mut c.body, holes, macros);
             }
         }
         Term::With { value, body, .. } => {
-            collect_template_holes(value, holes);
-            collect_template_holes(body, holes);
+            collect_template_holes_with_macros(value, holes, macros);
+            collect_template_holes_with_macros(body, holes, macros);
         }
         Term::CapApply { head, supplies, .. } => {
-            collect_template_holes(head, holes);
+            collect_template_holes_with_macros(head, holes, macros);
             for (_, e) in supplies {
-                collect_template_holes(e, holes);
+                collect_template_holes_with_macros(e, holes, macros);
             }
         }
-        Term::CpsWrap(e, _) => collect_template_holes(e, holes),
-        Term::Quote { body, .. } => collect_template_holes(body, holes),
+        Term::CpsWrap(e, _) => collect_template_holes_with_macros(e, holes, macros),
+        Term::Quote { body, .. } => collect_template_holes_with_macros(body, holes, macros),
         Term::QuoteDecls { decls, .. } => collect_decl_template_holes(decls, holes),
     }
 }
 
 /// The declaration-template form of [`collect_template_holes`]: holes are
-/// collected from every term of the quoted declarations.
+/// collected from every term of the quoted declarations. Macro invocations
+/// remain in the template: construction gives them the quoted declarations'
+/// lexical bindings before expansion. Evaluating them as ambient splice
+/// holes would capture a definition-site global with the same spelling.
 pub fn collect_decl_template_holes(decls: &mut Vec<Decl>, holes: &mut Vec<HoleExpr>) {
     for d in decls.iter_mut() {
         collect_decl_holes(d, holes);
@@ -2739,26 +3653,26 @@ fn collect_decl_holes(d: &mut Decl, holes: &mut Vec<HoleExpr>) {
             collect_decl_holes(inner, holes);
         }
         Decl::Rewrite(r) => {
-            collect_template_holes(&mut r.match_tm, holes);
-            collect_template_holes(&mut r.replace_tm, holes);
+            collect_template_holes_with_macros(&mut r.match_tm, holes, false);
+            collect_template_holes_with_macros(&mut r.replace_tm, holes, false);
             if let Some(req) = &mut r.require {
-                collect_template_holes(req, holes);
+                collect_template_holes_with_macros(req, holes, false);
             }
-            collect_template_holes(&mut r.justify, holes);
+            collect_template_holes_with_macros(&mut r.justify, holes, false);
         }
         Decl::Upgrade(u) => {
             if let Some(m) = &mut u.migrate {
-                collect_template_holes(m, holes);
+                collect_template_holes_with_macros(m, holes, false);
             }
             if let Some(r) = &mut u.related {
-                collect_template_holes(r, holes);
+                collect_template_holes_with_macros(r, holes, false);
             }
         }
         Decl::Contract(c) => {
             for cl in &mut c.clauses {
                 match cl {
                     ContractClause::Formula { body, .. }
-                    | ContractClause::AssumeProp { body } => collect_template_holes(body, holes),
+                    | ContractClause::AssumeProp { body } => collect_template_holes_with_macros(body, holes, false),
                     ContractClause::AssumeNamed { .. } => {}
                 }
             }
@@ -2766,26 +3680,26 @@ fn collect_decl_holes(d: &mut Decl, holes: &mut Vec<HoleExpr>) {
         Decl::Generate { .. } => {}
         Decl::Signature(s) => {
             for eq in &mut s.defaults {
-                collect_template_holes(&mut eq.body, holes);
+                collect_template_holes_with_macros(&mut eq.body, holes, false);
                 for l in &mut eq.locals {
                     if let LocalDecl::Eq { body, .. }
                     | LocalDecl::Bind { body, .. }
                     | LocalDecl::Lazy { body, .. } = l
                     {
-                        collect_template_holes(body, holes);
+                        collect_template_holes_with_macros(body, holes, false);
                     }
                 }
             }
         }
         Decl::Instance(i) => {
             for m in &mut i.methods {
-                collect_template_holes(&mut m.body, holes);
+                collect_template_holes_with_macros(&mut m.body, holes, false);
                 for l in &mut m.locals {
                     if let LocalDecl::Eq { body, .. }
                     | LocalDecl::Bind { body, .. }
                     | LocalDecl::Lazy { body, .. } = l
                     {
-                        collect_template_holes(body, holes);
+                        collect_template_holes_with_macros(body, holes, false);
                     }
                 }
             }
@@ -2794,21 +3708,21 @@ fn collect_decl_holes(d: &mut Decl, holes: &mut Vec<HoleExpr>) {
         Decl::Prim(p) => {
             for b in &mut p.bodies {
                 if let Some(w) = &mut b.when {
-                    collect_template_holes(w, holes);
+                    collect_template_holes_with_macros(w, holes, false);
                 }
                 if let Some(j) = &mut b.justify {
-                    collect_template_holes(j, holes);
+                    collect_template_holes_with_macros(j, holes, false);
                 }
             }
         }
         Decl::Equation { eq, .. } => {
-            collect_template_holes(&mut eq.body, holes);
+            collect_template_holes_with_macros(&mut eq.body, holes, false);
             for l in &mut eq.locals {
                 if let LocalDecl::Eq { body, .. }
                 | LocalDecl::Bind { body, .. }
                 | LocalDecl::Lazy { body, .. } = l
                 {
-                    collect_template_holes(body, holes);
+                    collect_template_holes_with_macros(body, holes, false);
                 }
             }
         }

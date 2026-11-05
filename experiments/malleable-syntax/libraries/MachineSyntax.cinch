@@ -1,0 +1,39 @@
+module MachineSyntax where
+  export declare
+
+  stage stateDeclarations :: Syntax -> Declarations
+  stage stateDeclarations row = case Syntax.items row of
+    [name, payload] -> Syntax.renameDeclarations (sym-to-name 'State) (Syntax.name name)
+      (Syntax.specializeDeclarationType (sym-to-name 'Payload) payload
+        (quoteDecls where {
+          opaque type Payload :: Type;
+          data State where { State :: Payload -> State } }))
+    _ -> Syntax.error "a machine state needs a name and payload type"
+
+  stage states :: List Syntax -> Declarations
+  stage states rows = case rows of
+    Nil -> Syntax.emptyDeclarations
+    Cons row rest -> Syntax.appendDeclarations (stateDeclarations row) (states rest)
+
+  stage transition :: Declarations -> Syntax -> Declarations
+  stage transition context row = case Syntax.items row of
+    [name, fromName, toName, action] ->
+      let group = quoteDecls where {
+        data Before where { Before :: () -> Before };
+        data After where { After :: () -> After };
+        advance :: Before -> After;
+        advance endpoint = case endpoint of { Before payload -> After ($(action) payload) } }
+      in Syntax.renameDeclarations (sym-to-name 'advance) (Syntax.name name)
+        (Syntax.linkDeclarations (sym-to-name 'After) (Syntax.name toName) context
+          (Syntax.linkDeclarations (sym-to-name 'Before) (Syntax.name fromName) context group))
+    _ -> Syntax.error "a machine transition needs a name, source, destination and handler"
+
+  stage transitions :: Declarations -> List Syntax -> Declarations
+  stage transitions context rows = case rows of
+    Nil -> Syntax.emptyDeclarations
+    Cons row rest -> Syntax.appendDeclarations (transition context row) (transitions context rest)
+
+  macro declare :: Syntax -> Syntax -> Declarations
+  macro declare stateRows transitionRows =
+    let context = states (Syntax.items stateRows) in
+    Syntax.appendDeclarations context (transitions context (Syntax.items transitionRows))

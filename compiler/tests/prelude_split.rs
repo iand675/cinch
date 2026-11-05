@@ -1313,3 +1313,15 @@ fn codec_round_trips_the_d65_set() {
         0,
     );
 }
+
+#[test]
+fn bare_class_laws_keep_symbolic_indices_when_the_definition_is_erased() {
+    // This public proof method has deferred implicit value indices. Its
+    // original facade probe must remain valid when the whole body erases.
+    let law = probes(&prelude_iface()).into_iter()
+        .find(|p| p.name == "scalar-to-simd" && p.kind == "method")
+        .expect("the public SumProofs method remains in the Prelude surface");
+    let source = format!("module Main where\n{}  main :: Int\n  main = 0\n", law.body);
+    check_sources(&source, "erased-law-index-arguments.cinch")
+        .expect("a bare checked law remains valid without runtime reification of its indices");
+}

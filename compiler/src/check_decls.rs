@@ -191,9 +191,10 @@ fn builtin_type_name(name: &str) -> bool {
     matches!(
         name,
         "Nat" | "Int" | "Bool" | "Unit" | "Bytes" | "Sym" | "Array" | "Tensor" | "Columnar" | "Type" | "Prop"
-            | "Code" | "Syntax" | "Declarations" | "Name" | "Secret"
+            | "Code" | "Syntax" | "SyntaxBinding" | "TypeSyntax" | "PackedCode" | "Declarations" | "Name" | "Secret"
             | "IoCap" | "FileReadCap" | "FileWriteCap" | "ProcCap"
             | "Scope" | "Task"
+            | "Thunk" | "Lazy" | "Later" | "Ref" | "Mut" | "Io"
             | "RawPtr" | "Borrowed" | "Retained" | "Owned" | "Out" | "MaybeNull"
             | "CChar" | "CUchar" | "CShort" | "CUshort" | "CInt" | "CUint"
             | "CLong" | "CULong" | "CLongLong" | "CULongLong" | "CSize" | "SizeT"
@@ -492,11 +493,73 @@ enum GuardMode {
 }
 
 impl Checker {
+    /// Methods and laws classify quantified binders by the same native kind
+    /// rules as ordinary signatures. Class indices are erased dictionary
+    /// parameters; a member's own implicit values retain runtime arguments.
+    fn quantified_member_scheme(
+        &self,
+        class_binders: &[ast::TypeBinder],
+        own_binders: &[ast::TypeBinder],
+        ty: Ty,
+        ctx: Vec<(String, ClassApp)>,
+        notes: &[(String, ParamKind)],
+    ) -> Result<Scheme> {
+        let mut vars = Vec::new();
+        let mut binders = Vec::new();
+        for (runtime, binder) in class_binders.iter().map(|b| (false, b)).chain(own_binders.iter().map(|b| (true, b))) {
+            if vars.contains(&binder.name.text) {
+                return Err(Error::at(binder.name.span, "duplicate signature parameter"));
+            }
+            let hint = binder.ann.as_ref().map(|annotation| self.binder_kind(annotation, &vars)).transpose()?;
+            let kind = self.resolve_binder_kind(&binder.name.text, hint.as_ref(), notes, binder.name.span)?;
+            vars.push(binder.name.text.clone());
+            binders.push((binder.name.text.clone(), kind, runtime));
+        }
+        let mut row_params = Vec::new(); let mut region_params = Vec::new();
+        collect_row_names(&ty, &mut row_params, &mut region_params);
+        for (_, class) in &ctx { for arg in &class.args { collect_row_names(arg, &mut row_params, &mut region_params); } }
+        for (_, kind, _) in &binders {
+            if let ParamKind::Val(carrier) = kind { collect_row_names(carrier, &mut row_params, &mut region_params); }
+        }
+        let mut scheme = Scheme::mono(ty);
+        let mut kinds = HashMap::new();
+        for (name, kind, runtime) in binders {
+            if row_params.contains(&name) || region_params.contains(&name) { continue; }
+            match kind {
+                ParamKind::Type => scheme.params.push(name),
+                ParamKind::Con(arity) => { scheme.con_params.push((name.clone(), arity)); scheme.params.push(name); }
+                ParamKind::Val(carrier) => {
+                    kinds.insert(name.clone(), Ty::Idx(Box::new(ITerm::Var(name.clone()))));
+                    if runtime { scheme.val_params.push((name, carrier)); }
+                    else { scheme.idx_params.push(IxParam::Val(name, carrier)); }
+                }
+                ParamKind::Prop => {
+                    kinds.insert(name.clone(), Ty::Prp(Box::new(PTerm::Var(name.clone()))));
+                    if runtime { scheme.prop_params.push(name); } else { scheme.idx_params.push(IxParam::Prop(name)); }
+                }
+            }
+        }
+        scheme.ty = crate::types::regionize(&Self::subst_ty(&scheme.ty, &kinds), &region_params);
+        scheme.ctx = ctx.into_iter().map(|(name, class)| {
+            (name, crate::types::regionize_class(&Self::subst_class(&class, &kinds), &region_params))
+        }).collect();
+        for (_, carrier) in &mut scheme.val_params {
+            *carrier = crate::types::regionize(&Self::subst_ty(carrier, &kinds), &region_params);
+        }
+        for parameter in &mut scheme.idx_params {
+            if let IxParam::Val(_, carrier) = parameter {
+                *carrier = crate::types::regionize(&Self::subst_ty(carrier, &kinds), &region_params);
+            }
+        }
+        scheme.row_params = row_params; scheme.region_params = region_params;
+        Ok(scheme)
+    }
+
     fn install_builtins(&mut self) {
         for n in ["Nat", "Int", "Bool", "Unit", "Bytes", "Sym"] {
             self.types.entry(n.to_string()).or_default().push(TypeKind {
                 module: "<builtin>".into(),
-                name: n.into(),
+                name: n.into(), identity: n.into(),
                 arity: 0,
                 param_kinds: Vec::new(),
                 ctors: Vec::new(),
@@ -508,7 +571,7 @@ impl Checker {
         // a shape or a column layout.
         for name in ["Array", "Tensor", "Columnar"] {
             self.types.entry(name.into()).or_default().push(TypeKind {
-                module: "<builtin>".into(), name: name.into(), arity: 1,
+                module: "<builtin>".into(), name: name.into(), identity: name.into(), arity: 1,
                 param_kinds: vec![ParamKind::Type], ctors: Vec::new(), fields: None,
                 field_erased: Vec::new(), opaque: false, refine: None,
             });
@@ -518,7 +581,7 @@ impl Checker {
         // identity lives in the type.
         self.types.entry("Io".to_string()).or_default().push(TypeKind {
             module: "<builtin>".into(),
-            name: "Io".into(),
+            name: "Io".into(), identity: "Io".into(),
             arity: 1,
             param_kinds: vec![ParamKind::Type],
             ctors: Vec::new(),
@@ -530,7 +593,7 @@ impl Checker {
         for s in Scalar::ALL {
             self.types.entry(s.name().to_string()).or_default().push(TypeKind {
                 module: "<builtin>".into(),
-                name: s.name().into(),
+                name: s.name().into(), identity: s.name().into(),
                 arity: 0,
                 param_kinds: Vec::new(),
                 ctors: Vec::new(),
@@ -555,6 +618,7 @@ impl Checker {
             module: "<builtin>".into(),
             name: "newIO".into(),
             scheme: Scheme {
+            evidence_params: Vec::new(),
             con_params: Vec::new(),
             obligs: Vec::new(),
                 params: Vec::new(),
@@ -601,7 +665,7 @@ impl Checker {
         for (n, arity) in [("Scope", 2), ("Task", 3)] {
             self.types.entry(n.to_string()).or_default().push(TypeKind {
                 module: "<builtin>".into(),
-                name: n.into(),
+                name: n.into(), identity: n.into(),
                 arity,
                 param_kinds: vec![ParamKind::Type; arity],
                 ctors: Vec::new(),
@@ -653,6 +717,7 @@ impl Checker {
             self,
             "withScope",
             Scheme {
+            evidence_params: Vec::new(),
             con_params: Vec::new(),
             obligs: Vec::new(),
                 params: vec!["a".to_string()],
@@ -686,6 +751,7 @@ impl Checker {
             self,
             "spawn",
             Scheme {
+            evidence_params: Vec::new(),
             con_params: Vec::new(),
             obligs: Vec::new(),
                 params: vec!["x".to_string(), "a".to_string()],
@@ -722,6 +788,7 @@ impl Checker {
             self,
             "joinAllOrCancel",
             Scheme {
+            evidence_params: Vec::new(),
             con_params: Vec::new(),
             obligs: Vec::new(),
                 params: vec!["x".to_string(), "v".to_string(), "w".to_string()],
@@ -759,6 +826,7 @@ impl Checker {
             self,
             "ioWrite",
             Scheme {
+            evidence_params: Vec::new(),
             con_params: Vec::new(),
             obligs: Vec::new(),
                 params: Vec::new(),
@@ -781,6 +849,7 @@ impl Checker {
             self,
             "ioRead",
             Scheme {
+            evidence_params: Vec::new(),
             con_params: Vec::new(),
             obligs: Vec::new(),
                 params: Vec::new(),
@@ -803,6 +872,7 @@ impl Checker {
             self,
             "ioSleep",
             Scheme {
+            evidence_params: Vec::new(),
             con_params: Vec::new(),
             obligs: Vec::new(),
                 params: Vec::new(),
@@ -825,6 +895,7 @@ impl Checker {
             self,
             "pollCancel",
             Scheme {
+            evidence_params: Vec::new(),
             con_params: Vec::new(),
             obligs: Vec::new(),
                 params: Vec::new(),
@@ -862,6 +933,7 @@ impl Checker {
             module: "<builtin>".to_string(),
             name: "eval".to_string(),
             scheme: Scheme {
+            evidence_params: Vec::new(),
             con_params: Vec::new(),
             obligs: Vec::new(),
                 params: vec!["a".to_string()],
@@ -948,6 +1020,7 @@ impl Checker {
                 // `foreign import` schemes classify it.
                 region_params.push("Component".to_string());
                 let scheme = Scheme {
+            evidence_params: Vec::new(),
             con_params: Vec::new(),
             obligs: Vec::new(),
                     params: Vec::new(),
@@ -1110,6 +1183,7 @@ impl Checker {
         ];
         for (name, symbol, ty, arity) in entries {
             let scheme = Scheme {
+            evidence_params: Vec::new(),
             con_params: Vec::new(),
             obligs: Vec::new(),
                 params: vec!["a".to_string()],
@@ -1184,6 +1258,9 @@ impl Checker {
         for (n, arity) in [
             ("Code", 1),
             ("Syntax", 0),
+            ("SyntaxBinding", 1),
+            ("TypeSyntax", 0),
+            ("PackedCode", 0),
             ("Declarations", 0),
             ("Name", 0),
             ("Secret", 0),
@@ -1197,7 +1274,7 @@ impl Checker {
         ] {
             self.types.entry(n.to_string()).or_default().push(TypeKind {
                 module: "<builtin>".into(),
-                name: n.into(),
+                name: n.into(), identity: n.into(),
                 arity,
                 param_kinds: if arity == 1 {
                     vec![ParamKind::Type]
@@ -1367,6 +1444,232 @@ impl Checker {
                 adt("Code", vec![Ty::Bool]),
             ),
         );
+        // Scoped AST construction available to Cinch macro libraries. The
+        // binding parameter is phantom compile-time metadata; generated code
+        // is still checked by the ordinary checker at insertion.
+        let b = Ty::Param("b".into());
+        let binding = adt("SyntaxBinding", vec![a.clone()]);
+        let syntax = adt("Syntax", Vec::new());
+        let code_a = adt("Code", vec![a.clone()]);
+        let code_b = adt("Code", vec![b]);
+        for (alias, internal, op, params, ty) in [
+            (
+                "newBinding",
+                "syntax-new-binding",
+                StageOp::SyntaxNewBinding,
+                vec!["a".into()],
+                Ty::fun(adt("Name", Vec::new()), binding.clone()),
+            ),
+            (
+                "capture",
+                "syntax-capture",
+                StageOp::SyntaxCapture,
+                vec!["a".into()],
+                Ty::fun(syntax.clone(), code_a.clone()),
+            ),
+            (
+                "captureUnder",
+                "syntax-capture-under",
+                StageOp::SyntaxCaptureUnder,
+                vec!["a".into(), "b".into()],
+                Ty::fun(binding.clone(), Ty::fun(syntax, code_b.clone())),
+            ),
+            (
+                "reference",
+                "syntax-reference",
+                StageOp::SyntaxReference,
+                vec!["a".into()],
+                Ty::fun(binding.clone(), code_a.clone()),
+            ),
+            (
+                "letIn",
+                "syntax-let-in",
+                StageOp::SyntaxLetIn,
+                vec!["a".into(), "b".into()],
+                Ty::fun(binding, Ty::fun(code_a, Ty::fun(code_b.clone(), code_b))),
+            ),
+        ] {
+            self.install_stage_value(internal, op, params, ty);
+            let value = self
+                .qualified
+                .get(&("<builtin>".into(), internal.into()))
+                .unwrap()
+                .clone();
+            self.qualified
+                .insert(("Syntax".into(), alias.into()), value);
+        }
+        let code_input = adt("Code", vec![a.clone()]);
+        let b = Ty::Param("b".into());
+        let code_function = adt(
+            "Code",
+            // Assembly does not choose or erase the source arrow's usage.
+            // The inserted application is checked with that actual arrow.
+            vec![Ty::fun_mult(a.clone(), Mult::Flex, row_e.clone(), b.clone())],
+        );
+        self.install_stage_value_row(
+            "syntax-apply",
+            StageOp::SyntaxApply,
+            vec!["a".into(), "b".into()],
+            vec!["e".into()],
+            Ty::fun(code_function, Ty::fun(code_input, adt("Code", vec![b]))),
+        );
+        let apply = self
+            .qualified
+            .get(&("<builtin>".into(), "syntax-apply".into()))
+            .unwrap()
+            .clone();
+        self.qualified.insert(("Syntax".into(), "apply".into()), apply);
+        self.install_stage_value_row(
+            "syntax-lambda",
+            StageOp::SyntaxLambda,
+            vec!["a".into(), "b".into()],
+            vec!["e".into()],
+            Ty::fun(
+                adt("SyntaxBinding", vec![a.clone()]),
+                Ty::fun(
+                    adt("Code", vec![Ty::Param("b".into())]),
+                    adt("Code", vec![Ty::fun_mult(
+                        a.clone(), Mult::Flex, row_e.clone(), Ty::Param("b".into()),
+                    )]),
+                ),
+            ),
+        );
+        let lambda = self.qualified
+            .get(&("<builtin>".into(), "syntax-lambda".into()))
+            .unwrap().clone();
+        self.qualified.insert(("Syntax".into(), "lambda".into()), lambda);
+        for (namespace, alias, internal, op, params, ty) in [
+            (
+                "Name",
+                "append",
+                "name-append",
+                StageOp::NameAppend,
+                Vec::new(),
+                Ty::fun(
+                    adt("Name", Vec::new()),
+                    Ty::fun(adt("Name", Vec::new()), adt("Name", Vec::new())),
+                ),
+            ),
+            (
+                "Name",
+                "prefix",
+                "name-prefix",
+                StageOp::NamePrefix,
+                Vec::new(),
+                Ty::fun(str_ty.clone(), Ty::fun(adt("Name", Vec::new()), adt("Name", Vec::new()))),
+            ),
+            (
+                "Syntax",
+                "definition",
+                "syntax-definition",
+                StageOp::SyntaxDefinition,
+                vec!["a".into()],
+                Ty::fun(adt("Name", Vec::new()), adt("Code", vec![a.clone()])),
+            ),
+            (
+                "Name", "suffix", "name-suffix", StageOp::NameSuffix, Vec::new(),
+                Ty::fun(adt("Name", Vec::new()), Ty::fun(str_ty.clone(), adt("Name", Vec::new()))),
+            ),
+            (
+                "Name", "join", "name-join", StageOp::NameJoin, Vec::new(),
+                Ty::fun(str_ty.clone(), Ty::fun(adt("Name", Vec::new()), Ty::fun(adt("Name", Vec::new()), adt("Name", Vec::new())))),
+            ),
+            (
+                "Syntax",
+                "recordValue",
+                "syntax-record",
+                StageOp::SyntaxRecord,
+                vec!["a".into()],
+                Ty::fun(
+                    adt("Name", Vec::new()),
+                    Ty::fun(adt("Syntax", Vec::new()), adt("Code", vec![a.clone()])),
+                ),
+            ),
+            (
+                "Syntax", "emptyDeclarations", "syntax-empty-declarations", StageOp::SyntaxEmptyDeclarations,
+                Vec::new(), adt("Declarations", Vec::new()),
+            ),
+            (
+                "Syntax", "appendDeclarations", "syntax-append-declarations", StageOp::SyntaxAppendDeclarations,
+                Vec::new(), Ty::fun(adt("Declarations", Vec::new()), Ty::fun(adt("Declarations", Vec::new()), adt("Declarations", Vec::new()))),
+            ),
+            (
+                "Syntax", "linkDeclarations", "syntax-link-declarations", StageOp::SyntaxLinkDeclarations,
+                Vec::new(), Ty::fun(adt("Name", Vec::new()), Ty::fun(adt("Name", Vec::new()),
+                    Ty::fun(adt("Declarations", Vec::new()), Ty::fun(adt("Declarations", Vec::new()), adt("Declarations", Vec::new()))))),
+            ),
+            (
+                "Syntax", "items", "syntax-items", StageOp::SyntaxItems,
+                Vec::new(), Ty::fun(adt("Syntax", Vec::new()), adt("List", vec![adt("Syntax", Vec::new())])),
+            ),
+            (
+                "Syntax", "specializeDeclarationType", "syntax-specialize-declaration-type", StageOp::SyntaxSpecializeDeclarationType,
+                Vec::new(), Ty::fun(adt("Name", Vec::new()), Ty::fun(adt("Syntax", Vec::new()),
+                    Ty::fun(adt("Declarations", Vec::new()), adt("Declarations", Vec::new())))),
+            ),
+            (
+                "Syntax", "name", "syntax-name", StageOp::SyntaxName,
+                Vec::new(), Ty::fun(adt("Syntax", Vec::new()), adt("Name", Vec::new())),
+            ),
+            (
+                "Syntax", "error", "syntax-error", StageOp::SyntaxError,
+                vec!["a".into()], Ty::fun(str_ty.clone(), a.clone()),
+            ),
+            (
+                "Syntax", "renameDeclarations", "syntax-rename-declarations",
+                StageOp::SyntaxRenameDeclarations, Vec::new(),
+                Ty::fun(adt("Name", Vec::new()), Ty::fun(adt("Name", Vec::new()),
+                    Ty::fun(adt("Declarations", Vec::new()), adt("Declarations", Vec::new())))),
+            ),
+            ("Syntax", "captureType", "syntax-capture-type", StageOp::SyntaxCaptureType,
+                Vec::new(), Ty::fun(adt("Syntax", Vec::new()), adt("TypeSyntax", Vec::new()))),
+            ("Syntax", "declarationType", "syntax-declaration-type", StageOp::SyntaxDeclarationType,
+                Vec::new(), Ty::fun(adt("Name", Vec::new()), Ty::fun(adt("Declarations", Vec::new()), adt("TypeSyntax", Vec::new())))),
+            ("Syntax", "signatureType", "syntax-signature-type", StageOp::SyntaxSignatureType,
+                Vec::new(), Ty::fun(adt("Name", Vec::new()), Ty::fun(adt("Declarations", Vec::new()), adt("TypeSyntax", Vec::new())))),
+            ("Syntax", "declarationReference", "syntax-declaration-reference", StageOp::SyntaxDeclarationReference,
+                vec!["a".into()], Ty::fun(adt("Name", Vec::new()), Ty::fun(adt("Declarations", Vec::new()), adt("Code", vec![a.clone()])))),
+            ("Syntax", "functionCode", "syntax-function-code", StageOp::SyntaxFunctionCode,
+                vec!["a".into()], Ty::fun(adt("Name", Vec::new()), Ty::fun(adt("Declarations", Vec::new()), adt("Code", vec![a.clone()])))),
+            ("Syntax", "applyType", "syntax-apply-type", StageOp::SyntaxApplyType,
+                Vec::new(), Ty::fun(adt("TypeSyntax", Vec::new()), Ty::fun(adt("TypeSyntax", Vec::new()), adt("TypeSyntax", Vec::new())))),
+            ("Syntax", "functionType", "syntax-function-type", StageOp::SyntaxFunctionType,
+                Vec::new(), Ty::fun(adt("TypeSyntax", Vec::new()), Ty::fun(adt("TypeSyntax", Vec::new()), adt("TypeSyntax", Vec::new())))),
+            ("Syntax", "tupleType", "syntax-tuple-type", StageOp::SyntaxTupleType,
+                Vec::new(), Ty::fun(adt("List", vec![adt("TypeSyntax", Vec::new())]), adt("TypeSyntax", Vec::new()))),
+            ("Syntax", "specializeType", "syntax-specialize-type", StageOp::SyntaxSpecializeType,
+                Vec::new(), Ty::fun(adt("Name", Vec::new()), Ty::fun(adt("TypeSyntax", Vec::new()), Ty::fun(adt("Declarations", Vec::new()), adt("Declarations", Vec::new()))))),
+            ("Syntax", "addConstructor", "syntax-add-constructor", StageOp::SyntaxAddConstructor,
+                Vec::new(), Ty::fun(adt("Name", Vec::new()), Ty::fun(adt("Name", Vec::new()), Ty::fun(adt("TypeSyntax", Vec::new()), Ty::fun(adt("Declarations", Vec::new()), adt("Declarations", Vec::new())))))),
+            ("Syntax", "exportDeclaration", "syntax-export-declaration", StageOp::SyntaxExportDeclaration,
+                Vec::new(), Ty::fun(adt("Name", Vec::new()), Ty::fun(adt("Declarations", Vec::new()), adt("Declarations", Vec::new())))),
+            ("Syntax", "addEquations", "syntax-add-equations", StageOp::SyntaxAddEquations,
+                Vec::new(), Ty::fun(adt("Name", Vec::new()), Ty::fun(adt("Name", Vec::new()), Ty::fun(adt("Declarations", Vec::new()), Ty::fun(adt("Declarations", Vec::new()), adt("Declarations", Vec::new())))))),
+            ("Syntax", "packCode", "syntax-pack-code", StageOp::SyntaxPackCode,
+                vec!["a".into()], Ty::fun(adt("Code", vec![a.clone()]), adt("PackedCode", Vec::new()))),
+            ("Syntax", "tupleCode", "syntax-tuple-code", StageOp::SyntaxTupleCode,
+                vec!["a".into()], Ty::fun(adt("List", vec![adt("PackedCode", Vec::new())]), adt("Code", vec![a.clone()]))),
+            (
+                "Syntax",
+                "recordDeclaration",
+                "syntax-record-declaration",
+                StageOp::SyntaxRecordDeclaration,
+                Vec::new(),
+                Ty::fun(
+                    adt("Name", Vec::new()),
+                    Ty::fun(adt("Syntax", Vec::new()), adt("Declarations", Vec::new())),
+                ),
+            ),
+        ] {
+            self.install_stage_value(internal, op, params, ty);
+            let value = self
+                .qualified
+                .get(&("<builtin>".into(), internal.into()))
+                .unwrap()
+                .clone();
+            self.qualified
+                .insert((namespace.into(), alias.into()), value);
+        }
         // The `Name`/`Sym` reification (D123's name-quote
         // correspondence): a reified name and an interned symbol of the
         // same spelling convert back and forth.
@@ -1465,6 +1768,7 @@ impl Checker {
             module: "<builtin>".into(),
             name: "derive".into(),
             scheme: Scheme {
+            evidence_params: Vec::new(),
             con_params: Vec::new(),
             obligs: Vec::new(),
                 params: Vec::new(),
@@ -1504,6 +1808,7 @@ impl Checker {
         ty: Ty,
     ) {
         let scheme = Scheme {
+            evidence_params: Vec::new(),
             con_params: Vec::new(),
             obligs: Vec::new(),
             params,
@@ -1678,6 +1983,7 @@ impl Checker {
                 };
             }
             let scheme = Scheme {
+            evidence_params: Vec::new(),
             con_params: Vec::new(),
             obligs: Vec::new(),
                 params: type_params,
@@ -1733,7 +2039,7 @@ impl Checker {
         }
         self.types.entry(name.to_string()).or_default().push(TypeKind {
             module: "<builtin>".to_string(),
-            name: name.to_string(),
+            name: name.to_string(), identity: name.to_string(),
             arity: params.len(),
             param_kinds,
             ctors: ctor_names,
@@ -1799,6 +2105,7 @@ impl Checker {
             module: "<builtin>".to_string(),
             name: "getCopy".to_string(),
             scheme: Scheme {
+            evidence_params: Vec::new(),
             con_params: Vec::new(),
             obligs: Vec::new(),
                 params: vec!["a".to_string()],
@@ -1983,6 +2290,7 @@ impl Checker {
             module: "<builtin>".to_string(),
             name: "vecStreamStep".to_string(),
             scheme: Scheme {
+            evidence_params: Vec::new(),
             con_params: Vec::new(),
             obligs: Vec::new(),
                 params: vec!["a".to_string()],
@@ -2016,6 +2324,7 @@ impl Checker {
             module: "<builtin>".to_string(),
             name: "refl".to_string(),
             scheme: Scheme {
+            evidence_params: Vec::new(),
             con_params: Vec::new(),
             obligs: Vec::new(),
                 params: Vec::new(),
@@ -2038,6 +2347,7 @@ impl Checker {
             module: "<builtin>".to_string(),
             name: "congr".to_string(),
             scheme: Scheme {
+            evidence_params: Vec::new(),
             con_params: Vec::new(),
             obligs: Vec::new(),
                 params: Vec::new(),
@@ -2075,12 +2385,17 @@ impl Checker {
         // A bounded plan interpreted only where an expected proposition
         // exists. The placeholder scheme must never be instantiated as
         // evidence: value inference rejects this kind.
-        self.qualified.insert(("Proof".into(), "search".into()), ValueInfo {
+        let search = ValueInfo {
             module: "<builtin>".into(),
             name: "proof-search".into(),
             scheme: Scheme::mono(Ty::Unit),
             kind: ValueKind::ProofSearch,
-        });
+        };
+        // Captured syntax records the checked owner, not its presentation
+        // alias. Keep that canonical entry available without exposing an
+        // unqualified runtime value for this elaboration-only operation.
+        self.qualified.insert((search.module.clone(), search.name.clone()), search.clone());
+        self.qualified.insert(("Proof".into(), "search".into()), search);
     }
 
     fn add_value(&mut self, v: ValueInfo, span: ast::Span) -> Result<()> {
@@ -2141,6 +2456,230 @@ impl Checker {
         Ok((self.signature_key(&sig.module, &sig.name), tys))
     }
 
+    /// Register a source header only when its nominal dependencies exist.
+    /// The same strict conversion is used before and after generation.
+    fn collect_value_header(
+        &mut self, module: &str, declaration: &ast::Decl, decl_attrs: &[ast::Attribute],
+    ) -> Result<Scheme> {
+        let ast::Decl::ValueSig { name, modifier, owned_attrs, ty, span } = declaration else {
+            unreachable!("deferred header must be a value signature")
+        };
+        let module = module.to_string();
+        // Function declarations carry the hint attributes of
+        // attribute annotations specification section 5 and
+        // the safety assertions of section 10.
+        let set = self.validate_attr_site(decl_attrs, AttrSite::FnDecl)?;
+        let fn_key = fn_id(&module, &name.text).0;
+        self.record_fn_hints(
+            &fn_key,
+            set.inline,
+            set.fn_cold,
+            *span,
+        )?;
+        self.record_fn_safety(
+            &fn_key,
+            &set.safety,
+            &format!("{}.{}", module, name.text),
+        )?;
+        let logical = match modifier.as_ref().map(|m| m.text.as_str()) {
+            None => None,
+            Some("spec") => Some("spec"),
+            Some("proof") => Some("proof"),
+            // `corec` marks a definition whose recursion must be
+            // productive (core language specification section 9);
+            // it is not part of the logical fragment.
+            Some("corec") => None,
+            // `stage` and `macro` mark compile-time definitions
+            // (staging, P9): executable generator code.
+            Some("stage") | Some("macro") => None,
+            Some(m) => {
+                return Err(Error::at(
+                    modifier.as_ref().unwrap().span,
+                    format!("modifier {m} is not supported in the bootstrap slice"),
+                ))
+            }
+        };
+        let s = self.conv_scheme(ty)?;
+        let mut conclusion = &s.ty;
+        while let Ty::Fun(_, _, _, cod) | Ty::Pi { cod, .. } = conclusion {
+            conclusion = cod;
+        }
+        // Erasure is a property of evidence, not of its optional spelling
+        // with `proof`. Otherwise an ordinary recursive function returning
+        // Prop bypasses the logical termination checks and forges evidence.
+        let evidence = matches!(conclusion, Ty::Prp(_))
+            && !matches!(modifier.as_ref().map(|m| m.text.as_str()), Some("stage" | "macro"));
+        self.remember_interface_scheme(&module, &name.text, ty, &s, &[]);
+        if logical == Some("proof") {
+            // A `proof` declaration constructs erased
+            // evidence: its type is a proposition or a chain
+            // of implications into one (core specification
+            // section 3).
+            let mut t = &s.ty;
+            loop {
+                match t {
+                    Ty::Prp(_) => break,
+                    Ty::Fun(_, _, _, b) | Ty::Pi { cod: b, .. } => t = b,
+                    other => {
+                        return Err(Error::at(
+                            *span,
+                            format!(
+                                "a `proof` declaration states a proposition, but this one has type {other}"
+                            ),
+                        ))
+                    }
+                }
+            }
+        }
+        if logical.is_some() || evidence {
+            self.logical.insert((module.clone(), name.text.clone()));
+        }
+        if modifier.as_ref().map(|m| m.text.as_str()) == Some("corec") {
+            self.corec.insert((module.clone(), name.text.clone()));
+        }
+        match modifier.as_ref().map(|m| m.text.as_str()) {
+            Some("stage") => {
+                self.staging.insert((module.clone(), name.text.clone()));
+            }
+            Some("macro") => {
+                self.staging.insert((module.clone(), name.text.clone()));
+                let key = (module.clone(), name.text.clone());
+                if self.macros.contains_key(&key) {
+                    return Err(Error::at(
+                        *span,
+                        format!("duplicate macro signature for {}", name.text),
+                    ));
+                }
+                for a in owned_attrs {
+                    let attr = a.text.clone();
+                    match self.macro_attr_names.get(&attr) {
+                        Some((owner, at)) => {
+                            return Err(Error::at(
+                                *span,
+                                format!(
+                                    "attribute name `{attr}` is already declared by macro `{owner}` (declared at {}:{}); macro attribute namespaces cannot collide silently",
+                                    at.line, at.col
+                                ),
+                            ))
+                        }
+                        None => {
+                            self.macro_attr_names
+                                .insert(attr, (name.text.clone(), *span));
+                        }
+                    }
+                }
+                self.macros.insert(
+                    key,
+                    MacroInfo {
+                        arity: 0,
+                        owned_attrs: owned_attrs.iter().map(|a| a.text.clone()).collect(),
+                        span: *span,
+                    },
+                );
+            }
+            _ => {}
+        }
+        // Register the value now: later declarations'
+        // signatures may reference it in index position (a
+        // proposition's `Eq` arguments name total
+        // definitions).
+        let key = (module.clone(), name.text.clone());
+        let kind = if self.macros.contains_key(&key) {
+            ValueKind::MacroFn
+        } else if self.staging.contains(&key) {
+            ValueKind::StageFn
+        } else {
+            ValueKind::TopFn
+        };
+        self.add_value(
+            ValueInfo {
+                module: module.clone(),
+                name: name.text.clone(),
+                scheme: s.clone(),
+                kind,
+            },
+            *span,
+        )?;
+        Ok(s)
+    }
+
+    fn header_types_available(&self, ty: &ast::Type) -> bool {
+        let mut available = true;
+        // Read the native AST and its name metadata. A private captured type
+        // is tested through its checked owner, never through caller spelling.
+        let mut ty = ty.clone();
+        ty.visit_mut(&mut |node| {
+            if let ast::Type::Con(path, _) = node {
+                let builtin = path.segments.len() == 1 && builtin_type_name(&path.segments[0].text)
+                    && path.segments[0].resolved_binding().is_none()
+                    && path.segments[0].scoped_reference().is_none();
+                if !builtin && self.lookup_type_path(path).is_err() {
+                    available = false;
+                }
+            }
+        });
+        available
+    }
+
+    /// Resolve ready source headers between generators, then require every
+    /// remaining header to pass the ordinary checker before checking bodies.
+    fn finish_deferred_headers(&mut self, final_pass: bool) -> Result<()> {
+        let saved = (self.current_module.clone(), self.visible.clone(), self.scope_views.clone());
+        let result = (|| {
+            loop {
+                self.refresh_module_surfaces()?;
+                let mut keys: Vec<_> = self.deferred_headers.keys().cloned().collect();
+                keys.sort();
+                let mut progress = false;
+                for (module, name) in keys {
+                    self.build_scope(&module, false);
+                    let (declaration, attrs) = self.deferred_headers[&(module.clone(), name.clone())].clone();
+                    let ast::Decl::ValueSig { ty, .. } = &declaration else { unreachable!() };
+                    if !self.header_types_available(ty) { continue; }
+                    let scheme = self.collect_value_header(&module, &declaration, &attrs)
+                        .map_err(|e| in_named_module(&self.module_files, &module, e))?;
+                    self.top_schemes.insert((module.clone(), name.clone()), scheme);
+                    self.deferred_headers.remove(&(module, name));
+                    progress = true;
+                }
+                if !progress { break; }
+            }
+            if final_pass {
+                // Unavailable names are errors, not placeholder types. Run the
+                // real conversion to retain its source/ownership diagnostic.
+                let mut keys: Vec<_> = self.deferred_headers.keys().cloned().collect();
+                keys.sort();
+                for (module, name) in keys {
+                    self.build_scope(&module, false);
+                    let (declaration, attrs) = self.deferred_headers[&(module.clone(), name.clone())].clone();
+                    let scheme = self.collect_value_header(&module, &declaration, &attrs)
+                        .map_err(|e| in_named_module(&self.module_files, &module, e))?;
+                    self.top_schemes.insert((module.clone(), name.clone()), scheme);
+                    self.deferred_headers.remove(&(module, name));
+                }
+                self.defer_generated_headers = false;
+                self.refresh_module_surfaces()?;
+            }
+            Ok(())
+        })();
+        (self.current_module, self.visible, self.scope_views) = saved;
+        result
+    }
+
+    fn refresh_module_surfaces(&mut self) -> Result<()> {
+        let mut modules: Vec<_> = self.module_names.iter().cloned().collect();
+        modules.sort();
+        for _ in 0..=modules.len() {
+            let before = self.module_surface.clone();
+            for module in &modules {
+                self.build_scope(module, false);
+                self.finish_module_surface(module)?;
+            }
+            if self.module_surface == before { return Ok(()); }
+        }
+        Err(Error::plain("module export surfaces did not stabilize"))
+    }
+
     fn collect_module(
         &mut self,
         m: &ast::Module,
@@ -2153,8 +2692,8 @@ impl Checker {
         // Module header safety state (attribute annotations
         // specification section 10): `#[profile "jpl"]` and
         // `#[deny-warnings]` scope the whole module.
-        self.module_safety
-            .insert(module.clone(), validate_module_attrs(&m.attrs)?);
+        let safety = validate_module_attrs(&m.attrs)?;
+        self.module_safety.entry(module.clone()).or_insert(safety);
         // A parameter block (`module M (x :: T, ...) where`, module
         // parameters as module arguments): the module's values are reached
         // only through instantiation units. The parameter types convert
@@ -2239,11 +2778,9 @@ impl Checker {
         // Visibility: the module's own names, then its imports, then the
         // prelude (design note: compiled interface metadata, section 3).
         self.build_scope(&module, false);
-        self.module_stage_imports.insert(module.clone(), stage_imports);
-        self.module_imports.insert(
-            module.clone(),
-            imports.iter().filter(|i| !applied.contains(i)).cloned().collect(),
-        );
+        self.module_stage_imports.entry(module.clone()).or_insert(stage_imports);
+        self.module_imports.entry(module.clone()).or_insert_with(||
+            imports.iter().filter(|i| !applied.contains(i)).cloned().collect());
         let mut schemes: HashMap<String, Scheme> = HashMap::new();
         let mut eqs: Vec<(String, ast::Equation)> = Vec::new();
 
@@ -2255,6 +2792,49 @@ impl Checker {
         let mut flat: Vec<(Vec<ast::Attribute>, ast::Decl)> = Vec::new();
         for d in &m.decls {
             self.flatten_attributes(d, &mut flat)?;
+        }
+
+        // Reserve definition-site effect labels before converting any header;
+        // an owned row reference must not depend on declaration order.
+        let mut effect_sites = HashSet::new();
+        for (_, declaration) in &flat {
+            if let ast::Decl::Effect(effect) = declaration {
+                let site = (module.clone(), effect.name.text.clone());
+                if !effect_sites.insert(site.clone()) || self.effect_bindings.get(&site).is_some_and(|head| self.effects.contains_key(head)) {
+                    return Err(Error::at(effect.name.span, format!("duplicate effect {}", effect.name.text)));
+                }
+                let head = if effect.name.declaration_binding().is_some() { format!("{module}.{}", effect.name.text) } else { effect.name.text.clone() };
+                if self.effects.contains_key(&head) {
+                    return Err(Error::at(effect.name.span, format!("duplicate effect {}", effect.name.text)));
+                }
+                self.effect_bindings.insert(site, head);
+            }
+        }
+
+        for (kind, name) in crate::syntax::declarations::group_members(&m.decls) {
+            if kind == ast::RefKind::Type && builtin_type_name(&name.text) {
+                return Err(Error::at(name.span, "a declaration group cannot declare a builtin type name"));
+            }
+            let binding = name.declaration_binding().unwrap().clone();
+            let key = (module.clone(), name.text.clone());
+            if self.declaration_bindings.get(&(binding.clone(), kind)).is_some_and(|previous| *previous != key) {
+                return Err(Error::at(name.span, "a declaration binding cannot be introduced under two different names"));
+            }
+            self.declaration_bindings.insert((binding, kind), key);
+        }
+
+        // Record the actual owner on each reference occurrence. Existing
+        // type/index/interface paths consume this same checked name metadata.
+        // Nested quotations' not-yet-emitted groups are deliberately absent.
+        if !self.declaration_bindings.is_empty() {
+            let mut names = m.decls.clone();
+            crate::syntax::declarations::visit_names(&mut names, &mut |name, kind| {
+                if let Some((owner, member)) = name.declaration_binding()
+                    .and_then(|binding| self.declaration_bindings.get(&(binding.clone(), kind)))
+                {
+                    name.record_binding(kind, owner, member);
+                }
+            });
         }
 
         for (decl_attrs, d) in &flat {
@@ -2388,137 +2968,18 @@ impl Checker {
                         ));
                     }
                 }
-                ast::Decl::ValueSig { name, modifier, owned_attrs, ty, span } => {
-                    // Function declarations carry the hint attributes of
-                    // attribute annotations specification section 5 and
-                    // the safety assertions of section 10.
-                    let set = self.validate_attr_site(decl_attrs, AttrSite::FnDecl)?;
-                    let fn_key = fn_id(&module, &name.text).0;
-                    self.record_fn_hints(
-                        &fn_key,
-                        set.inline,
-                        set.fn_cold,
-                        *span,
-                    )?;
-                    self.record_fn_safety(
-                        &fn_key,
-                        &set.safety,
-                        &format!("{}.{}", module, name.text),
-                    )?;
-                    let logical = match modifier.as_ref().map(|m| m.text.as_str()) {
-                        None => None,
-                        Some("spec") => Some("spec"),
-                        Some("proof") => Some("proof"),
-                        // `corec` marks a definition whose recursion must be
-                        // productive (core language specification section 9);
-                        // it is not part of the logical fragment.
-                        Some("corec") => None,
-                        // `stage` and `macro` mark compile-time definitions
-                        // (staging, P9): executable generator code.
-                        Some("stage") | Some("macro") => None,
-                        Some(m) => {
-                            return Err(Error::at(
-                                modifier.as_ref().unwrap().span,
-                                format!("modifier {m} is not supported in the bootstrap slice"),
-                            ))
-                        }
-                    };
-                    if schemes.contains_key(&name.text) {
+                ast::Decl::ValueSig { name, modifier, ty, span, .. } => {
+                    let key = (module.clone(), name.text.clone());
+                    if schemes.contains_key(&name.text) || self.deferred_headers.contains_key(&key) {
                         return Err(Error::at(*span, format!("duplicate signature for {}", name.text)));
                     }
-                    let s = self.conv_scheme(ty)?;
-                    self.remember_interface_scheme(&module, &name.text, ty, &s, &[]);
-                    if logical == Some("proof") {
-                        // A `proof` declaration constructs erased
-                        // evidence: its type is a proposition or a chain
-                        // of implications into one (core specification
-                        // section 3).
-                        let mut t = &s.ty;
-                        loop {
-                            match t {
-                                Ty::Prp(_) => break,
-                                Ty::Fun(_, _, _, b) | Ty::Pi { cod: b, .. } => t = b,
-                                other => {
-                                    return Err(Error::at(
-                                        *span,
-                                        format!(
-                                            "a `proof` declaration states a proposition, but this one has type {other}"
-                                        ),
-                                    ))
-                                }
-                            }
-                        }
-                    }
-                    if logical.is_some() {
-                        self.logical.insert((module.clone(), name.text.clone()));
-                    }
-                    if modifier.as_ref().map(|m| m.text.as_str()) == Some("corec") {
-                        self.corec.insert((module.clone(), name.text.clone()));
-                    }
-                    match modifier.as_ref().map(|m| m.text.as_str()) {
-                        Some("stage") => {
-                            self.staging.insert((module.clone(), name.text.clone()));
-                        }
-                        Some("macro") => {
-                            self.staging.insert((module.clone(), name.text.clone()));
-                            let key = (module.clone(), name.text.clone());
-                            if self.macros.contains_key(&key) {
-                                return Err(Error::at(
-                                    *span,
-                                    format!("duplicate macro signature for {}", name.text),
-                                ));
-                            }
-                            for a in owned_attrs {
-                                let attr = a.text.clone();
-                                match self.macro_attr_names.get(&attr) {
-                                    Some((owner, at)) => {
-                                        return Err(Error::at(
-                                            *span,
-                                            format!(
-                                                "attribute name `{attr}` is already declared by macro `{owner}` (declared at {}:{}); macro attribute namespaces cannot collide silently",
-                                                at.line, at.col
-                                            ),
-                                        ))
-                                    }
-                                    None => {
-                                        self.macro_attr_names
-                                            .insert(attr, (name.text.clone(), *span));
-                                    }
-                                }
-                            }
-                            self.macros.insert(
-                                key,
-                                MacroInfo {
-                                    arity: 0,
-                                    owned_attrs: owned_attrs.iter().map(|a| a.text.clone()).collect(),
-                                    span: *span,
-                                },
-                            );
-                        }
-                        _ => {}
-                    }
-                    // Register the value now: later declarations'
-                    // signatures may reference it in index position (a
-                    // proposition's `Eq` arguments name total
-                    // definitions).
-                    let key = (module.clone(), name.text.clone());
-                    let kind = if self.macros.contains_key(&key) {
-                        ValueKind::MacroFn
-                    } else if self.staging.contains(&key) {
-                        ValueKind::StageFn
+                    let ordinary = !matches!(modifier.as_ref().map(|m| m.text.as_str()), Some("stage" | "macro"));
+                    if self.defer_generated_headers && ordinary && !self.header_types_available(ty) {
+                        self.deferred_headers.insert(key, (d.clone(), decl_attrs.clone()));
                     } else {
-                        ValueKind::TopFn
-                    };
-                    self.add_value(
-                        ValueInfo {
-                            module: module.clone(),
-                            name: name.text.clone(),
-                            scheme: s.clone(),
-                            kind,
-                        },
-                        *span,
-                    )?;
-                    schemes.insert(name.text.clone(), s);
+                        let scheme = self.collect_value_header(&module, d, decl_attrs)?;
+                        schemes.insert(name.text.clone(), scheme);
+                    }
                 }
                 ast::Decl::Equation { modifier, eq } => {
                     // Function declarations carry the hint attributes of
@@ -2892,7 +3353,7 @@ impl Checker {
                     // specification section 2).
                     let tk = TypeKind {
                         module: module.clone(),
-                        name: o.name.text.clone(),
+                        name: o.name.text.clone(), identity: nominal_identity(&module, &o.name),
                         arity: params.len(),
                         param_kinds: param_kinds.clone(),
                         ctors: Vec::new(),
@@ -2919,6 +3380,8 @@ impl Checker {
                                 | "Array" | "Tensor" | "Columnar"
                                 | "Code"
                                 | "Syntax"
+                                | "TypeSyntax" | "PackedCode"
+                                | "SyntaxBinding"
                                 | "Declarations"
                                 | "Name"
                                 | "Secret"
@@ -2961,7 +3424,7 @@ impl Checker {
                     // which may mention the type being declared.
                     self.types.entry(data.name.text.clone()).or_default().push(TypeKind {
                         module: module.clone(),
-                        name: data.name.text.clone(),
+                        name: data.name.text.clone(), identity: nominal_identity(&module, &data.name),
                         arity: params.len(),
                         param_kinds: param_kinds.clone(),
                         ctors: Vec::new(),
@@ -3069,7 +3532,7 @@ impl Checker {
                         let mut res_args: Vec<Ty> = Vec::new();
                         match &res_ty {
                             Ty::Adt(n, args)
-                                if n == &data.name.text && args.len() == params.len() =>
+                                if n == &nominal_identity(&module, &data.name) && args.len() == params.len() =>
                             {
                                 res_args = args.clone();
                                 for (i, (a, k)) in args.iter().zip(&param_kinds).enumerate() {
@@ -3107,7 +3570,7 @@ impl Checker {
                         // positivity discipline applies to ordinary
                         // `data` too, roadmap gap A1).
                         for (fname, fty, _) in &fields {
-                            check_positivity(&data.name.text, fname, fty, &c.name, c.ty.span())?;
+                            check_positivity(&nominal_identity(&module, &data.name), fname, fty, &c.name, c.ty.span())?;
                         }
                         let field_tys: Vec<Ty> =
                             fields.iter().map(|(_, t, _)| t.clone()).collect();
@@ -3135,7 +3598,7 @@ impl Checker {
                         }
                         idx_params.extend(local_idx.iter().cloned());
                         let mut scheme_ty =
-                            Ty::Adt(data.name.text.clone(), res_args.clone());
+                            Ty::Adt(nominal_identity(&module, &data.name), res_args.clone());
                         for (b, t, m) in fields.iter().rev() {
                             let rest = scheme_ty;
                             scheme_ty = if rest.mentions_idx(b) {
@@ -3145,6 +3608,7 @@ impl Checker {
                             };
                         }
                         let scheme = Scheme {
+            evidence_params: Vec::new(),
             con_params: higher_kinded_parameters(&params, &param_kinds),
             obligs: Vec::new(),
                             params: type_params,
@@ -3242,6 +3706,8 @@ impl Checker {
                                 | "Array" | "Tensor" | "Columnar"
                                 | "Code"
                                 | "Syntax"
+                                | "TypeSyntax" | "PackedCode"
+                                | "SyntaxBinding"
                                 | "Declarations"
                                 | "Name"
                                 | "Secret"
@@ -3347,7 +3813,7 @@ impl Checker {
                     // constructor (whose scheme mentions the type).
                     self.types.entry(r.name.text.clone()).or_default().push(TypeKind {
                         module: module.clone(),
-                        name: r.name.text.clone(),
+                        name: r.name.text.clone(), identity: nominal_identity(&module, &r.name),
                         arity: params.len(),
                         param_kinds: param_kinds.clone(),
                         ctors: Vec::new(),
@@ -3396,7 +3862,7 @@ impl Checker {
                         }
                     }
                     let mut scheme_ty =
-                        Ty::Adt(r.name.text.clone(), res_args.clone());
+                        Ty::Adt(nominal_identity(&module, &r.name), res_args.clone());
                     for (i, (b, t)) in field_binders.iter().zip(&field_tys).enumerate().rev() {
                         let rest = scheme_ty;
                         let m = default_mult(t);
@@ -3408,6 +3874,7 @@ impl Checker {
                         };
                     }
                     let scheme = Scheme {
+            evidence_params: Vec::new(),
             con_params: higher_kinded_parameters(&params, &param_kinds),
             obligs: Vec::new(),
                         params: type_params,
@@ -3524,7 +3991,7 @@ impl Checker {
                     // may mention the record being declared.
                     self.types.entry(rec.name.text.clone()).or_default().push(TypeKind {
                         module: module.clone(),
-                        name: rec.name.text.clone(),
+                        name: rec.name.text.clone(), identity: nominal_identity(&module, &rec.name),
                         arity: params.len(),
                         param_kinds: param_kinds.clone(),
                         ctors: Vec::new(),
@@ -3609,7 +4076,7 @@ impl Checker {
                             ParamKind::Prop => idx_params.push(IxParam::Prop(p.clone())),
                         }
                     }
-                    let res_ty = Ty::Adt(rec.name.text.clone(), res_args.clone());
+                    let res_ty = Ty::Adt(nominal_identity(&module, &rec.name), res_args.clone());
                     let mut scheme_ty = res_ty.clone();
                     for (i, t) in field_tys.iter().enumerate().rev() {
                         let b = field_names[i].clone();
@@ -3621,6 +4088,7 @@ impl Checker {
                         };
                     }
                     let scheme = Scheme {
+            evidence_params: Vec::new(),
             con_params: higher_kinded_parameters(&params, &param_kinds),
             obligs: Vec::new(),
                         params: type_params,
@@ -3736,7 +4204,7 @@ impl Checker {
                     // (`tail :: Later (Stream a)`).
                     self.types.entry(rec.name.text.clone()).or_default().push(TypeKind {
                         module: module.clone(),
-                        name: rec.name.text.clone(),
+                        name: rec.name.text.clone(), identity: nominal_identity(&module, &rec.name),
                         arity: params.len(),
                         param_kinds: param_kinds.clone(),
                         ctors: Vec::new(),
@@ -3747,7 +4215,7 @@ impl Checker {
                     let mut obs_tys = Vec::new();
                     for f in &rec.fields {
                         let t = self.conv_type(&f.ty, &vars)?;
-                        check_positivity(&rec.name.text, &f.name.text, &t, &rec.name, f.span)?;
+                        check_positivity(&nominal_identity(&module, &rec.name), &f.name.text, &t, &rec.name, f.span)?;
                         obs_tys.push(t);
                         vars.push(f.name.text.clone());
                     }
@@ -3778,7 +4246,7 @@ impl Checker {
                             ParamKind::Prop => idx_params.push(IxParam::Prop(p.clone())),
                         }
                     }
-                    let res_ty = Ty::Adt(rec.name.text.clone(), res_args.clone());
+                    let res_ty = Ty::Adt(nominal_identity(&module, &rec.name), res_args.clone());
                     let mut scheme_ty = res_ty.clone();
                     for (i, t) in obs_tys.iter().enumerate().rev() {
                         let b = obs_names[i].clone();
@@ -3790,6 +4258,7 @@ impl Checker {
                         };
                     }
                     let scheme = Scheme {
+            evidence_params: Vec::new(),
             con_params: higher_kinded_parameters(&params, &param_kinds),
             obligs: Vec::new(),
                         params: type_params,
@@ -3910,43 +4379,14 @@ impl Checker {
                         let mut vars = params.clone();
                         vars.extend(extra.iter().cloned());
                         let ty = self.conv_type(rest, &vars)?;
-                        let mut all_params = params.clone();
-                        all_params.extend(extra);
-                        let mut ctx = vec![(
-                            "dict".to_string(),
-                            ClassApp {
-                                class: self.signature_key(&module, &sig.name.text),
-                                args: params.iter().map(|p| Ty::Param(p.clone())).collect(),
-                            },
-                        )];
+                        let mut ctx = vec![("dict".into(), ClassApp {
+                            class: self.signature_key(&module, &sig.name.text),
+                            args: params.iter().cloned().map(Ty::Param).collect(),
+                        })];
                         ctx.append(&mut own_ctx);
-                        let mut row_params: Vec<String> = Vec::new();
-                        let mut region_params: Vec<String> = Vec::new();
-                        collect_row_names(&ty, &mut row_params, &mut region_params);
-                        let ty = crate::types::regionize(&ty, &region_params);
-                        let ctx = ctx
-                            .into_iter()
-                            .map(|(n, c)| (n, crate::types::regionize_class(&c, &region_params)))
-                            .collect();
-                        let type_params: Vec<String> = all_params
-                            .into_iter()
-                            .filter(|p| !row_params.contains(p) && !region_params.contains(p))
-                            .collect();
-                        methods.push((
-                            mname.text.clone(),
-                            Scheme {
-            con_params: Vec::new(),
-            obligs: Vec::new(),
-                                params: type_params,
-                                idx_params: Vec::new(),
-                                val_params: Vec::new(),
-                                prop_params: Vec::new(),
-                                row_params,
-                                region_params,
-                                ctx,
-                                ty,
-                            },
-                        ));
+                        let notes = self.kind_constraints.borrow()[notes_start..].to_vec();
+                        let scheme = self.quantified_member_scheme(&sig.params, &own_binders, ty, ctx, &notes)?;
+                        methods.push((mname.text.clone(), scheme));
                         // Keep method-local kind inference scoped to this
                         // method. Another method may quantify the same name
                         // with a different kind. This metadata copy does not
@@ -4008,12 +4448,15 @@ impl Checker {
                     let mut laws: Vec<(String, Scheme)> = Vec::new();
                     for (lname, lty) in &sig.laws {
                         let mut extra: Vec<String> = Vec::new();
+                        let mut own_binders = Vec::new();
+                        let notes_start = self.kind_constraints.borrow().len();
                         let mut rest = lty;
                         loop {
                             match rest {
                                 ast::Type::Forall(binders, body, _) => {
                                     for b in binders {
                                         extra.push(b.name.text.clone());
+                                        own_binders.push(b.clone());
                                     }
                                     rest = body;
                                 }
@@ -4028,7 +4471,14 @@ impl Checker {
                         }
                         let mut vars = params.clone();
                         vars.extend(extra.iter().cloned());
-                        let ty = self.conv_type(rest, &vars)?;
+                        let law_context = methods.first().and_then(|(_, scheme)| scheme.ctx.first()).map(|(_, class)| class.clone())
+                            .unwrap_or_else(|| ClassApp { class: sig.name.text.clone(), args: params.iter().cloned().map(Ty::Param).collect() });
+                        self.index_header_context.borrow_mut().push(vec![("#class".into(), law_context.clone())]);
+                        let previous_law_context = self.law_index_context.replace(Some(Vec::new()));
+                        let ty = self.conv_type(rest, &vars);
+                        let extra_context = self.law_index_context.replace(previous_law_context).unwrap_or_default();
+                        self.index_header_context.borrow_mut().pop();
+                        let ty = ty?;
                         // The law's conclusion is a proposition: an `Eq`
                         // equation (a bare proposition type is accepted
                         // too; it states no equation to check).
@@ -4048,28 +4498,9 @@ impl Checker {
                                 }
                             }
                         }
-                        let mut row_params: Vec<String> = Vec::new();
-                        let mut region_params: Vec<String> = Vec::new();
-                        collect_row_names(&ty, &mut row_params, &mut region_params);
-                        let ty = crate::types::regionize(&ty, &region_params);
-                        let mut all_params = params.clone();
-                        all_params.extend(extra);
-                        let type_params: Vec<String> = all_params
-                            .into_iter()
-                            .filter(|p| !row_params.contains(p) && !region_params.contains(p))
-                            .collect();
-                        let scheme = Scheme {
-            con_params: Vec::new(),
-            obligs: Vec::new(),
-                            params: type_params,
-                            idx_params: Vec::new(),
-                            val_params: Vec::new(),
-                            prop_params: Vec::new(),
-                            row_params,
-                            region_params,
-                            ctx: Vec::new(),
-                            ty,
-                        };
+                        let notes = self.kind_constraints.borrow()[notes_start..].to_vec();
+                        let context = std::iter::once(("#class".into(), law_context)).chain(extra_context).collect();
+                        let scheme = self.quantified_member_scheme(&sig.params, &own_binders, ty, context, &notes)?;
                         let info = ValueInfo {
                             module: module.clone(),
                             name: lname.text.clone(),
@@ -4129,7 +4560,7 @@ impl Checker {
                     // decision D21 already builds `Ty::Adt(class, args)`).
                     let tk = TypeKind {
                         module: module.clone(),
-                        name: sig.name.text.clone(),
+                        name: sig.name.text.clone(), identity: sig.name.text.clone(),
                         arity: info.params.len(),
                         param_kinds: info.param_kinds.clone(),
                         ctors: Vec::new(),
@@ -4152,18 +4583,19 @@ impl Checker {
                     }
                 }
                 ast::Decl::Effect(eff) => {
-                    if self.effects.contains_key(&eff.name.text) {
-                        return Err(Error::at(
-                            eff.name.span,
-                            format!("duplicate effect {}", eff.name.text),
-                        ));
+                    let owned = eff.name.declaration_binding().is_some();
+                    let head = if owned { format!("{module}.{}", eff.name.text) } else { eff.name.text.clone() };
+                    let site = (module.clone(), eff.name.text.clone());
+                    if self.effects.contains_key(&head) {
+                        return Err(Error::at(eff.name.span, format!("duplicate effect {}", eff.name.text)));
                     }
+                    self.effect_bindings.insert(site, head.clone());
                     let region_param = eff.params.first().map(|p| p.text.clone());
                     let base_vars: Vec<String> =
                         eff.params.iter().map(|p| p.text.clone()).collect();
                     // The effect's label: `L` or `L r`.
                     let label = EffLabel {
-                        head: eff.name.text.clone(),
+                        head: head.clone(),
                         arg: region_param.clone(),
                     };
                     let mut ops: Vec<(String, Scheme)> = Vec::new();
@@ -4239,6 +4671,7 @@ impl Checker {
                             .filter(|p| !row_params.contains(p) && !region_params.contains(p))
                             .collect();
                         let scheme = Scheme {
+            evidence_params: Vec::new(),
             con_params: Vec::new(),
             obligs: Vec::new(),
                             params: type_params,
@@ -4256,7 +4689,7 @@ impl Checker {
                             name: mname.text.clone(),
                             scheme: scheme.clone(),
                             kind: ValueKind::EffectOp {
-                                head: eff.name.text.clone(),
+                                head: head.clone(),
                                 slot,
                             },
                         };
@@ -4265,8 +4698,9 @@ impl Checker {
                         ops.push((mname.text.clone(), scheme));
                     }
                     self.effects.insert(
-                        eff.name.text.clone(),
+                        head,
                         EffectInfo {
+                            module: module.clone(), name: eff.name.text.clone(),
                             region_param,
                             ops,
                         },
@@ -4324,11 +4758,18 @@ impl Checker {
         // is collected. Every equation needs a signature; every signature
         // needs an equation.
         for (name, eq) in &eqs {
-            if !schemes.contains_key(name) {
+            if !schemes.contains_key(name) && !self.deferred_headers.contains_key(&(module.clone(), name.clone())) {
                 return Err(Error::at(
                     eq.span,
                     format!("missing signature for {name} (this draft does not silently infer top-level types)"),
                 ));
+            }
+        }
+        for ((home, name), (declaration, _)) in &self.deferred_headers {
+            if home == &module && name != "main" && !eqs.iter().any(|(n, _)| n == name)
+                && !self.top_eqs.iter().any(|(m, n, _)| m == home && n == name) {
+                return Err(Error::at(match declaration { ast::Decl::ValueSig { span, .. } => *span, _ => unreachable!() },
+                    format!("missing defining equation for {name}")));
             }
         }
         for (name, _) in &schemes {
@@ -4632,7 +5073,7 @@ impl Checker {
                     }
                     None => {
                         let t = self.conv_type(&p.ty, &[])?;
-                        if !self.copy_structural(&t, &[], &mut Vec::new()) {
+                        if !self.copy_structural::<LocalId>(&t, &[], &mut Vec::new()) {
                             return Err(Error::at(
                                 p.span,
                                 format!(
@@ -4712,6 +5153,7 @@ impl Checker {
         // `spec`/`proof` definitions (core specification sections 3
         // and 8).
         self.check_logical_cycles()?;
+        self.check_erased_computations(module)?;
 
         // Constructors as code generation units: the block stores the
         // non-erased fields only (core specification section 3). The
@@ -4980,6 +5422,7 @@ impl Checker {
                 own_obligs = s.obligs;
             }
             let scheme = Scheme {
+                evidence_params: Vec::new(),
                 con_params: Vec::new(),
                 obligs: own_obligs,
                 params: extra,
@@ -5867,7 +6310,7 @@ impl Checker {
             }
         }
         if let Ty::Adt(n, _) = t {
-            if let Ok(info) = self.lookup_type(&[n]) {
+            if let Ok(info) = self.lookup_known_type(n) {
                 if self
                     .codata_types
                     .contains(&(info.module.clone(), info.name.clone()))
@@ -6274,6 +6717,23 @@ impl Checker {
         eqs: &[ast::Equation],
         extra_dicts: Vec<(LocalId, ClassApp)>,
     ) -> Result<()> {
+        let saved = self.code_quantifiers.clone();
+        if self.compile_time {
+            self.stage_definition_scopes.insert(id.0.clone(), (scheme.clone(), Scheme::mono(Ty::Unit)));
+        }
+        let result = self.check_equations_inner(name, id, scheme, eqs, extra_dicts);
+        self.code_quantifiers = saved;
+        result
+    }
+
+    fn check_equations_inner(
+        &mut self,
+        name: &str,
+        id: &GlobalId,
+        scheme: &Scheme,
+        eqs: &[ast::Equation],
+        extra_dicts: Vec<(LocalId, ClassApp)>,
+    ) -> Result<()> {
         // The top-level recording marker belongs to this entry alone:
         // a nested check (a staged unit compiled on demand) is not a
         // top-level value binding of its own.
@@ -6298,12 +6758,17 @@ impl Checker {
             None => scheme
                 .params
                 .iter()
-                .filter_map(|p| match map.get(p) {
+                .filter_map(|p| match map.types.get(p) {
                     Some(Ty::Param(n)) => Some(n.clone()),
                     _ => None,
                 })
                 .collect(),
         };
+        for parameter in &tparams {
+            if !self.code_quantifiers.params.contains(parameter) {
+                self.code_quantifiers.params.push(parameter.clone());
+            }
+        }
         self.reset_usage();
         self.smaller.clear();
         // P20: a fresh safety fact collector per definition (attribute
@@ -6349,16 +6814,22 @@ impl Checker {
             dict_meta.push((l, c.class.clone()));
             param_ids.push(l);
         }
-        for (n, c) in &ctx {
-            let l = self.fresh_local();
+        for (n, c, l) in &ctx {
+            let l = *l;
             env.dicts.push((l, c.clone()));
+            let syntax_name = self.syntax_context_values.get(&(self.current_module.clone(), name.into()))
+                .and_then(|names| names.iter().find(|name| name.text == *n)).cloned();
+            if let Some(binding) = syntax_name.as_ref().and_then(ast::Name::local_binding) {
+                env.syntax_dictionaries.insert(binding.clone(), l);
+            }
             self.note_local_class(l, Checker::dict_class(&c.class));
             dict_meta.push((l, c.class.clone()));
             if is_capability_class(&c.class) {
                 // A capability binder is a term-level value too: `f @{io =
                 // io}` and `with (io = io) in ...` name it (decision D21).
                 let ty = Ty::Adt(c.class.clone(), c.args.clone());
-                self.bind_local(&mut env, n, l, Scheme::mono(ty), None, eqs[0].span)?;
+                let syntax_name = syntax_name.unwrap_or_else(|| ast::Name::new(n, eqs[0].span));
+                self.bind_syntax_local(&mut env, &syntax_name, l, Scheme::mono(ty), None, eqs[0].span)?;
             }
             param_ids.push(l);
         }
@@ -6367,8 +6838,12 @@ impl Checker {
         // erased and take no runtime slot.
         for (n, t) in &scheme.val_params {
             let l = self.fresh_local();
-            self.bind_local(&mut env, n, l, Scheme::mono(t.clone()), None, eqs[0].span)?;
-            self.register_obligation(l, n, Some(Mult::Many), t.clone(), eqs[0].span);
+            let syntax_name = self.syntax_implicit_values.get(&(self.current_module.clone(), name.into()))
+                .and_then(|names| names.iter().find(|name| name.text == *n)).cloned()
+                .unwrap_or_else(|| ast::Name::new(n, eqs[0].span));
+            let carrier = Self::subst_namespaces(t, &map.types, &map.rows, &map.regions, &map.evidence);
+            self.bind_syntax_local(&mut env, &syntax_name, l, Scheme::mono(carrier.clone()), None, eqs[0].span)?;
+            self.register_obligation(l, n, Some(Mult::Many), carrier, eqs[0].span);
             param_ids.push(l);
         }
         for n in &scheme.prop_params {
@@ -6434,6 +6909,9 @@ impl Checker {
                             eqs[0].pats[i].span(),
                             "a dependent parameter must be a variable pattern with the same name in every equation",
                         ));
+                    }
+                    if self.compile_time && !self.code_quantifiers.idx_params.iter().any(|p| p.name() == pat_name) {
+                        self.code_quantifiers.idx_params.push(IxParam::Val(pat_name.clone(), (*dom).clone()));
                     }
                     doms.push(*dom);
                     mults.push(mult);
@@ -6511,6 +6989,7 @@ impl Checker {
                     consumed: Vec::new(),
                     weight: clause_weights[i],
                     guard_weight: None,
+                    proof: None,
                 })
             })
             .collect::<Result<Vec<_>>>()?;
@@ -6548,7 +7027,7 @@ impl Checker {
             .obligs
             .iter()
             .filter_map(|o| match o {
-                PropOblig::Pred(p) => Some((p.clone(), value_params.clone())),
+                PropOblig::Pred(p) => Some((Self::subst_prop_namespaces(p, &map.types, &map.rows, &map.regions, &map.evidence), value_params.clone())),
                 PropOblig::Preserves { .. } => None,
             })
             .collect();
@@ -6695,18 +7174,22 @@ impl Checker {
     ) -> Result<()> {
         fn chain(
             smaller: &HashMap<LocalId, LocalId>,
-            extra: &HashMap<LocalId, LocalId>,
-            mut x: LocalId,
-        ) -> Vec<LocalId> {
-            let mut out = vec![x];
-            loop {
-                let next = extra.get(&x).or_else(|| smaller.get(&x)).copied();
-                match next {
-                    Some(p) => {
-                        out.push(p);
-                        x = p;
-                    }
-                    None => break,
+            aliases: &HashMap<LocalId, LocalId>,
+            mut local: LocalId,
+        ) -> Vec<(LocalId, bool)> {
+            let mut strict = false;
+            let mut out = Vec::new();
+            let mut seen = HashSet::new();
+            while seen.insert(local) {
+                out.push((local, strict));
+                if let Some(original) = aliases.get(&local) {
+                    // Naming the same value is not a structural decrease.
+                    local = *original;
+                } else if let Some(parent) = smaller.get(&local) {
+                    strict = true;
+                    local = *parent;
+                } else {
+                    break;
                 }
             }
             out
@@ -6736,12 +7219,10 @@ impl Checker {
                                     ECore::Var(x) => {
                                         let c = chain(smaller, extra, *x);
                                         let mut ok = false;
-                                        for p in params {
-                                            if c.contains(p) {
+                                        for (ancestor, strict) in c {
+                                            if params.contains(&ancestor) {
                                                 ok = true;
-                                                if c[0] != *p {
-                                                    decreased = true;
-                                                }
+                                                decreased |= strict;
                                             }
                                         }
                                         if !ok {
@@ -6853,6 +7334,10 @@ impl Checker {
         // per-step obligations read the same resolved write log.
         self.check_temporal(&id)?;
         body = self.fill_holes(&body, &sol)?;
+        for (module, span, expression) in std::mem::take(&mut self.pending_erasure_checks) {
+            let expression = self.fill_holes(&expression, &sol)?;
+            self.erasure_checks.push((module, span, expression));
+        }
         let mut recs: Vec<(GlobalId, ECore)> = Vec::new();
         for (mid, core) in std::mem::take(&mut self.pending_rec) {
             recs.push((mid, self.fill_holes(&core, &sol)?));
@@ -6868,10 +7353,18 @@ impl Checker {
             self.resolved_idx_args()?
         };
         resolve_lit_words(&mut body, &lits);
-        resolve_idx_words(&mut body, &vals);
+        // Logical definitions retain symbolic index arguments for the
+        // erasure/termination audit, but emit no runtime index words.
+        // Their pending table was deliberately cleared above; applying
+        // runtime substitutions here would index an empty table.
+        if !erased {
+            resolve_idx_words(&mut body, &vals);
+        }
         for (_, core) in recs.iter_mut() {
             resolve_lit_words(core, &lits);
-            resolve_idx_words(core, &vals);
+            if !erased {
+                resolve_idx_words(core, &vals);
+            }
         }
         // The collection literal fold (surface grammar local amendments
         // section 10) runs on every emitted body once its constants are
@@ -6915,6 +7408,14 @@ impl Checker {
                 body: mbody,
             });
         }
+        if prim.is_none() && ctor.is_none() && meta.pure && !meta.prim_body {
+            self.erasure_bodies.insert(id.clone(), (param_ids.clone(), body.clone()));
+            for unit in &hoisted {
+                self.erasure_bodies.insert(unit.id.clone(), (unit.params.clone(), unit.body.clone()));
+            }
+        } else {
+            self.erasure_bodies.remove(&id);
+        }
         if !erased {
             // Hint attributes ride the function's code generation unit
             // (attribute annotations specification section 5).
@@ -6923,6 +7424,15 @@ impl Checker {
             // share the definition's type parameters.
             let own: HashSet<GlobalId> = hoisted.iter().map(|h| h.id.clone()).collect();
             let tparams = self.cur_tparams.clone();
+            if self.compile_time {
+                if let Some((source, _)) = self.stage_definition_scopes.get(&id.0).cloned() {
+                    let scope = (source, self.code_quantifiers.clone());
+                    self.stage_definition_scopes.insert(id.0.clone(), scope.clone());
+                    for unit in &hoisted {
+                        self.stage_definition_scopes.insert(unit.id.0.clone(), scope.clone());
+                    }
+                }
+            }
             let mut done = Vec::with_capacity(hoisted.len() + 1);
             {
                 let mut cx = LowerCx::new(self, &tparams, &own);
@@ -7486,18 +7996,40 @@ impl Checker {
         // their sub-dictionary values (the equations mention methods by
         // their declared heads and pass no dictionaries).
         let mut methods: HashMap<String, (crate::core::GlobalId, Vec<Value>)> = HashMap::new();
-        if self
-            .law_collect_methods(ob, 0, &mut methods, &mut Vec::new())?
-            .is_none()
-        {
+        let dictionary = self.law_collect_methods(ob, 0, &mut methods, &mut Vec::new())?;
+        let Some(dictionary) = dictionary else {
             self.law_rows
                 .push(row("not checked (the instance's dictionaries do not resolve)".to_string()));
             return Ok(());
-        }
+        };
         let scx = self.fold_scx.clone().unwrap_or_default();
         let mut cx = StageCx::new(&scx);
         // Every ordered sample assignment (the cross product, capped).
-        let mut assignments: Vec<HashMap<String, Value>> = vec![HashMap::new()];
+        let mut initial = LawFrame::default();
+        for (name, class) in &ob.scheme.ctx {
+            let value = if name == "#class" { dictionary.clone() } else {
+                let wanted = Self::subst_class(class, &map);
+                let selected = match self.solve(&wanted, &[], 0, ob.span) {
+                    Ok(Solved(dictionary)) => dictionary,
+                    other => {
+                        let reason = match other { Err(error) => error.to_string(), _ => "ambiguous dictionaries".into() };
+                        self.law_rows.push(row(format!("not checked (law context {wanted}: {reason})")));
+                        return Ok(());
+                    }
+                };
+                let own = HashSet::new();
+                let dictionary = lower(&dict_expr_ecore(&selected), &LowerCx::compile_time(self, &[], &own));
+                match self.eval_core(&mut cx, &dictionary, &mut Vec::new()) {
+                    Ok(value) => value,
+                    Err(error) => {
+                        self.law_rows.push(row(format!("not checked (law context {wanted} did not evaluate: {error})")));
+                        return Ok(());
+                    }
+                }
+            };
+            initial.dictionaries.insert(dictionary_parameter(name), value);
+        }
+        let mut assignments: Vec<LawFrame> = vec![initial];
         for ((name, _), samples) in binders.iter().zip(&sample_sets) {
             let mut next = Vec::new();
             for a in &assignments {
@@ -7598,9 +8130,7 @@ impl Checker {
         }
         // The refinement's predicate and binder.
         let refine_info = self
-            .types
-            .get(&ob.refine)
-            .and_then(|ts| ts.iter().find(|t| t.refine.is_some()))
+            .known_type(&ob.refine)
             .and_then(|t| t.refine.clone());
         let Some(r) = refine_info else {
             self.law_rows.push(row(
@@ -7656,7 +8186,7 @@ impl Checker {
         let head = fn_id(&sig.module, &ob.method).0;
         // Every ordered sample assignment (the cross product, capped),
         // named positionally for the method application's equation.
-        let mut assignments: Vec<HashMap<String, Value>> = vec![HashMap::new()];
+        let mut assignments: Vec<LawFrame> = vec![LawFrame::default()];
         for (i, samples) in sample_sets.iter().enumerate() {
             let mut next = Vec::new();
             for a in &assignments {
@@ -7741,7 +8271,7 @@ impl Checker {
     /// postcondition rows in the law layer's honest tier, beside the
     /// declared instances' own rows.
     fn check_transfers(&mut self) -> Result<()> {
-        let transfers = std::mem::take(&mut self.transfer_obligs);
+        let transfers = std::mem::take(self.transfer_obligs.get_mut());
         for ob in &transfers {
             self.check_transfer(ob)?;
         }
@@ -7906,7 +8436,7 @@ impl Checker {
         // The method applied to each sample assignment, evaluated
         // through the staging interpreter over the instance's real
         // method code.
-        let mut assignments: Vec<HashMap<String, Value>> = vec![HashMap::new()];
+        let mut assignments: Vec<LawFrame> = vec![LawFrame::default()];
         for (i, samples) in sample_sets.iter().enumerate() {
             let mut next = Vec::new();
             for a in &assignments {
@@ -8006,13 +8536,8 @@ impl Checker {
     /// same predicate, and a nameless point is its predicate.
     fn point_name(&self, point: &Ty, pred: &PTerm) -> String {
         if let Ty::Adt(name, _) = point {
-            if self
-                .types
-                .get(name)
-                .map(|ts| ts.iter().any(|t| t.refine.is_some()))
-                .unwrap_or(false)
-            {
-                return name.clone();
+            if let Some(info) = self.known_type(name).filter(|t| t.refine.is_some()) {
+                return info.identity.clone();
             }
         }
         let mut names: Vec<String> = self.types.keys().cloned().collect();
@@ -8029,7 +8554,7 @@ impl Checker {
                 continue;
             };
             if pred_alpha_eq(&r.pred, pred) {
-                return n;
+                return tk.identity.clone();
             }
         }
         pred.to_string()
@@ -8418,11 +8943,25 @@ impl Checker {
     /// (primitive operations and inline target IR specification section
     /// 5): index values reduce through the staging evaluator over the
     /// instance's real method code.
+    fn eval_law_index_value(
+        &mut self, cx: &mut StageCx, value: &ITerm, carrier: &Ty,
+        frame: &LawFrame,
+        methods: &HashMap<String, (crate::core::GlobalId, Vec<crate::core::Value>)>,
+    ) -> Result<crate::core::Value> {
+        if matches!(self.uni.resolve_idx(value), ITerm::Num(_)) {
+            let literal = self.reify_index_value(value, &IndexRuntimeScope::default(), carrier, ast::Span { line: 0, col: 0 })?;
+            let own = HashSet::new();
+            let core = lower(&literal, &LowerCx::compile_time(self, &[], &own));
+            return self.eval_core(cx, &core, &mut Vec::new());
+        }
+        self.eval_law_idx(cx, value, frame, methods)
+    }
+
     fn eval_law_idx(
         &mut self,
         cx: &mut StageCx,
         t: &ITerm,
-        frame: &HashMap<String, Value>,
+        frame: &LawFrame,
         methods: &HashMap<String, (crate::core::GlobalId, Vec<Value>)>,
     ) -> Result<Value> {
         Ok(match t {
@@ -8433,6 +8972,12 @@ impl Checker {
                     digits: d.clone(),
                 },
             },
+            ITerm::LocalValue(_) => return Err(Error::plain(
+                "a runtime value identity has no compile-time law sample in this scope",
+            )),
+            ITerm::Evidence(binding) => frame.dictionaries.get(binding).cloned().ok_or_else(|| {
+                Error::plain("a law's dictionary identity is outside its checked evidence scope")
+            })?,
             ITerm::Var(v) => frame.get(v).cloned().ok_or_else(|| {
                 Error::plain(format!("internal error: unbound law binder {v}"))
             })?,
@@ -8456,6 +9001,34 @@ impl Checker {
                 }
                 Value::Word(r)
             }
+            ITerm::Inst(call) => {
+                let mut arguments = Vec::new();
+                for dictionary in &call.dictionaries { arguments.push(self.eval_law_idx(cx, dictionary, frame, methods)?); }
+                match &call.head {
+                    IndexHead::Marker => Value::Unit,
+                    IndexHead::DeclarationPending(_) => return Err(Error::plain("provisional declaration evidence cannot be evaluated by a law")),
+                    IndexHead::Dictionary(head) => {
+                        let dictionary = ECore::InstDict(GlobalId(head.clone()),
+                            (0..arguments.len()).map(|i| ECore::Var(LocalId(i))).collect(), call.types.clone(), false);
+                        let own = HashSet::new();
+                        let core = lower(&dictionary, &LowerCx::compile_time(self, &[], &own));
+                        self.eval_core(cx, &core, &mut arguments)?
+                    }
+                    IndexHead::Function(head) => {
+                        let method = self.qualified.values().find(|value| value_index_id(value) == *head)
+                            .and_then(|value| match value.kind { ValueKind::Method { idx, .. } => Some(idx), _ => None });
+                        let function = if let Some(slot) = method {
+                            if arguments.is_empty() { return Err(Error::plain("index method has no checked dictionary")); }
+                            let Value::Dict { methods } = arguments.remove(0) else {
+                                return Err(Error::plain("index method evidence is not a dictionary"));
+                            };
+                            methods.get(slot).cloned().ok_or_else(|| Error::plain("index dictionary has no such method"))?
+                        } else { self.global_value(cx, head)? };
+                        for (value, carrier) in call.runtime_values() { arguments.push(self.eval_law_index_value(cx, value, carrier, frame, methods)?); }
+                        self.apply_value(cx, function, arguments)?
+                    }
+                }
+            }
             ITerm::Fn(k) => {
                 if let Some((gid, subs)) = methods.get(k) {
                     self.eval_fn(cx, gid, subs.clone())?
@@ -8466,8 +9039,19 @@ impl Checker {
             ITerm::App(f, args) => {
                 let fv = self.eval_law_idx(cx, f, frame, methods)?;
                 let mut vals = Vec::new();
+                let mut carrier = self.index_function_carrier(f, ast::Span { line: 0, col: 0 })?;
                 for a in args {
-                    vals.push(self.eval_law_idx(cx, a, frame, methods)?);
+                    match carrier.take() {
+                        Some(Ty::Fun(domain, _, _, result)) => {
+                            vals.push(self.eval_law_index_value(cx, a, &domain, frame, methods)?);
+                            carrier = Some(*result);
+                        }
+                        Some(Ty::Pi { var, dom, cod, .. }) => {
+                            vals.push(self.eval_law_index_value(cx, a, &dom, frame, methods)?);
+                            carrier = Some(cod.subst_idx(&var, a));
+                        }
+                        _ => vals.push(self.eval_law_idx(cx, a, frame, methods)?),
+                    }
                 }
                 self.apply_value(cx, fv, vals)?
             }
@@ -8521,10 +9105,7 @@ impl Checker {
                 if depth == 0 {
                     return Vec::new();
                 }
-                let Some(tks) = self.types.get(name) else {
-                    return Vec::new();
-                };
-                let Some(tk) = tks.first() else {
+                let Some(tk) = self.known_type(name) else {
                     return Vec::new();
                 };
                 if let Some(r) = &tk.refine {
@@ -8707,10 +9288,10 @@ impl Checker {
                 // mapping, covering kept, added, removed and retyped
                 // fields alike.
                 let expected = Ty::fun_mult(
-                    Ty::Adt(old_name.clone(), old_res),
+                    Ty::Adt(self.lookup_type_path(&u.old)?.identity, old_res),
                     Mult::One,
                     EffRow::pure(),
-                    Ty::Adt(new_name.clone(), new_res),
+                    Ty::Adt(self.lookup_type_path(&u.new)?.identity, new_res),
                 );
                 let actual = self.component_ty(mig, u.span, "migrate")?;
                 if actual != expected {
@@ -8971,12 +9552,46 @@ impl Checker {
         }
         // The rule's equation over index values: the same reification the
         // proposition language uses (decision D29).
-        let lhs = self.idx_of_term(&r.match_tm, &env)?;
-        let rhs = self.idx_of_term(&r.replace_tm, &env)?;
-        let mut lhs_vars: Vec<String> = Vec::new();
-        lhs.free_vars(&mut lhs_vars);
-        let mut rhs_vars: Vec<String> = Vec::new();
-        rhs.free_vars(&mut rhs_vars);
+        let lhs = self.checked_term_index(&r.match_tm, &env, Some(&mty))?;
+        let rhs = self.checked_term_index(&r.replace_tm, &env, Some(&mty))?;
+        // Resource conditions concern the rule's source value binders. The
+        // checked equation additionally contains hidden type and dictionary
+        // identities; those are not new source pattern variables.
+        fn source_variables(checker: &Checker, term: &ITerm, binders: &HashMap<String, LocalId>,
+            bound: &mut Vec<String>, out: &mut Vec<String>, span: ast::Span) -> Result<()> {
+            match term {
+                ITerm::Var(name) if !bound.contains(name) => out.push(name.clone()),
+                ITerm::LocalValue(local) => {
+                    let name = binders.iter().find(|(_, binder)|
+                        checker.value_aliases.get(binder).copied().unwrap_or(**binder) == *local)
+                        .map(|(name, _)| name.clone()).ok_or_else(|| Error::at(span,
+                            "a rewrite equation captures a value outside its declared binders"))?;
+                    out.push(name);
+                }
+                ITerm::Lam(name, body) => {
+                    bound.push(name.clone());
+                    let result = source_variables(checker, body, binders, bound, out, span);
+                    bound.pop(); result?;
+                }
+                ITerm::App(head, arguments) => {
+                    source_variables(checker, head, binders, bound, out, span)?;
+                    for argument in arguments { source_variables(checker, argument, binders, bound, out, span)?; }
+                }
+                ITerm::Bin(_, left, right) => {
+                    source_variables(checker, left, binders, bound, out, span)?;
+                    source_variables(checker, right, binders, bound, out, span)?;
+                }
+                // These identities remain part of the checked equation, but
+                // implicit telescope metadata does not declare source patterns.
+                ITerm::Inst(_) | ITerm::Evidence(_) | ITerm::Num(_) | ITerm::Fn(_)
+                | ITerm::MVar(_) | ITerm::Var(_) => {},
+            }
+            Ok(())
+        }
+        let mut lhs_vars = Vec::new();
+        source_variables(self, &lhs, &lids, &mut Vec::new(), &mut lhs_vars, span)?;
+        let mut rhs_vars = Vec::new();
+        source_variables(self, &rhs, &lids, &mut Vec::new(), &mut rhs_vars, span)?;
         // The pattern must be headed by a defined unit: a bare variable
         // pattern would rewrite every term of its type and change
         // definitional equality.
@@ -9084,7 +9699,7 @@ impl Checker {
         let idx_pends = std::mem::take(&mut self.idx_pends);
         let mut vals: Vec<ECore> = Vec::with_capacity(idx_pends.len());
         for p in &idx_pends {
-            vals.push(self.reify_idx(&p.iterm, &p.names, p.nat, p.span)?);
+            vals.push(self.reify_index_value(&p.iterm, &p.scope, &p.carrier, p.span)?);
         }
         for body in [&mut m, &mut rp] {
             resolve_lit_words(body, &lits);
@@ -9266,7 +9881,16 @@ impl Checker {
             ast::Term::App(_, args, _) => args.clone(),
             _ => Vec::new(),
         };
-        let (mut ty, _ctx, _) = self.instantiate(&v.scheme);
+        let (mut ty, context, _) = self.instantiate(&v.scheme);
+        for constraint in &context {
+            // A law's owning signature is also its citation namespace. It
+            // needs an actual dictionary exactly when that dictionary occurs
+            // in the stated equation. A method-free law namespace contributes
+            // the same declared assumption as before, without a runtime value.
+            if v.scheme.ty.mentions_evidence(&dictionary_parameter(&constraint.name)) {
+                self.new_context_want(constraint, span, env);
+            }
+        }
         for a in &args {
             let zt = self.uni.zonk(&ty);
             let (var, dom, cod) = match zt {
@@ -9280,7 +9904,7 @@ impl Checker {
                 }
             };
             self.check(env, a, &dom)?;
-            let subst = self.idx_of_term(a, env)?;
+            let subst = self.checked_term_index(a, env, Some(&self.uni.zonk(&dom)))?;
             ty = cod.subst_idx(&var, &subst);
         }
         let result = self.uni.zonk(&ty);
@@ -10118,6 +10742,7 @@ impl Checker {
             abi: "ccall".to_string(),
             external: f.symbol.clone(),
             ty: render_scheme(&Scheme {
+            evidence_params: Vec::new(),
             con_params: Vec::new(),
             obligs: Vec::new(),
                 params: Vec::new(),
@@ -10153,7 +10778,7 @@ impl Checker {
             Ty::Prim(s) => Some((s.align(), s.size())),
             Ty::Ptr { pointee, .. } => self.pointee_layout(pointee),
             Ty::Adt(n, _) => {
-                let info = self.lookup_type(&[n]).ok()?;
+                let info = self.lookup_known_type(n).ok()?;
                 if info.opaque {
                     return None;
                 }
@@ -10267,7 +10892,7 @@ impl Checker {
                     // after it; aggregates cross by pointer instead.
                     match pointee.as_ref() {
                         Ty::Prim(_) | Ty::Ptr { .. } => {}
-                        Ty::Adt(n, _) if self.lookup_type(&[n]).map(|t| t.opaque).unwrap_or(false) => {}
+                        Ty::Adt(n, _) if self.lookup_known_type(n).map(|t| t.opaque).unwrap_or(false) => {}
                         other => {
                             return Err(Error::plain(format!(
                                 "an `Out` cell is one word: its pointee is a machine scalar, a pointer role, or an opaque handle (`Out {other}` is an out-parameter over an aggregate in this slice)"
@@ -10279,7 +10904,7 @@ impl Checker {
             }
             Ty::Adt(n, _) => {
                 let info = self
-                    .lookup_type(&[n])
+                    .lookup_known_type(n)
                     .map_err(|_| Error::plain(format!("{ty} has no C representation")))?;
                 if info.opaque {
                     // The opaque-handle role (section 3).
@@ -12485,10 +13110,8 @@ impl Checker {
 
         // Opaque types of the signature (the `#[no-raw-ptr]` rule).
         let mut opaque: HashSet<String> = HashSet::new();
-        for (n, kinds) in &self.types {
-            if kinds.iter().any(|k| k.opaque) {
-                opaque.insert(n.clone());
-            }
+        for kind in self.types.values().flatten().filter(|k| k.opaque) {
+            opaque.insert(kind.identity.clone());
         }
 
         // -- `#[max-complexity n]` (JPL rule 4): branches + 1.
@@ -14881,7 +15504,7 @@ impl Checker {
             Ty::Bool => Ok((1, 1)),
             Ty::Prim(s) => Ok((s.size(), s.align())),
             Ty::Adt(name, _) => {
-                let kind = self.lookup_type(&[name.as_str()])?.clone();
+                let kind = self.lookup_known_type(name.as_str())?.clone();
                 let key = (kind.module.clone(), kind.name.clone());
                 if self.layout_recipes.contains_key(&key) {
                     let l = self.layout_of(&key.0, &key.1, stack)?;
@@ -16213,7 +16836,17 @@ pub fn check_program_multi_full_probe(
     Vec<Diagnostic>,
     Option<ProbeResult>,
 )> {
-    check_program_multi_full_impl(prelude, modules, source_hashes, scx, wit, profile, probe)
+    check_program_multi_full_impl(prelude, modules, source_hashes, scx, wit, profile, probe, None)
+}
+
+/// The editor uses the same check and receives the actual binding targets of
+/// references, including operands that only become terms during expansion.
+pub(crate) fn check_program_multi_full_probe_indexed(
+    prelude: &[ast::Module], modules: &[ast::Module], source_hashes: &HashMap<String, String>,
+    scx: &StagingCx, wit: &[crate::interface::WitAdapter], profile: &crate::core::TargetProfile,
+    probe: Option<&ProbeTerm<'_>>, references: &mut Vec<CheckedReference>,
+) -> Result<(Program, Vec<crate::interface::Iface>, StageReport, Vec<Diagnostic>, Option<ProbeResult>)> {
+    check_program_multi_full_impl(prelude, modules, source_hashes, scx, wit, profile, probe, Some(references))
 }
 
 /// The number of parameters a type's arrow spine declares: what an
@@ -16273,6 +16906,7 @@ fn check_program_multi_full_impl(
     wit: &[crate::interface::WitAdapter],
     profile: &crate::core::TargetProfile,
     probe: Option<&ProbeTerm<'_>>,
+    reference_sink: Option<&mut Vec<CheckedReference>>,
 ) -> Result<(
     Program,
     Vec<crate::interface::Iface>,
@@ -16284,56 +16918,69 @@ fn check_program_multi_full_impl(
         return Err(Error::plain("internal error: the prelude family has no facade"));
     };
     let prelude_name = facade.name.text.clone();
-    let mut c = Checker::new();
-    let mut embedded_signatures: HashMap<String, Vec<String>> = HashMap::new();
-    for module in prelude {
-        for declaration in &module.decls {
-            let mut declaration = declaration;
-            while let ast::Decl::Attributed { inner, .. } = declaration {
-                declaration = inner;
-            }
-            if let ast::Decl::Signature(signature) = declaration {
-                embedded_signatures.entry(signature.name.text.clone()).or_default()
-                    .push(module.name.text.clone());
-            }
+    let editor_enabled = reference_sink.is_some();
+    let make_checker = || -> Result<Checker> {
+        let mut c = Checker::new();
+        if editor_enabled {
+            *c.editor_references.get_mut() = Some(Vec::new());
+            c.editor_modules = modules.iter().map(|module| module.name.text.clone()).collect();
         }
-    }
-    for (name, owners) in embedded_signatures {
-        if let [owner] = owners.as_slice() {
-            c.legacy_class_sites.insert((owner.clone(), name));
-        }
-    }
-    c.install_builtins();
-    c.allow_eval = profile.allow_eval;
-    c.usize_bits = profile.word_size;
-    // Capability evidence of the target profile (primitive operations
-    // and inline target IR specification section 6): a `prim` body's
-    // `Available X` condition holds where `X` is listed.
-    c.target_caps = {
-        let mut caps = profile.required.clone();
-        for f in &profile.features {
-            if !caps.contains(f) {
-                caps.push(f.clone());
+        let mut embedded_signatures: HashMap<String, Vec<String>> = HashMap::new();
+        for module in prelude {
+            for declaration in &module.decls {
+                let mut declaration = declaration;
+                while let ast::Decl::Attributed { inner, .. } = declaration {
+                    declaration = inner;
+                }
+                if let ast::Decl::Signature(signature) = declaration {
+                    embedded_signatures.entry(signature.name.text.clone()).or_default()
+                        .push(module.name.text.clone());
+                }
             }
         }
-        caps
+        for (name, owners) in embedded_signatures {
+            if let [owner] = owners.as_slice() {
+                c.legacy_class_sites.insert((owner.clone(), name));
+            }
+        }
+        c.defer_generated_headers = modules.iter().chain(prelude).any(|module| module.decls.iter().any(|decl| {
+            let mut decl = decl;
+            while let ast::Decl::Attributed { inner, .. } = decl { decl = inner; }
+            matches!(decl, ast::Decl::Generate { .. })
+        }));
+        c.install_builtins();
+        c.allow_eval = profile.allow_eval;
+        c.usize_bits = profile.word_size;
+        // Capability evidence of the target profile (primitive operations
+        // and inline target IR specification section 6): a `prim` body's
+        // `Available X` condition holds where `X` is listed.
+        c.target_caps = {
+            let mut caps = profile.required.clone();
+            for f in &profile.features {
+                if !caps.contains(f) {
+                    caps.push(f.clone());
+                }
+            }
+            caps
+        };
+        c.target_arch = profile
+            .triple
+            .split('-')
+            .next()
+            .unwrap_or_default()
+            .to_string();
+        // P20: the `jpl` target profile makes the safety assertion set
+        // mandatory for the user's program (decision D114); the prelude
+        // family is the standard library, not flight code.
+        c.jpl_target = profile.jpl;
+        c.jpl_user_modules = modules.iter().map(|m| m.name.text.clone()).collect();
+        c.install_wit_api(wit)?;
+        c.stage_mode = scx.mode;
+        c.module_files = scx.files.clone();
+        c.fold_scx = Some(scx.clone());
+        c.prelude_module = prelude_name.clone();
+        Ok(c)
     };
-    c.target_arch = profile
-        .triple
-        .split('-')
-        .next()
-        .unwrap_or_default()
-        .to_string();
-    // P20: the `jpl` target profile makes the safety assertion set
-    // mandatory for the user's program (decision D114); the prelude
-    // family is the standard library, not flight code.
-    c.jpl_target = profile.jpl;
-    c.jpl_user_modules = modules.iter().map(|m| m.name.text.clone()).collect();
-    c.install_wit_api(wit)?;
-    c.stage_mode = scx.mode;
-    c.module_files = scx.files.clone();
-    c.fold_scx = Some(scx.clone());
-    c.prelude_module = prelude_name.clone();
     let user_names: std::collections::HashSet<&str> =
         modules.iter().map(|m| m.name.text.as_str()).collect();
     for m in modules {
@@ -16355,36 +17002,89 @@ fn check_program_multi_full_impl(
         .filter(|p| user_names.contains(p.name.text.as_str()))
         .map(|p| p.name.text.as_str())
         .collect();
-    let mut family: Vec<&ast::Module> = Vec::new();
-    for p in prelude {
-        let module = if shadow_set.contains(p.name.text.as_str()) {
-            c.shadowed_modules.insert(p.name.text.clone());
-            modules.iter().find(|m| m.name.text == p.name.text)
-                .expect("source replacement was selected from module names")
-        } else {
-            family.push(p);
-            c.embedded_modules.insert(p.name.text.clone());
-            p
-        };
-        let imports = imports_of(module);
-        c.collect_module(module, &prelude_name, &imports)
-            .map_err(|e| in_named_module(&c.module_files, &module.name.text, e))?;
-        if module.name.text == prelude_name {
-            c.install_presentation_aliases();
+    let collect_headers = |c: &mut Checker| -> Result<Vec<&ast::Module>> {
+        c.collecting_declarations = true;
+        let mut family: Vec<&ast::Module> = Vec::new();
+        for p in prelude {
+            let module = if shadow_set.contains(p.name.text.as_str()) {
+                c.shadowed_modules.insert(p.name.text.clone());
+                modules.iter().find(|m| m.name.text == p.name.text)
+                    .expect("source replacement was selected from module names")
+            } else {
+                family.push(p);
+                c.embedded_modules.insert(p.name.text.clone());
+                p
+            };
+            let imports = imports_of(module);
+            c.collect_module(module, &prelude_name, &imports)
+                .map_err(|e| in_named_module(&c.module_files, &module.name.text, e))?;
+            if module.name.text == prelude_name {
+                c.install_presentation_aliases();
+            }
         }
-    }
-    c.install_presentation_aliases();
-    for m in modules {
-        if shadow_set.contains(m.name.text.as_str()) {
-            continue;
+        c.install_presentation_aliases();
+        for m in modules {
+            if shadow_set.contains(m.name.text.as_str()) {
+                continue;
+            }
+            let imports = imports_of(m);
+            c.collect_module(m, &prelude_name, &imports)
+                .map_err(|e| in_named_module(&c.module_files, &m.name.text, e))?;
         }
-        let imports = imports_of(m);
-        c.collect_module(m, &prelude_name, &imports)
-            .map_err(|e| in_named_module(&c.module_files, &m.name.text, e))?;
-    }
-    // Instance heads convert once every module is collected: a head
-    // may name a class or type from a module collected later.
-    c.convert_instance_heads()?;
+        // Instance heads convert once every module is collected: a head
+        // may name a class or type from a module collected later.
+        c.convert_instance_heads()?;
+        c.collecting_declarations = false;
+        Ok(family)
+    };
+    let mut c = make_checker()?;
+    let family = match collect_headers(&mut c) {
+        Ok(family) => family,
+        Err(error) if !c.declaration_needs_headers.get() => return Err(error),
+        Err(_) => {
+            // Only programs whose headers need global index evidence take
+            // this path. Provisional checkers never elaborate bodies or emit
+            // interfaces. Every successful result is rebuilt strictly.
+            let mut seed: Option<Vec<InstanceInfo>> = None;
+            let mut seen: Vec<Vec<InstanceInfo>> = Vec::new();
+            let mut checked = None;
+            let limit = prelude.iter().chain(modules).map(|module| module.decls.len()).sum::<usize>() + 2;
+            for _ in 0..limit {
+                let mut provisional = make_checker()?;
+                provisional.provisional_declarations = true;
+                provisional.uni.provisional_declarations(true);
+                provisional.declaration_seed = seed.clone();
+                collect_headers(&mut provisional)?;
+                let headers = provisional.instance_list;
+                if seed.as_ref() == Some(&headers) {
+                    if !headers.iter().all(InstanceInfo::closed_declaration_header) {
+                        return Err(Error::plain("cyclic or undetermined declaration evidence in instance headers"));
+                    }
+                    let mut strict = make_checker()?;
+                    strict.declaration_seed = Some(headers.clone());
+                    let family = collect_headers(&mut strict)?;
+                    if strict.instance_list == headers {
+                        strict.declaration_seed = None;
+                        checked = Some((strict, family));
+                        break;
+                    }
+                    seed = Some(strict.instance_list);
+                } else {
+                    if seen.contains(&headers) {
+                        return Err(Error::plain("cyclic declaration evidence: instance headers do not stabilize"));
+                    }
+                    seen.push(headers.clone());
+                    seed = Some(headers);
+                }
+            }
+            let Some((strict, family)) = checked else {
+                return Err(Error::plain("declaration evidence did not stabilize within the declaration dependency bound"));
+            };
+            c = strict;
+            family
+        }
+    };
+    if c.defer_generated_headers { c.finish_deferred_headers(false)?; }
     // Module parameter types convert once every name is collected (module
     // parameters as module arguments).
     c.finish_module_params()?;
@@ -16412,12 +17112,14 @@ fn check_program_multi_full_impl(
             mode: scx.mode,
             inputs: Vec::new(),
             generated: Vec::new(),
+            generated_syntax: Vec::new(),
             literal_folds: Vec::new(),
             data_imports: Vec::new(),
             safety: SafetyReport::default(),
             temporal: Vec::new(),
         }
     };
+    if c.defer_generated_headers { c.finish_deferred_headers(true)?; }
     // Generated declarations may declare instances: their heads convert
     // now that their modules are collected.
     c.convert_instance_heads()?;
@@ -16533,6 +17235,7 @@ fn check_program_multi_full_impl(
         Some(p) => Some(c.probe_term(scx, p)),
         None => None,
     };
+    let checked_references = c.editor_references.get_mut().take().unwrap_or_default();
     let mut program = c.finish(&scx.entry_modules, &prelude_name)?;
     // P20: the group-level safety claims verify over the finished
     // program's D104 groups; the report says which proof method
@@ -16541,6 +17244,7 @@ fn check_program_multi_full_impl(
     // The verified rows re-state as the LLVM contract surface's facts
     // on their definitions (design/llvm-contract-attributes.md).
     contract_facts(&safety_records, &mut program);
+    if let Some(sink) = reference_sink { sink.extend(checked_references); }
     Ok((program, ifaces, report, diags, probe_out))
 }
 
@@ -16602,6 +17306,9 @@ pub struct StageReport {
     pub inputs: Vec<StageInput>,
     /// Generated declarations per module, in emission order.
     pub generated: Vec<(String, Vec<String>)>,
+    /// Possessed emitted trees for editor indexing. Kept in memory rather
+    /// than reconstructed from the manifest's inventory of printed names.
+    pub generated_syntax: Vec<(String, Vec<(ast::Decl, ast::Span)>)>,
     /// The collection literals' fold boundaries (surface grammar local
     /// amendments section 10): which constructions became constant
     /// values and which kept their runtime `from-list`/`from-map` calls.
@@ -16623,6 +17330,8 @@ pub struct StageReport {
 /// The compile-time evaluation context: everything the interpreter needs
 /// beyond the checker itself.
 struct StageCx {
+    code_types: StageTypeBindings,
+    invocations: HashMap<String, (GlobalId, StageTypeBindings)>,
     /// Function definitions available to interpretation (compiled units).
     fns: HashMap<String, crate::core::FnDef>,
     /// The module whose scope resolves quotation templates (definition
@@ -16664,6 +17373,8 @@ struct StageCx {
 impl StageCx {
     fn new(scx: &StagingCx) -> StageCx {
         StageCx {
+            code_types: StageTypeBindings::default(),
+            invocations: HashMap::new(),
             fns: HashMap::new(),
             def_module: String::new(),
             origin: String::new(),
@@ -16757,17 +17468,24 @@ impl Checker {
         let mut generated = Vec::new();
         let mut names: HashMap<String, Vec<String>> = HashMap::new();
         for (m, decls) in &self.stage_emitted {
-            let ns: Vec<String> = decls.iter().filter_map(decl_name).map(|n| n.text.clone()).collect();
+            let mut ns = Vec::new();
+            for (declaration, _) in decls { declaration_binding_names(declaration, &mut ns); }
+            ns.sort();
+            ns.dedup();
             names.insert(m.clone(), ns);
         }
         for (m, ns) in names {
             generated.push((m, ns));
         }
         generated.sort();
+        let mut generated_syntax: Vec<_> = self.stage_emitted.iter()
+            .map(|(module, declarations)| (module.clone(), declarations.clone())).collect();
+        generated_syntax.sort_by(|a, b| a.0.cmp(&b.0));
         Ok(StageReport {
             mode: scx.mode,
             inputs: std::mem::take(&mut cx.inputs),
             generated,
+            generated_syntax,
             literal_folds: Vec::new(),
             data_imports: Vec::new(),
             safety: SafetyReport::default(),
@@ -16812,8 +17530,10 @@ impl Checker {
                         if p.quals.is_empty() && p.name.text == "emit" && args.len() == 1 {
                             if let ast::Term::QuoteDecls { decls, .. } = &args[0] {
                                 for d in decls {
-                                    if let Some(n) = decl_name(d) {
-                                        produced.insert((b.module.clone(), n.text.clone()), UnitKey::Gen(i));
+                                    let mut names = Vec::new();
+                                    declaration_binding_names(d, &mut names);
+                                    for name in names {
+                                        produced.insert((b.module.clone(), name), UnitKey::Gen(i));
                                     }
                                 }
                             }
@@ -16838,6 +17558,9 @@ impl Checker {
                     }
                 }
                 UnitKey::Ord(m, n) => {
+                    if let Some((header, _)) = checker.deferred_headers.get(&(m.clone(), n.clone())) {
+                        ast::collect_decl_refs(header, &mut out);
+                    }
                     for (mod_, name, eq) in &checker.top_eqs {
                         if mod_ == m && name == n {
                             ast::collect_decl_refs(&ast::Decl::Equation {
@@ -16907,47 +17630,72 @@ impl Checker {
             }
             edges.insert(key, deps);
         }
-        // Depth-first topological order with cycle reporting.
-        let mut order: Vec<UnitKey> = Vec::new();
-        let mut state: HashMap<UnitKey, u8> = HashMap::new(); // 1 visiting, 2 done
-        let mut stack: Vec<UnitKey> = Vec::new();
-        fn visit(
-            key: &UnitKey,
-            edges: &HashMap<UnitKey, Vec<UnitKey>>,
-            desc: &HashMap<UnitKey, String>,
-            state: &mut HashMap<UnitKey, u8>,
-            order: &mut Vec<UnitKey>,
-            stack: &mut Vec<UnitKey>,
-        ) -> Result<()> {
-            match state.get(key) {
-                Some(2) => return Ok(()),
-                Some(1) => {
-                    let start = stack.iter().position(|k| k == key).unwrap_or(0);
-                    let mut chain: Vec<String> =
-                        stack[start..].iter().map(|k| desc[k].clone()).collect();
-                    chain.push(desc[key].clone());
-                    return Err(Error::plain(format!(
-                        "stage dependency cycle: {}",
-                        chain.join(" -> ")
-                    )));
-                }
-                _ => {}
-            }
-            state.insert(key.clone(), 1);
-            stack.push(key.clone());
-            if let Some(deps) = edges.get(key) {
-                for d in deps {
-                    visit(d, edges, desc, state, order, stack)?;
-                }
-            }
-            stack.pop();
-            state.insert(key.clone(), 2);
-            order.push(key.clone());
-            Ok(())
+        // Ordinary functions may be mutually recursive. Condense their
+        // strongly connected components before scheduling; every component
+        // containing a stage/generator cycle is still refused.
+        fn finish(key: &UnitKey, edges: &HashMap<UnitKey, Vec<UnitKey>>, seen: &mut HashSet<UnitKey>, out: &mut Vec<UnitKey>) {
+            if !seen.insert(key.clone()) { return; }
+            for dep in &edges[key] { finish(dep, edges, seen, out); }
+            out.push(key.clone());
         }
-        for key in desc.keys() {
-            visit(key, &edges, &desc, &mut state, &mut order, &mut stack)?;
+        fn component(key: &UnitKey, reverse: &HashMap<UnitKey, Vec<UnitKey>>, seen: &mut HashSet<UnitKey>, out: &mut Vec<UnitKey>) {
+            if !seen.insert(key.clone()) { return; }
+            out.push(key.clone());
+            for dep in &reverse[key] { component(dep, reverse, seen, out); }
         }
+        let mut keys: Vec<_> = desc.keys().cloned().collect();
+        keys.sort_by_key(|key| desc[key].clone());
+        let mut finished = Vec::new();
+        let mut seen = HashSet::new();
+        for key in &keys { finish(key, &edges, &mut seen, &mut finished); }
+        let mut reverse: HashMap<_, Vec<_>> = keys.iter().map(|key| (key.clone(), Vec::new())).collect();
+        for key in &keys { for dep in &edges[key] { reverse.get_mut(dep).expect("known unit").push(key.clone()); } }
+        let mut components = Vec::new();
+        seen.clear();
+        for key in finished.iter().rev() {
+            if seen.contains(key) { continue; }
+            let mut members = Vec::new();
+            component(key, &reverse, &mut seen, &mut members);
+            members.sort_by_key(|key| desc[key].clone());
+            if members.len() > 1 {
+                if let Some(start) = members.iter().find(|key| !matches!(key, UnitKey::Ord(..))) {
+                    fn cycle(key: &UnitKey, start: &UnitKey, members: &[UnitKey], edges: &HashMap<UnitKey, Vec<UnitKey>>, seen: &mut HashSet<UnitKey>, path: &mut Vec<UnitKey>) -> bool {
+                        if !seen.insert(key.clone()) { return false; }
+                        path.push(key.clone());
+                        for dep in &edges[key] {
+                            if !members.contains(dep) { continue; }
+                            if dep == start { path.push(dep.clone()); return true; }
+                            if cycle(dep, start, members, edges, seen, path) { return true; }
+                        }
+                        path.pop();
+                        false
+                    }
+                    let mut path = Vec::new();
+                    assert!(cycle(start, start, &members, &edges, &mut HashSet::new(), &mut path));
+                    let chain: Vec<_> = path.iter().map(|key| desc[key].clone()).collect();
+                    return Err(Error::plain(format!("stage dependency cycle: {}", chain.join(" -> "))));
+                }
+            }
+            components.push(members);
+        }
+        let mut owner = HashMap::new();
+        for (index, members) in components.iter().enumerate() {
+            for key in members { owner.insert(key.clone(), index); }
+        }
+        fn schedule(index: usize, components: &[Vec<UnitKey>], owner: &HashMap<UnitKey, usize>, edges: &HashMap<UnitKey, Vec<UnitKey>>, seen: &mut HashSet<usize>, out: &mut Vec<UnitKey>) {
+            if !seen.insert(index) { return; }
+            for key in &components[index] {
+                for dep in &edges[key] {
+                    let other = owner[dep];
+                    if other != index { schedule(other, components, owner, edges, seen, out); }
+                }
+            }
+            out.extend(components[index].iter().cloned());
+        }
+        let mut order = Vec::new();
+        let mut scheduled = HashSet::new();
+        for key in &keys { schedule(owner[key], &components, &owner, &edges, &mut scheduled, &mut order); }
+
         Ok(order)
     }
 
@@ -16965,7 +17713,7 @@ impl Checker {
         if let Some(u) = produced.get(&key) {
             return Some(u.clone());
         }
-        if self.top_schemes.contains_key(&key) {
+        if self.top_schemes.contains_key(&key) || self.deferred_headers.contains_key(&key) {
             return Some(UnitKey::Ord(module.to_string(), name.to_string()));
         }
         None
@@ -16974,57 +17722,157 @@ impl Checker {
     /// Resolve a top-level name in `module`'s scope (own names, imports,
     /// then the prelude and the builtins), the definition-site rule of
     /// section 8.
+    fn syntax_value_declared(&self, owner: &str, name: &str) -> bool {
+        self.deferred_headers.contains_key(&(owner.to_string(), name.to_string()))
+            || self.values.get(name).is_some_and(|values| values.iter().any(|value| value.module == owner && value.name == name))
+            || self.instance_list.iter().any(|instance| instance.module == owner && instance.name == name)
+            || self.pending_instance_heads.iter().any(|(module, instance)| module == owner && instance.name.text == name)
+    }
+
     fn resolve_top(&self, module: &str, r: &ast::RefSite) -> Option<(String, String)> {
-        if !r.quals.is_empty() {
-            return Some((r.quals[0].clone(), r.name.clone()));
+        let defined = |owner: &str, name: &str| match r.kind {
+            ast::RefKind::Value => self.syntax_value_declared(owner, name),
+            ast::RefKind::Type => (owner == "<builtin>" && (builtin_type_name(name) || matches!(name, "Copy" | "Share")))
+                || self.types.get(name).is_some_and(|ts| ts.iter().any(|t| t.module == owner && t.name == name)),
+            ast::RefKind::Effect => self.effect_bindings.contains_key(&(owner.to_string(), name.to_string())),
+        };
+        let own = r.quals.is_empty() || r.quals.as_slice() == [module];
+        if own && defined(module, &r.name) {
+            return Some((module.into(), r.name.clone()));
         }
-        let mut visible = vec![module.to_string()];
-        if let Some(imports) = self.module_imports.get(module) {
-            for i in imports {
-                if !visible.contains(i) {
-                    visible.push(i.clone());
-                }
-            }
+        let mut views = self.module_views.get(module).cloned().unwrap_or_default();
+        if module != self.prelude_module {
+            views.push(ImportView {
+                target: self.prelude_module.clone(), alias: self.prelude_module.clone(),
+                stage: false, applied: false, alias_only: false, members: None,
+            });
         }
-        if let Some(imports) = self.module_stage_imports.get(module) {
-            for i in imports {
-                if !visible.contains(i) {
-                    visible.push(i.clone());
-                }
-            }
-        }
-        if !visible.contains(&self.prelude_module) {
-            visible.push(self.prelude_module.clone());
-        }
-        // Builtin values and types (`True`, `Nat`, the `Stage` API) are in
-        // scope everywhere.
-        visible.push("<builtin>".to_string());
-        // A visible module resolves the name through its surface (the
-        // prelude facade re-exports the split family's definitions):
-        // the reported pair is the LOCAL spelling `<visible>.<name>`,
-        // which resolves at every site that sees the same visibility
-        // (the quote hygiene's qualified re-spelling relies on it).
-        for m in &visible {
-            let Some(d) = self.surface_def(m, &r.name) else {
+        for view in views {
+            if view.applied || (r.quals.is_empty() && view.alias_only)
+                || (!r.quals.is_empty() && r.quals.as_slice() != [view.alias.as_str()]) {
                 continue;
-            };
-            let hit = match r.kind {
-                ast::RefKind::Value => self
-                    .values
-                    .get(&r.name)
-                    .map(|vs| vs.iter().any(|v| v.module == d.module && v.name == d.name))
-                    .unwrap_or(false),
-                ast::RefKind::Type => self
-                    .types
-                    .get(&r.name)
-                    .map(|ts| ts.iter().any(|t| t.module == d.module && t.name == d.name))
-                    .unwrap_or(false),
-            };
-            if hit {
-                return Some((m.clone(), r.name.clone()));
+            }
+            let Some(source) = view.source_name(&r.name) else { continue };
+            let Some(binding) = self.surface_def(&view.target, source) else { continue };
+            if defined(&binding.module, &binding.name) {
+                return Some((binding.module, binding.name));
+            }
+        }
+        if r.quals.is_empty() && defined("<builtin>", &r.name) {
+            return Some(("<builtin>".into(), r.name.clone()));
+        }
+        // Registered pseudo-qualifiers (`Stage.*`, scalar operations, ...)
+        // follow ordinary resolution. Real modules require an import view.
+        if let [qual] = r.quals.as_slice() {
+            if !self.module_names.contains(qual) {
+                return match r.kind {
+                    ast::RefKind::Value => self.qualified.get(&(qual.clone(), r.name.clone()))
+                        .map(|v| (v.module.clone(), v.name.clone())),
+                    ast::RefKind::Type => self.qualified_types.get(&(qual.clone(), r.name.clone()))
+                        .map(|t| (t.module.clone(), t.name.clone())),
+                    // Effect definition sites are real lexical owners, never
+                    // pseudo-qualifiers that a printed prefix can manufacture.
+                    ast::RefKind::Effect => None,
+                };
+            }
+        }
+        if r.kind == ast::RefKind::Effect && r.quals.is_empty() {
+            if let Some(effect) = self.effects.get(&r.name) {
+                // Legacy source effects occupy the existing global symbolic
+                // namespace. Owned effects use separate definition-site labels.
+                if self.effect_bindings.get(&(effect.module.clone(), effect.name.clone())) == Some(&r.name) {
+                    return Some((effect.module.clone(), effect.name.clone()));
+                }
             }
         }
         None
+    }
+
+    fn syntax_global_scope(&self, module: &str) -> std::sync::Arc<ast::GlobalScope> {
+        let mut scope = ast::GlobalScope::new(module);
+        for name in ["Copy", "Share", "Io"] {
+            scope.insert(ast::RefKind::Type, vec![name.into()], "<builtin>", name);
+        }
+        let defined = |kind, owner: &str, name: &str| match kind {
+            ast::RefKind::Value => self.syntax_value_declared(owner, name),
+            ast::RefKind::Type => self.types.get(name).is_some_and(|ts| ts.iter().any(|t| t.module == owner && t.name == name)),
+            ast::RefKind::Effect => self.effect_bindings.contains_key(&(owner.to_string(), name.to_string())),
+        };
+        for (kind, mut names) in [
+            (ast::RefKind::Value, self.values.keys().cloned().collect::<Vec<_>>()),
+            (ast::RefKind::Type, self.types.keys().cloned().collect::<Vec<_>>()),
+            (ast::RefKind::Effect, self.effect_bindings.keys().map(|(_, name)| name.clone()).collect::<Vec<_>>()),
+        ] {
+            if kind == ast::RefKind::Value {
+                names.extend(self.instance_list.iter().map(|instance| instance.name.clone()));
+                names.extend(self.pending_instance_heads.iter().map(|(_, instance)| instance.name.text.clone()));
+                names.extend(self.deferred_headers.keys().map(|(_, name)| name.clone()));
+            }
+            names.sort(); names.dedup();
+            for name in names {
+                if defined(kind, module, &name) {
+                    scope.insert(kind, vec![name.clone()], module, &name);
+                    scope.insert(kind, vec![module.into(), name.clone()], module, &name);
+                }
+            }
+        }
+        let mut views = self.module_views.get(module).cloned().unwrap_or_default();
+        if module != self.prelude_module {
+            views.push(ImportView { target: self.prelude_module.clone(), alias: self.prelude_module.clone(),
+                stage: false, applied: false, alias_only: false, members: None });
+        }
+        for view in views {
+            if view.applied { continue; }
+            let mut members = view.members.clone().unwrap_or_else(|| {
+                let names = self.module_surface.get(&view.target)
+                    .map(|surface| surface.keys().cloned().collect::<Vec<_>>())
+                    .unwrap_or_else(|| self.declared_names(&view.target).into_iter().collect());
+                names.into_iter().map(|name| (name.clone(), name)).collect()
+            });
+            members.sort();
+            for (local, source) in members {
+                let Some(binding) = self.surface_def(&view.target, &source) else { continue };
+                for kind in [ast::RefKind::Value, ast::RefKind::Type, ast::RefKind::Effect] {
+                    if !defined(kind, &binding.module, &binding.name) { continue; }
+                    if !view.alias_only { scope.insert(kind, vec![local.clone()], &binding.module, &binding.name); }
+                    scope.insert(kind, vec![view.alias.clone(), local.clone()], &binding.module, &binding.name);
+                }
+            }
+        }
+        for (head, effect) in &self.effects {
+            if head == &effect.name {
+                scope.insert(ast::RefKind::Effect, vec![effect.name.clone()], &effect.module, &effect.name);
+            }
+        }
+        for (name, values) in &self.values {
+            if values.iter().any(|v| v.module == "<builtin>") {
+                scope.insert(ast::RefKind::Value, vec![name.clone()], "<builtin>", name);
+            }
+        }
+        for ((qual, name), value) in &self.qualified {
+            if !self.module_names.contains(qual) {
+                scope.insert(ast::RefKind::Value, vec![qual.clone(), name.clone()], &value.module, &value.name);
+            }
+        }
+        for ((qual, name), ty) in &self.qualified_types {
+            if !self.module_names.contains(qual) {
+                scope.insert(ast::RefKind::Type, vec![qual.clone(), name.clone()], &ty.module, &ty.name);
+            }
+        }
+        // Expected-family constructor selection is a separate source rule:
+        // exported constructors can be selected through their checked family
+        // even when a bare spelling defaults to another imported family.
+        let mut constructors: Vec<_> = self.types.values().flatten().flat_map(|ty| {
+            ty.ctors.iter().map(|(name, _)| (ty.module.clone(), name.clone()))
+        }).collect();
+        constructors.sort();
+        constructors.dedup();
+        for (owner, name) in constructors {
+            if owner == module || self.surface_def(&owner, &name).is_some() {
+                scope.insert_constructor(&owner, &name);
+            }
+        }
+        std::sync::Arc::new(scope)
     }
 
     /// Compile one `stage` definition or macro into its compile-time
@@ -17111,7 +17959,7 @@ impl Checker {
                 // A selection names members of the source's surface
                 // (surface grammar local amendments section 11).
                 for (local, source) in ms {
-                    if self.surface_def(&v.target, source).is_none() {
+                    if self.surface_def(&v.target, source).is_none() && !self.defer_generated_headers {
                         return Err(Error::plain(format!(
                             "`{}` has no member `{source}` to import (as `{local}`)",
                             v.target
@@ -17150,6 +17998,7 @@ impl Checker {
             let entries: Vec<(String, SurfaceName)> = match item {
                 ast::ExportItem::Name(n) => match self.export_target(module, None, &n.text) {
                     Some(d) => vec![(n.text.clone(), d)],
+                    None if self.defer_generated_headers => Vec::new(),
                     None => {
                         return Err(Error::at(
                             n.span,
@@ -17165,6 +18014,7 @@ impl Checker {
                     );
                     match self.export_target(module, Some(&qual), name) {
                         Some(d) => vec![(name.to_string(), d)],
+                        None if self.defer_generated_headers => Vec::new(),
                         None => {
                             return Err(Error::at(
                                 path.span(),
@@ -17267,6 +18117,12 @@ impl Checker {
                 out.push(n.clone());
             }
         }
+        for (home, name) in self.effect_bindings.keys() {
+            if home == module && !out.contains(name) { out.push(name.clone()); }
+        }
+        for (home, name) in self.deferred_headers.keys() {
+            if home == module && !out.contains(name) { out.push(name.clone()); }
+        }
         for (home, instance) in &self.instance_defs_pending {
             if home == module && !out.contains(&instance.name.text) { out.push(instance.name.text.clone()); }
         }
@@ -17293,9 +18149,12 @@ impl Checker {
             if dm == "<builtin>" {
                 continue;
             }
-            if let Some(d) = self.surface_def(&dm, &dn) {
-                return Some(d);
-            }
+            let declaration = if dm == module {
+                self.declared_surface_def(&dm, &dn)
+            } else {
+                self.surface_def(&dm, &dn)
+            };
+            if let Some(d) = declaration { return Some(d); }
         }
         None
     }
@@ -17553,7 +18412,7 @@ impl Checker {
             }
             // A record decoded field by field (the declared-type form).
             if args.is_empty() {
-                if let Some(t) = self.lookup_type(&[name]).ok() {
+                if let Some(t) = self.lookup_known_type(name).ok() {
                     if let Some(fields) = t.fields.clone() {
                         let kvs = match v {
                             JsonVal::Obj(kvs) => kvs,
@@ -17618,12 +18477,15 @@ impl Checker {
                 })
             }
             (JsonVal::Num(d), Ty::Prim(s @ (Scalar::F64 | Scalar::F32))) => {
-                let f: f64 =
-                    d.parse().map_err(|_| format!("{d} is not a JSON number"))?;
+                // Round once at the requested precision. Rounding a decimal
+                // through f64 first can erase which side of an f32 midpoint
+                // it lies on, including overflow and subnormal boundaries.
                 let w = if *s == Scalar::F64 {
+                    let f: f64 = d.parse().map_err(|_| format!("{d} is not a JSON number"))?;
                     f.to_bits() as i64
                 } else {
-                    (f as f32).to_bits() as i64
+                    let f: f32 = d.parse().map_err(|_| format!("{d} is not a JSON number"))?;
+                    i64::from(f.to_bits())
                 };
                 Ok(ECore::Int(w))
             }
@@ -17756,12 +18618,15 @@ impl Checker {
         };
         let _ = &site;
         for d in &mut decls {
-            if matches!(
-                d,
-                ast::Decl::Generate { .. }
-                    | ast::Decl::ValueSig { modifier: Some(_), .. }
-                    | ast::Decl::Equation { modifier: Some(_), .. }
-            ) {
+            let mut inner = &*d;
+            while let ast::Decl::Attributed { inner: nested, .. } = inner { inner = nested; }
+            let forbidden = match inner {
+                ast::Decl::Generate { .. } => true,
+                ast::Decl::ValueSig { modifier: Some(modifier), .. }
+                | ast::Decl::Equation { modifier: Some(modifier), .. } => matches!(modifier.text.as_str(), "stage" | "macro"),
+                _ => false,
+            };
+            if forbidden {
                 return Err(Error::at(
                     span,
                     "generated declarations are checked under ordinary rules: a generator cannot emit `generate`, `stage` or `macro` declarations",
@@ -17797,7 +18662,7 @@ impl Checker {
         self.stage_emitted
             .entry(module.to_string())
             .or_default()
-            .extend(decls_out.iter().cloned());
+            .extend(decls_out.iter().cloned().map(|declaration| (declaration, span)));
         // Collect the generated declarations now: later generators and
         // on-demand compilation resolve their names.
         let mut m = ast::Module {
@@ -17814,9 +18679,12 @@ impl Checker {
         let prelude_name = self.prelude_module.clone();
         let save_current = self.current_module.clone();
         let save_visible = self.visible.clone();
-        let r = self.collect_module(&m, &prelude_name, &[]);
+        let save_views = self.scope_views.clone();
+        let r = self.collect_module(&m, &prelude_name, &[])
+            .and_then(|_| self.finish_deferred_headers(false));
         self.current_module = save_current;
         self.visible = save_visible;
+        self.scope_views = save_views;
         r
     }
 
@@ -17830,11 +18698,26 @@ impl Checker {
             .filter(|(m, n, e)| {
                 !self.checked_early.contains(&(m.clone(), n.clone()))
                     && !self.staging.contains(&(m.clone(), n.clone()))
-                    && term_has_macro_call(&e.body)
+                    && (term_has_macro_call(&e.body) || e.locals.iter().any(|local| match local {
+                        ast::LocalDecl::Eq { body, .. } | ast::LocalDecl::Bind { body, .. } | ast::LocalDecl::Lazy { body, .. } => term_has_macro_call(body),
+                        _ => false,
+                    }))
             })
             .map(|(m, n, _)| (m.clone(), n.clone()))
             .collect();
         for (module, name) in pending {
+            let key = (module.clone(), name.clone());
+            let implicit_values = self.syntax_implicit_values.entry(key.clone()).or_insert_with(|| {
+                self.top_schemes.get(&key).into_iter().flat_map(|scheme| scheme.val_params.iter())
+                    .map(|(name, _)| ast::Name::bound(name, ast::Span { line: 0, col: 0 }, ast::LocalBinding::fresh())).collect()
+            }).clone();
+            let context_values = self.syntax_context_values.entry(key.clone()).or_insert_with(|| {
+                self.top_schemes.get(&key).into_iter().flat_map(|scheme| scheme.ctx.iter())
+                    .map(|(name, _)| ast::Name::bound(name, ast::Span { line: 0, col: 0 }, ast::LocalBinding::fresh())).collect()
+            }).clone();
+            let dictionaries = context_values.iter().filter_map(ast::Name::local_binding).cloned().collect();
+            let globals = std::sync::Arc::new((*self.syntax_global_scope(&module)).clone().with_dictionary_bindings(dictionaries));
+            let values = implicit_values.into_iter().chain(context_values).collect::<Vec<_>>();
             let mut eqs: Vec<ast::Equation> = self
                 .top_eqs
                 .iter()
@@ -17842,6 +18725,7 @@ impl Checker {
                 .map(|(_, _, e)| e.clone())
                 .collect();
             for eq in &mut eqs {
+                *eq = ast::scope_equation(eq, &values, globals.clone())?;
                 self.expand_macros_in_term(cx, &module, &mut eq.body)?;
                 for l in &mut eq.locals {
                     if let ast::LocalDecl::Eq { body, .. }
@@ -17872,9 +18756,22 @@ impl Checker {
     ) -> Result<()> {
         match t {
             ast::Term::MacroCall { path, args, span } => {
-                let (value, _ty) = self.eval_macro_call(cx, module, path, args, *span)?;
+                let (value, mut expectation) = self.eval_macro_call(cx, module, path, args, *span)?;
                 match value {
-                    crate::core::Value::Code(ast) => *t = ast,
+                    crate::core::Value::Code(ast) => {
+                        let Ty::Adt(name, parameters) = self.uni.zonk(&expectation.ty) else {
+                            return Err(Error::at(*span, "a code macro needs a Code result type"));
+                        };
+                        if name != "Code" || parameters.len() != 1 {
+                            return Err(Error::at(*span, "a code macro needs one Code result type"));
+                        }
+                        expectation.ty = parameters[0].clone();
+                        *t = ast::Term::Ann(
+                            Box::new(ast),
+                            ast::Type::Elaborated(Box::new(expectation), *span),
+                            *span,
+                        );
+                    }
                     other => {
                         return Err(Error::at(
                             *span,
@@ -18033,6 +18930,7 @@ impl Checker {
     ) -> Result<()> {
         match d {
             ast::Decl::Equation { eq, .. } => {
+                *eq = ast::scope_equation(eq, &[], self.syntax_global_scope(module))?;
                 self.expand_macros_in_term(cx, module, &mut eq.body)?;
                 for l in &mut eq.locals {
                     self.expand_macros_in_local(cx, module, l)?;
@@ -18086,7 +18984,7 @@ impl Checker {
         path: &ast::VarPath,
         args: &ast::TokenTree,
         span: ast::Span,
-    ) -> Result<(crate::core::Value, Ty)> {
+    ) -> Result<(crate::core::Value, Scheme)> {
         self.set_scope(module);
         let v = self.resolve_var(path, span)?;
         if !matches!(v.kind, ValueKind::MacroFn) {
@@ -18095,9 +18993,13 @@ impl Checker {
                 format!("`{}` is not a macro (only `macro` definitions take `!(...)` token-tree arguments)", v.name),
             ));
         }
-        let groups = args.arg_groups();
-        if let Some(info) = self.macros.get(&(v.module.clone(), v.name.clone())) {
-            if info.arity != groups.len() && !(info.arity <= 1 && groups.len() == 1) {
+        let info = self.macros.get(&(v.module.clone(), v.name.clone()));
+        let groups = match info {
+            Some(info) => args.macro_arg_groups(info.arity),
+            None => args.arg_groups(),
+        };
+        if let Some(info) = info {
+            if info.arity != groups.len() {
                 return Err(Error::at(
                     span,
                     format!(
@@ -18136,9 +19038,13 @@ impl Checker {
                     continue;
                 }
             }
+            let globals = g.globals.clone().unwrap_or_else(|| self.syntax_global_scope(module));
+            let origin = globals.module();
             vals.push(crate::core::Value::Syntax {
                 tokens: g.tokens.clone(),
-                origin: module.to_string(),
+                origin: origin.to_string(),
+                scope: crate::syntax::SyntaxScope::from_names(origin, g.lexical.clone().unwrap_or_default())
+                    .with_globals(globals).with_declarations(g.declarations.clone().unwrap_or_default()),
             });
         }
         let save_origin = cx.origin.clone();
@@ -18158,7 +19064,7 @@ impl Checker {
         cx.parent = save_parent;
         let value = r?;
         let ty = match &value {
-            crate::core::Value::Code(_) => Ty::Adt("Code".into(), vec![self.uni.fresh()]),
+            crate::core::Value::Code(_) => self.uni.zonk(&t),
             crate::core::Value::Decls(_) => Ty::Adt("Declarations".into(), Vec::new()),
             crate::core::Value::Syntax { .. } => Ty::Adt("Syntax".into(), Vec::new()),
             crate::core::Value::Name(_) => Ty::Adt("Name".into(), Vec::new()),
@@ -18173,7 +19079,9 @@ impl Checker {
                 ))
             }
         };
-        Ok((value, ty))
+        let mut expectation = Self::code_scope(&v.scheme);
+        expectation.ty = ty;
+        Ok((value, expectation))
     }
 }
 
@@ -18186,14 +19094,14 @@ pub(crate) fn name_of_group(tokens: &[crate::lexer::Token], span: ast::Span) -> 
         .iter()
         .filter(|t| !t.virtual_)
         .filter_map(|t| match &t.tok {
-            Tok::SymLit(s) | Tok::TypeNameLit(s) | Tok::VarId(s) | Tok::ConId(s) => Some(s.as_str()),
+            Tok::SymLit(s) | Tok::TypeNameLit(s) | Tok::VarId(s) | Tok::ConId(s) | Tok::Op(s) => Some(s.as_str()),
             _ => None,
         })
         .collect();
     let mut non_names = tokens
         .iter()
         .filter(|t| !t.virtual_)
-        .filter(|t| !matches!(t.tok, Tok::SymLit(_) | Tok::TypeNameLit(_) | Tok::VarId(_) | Tok::ConId(_)));
+        .filter(|t| !matches!(t.tok, Tok::SymLit(_) | Tok::TypeNameLit(_) | Tok::VarId(_) | Tok::ConId(_) | Tok::Op(_)));
     match (names.as_slice(), non_names.next()) {
         ([name], None) => Ok((*name).to_string()),
         _ => Err(Error::at(
@@ -18286,6 +19194,9 @@ fn value_kind_name(v: &crate::core::Value) -> &'static str {
         CtorFn { .. } => "a constructor",
         PrimFn { .. } => "a primitive",
         Code(_) => "code",
+        PackedCode(_) => "packed code",
+        TypeSyntax(_) => "type syntax",
+        SyntaxBinding(_) => "a scoped syntax binding",
         Decls(_) => "declarations",
         Syntax { .. } => "syntax",
         Name(_) => "a name",
@@ -18295,6 +19206,21 @@ fn value_kind_name(v: &crate::core::Value) -> &'static str {
         Schema(_) => "a schema snapshot",
         Cap(_) => "a capability",
         StageFn { .. } => "a compile-time operation",
+    }
+}
+
+fn syntax_list<'a>(mut value: &'a crate::core::Value, operation: &str) -> Result<Vec<&'a crate::core::Value>> {
+    use crate::core::Value;
+    let mut items = Vec::new();
+    loop {
+        match value {
+            Value::Adt { tag: 0, fields, .. } if fields.is_empty() => return Ok(items),
+            Value::Adt { tag: 1, fields, .. } if fields.len() == 2 => {
+                items.push(&fields[0]);
+                value = &fields[1];
+            }
+            _ => return Err(Error::plain(format!("{operation} requires a native list"))),
+        }
     }
 }
 
@@ -18475,6 +19401,33 @@ fn collect_unit_binders(key: &UnitKey, checker: &Checker, out: &mut Vec<String>)
                 }
             }
         }
+    }
+}
+
+/// All names a declaration group introduces. This inventory includes
+/// nominal types and constructors, unlike the value-equation name helper.
+fn declaration_binding_names(declaration: &ast::Decl, names: &mut Vec<String>) {
+    match declaration {
+        ast::Decl::Attributed { inner, .. } => declaration_binding_names(inner, names),
+        ast::Decl::ValueSig { name, .. } | ast::Decl::Foreign(ast::ForeignDecl { name, .. })
+        | ast::Decl::OpaqueType(ast::OpaqueTypeDecl { name, .. }) => names.push(name.text.clone()),
+        ast::Decl::Equation { eq, .. } => names.push(eq.name.text.clone()),
+        ast::Decl::Data(data) => {
+            names.push(data.name.text.clone());
+            names.extend(data.ctors.iter().map(|ctor| ctor.name.text.clone()));
+        }
+        ast::Decl::Record(record) | ast::Decl::Codata(record) => names.push(record.name.text.clone()),
+        ast::Decl::Refine(refinement) => names.push(refinement.name.text.clone()),
+        ast::Decl::Signature(signature) => {
+            names.push(signature.name.text.clone());
+            names.extend(signature.methods.iter().map(|(name, _)| name.text.clone()));
+        }
+        ast::Decl::Effect(effect) => {
+            names.push(effect.name.text.clone());
+            names.extend(effect.ops.iter().map(|(name, _)| name.text.clone()));
+        }
+        ast::Decl::Instance(instance) => names.push(instance.name.text.clone()),
+        _ => {}
     }
 }
 
@@ -18766,6 +19719,16 @@ impl Checker {
 
     /// The compile-time value of a global name.
     fn global_value(&mut self, cx: &mut StageCx, id: &str) -> Result<Value> {
+        let call = self.stage_calls.borrow().get(id).cloned();
+        if let Some(call) = call {
+            self.ensure_fn(cx, &call.target.0)?;
+            let types = self.stage_call_bindings(cx, &call)?;
+            let mut value = self.global_value(cx, &call.target.0)?;
+            if let Value::Clos { fn_id, .. } = &mut value {
+                *fn_id = self.stage_invocation(cx, fn_id.clone(), types);
+            }
+            return Ok(value);
+        }
         if let Some(op) = id.strip_prefix("<builtin>.Stage.") {
             let op = StageOp::from_name(op)
                 .ok_or_else(|| Error::plain(format!("internal error: unknown stage operation {id}")))?;
@@ -19062,12 +20025,18 @@ impl Checker {
                 }
             },
             Core::InstDict(g, args, _) => {
-                let (module, name) = g.0.rsplit_once('.').unwrap_or(("", &g.0));
+                // Runtime lowering represents a recursive reference to
+                // this immutable dictionary as `factory#self`. The stage
+                // interpreter builds the same method closures from the
+                // base factory and captured dictionaries; the marker is
+                // not a separately declared source instance.
+                let base = g.0.strip_suffix("#self").unwrap_or(&g.0);
+                let (module, name) = base.rsplit_once('.').unwrap_or(("", base));
                 self.ensure_instance(cx, module, name)?;
                 let def = self
                     .instance_defs
                     .iter()
-                    .find(|i| i.id == *g)
+                    .find(|i| i.id.0 == base)
                     .cloned()
                     .ok_or_else(|| {
                         Error::plain(format!("internal error: no instance code for {}", g.0))
@@ -19110,11 +20079,14 @@ impl Checker {
                     captured.push(self.eval_core(cx, a, frame)?);
                 }
                 let arity = match cx.fns.get(&fn_id.0) {
-                    Some(f) => f.params.len(),
+                    // Hoisted units include their captured environment in
+                    // params; those slots are already supplied by this closure.
+                    Some(f) => f.params.len() - captured.len(),
                     None => usize::MAX,
                 };
+                let fn_id = self.stage_invocation(cx, fn_id.clone(), cx.code_types.clone());
                 Value::Clos {
-                    fn_id: fn_id.clone(),
+                    fn_id,
                     env: captured,
                     args: Vec::new(),
                     arity,
@@ -19181,9 +20153,10 @@ impl Checker {
             Core::DeclsQuote { template, holes, name_holes } => {
                 self.construct_decls(cx, template, holes, name_holes, frame)?
             }
-            Core::SyntaxLit(tokens) => Value::Syntax {
+            Core::SyntaxLit(tokens, scope) => Value::Syntax {
                 tokens: tokens.clone(),
-                origin: cx.origin.clone(),
+                origin: scope.module().to_string(),
+                scope: scope.clone(),
             },
             Core::StrLit(s) => Value::Str(s.clone()),
             Core::BoxAlloc | Core::BoxInit(..) | Core::BoxGet(..) => {
@@ -19245,10 +20218,12 @@ impl Checker {
         }
         match f {
             Value::Clos { fn_id, mut env, args: mut acc, arity } => {
+                let (body_id, mut types) = cx.invocations.get(&fn_id.0).cloned()
+                    .unwrap_or_else(|| (fn_id.clone(), StageTypeBindings::default()));
                 acc.append(&mut args);
                 let arity = if arity == usize::MAX {
-                    self.ensure_fn(cx, &fn_id.0)?;
-                    cx.fns.get(&fn_id.0).map(|f| f.params.len()).unwrap_or(0)
+                    self.ensure_fn(cx, &body_id.0)?;
+                    cx.fns.get(&body_id.0).map(|f| f.params.len() - env.len()).unwrap_or(0)
                 } else {
                     arity
                 };
@@ -19257,10 +20232,13 @@ impl Checker {
                 }
                 let (now, rest) = acc.split_at(arity);
                 env.extend(now.iter().cloned());
-                self.ensure_fn(cx, &fn_id.0)?;
+                self.ensure_fn(cx, &body_id.0)?;
+                if let Some((_, scope)) = self.stage_definition_scopes.get(&body_id.0).cloned() {
+                    self.fill_stage_scope(&mut types, &scope);
+                }
                 let body = cx
                     .fns
-                    .get(&fn_id.0)
+                    .get(&body_id.0)
                     .map(|f| f.body.clone())
                     .ok_or_else(|| Error::plain(format!("internal error: no code for {}", fn_id.0)))?;
                 // A function's templates resolve at its definition site,
@@ -19273,15 +20251,15 @@ impl Checker {
                 );
                 {
                     // Strip a hoisted-lambda suffix, then the name.
-                    let base = if fn_id
+                    let base = if body_id
                         .0
                         .rsplit_once('.')
                         .map(|(_, last)| last.starts_with("lam"))
                         .unwrap_or(false)
                     {
-                        fn_id.0.rsplit_once('.').map(|(p, _)| p.to_string()).unwrap_or_default()
+                        body_id.0.rsplit_once('.').map(|(p, _)| p.to_string()).unwrap_or_default()
                     } else {
-                        fn_id.0.clone()
+                        body_id.0.clone()
                     };
                     if let Some((m, n)) = base.rsplit_once('.') {
                         cx.def_module = m.to_string();
@@ -19297,7 +20275,9 @@ impl Checker {
                     }
                 }
                 let mut frame = env;
+                let saved_types = std::mem::replace(&mut cx.code_types, types);
                 let r = self.eval_core(cx, &body, &mut frame);
+                cx.code_types = saved_types;
                 cx.def_module = save_def;
                 cx.origin = save_origin;
                 cx.unit_name = save_unit;
@@ -19974,6 +20954,7 @@ impl Checker {
                         )))
                     }
                 };
+                crate::syntax::declarations::freshen_group(&mut decls);
                 cx.emitted.append(&mut decls);
                 Ok(Value::Unit)
             }
@@ -19997,6 +20978,387 @@ impl Checker {
                     }
                 }
             }
+            StageOp::SyntaxNewBinding => {
+                let Value::Name(spelling) = &args[0] else {
+                    return Err(Error::plain("Syntax.newBinding takes a descriptive Name"));
+                };
+                let span = self.syntax_construction_span(cx);
+                let (_, binding) = crate::syntax::SyntaxScope::new(cx.origin.clone())
+                    .bind_value(spelling.clone(), span);
+                Ok(Value::SyntaxBinding(binding))
+            }
+            StageOp::SyntaxCapture | StageOp::SyntaxCaptureUnder => {
+                let (source, binding) = if op == StageOp::SyntaxCaptureUnder {
+                    let Value::SyntaxBinding(binding) = &args[0] else {
+                        return Err(Error::plain(
+                            "Syntax.captureUnder takes an opaque syntax binding",
+                        ));
+                    };
+                    (&args[1], Some(binding))
+                } else {
+                    (&args[0], None)
+                };
+                let Value::Syntax {
+                    tokens,
+                    origin,
+                    scope,
+                } = source
+                else {
+                    return Err(Error::plain(
+                        "Syntax.capture takes source Syntax, not rendered text",
+                    ));
+                };
+                let scope = binding
+                    .map(|binding| scope.under_binding(binding))
+                    .unwrap_or_else(|| scope.clone());
+                let fixities = cx.fixities.get(origin).cloned().unwrap_or_default();
+                let captured = crate::syntax::CapturedTerm::parse(tokens, scope, &fixities)?;
+                let mut tree = captured.into_datum();
+                self.expand_macros_in_term(cx, origin, &mut tree)?;
+                Ok(Value::Code(tree))
+            }
+            StageOp::SyntaxReference => {
+                let Value::SyntaxBinding(binding) = &args[0] else {
+                    return Err(Error::plain(
+                        "Syntax.reference takes an opaque syntax binding",
+                    ));
+                };
+                Ok(Value::Code(binding.reference().into_datum()))
+            }
+            StageOp::NameAppend => {
+                let (Value::Name(left), Value::Name(right)) = (&args[0], &args[1]) else {
+                    return Err(Error::plain("Name.append takes two descriptive Names"));
+                };
+                Ok(Value::Name(format!("{left}{right}")))
+            }
+            StageOp::NamePrefix => {
+                let (Value::Str(prefix), Value::Name(name)) = (&args[0], &args[1]) else {
+                    return Err(Error::plain("Name.prefix takes a descriptive String prefix and Name"));
+                };
+                let spelling = format!("{prefix}{name}");
+                self.syntax_descriptive_name(&spelling, cx.call.unwrap_or(ast::Span { line: 0, col: 0 }))?;
+                Ok(Value::Name(spelling))
+            }
+            StageOp::NameSuffix => {
+                let (Value::Name(name), Value::Str(suffix)) = (&args[0], &args[1]) else {
+                    return Err(Error::plain("Name.suffix takes a descriptive Name and String suffix"));
+                };
+                let spelling = format!("{name}{suffix}");
+                self.syntax_descriptive_name(&spelling, self.syntax_construction_span(cx))?;
+                Ok(Value::Name(spelling))
+            }
+            StageOp::NameJoin => {
+                let (Value::Str(separator), Value::Name(left), Value::Name(right)) = (&args[0], &args[1], &args[2]) else {
+                    return Err(Error::plain("Name.join takes a String separator and two descriptive Names"));
+                };
+                let spelling = format!("{left}{separator}{right}");
+                self.syntax_descriptive_name(&spelling, self.syntax_construction_span(cx))?;
+                Ok(Value::Name(spelling))
+            }
+            StageOp::SyntaxDefinition => {
+                let Value::Name(spelling) = &args[0] else {
+                    return Err(Error::plain("Syntax.definition takes a descriptive Name"));
+                };
+                let span = self.syntax_construction_span(cx);
+                let name = self.syntax_descriptive_name(spelling, span)?;
+                let term = if spelling.starts_with(char::is_uppercase) || spelling.starts_with(':')
+                {
+                    ast::Term::Con(ast::ConPath {
+                        segments: vec![name],
+                    })
+                } else {
+                    ast::Term::Var(ast::VarPath {
+                        quals: Vec::new(),
+                        name,
+                    })
+                };
+                let scope = crate::syntax::SyntaxScope::new(cx.def_module.clone())
+                    .with_globals(self.syntax_global_scope(&cx.def_module));
+                Ok(Value::Code(
+                    crate::syntax::CapturedTerm::capture(&term, scope)?.into_datum(),
+                ))
+            }
+            StageOp::SyntaxRecord => {
+                let (
+                    Value::Name(spelling),
+                    Value::Syntax {
+                        tokens,
+                        origin,
+                        scope,
+                    },
+                ) = (&args[0], &args[1])
+                else {
+                    return Err(Error::plain(
+                        "Syntax.recordValue takes a descriptive type Name and a source field pack",
+                    ));
+                };
+                let span = self.syntax_construction_span(cx);
+                let name = self.syntax_descriptive_name(spelling, span)?;
+                let definition_scope = crate::syntax::SyntaxScope::new(cx.def_module.clone())
+                    .with_globals(self.syntax_global_scope(&cx.def_module));
+                let skeleton = ast::Term::Record(
+                    ast::ConPath {
+                        segments: vec![name],
+                    },
+                    Vec::new(),
+                    span,
+                );
+                let ast::Term::Record(path, _, _) =
+                    crate::syntax::CapturedTerm::capture(&skeleton, definition_scope)?.into_datum()
+                else {
+                    unreachable!()
+                };
+                let fixities = cx.fixities.get(origin).cloned().unwrap_or_default();
+                let mut fields = crate::parser::parse_record_fields_tokens(tokens, &fixities)?;
+                for (_, value) in &mut fields {
+                    *value =
+                        crate::syntax::CapturedTerm::capture(value, scope.clone())?.into_datum();
+                    self.expand_macros_in_term(cx, origin, value)?;
+                }
+                Ok(Value::Code(ast::Term::Record(path, fields, span)))
+            }
+            StageOp::SyntaxCaptureType => {
+                let Value::Syntax { tokens, origin, scope } = &args[0] else {
+                    return Err(Error::plain("Syntax.captureType takes captured Syntax"));
+                };
+                let fixities = cx.fixities.get(origin).cloned().unwrap_or_default();
+                let ty = crate::parser::parse_type_tokens(tokens, &fixities)?;
+                Ok(Value::TypeSyntax(crate::syntax::CapturedType::capture(&ty, scope.clone())?.into_datum()))
+            }
+            StageOp::SyntaxDeclarationType | StageOp::SyntaxDeclarationReference => {
+                let (Value::Name(name), Value::Decls(group)) = (&args[0], &args[1]) else {
+                    return Err(Error::plain("a declaration reference takes a descriptive Name and possessed declaration group"));
+                };
+                let kind = if matches!(op, StageOp::SyntaxDeclarationType) { ast::RefKind::Type } else { ast::RefKind::Value };
+                let member = crate::syntax::declarations::member(group, name, kind)?;
+                let span = member.span;
+                if kind == ast::RefKind::Type {
+                    Ok(Value::TypeSyntax(ast::Type::Con(ast::ConPath { segments: vec![member] }, span)))
+                } else if name.starts_with(|c: char| c.is_ascii_uppercase()) || name.starts_with(':') {
+                    Ok(Value::Code(ast::Term::Con(ast::ConPath { segments: vec![member] })))
+                } else {
+                    Ok(Value::Code(ast::Term::Var(ast::VarPath { quals: Vec::new(), name: member })))
+                }
+            }
+            StageOp::SyntaxApplyType | StageOp::SyntaxFunctionType => {
+                let (Value::TypeSyntax(left), Value::TypeSyntax(right)) = (&args[0], &args[1]) else {
+                    return Err(Error::plain("type construction takes native TypeSyntax operands"));
+                };
+                let span = self.syntax_construction_span(cx);
+                let ty = if matches!(op, StageOp::SyntaxApplyType) {
+                    ast::Type::App(Box::new(left.clone()), Box::new(right.clone()), span)
+                } else {
+                    ast::Type::Fun { arg: Box::new(left.clone()), mult: None, eff: None, res: Box::new(right.clone()), span }
+                };
+                Ok(Value::TypeSyntax(ty))
+            }
+            StageOp::SyntaxSignatureType => {
+                let (Value::Name(name), Value::Decls(group)) = (&args[0], &args[1]) else {
+                    return Err(Error::plain("Syntax.signatureType takes an owned value Name and declaration group"));
+                };
+                Ok(Value::TypeSyntax(crate::syntax::declarations::signature_type(name, group)?))
+            }
+            StageOp::SyntaxFunctionCode => {
+                let (Value::Name(name), Value::Decls(group)) = (&args[0], &args[1]) else {
+                    return Err(Error::plain("Syntax.functionCode takes an owned function Name and declaration group"));
+                };
+                Ok(Value::Code(crate::syntax::declarations::function_code(name, group)?))
+            }
+            StageOp::SyntaxTupleType => {
+                let mut types = Vec::new();
+                for value in syntax_list(&args[0], "Syntax.tupleType")? {
+                    let Value::TypeSyntax(ty) = value else { return Err(Error::plain("Syntax.tupleType needs TypeSyntax items")); };
+                    types.push(ty.clone());
+                }
+                let span = self.syntax_construction_span(cx);
+                Ok(Value::TypeSyntax(match types.len() {
+                    0 => ast::Type::Unit(span), 1 => types.pop().unwrap(), _ => ast::Type::Tuple(types, span),
+                }))
+            }
+            StageOp::SyntaxSpecializeType => {
+                let (Value::Name(slot), Value::TypeSyntax(ty), Value::Decls(group)) = (&args[0], &args[1], &args[2]) else {
+                    return Err(Error::plain("Syntax.specializeType takes an owned slot Name, native TypeSyntax and declaration group"));
+                };
+                Ok(Value::Decls(crate::syntax::declarations::specialize_type(slot, ty, group)?))
+            }
+            StageOp::SyntaxAddConstructor => {
+                let (Value::Name(data), Value::Name(constructor), Value::TypeSyntax(ty), Value::Decls(group)) = (&args[0], &args[1], &args[2], &args[3]) else {
+                    return Err(Error::plain("Syntax.addConstructor takes data/constructor Names, native TypeSyntax and declaration group"));
+                };
+                let name = self.syntax_descriptive_name(constructor, self.syntax_construction_span(cx))?;
+                if !constructor.starts_with(|c: char| c.is_ascii_uppercase()) && !constructor.starts_with(':') {
+                    return Err(Error::at(name.span, "a generated constructor needs a constructor identifier"));
+                }
+                Ok(Value::Decls(crate::syntax::declarations::add_constructor(data, name, ty, group)?))
+            }
+            StageOp::SyntaxExportDeclaration => {
+                let (Value::Name(name), Value::Decls(group)) = (&args[0], &args[1]) else {
+                    return Err(Error::plain("Syntax.exportDeclaration takes an owned Name and declaration group"));
+                };
+                Ok(Value::Decls(crate::syntax::declarations::export_member(name, group)?))
+            }
+            StageOp::SyntaxAddEquations => {
+                let (Value::Name(source), Value::Name(target), Value::Decls(context), Value::Decls(addition)) = (&args[0], &args[1], &args[2], &args[3]) else {
+                    return Err(Error::plain("Syntax.addEquations takes source/target Names, a signed context and equation group"));
+                };
+                Ok(Value::Decls(crate::syntax::declarations::add_equations(source, target, context, addition)?))
+            }
+            StageOp::SyntaxPackCode => {
+                let Value::Code(term) = &args[0] else { return Err(Error::plain("Syntax.packCode takes Code")); };
+                Ok(Value::PackedCode(term.clone()))
+            }
+            StageOp::SyntaxTupleCode => {
+                let mut terms = Vec::new();
+                for value in syntax_list(&args[0], "Syntax.tupleCode")? {
+                    let Value::PackedCode(term) = value else { return Err(Error::plain("Syntax.tupleCode needs PackedCode items")); };
+                    terms.push(term.clone());
+                }
+                let span = self.syntax_construction_span(cx);
+                Ok(Value::Code(match terms.len() {
+                    0 => ast::Term::Unit(span), 1 => terms.pop().unwrap(), _ => ast::Term::Tuple(terms, span),
+                }))
+            }
+            StageOp::SyntaxEmptyDeclarations => Ok(Value::Decls(Vec::new())),
+            StageOp::SyntaxAppendDeclarations => {
+                let (Value::Decls(left), Value::Decls(right)) = (&args[0], &args[1]) else {
+                    return Err(Error::plain("Syntax.appendDeclarations takes two native declaration groups"));
+                };
+                // Preserve handles here: cross-group links refer to the
+                // original context. Emit freshens the combined anchors once.
+                let mut declarations = left.clone();
+                declarations.extend(right.iter().cloned());
+                Ok(Value::Decls(declarations))
+            }
+            StageOp::SyntaxLinkDeclarations => {
+                let (Value::Name(source), Value::Name(target), Value::Decls(context), Value::Decls(template)) = (&args[0], &args[1], &args[2], &args[3]) else {
+                    return Err(Error::plain("Syntax.linkDeclarations takes source/target Names, an owned context and a template group"));
+                };
+                Ok(Value::Decls(crate::syntax::declarations::link_group(source, target, context, template)?))
+            }
+            StageOp::SyntaxItems => {
+                let Value::Syntax { tokens, origin, scope } = &args[0] else {
+                    return Err(Error::plain("Syntax.items takes captured Syntax"));
+                };
+                let items = crate::syntax::tokens::items(tokens)?;
+                // Empty ctor identities prohibit constant reification of
+                // these opaque stage-only Syntax values into runtime data.
+                let mut list = Value::Adt { ctor: String::new(), tag: 0, fields: Vec::new() };
+                for tokens in items.into_iter().rev() {
+                    let item = Value::Syntax { tokens, origin: origin.clone(), scope: scope.clone() };
+                    list = Value::Adt { ctor: String::new(), tag: 1, fields: vec![item, list] };
+                }
+                Ok(list)
+            }
+            StageOp::SyntaxSpecializeDeclarationType => {
+                let (Value::Name(source), Value::Syntax { tokens, origin, scope }, Value::Decls(template)) = (&args[0], &args[1], &args[2]) else {
+                    return Err(Error::plain("Syntax.specializeDeclarationType takes an owned slot Name, captured type Syntax and a declaration group"));
+                };
+                let fixities = cx.fixities.get(origin).cloned().unwrap_or_default();
+                let ty = crate::parser::parse_type_tokens(tokens, &fixities)?;
+                let captured = crate::syntax::CapturedType::capture(&ty, scope.clone())?;
+                Ok(Value::Decls(crate::syntax::declarations::specialize_type(source, captured.datum(), template)?))
+            }
+            StageOp::SyntaxName => {
+                let Value::Syntax { tokens, .. } = &args[0] else {
+                    return Err(Error::plain("Syntax.name takes captured Syntax"));
+                };
+                let tokens = crate::syntax::tokens::unparenthesized(tokens)?;
+                Ok(Value::Name(name_of_group(tokens, self.syntax_construction_span(cx))?))
+            }
+            StageOp::SyntaxError => {
+                let Value::Str(message) = &args[0] else { return Err(Error::plain("Syntax.error takes a diagnostic String")); };
+                Err(Error::at(self.syntax_construction_span(cx), message.clone()))
+            }
+            StageOp::SyntaxRenameDeclarations => {
+                let (Value::Name(source), Value::Name(target), Value::Decls(declarations)) = (&args[0], &args[1], &args[2]) else {
+                    return Err(Error::plain("Syntax.renameDeclarations takes two descriptive Names and a native declaration group"));
+                };
+                let span = self.syntax_construction_span(cx);
+                self.syntax_descriptive_name(target, span)?;
+                let members = crate::syntax::declarations::group_members(declarations);
+                let type_member = members.iter().any(|(kind, name)| name.text == *source && *kind == ast::RefKind::Type);
+                let effect_member = members.iter().any(|(kind, name)| name.text == *source && *kind == ast::RefKind::Effect);
+                if type_member || effect_member {
+                    if !target.starts_with(|c: char| c.is_ascii_uppercase()) {
+                        return Err(Error::at(span, "a generated type or effect name must be a constructor identifier"));
+                    }
+                    if type_member && builtin_type_name(target) {
+                        return Err(Error::at(span, "a declaration group cannot rename a type to a builtin type name"));
+                    }
+                }
+                let constructor = |name: &str| name.starts_with(|c: char| c.is_ascii_uppercase()) || name.starts_with(':');
+                if constructor(source) != constructor(target) {
+                    return Err(Error::at(span, "a declaration rename must preserve its constructor/value identifier kind"));
+                }
+                Ok(Value::Decls(crate::syntax::declarations::rename_group(declarations, source, target)?))
+            }
+            StageOp::SyntaxRecordDeclaration => {
+                let (Value::Name(spelling), Value::Syntax { tokens, origin, scope }) = (&args[0], &args[1]) else {
+                    return Err(Error::plain("Syntax.recordDeclaration takes a descriptive type Name and source field signatures"));
+                };
+                let span = self.syntax_construction_span(cx);
+                let name = self.syntax_descriptive_name(spelling, span)?;
+                if !name.text.starts_with(|c: char| c.is_ascii_uppercase()) {
+                    return Err(Error::at(span, "a generated record's name must be a constructor identifier"));
+                }
+                let fixities = cx.fixities.get(origin).cloned().unwrap_or_default();
+                let mut fields = crate::parser::parse_record_declaration_fields_tokens(tokens, &fixities)?;
+                let own_types = vec![name.text.clone()];
+                let mut preceding_fields = Vec::new();
+                for field in &mut fields {
+                    field.ty = crate::syntax::CapturedType::in_declaration(&field.ty, scope.clone(), &own_types, &preceding_fields)?.into_datum();
+                    preceding_fields.push(field.name.text.clone());
+                }
+                // The requested public declaration name is new. Field types
+                // are already captured; ordinary collection checks their
+                // kinds, layout, duplicates and private-name authority.
+                let mut declarations = vec![ast::Decl::Record(ast::RecordDecl {
+                    name, params: Vec::new(), fields, span,
+                })];
+                let members = crate::syntax::declarations::bind_group(&mut declarations);
+                crate::syntax::declarations::visit_names(&mut declarations, &mut |name, kind| {
+                    if name.declaration_binding().is_none() && name.local_binding().is_none()
+                        && name.resolved_binding().is_none() && name.scoped_reference().is_none()
+                    {
+                        if let Some((_, member)) = members.iter().find(|(namespace, member)| *namespace == kind && member.text == name.text) {
+                            *name = name.with_declaration_binding(member.declaration_binding().unwrap().clone());
+                        }
+                    }
+                });
+                Ok(Value::Decls(declarations))
+            }
+            StageOp::SyntaxApply => {
+                let (Value::Code(function), Value::Code(argument)) = (&args[0], &args[1]) else {
+                    return Err(Error::plain("Syntax.apply takes two Code values"));
+                };
+                Ok(Value::Code(ast::Term::App(
+                    Box::new(function.clone()),
+                    vec![argument.clone()],
+                    self.syntax_construction_span(cx),
+                )))
+            }
+            StageOp::SyntaxLetIn => {
+                let (Value::SyntaxBinding(binding), Value::Code(rhs), Value::Code(body)) =
+                    (&args[0], &args[1], &args[2])
+                else {
+                    return Err(Error::plain(
+                        "Syntax.letIn takes a binding and two Code values",
+                    ));
+                };
+                let scope = crate::syntax::SyntaxScope::new(cx.origin.clone());
+                let rhs = crate::syntax::CapturedTerm::new(rhs.clone(), scope.clone());
+                let body = crate::syntax::CapturedTerm::new(body.clone(), scope);
+                Ok(Value::Code(binding.let_in(rhs, body).into_datum()))
+            }
+            StageOp::SyntaxLambda => {
+                let (Value::SyntaxBinding(binding), Value::Code(body)) = (&args[0], &args[1]) else {
+                    return Err(Error::plain("Syntax.lambda takes a binding and a Code body"));
+                };
+                let scope = crate::syntax::SyntaxScope::new(cx.origin.clone());
+                let body = crate::syntax::CapturedTerm::new(body.clone(), scope);
+                Ok(Value::Code(binding.lambda(body).into_datum()))
+            }
+
             StageOp::StrNat => {
                 let s = str_of(&args[0], "a string")?;
                 let b = Big::from_dec(s.trim()).ok_or_else(|| {
@@ -20515,11 +21877,11 @@ impl Checker {
         frame: &mut Vec<Value>,
     ) -> Result<Value> {
         let vals = self.eval_holes(cx, holes, frame)?;
-        let renamed = self.hygienic_term(cx, template, &[])?;
-        let mut out = renamed;
-        self.stamp_generated(cx, &mut out);
+        let template = self.instantiate_code_template(cx, template);
+        let mut prepared = self.hygienic_term(cx, &template, &[], holes.len())?;
+        prepared.stamp(|out| self.stamp_generated(cx, out));
         let terms = self.hole_terms(cx, &vals, &[])?;
-        let mut out = ast::subst_holes(&out, &terms);
+        let mut out = prepared.substitute(&terms)?.into_datum();
         let module = cx.origin.clone();
         self.expand_macros_in_term(cx, &module, &mut out)?;
         Ok(Value::Code(out))
@@ -20536,7 +21898,8 @@ impl Checker {
         frame: &mut Vec<Value>,
     ) -> Result<Value> {
         let vals = self.eval_holes(cx, holes, frame)?;
-        let terms = self.hole_terms(cx, &vals, name_holes)?;
+        let captures = self.hole_terms(cx, &vals, name_holes)?;
+        let terms: Vec<_> = captures.iter().map(|capture| capture.datum().clone()).collect();
         // Name splices resolve first (D46): a declaration's computed
         // name lands before the template's own names are collected, so
         // sibling references and hygiene see it like a written name.
@@ -20544,28 +21907,40 @@ impl Checker {
         for d in &mut template {
             splice_decl_names(d, &terms)?;
         }
+        let owned_declarations = crate::syntax::declarations::bind_group(&mut template);
         let mut own_values = Vec::new();
         let mut own_types = Vec::new();
-        for d in &template {
-            match d {
-                ast::Decl::ValueSig { name, .. } | ast::Decl::Equation { eq: ast::Equation { name, .. }, .. } => {
-                    own_values.push(name.text.clone())
+        fn names(declaration: &ast::Decl, values: &mut Vec<String>, types: &mut Vec<String>) {
+            match declaration {
+                ast::Decl::ValueSig { name, .. }
+                | ast::Decl::Equation { eq: ast::Equation { name, .. }, .. } => values.push(name.text.clone()),
+                ast::Decl::Data(data) => {
+                    types.push(data.name.text.clone());
+                    values.extend(data.ctors.iter().map(|ctor| ctor.name.text.clone()));
                 }
-                ast::Decl::Data(data) => own_types.push(data.name.text.clone()),
-                ast::Decl::Record(r) | ast::Decl::Codata(r) => own_types.push(r.name.text.clone()),
-                ast::Decl::Signature(s) => own_types.push(s.name.text.clone()),
-                ast::Decl::Attributed { inner, .. } => {
-                    if let Some(n) = decl_name(inner) {
-                        own_values.push(n.text.clone());
-                    }
+                ast::Decl::Record(record) | ast::Decl::Codata(record) => {
+                    types.push(record.name.text.clone());
+                    if matches!(declaration, ast::Decl::Record(_)) { values.push(record.name.text.clone()); }
                 }
+                ast::Decl::Signature(signature) => types.push(signature.name.text.clone()),
+                ast::Decl::Refine(refine) => {
+                    types.push(refine.name.text.clone());
+                    values.push(refine.name.text.clone());
+                }
+                ast::Decl::Foreign(foreign) => values.push(foreign.name.text.clone()),
+                ast::Decl::Prim(primitive) => values.push(primitive.name.text.clone()),
+                ast::Decl::OpaqueType(opaque) => types.push(opaque.name.text.clone()),
+                ast::Decl::Attributed { inner, .. } => names(inner, values, types),
                 _ => {}
             }
+        }
+        for d in &template {
+            names(d, &mut own_values, &mut own_types);
         }
         let mut decls = Vec::new();
         for d in &template {
             let mut d = d.clone();
-            self.hygienic_decl(cx, &mut d, &own_values, &own_types)?;
+            self.hygienic_decl(cx, &mut d, &own_values, &own_types, &owned_declarations)?;
             decls.push(d);
         }
         let site = self.expansion_site(cx, ast::Span { line: 0, col: 0 });
@@ -20601,36 +21976,37 @@ impl Checker {
         cx: &mut StageCx,
         vals: &[Value],
         name_holes: &[usize],
-    ) -> Result<Vec<ast::Term>> {
+    ) -> Result<Vec<crate::syntax::CapturedTerm>> {
+        use crate::syntax::{CapturedTerm, SyntaxScope};
         let mut terms = Vec::new();
         for (i, v) in vals.iter().enumerate() {
             let span = cx.call.unwrap_or(ast::Span { line: 0, col: 0 });
             if name_holes.contains(&i) {
                 let text = name_of_value(v, span)?;
-                terms.push(ast::Term::Var(ast::VarPath {
+                terms.push(CapturedTerm::new(ast::Term::Var(ast::VarPath {
                     quals: Vec::new(),
                     name: ast::Name::new(text, span),
-                }));
+                }), SyntaxScope::new(cx.origin.clone())));
                 continue;
             }
             match v {
-                Value::Code(t) => terms.push(t.clone()),
-                Value::Syntax { tokens, origin } => {
+                Value::Code(t) => terms.push(CapturedTerm::new(t.clone(), SyntaxScope::new(cx.origin.clone()))),
+                Value::Syntax { tokens, origin, scope } => {
                     let fix = cx
                         .fixities
                         .get(origin)
                         .cloned()
                         .unwrap_or_default();
-                    terms.push(crate::parser::parse_term_tokens(tokens, &fix)?);
+                    terms.push(CapturedTerm::parse(tokens, scope.clone(), &fix)?);
                 }
                 // Splice-time reification (D233, extended by D46): a
                 // `Sym` value becomes a symbol constant, a `Name` a
                 // reference to the named binding.
-                Value::Sym(s) => terms.push(ast::Term::Sym(s.clone(), span)),
-                Value::Name(n) => terms.push(ast::Term::Var(ast::VarPath {
+                Value::Sym(s) => terms.push(CapturedTerm::new(ast::Term::Sym(s.clone(), span), SyntaxScope::new(cx.origin.clone()))),
+                Value::Name(n) => terms.push(CapturedTerm::new(ast::Term::Var(ast::VarPath {
                     quals: Vec::new(),
                     name: ast::Name::new(n.clone(), span),
-                })),
+                }), SyntaxScope::new(cx.origin.clone()))),
                 other => {
                     return Err(Error::plain(format!(
                         "a template hole takes code, syntax, a name or a symbol, found {}",
@@ -20649,17 +22025,10 @@ impl Checker {
         cx: &mut StageCx,
         t: &ast::Term,
         own: &[String],
-    ) -> Result<ast::Term> {
+        captures: usize,
+    ) -> Result<crate::syntax::PreparedTerm> {
         let def_module = cx.def_module.clone();
-        let resolve = |kind: ast::RefKind, name: &str| -> Option<(String, String)> {
-            let site = ast::RefSite {
-                kind,
-                quals: Vec::new(),
-                name: name.to_string(),
-                span: ast::Span { line: 0, col: 0 },
-            };
-            self.resolve_top(&def_module, &site)
-        };
+        let resolve = |site: &ast::RefSite| self.resolve_top(&def_module, site);
         let mut fresh = |base: &str| -> String {
             cx.fresh += 1;
             format!("{base}${}", cx.fresh)
@@ -20669,9 +22038,12 @@ impl Checker {
             fresh: &mut fresh,
             own_values: own.to_vec(),
             own_types: Vec::new(),
+            owned_declarations: Vec::new(),
         };
-        let mut scope = ast::HygScope::new();
-        ast::hyg_term(t, &mut hcx, &mut scope)
+        let template = crate::syntax::TermTemplate::new(
+            t.clone(), captures, crate::syntax::SyntaxScope::new(def_module.clone()),
+        )?;
+        template.prepare(&mut hcx)
     }
 
     fn hygienic_decl(
@@ -20680,17 +22052,10 @@ impl Checker {
         d: &mut ast::Decl,
         own_values: &[String],
         own_types: &[String],
+        owned_declarations: &[(ast::RefKind, ast::Name)],
     ) -> Result<()> {
         let def_module = cx.def_module.clone();
-        let resolve = |kind: ast::RefKind, name: &str| -> Option<(String, String)> {
-            let site = ast::RefSite {
-                kind,
-                quals: Vec::new(),
-                name: name.to_string(),
-                span: ast::Span { line: 0, col: 0 },
-            };
-            self.resolve_top(&def_module, &site)
-        };
+        let resolve = |site: &ast::RefSite| self.resolve_top(&def_module, site);
         let mut fresh = |base: &str| -> String {
             cx.fresh += 1;
             format!("{base}${}", cx.fresh)
@@ -20700,11 +22065,55 @@ impl Checker {
             fresh: &mut fresh,
             own_values: own_values.to_vec(),
             own_types: own_types.to_vec(),
+            owned_declarations: owned_declarations.to_vec(),
         };
         let mut scope = ast::HygScope::new();
         let replaced = ast::hyg_decl(d, &mut hcx, &mut scope)?;
         *d = replaced;
         Ok(())
+    }
+
+    /// Validate only the descriptive spelling. Authority comes separately
+    /// from the actual definition module's checked scope, never this text.
+    fn syntax_descriptive_name(&self, spelling: &str, span: ast::Span) -> Result<ast::Name> {
+        use crate::lexer::Tok;
+        let tokens = crate::lexer::lex(spelling)?;
+        match tokens.as_slice() {
+            [crate::lexer::Token {
+                tok: Tok::VarId(text) | Tok::ConId(text) | Tok::Op(text),
+                ..
+            }, crate::lexer::Token { tok: Tok::Eof, .. }]
+                if text == spelling =>
+            {
+                Ok(ast::Name::new(spelling, span))
+            }
+            _ => Err(Error::at(
+                span,
+                "a syntax definition name must be one identifier or operator",
+            )),
+        }
+    }
+
+    /// Provenance of an AST node constructed at a syntax API invocation.
+    /// Child trees keep their own source spans and binding identities.
+    fn syntax_construction_span(&self, cx: &StageCx) -> ast::Span {
+        let call = cx.call.unwrap_or(ast::Span { line: 0, col: 0 });
+        // This node is constructed at the invocation, not copied
+        // from a quotation template in the macro definition's file.
+        let mut site = self.expansion_site(cx, call);
+        if let Some(parent) = crate::lexer::expansion_of(call) {
+            site.origin = parent.origin;
+            site.template = parent.template;
+            site.call = parent.call;
+            while let Some(outer) = crate::lexer::expansion_of(site.call) {
+                site.call = outer.call;
+            }
+            site.parent = Some(call);
+        } else {
+            site.origin = self.module_files.get(&cx.origin).cloned()
+                .unwrap_or_else(|| cx.origin.clone());
+        }
+        crate::lexer::record_expansion(site)
     }
 
     /// The provenance of generated syntax (section 8: source maps retain
@@ -20755,12 +22164,13 @@ fn big_cmp_word(a: &Big, b: &Big) -> i64 {
 fn stage_op_arity(op: StageOp) -> usize {
     use StageOp::*;
     match op {
-        Snapshot | WithReadFiles | WithWriteFiles | WithProcess | ReadFile | StrAppend => 2,
-        WriteFile | Run => 3,
-        WithDatabase => 4,
+        Snapshot | WithReadFiles | WithWriteFiles | WithProcess | ReadFile | StrAppend
+        | SyntaxCaptureUnder | SyntaxLambda | SyntaxApply | NameAppend | NamePrefix | NameSuffix | SyntaxRecord | SyntaxRecordDeclaration | SyntaxAppendDeclarations | SyntaxDeclarationType | SyntaxSignatureType | SyntaxFunctionCode | SyntaxDeclarationReference | SyntaxApplyType | SyntaxFunctionType | SyntaxExportDeclaration => 2,
+        WriteFile | Run | NameJoin | SyntaxLetIn | SyntaxRenameDeclarations | SyntaxSpecializeDeclarationType | SyntaxSpecializeType => 3,
+        WithDatabase | SyntaxLinkDeclarations | SyntaxAddConstructor | SyntaxAddEquations => 4,
         Secret | Emit | StrNat | NatStr | StrLen | QuoteNat | QuoteInt | QuoteBool | Introspect
-        | CodecDerive | NameToSym | SymToName => 1,
-        ReadSchema => 0,
+        | CodecDerive | NameToSym | SymToName | SyntaxNewBinding | SyntaxCapture | SyntaxReference | SyntaxDefinition | SyntaxItems | SyntaxName | SyntaxError | SyntaxCaptureType | SyntaxTupleType | SyntaxPackCode | SyntaxTupleCode => 1,
+        ReadSchema | SyntaxEmptyDeclarations => 0,
     }
 }
 
@@ -21287,6 +22697,7 @@ impl Checker {
                 ctx.push((format!("c{i}"), ClassApp { class: class.class, args }));
             }
             crate::types::Scheme {
+            evidence_params: Vec::new(),
             con_params: Vec::new(),
             obligs: Vec::new(),
                 params: tps,

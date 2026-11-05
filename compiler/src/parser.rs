@@ -1825,7 +1825,12 @@ impl<'a> Parser<'a> {
             ));
         }
         self.expect(&Tok::Where, "`where`")?;
-        let fields = self.parse_block_items("the field block", |p| {
+        let fields = self.parse_record_field_block()?;
+        Ok(RecordDecl { name, params, fields, span })
+    }
+
+    fn parse_record_field_block(&mut self) -> Result<Vec<FieldDecl>> {
+        self.parse_block_items("the field block", |p| {
             // Attributes may prefix the field declaration or its type
             // (attribute annotations specification sections 1.1 and 4);
             // both spell the field's layout modifiers.
@@ -1840,8 +1845,7 @@ impl<'a> Parser<'a> {
             let ty = p.parse_type()?;
             let span = name.span;
             Ok(FieldDecl { attrs, name, ty, erased, span })
-        })?;
-        Ok(RecordDecl { name, params, fields, span })
+        })
     }
 
     /// `codata C params where { obs :: T, ... }`: a coinductive type of
@@ -2966,7 +2970,7 @@ impl<'a> Parser<'a> {
                 break;
             }
         }
-        Ok(TokenTree { tokens, span: start })
+        Ok(TokenTree::new(tokens, start))
     }
 
     /// One `do` statement: a `let` binding group (`let` plus its whole
@@ -3833,6 +3837,60 @@ pub fn parse_term_tokens(tokens: &[Token], fix: &FixityTable) -> Result<Term> {
     Ok(t)
 }
 
+/// Parse a captured type with its source fixities, without printing or
+/// reparsing any declaration surrounding it.
+pub(crate) fn parse_type_tokens(tokens: &[Token], fix: &FixityTable) -> Result<Type> {
+    let mut toks = tokens.to_vec();
+    let span = toks.last().map(|t| t.span).unwrap_or(Span { line: 0, col: 0 });
+    toks.push(Token { tok: Tok::Eof, span, virtual_: false });
+    let mut parser = Parser::new(&toks);
+    let mut ty = parser.parse_type()?;
+    parser.expect_eof()?;
+    resolve_type(&mut ty, fix)?;
+    Ok(ty)
+}
+
+/// Parse a field pack for native structural record construction. This is
+/// the ordinary record grammar, with each operand's source fixities retained.
+pub(crate) fn parse_record_fields_tokens(
+    tokens: &[Token],
+    fix: &FixityTable,
+) -> Result<Vec<(Name, Term)>> {
+    let mut toks = tokens.to_vec();
+    let span = toks
+        .last()
+        .map(|t| t.span)
+        .unwrap_or(Span { line: 0, col: 0 });
+    toks.push(Token {
+        tok: Tok::Eof,
+        span,
+        virtual_: false,
+    });
+    let mut parser = Parser::new(&toks);
+    let mut fields = parser.parse_record_assignments()?;
+    parser.expect_eof()?;
+    for (_, value) in &mut fields {
+        resolve_term(value, fix)?;
+    }
+    Ok(fields)
+}
+
+/// Native declaration construction uses the ordinary record field grammar,
+/// including source fixities in each type. No declaration text is reparsed.
+pub(crate) fn parse_record_declaration_fields_tokens(
+    tokens: &[Token],
+    fix: &FixityTable,
+) -> Result<Vec<FieldDecl>> {
+    let mut toks = tokens.to_vec();
+    let span = toks.last().map(|t| t.span).unwrap_or(Span { line: 0, col: 0 });
+    toks.push(Token { tok: Tok::Eof, span, virtual_: false });
+    let mut parser = Parser::new(&toks);
+    let mut fields = parser.parse_record_field_block()?;
+    parser.expect_eof()?;
+    for field in &mut fields { resolve_type(&mut field.ty, fix)?; }
+    Ok(fields)
+}
+
 fn resolve_equation(eq: &mut Equation, fix: &FixityTable) -> Result<()> {
     resolve_term(&mut eq.body, fix)?;
     for l in &mut eq.locals {
@@ -4018,10 +4076,7 @@ fn reduce(vals: &mut Vec<Term>, op: Name, span: Span) -> Result<()> {
         // methods are different operations and stay reachable as values.
         let bool_con = |text: &str| {
             Term::Con(ConPath {
-                segments: vec![Name {
-                    text: text.to_string(),
-                    span,
-                }],
+                segments: vec![Name::new(text, span)],
             })
         };
         let if_term = |cond: Term, then: Term, els: Term| Term::If {
@@ -4221,9 +4276,9 @@ fn resolve_type_chain(
 /// are walked.
 fn resolve_type(t: &mut Type, fix: &FixityTable) -> Result<()> {
     match t {
-        Type::Con(_, _) | Type::Var(_, _) | Type::Unit(_) | Type::Num(_, _) => {}
+        Type::Elaborated(_, _) | Type::IndexOperand(..) | Type::Con(_, _) | Type::Var(_, _) | Type::Unit(_) | Type::Num(_, _) => {}
         Type::Lam(_, b, _) => resolve_type(b, fix)?,
-        Type::App(f, a, _) => {
+        Type::App(f, a, _) | Type::IndexAnnotated(f, a, _) => {
             resolve_type(f, fix)?;
             resolve_type(a, fix)?;
         }

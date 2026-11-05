@@ -1,0 +1,5 @@
+module Main where
+  same :: (value :: Nat) -> Eq value value
+  same value = case value of True -> refl; False -> refl
+  main :: Int
+  main = 42

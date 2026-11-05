@@ -1,0 +1,12 @@
+module Main where
+  next :: Bool
+  next = True
+  macro hide :: forall a. Syntax -> Name -> Code a
+  macro hide source name = let binding = Syntax.newBinding name in Syntax.letIn binding [| False |] (Syntax.capture source)
+  generate do
+    emit (quoteDecls where {
+      data Count where { Z :: Count; S :: Count -> Count };
+      same :: (value :: Count) -> Eq value value;
+      same value = case value of Z -> refl; S next -> hide!((congr S (same next)), next) })
+  main :: Int
+  main = 42

@@ -5193,7 +5193,7 @@ fn collect_prims(e: &Core, out: &mut BTreeSet<PrimOp>) {
         | Core::Ctor(..) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc
         | Core::BoxAlloc
         | Core::DeclsQuote { .. }
-        | Core::SyntaxLit(_)
+        | Core::SyntaxLit(..)
         | Core::StrLit(_) => {}
         // A reified quote body calls primitive units through their
         // closure constants; collect them so the units are emitted
@@ -5257,7 +5257,7 @@ fn collect_binders(e: &Core, out: &mut Vec<LocalId>) {
         | Core::Fault
         | Core::Quote { .. }
         | Core::DeclsQuote { .. }
-        | Core::SyntaxLit(_)
+        | Core::SyntaxLit(..)
         | Core::StrLit(_) => {}
         Core::DictProj(d, ..) => collect_binders(d, out),
         Core::Proj(d, _) => collect_binders(d, out),
@@ -5384,7 +5384,7 @@ impl CoreEmitter<'_, '_> {
                 "internal error: a splice position reached code generation outside its quotation",
             )),
             Core::DeclsQuote { .. }
-            | Core::SyntaxLit(_)
+            | Core::SyntaxLit(..)
             | Core::StrLit(_) => Err(crate::Error::plain(
                 "internal error: a compile-time value reached code generation (staging values never enter target code)",
             )),
@@ -7858,7 +7858,7 @@ fn reify(out: &mut Vec<QWord>, e: &Core, reg: &Registry) -> Result<()> {
                 .ok_or_else(|| crate::Error::plain(format!("unknown foreign binding {n}")))?;
             reify_unit_value(out, n, p.arity());
         }
-        Core::Quote { .. } | Core::DeclsQuote { .. } | Core::SyntaxLit(_) | Core::StrLit(_) => {
+        Core::Quote { .. } | Core::DeclsQuote { .. } | Core::SyntaxLit(..) | Core::StrLit(_) => {
             return err(
                 "a quotation body cannot contain staging values \
                  (a nested quotation is not reified yet)",

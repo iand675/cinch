@@ -1,0 +1,21 @@
+module FormatSyntax where
+  import Binary
+  export declare
+
+  -- The whole family is a native quotation. Renaming selects owned members
+  -- and follows their opaque bindings; captured operands and Binary helpers
+  -- keep their source/definition owners.
+  macro declare :: Name -> Syntax -> Syntax -> Declarations
+  macro declare name magic version =
+    let family = quoteDecls where
+          record Packet where
+            payload :: Bytes
+          parsePacket :: Bytes -> Option Packet
+          parsePacket input = case Binary.decode $(magic) $(version) input of
+            None -> None
+            Some payload -> Some (Packet {payload = payload})
+          writePacket :: Packet -> Option Bytes
+          writePacket packet = Binary.encode $(magic) $(version) packet.payload
+    in Syntax.renameDeclarations (sym-to-name 'writePacket) (Name.prefix "write-" name)
+      (Syntax.renameDeclarations (sym-to-name 'parsePacket) (Name.prefix "parse-" name)
+        (Syntax.renameDeclarations (sym-to-name 'Packet) name family))

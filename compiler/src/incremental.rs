@@ -599,6 +599,7 @@ struct ModuleState {
     foreigns: BTreeMap<String, ForeignPlan>,
     /// Report rows this module contributed (merged into the manifest).
     generated: Vec<String>,
+    generated_syntax: Vec<(ast::Decl, ast::Span)>,
     literal_folds: Vec<LitFold>,
     data_imports: Vec<DataImport>,
     safety: Vec<SafetyAssertion>,
@@ -1326,6 +1327,7 @@ impl Session {
         for (m, names) in &report.generated {
             gen_by.entry(m.clone()).or_default().extend(names.clone());
         }
+        let mut syntax_by: HashMap<_, _> = report.generated_syntax.iter().cloned().collect();
         let mut folds_by: HashMap<String, Vec<LitFold>> = HashMap::new();
         for f in &report.literal_folds {
             if let Some(m) = owner_module(&f.unit, &all) {
@@ -1389,6 +1391,7 @@ impl Session {
             st.plans = plans_by.remove(m).unwrap_or_default();
             st.foreigns = foreigns_by.remove(m).unwrap_or_default();
             st.generated = gen_by.remove(m).unwrap_or_default();
+            st.generated_syntax = syntax_by.remove(m).unwrap_or_default();
             st.literal_folds = folds_by.remove(m).unwrap_or_default();
             st.data_imports = di_by.remove(m).unwrap_or_default();
             st.safety = safety_by.remove(m).unwrap_or_default();
@@ -1730,6 +1733,7 @@ impl Session {
     /// the checker's order.
     fn merged_report(&self) -> StageReport {
         let mut generated: Vec<(String, Vec<String>)> = Vec::new();
+        let mut generated_syntax = Vec::new();
         let mut folds: Vec<LitFold> = Vec::new();
         let mut imports: Vec<DataImport> = Vec::new();
         let mut safety: Vec<SafetyAssertion> = Vec::new();
@@ -1741,6 +1745,9 @@ impl Session {
             if !s.generated.is_empty() {
                 generated.push((m.clone(), s.generated.clone()));
             }
+            if !s.generated_syntax.is_empty() {
+                generated_syntax.push((m.clone(), s.generated_syntax.clone()));
+            }
             folds.extend(s.literal_folds.clone());
             imports.extend(s.data_imports.clone());
             safety.extend(s.safety.clone());
@@ -1750,6 +1757,7 @@ impl Session {
             mode: self.stage_mode,
             inputs: self.staging_inputs.clone(),
             generated,
+            generated_syntax,
             literal_folds: folds,
             data_imports: imports,
             safety: SafetyReport {
@@ -2302,6 +2310,9 @@ fn resolve_ref(
     module: &str,
     r: &RefSite,
 ) -> Vec<String> {
+    if r.kind == RefKind::Effect {
+        return vec![item_id(ItemKind::Module, module, "")];
+    }
     let want_type = r.kind == RefKind::Type;
     let fits = |k: &ItemKind| -> bool {
         match (want_type, k) {

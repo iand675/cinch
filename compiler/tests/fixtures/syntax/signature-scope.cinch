@@ -1,0 +1,26 @@
+module Library where
+  export call, supplied, family
+  signature Private a where
+    mark :: a -> Int
+  instance Word :: Private Int where
+    mark value = value + 2
+  use :: using (dict :: Private Int) => Int -> Int
+  use value = mark value
+  macro call :: Syntax -> Code Int
+  macro call source = [| with (dict = Word) in use $(Syntax.capture source) |]
+  macro supplied :: Syntax -> Syntax -> Code Int
+  macro supplied source provider = [| with (dict = $(Syntax.capture provider)) in use $(Syntax.capture source) |]
+  stage family :: Declarations
+  stage family = quoteDecls where {
+    selected :: using (dict :: Private Int) => Int -> Int;
+    selected value = mark value;
+    answer :: Int;
+    answer = with (dict = Word) in selected 40 }
+module Main where
+  import stage Library
+  signature Private a where
+    mark :: a -> Int
+  instance Word :: Private Int where
+    mark value = 0
+  main :: Int
+  main = call!((40))

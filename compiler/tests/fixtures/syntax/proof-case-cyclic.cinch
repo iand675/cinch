@@ -1,0 +1,8 @@
+module Main where
+  cycleCase :: (value :: Nat) -> Eq value 0
+  cycleCase value = case value of same -> cycleCase same
+  type Zero = refine (value :: Nat) with Eq value 0
+  make :: Nat -> Zero
+  make value = Zero value (cycleCase value)
+  main :: Int
+  main = if unrefine (make 9) == 9 then 42 else 0
