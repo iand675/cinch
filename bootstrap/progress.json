@@ -58,7 +58,7 @@
     },
     {
       "title": "Current d701d79 Rust suite",
-      "detail": "53 of 230 complete groups passed; 1 running, 0 failed and 176 pending.Every group includes ignored tests. State: running. Earlier compiler inputs; a matching published-source run remains required.",
+      "detail": "55 of 230 complete groups passed; 0 running, 0 failed and 175 pending.Every group includes ignored tests. State: running. Earlier compiler inputs; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -73,7 +73,7 @@
     },
     {
       "title": "Earlier API checkpoint: exact Stage3 behavior",
-      "detail": "46 of 93 complete groups passed; 1 running, 1 failed and 45 pending.81 complete bootstrap groups, eight ordinary and four mixed targets. Includes all positive ABI6 arrays, exact float patterns and the new projection group. Every case runs; direct Native operations remain separately classified. Earlier compiler inputs; a matching published-source run remains required.",
+      "detail": "47 of 93 complete groups passed; 1 running, 1 failed and 44 pending.81 complete bootstrap groups, eight ordinary and four mixed targets. Includes all positive ABI6 arrays, exact float patterns and the new projection group. Every case runs; direct Native operations remain separately classified. Earlier compiler inputs; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -157,7 +157,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "53 of 230 complete groups passed; 1 running, 0 failed and 176 pending. Earlier compiler inputs; a matching published-source run remains required."
+      "detail": "55 of 230 complete groups passed; 0 running, 0 failed and 175 pending. Earlier compiler inputs; a matching published-source run remains required."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -165,7 +165,7 @@
     },
     {
       "title": "Finish the exact self-built compiler tests",
-      "detail": "46 of 93 complete groups passed; 1 running, 1 failed and 45 pending. Earlier compiler inputs; a matching published-source run remains required."
+      "detail": "47 of 93 complete groups passed; 1 running, 1 failed and 44 pending. Earlier compiler inputs; a matching published-source run remains required."
     },
     {
       "title": "Finish final external acceptance",
@@ -206,6 +206,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "All 43 compiler-source checks: passed. 14 of 14 complete groups passed; 0 running, 0 failed and 0 pending. runtime behavior: passed; bootstrap_eval: passed; library calls: passed; bootstrap_source_proofs: passed; bootstrap_source_constructors: passed; refinements and effects: passed; Core validation: passed; independent type checker: passed; bootstrap_decisions: passed; bootstrap_source_decisions: passed; bootstrap_export_interfaces: passed; bootstrap_source_projection: passed; arrays: passed; bootstrap_array_float_bits: passed.",
-  "activity": "Current d701d79 Rust suite: 53 of 230 complete groups passed; 1 running, 0 failed and 176 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 14 of 14 complete groups passed; 0 running, 0 failed and 0 pending. runtime behavior: passed; bootstrap_eval: passed; library calls: passed; bootstrap_source_proofs: passed; bootstrap_source_constructors: passed; refinements and effects: passed; Core validation: passed; independent type checker: passed; bootstrap_decisions: passed; bootstrap_source_decisions: passed; bootstrap_export_interfaces: passed; bootstrap_source_projection: passed; arrays: passed; bootstrap_array_float_bits: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 46 of 93 complete groups passed; 1 running, 1 failed and 45 pending. Proposed compiler repair (separate unpublished source): failed-controls; 33 of 37 complete groups passed; 1 running, 3 failed and 0 pending.",
-  "updatedAt": "2026-11-05T09:47:05.518625+00:00"
+  "activity": "Current d701d79 Rust suite: 55 of 230 complete groups passed; 0 running, 0 failed and 175 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 14 of 14 complete groups passed; 0 running, 0 failed and 0 pending. runtime behavior: passed; bootstrap_eval: passed; library calls: passed; bootstrap_source_proofs: passed; bootstrap_source_constructors: passed; refinements and effects: passed; Core validation: passed; independent type checker: passed; bootstrap_decisions: passed; bootstrap_source_decisions: passed; bootstrap_export_interfaces: passed; bootstrap_source_projection: passed; arrays: passed; bootstrap_array_float_bits: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 47 of 93 complete groups passed; 1 running, 1 failed and 44 pending. Proposed compiler repair (separate unpublished source): failed-controls; 33 of 37 complete groups passed; 1 running, 3 failed and 0 pending.",
+  "updatedAt": "2026-11-05T09:48:07.501088+00:00"
 }
