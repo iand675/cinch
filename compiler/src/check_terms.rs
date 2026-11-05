@@ -608,7 +608,23 @@ impl Checker {
     fn infer(&mut self, env: &mut Env, term: &ast::Term) -> Result<(ECore, Ty)> {
         let scope = self.compile_time.then(|| self.code_quantifiers.clone());
         let (core, ty) = self.infer_inner(env, term)?;
+        self.remember_runtime_index_reading(term, env, &core, &ty);
         Ok((self.code_expectation(core, &ty, term.span(), scope), ty))
+    }
+
+    fn remember_runtime_index_reading(&mut self, term: &ast::Term, env: &Env, core: &ECore, carrier: &Ty) {
+        let ast::Term::App(head, args, _) = term else { return };
+        let ast::Term::Var(path) = &**head else { return };
+        if args.len() != 2 || !matches!(path.name.source_spelling(), "+" | "-" | "*") { return; }
+        // Retain only the selected callable, not a second copy of a large
+        // argument tree at every node of nested arithmetic.
+        let mut selected = core; let mut arity = 0;
+        while let ECore::App(function, arguments) = selected { arity += arguments.len(); selected = function; }
+        if arity != 2 { return; }
+        self.runtime_index_readings.push(RuntimeIndexReading {
+            name: path.name.clone(), locals: env.locals.iter().map(|(_, local, _)| *local).collect(),
+            dictionaries: env.dicts.iter().map(|(local, _)| *local).collect(), core: selected.clone(), carrier: carrier.clone(),
+        });
     }
 
     fn infer_inner(&mut self, env: &mut Env, term: &ast::Term) -> Result<(ECore, Ty)> {
@@ -780,7 +796,7 @@ impl Checker {
                             let erased = matches!(self.uni.zonk(&dom), Ty::Prp(_) | Ty::Sort(_));
                             let (c, reading) = self.check_call_argument(
                                 env, a, &dom, &prefix_ty, &mut core,
-                                &mut call_binds, &mut retained_method,
+                                &mut call_binds, &mut retained_method, !callee_obligs.is_empty(),
                             )?;
                             call_args.push((
                                 reading,
@@ -804,7 +820,7 @@ impl Checker {
                             let erased = matches!(self.uni.zonk(&dom), Ty::Prp(_) | Ty::Sort(_));
                             let (c, reading) = self.check_call_argument(
                                 env, a, &dom, &prefix_ty, &mut core,
-                                &mut call_binds, &mut retained_method,
+                                &mut call_binds, &mut retained_method, true,
                             )?;
                             self.note_call_arg_writes(env, args, &dom, &eff, *span, write_core.as_ref().unwrap_or(&core));
                             let subst = reading.ok_or_else(|| Error::at(a.span(), "this argument has no index reading")).map_err(|e| {
@@ -895,6 +911,15 @@ impl Checker {
                             }
                         }
                         if !bound {
+                            if idxs.iter().all(|index| *index < args.len()) {
+                                let mut displayed = p.clone();
+                                for (index, argument) in args.iter().enumerate() {
+                                    if let Some(reading) = self.diagnostic_term_index(argument, env) {
+                                        displayed = displayed.subst(&format!("$a{index}"), &reading);
+                                    }
+                                }
+                                return Err(Error::at(*span, format!("the refinement obligation `{displayed}` needs `Dec` evidence or a branch fact at this use: an actual runtime argument has no checked mathematical index reading")));
+                            }
                             return Err(Error::at(
                                 *span,
                                 format!(
@@ -1570,6 +1595,7 @@ impl Checker {
     fn check(&mut self, env: &mut Env, term: &ast::Term, expected: &Ty) -> Result<ECore> {
         let scope = self.compile_time.then(|| self.code_quantifiers.clone());
         let core = self.check_inner(env, term, expected)?;
+        self.remember_runtime_index_reading(term, env, &core, expected);
         Ok(self.code_expectation(core, expected, term.span(), scope))
     }
 
@@ -1826,6 +1852,25 @@ impl Checker {
         prefix: &mut ECore,
         binds: &mut Vec<(LocalId, ECore)>,
         retained_method: &mut Option<(usize, Option<usize>)>,
+        index_required: bool,
+    ) -> Result<(ECore, Option<ITerm>)> {
+        if !index_required { return self.check_call_argument_inner(env, argument, expected, prefix_ty, prefix, binds, retained_method); }
+        self.pending_runtime_arithmetic.borrow_mut().push(Vec::new());
+        let result = self.check_call_argument_inner(env, argument, expected, prefix_ty, prefix, binds, retained_method);
+        let certificates = self.pending_runtime_arithmetic.borrow_mut().pop().expect("call index scope");
+        if result.as_ref().is_ok_and(|(_, index)| index.is_some()) { self.use_runtime_arithmetic(certificates, argument.span()); }
+        result
+    }
+
+    fn check_call_argument_inner(
+        &mut self,
+        env: &mut Env,
+        argument: &ast::Term,
+        expected: &Ty,
+        prefix_ty: &Ty,
+        prefix: &mut ECore,
+        binds: &mut Vec<(LocalId, ECore)>,
+        retained_method: &mut Option<(usize, Option<usize>)>,
     ) -> Result<(ECore, Option<ITerm>)> {
         let ordinary_app = match argument {
             ast::Term::App(f, _, _) => match &**f {
@@ -1930,7 +1975,7 @@ impl Checker {
         if !matches!(inf, Ty::Meta(_)) && self.refine_view(&inf).is_none() {
             if let Some(RefineView { base: Some(base), pred, binder }) = self.refine_view(&exp) {
                 if self.uni.unify(&inf, &base).is_ok() {
-                    let it = self.idx_of_term(term, env).map_err(|e| {
+                    let it = self.required_term_index(term, env).map_err(|e| {
                         Error::at(
                             term.span(),
                             format!(
@@ -3083,7 +3128,7 @@ impl Checker {
         // An Ord/Eq declaration describes a callable, not its equation.
         // Resolve this exact want (including lexical dictionaries), then
         // read only the selected implementation's checked computation.
-        let certificate = self.checked_comparison_method(w, *slot, &compared, declared_cmp)?;
+        let mut certificate = self.checked_comparison_method(w, *slot, &compared, declared_cmp)?;
         let cmp = certificate.comparison;
         if !self.fact_term_ok(env, lhs) || !self.fact_term_ok(env, rhs) {
             return None;
@@ -3092,8 +3137,8 @@ impl Checker {
         if matches!(compared, Ty::Prim(_)) && (has_arith(lhs) || has_arith(rhs)) {
             return None;
         }
-        let li = self.idx_of_term(lhs, env).ok()?;
-        let ri = self.idx_of_term(rhs, env).ok()?;
+        let ((li, ri), arithmetic) = self.with_runtime_arithmetic(|| Ok((self.idx_of_term(lhs, env)?, self.idx_of_term(rhs, env)?))).ok()?;
+        certificate.arithmetic = arithmetic;
         let prop = PTerm::Cmp(cmp, Box::new(li), Box::new(ri));
         match self.static_obligation(&prop) {
             Err(_) | Ok(ObligStatus::Timeout | ObligStatus::Unsupported) => None,
@@ -3985,6 +4030,17 @@ impl Checker {
                 ast::Type::IndexAnnotated(Box::new(self.term_index_input(body, env)?), Box::new(annotation.clone()), span)
             }
             ast::Term::App(head, args, _) => {
+                if let ast::Term::Var(path) = &**head {
+                    if path.quals.is_empty() && args.len() == 2 {
+                        let operation = match path.name.source_spelling() {
+                            "+" => Some(IdxOp::Add), "-" => Some(IdxOp::Sub), "*" => Some(IdxOp::Mul), _ => None,
+                        };
+                        if let Some(operation) = operation {
+                            let (index, carrier) = self.runtime_arithmetic_index(term, args, env, operation, span)?;
+                            return Ok(ast::Type::IndexOperand(Box::new(index), Box::new(carrier), span));
+                        }
+                    }
+                }
                 // Borrow observations and refinement erasure retain the
                 // existing mathematical index meaning of the observed value.
                 if matches!(&**head, ast::Term::Var(path) if path.quals.is_empty()
@@ -4016,6 +4072,25 @@ impl Checker {
     /// variables, numerals, mathematical arithmetic, and applications of
     /// named total definitions (the surface shares term syntax between
     /// kinds, types and values).
+    /// Source-shaped diagnostic only. This reading is never used as a type,
+    /// proposition, proof or constraint; runtime arithmetic may not establish
+    /// the mathematical equation displayed in a failed obligation.
+    fn diagnostic_term_index(&self, term: &ast::Term, env: &Env) -> Option<ITerm> {
+        match term {
+            ast::Term::Ann(value, _, _) => self.diagnostic_term_index(value, env),
+            ast::Term::App(head, args, _) if args.len() == 2 => {
+                if let ast::Term::Var(path) = &**head {
+                    let operation = match path.name.source_spelling() { "+" => Some(IdxOp::Add), "-" => Some(IdxOp::Sub), "*" => Some(IdxOp::Mul), _ => None };
+                    if let Some(operation) = operation {
+                        return Some(ITerm::Bin(operation, Box::new(self.diagnostic_term_index(&args[0], env)?), Box::new(self.diagnostic_term_index(&args[1], env)?)));
+                    }
+                }
+                self.idx_of_term(term, env).ok()
+            }
+            _ => self.idx_of_term(term, env).ok(),
+        }
+    }
+
     fn idx_of_term(&self, t: &ast::Term, env: &Env) -> Result<ITerm> {
         Ok(match t {
             ast::Term::Int(d, _) => ITerm::Num(d.clone()),
@@ -4079,8 +4154,9 @@ impl Checker {
                         return self.idx_of_term(&args[0], env);
                     }
                 }
-                // In index position `+`, `-` and `*` are mathematical
-                // arithmetic, never class methods (decision D29).
+                // This is a runtime expression crossing into index position.
+                // Its selected implementation must establish the equation;
+                // D29 applies directly only to expressions already in types.
                 if let ast::Term::Var(p) = &**f {
                     if p.quals.is_empty() {
                         let opc = match p.name.text.as_str() {
@@ -4091,11 +4167,7 @@ impl Checker {
                         };
                         if let Some(opc) = opc {
                             if args.len() == 2 {
-                                return Ok(ITerm::Bin(
-                                    opc,
-                                    Box::new(self.idx_of_term(&args[0], env)?),
-                                    Box::new(self.idx_of_term(&args[1], env)?),
-                                ));
+                                return self.runtime_arithmetic_index(t, args, env, opc, *span).map(|(index, _)| index);
                             }
                         }
                     }
@@ -4746,6 +4818,7 @@ impl Checker {
         if fuel == 0 {
             return None;
         }
+        if let Some(index) = self.reduce_checked_numeric_helper(gid, args, fuel) { return Some(index); }
         for (m, n, eq) in &self.top_eqs {
             if fn_id(m, n).0 != gid {
                 continue;
@@ -4934,9 +5007,10 @@ impl Checker {
                             _ => None,
                         };
                         if let (Some(opc), 2) = (opc, args.len()) {
-                            let a = self.reduce_eq_body(&args[0], bind, fuel - 1)?;
-                            let b = self.reduce_eq_body(&args[1], bind, fuel - 1)?;
-                            return Some(ITerm::Bin(opc, Box::new(a), Box::new(b)));
+                            // The checked Core reader above supplies arithmetic
+                            // equations. Raw overloaded source is never authority.
+                            let _ = opc;
+                            return None;
                         }
                     }
                 }

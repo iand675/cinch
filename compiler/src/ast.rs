@@ -56,6 +56,11 @@ impl Name {
         Name { text: text.into(), span, resolved: Arc::new(OnceLock::new()), intrinsic_type: None, local: None, scoped: None, declaration: None }
     }
 
+    /// Identity of a lexical syntax node, preserved through checker clones.
+    pub(crate) fn same_syntax_node(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.resolved, &other.resolved)
+    }
+
     /// A binding selected by the compiler's definition-site resolver.
     /// Source tokens and reified spellings cannot manufacture this metadata.
     pub fn resolved_binding(&self) -> Option<&ResolvedName> { self.resolved.get() }

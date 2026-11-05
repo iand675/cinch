@@ -8,6 +8,7 @@
 #[derive(Clone, Debug, PartialEq)]
 enum ComparisonReading {
     Argument(usize, Ty),
+    Arithmetic(Ty, ITerm),
     Ordering(Ty, usize, usize),
     Predicate(IdxCmp, Ty, usize, usize),
     Word(i64),
@@ -33,11 +34,20 @@ fn negate_comparison(cmp: IdxCmp) -> IdxCmp {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+struct ArithmeticCertificate {
+    dictionary: GlobalId,
+    slot: usize,
+    carrier: Ty,
+    operation: IdxOp,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 struct ComparisonCertificate {
     dictionary: GlobalId,
     slot: usize,
     carrier: Ty,
     comparison: IdxCmp,
+    arithmetic: Vec<ArithmeticCertificate>,
 }
 
 impl Checker {
@@ -57,7 +67,107 @@ impl Checker {
         let comparison = if self.instance_defs.iter().any(|d| d.id == id) {
             self.read_selected_comparison(&id, slot, ty)?
         } else { anticipated };
-        Some(ComparisonCertificate { dictionary: id, slot, carrier: ty.clone(), comparison })
+        Some(ComparisonCertificate { dictionary: id, slot, carrier: ty.clone(), comparison, arithmetic: Vec::new() })
+    }
+
+    /// Runtime operands may denote mathematical index arithmetic only when
+    /// the actual callable selected in this lexical scope computes it.
+    /// Type-position operators keep their independent mathematical meaning.
+    fn with_runtime_arithmetic<T>(&self, apply: impl FnOnce() -> Result<T>) -> Result<(T, Vec<ArithmeticCertificate>)> {
+        self.pending_runtime_arithmetic.borrow_mut().push(Vec::new());
+        let result = apply();
+        let certificates = self.pending_runtime_arithmetic.borrow_mut().pop().expect("arithmetic reading scope");
+        result.map(|value| (value, certificates))
+    }
+
+    fn use_runtime_arithmetic(&self, certificates: Vec<ArithmeticCertificate>, span: ast::Span) {
+        let mut used = self.used_runtime_arithmetic.borrow_mut();
+        for certificate in certificates {
+            if !used.iter().any(|(old, _, _)| old == &certificate) {
+                used.push((certificate, span, self.current_module.clone()));
+            }
+        }
+    }
+
+    fn required_term_index(&self, term: &ast::Term, env: &Env) -> Result<ITerm> {
+        let (index, certificates) = self.with_runtime_arithmetic(|| self.idx_of_term(term, env))?;
+        self.use_runtime_arithmetic(certificates, term.span());
+        Ok(index)
+    }
+
+    fn read_selected_arithmetic(&self, id: &GlobalId, slot: usize, carrier: &Ty, operation: IdxOp) -> bool {
+        let Some(implementation) = self.closed_comparison_method(id, slot) else { return false };
+        let arguments = vec![ComparisonReading::Argument(0, carrier.clone()), ComparisonReading::Argument(1, carrier.clone())];
+        let actual = self.read_comparison_call(implementation, arguments, &mut 4096, &mut Vec::new());
+        let expected = ITerm::Bin(operation, Box::new(ITerm::Var("$arithmetic:0".into())), Box::new(ITerm::Var("$arithmetic:1".into()))).normalize();
+        matches!(actual, Some(ComparisonReading::Arithmetic(ref ty, ref expression)) if ty == carrier && expression.normalize() == expected)
+    }
+
+    fn runtime_arithmetic_index(&self, term: &ast::Term, arguments: &[ast::Term], env: &Env, operation: IdxOp, span: ast::Span) -> Result<(ITerm, Ty)> {
+        let refusal = || Error::at(span, "runtime arithmetic needs an actual checked mathematical implementation before it can appear in a dependent type or refinement fact");
+        let ast::Term::App(head, _, _) = term else { return Err(refusal()) };
+        let ast::Term::Var(path) = &**head else { return Err(refusal()) };
+        let scope = env.locals.iter().map(|(_, local, _)| *local).collect::<Vec<_>>();
+        let dictionaries = env.dicts.iter().map(|(local, _)| *local).collect::<Vec<_>>();
+        let reading = self.runtime_index_readings.iter().rev().find(|reading|
+            reading.name.same_syntax_node(&path.name) && reading.locals == scope && reading.dictionaries == dictionaries).ok_or_else(refusal)?;
+        let carrier = self.checked_runtime_arithmetic(reading, operation).ok_or_else(refusal)?;
+        Ok((ITerm::Bin(operation, Box::new(self.idx_of_term(&arguments[0], env)?), Box::new(self.idx_of_term(&arguments[1], env)?)), carrier))
+    }
+
+    fn checked_runtime_arithmetic(&self, reading: &RuntimeIndexReading, operation: IdxOp) -> Option<Ty> {
+        let result = self.uni.zonk(&reading.carrier);
+        let result = self.refine_base(&result).unwrap_or(result);
+        if !matches!(result, Ty::Nat | Ty::Int) { return None; }
+        let head = &reading.core;
+        let symbolic = vec![ComparisonReading::Argument(0, result.clone()), ComparisonReading::Argument(1, result.clone())];
+        let actual = match head {
+            ECore::DictProj(dictionary, slot, _, _) => {
+                let implementation = match &**dictionary {
+                    ECore::Hole(id) => {
+                        let want = self.wants.iter().find(|want| want.id == *id)?;
+                        let wanted = self.uni.zonk_class(&want.class);
+                        if wanted.args.iter().any(|ty| !self.uni.free_metas(ty).is_empty()) { return None; }
+                        let mut resolver = DictionaryResolver { checker: self, uni: self.uni.clone(), transfers: Vec::new() };
+                        let Solved(DictExpr::Instance(id, contexts, types)) = resolver.solve(&wanted, &want.scope, 0, want.span).ok()? else { return None };
+                        if !contexts.is_empty() || !types.is_empty() { return None; }
+                        if !self.instance_defs.iter().any(|instance| instance.id == id) {
+                            let mut pending = self.pending_runtime_arithmetic.borrow_mut();
+                            let certificates = pending.last_mut()?;
+                            let certificate = ArithmeticCertificate { dictionary: id, slot: *slot, carrier: result.clone(), operation };
+                            if !certificates.contains(&certificate) { certificates.push(certificate); }
+                            return Some(result);
+                        }
+                        self.closed_comparison_method(&id, *slot)?.clone()
+                    }
+                    ECore::InstDict(id, contexts, types, _) if contexts.is_empty() && types.is_empty() => self.closed_comparison_method(id, *slot)?.clone(),
+                    _ => return None,
+                };
+                self.read_comparison_call(&implementation, symbolic, &mut 4096, &mut Vec::new())
+            }
+            ECore::Prim(primitive) => comparison_primitive(*primitive, &symbolic),
+            ECore::Global(id, types) if types.is_empty() => self.read_comparison_call(id, symbolic, &mut 4096, &mut Vec::new()),
+            _ => None,
+        };
+        let expected = ITerm::Bin(operation, Box::new(ITerm::Var("$arithmetic:0".into())), Box::new(ITerm::Var("$arithmetic:1".into()))).normalize();
+        if !matches!(actual, Some(ComparisonReading::Arithmetic(ref carrier, ref expression)) if *carrier == result && expression.normalize() == expected) { return None; }
+        Some(result)
+    }
+
+    /// Named runtime helpers reduce through their actual checked Core,
+    /// whose dictionary holes are already filled. Source syntax alone
+    /// cannot certify an overloaded operation after its want scope ends.
+    fn reduce_checked_numeric_helper(&self, id: &str, arguments: &[ITerm], fuel: u32) -> Option<ITerm> {
+        let id = GlobalId(id.into());
+        let (parameters, body) = self.erasure_bodies.get(&id)?;
+        if parameters.len() != arguments.len() { return None; }
+        let locals = parameters.iter().zip(arguments).map(|(parameter, argument)| {
+            let carrier = self.uni.zonk(self.local_tys.get(parameter)?);
+            let carrier = self.refine_base(&carrier).unwrap_or(carrier);
+            matches!(carrier, Ty::Nat | Ty::Int).then(|| (*parameter, ComparisonReading::Arithmetic(carrier, argument.clone())))
+        }).collect::<Option<HashMap<_, _>>>()?;
+        let result = self.read_comparison_core(body, &locals, &mut (fuel as usize * 64), &mut vec![id])?;
+        match result { ComparisonReading::Arithmetic(_, expression) => Some(expression.normalize()), _ => None }
     }
 
     fn read_selected_comparison(&self, id: &GlobalId, slot: usize, ty: &Ty) -> Option<IdxCmp> {
@@ -84,11 +194,22 @@ impl Checker {
 
     fn check_used_comparisons(&self) -> Result<()> {
         for (certificate, span, module) in self.used_comparisons.borrow().iter() {
+            for arithmetic in &certificate.arithmetic { self.check_arithmetic_certificate(arithmetic, *span, module)?; }
             if self.read_selected_comparison(&certificate.dictionary, certificate.slot, &certificate.carrier) != Some(certificate.comparison) {
                 return Err(Error::at(*span, format!(
                     "a refinement obligation cites a comparison fact whose actual selected implementation {} at slot {} does not establish {:?} over {} (in {module})",
                     certificate.dictionary.0, certificate.slot, certificate.comparison, certificate.carrier)));
             }
+        }
+        for (certificate, span, module) in self.used_runtime_arithmetic.borrow().iter() {
+            self.check_arithmetic_certificate(certificate, *span, module)?;
+        }
+        Ok(())
+    }
+
+    fn check_arithmetic_certificate(&self, certificate: &ArithmeticCertificate, span: ast::Span, module: &str) -> Result<()> {
+        if !self.read_selected_arithmetic(&certificate.dictionary, certificate.slot, &certificate.carrier, certificate.operation) {
+            return Err(Error::at(span, format!("a dependent index or refinement obligation cites runtime arithmetic whose actual selected implementation {} at slot {} does not establish {:?} over {} (in {module})", certificate.dictionary.0, certificate.slot, certificate.operation, certificate.carrier)));
         }
         Ok(())
     }
@@ -127,6 +248,7 @@ impl Checker {
         Some(match body {
             ECore::Var(id) => locals.get(id)?.clone(),
             ECore::Int(value) => R::Word(*value),
+            ECore::ConstBig { nat, digits } => R::Arithmetic(if *nat { Ty::Nat } else { Ty::Int }, ITerm::Num(digits.clone())),
             ECore::Bool(value) => R::Bool(*value),
             ECore::Prim(op) => R::Primitive(*op),
             ECore::Global(id, actuals) if actuals.is_empty() => {
@@ -184,6 +306,24 @@ fn comparison_primitive(op: PrimOp, arguments: &[ComparisonReading]) -> Option<C
         CmpOp::Eq => IdxCmp::Eq, CmpOp::Ne => IdxCmp::Ne, CmpOp::Lt => IdxCmp::Lt,
         CmpOp::Le => IdxCmp::Le, CmpOp::Gt => IdxCmp::Gt, CmpOp::Ge => IdxCmp::Ge,
     };
+    let numeric = |value: &R, carrier: &Ty| match value {
+        R::Argument(slot, ty) if ty == carrier => Some(ITerm::Var(format!("$arithmetic:{slot}"))),
+        R::Arithmetic(ty, expression) if ty == carrier => Some(expression.clone()),
+        _ => None,
+    };
+    let arithmetic = match op {
+        PrimOp::Nat(NatOp::Add) => Some((Ty::Nat, IdxOp::Add)),
+        PrimOp::Nat(NatOp::Sub) => Some((Ty::Nat, IdxOp::Sub)),
+        PrimOp::Nat(NatOp::Mul) => Some((Ty::Nat, IdxOp::Mul)),
+        PrimOp::Int(IntOp::Add) => Some((Ty::Int, IdxOp::Add)),
+        PrimOp::Int(IntOp::Sub) => Some((Ty::Int, IdxOp::Sub)),
+        PrimOp::Int(IntOp::Mul) => Some((Ty::Int, IdxOp::Mul)),
+        _ => None,
+    };
+    if let (Some((carrier, operation)), [left, right]) = (arithmetic, arguments) {
+        let expression = ITerm::Bin(operation, Box::new(numeric(left, &carrier)?), Box::new(numeric(right, &carrier)?)).normalize();
+        return Some(R::Arithmetic(carrier, expression));
+    }
     match (op, arguments) {
         (PrimOp::Nat(NatOp::Cmp), [R::Argument(a, Ty::Nat), R::Argument(b, Ty::Nat)]) => Some(R::Ordering(Ty::Nat, *a, *b)),
         (PrimOp::Int(IntOp::Cmp), [R::Argument(a, Ty::Int), R::Argument(b, Ty::Int)]) => Some(R::Ordering(Ty::Int, *a, *b)),

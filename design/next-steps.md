@@ -1,5 +1,47 @@
 # Next steps (as of 2026-11-05)
 
+## Native runtime arithmetic retains actual implementation authority (2026-11-05)
+
+Runtime expressions crossing into dependent indices or refinement facts now
+retain their checked syntax identity, lexical scope, selected callable and
+numeric carrier. Only the actual checked mathematical implementation supplies
+an arithmetic equation. Type-position operators keep their mathematical meaning.
+Named helper reduction reads checked Core instead of treating overloaded source
+syntax as an equation. Retained call records store the callable alone, avoiding
+copies of large nested argument trees.
+
+A forward operator can be read by a dependent argument or cited proof fact only
+with a deferred certificate, verified against its completed actual body before
+acceptance. Optional plain runtime argument readings introduce no such assumption.
+Arbitrary ordinary dispatch remains valid. Machine arithmetic remains opaque to
+mathematical proofs; all original overflow assertions and source-shaped failed
+obligation diagnostics are preserved.
+
+All 16 complete affected groups pass: 333 tests, all test targets typecheck,
+all 43 unchanged c8d6 compiler modules check, and 135 leak reports are zero.
+The 185-test library replay enables debug ownership verification and 32M RC/leak
+checks. Eight new controls cover actual arithmetic bodies, annotations/nesting,
+dependent arguments, lexical dictionaries, ordinary runtime dispatch, mathematical
+type syntax, contextual Int literals and checked helper equations. All nine
+original comparison controls and every other existing assertion remain.
+The original larger-input counterexample is replayed: normal addition exits 0
+with zero leaks; altered addition is rejected at the first affected byte-buffer
+proof, and produces no accepted executable. See
+`bootstrap/current-native-arithmetic-results.json`.
+
+The separate unpublished Cinch candidate now also checks actual method owner,
+name, slot, class arguments and factory target. Its all-43 source gate, all three
+semantic controls and original instance-resolution guard matrix pass. Remaining
+complete groups and a fresh exporter run continue. Imported branch-precondition
+failures expose missing portable method roots: the current library interfaces
+carry Nat `<`, but not `<=`, `>`, `>=` or addition. Their actual method bodies must
+be exported with validated dependency/slot association before those facts can
+be used; class identities or slots cannot stand in for an implementation.
+
+Fresh complete matching Native/self-built/auxiliary suites, original API and
+100-target coverage, remaining language features and Acceptance 5 stay open.
+The c8d6 four-stage fixed point and explicit seed/provider pins are unchanged.
+
 ## Stage3 test inputs follow the entry import closure (2026-11-05)
 
 The portable test adapter now inventories source headers and bundles complete

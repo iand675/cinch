@@ -1928,6 +1928,14 @@ pub(crate) struct UnitInst {
     pub inst_name: String,
 }
 
+struct RuntimeIndexReading {
+    name: ast::Name,
+    locals: Vec<LocalId>,
+    dictionaries: Vec<LocalId>,
+    core: ECore,
+    carrier: Ty,
+}
+
 #[derive(Clone)]
 struct Want {
     id: usize,
@@ -2972,6 +2980,9 @@ struct Checker {
     /// Checked bodies retained for termination checks of computations inside
     /// erased evidence. A pure arrow alone grants no termination authority.
     erasure_bodies: HashMap<GlobalId, (Vec<LocalId>, ECore)>,
+    pending_runtime_arithmetic: RefCell<Vec<Vec<ArithmeticCertificate>>>,
+    used_runtime_arithmetic: RefCell<Vec<(ArithmeticCertificate, ast::Span, String)>>,
+    runtime_index_readings: Vec<RuntimeIndexReading>,
     comparison_facts: HashMap<LocalId, Vec<ComparisonCertificate>>,
     used_comparisons: RefCell<Vec<(ComparisonCertificate, ast::Span, String)>>,
     pending_erasure_checks: Vec<(String, ast::Span, ECore)>,
@@ -3627,6 +3638,9 @@ impl Checker {
             pending_refs: Vec::new(),
             logical_refs: HashMap::new(),
             erasure_bodies: HashMap::new(),
+            pending_runtime_arithmetic: RefCell::new(Vec::new()),
+            used_runtime_arithmetic: RefCell::new(Vec::new()),
+            runtime_index_readings: Vec::new(),
             comparison_facts: HashMap::new(),
             used_comparisons: RefCell::new(Vec::new()),
             pending_erasure_checks: Vec::new(),
