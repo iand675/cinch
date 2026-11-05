@@ -16,6 +16,7 @@ module Bootstrap.Global where
   export globals-body-context, globals-bodies, globals-guarded-bodies, GlobalGuardedBody
   export CoreGlobals, add-global, globals-closed, close-globals, global-definition-closed, globals-declarations
   export close-globals-with-definitions
+  export constructor-pattern-supported
 
   data CoreGlobal where
     GlobalValue :: String -> String -> Scheme -> CoreGlobal
@@ -236,9 +237,36 @@ module Bootstrap.Global where
     None -> False
   bind-local :: Nat -> Scheme -> List (Nat, Scheme) -> Option (List (Nat, Scheme))
   bind-local id sc locals = case lookup-local id locals of Some prior -> None; None -> Some (Cons (id, sc) locals)
+  -- A pattern cannot instantiate a hidden constructor parameter as a
+  -- convenient concrete type. Ordinary family parameters are determined by
+  -- direct result slots. Existentials and computed indices need explicit
+  -- scoped openings/refinement evidence before elimination is admitted.
+  constructor-result :: UType -> UType
+  constructor-result ty = case ty of
+    UFun argument result -> constructor-result result
+    UFunEff argument effects result -> constructor-result result
+    UProofFun predicate effects result -> constructor-result result
+    UPi id name argument effects result -> constructor-result result
+    URequire predicates body -> constructor-result body
+    other -> ty
+  constructor-result-parameters :: UType -> List Nat
+  constructor-result-parameters ty = case ty of
+    UApp head actual -> constructor-result-parameters head <> (case actual of
+      UBound id name kind -> [id]
+      UIndex carrier (IBound id name) -> [id]
+      other -> Nil)
+    other -> Nil
+  constructor-visible-parameters :: List Quant -> List Nat -> Bool
+  constructor-visible-parameters parameters visible = case parameters of
+    Nil -> True
+    Cons parameter rest -> has-id (quant-id parameter) visible && constructor-visible-parameters rest visible
+  constructor-pattern-supported :: Scheme -> Bool
+  constructor-pattern-supported sc = scheme-closed sc
+    && constructor-visible-parameters (scheme-params sc) (constructor-result-parameters (constructor-result (scheme-body sc)))
+
   constructor-reference :: List CoreGlobal -> String -> List UType -> UType -> Bool
   constructor-reference globals name actuals ty = case lookup-base-global name globals of
-    Some (GlobalValue symbol role sc) -> same role "constructor" && (case instantiate-contract sc actuals of Some (expected, Nil) -> equal-type ty expected; other -> False)
+    Some (GlobalValue symbol role sc) -> same role "constructor" && constructor-pattern-supported sc && (case instantiate-contract sc actuals of Some (expected, Nil) -> equal-type ty expected; other -> False)
     other -> False
   pattern-locals :: List CoreGlobal -> List (Nat, Scheme) -> CorePattern -> Option (List (Nat, Scheme))
   pattern-locals globals locals pattern = case pattern of

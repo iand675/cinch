@@ -1,0 +1,139 @@
+{
+  "compiler_source_sha256": "4507111e3092b40354e6714464574729313c7e9ffe5a12b3d872ca7303efacc5",
+  "filtered": 0,
+  "focused_receipt": {
+    "compiler_object_gate": {
+      "adapter_tests": 8,
+      "binary_sha256": "c6297a6244ab8b1799befcc1b08bbd05034c7a4b27ea0853065af0e866fb193e",
+      "client_heap_limit": "32M",
+      "client_rc_debug": true,
+      "compiler_heap_limit": "256M",
+      "compiler_input_cases": 4,
+      "compiler_modules_checked": 43,
+      "compiler_rc_debug": false,
+      "compiler_sha256": "a6356ef9afd81c80b28187bf058629c7271cbf0ebb4939c25421984b453dfbbe",
+      "compiler_source_sha256": "4507111e3092b40354e6714464574729313c7e9ffe5a12b3d872ca7303efacc5",
+      "full_goal_complete": false,
+      "interface_closure": 60,
+      "layout_words": 4224,
+      "library_units": 1842,
+      "log_sha256": "30fa426ddd6dde70293a33314e69a0673de956717c34b5620289ba8a19d44171",
+      "metadata_sha256": "8c9851ec35b1412a7650953b3bcedac9417a1c7d5bd466bccf355b9f86f774a8",
+      "method_families": 26,
+      "native_rlib_sha256": "c2e3b862e212fe0d8557461ea9160e97ab23aa7d44d37113f1e2f855eec5c394",
+      "new_units": 7,
+      "object_round_trip_tests": 1,
+      "object_sha256": "e2bddac9f26372ba5c2bf361087650fbec89860df066f38520510f0b6463db64",
+      "real_new_public_and_closure_symbols": 14,
+      "scope": "Actual Cinch CLI emits checked first-order function and concrete constructor bridges, exact final nominal/layout/method-family facts, checked source interfaces and a real closed dependency object combining authenticated library-only Native22 bytes with Cinch-generated code. Every original provider physical symbol/accessor and seven actual new units are independently confirmed in the final object. IR and object FNV and authenticated SHA identities verified, exact provider/object/final-consumer layout prefixes preserved, all43 actual compiler source bytes match the staged driver input set. A second real Cinch invocation reloads the object and interfaces and the linked array/owned-bignum/ADT client passes32M with poisoning and zero leaks. Private inventory grants no source name and failed rebuild invalidates prior metadata. Compiler uses normal reclamation with leak checks: poisoning quarantines cumulative parser allocations and is retained for the client, not the large compiler job. Reached source dictionaries are an explicit refusal; generic representation-root CLI requests, complete corresponding legacy runtime/whole15array/finalself-built/fullNative/originalAPI105/Acceptance5 gates remain open. No claim that this is the final self-built compiler or that the whole goal is complete.",
+      "seed_native_source_sha256": "22c91cf6c1855b049207612e9d94630850e880d5a49ea3e2c57c92aff7fdbe88",
+      "source_sha256": "480b1f86bcb4c16877c35b511bc97ab111e90a8dcefe0d8c391d811f58daf589",
+      "status": "passed-actual-cinch-library-object-round-trip",
+      "tests": 9,
+      "verified_at": "2026-11-05T22:14:18.802357+00:00",
+      "whole_groups": 2,
+      "zero_leak_reports": 5
+    },
+    "compiler_source_sha256": "4507111e3092b40354e6714464574729313c7e9ffe5a12b3d872ca7303efacc5",
+    "counterexample": {
+      "checker_sha256": "cdc0d0aa75cbb2e729ea2657a1fbc76a6a26ee7cf647769c6f8cf1b6cb317e58",
+      "compiler_source_sha256": "038faba053d76f5297d7996e9032066e10994dd69460b6f500a2ddb2645cfa58",
+      "full_goal_complete": false,
+      "pid": 65180,
+      "program_sha256": "5335d439adb79dd1589f33b1cc55e624afe737da074e493704e8faaf0039c9ec",
+      "rows": [
+        {
+          "exit_code": 2,
+          "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+          "nonce": 0,
+          "status": "confirmed-unexpected-hidden-payload-acceptance"
+        },
+        {
+          "exit_code": 2,
+          "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+          "nonce": 1,
+          "status": "confirmed-unexpected-hidden-payload-acceptance"
+        },
+        {
+          "exit_code": 2,
+          "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+          "nonce": 17,
+          "status": "confirmed-unexpected-hidden-payload-acceptance"
+        },
+        {
+          "exit_code": 2,
+          "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+          "nonce": 129,
+          "status": "confirmed-unexpected-hidden-payload-acceptance"
+        },
+        {
+          "exit_code": 2,
+          "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+          "nonce": 4096,
+          "status": "confirmed-unexpected-hidden-payload-acceptance"
+        }
+      ],
+      "scope": "Actual old038f Cinch Core checker accepts the forged Exists->Int payload extraction in every fresh nonce scope. The positive polymorphic construction control passes first; verdict2 is the missing rejection, not a compiler/process/setup failure. Real explicit-source frontend still refuses constructor-local quantifiers, and runtime lowering remains separate. This is a prerequisite checker repair for existential support, not a claim of a reachable current source execution exploit.",
+      "status": "confirmed-constructor-hidden-parameter-checker-gap"
+    },
+    "filtered": 0,
+    "full_goal_complete": false,
+    "ignored": 0,
+    "log_sha256": "3c9adb06af4b3d029dd47148d4f045079a3002974dc3de03694a70bd36d48198",
+    "native_source_sha256": "6b567529032465cde863607185da47aa7d5f9e5ecd99a596158174fd7efa6aa7",
+    "negative_controls": [
+      "hidden payload cannot become Int",
+      "hidden payload cannot become Bool",
+      "case alternative cannot choose hidden payload type"
+    ],
+    "new_nonce_scopes": 5,
+    "new_scope_controls": 25,
+    "positive_controls": [
+      "polymorphic constructor introduction",
+      "ordinary parameterized constructor pattern"
+    ],
+    "schema": 1,
+    "scope": "Actual compiled Cinch independent Core typing/global checks reject constructor pattern instantiations whose universal parameters are not determined by direct result slots. Original global-reference controls and25 added scope controls pass at fresh unbounded IDs with32M poisoning and asserted zero leaks. Old038f accepts the forged hidden-payload extraction in all5 scopes; original source frontend still refuses existential constructors, so this is not claimed as a current source execution exploit. Computed indices/existentials require explicit scoped opening/refinement support before elimination; constructor introduction and regular patterns remain valid. Exact43module Native22 compiler build plus actual Cinch object/adapter9tests pass. Broader nominal/task groups remain separate and must pass before publication; original APIs/105-target acceptance and full bootstrap goal remain open.",
+    "source_sha256": "56182dd5da5e18840df117406f3991e449ac8dbe7d0e3c69c0419f184969ad1d",
+    "status": "passed-focused-constructor-scope-guard",
+    "tests": 2,
+    "verified_at": "2026-11-05T22:19:17.379123+00:00",
+    "whole_groups": 1
+  },
+  "full_goal_complete": false,
+  "ignored": 0,
+  "native_source_sha256": "6b567529032465cde863607185da47aa7d5f9e5ecd99a596158174fd7efa6aa7",
+  "object_zero_leak_reports": 5,
+  "runs": [
+    {
+      "log_sha256": "3c9adb06af4b3d029dd47148d4f045079a3002974dc3de03694a70bd36d48198",
+      "path": "/tmp/cinch-constructor-scope-repair-2",
+      "source_sha256": "56182dd5da5e18840df117406f3991e449ac8dbe7d0e3c69c0419f184969ad1d",
+      "target": "bootstrap_globals",
+      "tests": 2
+    },
+    {
+      "log_sha256": "988cc1ac6869a44ea5bcca8b23b134998e9903d9b7ac425cdfb3849c9d1a8668",
+      "path": "/tmp/cinch-constructor-scope-regressions-1",
+      "source_sha256": "56182dd5da5e18840df117406f3991e449ac8dbe7d0e3c69c0419f184969ad1d",
+      "target": "bootstrap_nominals",
+      "tests": 1
+    },
+    {
+      "log_sha256": "2a9a50b0725cbe5c72f0ab12b65474ad8f8f9de0a0334d3b1997cd50330bb546",
+      "path": "/tmp/cinch-constructor-scope-runtime-regressions-1",
+      "source_sha256": "56182dd5da5e18840df117406f3991e449ac8dbe7d0e3c69c0419f184969ad1d",
+      "target": "bootstrap_runtime_ir",
+      "tests": 1
+    }
+  ],
+  "runtime_zero_leak_reports": 136,
+  "schema": 1,
+  "scope": "Five complete affected groups and13 Rust tests pass: original global controls plus25 hidden-type scope controls; unchanged complete nominal/import group; unchanged complete runtime group including task/capture/cancellation, dictionary, bignum/ADT/closure and C-ABI cases; exact43-module Native22 compiler/object/adapter gate. All136 exposed runtime reports and5 object-client reports have zero leaks. Old038f independently accepts the forged Exists->Int extraction on all5 nonce scopes. Constructor introduction and ordinary direct result-parameter patterns stay valid. Hidden/computed-index constructor parameters cannot be chosen by a retained pattern annotation; proper existential/indexed elimination requires explicit scoped opening/refinement evidence. Current source frontend still refuses local constructor quantifiers, so no current source execution exploit is claimed or new existential feature granted. Nominal coordinator1 retained an infrastructure failure for a nonexistent guessed task target; its complete passing nominal result is preserved and the actual whole runtime target is independently audited here. Matching final bootstrap/full suites, original100 plus5 targets and Acceptance5 remain open.",
+  "scope_controls": 25,
+  "scope_nonce_runs": 5,
+  "status": "passed-constructor-pattern-scope-guard",
+  "tests": 13,
+  "verified_at": "2026-11-05T22:31:04.133468+00:00",
+  "whole_groups": 5
+}

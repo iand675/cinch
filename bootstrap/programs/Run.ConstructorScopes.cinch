@@ -1,0 +1,58 @@
+-- Constructor introduction instantiates universals. Eliminating an unknown
+-- hidden type must not choose an arbitrary concrete type for its payload.
+module Main where
+  import Bootstrap.Type
+  import Bootstrap.Core
+  import Bootstrap.Global
+  import Bootstrap.Typing
+  import Text.Lex (Span)
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read)
+
+  sp :: Span
+  sp = Span 0 0 1 1
+  int :: UType
+  int = UCon "Int" KType
+  bool :: UType
+  bool = UCon "Bool" KType
+  exists :: UType
+  exists = UCon "Exists" KType
+  box :: UType -> UType
+  box ty = UApp (UCon "Box" (KFun KType KType)) ty
+  definition :: String -> UType -> CorePattern -> CoreTerm -> CoreDefinition
+  definition name ty pattern body = MkCoreDefinition sp name (mono ty) Nil Nil Nil [MkCoreClause sp [pattern] body]
+  unpack-pattern :: Nat -> UType -> CorePattern
+  unpack-pattern id payload = CPConstructor sp exists "pack" [payload] (UFun payload exists)
+    (CPField sp (CPVar sp payload id "hidden") (CPDone sp))
+  checks :: Nat -> List Bool
+  checks id =
+    let a = UBound id "a" KType in
+    let q = MkQuant id "a" KType False in
+    let pack = MkScheme [q] (UFun a exists) in
+    let boxed = MkScheme [q] (UFun a (box a)) in
+    let globals = [GlobalValue "pack" "constructor" pack, GlobalValue "box" "constructor" boxed,
+      GlobalValue "make" "value" (mono (UFun int exists)),
+      GlobalValue "read" "value" (mono (UFun exists int)),
+      GlobalValue "read-bool" "value" (mono (UFun exists bool)),
+      GlobalValue "read-box" "value" (mono (UFun (box int) int)),
+      GlobalValue "case-read" "value" (mono (UFun exists int))] in
+    case close-typing-context [("Int", KType), ("Bool", KType), ("Exists", KType), ("Box", KFun KType KType)] globals of
+      None -> [False]
+      Some context ->
+        let local = id + 10 in
+        let input = id + 20 in
+        let regular = CPConstructor sp (box int) "box" [int] (UFun int (box int)) (CPField sp (CPVar sp int local "payload") (CPDone sp)) in
+        let wrapped = CCase sp int (CLocal sp exists input "input" Nil) (CAlternative sp (unpack-pattern local int) (CLocal sp int local "hidden" Nil) (CAlternativesEnd sp)) in
+        [ typing-definition-closed context (definition "make" (UFun int exists) (CPVar sp int local "x")
+            (CApply sp exists (CUse sp (UFun int exists) "pack" "constructor" [int]) (CLocal sp int local "x" Nil)))
+        , not (typing-definition-closed context (definition "read" (UFun exists int) (unpack-pattern local int) (CLocal sp int local "hidden" Nil)))
+        , not (typing-definition-closed context (definition "read-bool" (UFun exists bool) (unpack-pattern local bool) (CLocal sp bool local "hidden" Nil)))
+        , typing-definition-closed context (definition "read-box" (UFun (box int) int) regular (CLocal sp int local "payload" Nil))
+        , not (typing-definition-closed context (definition "case-read" (UFun exists int) (CPVar sp exists input "input") wrapped))
+        ]
+  verdict :: Int -> List Bool -> Int
+  verdict number values = case values of Nil -> 0; Cons True rest -> verdict (number + 1) rest; Cons False rest -> number
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case fs-read (path-from-string "nonce.txt") of
+    Err error -> 90
+    Ok bytes -> verdict 1 (checks (340282366920938463463374607431768211456 + bytes-len bytes))
