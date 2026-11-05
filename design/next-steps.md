@@ -1,5 +1,37 @@
 # Next steps (as of 2026-11-05)
 
+## Quantified proofs keep value identities; checked serializer follows binder scope (2026-11-05)
+
+The published Rust checker admits quantified values in signature predicates only
+after checking their kinds. Function types, result promises and body indices
+share the quantified parameter's actual local identity. Pattern names cannot
+capture that identity. Named proofs and refined argument facts use the same
+lexical scope when discharging obligations, including through strict aliases.
+
+All eleven complete affected groups pass:141 tests, no ignored or filtered
+cases, all Native test targets compiling and all43 current compiler modules
+checking. Positive quantified, refined-input, alias and shadow cases remain;
+unknown names, wrong kinds, stronger promises and unproved pattern capture are
+refused. See `bootstrap/current-native-quantified-value-results.json`.
+
+The current Cinch source is5cea. Its serializer preserves source binder names
+in resolved contracts and uses checked binder positions in display schemes.
+Open row contracts stay explicitly unresolved; closed region callbacks retain
+their checked contracts. The actual5cea exporter separately passes43 controls
+and seven original metadata assertion blocks, including ownership, refinements,
+preconditions and region effects. See `bootstrap/current-cinch-serializer-results.json`.
+The exact TypeSyntax diagnostic assertion includes its existing obligation
+suffix. Original tests and declarations remain; test library roots use their
+exact tested ordering.
+
+The complete Native57 sweep is running on this exact production code and source.
+Earlier29775 nineteen-group and c8d6 fixed-point results retain their source
+scope. Explicit seed and library-provider pins remain25b7e82/ABI6 until a deliberate
+refresh; they do not silently select the development Rust compiler. A fresh
+matching staged chain, complete final-Stage3 suites, original API coverage and
+Acceptance5 remain open. Separate intrinsic-alias and faster loader candidates
+are still private and do not form part of this checkpoint.
+
 ## Tuple-layout Option tests receive their observed library variant (2026-11-05)
 
 The explicit test library roots now include `Data.Option.is-none[T]` as well

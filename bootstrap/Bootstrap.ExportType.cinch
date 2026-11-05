@@ -9,7 +9,7 @@ module Bootstrap.ExportType where
   import Data.String
   import Text.Show (nat-to-string, int-to-string)
 
-  export export-global, export-type, export-scheme, export-value-scheme, export-kind
+  export export-global, export-type, export-scheme, export-value-scheme, export-display-scheme, export-kind
   export export-parameters, export-constructor-fields
 
   join :: List (Result String String) -> Result String String
@@ -207,16 +207,21 @@ module Bootstrap.ExportType where
   -- Portable syntax places it at signature scope, where the named Pi
   -- arguments still identify the exact variables used by each obligation.
   scheme-result :: List (Nat, String) -> UType -> Result String (String, List String)
-  scheme-result scope ty = case ty of
-    UPi id name domain row result -> let binder = argument-name name scope in let bound = Cons (id, binder) scope in
-      with-result [Ok "((", Ok binder, Ok " :: ", type-in scope domain, Ok ") ->", row-in bound row, Ok " "] (scheme-result bound result)
-    UFun domain result -> with-result [Ok "(", type-in scope domain, Ok " -> "] (scheme-result scope result)
-    UFunEff domain row result -> with-result [Ok "(", type-in scope domain, Ok " ->", row-in scope row, Ok " "] (scheme-result scope result)
+  scheme-result scope ty = result-in False scope 0 ty
+  -- Display argument positions follow checked identities. The same scope is
+  -- used for domains, effects and obligations, so renaming cannot capture a
+  -- quantified parameter or change which argument a predicate describes.
+  result-in :: Bool -> List (Nat, String) -> Nat -> UType -> Result String (String, List String)
+  result-in positions scope position ty = case ty of
+    UPi id name domain row result -> let binder = if positions then fresh-scoped-name (fresh-name "arg" position) scope else argument-name name scope in let bound = Cons (id, binder) scope in
+      with-result [Ok "((", Ok binder, Ok " :: ", type-in scope domain, Ok ") ->", row-in bound row, Ok " "] (result-in positions bound (position + 1) result)
+    UFun domain result -> with-result [Ok "(", type-in scope domain, Ok " -> "] (result-in positions scope (position + 1) result)
+    UFunEff domain row result -> with-result [Ok "(", type-in scope domain, Ok " ->", row-in scope row, Ok " "] (result-in positions scope (position + 1) result)
     URequire predicates body -> case body of
       UPi id name a row b -> Err "early dependent precondition cannot be moved across an argument"
       UFun a b -> Err "early precondition cannot be moved across an argument"
       UFunEff a row b -> Err "early effectful precondition cannot be moved across an argument"
-      other -> (case (separated scope ", " predicates, scheme-result scope body) of
+      other -> (case (separated scope ", " predicates, result-in positions scope position body) of
         (Ok conditions, Ok (value, rest)) -> Ok (value, Cons conditions rest)
         (Err error, other) -> Err error
         (other, Err error) -> Err error)
@@ -244,7 +249,7 @@ module Bootstrap.ExportType where
     Nil -> Ok ("", scope)
     Cons q rest -> let name = source-binder (fresh-name "q" (list-length scope)) (quant-name q) scope in
       (case (kind-in scope (quant-kind q), value-quantifiers (Cons (quant-id q, name) scope) rest) of
-        (Ok kind, Ok (more, bound)) -> Ok (string-concat-all [if quant-implicit q then "{" else "(", name, " :: ", kind, if quant-implicit q then "} " else ") ", more], bound)
+        (Ok kind, Ok (more, bound)) -> Ok (string-concat-all [if quant-implicit q then "{" else "(", name, " :: ", kind, if quant-implicit q then "}" else ")", if string-length more == 0 then "" else " ", more], bound)
         (Err error, other) -> Err error
         (other, Err error) -> Err error)
   value-requirements :: List (Nat, String) -> List (Nat, String) -> Nat -> List Requirement -> Result String String
@@ -254,9 +259,20 @@ module Bootstrap.ExportType where
       join [Ok name, Ok " :: ", application-in scope (requirement-type first),
         case rest of Nil -> Ok ""; more -> join [Ok ", ", value-requirements scope (Cons (0, name) used) (position + 1) more]]
   export-value-scheme :: Scheme -> Result String String
-  export-value-scheme scheme = case value-quantifiers Nil (scheme-params scheme) of
+  export-value-scheme scheme = value-scheme-in False scheme
+  has-preconditions :: UType -> Bool
+  has-preconditions ty = case ty of
+    UPi id name domain row result -> has-preconditions result
+    UFun domain result -> has-preconditions result
+    UFunEff domain row result -> has-preconditions result
+    URequire predicates body -> True
+    other -> False
+  export-display-scheme :: Scheme -> Result String String
+  export-display-scheme scheme = value-scheme-in (has-preconditions (scheme-body scheme)) scheme
+  value-scheme-in :: Bool -> Scheme -> Result String String
+  value-scheme-in positions scheme = case value-quantifiers Nil (scheme-params scheme) of
     Err error -> Err error
-    Ok (prefix, scope) -> case (value-requirements scope scope 0 (scheme-requirements scheme), scheme-result scope (scheme-body scheme)) of
+    Ok (prefix, scope) -> case (value-requirements scope scope 0 (scheme-requirements scheme), result-in positions scope 0 (scheme-body scheme)) of
       (Err error, other) -> Err error
       (other, Err error) -> Err error
       (Ok dictionaries, Ok (body, predicates)) ->

@@ -6754,7 +6754,13 @@ impl Checker {
             None
         };
         self.pending_refs.clear();
-        let (ty, ctx, map) = self.rigidify(scheme);
+        // A quantified value is a runtime parameter with one checked local
+        // identity. Allocate it before instantiating types and obligations,
+        // so equation-pattern spellings cannot capture its result contract.
+        let quantified_values: Vec<_> = scheme.val_params.iter()
+            .map(|(name, _)| (name.clone(), self.fresh_local())).collect();
+        self.quantified_value_locals.extend(quantified_values.iter().map(|(_, local)| *local));
+        let (ty, ctx, map) = self.rigidify_with_value_locals(scheme, &quantified_values);
         // The class-vector order: an instance method's list (the instance's
         // parameters, then its own), else the scheme's parameters' rigid
         // names. It is re-set before lowering, since a nested check (a
@@ -6842,8 +6848,8 @@ impl Checker {
         // Implicit value arguments (`forall (n :: Nat)`) are runtime
         // parameters bound by name (decision D29); proposition binders are
         // erased and take no runtime slot.
-        for (n, t) in &scheme.val_params {
-            let l = self.fresh_local();
+        for ((n, t), (_, local)) in scheme.val_params.iter().zip(&quantified_values) {
+            let l = *local;
             let syntax_name = self.syntax_implicit_values.get(&(self.current_module.clone(), name.into()))
                 .and_then(|names| names.iter().find(|name| name.text == *n)).cloned()
                 .unwrap_or_else(|| ast::Name::new(n, eqs[0].span));

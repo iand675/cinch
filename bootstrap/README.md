@@ -39,7 +39,18 @@ Each command freezes its compiler inputs once, so edits made during a
 stage build are picked up by the next command and cannot mix versions
 inside a bootstrap chain.
 
-The published actual-body compiler has source identity `29775cd` and explicit
+The current Cinch source is `5cea0ea`, with the checked binder-aware serializer
+and quantified-value identity repair in the development Rust compiler. All eleven
+affected complete groups pass141 tests, all43 compiler modules check and all
+Native test targets compile. The actual Cinch exporter separately passes43
+controls and seven original metadata assertion blocks. See
+[current quantified-value results](current-native-quantified-value-results.json)
+and [current serializer results](current-cinch-serializer-results.json).
+The full matching Native57 suite is running. Explicit seed/provider pins remain
+25b7e82/ABI6; a deliberate refresh and genuine current-source Stage1/2/3 chain,
+full final-stage suites and original API/Acceptance5 coverage remain required.
+
+The earlier actual-body compiler snapshot has source identity `29775cd` and explicit
 25b7e82 ABI6 seed and separate library-producer pins. All43 modules, all nineteen
 complete proof/interface groups,28 actual exporter controls and251 matching
 runtime/tooling/editor tests pass independently. See

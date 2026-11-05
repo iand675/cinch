@@ -17,6 +17,27 @@ use cinch::core::TargetProfile;
 use cinch::driver::{check_sources, driver_with_profile, run_source, Mode};
 use std::path::PathBuf;
 
+#[test]
+fn signature_preconditions_keep_quantified_value_parameters_in_scope() {
+    for (name, declaration) in [
+        ("quantified-value", "probe :: forall (limit :: Nat). using (x <= limit) => (x :: Nat) -> Nat\n  probe x = x"),
+        ("display-name-collision", "probe :: forall (arg0 :: Nat). using (arg0-r <= arg0) => (arg0-r :: Nat) -> Nat\n  probe arg0-r = arg0-r"),
+        ("quantified-only-context", "probe :: forall (limit :: Nat). using (limit > 0) => Nat -> Nat\n  probe x = x"),
+        ("quantified-result-proof", "probe :: forall (limit :: Nat). using (x <= limit) => (x :: Nat) -> refined (out <= limit) Nat\n  probe x = x"),
+        ("quantified-refined-argument", "probe :: forall (limit :: Nat). refined (value <= limit) Nat -> refined (out <= limit) Nat\n  probe x = unrefine x"),
+        ("quantified-refined-argument-alias", "probe :: forall (limit :: Nat). refined (value <= limit) Nat -> refined (out <= limit) Nat\n  probe x = let alias = x in unrefine alias"),
+        ("quantified-refined-argument-shadow", "probe :: forall (limit :: Nat). refined (value <= limit) Nat -> refined (out <= limit) Nat\n  probe limit = unrefine limit"),
+    ] {
+        let source = format!("module Main where\n  {declaration}\n  main :: Int\n  main = 0\n");
+        expect_checks(name, &source);
+    }
+    expect_err("unbound-precondition-value", "module Main where\n  probe :: forall (limit :: Nat). using (x <= missing) => (x :: Nat) -> Nat\n  probe x = x\n  main :: Int\n  main = 0\n", &["missing"]);
+    expect_err("wrong-quantified-kind", "module Main where\n  probe :: forall (limit :: Type). using (x <= limit) => (x :: Nat) -> Nat\n  probe x = x\n  main :: Int\n  main = 0\n", &["kind"]);
+    expect_err("quantified-premise-cannot-strengthen", "module Main where\n  probe :: forall (limit :: Nat). using (x <= limit) => (x :: Nat) -> refined (out < limit) Nat\n  probe x = x\n  main :: Int\n  main = 0\n", &["x < limit", "needs `Dec` evidence"]);
+    expect_err("quantified-refined-argument-cannot-strengthen", "module Main where\n  probe :: forall (limit :: Nat). refined (value <= limit) Nat -> refined (out < limit) Nat\n  probe x = let alias = x in unrefine alias\n  main :: Int\n  main = 0\n", &["needs `Dec` evidence"]);
+    expect_err("quantified-result-cannot-be-captured-by-pattern", "module Main where\n  probe :: forall (limit :: Nat). (x :: Nat) -> refined (out <= limit) Nat\n  probe limit = limit\n  main :: Int\n  main = 0\n", &["needs `Dec` evidence"]);
+}
+
 /// Assert that checking the program fails with errors containing every
 /// `needle`.
 fn expect_err(name: &str, src: &str, needles: &[&str]) {

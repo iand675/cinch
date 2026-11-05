@@ -1717,6 +1717,9 @@ pub(crate) struct Evidence {
     pub items: Vec<(String, PTerm, LocalId, Vec<String>)>,
     pub sorts: Vec<(String, IntSort)>,
     pub value_sorts: Vec<(LocalId, IntSort)>,
+    /// Lexical names for checked value identities at this evidence use.
+    /// Hidden identities retain their identity instead of borrowing a shadow.
+    pub visible_values: HashMap<LocalId, ITerm>,
     pub refined: Vec<PTerm>,
 }
 
@@ -3068,6 +3071,8 @@ struct Checker {
     /// and fields use lexical identities, so a shadow cannot retarget them.
     proof_pattern_equalities: HashMap<LocalId, ITerm>,
     proof_pattern_values: HashSet<LocalId>,
+    /// Runtime forall parameters already represented by identity in types.
+    quantified_value_locals: HashSet<LocalId>,
     /// Binders whose class is fixed without a type: dictionaries,
     /// capability evidence and markers.
     local_cls: HashMap<LocalId, crate::repr::Class>,
@@ -3675,6 +3680,7 @@ impl Checker {
             value_aliases: HashMap::new(),
             proof_pattern_equalities: HashMap::new(),
             proof_pattern_values: HashSet::new(),
+            quantified_value_locals: HashSet::new(),
             local_cls: HashMap::new(),
             local_origin: HashMap::new(),
             cur_tparams: Vec::new(),
@@ -4022,6 +4028,12 @@ impl Checker {
 
     fn evidence_in(&self, env: &Env) -> Evidence {
         let mut out = Evidence::default();
+        for (name, local, _) in &env.locals {
+            if env.lookup(name).is_some_and(|(active, _)| active == *local) {
+                let original = self.value_aliases.get(local).copied().unwrap_or(*local);
+                out.visible_values.insert(original, ITerm::Var(name.clone()));
+            }
+        }
         // Logical local identities remain scoped even if their source name
         // is shadowed. They are never ordinary source lookup bindings.
         for (_, local, scheme) in &env.locals {
@@ -4073,7 +4085,8 @@ impl Checker {
                     if fv.iter().all(|v| {
                         *v == rv.binder || (!later.contains(v.as_str()) && env.lookup(v).is_some())
                     }) {
-                        out.refined.push(rv.pred.subst(&rv.binder, &ITerm::Var(name.clone())));
+                        let fact = rv.pred.subst(&rv.binder, &ITerm::Var(name.clone()));
+                        out.refined.push(fact.subst_local_values(&out.visible_values));
                     }
                 }
                 continue;
@@ -4317,7 +4330,9 @@ impl Checker {
         // Arguments have now solved the callee's actual instantiation. Resolve
         // its metadata before matching scoped facts; this never specializes
         // an unknown parameter or discards a type/dictionary identity.
-        let obl = &self.uni.resolve_prop(obl);
+        let resolved = self.uni.resolve_prop(obl);
+        let normalized = resolved.subst_local_values(&evidence.visible_values);
+        let obl = &normalized;
         let mut ov: Vec<String> = Vec::new();
         obl.free_vars(&mut ov);
         let mut forged: Option<(String, PTerm)> = None;
@@ -9439,11 +9454,11 @@ impl Checker {
                     self.index_header_context.borrow_mut().pop();
                     self.index_carriers.borrow_mut().truncate(carriers_start);
                     let t = t?;
-                    // A signature's refinement obligations name the
-                    // signature's dependent arguments (`using (Sorted xs,
+                    // Refinement obligations can name quantified values or
+                    // the signature's dependent arguments (`using (Sorted xs,
                     // Sorted ys)` over `(xs :: T) -> (ys :: T) -> ...`):
                     // the caller discharges one per named argument (the
-                    // `Dec` evidence path). The names normalize to
+                    // `Dec` evidence path). Dependent argument names normalize to
                     // positional binders (`$a{i}` names the i-th
                     // argument, counting every arrow, since the call
                     // site's arguments are positional), because a
@@ -9463,32 +9478,6 @@ impl Checker {
                                 cur_ast = res;
                             }
                             _ => break,
-                        }
-                    }
-                    for o in &obligs {
-                        if let PropOblig::Pred(p) = o {
-                            let mut fv = Vec::new();
-                            p.free_vars(&mut fv);
-                            for v in fv {
-                                if v.is_empty() || !arg_binders.contains(&v) {
-                                    let named: Vec<&str> =
-                                        arg_binders.iter().filter(|b| !b.is_empty()).map(|b| b.as_str()).collect();
-                                    return Err(Error::plain(format!(
-                                        "a signature's refinement obligation names its arguments, but `{v}` is not one of the signature's dependent binders ({})",
-                                        named.join(", ")
-                                    )));
-                                }
-                            }
-                        }
-                    }
-                    for o in &mut obligs {
-                        if let PropOblig::Pred(p) = o {
-                            for (i, b) in arg_binders.iter().enumerate() {
-                                if b.is_empty() {
-                                    continue;
-                                }
-                                *p = p.subst(b, &ITerm::Var(format!("$a{i}")));
-                            }
                         }
                     }
                     // Names used in tail position are row variables; names
@@ -9547,6 +9536,35 @@ impl Checker {
                             }
                             ParamKind::Val(vty) => val_params.push((name, vty)),
                             ParamKind::Prop => prop_params.push(name),
+                        }
+                    }
+                    // Quantified values keep their lexical identities in
+                    // obligations. Classify their checked kinds before
+                    // deciding whether a free name denotes an argument.
+                    for o in &obligs {
+                        if let PropOblig::Pred(p) = o {
+                            let mut fv = Vec::new();
+                            p.free_vars(&mut fv);
+                            for v in fv {
+                                if v.is_empty() || (!arg_binders.contains(&v) && !val_params.iter().any(|(name, _)| name == &v)) {
+                                    let named: Vec<&str> =
+                                        arg_binders.iter().filter(|b| !b.is_empty()).map(|b| b.as_str()).collect();
+                                    return Err(Error::plain(format!(
+                                        "a signature's refinement obligation names its arguments, but `{v}` is not one of the signature's dependent binders ({})",
+                                        named.join(", ")
+                                    )));
+                                }
+                            }
+                        }
+                    }
+                    for o in &mut obligs {
+                        if let PropOblig::Pred(p) = o {
+                            for (i, b) in arg_binders.iter().enumerate() {
+                                if b.is_empty() {
+                                    continue;
+                                }
+                                *p = p.subst(b, &ITerm::Var(format!("$a{i}")));
+                            }
                         }
                     }
                     let scheme = Scheme {
@@ -10419,6 +10437,10 @@ impl Checker {
     /// Index and implicit value parameters keep their names: the
     /// definition's equation patterns and body mention them by name.
     fn rigidify(&mut self, s: &Scheme) -> (Ty, Vec<(String, ClassApp, LocalId)>, StageTypeBindings) {
+        self.rigidify_with_value_locals(s, &[])
+    }
+
+    fn rigidify_with_value_locals(&mut self, s: &Scheme, values: &[(String, LocalId)]) -> (Ty, Vec<(String, ClassApp, LocalId)>, StageTypeBindings) {
         let mut types = HashMap::new();
         for p in &s.params {
             types.insert(p.clone(), Ty::Param(self.fresh_param(p)));
@@ -10434,7 +10456,9 @@ impl Checker {
             }
         }
         for (n, _) in &s.val_params {
-            types.insert(n.clone(), Ty::Idx(Box::new(ITerm::Var(n.clone()))));
+            let value = values.iter().find(|(name, _)| name == n)
+                .map(|(_, local)| ITerm::LocalValue(*local)).unwrap_or_else(|| ITerm::Var(n.clone()));
+            types.insert(n.clone(), Ty::Idx(Box::new(value)));
         }
         for n in &s.prop_params {
             types.insert(n.clone(), Ty::Prp(Box::new(PTerm::Var(n.clone()))));

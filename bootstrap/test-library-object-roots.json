@@ -49,6 +49,58 @@
       "symbol": "Data.Char.eq-char"
     },
     {
+      "classes": "OT",
+      "symbol": "Data.HashMap.hash-map-delete"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.HashMap.hash-map-delete"
+    },
+    {
+      "classes": "OT",
+      "symbol": "Data.HashMap.hash-map-empty"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.HashMap.hash-map-empty"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.HashMap.hash-map-from-pairs"
+    },
+    {
+      "classes": "OT",
+      "symbol": "Data.HashMap.hash-map-insert"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.HashMap.hash-map-insert"
+    },
+    {
+      "classes": "OT",
+      "symbol": "Data.HashMap.hash-map-is-empty"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.HashMap.hash-map-is-empty"
+    },
+    {
+      "classes": "OT",
+      "symbol": "Data.HashMap.hash-map-lookup"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.HashMap.hash-map-lookup"
+    },
+    {
+      "classes": "OT",
+      "symbol": "Data.HashMap.hash-map-size"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.HashMap.hash-map-size"
+    },
+    {
       "classes": "",
       "symbol": "Data.Int.int-add"
     },
@@ -63,6 +115,10 @@
     {
       "classes": "",
       "symbol": "Data.Int.int-sub"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.List.length"
     },
     {
       "classes": "T",
@@ -141,68 +197,12 @@
       "symbol": "Data.Nat.nat-to-int"
     },
     {
-      "classes": "T",
-      "symbol": "Data.List.length"
-    },
-    {
       "classes": "O",
       "symbol": "Data.Option.is-none"
     },
     {
-      "classes": "T",
-      "symbol": "Data.Option.is-none"
-    },
-    {
-      "classes": "OT",
-      "symbol": "Data.HashMap.hash-map-delete"
-    },
-    {
-      "classes": "TT",
-      "symbol": "Data.HashMap.hash-map-delete"
-    },
-    {
-      "classes": "OT",
-      "symbol": "Data.HashMap.hash-map-empty"
-    },
-    {
-      "classes": "TT",
-      "symbol": "Data.HashMap.hash-map-empty"
-    },
-    {
-      "classes": "TT",
-      "symbol": "Data.HashMap.hash-map-from-pairs"
-    },
-    {
-      "classes": "OT",
-      "symbol": "Data.HashMap.hash-map-insert"
-    },
-    {
-      "classes": "TT",
-      "symbol": "Data.HashMap.hash-map-insert"
-    },
-    {
-      "classes": "OT",
-      "symbol": "Data.HashMap.hash-map-is-empty"
-    },
-    {
-      "classes": "TT",
-      "symbol": "Data.HashMap.hash-map-is-empty"
-    },
-    {
-      "classes": "OT",
-      "symbol": "Data.HashMap.hash-map-lookup"
-    },
-    {
-      "classes": "TT",
-      "symbol": "Data.HashMap.hash-map-lookup"
-    },
-    {
-      "classes": "OT",
-      "symbol": "Data.HashMap.hash-map-size"
-    },
-    {
-      "classes": "TT",
-      "symbol": "Data.HashMap.hash-map-size"
+      "symbol": "Data.Option.is-none",
+      "classes": "T"
     }
   ]
 }

@@ -159,17 +159,19 @@ module Bootstrap.Export where
   value-row :: Elaboration -> List LoadedInterface -> String -> String -> CheckedBinding -> Result String Json
   value-row typed interfaces name symbol binding =
     if imported-symbol symbol then imported-value-row interfaces name symbol
-    else if same (checked-role binding) "operation" then operation-row name symbol binding
+    else if same (checked-role binding) "operation" then opaque-value-row name symbol binding
     else if same (checked-role binding) "function" || same (checked-role binding) "value" || same (checked-role binding) "intrinsic" || same (checked-role binding) "instance" || same (checked-role binding) "implicit-instance" then
       let scheme = checked-scheme binding in
       let arity = scheme-runtime-arity scheme + list-length (scheme-requirements scheme) in
-      case (export-global symbol, resolved-value-scheme typed interfaces symbol scheme) of
-        (Ok identity, Ok resolved) -> Ok (JObj "name" (JStr name)
-          (JObj "symbol" (JStr identity) (JObj "scheme" (field "scheme" resolved)
+      if row-quantified (scheme-params scheme) then opaque-value-row name symbol binding else
+      case (export-global symbol, resolved-value-scheme typed interfaces symbol scheme, export-display-scheme scheme) of
+        (Ok identity, Ok resolved, Ok spelling) -> Ok (JObj "name" (JStr name)
+          (JObj "symbol" (JStr identity) (JObj "scheme" (JStr spelling)
             (JObj "resolved" resolved (JObj "arity" (JNum (nat-to-int arity))
               (JObj "total_body" (value-total-body binding) JObjEnd))))))
-        (Err error, other) -> Err error
-        (other, Err error) -> Err error
+        (Err error, other, more) -> Err error
+        (other, Err error, more) -> Err error
+        (other, more, Err error) -> Err error
     else Err (string-concat "unsupported checked value export category: " (checked-role binding))
   imported-symbol :: String -> Bool
   imported-symbol symbol = case unpack symbol of
@@ -188,14 +190,17 @@ module Bootstrap.Export where
     Ok identity -> case imported-value identity interfaces of
       Some row -> Ok (set-field "name" (JStr name) row)
       None -> Err (string-concat "imported value has no admitted defining export: " identity)
-  -- Schema8 keeps checked display schemes even when a richer declaration has
-  -- no portable resolved contract. An operation needs its defining effect and
-  -- handler table before it can be called through an interface alone; null
-  -- makes that boundary explicit rather than inventing an ordinary function.
-  operation-row :: String -> String -> CheckedBinding -> Result String Json
-  operation-row name symbol binding = let scheme = checked-scheme binding in
+  -- An open row cannot supply the closed portable effect contract. Keep the
+  -- checked display scheme, as for an operation whose defining handler table
+  -- is unavailable, and grant no resolved contract or executable body.
+  row-kind :: Kind -> Bool
+  row-kind kind = case kind of KRow -> True; KFun first rest -> row-kind first || row-kind rest; other -> False
+  row-quantified :: List Quant -> Bool
+  row-quantified parameters = case parameters of Nil -> False; Cons first rest -> row-kind (quant-kind first) || row-quantified rest
+  opaque-value-row :: String -> String -> CheckedBinding -> Result String Json
+  opaque-value-row name symbol binding = let scheme = checked-scheme binding in
     let arity = scheme-runtime-arity scheme + list-length (scheme-requirements scheme) in
-    case (export-global symbol, export-scheme scheme) of
+    case (export-global symbol, export-display-scheme scheme) of
       (Ok identity, Ok spelling) -> Ok (JObj "name" (JStr name)
         (JObj "symbol" (JStr identity) (JObj "scheme" (JStr spelling)
           (JObj "resolved" JNull (JObj "arity" (JNum (nat-to-int arity))
@@ -204,7 +209,7 @@ module Bootstrap.Export where
       (other, Err error) -> Err error
   constructor-row :: Elaboration -> List LoadedInterface -> String -> Nat -> CoreConstructor -> Result String Json
   constructor-row typed interfaces name tag constructor = let scheme = core-constructor-scheme constructor in
-    case (export-global (core-constructor-name constructor), export-constructor-fields scheme, resolved-source-scheme typed interfaces (core-constructor-name constructor) scheme) of
+    case (export-global (core-constructor-name constructor), export-constructor-fields scheme, resolved-value-scheme typed interfaces (core-constructor-name constructor) scheme) of
       (Ok identity, Ok fields, Ok resolved) -> Ok (JObj "name" (JStr name)
         (JObj "symbol" (JStr identity) (JObj "tag" (JNum (nat-to-int tag))
           (JObj "scheme" (field "scheme" resolved) (JObj "resolved" resolved

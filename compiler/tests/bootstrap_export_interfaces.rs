@@ -48,6 +48,19 @@ fn source_interfaces_preserve_private_nominals_and_defining_fixities() {
         assert_eq!(b.exports.values.iter().find(|v| v.name == name).unwrap().symbol, "A.<+>");
     }
     for interface in [a, b] {
+        let positioned = interface.exports.values.iter().find(|v| v.name == "positioned").unwrap();
+        assert!(positioned.scheme.contains("0 <= arg0") && positioned.scheme.contains("arg0 < arg1"), "{}", positioned.scheme);
+        let defining = positioned.resolved.as_ref().unwrap();
+        assert!(defining.scheme.contains("0 <= x") && defining.scheme.contains("x < y"), "{}", defining.scheme);
+        let open = interface.exports.values.iter().find(|v| v.name == "row-polymorphic").unwrap();
+        assert_eq!(open.symbol, "A.row-polymorphic");
+        assert_eq!(open.arity, 1);
+        assert!(open.scheme.contains('|'), "the checked open-row display scheme must survive");
+        assert!(open.resolved.is_none(), "an open row must not be published as a closed portable contract");
+        assert!(open.total_body.is_none(), "an opaque effect contract cannot authorize an executable proof body");
+        let closed = interface.exports.values.iter().find(|v| v.name == "closed-callback").unwrap();
+        let closed = closed.resolved.as_ref().expect("a closed kernel row retains its region and dictionary contract");
+        assert!(closed.scheme.contains("r :: Region") && closed.scheme.contains("io :: Io r") && closed.scheme.contains("->{IO r}"), "{}", closed.scheme);
         for (name, identity) in [("inspect-scope", "A.inspect-scope"), ("task-source", "A.task-source")] {
             let value = interface.exports.values.iter().find(|v| v.name == name).unwrap();
             assert_eq!(value.symbol, identity);
@@ -57,6 +70,11 @@ fn source_interfaces_preserve_private_nominals_and_defining_fixities() {
         }
     }
     let public = a.exports.types.iter().find(|t| t.name == "PublicPositive").expect("public defining refinement");
+    let parcel = a.exports.types.iter().find(|t| t.name == "Parcel").unwrap();
+    for constructor in &parcel.ctors {
+        let resolved = constructor.resolved.as_ref().unwrap();
+        assert!(resolved.scheme.starts_with("forall (a :: Type)."), "{}", resolved.scheme);
+    }
     assert_eq!(public.kind, "refinement");
     let template = public.refinement.as_ref().unwrap();
     assert_eq!((template.binder.as_str(), template.carrier.as_str(), template.predicate.as_str()), ("x", "I64", "0 < x"));

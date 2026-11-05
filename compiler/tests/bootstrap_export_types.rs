@@ -17,6 +17,9 @@ fn checked_schemes_have_portable_definition_owned_syntax() {
     for line in report.lines() {
         let (name, scheme) = line.split_once('\t').expect("named type export");
         let body = match name {
+            "source-quantifier" => { assert!(scheme.starts_with("forall (a :: Type)."), "{scheme}"); "probe x = x" }
+            "argument-positions" => { assert!(scheme.contains("0 <= arg0") && scheme.contains("arg0 < arg1"), "{scheme}"); "probe x y = x" }
+            "display-binder-collision" => { assert!(scheme.contains("arg0-r <= arg0"), "{scheme}"); "probe x = x" }
             "result-collision" => { assert!(scheme.contains("cinch-result-r == cinch-result"), "{scheme}"); "probe x = x" }
             "argument-name" => { assert!(scheme.contains("cinch-result <= limit"), "{scheme}"); "probe x = x" }
             "nat" | "polymorphic" | "dependent" | "refinement" | "nominal" => "probe x = x",
@@ -55,6 +58,6 @@ fn checked_schemes_have_portable_definition_owned_syntax() {
         let checked = cinch::driver::check_sources(&source, "cinch-exported-type.cinch");
         assert!(checked.is_ok(), "Native readback {name}: {scheme}\n{checked:?}\nProject: {}", dir.display());
     }
-    assert_eq!(report.lines().count(), 16, "{report}");
+    assert_eq!(report.lines().count(), 19, "{report}");
     common::cleanup(&dir);
 }

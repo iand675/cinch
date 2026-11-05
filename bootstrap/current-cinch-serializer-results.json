@@ -1,0 +1,60 @@
+{
+  "compiler_modules": 43,
+  "compiler_sha256": "7255238595b42a32079b442a2ece7bf58ebbb372cedf3bc2047e1b0fb216cbc1",
+  "compiler_source_sha256": "5cea0ea534153a8e0ee284a0f0d5f1db8506f951bbcfbe9984fff3add9bf3b2f",
+  "controls": 43,
+  "full_goal_complete": false,
+  "native_validator_sha256": "36e7649b1f4635bce836dd5ba1a9a63ae3e449ef218c74c6084dfa7947284945",
+  "original_assertion_blocks": [
+    {
+      "assert_macros": 15,
+      "assertions_sha256": "7ac7b805691db38d686fd664f2074c709fdf8ddf74770e535836feae8caa0ba0",
+      "name": "interface_nominals",
+      "original_source_sha256": "1c25c1443aa5d1954930a2996bc2b3740c308d95d101f07fb3dae9a28e79e31b"
+    },
+    {
+      "assert_macros": 23,
+      "assertions_sha256": "798c90f97314f53ffc17dc5acdf9b50113916e725a0ba52ee70601b8ca492c39",
+      "name": "interface_preconditions",
+      "original_source_sha256": "40047ff8b0f2e5638cfcf38f91a195fb42b9267734385ccb54e5e4cbb2aab8bf"
+    },
+    {
+      "assert_macros": 12,
+      "assertions_sha256": "11d5ea01a2ab40955e83ba77f7eb3b515e79e0975fb071bbf48302779858d2cb",
+      "name": "interface_refinements",
+      "original_source_sha256": "ab51e27d5119c4d9855e689f5ac05b89924394366124e0575c07ab403f2f692d"
+    },
+    {
+      "assert_macros": 17,
+      "assertions_sha256": "d509b5d009848f4d9392355a3a400bc1e691195e7587849017d93d67b88443a8",
+      "name": "interface_refinement_closure",
+      "original_source_sha256": "7edc1a3b9c6bcfc352f7b44d4cd8e76266c27d42ac63a87fb0c9c32b1b07c4c6"
+    },
+    {
+      "assert_macros": 15,
+      "assertions_sha256": "5945199b713cbc65cf411efe07993fc634fb8c8e3622a84c7467720d9dc1a791",
+      "name": "interface_region_effects",
+      "original_source_sha256": "57b891008a369083a7ccfd407d1da72892e5e549e51c39b56cba72f3784e9e5d"
+    },
+    {
+      "assert_macros": 14,
+      "assertions_sha256": "0f2c104f0ca7c08ed6f57f266606e08b6b64bad95fd6ca70c0e4cecf11197116",
+      "name": "interface_anonymous_contracts",
+      "original_source_sha256": "6b16f6d5fdd9104f602373e62769c47a1876dbbbc40531a76c9581861555da8b"
+    },
+    {
+      "assert_macros": 6,
+      "assertions_sha256": "29f1d16154bb83723b245a834e72d7bb9bb58e88ce5846247922d4f582c548d4",
+      "name": "interface_scope_task_source_owners",
+      "original_source_sha256": "57b891008a369083a7ccfd407d1da72892e5e549e51c39b56cba72f3784e9e5d"
+    }
+  ],
+  "original_assertions_log_sha256": "15b0c98603b4ecaff3e7a1508f5ecc67ea015ff17f124fcdbcf1a53aec31d9d8",
+  "original_metadata_assertion_tests": 7,
+  "original_method_documents_equal_verified_predecessor": true,
+  "scope": "Fresh actual Cinch exporter and all43 controls. Seven original metadata/schema-mutation assertion blocks pass unchanged on exact newly produced fixture contracts. This validates metadata, not the original executable-build action, nine complete API targets, GADT/forall/FFI/source overlay parity, a fresh bootstrap or Acceptance5.",
+  "status": "passed-actual-cinch-method-body-export",
+  "unchanged_original_controls": true,
+  "verified_at": "2026-11-05T13:42:38.083349+00:00",
+  "zero_leak_reports": 20
+}

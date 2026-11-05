@@ -22,6 +22,9 @@ module Main where
   report =
     row "nat" (export-scheme (mono (UFun nat nat))) <>
     row "polymorphic" (export-scheme (MkScheme [MkQuant 7 "a" KType False] (UFun (UBound 7 "a" KType) (UBound 7 "a" KType)))) <>
+    row "source-quantifier" (export-value-scheme (MkScheme [MkQuant 7 "a" KType False] (UFun (UBound 7 "a" KType) (UBound 7 "a" KType)))) <>
+    row "argument-positions" (export-display-scheme (mono (let scalar = UCon "I64" KType in UPi 4 "x" scalar empty (UPi 5 "y" scalar empty (URequire (UArg (UCompare "<=" (UIndex scalar (IInteger 0)) (UIndex scalar (IBound 4 "x"))) (UArg (UCompare "<" (UIndex scalar (IBound 4 "x")) (UIndex scalar (IBound 5 "y"))) UEnd)) scalar))))) <>
+    row "display-binder-collision" (export-display-scheme (MkScheme [MkQuant 7 "arg0" (value-kind nat) False] (UPi 4 "x" nat empty (URequire (UArg (UCompare "<=" (variable 4 "x") (variable 7 "arg0")) UEnd) nat)))) <>
     row "region" (export-scheme (MkQualifiedScheme [MkQuant 8 "r" KRegion True] [MkRequirement "io" (UApp (UCon "b.Io" (KFun KRegion KType)) (UBound 8 "r" KRegion))] (UFunEff unit (URow (UArg (UApp (UCon "IO" (KFun KRegion KEffect)) (UBound 8 "r" KRegion)) UEnd)) (UCon "Int" KType)))) <>
     row "scope" (export-scheme (MkScheme [MkQuant 8 "r" KRegion True, MkQuant 9 "s" KRegion True] (let token = UApp (UApp (UCon "b.Scope" (KFun KRegion (KFun KRegion KType))) (UBound 8 "r" KRegion)) (UBound 9 "s" KRegion) in UFun token token))) <>
     row "task" (export-scheme (MkScheme [MkQuant 8 "s" KRegion True, MkQuant 9 "e" KType False, MkQuant 10 "a" KType False] (UFun unit (UApp (UApp (UApp (UCon "b.Task" (KFun KRegion (KFun KType (KFun KType KType)))) (UBound 8 "s" KRegion)) (UBound 9 "e" KType)) (UBound 10 "a" KType))))) <>

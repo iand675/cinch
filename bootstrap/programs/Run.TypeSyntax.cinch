@@ -255,7 +255,7 @@ module Main where
   refusal-ok :: Bool
   refusal-ok = case parse-program "refined" (string-to-bytes "module Example where\n  f :: Int -> refined (r > 0) Int\n  f x = x\n") of
     Failed bundle -> False
-    Parsed program errors -> has-message "refinement predicate is not established for this value" (check-program program)
+    Parsed program errors -> has-message "refinement predicate is not established for this value (undischarged refinement obligation)" (check-program program)
 
   malformed-refused :: String -> Bool
   malformed-refused text = case parse-program "malformed" (string-to-bytes text) of
