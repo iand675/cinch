@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "estimate": 90,
-  "commit": "45a8072bec70e81c50fb2d5e26d8233c3bc7b640",
+  "commit": "96b33aebe686256a68ee583cde0cbcc00d3e0680",
   "estimateNote": "Rough engineering estimate. Verified checks and remaining work are listed below.",
   "status": "Verification found a failure; correction required",
   "stages": [
@@ -38,7 +38,7 @@
     },
     {
       "title": "Current repair gates",
-      "detail": "5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_globals: passed; bootstrap_nominals: passed; runtime behavior: passed; bootstrap_external_frontend: passed; bootstrap_library_object: passed. All 43 source-module check: passed.",
+      "detail": "6 of 6 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_globals: passed; bootstrap_nominals: passed; runtime behavior: passed; bootstrap_external_frontend: passed; bootstrap_library_object: passed; bootstrap_measure_contracts: passed. All 43 source-module check: passed.",
       "state": "passed"
     },
     {
@@ -225,7 +225,7 @@
   "blockers": [
     {
       "title": "Stage2 rebuild running; constructor contracts and suite failures under test",
-      "detail": "Published45a8072 constructor guard passes all5 complete affected groups and13tests. Fresh matching450711 Stage0/1 pass; actual Cinch is building Stage2. Earlier917f Stage2 also built and passed all smokes; its actual self-built Stage2 is buildingStage3. Private constructor-local/indexed contracts pass both complete source/global groups,3tests with10 added source controls; full exporter,43-module compiler/object and all9 original API groups remain required. The whole measure group is testing the preserved valid local helper plus false-bound/wrong-argument/recursive controls, all confirmed against currentNative. A removed-lock-inode problem was found and current reservations recovered:4 shared workers plus the latest final bootstrap on reserved4, maximum5 heavy jobs. All105 targets and Acceptance5 stay open."
+      "detail": "Published96b33ae retains valid checked numeric helpers and adds false-bound, wrong-argument and recursive-body refusals. The complete measure group passes21 runtime-fed inputs; all4 local controls match Native. Compiler production remains450711. Together with the constructor guard, six complete affected groups pass. Matching450711 Stage2 and earlier917f Stage3 builds continue. Private1dd5 constructor-local/indexed source schemes pass both source/global groups; the exporter replay now checks parsed application structure rather than a brittle added formatting assertion. Full43-module compiler/object and all9 original API groups remain gated on that replay. The publisher and active snapshots are protected in persistent workspace storage, original paths retained; all live snapshots independently audit intact. All105 targets and Acceptance5 remain open."
     },
     {
       "title": "Investigate the recorded failure",
@@ -285,7 +285,7 @@
   "candidateSource": "4507111e3092b40354e6714464574729313c7e9ffe5a12b3d872ca7303efacc5",
   "candidatePublished": true,
   "fullGoalComplete": false,
-  "summary": "All 43 compiler-source checks: passed. 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_globals: passed; bootstrap_nominals: passed; runtime behavior: passed; bootstrap_external_frontend: passed; bootstrap_library_object: passed.",
-  "activity": "Current published Rust compiler: full suite: 193 of 232 complete groups passed; 1 running, 2 failed and 36 pending. Stage builds and smoke checks: 2 of 4; chain state: building-stage2. Repair gates: 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_globals: passed; bootstrap_nominals: passed; runtime behavior: passed; bootstrap_external_frontend: passed; bootstrap_library_object: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
-  "updatedAt": "2026-11-05T23:08:09.081520+00:00"
+  "summary": "All 43 compiler-source checks: passed. 6 of 6 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_globals: passed; bootstrap_nominals: passed; runtime behavior: passed; bootstrap_external_frontend: passed; bootstrap_library_object: passed; bootstrap_measure_contracts: passed.",
+  "activity": "Current published Rust compiler: full suite: 193 of 232 complete groups passed; 1 running, 2 failed and 36 pending. Stage builds and smoke checks: 2 of 4; chain state: building-stage2. Repair gates: 6 of 6 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_globals: passed; bootstrap_nominals: passed; runtime behavior: passed; bootstrap_external_frontend: passed; bootstrap_library_object: passed; bootstrap_measure_contracts: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
+  "updatedAt": "2026-11-05T23:14:39.258472+00:00"
 }
