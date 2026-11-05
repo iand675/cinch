@@ -1,5 +1,29 @@
 # Next steps (as of 2026-11-05)
 
+## Native checked-type scope inspection (2026-11-05)
+
+The complete Native sweep found an actual regression in its original
+NumberBox positive: a helper returning plain data was rejected as though
+its result might hide a scoped closure. The structural inspection was
+resolving an already checked nominal through the caller's source imports.
+It now uses the exact defining type identity when inspecting constructor
+fields. Source visibility remains checked by the ordinary source resolver;
+opaque/unknown data and data containing closures retain the escape guard.
+
+All seven complete affected groups pass independently: 249 tests including
+all 185 library units and all 43 current compiler modules. Existing hidden
+closure escape refusals and the original ordinary-data case remain intact.
+New positive clients cover private data shadowed in the caller and recursive
+plain data. Replaying the complete 17-test concurrency group with 32M heaps,
+RC checks and leak reporting yields 14 zero-leak executable reports. See
+`bootstrap/current-native-checked-scope-results.json`.
+
+The failing Native47 sweep is preserved. A complete matching Native sweep
+is still required; these scoped checks do not close it. Cinch source c8d6
+and the explicit b64710b ABI6 seed/provider pins are unchanged, so its active
+fresh bootstrap retains its actual input scope. Source total-body export,
+remaining original API work and Acceptance 5 remain open.
+
 ## Checked projection and decision/proof runtime lowering (2026-11-05)
 
 The Cinch compiler lowers checked Dec constructors and matches, evaluates

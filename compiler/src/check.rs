@@ -5008,7 +5008,9 @@ impl Checker {
                     return args.iter().any(|arg| self.value_may_hide_scope(arg, seen, fuel - 1));
                 }
                 seen.push(ty.clone());
-                let info = match self.lookup_type(&[name]) { Ok(info) => info, Err(_) => return true };
+                // The nominal already carries its defining identity. Surface lookup
+                // cannot resolve private or qualified checked field types here.
+                let info = match self.lookup_known_type(name) { Ok(info) => info, Err(_) => return true };
                 if self.codata_types.contains(&(info.module.clone(), info.name.clone())) || info.ctors.is_empty() {
                     return true;
                 }

@@ -518,3 +518,36 @@ module Main where
     NumberBox n -> if n == 7 then 0 else 1
 "#, 0);
 }
+
+
+#[test]
+fn checked_private_and_recursive_data_results_do_not_capture_scope_regions() {
+    expect_ok("private-plain-data-not-caller-shadow", r#"
+module Boxes where
+  export wrap, unbox
+  data NumberBox where
+    NumberBox :: Int -> NumberBox
+  wrap :: forall r s. Scope r s -> NumberBox
+  wrap s = NumberBox 7
+  unbox :: NumberBox -> Int
+  unbox (NumberBox n) = n
+module Main where
+  import Boxes (wrap, unbox)
+  data NumberBox where
+    NumberBox :: (Unit -> Int) -> NumberBox
+  main :: Unit ->{Diverge} Int
+  main u = with (io = newIO ()) in if unbox (withScope (\s -> wrap s)) == 7 then 0 else 1
+"#, 0);
+    expect_ok("recursive-plain-data-result", r#"
+module Main where
+  data Tree where
+    Leaf :: Int -> Tree
+    Branch :: Tree -> Tree -> Tree
+  wrap :: forall r s. Scope r s -> Tree
+  wrap s = Branch (Leaf 3) (Leaf 4)
+  sum :: Tree -> Int
+  sum tree = case tree of Leaf n -> n; Branch left right -> sum left + sum right
+  main :: Unit ->{Diverge} Int
+  main u = with (io = newIO ()) in if sum (withScope (\s -> wrap s)) == 7 then 0 else 1
+"#, 0);
+}

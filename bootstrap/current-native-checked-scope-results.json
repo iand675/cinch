@@ -1,0 +1,76 @@
+{
+  "compiler_source_sha256": "c8d6d87a8d1a698009b1ed820427a7a2bb67dab0f34d170accb41e42678ba985",
+  "full_goal_complete": false,
+  "rows": [
+    {
+      "binary_sha256": "43fb10bc84fb71e5d6bc07e52a18af27082a6087754c72a16a9615efe1243cbe",
+      "log_sha256": "2371a0cc1e5fcd8ee86688e4d96c6da88ab03f499ae5fb0f57ab2cb5122de4f5",
+      "name": "concurrency",
+      "tests": 17
+    },
+    {
+      "binary_sha256": "8223f0027dcda965768a19809f15f4a85ccc3448a93d790655bed0ce0a4625dc",
+      "log_sha256": "45fa7a9c81b09dead183f5c886e203af1009e27ff663450f2b6b075f9450a80a",
+      "name": "ownership",
+      "tests": 23
+    },
+    {
+      "binary_sha256": "dda0563ef8b63527c5f1fcbb3fc40e0e2d35f2aa5034f68eaa15e72815a98f8b",
+      "log_sha256": "123641d8c16d623e21edbb67343e35cb5e2878b5f3b8d897294d6c35b161279e",
+      "name": "native_closure_checks",
+      "tests": 1
+    },
+    {
+      "binary_sha256": "9b74b5fd3124c9bd2a350a51331ad58185cb48e2d06c09e1af055aad1db6283a",
+      "log_sha256": "f8f17324a09ff3bfebeb71b78d664f32d1d46be3230d6fc465688c697c379b31",
+      "name": "interface_region_effects",
+      "tests": 2
+    },
+    {
+      "binary_sha256": "8b9d61a2a71e57c433fd194de20890efaf40c2a7b2c5f668b81d156ceec8bce5",
+      "log_sha256": "a239d949f0e45cc5210fdb896e824ee1a54c6ff92f3ab905a9c47bb1e2799ae7",
+      "name": "effects",
+      "tests": 18
+    },
+    {
+      "binary_sha256": "b24cc78ae6ce8a8cce28149a8ccbf600133d4680a5dca7b0029a3c1dbbef20d9",
+      "log_sha256": "5db2e4f0c424768048b0464b03286c5204de101729fd0fb6442b051695e174ee",
+      "name": "reclamation_tasks",
+      "tests": 3
+    },
+    {
+      "binary_sha256": "93bbc45395c3e89c864d509c0880f33b504cd1bb5af1511e6888e072640573ef",
+      "log_sha256": "2f30dcf3dfa865c9bd698fba77d63860b0e0f6b7febe8dcd73311cf2ee0e6a1a",
+      "name": "lib",
+      "tests": 185
+    }
+  ],
+  "runtime_profile_replay": {
+    "binary_sha256": "43fb10bc84fb71e5d6bc07e52a18af27082a6087754c72a16a9615efe1243cbe",
+    "child_pid": 26449,
+    "exit_code": 0,
+    "full_goal_complete": false,
+    "heap": "32M",
+    "log_sha256": "717f0010dfaa29e390e3b83d603ebab5e0cf8f5ef7910d1cddad1d4dac9d2334",
+    "pid": 26442,
+    "scope": "Entire17-testconcurrencygroup replayed with32M/RCdebug/leakchecks;14 actual runtime program reports are zero. Repeatedgroupnotadded to249uniquetests.",
+    "slot": 1,
+    "source": "/tmp/cinch-native-scope-validation-2/source",
+    "source_sha256": "e2f73f4a68b49e7381d4240d17418459d059437cceae2c274a7e391d67985c11",
+    "status": "passed",
+    "zero_leak_reports": 14
+  },
+  "scope": "Seven complete affected Native groups; preserves all original closure/scope escape refusals and the original NumberBox positive. Adds actual private checked types shadowed by caller declarations and recursive plain-data positives. Resolves only checked nominal identities; source name resolution and unknown/closure-holding data remain conservative. Full current Native/finalStage3/auxiliary/originalAPI acceptance remains required.",
+  "source": "/tmp/cinch-native-scope-validation-2/source",
+  "source_check": {
+    "compiler": "/tmp/cinch-native-scope-validation-2/cargo/debug/cinch",
+    "compiler_modules": 43,
+    "compiler_sha256": "8fd543e4aa27df47fb40841fa877e190fe60188f126ddffdd7213e6fbb2b917b",
+    "exit_code": 0,
+    "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "status": "passed"
+  },
+  "source_sha256": "e2f73f4a68b49e7381d4240d17418459d059437cceae2c274a7e391d67985c11",
+  "status": "passed-scoped-native-checked-scope-data",
+  "tests": 249
+}
