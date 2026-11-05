@@ -58,7 +58,7 @@
     },
     {
       "title": "Current published Rust compiler: complete suite",
-      "detail": "34 of 232 complete groups passed; 1 running, 0 failed and 197 pending.Every group includes ignored tests. State: running.",
+      "detail": "44 of 232 complete groups passed; 1 running, 0 failed and 187 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -143,7 +143,7 @@
     },
     {
       "title": "Latest source: complete fresh Rust sweep",
-      "detail": "34 of 232 complete groups passed; 1 running, 0 failed and 197 pending. State: running. All fresh test binaries use the matching source paths and explicit new pins; all cases run, including ignored cases. Retained prior results remain separately scoped.",
+      "detail": "44 of 232 complete groups passed; 1 running, 0 failed and 187 pending. State: running. All fresh test binaries use the matching source paths and explicit new pins; all cases run, including ignored cases. Retained prior results remain separately scoped.",
       "state": "running"
     },
     {
@@ -187,7 +187,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "34 of 232 complete groups passed; 1 running, 0 failed and 197 pending."
+      "detail": "44 of 232 complete groups passed; 1 running, 0 failed and 187 pending."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -236,6 +236,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "All 43 compiler-source checks: passed. 11 of 11 complete groups passed; 0 running, 0 failed and 0 pending. refinements: passed; dependent: passed; interface_preconditions: passed; interface_refinements: passed; bootstrap_export_types: passed; bootstrap_export_interfaces: passed; bootstrap_type_syntax: passed; proof_value_identity: passed; evidence_invalidation: passed; syntax_signature_scope: passed; syntax_objects: passed.",
-  "activity": "Current published Rust compiler: complete suite: 34 of 232 complete groups passed; 1 running, 0 failed and 197 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 11 of 11 complete groups passed; 0 running, 0 failed and 0 pending. refinements: passed; dependent: passed; interface_preconditions: passed; interface_refinements: passed; bootstrap_export_types: passed; bootstrap_export_interfaces: passed; bootstrap_type_syntax: passed; proof_value_identity: passed; evidence_invalidation: passed; syntax_signature_scope: passed; syntax_objects: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
-  "updatedAt": "2026-11-05T16:03:01.834300+00:00"
+  "activity": "Current published Rust compiler: complete suite: 44 of 232 complete groups passed; 1 running, 0 failed and 187 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 11 of 11 complete groups passed; 0 running, 0 failed and 0 pending. refinements: passed; dependent: passed; interface_preconditions: passed; interface_refinements: passed; bootstrap_export_types: passed; bootstrap_export_interfaces: passed; bootstrap_type_syntax: passed; proof_value_identity: passed; evidence_invalidation: passed; syntax_signature_scope: passed; syntax_objects: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
+  "updatedAt": "2026-11-05T16:04:05.369133+00:00"
 }
