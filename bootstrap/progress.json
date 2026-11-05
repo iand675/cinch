@@ -174,8 +174,8 @@
   ],
   "blockers": [
     {
-      "title": "Finish closed library objects and final bootstrap acceptance",
-      "detail": "Published2174e10 adds actual checked ABI call/closure entries and exact layout/unit facts. Five scoped runtime component groups pass; nineteen proof/interface groups pass on their preserved predecessor and all43currentmodules check. Full closed object manifest, checked export-root selection and CLI/adapter remain open. Fresh74f0stagedchain continues separately; fullNative6b sweep retains its frozen5ceaCinch fixtures. Disk-full groups recovered and passed; original failure logs retained."
+      "title": "Validate real Cinch library-object output and reload",
+      "detail": "Published2174e10 retains its five scoped component passes. A private6c0c052 candidate now wires the actual Cinch object CLI, checked source interfaces, closed provider/new-object linking and final content hashes. Seven adapter tests pass; the real Cinch CLI/object/reload/client integration and matching all43 module gate are running. New source dictionary factory/method metadata remains an explicit refusal. Fresh74f0 Stage2 and the Native6b full suite continue separately. Full matching self-built/API/Acceptance5 gates remain open."
     },
     {
       "title": "Investigate the recorded failure",
@@ -237,5 +237,5 @@
   "fullGoalComplete": false,
   "summary": "All 43 compiler-source checks: passed. 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. runtime behavior: passed; bootstrap_runtime_emit: passed; library calls: passed; bootstrap_runtime_library: passed; bootstrap_runtime_library_abi: passed.",
   "activity": "Current published Rust compiler: full suite: 155 of 232 complete groups passed; 1 running, 0 failed and 76 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. runtime behavior: passed; bootstrap_runtime_emit: passed; library calls: passed; bootstrap_runtime_library: passed; bootstrap_runtime_library_abi: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
-  "updatedAt": "2026-11-05T19:04:38.679804+00:00"
+  "updatedAt": "2026-11-05T19:19:21.439546+00:00"
 }
