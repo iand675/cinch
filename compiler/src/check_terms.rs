@@ -4057,6 +4057,13 @@ impl Checker {
                 self.idx_ref(&v, p.span())?
             }
             ast::Term::App(f, args, span) => {
+                // Runtime constructor applications carry their actual
+                // checked type instantiation, just as type-level index
+                // applications do. A bare constructor identity would
+                // invent a different subject from Cons @(Char) here.
+                if matches!(&**f, ast::Term::Con(_)) {
+                    return self.checked_term_index(t, env, None);
+                }
                 // A borrow read (`copyOut m`) in index position is a live
                 // reading of the borrowed location: a proposition over it
                 // is a refinement guarantee about that location, valid
@@ -5064,10 +5071,18 @@ impl Checker {
     /// runtime arity and its arguments (`Cons h t`'s shape), or `None`
     /// for values that are not constructor applications.
     fn ctor_form(&self, t: &ITerm) -> Option<(usize, Vec<ITerm>)> {
-        let (head, args): (&str, Vec<ITerm>) = match t {
-            ITerm::Fn(k) => (k, Vec::new()),
-            ITerm::App(f, args) => match &**f {
-                ITerm::Fn(k) => (k, args.clone()),
+        let (function, args) = match t {
+            ITerm::App(function, args) => (&**function, args.clone()),
+            other => (other, Vec::new()),
+        };
+        let head = match function {
+            ITerm::Fn(identity) => identity.as_str(),
+            // Quantified element types do not add runtime fields. Retain
+            // their identity in the index; only inspect the checked
+            // constructor's runtime shape here. Hidden dictionary/index
+            // arguments need explicit layout reconstruction, so stay opaque.
+            ITerm::Inst(call) if call.dictionaries.is_empty() && call.arguments.is_empty() => match &call.head {
+                IndexHead::Function(identity) => identity.as_str(),
                 _ => return None,
             },
             _ => return None,
@@ -6062,47 +6077,24 @@ impl Checker {
                 // shadowing module could lie with): a byte buffer's
                 // size, a list spine's element count, and for any other
                 // container the ordinary source `length` below.
-                match self.measure_shape(env, arg) {
-                    Some(MeasureShape::Bytes) => {
-                        let bytes_ty = Ty::Bytes;
-                        let (ac, aty) = self.infer(env, arg)?;
-                        let aty = self.uni.zonk(&aty);
-                        let shape = self
-                            .refine_view(&aty)
-                            .and_then(|v| v.base)
-                            .unwrap_or(aty);
-                        self.uni.unify(&shape, &bytes_ty).map_err(|m| {
-                            Error::at(t.span(), m)
-                        })?;
-                        self.uni.unify(expected, &Ty::Nat).map_err(|m| {
-                            Error::at(t.span(), m)
-                        })?;
-                        return Ok(app_spine(
-                            ECore::Prim(PrimOp::Bytes(BytesOp::Len)),
-                            vec![ac],
-                        ));
+                // Infer once, even for global constants and computed
+                // operands. A source length function must never replace
+                // the baked index measure merely because the operand is
+                // not a local variable.
+                let (ac, aty) = self.infer(env, arg)?;
+                let actual = self.uni.zonk(&aty);
+                let carrier = self.refine_base(&actual).unwrap_or(actual);
+                self.uni.unify(expected, &Ty::Nat).map_err(|m| Error::at(t.span(), m))?;
+                let supported = self.length_measure_carrier(&carrier);
+                return match carrier {
+                    Ty::Bytes => Ok(app_spine(ECore::Prim(PrimOp::Bytes(BytesOp::Len)), vec![ac])),
+                    Ty::Adt(name, _) if supported => {
+                        let gid = self.install_length_test(&name, t.span())?;
+                        Ok(app_spine(ECore::Global(gid, Vec::new()), vec![ac]))
                     }
-                    Some(MeasureShape::List(tname)) => {
-                        let gid = self.install_length_test(&tname, t.span())?;
-                        let want = Ty::Adt(tname, vec![self.uni.fresh()]);
-                        let (ac, aty) = self.infer(env, arg)?;
-                        let aty = self.uni.zonk(&aty);
-                        // A refined value measures as its container (the
-                        // runtime representation IS the container).
-                        let shape = self
-                            .refine_view(&aty)
-                            .and_then(|v| v.base)
-                            .unwrap_or(aty);
-                        self.uni.unify(&shape, &want).map_err(|m| {
-                            Error::at(t.span(), m)
-                        })?;
-                        self.uni.unify(expected, &Ty::Nat).map_err(|m| {
-                            Error::at(t.span(), m)
-                        })?;
-                        return Ok(app_spine(ECore::Global(gid, Vec::new()), vec![ac]));
-                    }
-                    None => {}
-                }
+                    other => Err(Error::at(arg.span(), format!("length index operand needs Bytes or a list-shaped carrier, got {other}"))),
+                };
+
             }
             if name == "toNat" {
                 let word = self.uni.fresh();

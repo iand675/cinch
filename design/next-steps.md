@@ -1,5 +1,36 @@
 # Next steps (as of 2026-11-05)
 
+## Native list and byte measure carriers (2026-11-05)
+
+The Rust checker now gives the baked `length` observation its actual checked
+operand carrier: Bytes or a list spine, including polymorphic and refined
+operands. Runtime decisions infer the operand once, and constructor index
+readings preserve their checked type instantiation. Static observations inspect
+that same typed constructor form. An ordinary source function named `length`
+cannot replace the baked observation. List layouts must have exactly the
+empty/cons constructors and an actual recursive tail; a two-field non-list or
+an extra constructor is refused.
+
+All 17 original lattice tests now pass unchanged, together with six new carrier,
+name-authority and malformed-layout controls. All 15 complete affected groups
+pass: 312 tests, all test targets typecheck, all 43 unchanged c8d6 compiler
+modules check, and 129 runtime leak reports are zero. The library group runs
+all 185 tests with debug ownership assertions, 32M heaps, RC debugging and leak
+checks. See `bootstrap/current-native-list-measure-results.json`.
+
+The old b30 full sweep remains preserved as 58 groups passed, one failed and
+170 pending; this repair closes its known lattice failure but does not claim a
+fresh complete-suite pass. The selected arithmetic operand counterexample is
+still open. The unpublished Cinch body-context candidate passes all 43 module
+checks, 16 fresh exporter controls and every original bounded-width metadata
+assertion; its complete runtime groups continue. Its unchanged 1,500-function
+whole group improves from 3870.50 to 396.02 seconds, including compiler build
+in both, while retaining the closure and authority checks.
+
+The c8d6 four-stage bootstrap fixed point and explicit seed/provider pins are
+unchanged. Complete matching suites, original API/100-target coverage and
+Acceptance 5 remain open.
+
 ## Native selected comparison facts and typed ownership fixtures (2026-11-05)
 
 The Rust checker now resolves the actual comparison dictionary and reads its

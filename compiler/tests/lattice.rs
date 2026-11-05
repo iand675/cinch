@@ -882,3 +882,106 @@ module Main where
         "the content identity survives the round-trip"
     );
 }
+
+#[test]
+fn baked_length_keeps_list_and_byte_buffer_carriers_distinct() {
+    expect_run("two-length-carriers", r#"
+module Main where
+  type TwoChars = refine (xs :: List Char) with length xs == 2
+  type TwoBytes = refine (bs :: Bytes) with length bs == 2
+  chars :: List Char -> Option TwoChars
+  chars xs = case decide (length xs == 2) of
+    Yes w -> Some (TwoChars xs w)
+    No _ -> None
+  bytes :: Bytes -> Option TwoBytes
+  bytes bs = case decide (length bs == 2) of
+    Yes w -> Some (TwoBytes bs w)
+    No _ -> None
+  main :: Int
+  main = case chars (Cons 'a' (Cons 'b' Nil)) of
+    None -> 1
+    Some xs -> case bytes (bytes-new 2) of
+      None -> 2
+      Some bs -> case decide (length (unrefine xs) == length (unrefine bs)) of
+        Yes _ -> 0
+        No _ -> 3
+"#, 0);
+}
+
+#[test]
+fn baked_length_checks_polymorphic_list_operands_without_losing_the_carrier() {
+    expect_run("polymorphic-baked-length", r#"
+module Main where
+  empty :: forall a. List a -> Bool
+  empty xs = case decide (length xs == 0) of
+    Yes _ -> True
+    No _ -> False
+  main :: Int
+  main = if empty (Nil :: List Int) && not (empty (Cons True Nil)) then 0 else 1
+"#, 0);
+}
+
+#[test]
+fn an_ordinary_source_length_cannot_replace_the_baked_measure() {
+    expect_run("baked-length-authority", r#"
+module Main where
+  length :: List Char -> Nat
+  length xs = 200
+  type Two = refine (xs :: List Char) with length xs == 2
+  two :: Two
+  two = Two (Cons 'a' (Cons 'b' Nil)) (decide (length (Cons 'a' (Cons 'b' Nil)) == 2))
+  main :: Int
+  main = if length (unrefine two) == 200 then
+    case decide (length (unrefine two) == 2) of
+      Yes _ -> 0
+      No _ -> 1
+    else 2
+"#, 0);
+}
+
+#[test]
+fn baked_length_rejects_a_non_container_index_operand() {
+    expect_err("boolean-length", r#"
+module Main where
+  type Bad = refine (b :: Bool) with length b > 0
+  bad :: Bad
+  bad = Bad True (decide (length True > 0))
+  main :: Int
+  main = 0
+"#, &["length index operand needs Bytes or a list-shaped carrier"]);
+}
+
+#[test]
+fn baked_length_rejects_a_two_field_constructor_with_a_non_list_tail() {
+    expect_err("wrong-list-tail", r#"
+module Main where
+  data Wrong a where
+    Empty :: Wrong a
+    Node :: a -> Bool -> Wrong a
+  type Sized = refine (xs :: Wrong Char) with length xs > 0
+  wrap :: Wrong Char -> Option Sized
+  wrap xs = case decide (length xs > 0) of
+    Yes w -> Some (Sized xs w)
+    No _ -> None
+  main :: Int
+  main = 0
+"#, &["length index operand needs Bytes or a list-shaped carrier"]);
+}
+
+#[test]
+fn baked_length_rejects_an_extra_constructor_outside_the_measured_spine() {
+    expect_err("extra-list-constructor", r#"
+module Main where
+  data Wrong a where
+    Empty :: Wrong a
+    Node :: a -> Wrong a -> Wrong a
+    Other :: Wrong a
+  type Sized = refine (xs :: Wrong Char) with length xs > 0
+  wrap :: Wrong Char -> Option Sized
+  wrap xs = case decide (length xs > 0) of
+    Yes w -> Some (Sized xs w)
+    No _ -> None
+  main :: Int
+  main = 0
+"#, &["length index operand needs Bytes or a list-shaped carrier"]);
+}

@@ -7396,6 +7396,52 @@ impl Checker {
         Ok(result)
     }
 
+    /// The baked length vocabulary counts either bytes or a checked list
+    /// spine. Its domain follows the actual operand carrier, including a
+    /// refinement's container; an ordinary source function named length
+    /// cannot supply this meaning or change the carrier.
+    fn length_measure_carrier(&self, carrier: &Ty) -> bool {
+        if *carrier == Ty::Bytes { return true; }
+        let Ty::Adt(name, arguments) = carrier else { return false };
+        let Some(kind) = self.known_type(name) else { return false };
+        if kind.ctors.len() != 2 || kind.arity != arguments.len() { return false; }
+        let mut empty = false; let mut cons = false;
+        for (constructor, _) in &kind.ctors {
+            let Some(value) = self.qualified.get(&(kind.module.clone(), constructor.clone())) else { return false };
+            let ValueKind::Ctor { runtime_arity, field_tys, field_erased, local_idx, res_args, .. } = &value.kind else { return false };
+            if !value.scheme.ctx.is_empty() || !local_idx.is_empty() || res_args.len() != arguments.len() { return false; }
+            let mut parameters = HashMap::new();
+            for (parameter, actual) in res_args.iter().zip(arguments) {
+                let Ty::Param(parameter) = parameter else { return false };
+                if parameters.insert(parameter.clone(), actual.clone()).is_some() { return false; }
+            }
+            match runtime_arity {
+                0 if !empty => empty = true,
+                2 if !cons => {
+                    let fields = field_tys.iter().zip(field_erased).filter_map(|(ty, erased)| (!erased).then_some(ty)).collect::<Vec<_>>();
+                    if fields.len() != 2 { return false; }
+                    let tail = Self::subst_ty(fields[1], &parameters);
+                    let tail = self.refine_base(&tail).unwrap_or(tail);
+                    if tail != *carrier { return false; }
+                    cons = true;
+                }
+                _ => return false,
+            }
+        }
+        empty && cons
+    }
+
+    fn builtin_length_domain_in(&self, inference: &mut IndexInference, argument: &ast::Type, vars: &[String]) -> Result<Option<Ty>> {
+        let Some(carrier) = self.captured_index_carrier_in(inference, argument, vars, None)? else { return Ok(None) };
+        let carrier = inference.uni.zonk(&carrier);
+        let carrier = self.refine_base(&carrier).unwrap_or(carrier);
+        let supported = self.length_measure_carrier(&carrier);
+        if !supported {
+            return Err(Error::at(argument.span(), format!("length index operand needs Bytes or a list-shaped carrier, got {carrier}")));
+        }
+        Ok(Some(carrier))
+    }
+
     fn captured_index_carrier_in(&self, inference: &mut IndexInference, ty: &ast::Type, vars: &[String], expected: Option<&Ty>) -> Result<Option<Ty>> {
         if let ast::Type::IndexAnnotated(value, annotation, _) = ty {
             let carrier = self.conv_type(annotation, vars)?;
@@ -7465,7 +7511,7 @@ impl Checker {
         if matches!(head, ast::Type::Var(..)) && !args.is_empty()
             && (!vars.contains(&name.text) || name.local_binding().is_some() || name.scoped_reference().is_some() || name.resolved_binding().is_some()) {
             let carrier = match name.source_spelling() {
-                "length" => Some(Ty::fun(Ty::Bytes, Ty::Nat)),
+                "length" => self.builtin_length_domain_in(inference, args[0], vars)?.map(|domain| Ty::fun(domain, Ty::Nat)),
                 "toNat" => {
                     let operand = self.captured_index_carrier_in(inference, args[0], vars, None)?;
                     match operand.map(|ty| inference.uni.zonk(&ty)) {
@@ -7647,7 +7693,16 @@ impl Checker {
         let mut implicit_arguments = Vec::new();
         let head = if matches!(name, "toNat" | "length") {
             if name == "length" {
-                signature = Some(Ty::fun(Ty::Bytes, Ty::Nat));
+                let domain = args.first().map(|argument| {
+                    let mut inference = IndexInference::new(&self.uni);
+                    let domain = self.builtin_length_domain_in(&mut inference, argument, vars)?;
+                    self.finish_index_inference(&mut inference)?;
+                    let domain = domain.map(|ty| inference.uni.zonk(&ty));
+                    if let Some(domain) = &domain { self.check_index_export(&inference, domain, span)?; }
+                    self.commit_index_inference(&mut inference)?;
+                    Ok::<_, Error>(domain)
+                }).transpose()?.flatten().unwrap_or(Ty::Bytes);
+                signature = Some(Ty::fun(domain, Ty::Nat));
             } else if let Some(actual) = args.first().map(|arg| self.captured_index_carrier(arg, vars)).transpose()?.flatten() {
                 let base = self.refine_base(&actual).unwrap_or(actual);
                 if !matches!(&base, Ty::Prim(primitive) if primitive.is_int_like()) {
