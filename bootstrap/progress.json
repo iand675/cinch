@@ -1,33 +1,33 @@
 {
   "schema": 1,
   "estimate": 90,
-  "commit": "aa5e3bf231f931d44aacf810edd76e67e586a0bd",
+  "commit": "45a8072bec70e81c50fb2d5e26d8233c3bc7b640",
   "estimateNote": "Rough engineering estimate. Verified checks and remaining work are listed below.",
   "status": "Verification found a failure; correction required",
   "stages": [
     {
-      "name": "Prior API Stage 0",
-      "state": "passed",
-      "label": "Verified",
-      "description": "Pinned Rust seed, independently revalidated and smoke-tested. Separate compiler snapshot; a matching published-source run remains required."
-    },
-    {
-      "name": "Prior API Stage 1",
-      "state": "passed",
-      "label": "Verified",
-      "description": "Fresh Cinch compiler built from the seed; all three smoke checks. Separate compiler snapshot; a matching published-source run remains required."
-    },
-    {
-      "name": "Prior API Stage 2",
+      "name": "Stage 0",
       "state": "pending",
       "label": "Pending",
-      "description": "Every compiler module is being freshly rebuilt by Stage1; all repair gates passed. Separate compiler snapshot; a matching published-source run remains required."
+      "description": "Pinned Rust seed, independently revalidated and smoke-tested."
     },
     {
-      "name": "Prior API Stage 3",
+      "name": "Stage 1",
       "state": "pending",
       "label": "Pending",
-      "description": "Fresh rebuild by Stage2, followed by code/interface matching and changed-source checks. Separate compiler snapshot; a matching published-source run remains required."
+      "description": "Fresh Cinch compiler built from the seed; all three smoke checks."
+    },
+    {
+      "name": "Stage 2",
+      "state": "pending",
+      "label": "Pending",
+      "description": "Every compiler module is being freshly rebuilt by Stage1; all repair gates passed."
+    },
+    {
+      "name": "Stage 3",
+      "state": "pending",
+      "label": "Pending",
+      "description": "Fresh rebuild by Stage2, followed by code/interface matching and changed-source checks."
     }
   ],
   "checks": [
@@ -38,7 +38,7 @@
     },
     {
       "title": "Current repair gates",
-      "detail": "4 of 4 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_type_syntax: passed; parser: passed; bootstrap_external_frontend: passed; bootstrap_library_object: passed. All 43 source-module check: passed.",
+      "detail": "5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_globals: passed; bootstrap_nominals: passed; runtime behavior: passed; bootstrap_external_frontend: passed; bootstrap_library_object: passed. All 43 source-module check: passed.",
       "state": "passed"
     },
     {
@@ -58,12 +58,12 @@
     },
     {
       "title": "Current published Rust compiler: full suite",
-      "detail": "186 of 232 complete groups passed; 1 running, 1 failed and 44 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "189 of 232 complete groups passed; 1 running, 1 failed and 41 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
-      "title": "Earlier API compiler bootstrap",
-      "detail": "2 of 4 stages built and smoke-tested. Fixed point, 43 interfaces, API consumption and changed-source behavior are required. Separate compiler snapshot; a matching published-source run remains required.",
+      "title": "Fresh compiler bootstrap",
+      "detail": "0 of 4 stages built and smoke-tested. Fixed point, 43 interfaces, API consumption and changed-source behavior are required.",
       "state": "running"
     },
     {
@@ -143,7 +143,7 @@
     },
     {
       "title": "Current Rust producer: sweep with frozen earlier Cinch fixtures",
-      "detail": "186 of 232 complete groups passed; 1 running, 1 failed and 44 pending. State: running. Native6b production matches the published Rust compiler; this sweep retains older5cea Cinch fixtures. All cases run, including ignored cases. The byte-group failure is preserved and its917f repair has a separate passing audit.",
+      "detail": "189 of 232 complete groups passed; 1 running, 1 failed and 41 pending. State: running. Native6b production matches the published Rust compiler; this sweep retains older5cea Cinch fixtures. All cases run, including ignored cases. The byte-group failure is preserved and its917f repair has a separate passing audit.",
       "state": "running"
     },
     {
@@ -207,42 +207,37 @@
       "state": "failed"
     },
     {
-      "title": "Published038f parser and full-source check",
+      "title": "Earlier038f parser and full-source check",
       "detail": "Two complete syntax/corpus groups pass; five structured trees and six malformed arguments covered. Actual917f Cinch checks all43 modified compiler inputs. No Copy, staging or general user-row-family support is claimed.",
       "state": "passed"
     },
     {
-      "title": "Published038f full compiler and library-object validation",
-      "detail": "Fresh full43-source actual compiler fixture plus complete adapter/object groups. State: passed; phase: bootstrap_library_object. Explicit Native22 seed role; client frontend remains Cinch. Matching independent audit is recorded separately.",
+      "title": "Published450711 full compiler and library-object validation",
+      "detail": "Exact43-source actual compiler plus complete adapter/object groups pass9tests. Actual object reload and owned client pass32M with poisoning and zero leaks. Explicit Native22 seed role; full self-built acceptance remains separate.",
       "state": "passed"
     },
     {
-      "title": "Published038f: Core constructor-scope gap",
-      "detail": "Actual compiled checker accepts a forged hidden payload as Int in five fresh scopes. Source existential constructors still refuse. A separately verified private450711 guard is awaiting its whole runtime regression gate.",
-      "state": "failed"
-    },
-    {
-      "title": "Private450711 constructor guard: focused and compiler checks",
-      "detail": "Original global controls and25 scope controls pass; exact43-module compiler/object gate passes9tests. Whole nominal group passes separately. Runtime gate: passed; phase: bootstrap_runtime_ir. Full source/API support remains open.",
+      "title": "Published450711 constructor-scope repair",
+      "detail": "Five complete groups and13tests pass: globals, nominals, full runtime including tasks/captures/cancellation, adapter and library-object round trip.25 scope controls and141 zero-leak reports. Existential/indexed source support remains open.",
       "state": "passed"
     }
   ],
   "blockers": [
     {
-      "title": "Updated compiler verified; constructor-scope guard awaiting runtime checks",
-      "detail": "Publishedaa5e3bf verifies compiler038f: all43 exact compiler inputs build; both complete adapter/object groups pass9tests; the real object reload/client passes32M poisoning with zero leaks. The parser syntax/corpus groups also pass. A new Core probe shows038f accepts a forged hidden-payload pattern; Source existential declarations still refuse. Private450711 guard passes the full global group and25 scope controls, the full nominal group and its actual43-module compiler/object gate. The complete runtime group, including task/capture/cancellation cases, remains its publication gate. The separate917f Stage2 and fullNative6b sweep continue on frozen inputs. Original arrays13/15 and interface/API6/9 remain earlier917f evidence. All105 required targets and Acceptance5 stay open."
+      "title": "Constructor-scope fix published; full language and matching suites remain",
+      "detail": "Published45a8072 closes the hidden constructor-parameter Core-checking gap. All5 complete affected groups and13tests pass, including25 added scope controls, whole runtime/task/capture/cancellation cases, and exact43-module compiler/object validation. Source existential/indexed constructors still need scoped openings/refinement/runtime support. Earlier917f arrays13/15 and original interface/API6/9 retain their separate source scope. FullNative6b sweep and917f chain continue on frozen inputs; matching450711 bootstrap and all105 target acceptance remain open."
     },
     {
       "title": "Investigate the recorded failure",
-      "detail": "Native compiler tests: bootstrap_byte_observations; self-built tests: bootstrap_total_semantics; self-built tests: bootstrap_type_syntax; self-built tests: arrays; Two original array cases remain open: ownership/copyOut and staging; Three original interface/API groups require language support; Core constructor patterns need verified scoped openings before existential support"
+      "detail": "Native compiler tests: bootstrap_byte_observations; self-built tests: bootstrap_total_semantics; self-built tests: bootstrap_type_syntax; self-built tests: arrays; Two original array cases remain open: ownership/copyOut and staging; Three original interface/API groups require language support"
     },
     {
       "title": "Finish the fresh bootstrap",
-      "detail": " Separate compiler snapshot; a matching published-source run remains required. A matching final chain is not yet verified."
+      "detail": "All repair gates passed. Stage2 is rebuilding the compiler; Stage3, matching code/interfaces, actual API consumption and changed-source checks remain."
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "186 of 232 complete groups passed; 1 running, 1 failed and 44 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "189 of 232 complete groups passed; 1 running, 1 failed and 41 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -287,10 +282,10 @@
       "title": "Earlier source: Changed-source rebuilding verified"
     }
   ],
-  "candidateSource": "038faba053d76f5297d7996e9032066e10994dd69460b6f500a2ddb2645cfa58",
+  "candidateSource": "4507111e3092b40354e6714464574729313c7e9ffe5a12b3d872ca7303efacc5",
   "candidatePublished": true,
   "fullGoalComplete": false,
-  "summary": "All 43 compiler-source checks: passed. 4 of 4 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_type_syntax: passed; parser: passed; bootstrap_external_frontend: passed; bootstrap_library_object: passed.",
-  "activity": "Current published Rust compiler: full suite: 186 of 232 complete groups passed; 1 running, 1 failed and 44 pending. Stage builds and smoke checks: 2 of 4; chain state: building-stage2; earlier API source, not the published repair. Repair gates: 4 of 4 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_type_syntax: passed; parser: passed; bootstrap_external_frontend: passed; bootstrap_library_object: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
-  "updatedAt": "2026-11-05T22:30:41.786055+00:00"
+  "summary": "All 43 compiler-source checks: passed. 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_globals: passed; bootstrap_nominals: passed; runtime behavior: passed; bootstrap_external_frontend: passed; bootstrap_library_object: passed.",
+  "activity": "Current published Rust compiler: full suite: 189 of 232 complete groups passed; 1 running, 1 failed and 41 pending. Stage builds and smoke checks: 0 of 4; chain state: building-stage0. Repair gates: 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_globals: passed; bootstrap_nominals: passed; runtime behavior: passed; bootstrap_external_frontend: passed; bootstrap_library_object: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
+  "updatedAt": "2026-11-05T22:37:24.042138+00:00"
 }
