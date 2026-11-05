@@ -7,8 +7,8 @@
   "stages": [
     {
       "name": "Stage 0",
-      "state": "pending",
-      "label": "Pending",
+      "state": "passed",
+      "label": "Verified",
       "description": "Pinned Rust seed, independently revalidated and smoke-tested."
     },
     {
@@ -63,7 +63,7 @@
     },
     {
       "title": "Fresh compiler bootstrap",
-      "detail": "0 of 4 stages built and smoke-tested. Fixed point, 43 interfaces, API consumption and changed-source behavior are required.",
+      "detail": "1 of 4 stages built and smoke-tested. Fixed point, 43 interfaces, API consumption and changed-source behavior are required.",
       "state": "running"
     },
     {
@@ -286,6 +286,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "All 43 compiler-source checks: passed. 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_globals: passed; bootstrap_nominals: passed; runtime behavior: passed; bootstrap_external_frontend: passed; bootstrap_library_object: passed.",
-  "activity": "Current published Rust compiler: full suite: 189 of 232 complete groups passed; 1 running, 1 failed and 41 pending. Stage builds and smoke checks: 0 of 4; chain state: building-stage0. Repair gates: 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_globals: passed; bootstrap_nominals: passed; runtime behavior: passed; bootstrap_external_frontend: passed; bootstrap_library_object: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
-  "updatedAt": "2026-11-05T22:37:24.042138+00:00"
+  "activity": "Current published Rust compiler: full suite: 189 of 232 complete groups passed; 1 running, 1 failed and 41 pending. Stage builds and smoke checks: 1 of 4; chain state: building-library-only-provider. Repair gates: 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_globals: passed; bootstrap_nominals: passed; runtime behavior: passed; bootstrap_external_frontend: passed; bootstrap_library_object: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
+  "updatedAt": "2026-11-05T22:38:25.972336+00:00"
 }
