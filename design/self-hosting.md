@@ -1,5 +1,45 @@
 # Self-hosting
 
+## Original array and interface/API groups expose the remaining gaps (2026-11-05)
+
+The published `917f6e1f` compiler runs the complete original fifteen-case
+mixed array target with an actual Cinch frontend and the explicit 85f00ca
+library-only provider. Thirteen cases pass; two fail without changing any
+original source, assertion or filter. The real object case, generic and packed
+arrays, ownership/lifetime clients, tensor shapes and columnar projections pass.
+All 31 runtime-emitter clients pass at 32M with poisoning and zero leaks; all
+three corrupted nominal-layout controls refuse without an artifact.
+
+The two open array cases require structural Copy/borrow/Thunk ownership and
+stage/generate evaluation with the specified named unsupported-array refusal.
+The source refuses before those respective semantic checks today. The direct
+Rust packed-width API case stays explicitly classified inside the mixed target.
+See `bootstrap/current-original-array-suite-results.json`.
+
+All nine original interface/API groups also execute through the actual Cinch
+writer and original Native public-reader/hash/mutation assertions. Six whole
+groups pass: anonymous predicates, nominal identities, numeric preconditions,
+private refinement closure, refined exports and region/effect metadata. Of the
+eleven Rust tests, eight pass and three fail, with none ignored or filtered.
+The three failed groups require existential/indexed constructors, typed foreign
+declarations and source-family replacements of imported prelude homes. The
+mixed kinds group separately passes its opaque-parameter-kind case.
+
+The adapter copies exact provided library-only contracts for assertions that
+inspect imported modules, and exact Cinch-emitted bytes for source modules;
+these distinct roles never grant a Native frontend fallback for client source.
+An earlier missing-imported-output transport failure is retained, and the
+corrected complete replay makes the anonymous group green. See
+`bootstrap/current-original-interface-api-results.json`.
+
+These are complete failing-group receipts, not final Stage3 acceptance. All
+original100 targets and five additions remain required. The new matching917f
+chain has passed Stage0/1; later stages, fixedpoint/API/changed-source audit,
+matching full suites and Acceptance5 remain open. The private parser row-
+argument repair passes complete syntax-tree and corpus groups, including the
+original nested Ref/Array/Thunk signature, and is awaiting its full43-source
+check. It does not yet establish Copy or staging semantics.
+
 ## Checked byte observations retain actual body authority (2026-11-05)
 
 Compiler `917f6e1f` accepts a renamed imported byte-length primitive even when

@@ -1,0 +1,47 @@
+{
+  "actual_object_case_passed": true,
+  "actual_runtime_clients": 31,
+  "array_test_source_sha256": "8d1ccd32224302805c2b206f8f484d6aebd8d2658aa2a5e95d40aaf6576b5139",
+  "client_exit": 42,
+  "client_heap_limit": "32M",
+  "client_rc_debug": true,
+  "compiler_source_sha256": "917f6e1fc2bc376224a6f2edb1ae951e73c364ff216cf558e2c714003cf6bc36",
+  "failed": 2,
+  "failed_tests": [
+    "array_copy_evidence_depends_on_the_element_type",
+    "native_staging_refuses_arrays_by_name_until_the_evaluator_supports_them"
+  ],
+  "filtered": 0,
+  "full_goal_complete": false,
+  "ignored": 0,
+  "library_producer": {
+    "description": "Published85f00ca ABI6 library-only Native provider. Never compiles Bootstrap implementation modules; independent role and private cache from the seed.",
+    "revision": "85f00ca880f0d9882c03c65031424a05c81b11bc",
+    "runtime_abi": 6,
+    "schema": 1,
+    "source_sha256": "22c91cf6c1855b049207612e9d94630850e880d5a49ea3e2c57c92aff7fdbe88"
+  },
+  "library_roots_sha256": "167d2e309b4c7b59a497c87971e789dfe684211a77aaf11f02e9c8436e629a07",
+  "log_sha256": "45d71eb5a12efd188ebcc666efa8685eb78526d07b12997c867b047bc8615430",
+  "malformed_runtime_layout_refusals": [
+    "changed-list-fields",
+    "changed-option-payload",
+    "changed-option-tags"
+  ],
+  "native_source_sha256": "6b567529032465cde863607185da47aa7d5f9e5ecd99a596158174fd7efa6aa7",
+  "passed": 13,
+  "schema": 1,
+  "scope": "Complete original15-case mixed array target, none ignored or filtered, using actual917f Cinch compiler and explicit85f00ca library-only provider with a freshNative6b host. Every original test body/assertion is unchanged. Actual object output, generic/packed/multidimensional/columnar/owned-element clients and all31 runtime-emitter clients pass; all31 printed heap32M poisoning/leak reports are zero, and all3 corrupted layout controls refuse. packed_word_storage_resolves_width_from_the_target remains an explicitly directNative Rust API assertion. Two frontend gaps remain: Ref/Thunk/copyOut structuralCopy/ownership and stage/generate evaluation with the specified named unsupported-array refusal. Earlier wrong-provider diagnostic run1 is preserved and stopped; it is not counted as current evidence. This group is failed and does not prove full self-built or Acceptance5 success.",
+  "selected_compiler": {
+    "compiler": "/var/folders/8w/44rf3zr512nd0pd0bwb70vfm0000gn/T/cinch_boot_library_object_cli_36010_1/object-compiler",
+    "compiler_sha256": "be97b34eafcdad1bdcd8c15ac956a79f1271eb124d5c460e378cda4f1db2a0dd",
+    "project": "/var/folders/8w/44rf3zr512nd0pd0bwb70vfm0000gn/T/cinch_boot_library_object_cli_36010_1",
+    "provider": "/var/folders/8w/44rf3zr512nd0pd0bwb70vfm0000gn/T/cinch_boot_object_cli_provider_36010_0"
+  },
+  "source_sha256": "21aa2cd0e48f15692ff23c3051b1cc3e0635d3bf4a962b28a8b352175e253a5f",
+  "status": "failed-current-original-array-group",
+  "tests": 15,
+  "verified_at": "2026-11-05T21:24:22.116526+00:00",
+  "wrapper_sha256": "5f95953cce9614847fbffd626e5ea61f95789bb70bbc8df44b3e7975839609a4",
+  "zero_leak_reports": 31
+}
