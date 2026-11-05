@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "estimate": 90,
-  "commit": "b30e97c",
+  "commit": "3ee19c4",
   "estimateNote": "Rough engineering estimate. Verified checks and remaining work are listed below.",
   "status": "Verification found a failure; correction required",
   "stages": [
@@ -57,7 +57,7 @@
       "state": "passed"
     },
     {
-      "title": "Complete published Rust compiler suite",
+      "title": "Previous b30e97c Rust suite",
       "detail": "58 of 229 complete groups passed; 0 running, 1 failed and 170 pending.Every group includes ignored tests. State: stopped-after-failure. Earlier compiler inputs; a matching published-source run remains required.",
       "state": "running"
     },
@@ -73,7 +73,7 @@
     },
     {
       "title": "Earlier API checkpoint: exact Stage3 behavior",
-      "detail": "14 of 93 complete groups passed; 1 running, 0 failed and 78 pending.81 complete bootstrap groups, eight ordinary and four mixed targets. Includes all positive ABI6 arrays, exact float patterns and the new projection group. Every case runs; direct Native operations remain separately classified. Earlier compiler inputs; a matching published-source run remains required.",
+      "detail": "16 of 93 complete groups passed; 1 running, 0 failed and 76 pending.81 complete bootstrap groups, eight ordinary and four mixed targets. Includes all positive ABI6 arrays, exact float patterns and the new projection group. Every case runs; direct Native operations remain separately classified. Earlier compiler inputs; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -132,19 +132,24 @@
       "state": "running"
     },
     {
-      "title": "Published Rust measures and collections: 497 tests passed",
-      "detail": "All24completeaffectedgroups, all43Cinchmodules and alltesttargets pass independently. Original32collectioncases and actualCinchconsumer remain intact. Whole9-testlinear and19-testsurface replays pass at32M withRC/leakchecks (10 and25zero-leak reports). Full matching sweeps remain required.",
+      "title": "Published Rust comparison repair: 447 tests passed",
+      "detail": "20 complete affected groups, all43 compiler modules, debug ownership verification and242 zero-leak reports. Forward facts are verified against actual selected bodies before acceptance; ordinary dictionary dispatch remains valid. This scoped result leaves the confirmed arithmetic-operand counterexample and complete matching suites open.",
       "state": "passed"
+    },
+    {
+      "title": "Runtime arithmetic operands must retain actual semantics",
+      "detail": "An altered Nat addition passes the small law samples but a larger-input dependent claim is incorrectly accepted. Normal addition exits0; changed addition exits42, both with zero leaks. Separate verified comparison-head repair does not close this operand defect.",
+      "state": "failed"
     }
   ],
   "blockers": [
     {
-      "title": "Matching full sweeps and actual method-body proof semantics",
-      "detail": "Published b30e97c passes 497 tests in 24 complete affected groups, all 43 compiler modules and low-heap replays. Matching complete Native49 and exact final Stage3 suite50 continue. Cinch c8d6 retains the independently verified four-stage fixed point (Acceptance 1-4). The unpublished source-body/method candidate now passes all 43 module checks, 16 actual exporter controls, and every original bounded-width metadata assertion on Cinch-produced A/Facade interfaces. Its remaining complete runtime groups are running. The Rust changed-order bug is confirmed at runtime (normal method exits 0, always-true replacement exits 42, both zero leaks). The first repair exposed genuine forward-reference ordering in the standard library. A new candidate records which selected-method facts proofs actually cite and validates those certificates against the completed checked bodies before program acceptance; its fresh complete regression validation is running. Earlier failures remain preserved. Full matching suites, original 100-target/API coverage, GADT/localforall, FFI, safe source overlay, Cinch proof API and Acceptance 5 remain open."
+      "title": "Arithmetic operand semantics, list measures and source-body validation cost",
+      "detail": "Published 3ee19c4 verifies cited comparison facts against actual selected implementations: 20 complete groups / 447 unique tests, all 43 c8d6 modules, debug ownership verification and 242 zero-leak reports. Five handwritten Core fixtures now use valid object/dictionary ownership metadata and a whole-object payload check; every expected result remains. A separate current Rust counterexample remains: altered Nat addition agrees with small class-law samples but a larger-input dependent claim is accepted and exits 42 rather than 0. The retained prior b30 Native49 sweep stops at lattice: 58 groups pass, one group fails seven original List Char measure cases, 170 are pending. The complete current Rust sweep is still required after repair. The unpublished Cinch source candidate passes all 43 module checks, 16 real exporter controls and every original bounded-width metadata assertion; its remaining complete groups are running. Profiling the retained 1500-function case identifies repeated quadratic body-set validation inside per-definition/per-expression checks. Cache opaque validated contexts without dropping closure or authority checks. Cinch c8d6 retains its verified four-stage fixed point (Acceptance 1-4). Full matching self-built/auxiliary suites, original 100-target/API coverage, GADT/localforall, FFI, safe source overlay, Cinch proof API and Acceptance 5 remain open."
     },
     {
       "title": "Investigate the recorded failure",
-      "detail": "Native compiler tests: lattice"
+      "detail": "Native compiler tests: lattice; Current arithmetic-operand counterexample is incorrectly accepted"
     },
     {
       "title": "Finish the fresh bootstrap",
@@ -160,7 +165,7 @@
     },
     {
       "title": "Finish the exact self-built compiler tests",
-      "detail": "14 of 93 complete groups passed; 1 running, 0 failed and 78 pending. Earlier compiler inputs; a matching published-source run remains required."
+      "detail": "16 of 93 complete groups passed; 1 running, 0 failed and 76 pending. Earlier compiler inputs; a matching published-source run remains required."
     },
     {
       "title": "Finish final external acceptance",
@@ -201,6 +206,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "All 43 compiler-source checks: passed. 14 of 14 complete groups passed; 0 running, 0 failed and 0 pending. runtime behavior: passed; bootstrap_eval: passed; library calls: passed; bootstrap_source_proofs: passed; bootstrap_source_constructors: passed; refinements and effects: passed; Core validation: passed; independent type checker: passed; bootstrap_decisions: passed; bootstrap_source_decisions: passed; bootstrap_export_interfaces: passed; bootstrap_source_projection: passed; arrays: passed; bootstrap_array_float_bits: passed.",
-  "activity": "Complete published Rust compiler suite: 58 of 229 complete groups passed; 0 running, 1 failed and 170 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 14 of 14 complete groups passed; 0 running, 0 failed and 0 pending. runtime behavior: passed; bootstrap_eval: passed; library calls: passed; bootstrap_source_proofs: passed; bootstrap_source_constructors: passed; refinements and effects: passed; Core validation: passed; independent type checker: passed; bootstrap_decisions: passed; bootstrap_source_decisions: passed; bootstrap_export_interfaces: passed; bootstrap_source_projection: passed; arrays: passed; bootstrap_array_float_bits: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 14 of 93 complete groups passed; 1 running, 0 failed and 78 pending. Proposed compiler repair (separate unpublished source): under-validation; 21 of 37 complete groups passed; 1 running, 0 failed and 15 pending.",
-  "updatedAt": "2026-11-05T08:13:13.662389+00:00"
+  "activity": "Previous b30e97c Rust suite: 58 of 229 complete groups passed; 0 running, 1 failed and 170 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 14 of 14 complete groups passed; 0 running, 0 failed and 0 pending. runtime behavior: passed; bootstrap_eval: passed; library calls: passed; bootstrap_source_proofs: passed; bootstrap_source_constructors: passed; refinements and effects: passed; Core validation: passed; independent type checker: passed; bootstrap_decisions: passed; bootstrap_source_decisions: passed; bootstrap_export_interfaces: passed; bootstrap_source_projection: passed; arrays: passed; bootstrap_array_float_bits: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 16 of 93 complete groups passed; 1 running, 0 failed and 76 pending. Proposed compiler repair (separate unpublished source): under-validation; 21 of 37 complete groups passed; 1 running, 0 failed and 15 pending.",
+  "updatedAt": "2026-11-05T08:20:29.071401+00:00"
 }
