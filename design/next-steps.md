@@ -1,5 +1,28 @@
 # Next steps (as of 2026-11-05)
 
+## Current projection/proof-runtime compiler bootstraps from Cinch (2026-11-05)
+
+The current c8d6 compiler has a fresh independently audited Stage0/1/2/3
+bootstrap. Stage1 rebuilds all 43 compiler modules into Stage2, which
+rebuilds Stage3. Every stage smoke passes. Stage2 and Stage3 have identical
+LLVM, executables and all 43 canonical compiler interfaces. The actual
+interface-only entry consumer passes without compiler source bodies, and
+rebuilding changed source produces the expected changed diagnostic.
+
+Both final compilers hash to
+`645dd0bbef9bfaec24666c171c2f1b39bd900533e72cb5ec8e7c5800b7bae902`.
+The canonical 43-module source remains
+`c8d6d87a8d1a698009b1ed820427a7a2bb67dab0f34d170accb41e42678ba985`.
+See `bootstrap/current-projection-proof-bootstrap-results.json`.
+The explicit b64710b ABI6 seed/provider pins remain unchanged; the separate
+Native checked-type scope fix changes neither these inputs nor Cinch source.
+
+This proves Acceptance 1-4 for the current Cinch implementation. Acceptance 5
+and the full requested outcome remain open: the complete matching Native48
+sweep, all 93 exact Stage3 groups in49, matching auxiliary/external checks,
+original 100-target/API scope and the remaining proof/type/FFI/measure work.
+Earlier failing and superseded sweeps remain preserved with their own inputs.
+
 ## Native checked-type scope inspection (2026-11-05)
 
 The complete Native sweep found an actual regression in its original

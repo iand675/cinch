@@ -1,0 +1,332 @@
+{
+  "acceptance": [
+    {
+      "number": 1,
+      "status": "proved"
+    },
+    {
+      "number": 2,
+      "status": "proved"
+    },
+    {
+      "number": 3,
+      "status": "proved"
+    },
+    {
+      "number": 4,
+      "status": "proved"
+    },
+    {
+      "number": 5,
+      "status": "pending"
+    }
+  ],
+  "changed_source": {
+    "compiler_sha256": "6f7adb6c09b4e0f025314d67896d816ce774f751df8214e6327f31651c89f72f",
+    "diagnostics_sha256": "f141beff8826d369b35167f6648aef03679bed8e6ff326446a1c8950fdb04b48",
+    "source_sha256": "28328bafd1795b3c04ba529c2aa85e3a403ca3e0f022e5040e913a43cd0d347d"
+  },
+  "compiler_ir_sha256": "59adf14f853a3ae773e9eb00e0da5cf2e06d4006ff8b9d866825e7bca39ae1cd",
+  "compiler_source_sha256": "c8d6d87a8d1a698009b1ed820427a7a2bb67dab0f34d170accb41e42678ba985",
+  "full_goal_complete": false,
+  "interface_consumer": {
+    "compiler_sha256": "645dd0bbef9bfaec24666c171c2f1b39bd900533e72cb5ec8e7c5800b7bae902",
+    "manifest_sha256": "d0bf322ab1e0e7e5dfc365e3eac7b22a7d4bfd277a5a4815f59c91a6569fde4b",
+    "source_sha256": "5eb1e5581fa0fa526c5208f891a893fea3a5049ebb29fd70f4c94bdce3c6d6d4",
+    "status": "passed"
+  },
+  "interface_count": 43,
+  "matching_interfaces": {
+    "compiler.ll.Bootstrap.Ast.cinchif": "1317d4224c900e6d232fc8c15058826417856e924991fabf3994aace0c716f03",
+    "compiler.ll.Bootstrap.BodyContract.cinchif": "5219d8588005fc4e4fb45f66f1529383a2b28c40e16b38ae7146a4d7758b89ec",
+    "compiler.ll.Bootstrap.Builtin.cinchif": "4d6ae9c69dc135b7572028eb19bdd559b7403cc5e4a572e59766762a38dd5497",
+    "compiler.ll.Bootstrap.Check.cinchif": "74c1198f54b26d448f1e0f70e4a93913ba49a943b95a8cd0e2ff0728790e424b",
+    "compiler.ll.Bootstrap.Contracts.cinchif": "1f4b742c6ba691821555a075a67c45d0c7d7489324dca851914140b1c7b5cce9",
+    "compiler.ll.Bootstrap.Core.cinchif": "6c9482f20aa77ff8c1bcab4aebdbd5615e610a0c2d02488a9ce97f9257c7dd18",
+    "compiler.ll.Bootstrap.Dictionary.cinchif": "b908506f69395b1f08fb88b53e107daa17bfaff07d0183d207b9c071381ea589",
+    "compiler.ll.Bootstrap.Driver.cinchif": "87ab2971963baa4c7fa6f3280de60d5ae7c976be14dc59c9f5fafafe2f02b792",
+    "compiler.ll.Bootstrap.Eval.cinchif": "00ad2aa153df5e6b27d4c10a18c48f4d8a43b5c04150bb072f3d97c656e3ec07",
+    "compiler.ll.Bootstrap.Export.cinchif": "361b8c8bc0a9f2e7fd04dbcf496bfb05d40830999c69369d247a9fe316eadd46",
+    "compiler.ll.Bootstrap.ExportNominal.cinchif": "9bb373d9efd54e9731258a5301e58bd39e4bb684872ef6d499b2eadca47aebed",
+    "compiler.ll.Bootstrap.ExportType.cinchif": "58be1dfeefb55b3b1222c457236f87a872b0323bfa171caa85d76fb3dcec450a",
+    "compiler.ll.Bootstrap.Global.cinchif": "bf536bb607aee5ca395261b266dd4d966f81919dc30778818c0c1aabea96a613",
+    "compiler.ll.Bootstrap.Guarded.cinchif": "746e47f32a53adbccfeb2c41b91faa5d41443e04c3fa4164a061023480271bb7",
+    "compiler.ll.Bootstrap.Index.cinchif": "802a222fa4c9ce343112cf8c58cb766788f7f48083511c4491bf26c83d365c73",
+    "compiler.ll.Bootstrap.Infer.cinchif": "231f2a471e6e158811516d493afe28260d8a8aa2aa92fed26e3eb1b7e5089111",
+    "compiler.ll.Bootstrap.Inputs.cinchif": "a9dab325b719fda5b871fecbd76126771a5ba63586a84f7e5ea625b44517efdd",
+    "compiler.ll.Bootstrap.Instance.cinchif": "ef179d721095b82c8123514729399de03085a05eb014b8fe4421226229718b63",
+    "compiler.ll.Bootstrap.Interface.cinchif": "f12284d19da856d0e169ef3d44e0dbcd8b5f930b16f75afe6b11730e9a56f1f1",
+    "compiler.ll.Bootstrap.Ir.cinchif": "22cd63a163ec1b1e50a3f29e5e62d9dca9bfb421d35507d4abcae832eaf0e224",
+    "compiler.ll.Bootstrap.Kinds.cinchif": "b9149801fcac238688fb8c95eb657e4bc0df3d883083f7d8a31bdb23a66fad8f",
+    "compiler.ll.Bootstrap.Load.cinchif": "ee7e1d7e3f3f0f0928727c05991aab701126fbcc1e1b54bdccd605dac1e97126",
+    "compiler.ll.Bootstrap.Manifest.cinchif": "8ecb1adbfd7a0ff9fb6efef015866709b378cd390f95505dd346937c10b3a015",
+    "compiler.ll.Bootstrap.Nominal.cinchif": "454b5aa8926f413b0fddb85a8885cd74d3845558fc0c906c45a11e76346b4789",
+    "compiler.ll.Bootstrap.Object.cinchif": "06ebfb278ea81a4967404e289e679ab0171729875c2c266b18342d3d2fb57c7b",
+    "compiler.ll.Bootstrap.Parse.cinchif": "78daf0da226ee85d776a4c4460cf3453bd9778479fca47e3d6b4b80a47276412",
+    "compiler.ll.Bootstrap.Pipeline.cinchif": "167a0343c0aacea97a32e42b9c02b116b1fded5a37413ace8b415a4fb1f5ff89",
+    "compiler.ll.Bootstrap.Proof.cinchif": "55bb7af549b2430dd9c4413c993dbfb2eb319fbd059baf3991c8b2a581b98050",
+    "compiler.ll.Bootstrap.Report.cinchif": "ff6ad485a964a649f32dfd2e1098c1e3abeae474879437a26b7c62d5b4ec0aa7",
+    "compiler.ll.Bootstrap.Resolve.cinchif": "b46e1c0834ffbbeb54222f6622fa9a09d15a9d514a43ec2b773c50792717d157",
+    "compiler.ll.Bootstrap.RuntimeAbi.cinchif": "98e98a305df3e2774df21cefc7c6e262d698543aecae3fe05ec3434fc4095592",
+    "compiler.ll.Bootstrap.RuntimeIr.cinchif": "2f04cfa63bbd2ad2e087cc4d1eebc8f54f919ef97c5e2a32f0632883b1d2b681",
+    "compiler.ll.Bootstrap.Test.cinchif": "932607b68acc54542021e6d485f647e83a4ac777b4f54fd456882fc9f54305be",
+    "compiler.ll.Bootstrap.Total.cinchif": "8a545a0d4849fc8b21b04c268643c586272e0ed87686463a02f70263ccc7ecb8",
+    "compiler.ll.Bootstrap.TotalSemantics.cinchif": "0dc3fe5ba3d9dc35748a95c5a69d4b5447e47d1eab8feb16ba0f657ba37d5b42",
+    "compiler.ll.Bootstrap.Type.cinchif": "5631fcabc41b40663eb675f4166cca7f595fa74de9d87417d15e1fa70314b173",
+    "compiler.ll.Bootstrap.Typing.cinchif": "c7d2fc1980a3a991633a144436a1b7447f52abd83da02776b6a6b98f22a62bce",
+    "compiler.ll.Main.cinchif": "8e6eeeabb418881346936a6d25b0048d0d08b6b71491f79b5db12fa696f9a4aa",
+    "compiler.ll.Text.Builder.cinchif": "352cdb379aeafd7498ba79a777544ed7f2cf9cd8c502450a916e7d68ddcff6bb",
+    "compiler.ll.Text.Json.cinchif": "6bb6f4f35533b94af139be38d8b80d53501a5cfec8488da4313e704c0c950179",
+    "compiler.ll.Text.Lex.cinchif": "7f2ff8b5f1e4287504accd0e1ba50309be3842e2617b0cac171dee5d5b694e10",
+    "compiler.ll.Text.Parse.cinchif": "fe4008c3559e221cea3a32a3c42283f21c668c9e865947dff7daa2cbc7f603a4",
+    "compiler.ll.Text.Scan.cinchif": "f7bea8d962320ea9d04d096b366cf675e9a12a277e8e380e9c7e46d7de0d08db"
+  },
+  "schema": 1,
+  "scope": "Current ABI6 projection/decision/proof-runtime compiler: all four actual stages and smokes; Stage1 rebuilds every compiler module into Stage2 and Stage2 intoStage3; byte-identical Stage2/3 IR/executable/43canonical interfaces; API-only compiler consumption and changed-source behavior. Intentional matching b64710bABI6seed/library pins. This proves Acceptance1-4 only; complete matching Native/runtime/tools/editor/finalStage3/fullarrays/originalAPI/proof/Acceptance5 remain required",
+  "source_sha256": "eeca8d6f02c210f4e971b2398937777905bd9e39eb0dcf290f91f9e8846458ee",
+  "stages": [
+    {
+      "compiler_sha256": "e66deeaf19b4d633b863be42906a9ff5b0c44a8fdad1e3375c51d03d0f6a12aa",
+      "inputs": {
+        "host": {
+          "machine": "arm64",
+          "system": "Darwin"
+        },
+        "protocol": 4,
+        "seed": {
+          "description": "Intentional isolated ABI6 stage transition. Exact published b64710b Native compiler/runtime sources, no patch. Rebuild the same complete Cinch array/effect compiler source at Stage1/2/3. Earlier ABI5 stage evidence is not reused as ABI6 proof.",
+          "patch": "bootstrap/seed/stage0.patch",
+          "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "revision": "b64710b29e57c0b73dbfce8fa67c3bf1e581ea6c",
+          "runtime_abi": 6,
+          "schema": 1,
+          "source_sha256": "dbe00931df2b2ab7a14a56e4acc6653dc7a4d01a0dc1d3e1f4da22e9ce039ffb"
+        }
+      },
+      "stage": 0,
+      "stage_receipt_sha256": "9aa58695f4056db64645d07753be66b1f20d3c43b7b8ccb52f8a4b0467b6725e",
+      "status": "passed"
+    },
+    {
+      "compiler_sha256": "2b212e4df533f2c6af748a8ee13cfef94e51395193fb19120914d71b95f2409a",
+      "inputs": {
+        "builder_sha256": "e66deeaf19b4d633b863be42906a9ff5b0c44a8fdad1e3375c51d03d0f6a12aa",
+        "built_by_stage": 0,
+        "host": {
+          "machine": "arm64",
+          "system": "Darwin"
+        },
+        "protocol": 4,
+        "source_sha256": "c8d6d87a8d1a698009b1ed820427a7a2bb67dab0f34d170accb41e42678ba985"
+      },
+      "stage": 1,
+      "stage_receipt_sha256": "be364a0fd4acb9cc1099c4bb7adf8150e6e418c88a8318e40aceabf04e8c160e",
+      "status": "passed"
+    },
+    {
+      "compiler_sha256": "645dd0bbef9bfaec24666c171c2f1b39bd900533e72cb5ec8e7c5800b7bae902",
+      "inputs": {
+        "builder_sha256": "2b212e4df533f2c6af748a8ee13cfef94e51395193fb19120914d71b95f2409a",
+        "built_by_stage": 1,
+        "frontend_mode": "typed-ir-objects",
+        "host": {
+          "machine": "arm64",
+          "system": "Darwin"
+        },
+        "interface_output": "checked-schema8",
+        "interface_set_sha256": "9486de9bccf2b6514eaea7be6793ec29767748ce4edb6aaf8583d88e83e67e73",
+        "library_provider": {
+          "artifacts": {
+            "cinch": "a8e9f3388bac99b73d36b9ac5aad6409e5c9ff52ce2a8dac0062e7cb456ba570",
+            "interfaces.json": "081a42f67312bbd4bdfb0a9787f65e1be6ff56ff14917e56a5c5eeb2ac05614f",
+            "libcinchruntime.a": "2fab721751aa601f3ca72d7677f8520e5bdd37d93887275b5636fce478f959c6",
+            "library.abi.json": "429443fb9bff8d3537d91b60bf51184bc06ed9206824a4d2e0b00b3fce4e77ef",
+            "library.ll": "e66639516f4f0729f5af006b391856696473c83c19b8f5172a379c1c640eb4fa",
+            "library.o": "ce9a91767213fd63910ec9f877e59005b195c3a09aa71917a4b5ab90d4704279",
+            "library/build/Algebra.Arithmetic.cinchif": "5751c353b4904d163e9e6017d07c59c7b0c220d28919d49d624bbf00709dafa6",
+            "library/build/Algebra.Bits.cinchif": "d15247546e2e109174ef0ec5f888d17515f6a55991fd40390d10e8eae17c3ef5",
+            "library/build/Algebra.Group.cinchif": "20397581c62248e9fc4e4ade142cff40a9460c20440de3e8510afff66cb593dd",
+            "library/build/Algebra.Monoid.cinchif": "e92fba6eb3bab5cd29c8a8b076572925e9aafe9c1d87261ed65dfc5f082aeb65",
+            "library/build/Algebra.Semigroup.cinchif": "13bc94f7c39f114cc228a1132398a66e29951aa7490d0039b60e26e057765c82",
+            "library/build/Algebra.Semiring.cinchif": "c92734d35b65aecf166ce9051180f2e3659b923cf162d1bd8df69d28e450a9e5",
+            "library/build/Category.Alternative.cinchif": "28b8258f250a11296a6ee2b672d5ec734f350463935a6fb0187c9eff59798e22",
+            "library/build/Category.Applicative.cinchif": "b598c59ba56e33738e13c8b85ef46f2bf79ab3157991fbb62baa90e9f81a52fa",
+            "library/build/Category.Foldable.cinchif": "aa916b365ec9cf9ebbf69a6d0d2407088a45eff7c7c63d5adb3041a106b1f5a1",
+            "library/build/Category.Functor.cinchif": "54b8566f163acbcc06abbb428eaf6467ae24f581288a885925000186ec6f3dd0",
+            "library/build/Category.Monad.cinchif": "4756c09b512033eabf9432c4e98bce108622301c5b203963af491626c44c8e6a",
+            "library/build/Category.Traversable.cinchif": "a30b713641209bbb18c353b5cc7965d794a3a55c7462828615634299023f7b34",
+            "library/build/CinchBaseObject.cinchif": "f39eeee566b6ae7e24036c3083bac1790e1be23f926bd4f9a7fd61a1439733e5",
+            "library/build/Data.Ascii.cinchif": "b7cd1027441c9c03a45f38c46addad724f77bf2eda3f2838cb0a0c84697afaf5",
+            "library/build/Data.Bool.cinchif": "d500b9f80658c3713093d323f84381bf5d2466f4fb533da11a236f19d2388af4",
+            "library/build/Data.Bytes.cinchif": "44afdf2f1bd97c215d885aaac94be1b1530cedf965a5b8fc19810d7aab1a230d",
+            "library/build/Data.Char.cinchif": "c991b64815972a1cfd593f05429e2de45fad45ab9f6cd2c4af051339d4e35630",
+            "library/build/Data.Compose.cinchif": "4921e1810a30284cf9630e4fe2cb3291f9e85f0dbdd54d270c4366ec0e7e7646",
+            "library/build/Data.Const.cinchif": "8c5f0b75a3acceb8dd92f91d5c1ff5020836810b1dc4d53c9276d83294350c89",
+            "library/build/Data.Core.cinchif": "56a0d1fabef31161423bc5cffe54268a5ba0cc668b10501129cd44fa985f5014",
+            "library/build/Data.Enum.cinchif": "2a55203099419e8e37018cd3849b654814b88148819cebcf6681b5d75e4b9a06",
+            "library/build/Data.FromList.cinchif": "abe9ac49f554bb7970ba0a9f9b948a3dd90dc90b9655d4bf222a0f28a7e7f6f8",
+            "library/build/Data.FromMap.cinchif": "fc1c716abce3cf0bdcdda5c9a1e25a9deb28aad336d78348e044f826452b40a5",
+            "library/build/Data.Hash.cinchif": "5ab29fb0906800fb9d92c9c7d38bbafe27153beb2f18fdac7c7f7db31b965f14",
+            "library/build/Data.HashMap.cinchif": "6b4e27f9f34358380481d29e772c5325a4a690729b3ecdcad1d32f6e731a4568",
+            "library/build/Data.Identity.cinchif": "7b59e9b46963e720217320fad1fd522370721190b874a539521d3b9e8c4a291c",
+            "library/build/Data.Int.cinchif": "aba49a058b17295dddbd8803f06f7048512d570cc5d867a81fbd1e17e70e3f2d",
+            "library/build/Data.Json.cinchif": "a5b07c28a1f87039e796668305d33d73110de4dd225fceaa5782f881c90481b4",
+            "library/build/Data.List.cinchif": "a23b76a4ff55356629a52572b05a5b0bd4488940a92b15d73c3f0c4a127e4cb6",
+            "library/build/Data.Machine.cinchif": "3e2d67b7180eb66865e31453658ea2be9a817a3d6a2da35dde7312160ce5238f",
+            "library/build/Data.Map.cinchif": "b88c9e77f838065b3b3ee5f3ada0fcf210aa9b38ded6a6d80a9260e182ab5c7f",
+            "library/build/Data.Nat.cinchif": "4ce74152677b189caf97c8e2a1ced337b3ae8cb3baf46071d75a718c5fe63fde",
+            "library/build/Data.NonEmpty.cinchif": "5a68a526211b523cf5b63327cfe176c4835b5fbee83770b3effd4953271da1cc",
+            "library/build/Data.NonZero.cinchif": "f4557e27b8414b2c138d46ef09d5876ada90cd583b5b0d62a3d2ebbd1bb213bc",
+            "library/build/Data.Option.cinchif": "0a9e7174f53573bc0ed857a4ac16363643526dd88b31f858c892cf12a3a6ff00",
+            "library/build/Data.Ordering.cinchif": "9a5b8f6021356d7d3dd1706bf1f9c7a6385957584dbe7ff0e4f1f90ed011bc0e",
+            "library/build/Data.Path.cinchif": "37707c287fab2c09793999fcecc2c12742ee33ec42f4de4bf94d16dde0569821",
+            "library/build/Data.Producer.cinchif": "b4d8c98a352021ee74a8fdf9fec6ce9bbb81695ca05d59647ebce865a5f6c020",
+            "library/build/Data.Result.cinchif": "efcf586ac8e4e30173d9bd497c01a0cbbc61f0f8a1e8d7848484744a569a55a8",
+            "library/build/Data.Set.cinchif": "f11cc417b102d3d934c758b2cf729d01dcd1bb4c356044df1eefe80e97b8360c",
+            "library/build/Data.Sorted.cinchif": "a41b5dbc5ada4cf347d8998c3b9fa070c952dc75f39775848a09ed3628f6c6d3",
+            "library/build/Data.String.cinchif": "693278c82546e99b6fa0fcf84e9ef8a727681ebf845767af1398a027728800aa",
+            "library/build/Data.Sym.cinchif": "9a31bb79fb47344fe551a6d3a1a88d3d0a2a022e39138a4eab574fed3851a3d2",
+            "library/build/Data.Target.cinchif": "71cd2c1b38bbab78ef84065a0e43f593f44e224b294adabe290d8a33e064fb7e",
+            "library/build/Effect.Clock.cinchif": "8563724fc8aaa6af23858235c5d8814d6ec9c5eb0b5cd21a3b385e950885216e",
+            "library/build/Effect.Concurrent.cinchif": "091efd15bc78c87564f6ec6ac7345c694a115209739806e785b119d1b450dec9",
+            "library/build/Effect.Fs.cinchif": "b88ff886eba02d2a72f180fd126bf6ff1f745947ecea6c7424f92b2c1f71f67c",
+            "library/build/Effect.Io.cinchif": "b717c8b7e8c349434491da06dc56f0098a7caaa2349141b8cf64f40e7bf17739",
+            "library/build/Effect.Process.cinchif": "30041f76690bc91fdc3d843eaa525a8c55cbfaa19f22b98dd0c77d81c163de2c",
+            "library/build/Effect.Sequencing.cinchif": "7aa6e36302ac196fa4a4d49fba8a974987cb6ec120c5286d936c2c1efbdc7201",
+            "library/build/Function.Combinators.cinchif": "e2e5dc38ce97fad6a93b6e5251bd236be86d2e4bfb9425a427bb9b45413579b7",
+            "library/build/Prelude.cinchif": "adf49d2e4094bf8f92b85e02fc13e117941ac779096fbd11499dede5d4cfe9ea",
+            "library/build/Relation.Eq.cinchif": "26c1db6861434bbbf38f390f6a3d237ebcd87c3e7a2f8b21aa115018627d0879",
+            "library/build/Relation.Ord.cinchif": "40f74f75f5cac7ee397d1c22df4e6b8a64692eeada23da6bd42038c6453e48b3",
+            "library/build/Text.Codec.cinchif": "83b88b485d4a8fc74266c3b35adf68185a660636c3addfada655be0ebb493442",
+            "library/build/Text.Show.cinchif": "fc86493bdd6e033baaaffddb5e3b61440914d0ffce0f904707d44e8b233bebe3"
+          },
+          "entry_sha256": "a48ac63bdb514d3f194950cc24cb2fe524a3dd04192e5f4e041952a1937d6d66",
+          "host": {
+            "machine": "arm64",
+            "system": "Darwin"
+          },
+          "producer": {
+            "description": "Exact ABI6 b64710b library-only Native producer. Never compiles Bootstrap implementation modules. Seed and provider retain separate explicit roles and private caches.",
+            "revision": "b64710b29e57c0b73dbfce8fa67c3bf1e581ea6c",
+            "runtime_abi": 6,
+            "schema": 1,
+            "source_sha256": "dbe00931df2b2ab7a14a56e4acc6653dc7a4d01a0dc1d3e1f4da22e9ce039ffb"
+          },
+          "protocol": 2,
+          "roots_sha256": "bd640822bab6497cf26b5f03a9cb0ce4d8122c2060e8e4f4ff3714e36b0f187f"
+        },
+        "object_configuration_sha256": "88a92d565d4eb464c506d55764785662d79b3641e92b44753736af316c1b16e8",
+        "protocol": 4,
+        "runtime_archive_sha256": "2fab721751aa601f3ca72d7677f8520e5bdd37d93887275b5636fce478f959c6",
+        "source_sha256": "c8d6d87a8d1a698009b1ed820427a7a2bb67dab0f34d170accb41e42678ba985"
+      },
+      "stage": 2,
+      "stage_receipt_sha256": "afc783beab48db5ddda21258029fb995f5021f3bcc82c937e87606260bad539d",
+      "status": "passed"
+    },
+    {
+      "compiler_sha256": "645dd0bbef9bfaec24666c171c2f1b39bd900533e72cb5ec8e7c5800b7bae902",
+      "inputs": {
+        "builder_sha256": "645dd0bbef9bfaec24666c171c2f1b39bd900533e72cb5ec8e7c5800b7bae902",
+        "built_by_stage": 2,
+        "frontend_mode": "typed-ir-objects",
+        "host": {
+          "machine": "arm64",
+          "system": "Darwin"
+        },
+        "interface_output": "checked-schema8",
+        "interface_set_sha256": "9486de9bccf2b6514eaea7be6793ec29767748ce4edb6aaf8583d88e83e67e73",
+        "library_provider": {
+          "artifacts": {
+            "cinch": "a8e9f3388bac99b73d36b9ac5aad6409e5c9ff52ce2a8dac0062e7cb456ba570",
+            "interfaces.json": "081a42f67312bbd4bdfb0a9787f65e1be6ff56ff14917e56a5c5eeb2ac05614f",
+            "libcinchruntime.a": "2fab721751aa601f3ca72d7677f8520e5bdd37d93887275b5636fce478f959c6",
+            "library.abi.json": "429443fb9bff8d3537d91b60bf51184bc06ed9206824a4d2e0b00b3fce4e77ef",
+            "library.ll": "e66639516f4f0729f5af006b391856696473c83c19b8f5172a379c1c640eb4fa",
+            "library.o": "ce9a91767213fd63910ec9f877e59005b195c3a09aa71917a4b5ab90d4704279",
+            "library/build/Algebra.Arithmetic.cinchif": "5751c353b4904d163e9e6017d07c59c7b0c220d28919d49d624bbf00709dafa6",
+            "library/build/Algebra.Bits.cinchif": "d15247546e2e109174ef0ec5f888d17515f6a55991fd40390d10e8eae17c3ef5",
+            "library/build/Algebra.Group.cinchif": "20397581c62248e9fc4e4ade142cff40a9460c20440de3e8510afff66cb593dd",
+            "library/build/Algebra.Monoid.cinchif": "e92fba6eb3bab5cd29c8a8b076572925e9aafe9c1d87261ed65dfc5f082aeb65",
+            "library/build/Algebra.Semigroup.cinchif": "13bc94f7c39f114cc228a1132398a66e29951aa7490d0039b60e26e057765c82",
+            "library/build/Algebra.Semiring.cinchif": "c92734d35b65aecf166ce9051180f2e3659b923cf162d1bd8df69d28e450a9e5",
+            "library/build/Category.Alternative.cinchif": "28b8258f250a11296a6ee2b672d5ec734f350463935a6fb0187c9eff59798e22",
+            "library/build/Category.Applicative.cinchif": "b598c59ba56e33738e13c8b85ef46f2bf79ab3157991fbb62baa90e9f81a52fa",
+            "library/build/Category.Foldable.cinchif": "aa916b365ec9cf9ebbf69a6d0d2407088a45eff7c7c63d5adb3041a106b1f5a1",
+            "library/build/Category.Functor.cinchif": "54b8566f163acbcc06abbb428eaf6467ae24f581288a885925000186ec6f3dd0",
+            "library/build/Category.Monad.cinchif": "4756c09b512033eabf9432c4e98bce108622301c5b203963af491626c44c8e6a",
+            "library/build/Category.Traversable.cinchif": "a30b713641209bbb18c353b5cc7965d794a3a55c7462828615634299023f7b34",
+            "library/build/CinchBaseObject.cinchif": "f39eeee566b6ae7e24036c3083bac1790e1be23f926bd4f9a7fd61a1439733e5",
+            "library/build/Data.Ascii.cinchif": "b7cd1027441c9c03a45f38c46addad724f77bf2eda3f2838cb0a0c84697afaf5",
+            "library/build/Data.Bool.cinchif": "d500b9f80658c3713093d323f84381bf5d2466f4fb533da11a236f19d2388af4",
+            "library/build/Data.Bytes.cinchif": "44afdf2f1bd97c215d885aaac94be1b1530cedf965a5b8fc19810d7aab1a230d",
+            "library/build/Data.Char.cinchif": "c991b64815972a1cfd593f05429e2de45fad45ab9f6cd2c4af051339d4e35630",
+            "library/build/Data.Compose.cinchif": "4921e1810a30284cf9630e4fe2cb3291f9e85f0dbdd54d270c4366ec0e7e7646",
+            "library/build/Data.Const.cinchif": "8c5f0b75a3acceb8dd92f91d5c1ff5020836810b1dc4d53c9276d83294350c89",
+            "library/build/Data.Core.cinchif": "56a0d1fabef31161423bc5cffe54268a5ba0cc668b10501129cd44fa985f5014",
+            "library/build/Data.Enum.cinchif": "2a55203099419e8e37018cd3849b654814b88148819cebcf6681b5d75e4b9a06",
+            "library/build/Data.FromList.cinchif": "abe9ac49f554bb7970ba0a9f9b948a3dd90dc90b9655d4bf222a0f28a7e7f6f8",
+            "library/build/Data.FromMap.cinchif": "fc1c716abce3cf0bdcdda5c9a1e25a9deb28aad336d78348e044f826452b40a5",
+            "library/build/Data.Hash.cinchif": "5ab29fb0906800fb9d92c9c7d38bbafe27153beb2f18fdac7c7f7db31b965f14",
+            "library/build/Data.HashMap.cinchif": "6b4e27f9f34358380481d29e772c5325a4a690729b3ecdcad1d32f6e731a4568",
+            "library/build/Data.Identity.cinchif": "7b59e9b46963e720217320fad1fd522370721190b874a539521d3b9e8c4a291c",
+            "library/build/Data.Int.cinchif": "aba49a058b17295dddbd8803f06f7048512d570cc5d867a81fbd1e17e70e3f2d",
+            "library/build/Data.Json.cinchif": "a5b07c28a1f87039e796668305d33d73110de4dd225fceaa5782f881c90481b4",
+            "library/build/Data.List.cinchif": "a23b76a4ff55356629a52572b05a5b0bd4488940a92b15d73c3f0c4a127e4cb6",
+            "library/build/Data.Machine.cinchif": "3e2d67b7180eb66865e31453658ea2be9a817a3d6a2da35dde7312160ce5238f",
+            "library/build/Data.Map.cinchif": "b88c9e77f838065b3b3ee5f3ada0fcf210aa9b38ded6a6d80a9260e182ab5c7f",
+            "library/build/Data.Nat.cinchif": "4ce74152677b189caf97c8e2a1ced337b3ae8cb3baf46071d75a718c5fe63fde",
+            "library/build/Data.NonEmpty.cinchif": "5a68a526211b523cf5b63327cfe176c4835b5fbee83770b3effd4953271da1cc",
+            "library/build/Data.NonZero.cinchif": "f4557e27b8414b2c138d46ef09d5876ada90cd583b5b0d62a3d2ebbd1bb213bc",
+            "library/build/Data.Option.cinchif": "0a9e7174f53573bc0ed857a4ac16363643526dd88b31f858c892cf12a3a6ff00",
+            "library/build/Data.Ordering.cinchif": "9a5b8f6021356d7d3dd1706bf1f9c7a6385957584dbe7ff0e4f1f90ed011bc0e",
+            "library/build/Data.Path.cinchif": "37707c287fab2c09793999fcecc2c12742ee33ec42f4de4bf94d16dde0569821",
+            "library/build/Data.Producer.cinchif": "b4d8c98a352021ee74a8fdf9fec6ce9bbb81695ca05d59647ebce865a5f6c020",
+            "library/build/Data.Result.cinchif": "efcf586ac8e4e30173d9bd497c01a0cbbc61f0f8a1e8d7848484744a569a55a8",
+            "library/build/Data.Set.cinchif": "f11cc417b102d3d934c758b2cf729d01dcd1bb4c356044df1eefe80e97b8360c",
+            "library/build/Data.Sorted.cinchif": "a41b5dbc5ada4cf347d8998c3b9fa070c952dc75f39775848a09ed3628f6c6d3",
+            "library/build/Data.String.cinchif": "693278c82546e99b6fa0fcf84e9ef8a727681ebf845767af1398a027728800aa",
+            "library/build/Data.Sym.cinchif": "9a31bb79fb47344fe551a6d3a1a88d3d0a2a022e39138a4eab574fed3851a3d2",
+            "library/build/Data.Target.cinchif": "71cd2c1b38bbab78ef84065a0e43f593f44e224b294adabe290d8a33e064fb7e",
+            "library/build/Effect.Clock.cinchif": "8563724fc8aaa6af23858235c5d8814d6ec9c5eb0b5cd21a3b385e950885216e",
+            "library/build/Effect.Concurrent.cinchif": "091efd15bc78c87564f6ec6ac7345c694a115209739806e785b119d1b450dec9",
+            "library/build/Effect.Fs.cinchif": "b88ff886eba02d2a72f180fd126bf6ff1f745947ecea6c7424f92b2c1f71f67c",
+            "library/build/Effect.Io.cinchif": "b717c8b7e8c349434491da06dc56f0098a7caaa2349141b8cf64f40e7bf17739",
+            "library/build/Effect.Process.cinchif": "30041f76690bc91fdc3d843eaa525a8c55cbfaa19f22b98dd0c77d81c163de2c",
+            "library/build/Effect.Sequencing.cinchif": "7aa6e36302ac196fa4a4d49fba8a974987cb6ec120c5286d936c2c1efbdc7201",
+            "library/build/Function.Combinators.cinchif": "e2e5dc38ce97fad6a93b6e5251bd236be86d2e4bfb9425a427bb9b45413579b7",
+            "library/build/Prelude.cinchif": "adf49d2e4094bf8f92b85e02fc13e117941ac779096fbd11499dede5d4cfe9ea",
+            "library/build/Relation.Eq.cinchif": "26c1db6861434bbbf38f390f6a3d237ebcd87c3e7a2f8b21aa115018627d0879",
+            "library/build/Relation.Ord.cinchif": "40f74f75f5cac7ee397d1c22df4e6b8a64692eeada23da6bd42038c6453e48b3",
+            "library/build/Text.Codec.cinchif": "83b88b485d4a8fc74266c3b35adf68185a660636c3addfada655be0ebb493442",
+            "library/build/Text.Show.cinchif": "fc86493bdd6e033baaaffddb5e3b61440914d0ffce0f904707d44e8b233bebe3"
+          },
+          "entry_sha256": "a48ac63bdb514d3f194950cc24cb2fe524a3dd04192e5f4e041952a1937d6d66",
+          "host": {
+            "machine": "arm64",
+            "system": "Darwin"
+          },
+          "producer": {
+            "description": "Exact ABI6 b64710b library-only Native producer. Never compiles Bootstrap implementation modules. Seed and provider retain separate explicit roles and private caches.",
+            "revision": "b64710b29e57c0b73dbfce8fa67c3bf1e581ea6c",
+            "runtime_abi": 6,
+            "schema": 1,
+            "source_sha256": "dbe00931df2b2ab7a14a56e4acc6653dc7a4d01a0dc1d3e1f4da22e9ce039ffb"
+          },
+          "protocol": 2,
+          "roots_sha256": "bd640822bab6497cf26b5f03a9cb0ce4d8122c2060e8e4f4ff3714e36b0f187f"
+        },
+        "object_configuration_sha256": "88a92d565d4eb464c506d55764785662d79b3641e92b44753736af316c1b16e8",
+        "protocol": 4,
+        "runtime_archive_sha256": "2fab721751aa601f3ca72d7677f8520e5bdd37d93887275b5636fce478f959c6",
+        "source_sha256": "c8d6d87a8d1a698009b1ed820427a7a2bb67dab0f34d170accb41e42678ba985"
+      },
+      "stage": 3,
+      "stage_receipt_sha256": "6e8cd47d7195daf751fec479655a973d75986c497bab5a15b21053196a0bdd31",
+      "status": "passed"
+    }
+  ],
+  "status": "passed-bootstrap-chain-only",
+  "verified_at": "2026-11-05T05:12:54.571069+00:00",
+  "verifier_sha256": "9cd29bbc49c0765c1a57d0cbd31f962a046b36e010559ae30d099e08ece48c54"
+}
