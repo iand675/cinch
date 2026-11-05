@@ -1,6 +1,21 @@
 # The bootstrap ladder
 
-Current source checkpoint (2026-11-05): the independent typed backend exposes
+ABI facts checkpoint (2026-11-05, source ad6733):
+`emit-runtime-library-artifact-with-object` adds real named public calls and
+owned closure accessors to checked library emission. Roots contain a checked
+Core name, explicit representation vector and physical export symbol. The
+result contains LLVM, exact layout words and typed unit metadata. The caller
+supplies roots from checked exports; physical entries do not grant source names.
+The complete `bootstrap_runtime_library_abi` group checks the actual linked
+calling convention, including erased proof stages and hidden value indices.
+
+This helper does not yet write the complete closed dependency-object manifest
+or provide the Cinch CLI's object-output mode. See
+`current-runtime-library-abi-results.json`; complete matching bootstrap/suite
+and original API/Acceptance 5 evidence remain required.
+
+
+Library-root checkpoint (2026-11-05): the independent typed backend exposes
 `emit-runtime-library-with-object` for checked definition roots and explicit
 Raw/Obj/TObj vectors. It emits no process entry and keeps non-root workers local.
 `programs/Run.RuntimeLibrary.cinch` and the complete

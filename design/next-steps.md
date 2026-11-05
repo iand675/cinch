@@ -1,5 +1,32 @@
 # Next steps (as of 2026-11-05)
 
+## Library ABI facts describe real public entries (2026-11-05)
+
+`emit-runtime-library-artifact-with-object` now returns actual LLVM public
+bridges and closure accessors, their checked parameter/result ownership classes,
+and the exact final descriptor words. Hidden value indices, runtime dictionary
+and value dependencies, returned functions and erased proof continuations use
+the same physical plan as the generated workers. Duplicate roots coalesce;
+conflicting exports, accessor-name collisions and typed-worker names refuse.
+Existing executable and library-root functions are byte-identical in this step.
+
+The complete new runtime-fed group passes: eight physical units and all sixteen
+public/accessor definitions match, including Raw/Obj/TObj specialization,
+bignum/ADT ownership, partial application, proof-stage closures and hidden Nat
+arguments. An independently linked caller runs at 32M and both exposed leak
+reports are zero. All 43 compiler modules check. See
+`bootstrap/current-runtime-library-abi-results.json` for the actual scope.
+The corrected assertion decodes escaped LLVM names. Its explicit Native-fixture
+cache checks every source byte and cannot replace a selected self-built frontend.
+
+The published compiler source is now ad6733. These unit/layout facts still need
+closed-object profile/content/interface metadata, checked export-root selection
+and CLI/adapter wiring. No object-output parity or complete-suite/bootstrap
+claim follows from this component. The full Rust run and the preserved 74f0
+staged chain retain their own frozen inputs; matching final suites, original
+100-target/API coverage and Acceptance 5 remain open.
+
+
 ## Checked library roots and refreshed bootstrap inputs (2026-11-05)
 
 The typed LLVM backend can now emit a library from explicit checked definition

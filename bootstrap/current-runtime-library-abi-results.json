@@ -1,0 +1,29 @@
+{
+  "binary_sha256": "72e191470a99d2984d60fa36137d4d746ff2e167565e47546a6354e79daab0bf",
+  "cached_fixture": {
+    "path": "/private/var/folders/8w/44rf3zr512nd0pd0bwb70vfm0000gn/T/cinch_boot_runtime_library_abi_69283_0/library-abi-emitter",
+    "reason": "Only the Rust LLVM-name assertion/cache setup changed. The test byte-compares every Cinch fixture input before reuse; the frozen Native22 producer is identical. Reuse is forbidden when a final self-built frontend is selected.",
+    "sha256": "b523682ae7f95392bc52f317cf5010cdb1637eaee91c6e4c8d4909e5d96f79a9"
+  },
+  "caller_heap_limit": "32M",
+  "compiler_heap_limit": "256M",
+  "compiler_modules_checked": 43,
+  "compiler_source_sha256": "ad6733eb77e92c5a2400c519c52e0bc4de7f6abc1d95e879da537bd42d59e5fc",
+  "filtered": 0,
+  "full_goal_complete": false,
+  "ignored": 0,
+  "log_sha256": "f6dd85268a4c8adb8f37df66eb0416518cc6e4604bb483415fb42fa4752c7a72",
+  "native_rlib_sha256": "c2e3b862e212fe0d8557461ea9160e97ab23aa7d44d37113f1e2f855eec5c394",
+  "negative_inputs": 6,
+  "positive_physical_units": 8,
+  "real_public_and_closure_symbols": 16,
+  "runtime_input_cases": 7,
+  "scope": "Actual checked Cinch ABI parameter/result shapes, real Native-named public and closure-accessor functions, exact final layout-word table, duplicate coalescing and export-symbol collision refusals. The real linked caller preservesRaw/Obj/TObj identities, owned bignums/ADTs, partial and proof-stage closures, and hidden quantifiedNat runtime arguments. All43 actual compiler source bytes match the independently retained complete source gate. Corrected Rust assertions decode real LLVM escaped symbols; every cached fixture source file is byte-compared, same Native22 producer audited, fresh test host uses its own source paths. Cache reuse is forbidden under a selected self-built frontend. These are physical unit/layout facts, not the completed closed object manifest, source export authority, CLI/adapter or full original API/Acceptance5.",
+  "seed_native_source_sha256": "22c91cf6c1855b049207612e9d94630850e880d5a49ea3e2c57c92aff7fdbe88",
+  "source_sha256": "e6616830bb2c9fcb223d31fd8fa9a8034fb46eb67aa54bf3a4b8d0618a041046",
+  "status": "passed-scoped-runtime-library-abi-facts",
+  "tests": 1,
+  "verified_at": "2026-11-05T18:30:34.575225+00:00",
+  "whole_groups": 1,
+  "zero_leak_reports": 2
+}

@@ -17,9 +17,10 @@ module Bootstrap.RuntimeIr where
   import Text.Builder
   import Text.Show (nat-to-string, int-to-string)
   import Text.Lex (Span)
+  import Data.Json
 
   export emit-runtime-program, emit-runtime-program-with-object
-  export emit-runtime-library-with-object
+  export emit-runtime-library-with-object, emit-runtime-library-artifact-with-object
 
   -- Named families and anonymous tuples share one table, but distinct
   -- group caches: a tuple must retain tag0 even when a named constructor
@@ -2044,6 +2045,99 @@ module Bootstrap.RuntimeIr where
     case workers definitions (demand-roots roots initial) of
       Writer next globals code Nil layouts datas -> Ok (cat [declarations, builder-run globals, layout-table layouts, apply-entry-with-linkage "internal ", builder-run code])
       Writer next globals code errors layouts datas -> Err errors
+  -- Public ABI bridges and their metadata share this checked physical plan.
+  -- The parameter prefix includes eager method values, dictionaries and
+  -- quantified value indices; a proof stage returns an owned continuation.
+  library-root-shape :: Writer -> CoreDefinition -> List Nat -> Option (List Nat, Nat)
+  library-root-shape w d classes = case definition-context d classes w of
+    None -> None
+    Some context -> case core-clauses d of
+      Nil -> None
+      Cons (MkCoreClause sp patterns body) rest ->
+        let types = value-field-types (definition-value-dependencies w d) <> given-types (runtime-givens w d) <> value-types (opening-value-types (core-openings d)) <> pattern-types (definition-parameters d) in
+        let result = (case proof-stage-arities patterns 0 of Cons first (Cons second more) -> Some 1; other -> word-class context (core-type body)) in
+        case (class-vector context types, result) of
+          (Some params, Some returned) -> Some (params, returned)
+          other -> None
+  library-class :: Nat -> Json
+  library-class code = JStr (if code == 0 then "R" else if code == 1 then "O" else "T")
+  library-classes :: List Nat -> Json
+  library-classes codes = case codes of Nil -> JArrEnd; Cons first rest -> JArr (library-class first) (library-classes rest)
+  library-unit :: String -> List Nat -> Nat -> Json
+  library-unit name params result = JObj "symbol" (JStr name)
+    (JObj "closure_entry" (JStr (cat [name, ".object-closure"]))
+      (JObj "arity" (JNum (nat-to-int (list-length params)))
+        (JObj "params" (library-classes params) (JObj "result" (library-class result) JObjEnd))))
+  library-symbol-conflict :: String -> String -> Bool
+  library-symbol-conflict a b = same a b || same a (cat [b, ".object-closure"]) || same (cat [a, ".object-closure"]) b
+  library-root-seen :: String -> List Nat -> String -> List (String, List Nat, String) -> Option Bool
+  library-root-seen name classes public seen = case seen of
+    Nil -> None
+    Cons (other, codes, alias) rest -> if library-symbol-conflict public alias then
+      Some (same public alias && same name other && same-classes classes codes)
+      else library-root-seen name classes public rest
+  library-public-symbol :: String -> Bool
+  library-public-symbol name = let bytes = string-to-bytes name in
+    bytes-len bytes > 0 && not (library-typed-prefix bytes 0)
+  library-typed-prefix :: Bytes -> Nat -> Bool
+  library-typed-prefix name index = let prefix = string-to-bytes "cinch.typed." in
+    if index >= bytes-len prefix then index == bytes-len prefix else
+      index < bytes-len name && bytes-get name index == bytes-get prefix index && library-typed-prefix name (index + 1)
+  library-selected-roots :: List (String, List Nat, String) -> List (String, List Nat)
+  library-selected-roots roots = case roots of Nil -> Nil; Cons (name, classes, public) rest -> Cons (name, classes) (library-selected-roots rest)
+  library-bridge :: String -> String -> List Nat -> Writer -> Writer
+  library-bridge public worker params w =
+    let arguments = value-parameters (list-length params) 0 in
+    let started = line (line w (cat ["define i64 ", llvm-object-symbol public, "(", join (argument-words arguments), ") {"])) "entry:" in
+    case call started (symbol worker) arguments of
+      (called, value) ->
+        let returned = line (line called (cat ["  ret i64 ", value])) "}" in
+        let accessor = line (line returned (cat ["define i64 ", llvm-object-symbol (cat [public, ".object-closure"]), "() {"])) "entry:" in
+        case closure (Span 0 0 1 1) worker params Nil accessor of
+          (ready, closure-value) -> line (line ready (cat ["  ret i64 ", closure-value])) "}"
+  library-bridges :: List CoreDefinition -> List (String, List Nat, String) -> List (String, List Nat, String) -> Writer -> (Writer, Json)
+  library-bridges definitions roots seen w = case roots of
+    Nil -> (w, JArrEnd)
+    Cons (name, classes, public) rest -> case library-root-seen name classes public seen of
+      Some True -> library-bridges definitions rest seen w
+      Some False -> (refuse w (Span 0 0 1 1) "library ABI export symbols collide", JArrEnd)
+      None -> if not (library-public-symbol public) then (refuse w (Span 0 0 1 1) "library ABI export symbol is empty or collides with typed workers", JArrEnd) else
+        case definition name definitions of
+          None -> (refuse w (Span 0 0 1 1) "library ABI root has no checked definition", JArrEnd)
+          Some d -> case library-root-shape w d classes of
+            None -> (refuse w (Span 0 0 1 1) "library ABI root has no checked physical parameter/result shape", JArrEnd)
+            Some (params, result) ->
+              let bridged = library-bridge public (specialized-name name classes) params w in
+              case library-bridges definitions rest (Cons (name, classes, public) seen) bridged of
+                (done, units) -> (done, JArr (library-unit public params result) units)
+  library-new-cells :: Nat -> List (Nat, Nat) -> List (Nat, Nat)
+  library-new-cells prefix cells = case cells of
+    Nil -> Nil
+    Cons (index, word) rest -> if index < prefix then library-new-cells prefix rest else Cons (index, word) (library-new-cells prefix rest)
+  library-layout-tail :: Nat -> Nat -> List (Nat, Nat) -> List Nat
+  library-layout-tail index end cells = if index >= end then Nil else Cons (layout-word index cells) (library-layout-tail (index + 1) end cells)
+  library-layout-words :: Writer -> LayoutPlan -> List Nat
+  library-layout-words w layouts = case layouts of
+    LayoutPlan groups tuples names cells ->
+      let prefix = (case program-object (writer-program w) of None -> Nil; Some provider -> object-words provider) in
+      let count = list-length prefix in
+      prefix <> library-layout-tail count (layout-count layouts) (library-new-cells count cells)
+  -- The alias in each root is a physical symbol chosen by the caller from
+  -- checked export identities. The pipeline owns that source-name authority.
+  -- These are physical unit/layout facts, not a completed object manifest.
+  emit-runtime-library-artifact-with-object :: CheckedProgram -> Option RuntimeObject -> List (String, List Nat, String) -> Result (List Diagnostic) (String, List Nat, Json)
+  emit-runtime-library-artifact-with-object checked provider roots =
+    let typed = checked-elaboration checked in
+    let definitions = elaboration-core typed <> instance-definitions (elaboration-instances typed) in
+    let selected = library-selected-roots roots in
+    let info = ProgramInfo (elaboration-data typed) (elaboration-classes typed) (elaboration-instances typed) (elaboration-bindings typed) Nil provider (Some Nil) in
+    let initial = empty-writer (plan-root-method-versions definitions selected info) in
+    case library-bridges definitions roots Nil (workers definitions (demand-roots selected initial)) of
+      (bridged, units) -> case workers definitions bridged of
+        Writer next globals code Nil layouts context ->
+          let ir = cat [declarations, builder-run globals, layout-table layouts, apply-entry-with-linkage "internal ", builder-run code] in
+          Ok (ir, library-layout-words bridged layouts, units)
+        Writer next globals code errors layouts context -> Err errors
   emit-runtime-program :: CheckedProgram -> Result (List Diagnostic) String
   emit-runtime-program checked = emit-runtime-program-with-object checked None
   emit-runtime-program-with-object :: CheckedProgram -> Option RuntimeObject -> Result (List Diagnostic) String
