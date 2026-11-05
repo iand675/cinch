@@ -223,7 +223,7 @@
     },
     {
       "title": "Private450711 constructor guard: focused and compiler checks",
-      "detail": "Original global controls and25 scope controls pass; exact43-module compiler/object gate passes9tests. Whole nominal group passes separately. Runtime gate: running; phase: bootstrap_runtime_ir. Full source/API support remains open.",
+      "detail": "Original global controls and25 scope controls pass; exact43-module compiler/object gate passes9tests. Whole nominal group passes separately. Runtime gate: passed; phase: bootstrap_runtime_ir. Full source/API support remains open.",
       "state": "passed"
     }
   ],
@@ -292,5 +292,5 @@
   "fullGoalComplete": false,
   "summary": "All 43 compiler-source checks: passed. 4 of 4 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_type_syntax: passed; parser: passed; bootstrap_external_frontend: passed; bootstrap_library_object: passed.",
   "activity": "Current published Rust compiler: full suite: 185 of 232 complete groups passed; 1 running, 1 failed and 45 pending. Stage builds and smoke checks: 2 of 4; chain state: building-stage2; earlier API source, not the published repair. Repair gates: 4 of 4 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_type_syntax: passed; parser: passed; bootstrap_external_frontend: passed; bootstrap_library_object: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
-  "updatedAt": "2026-11-05T22:28:37.728550+00:00"
+  "updatedAt": "2026-11-05T22:29:39.766488+00:00"
 }
