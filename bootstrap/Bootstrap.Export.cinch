@@ -21,7 +21,7 @@ module Bootstrap.Export where
   import Text.Json (canonical-bytes)
   import Text.Lex (bytes-slice)
 
-  export export-interfaces
+  export export-interfaces, interface-hash
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
   field :: String -> Json -> Json

@@ -132,6 +132,7 @@ The driver also has separate frontend and build modes:
     cinch --emit-interfaces [--interfaces MANIFEST] SOURCE PREFIX
     cinch --emit-ir-with-interfaces --interfaces MANIFEST --objects CONFIG SOURCE IR
     cinch --emit-ir --interfaces MANIFEST --objects CONFIG SOURCE IR
+    cinch --emit-object --interfaces MANIFEST --objects CONFIG SOURCE IR OBJECT ABI INTERFACE_PREFIX
     cinch --compile-only [--interfaces MANIFEST] SOURCE IR EXECUTABLE REPORT
 
 Check-only runs parsing, resolution and the current source/Core checks, then
@@ -428,7 +429,27 @@ no file is requested. Object emission requires an explicit `CINCH_TEST_OBJECTS`
 configuration and asks the selected compiler for `.o`, `.ll`, `.abi.json` and
 `build/*.cinchif` outputs. An older selected compiler that lacks object mode
 still refuses; the adapter cannot supply that compiler feature itself.
-The actual Cinch object CLI is under separate development and validation.
+The Cinch object CLI emits actual checked first-order functions and concrete
+constructor entries, interfaces and a closed dependency object. The caller
+creates the interface output directory and passes its prefix with a trailing
+separator, for example `build/`. It authenticates and snapshots the library-only
+provider bytes before linking them with the Cinch-generated object, then writes
+the final ABI manifest after successful assembly, linking and interface output.
+The final consumer installs the complete layout prefix; a dependency object
+never installs a shorter table from a constructor. Physical inventory does not
+introduce private names into source scope. Reached source dictionary factories
+and explicit generic representation-root requests remain unsupported.
+
+The complete compiler source set, actual object/reload/linked-client flow and
+original array object test pass on compiler `5fc23130`. Compiler invocations
+use a 256M heap with normal reclamation and leak checks. The emitted client
+runs at 32M with RC poisoning and zero leaks. Compiler poisoning intentionally
+quarantines all parser allocations and exhausts its budget on a full provider;
+it is not the large-run heap configuration. See
+`current-cinch-library-object-results.json` and
+`current-cinch-array-object-results.json`. The latter replays one original
+array case with fourteen explicitly filtered; the full array and final staged
+compiler/API suites remain required.
 All eight complete adapter tests pass on the current Native producer; see
 `current-output-mode-adapter-results.json`.
 

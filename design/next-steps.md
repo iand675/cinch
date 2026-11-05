@@ -1,5 +1,35 @@
 # Next steps (as of 2026-11-05)
 
+## Cinch emits and reloads a real closed library object (2026-11-05)
+
+Compiler `5fc23130` now exposes `--emit-object` through its actual checked
+pipeline. First-order function and concrete constructor entries share the
+backend's ownership plan and real closure accessors. The object records exact
+nominal descriptors, method-family slots, layout words, checked interfaces and
+IR/object identities. It combines authenticated library-only provider bytes
+with Cinch-produced code; source visibility still comes from checked exports.
+Only the final executable registers the complete compatible layout table.
+
+All 43 exact staged-driver compiler source inputs build in one fixture.
+The two complete affected groups pass: eight adapter tests and a real object,
+reload and linked-client test. An independent audit confirms all 1,842 physical
+units and their accessors in the object, including seven new units and fourteen real
+public/closure symbols, all content hashes and descriptor prefixes. The owned
+bignum/ADT/array client passes at 32M with poisoning and zero leaks. The original
+array object case also passes unchanged through this actual Cinch frontend with
+a fresh current-Native host; its fourteen other cases were explicitly filtered.
+See `bootstrap/current-cinch-library-object-results.json` and
+`bootstrap/current-cinch-array-object-results.json`.
+
+Reached source dictionary factories remain an explicit refusal, and generic
+representation-root CLI requests, the full fifteen-case array group, matching
+legacy runtime/self-built/full Native/API100 and Acceptance 5 gates remain open.
+The existing `74f0d661` chain has built equal Stage2/3 executables and passed all
+stage smokes; its final independent interface/changed-source audit continues
+on that separate snapshot. The current Native6b full sweep retains its older
+5cea Cinch fixtures and a byte-observation failure; it is not a green-suite
+claim for this new compiler. Seed and library-provider pins remain unchanged.
+
 ## Portable test output modes use the selected compiler (2026-11-05)
 
 The external test adapter now routes LLVM and object output requests to its

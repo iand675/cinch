@@ -1,0 +1,15 @@
+{
+  "binary_sha256": "672f852cdca8500f97eaf36b462bdb6ac97aefc4e418acd94b3cf0e25cfbf839",
+  "compiler_sha256": "2f86bbc64c1e47e099d510a297a983fd79b79a6f35ec5569dd36c09539ef0f8f",
+  "compiler_source_sha256": "5fc231303d013a26370cb09dc46d85f65a5ef9235ea138fe9102ab28a47d3825",
+  "filtered": 14,
+  "full_goal_complete": false,
+  "log_sha256": "aaf655b9df42d782b2e9d5eefd095a2d2259c0f6f6b51400b18b2aee67716825",
+  "native_host_source_sha256": "6b567529032465cde863607185da47aa7d5f9e5ecd99a596158174fd7efa6aa7",
+  "original_assertions_and_inputs_unchanged": true,
+  "scope": "Unchanged original array object test through actual5fc2 Cinch CLI, fresh currentNative6b Rust host and explicit library-only Native22 provider variants. No Native client frontend fallback. Not finalStage3 or the complete15-test array group. The other14cases were explicitly filtered in this single-case replay; no fullarray/wholegroup/finalStage3 claim.",
+  "source_sha256": "e22282916951b7a194ecb58b6a01d2c152186933bd4d610922951e7c59fbf7d4",
+  "status": "passed-original-array-object-case",
+  "tests": 1,
+  "verified_at": "2026-11-05T19:56:44.209597+00:00"
+}

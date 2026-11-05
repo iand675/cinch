@@ -20,17 +20,20 @@ module Bootstrap.Pipeline where
   import Bootstrap.Check (CheckedProgram, check-and-retain)
   import Bootstrap.Driver (link-and-report, link-only-and-report)
   import Bootstrap.Ir (emit-checked-diagnostics, emit-checked-program)
-  import Bootstrap.RuntimeIr (emit-runtime-program, emit-runtime-program-with-object)
-  import Bootstrap.Object (RuntimeObject, read-runtime-object)
+  import Bootstrap.RuntimeIr (emit-runtime-program, emit-runtime-program-with-object, runtime-library-default-roots, emit-runtime-library-object-with-object)
+  import Bootstrap.Object (RuntimeObject, read-runtime-object, read-runtime-object-document)
   import Bootstrap.Parse (parse-program)
   import Bootstrap.Parse (parse-program-with)
-  import Bootstrap.Load (LoadedInterface)
+  import Bootstrap.Load (LoadedInterface, loaded-module, loaded-hash, loaded-contract)
   import Bootstrap.Inputs (read-interfaces)
   import Bootstrap.Contracts (interface-headers)
   import Bootstrap.Resolve (resolve-program, resolve-program-with)
   import Bootstrap.Report (Diagnostic, render-diagnostics)
-  import Bootstrap.Export (export-interfaces)
-  import Data.Json (Json)
+  import Bootstrap.Export (export-interfaces, interface-hash)
+  import Bootstrap.Interface (fnv-source-hash)
+  import Algebra.Semigroup
+  import Effect.Process (process-run, command)
+  import Data.Json
   import Text.Json (canonical-bytes)
   import Data.Path (Path, path-from-string, path-to-string)
   import Data.String (string-concat, string-to-bytes)
@@ -44,6 +47,7 @@ module Bootstrap.Pipeline where
     EmitOnly :: PipelineMode
     EmitWithInterfaces :: PipelineMode
     InterfacesOnly :: PipelineMode
+    ObjectOnly :: PipelineMode
     CompileOnly :: PipelineMode
     CompileAndRun :: PipelineMode
 
@@ -116,6 +120,7 @@ module Bootstrap.Pipeline where
   compile-source-mode :: forall r. using (io :: Io r) => PipelineMode -> String -> Path -> Path -> Path ->{IO r, Diverge} Int
   compile-source-mode mode source ir exe report = case mode of
     InterfacesOnly -> compile-source-interfaces Nil source ir
+    ObjectOnly -> pipeline-bad-args
     EmitWithInterfaces -> pipeline-bad-args
     other -> case fs-read (path-from-string source) of
       Err e -> pipeline-read-failed
@@ -129,6 +134,7 @@ module Bootstrap.Pipeline where
     Err message -> write-failure ir (string-concat "bootstrap.interfaces: " message) pipeline-interface-failed
     Ok interfaces -> case mode of
       InterfacesOnly -> compile-source-interfaces interfaces source ir
+      ObjectOnly -> pipeline-bad-args
       EmitWithInterfaces -> pipeline-bad-args
       other -> case fs-read (path-from-string source) of
         Err error -> pipeline-read-failed
@@ -251,3 +257,148 @@ module Bootstrap.Pipeline where
       EmitOnly -> pipeline-emit-refused
       EmitWithInterfaces -> pipeline-emit-refused
       InterfacesOnly -> pipeline-emit-refused
+      ObjectOnly -> pipeline-emit-refused
+
+  -- Library objects use this same checked frontend. The assembler and
+  -- relocatable linker receive individual argument words, never a shell.
+  -- A provider copy binds the linked bytes to the authenticated admission
+  -- above, even when the original provider path changes during compilation.
+  object-field :: String -> Json -> Json
+  object-field name doc = case doc of
+    JObj key value rest -> if string-compare name key == 0 then value else object-field name rest
+    other -> JNull
+  object-set :: String -> Json -> Json -> Json
+  object-set name value doc = case doc of
+    JObj key old rest -> if string-compare name key == 0 then JObj key value rest else JObj key old (object-set name value rest)
+    other -> JObj name value JObjEnd
+  object-append :: Json -> Json -> Json
+  object-append first second = case first of JArr row rest -> JArr row (object-append rest second); JArrEnd -> second; other -> JNull
+  object-words-json :: List Nat -> Json
+  object-words-json words = case words of Nil -> JArrEnd; Cons word rest -> JArr (JNum (nat-to-int word)) (object-words-json rest)
+  object-interface-row :: String -> String -> Json -> Json
+  object-interface-row name hash doc = JObj "module" (JStr name) (JObj "iface_hash" (JStr hash) (JObj "interface" doc JObjEnd))
+  object-imports :: List LoadedInterface -> Json
+  object-imports interfaces = case interfaces of
+    Nil -> JArrEnd
+    Cons first rest -> JArr (object-interface-row (loaded-module first) (loaded-hash first) (loaded-contract first)) (object-imports rest)
+  object-interface-present :: String -> Json -> Option String
+  object-interface-present name rows = case rows of
+    JArr row rest -> (case (object-field "module" row, object-field "iface_hash" row) of
+      (JStr actual, JStr hash) -> if string-compare name actual == 0 then Some hash else object-interface-present name rest
+      other -> None)
+    other -> None
+  object-interface-closure :: List (String, Json) -> Json -> Result String Json
+  object-interface-closure rows old = case rows of
+    Nil -> Ok old
+    Cons (name, doc) rest -> let hash = interface-hash doc in
+      case object-interface-present name old of
+        Some actual -> if string-compare actual hash == 0 then object-interface-closure rest old else Err "object source disagrees with an admitted interface identity"
+        None -> object-interface-closure rest (JArr (object-interface-row name hash doc) old)
+  object-unit-present :: String -> Json -> Bool
+  object-unit-present name rows = case rows of
+    JArr row rest -> (case object-field "symbol" row of JStr actual -> string-compare name actual == 0 || object-unit-present name rest; other -> True)
+    JArrEnd -> False
+    other -> True
+  object-distinct-units :: Json -> Json -> Bool
+  object-distinct-units rows old = case rows of
+    JArr row rest -> (case object-field "symbol" row of
+      JStr name -> not (object-unit-present name old) && object-distinct-units rest (JArr row old)
+      other -> False)
+    JArrEnd -> True
+    other -> False
+  object-merge-fields :: Json -> Json -> Json
+  object-merge-fields newer older = case newer of
+    JObj key value rest -> object-merge-fields rest (object-set key value older)
+    JObjEnd -> older
+    other -> JNull
+  object-family-remove :: String -> Json -> Json
+  object-family-remove name rows = case rows of
+    JArr row rest -> (case object-field "class" row of
+      JStr actual -> if string-compare name actual == 0 then object-family-remove name rest else JArr row (object-family-remove name rest)
+      other -> JArr row (object-family-remove name rest))
+    other -> JArrEnd
+  object-merge-families :: Json -> Json -> Json
+  object-merge-families newer older = case newer of
+    JArr row rest -> (case object-field "class" row of
+      JStr name -> object-merge-families rest (JArr row (object-family-remove name older))
+      other -> JNull)
+    JArrEnd -> older
+    other -> JNull
+  object-manifest :: Json -> Json -> List Nat -> Json -> Json -> String -> Bytes -> Json
+  object-manifest provider interfaces words units facts ir code =
+    let actual = (object-set "method_families" (object-merge-families (object-field "method_families" facts) (object-field "method_families" provider)) (object-set "types" (object-merge-fields (object-field "types" facts) (object-field "types" provider))
+      (object-set "constructors" (object-merge-fields (object-field "constructors" facts) (object-field "constructors" provider))
+        (object-set "escaped_descriptors" (object-field "escaped_descriptors" facts) provider)))) in
+    object-set "interfaces" interfaces
+      (object-set "units" (object-append (object-field "units" provider) units)
+        (object-set "layout_entries" (JNum (nat-to-int (list-length words)))
+          (object-set "layout_words" (object-words-json words)
+            (object-set "ir_content_hash" (JStr (fnv-source-hash (string-to-bytes ir)))
+              (object-set "object_content_hash" (JStr (fnv-source-hash code)) actual)))))
+  object-paths-distinct :: List String -> Bool
+  object-paths-distinct paths = case paths of
+    Nil -> True
+    Cons first rest -> not (object-path-member first rest) && object-paths-distinct rest
+  object-path-member :: String -> List String -> Bool
+  object-path-member path paths = case paths of Nil -> False; Cons first rest -> string-compare path first == 0 || object-path-member path rest
+  write-object-interfaces :: forall r. using (io :: Io r) => String -> List (String, Json) ->{IO r} Result String Unit
+  write-object-interfaces prefix rows = case rows of
+    Nil -> Ok ()
+    Cons (name, doc) rest -> case fs-write (path-from-string (prefix <> name <> ".cinchif")) (canonical-bytes doc) of
+      Err error -> Err "cannot write checked object interface"
+      Ok done -> write-object-interfaces prefix rest
+  compile-source-library-object :: forall r. using (io :: Io r) => String -> String -> String -> Path -> Path -> Path -> String ->{IO r, Diverge} Int
+  compile-source-library-object manifest configuration source ir object abi prefix =
+    let ir-name = path-to-string ir in let object-name = path-to-string object in let abi-name = path-to-string abi in
+    if not (object-paths-distinct [manifest, configuration, source, ir-name, object-name, abi-name, object-name <> ".new.o", object-name <> ".provider.o"]) then pipeline-bad-args else
+      case fs-write abi (string-to-bytes "") of
+        Err error -> pipeline-write-failed
+        Ok cleared -> case read-interfaces manifest of
+          Err message -> write-failure ir ("bootstrap.interfaces: " <> message) pipeline-interface-failed
+          Ok interfaces -> case read-runtime-object-document interfaces configuration of
+            Err message -> write-failure ir ("bootstrap.object: " <> message) pipeline-interface-failed
+            Ok (provider, document, provider-path, provider-code) ->
+              if object-path-member provider-path [source, ir-name, object-name, abi-name, object-name <> ".new.o", object-name <> ".provider.o"] then write-failure ir "bootstrap.object: provider and output paths collide" pipeline-bad-args else
+                case fs-read (path-from-string source) of
+                  Err error -> write-failure ir "bootstrap.object: cannot read source" pipeline-read-failed
+                  Ok bytes -> case parse-program-with source bytes (interface-headers interfaces) of
+                    Failed bundle -> write-failure ir (render-bundle bundle) pipeline-parse-failed
+                    Parsed program Nil -> (case resolve-program-with program interfaces of
+                      (resolved, Nil) -> case check-and-retain resolved of
+                        Err errors -> write-failure ir (render-diagnostics errors) pipeline-check-refused
+                        Ok checked -> prepare-library-object checked interfaces bytes provider document provider-code ir object abi prefix
+                      (resolved, errors) -> write-failure ir (render-diagnostics errors) pipeline-check-refused)
+                    Parsed program errors -> write-failure ir (render-bundle (Bundle source bytes errors)) pipeline-parse-failed
+  prepare-library-object :: forall r. using (io :: Io r) => CheckedProgram -> List LoadedInterface -> Bytes -> RuntimeObject -> Json -> Bytes -> Path -> Path -> Path -> String ->{IO r, Diverge} Int
+  prepare-library-object checked interfaces source provider document provider-code ir object abi prefix = case runtime-library-default-roots checked of
+    Err message -> write-failure ir ("bootstrap.object: " <> message) pipeline-emit-refused
+    Ok roots -> case export-interfaces checked interfaces source of
+      Err message -> write-failure ir ("bootstrap.export: " <> message) pipeline-emit-refused
+      Ok exported -> case object-interface-closure exported (object-field "interfaces" document) of
+        Err message -> write-failure ir ("bootstrap.object: " <> message) pipeline-emit-refused
+        Ok closure -> case emit-runtime-library-object-with-object checked (Some provider) roots of
+          Err errors -> write-failure ir (render-diagnostics errors) pipeline-emit-refused
+          Ok (text, words, units, facts) -> if (case object-field "unpublished_dictionaries" facts of JBool True -> True; other -> False) then write-failure ir "bootstrap.object: reached source dictionaries require physical factory and method metadata" pipeline-emit-refused else if not (object-distinct-units units (object-field "units" document)) then write-failure ir "bootstrap.object: source and provider symbols collide" pipeline-emit-refused else
+            case fs-write ir (string-to-bytes text) of
+              Err error -> pipeline-write-failed
+              Ok done -> case fs-write (path-from-string (path-to-string object <> ".provider.o")) provider-code of
+                Err error -> pipeline-write-failed
+                Ok done -> assemble-library-object document closure exported prefix text words units facts ir object abi
+  assemble-library-object :: forall r. using (io :: Io r) => Json -> Json -> List (String, Json) -> String -> String -> List Nat -> Json -> Json -> Path -> Path -> Path ->{IO r, Diverge} Int
+  assemble-library-object document closure exported prefix text words units facts ir object abi =
+    let object-name = path-to-string object in
+    case process-run (command (path-from-string "clang") ["-Wno-override-module", "-c", path-to-string ir, "-o", object-name <> ".new.o"]) "" of
+      Err error -> write-failure ir "bootstrap.object: cannot start object assembler" pipeline-emit-refused
+      Ok (0, output) -> (case process-run (command (path-from-string "clang") ["-r", "-nostdlib", object-name <> ".provider.o", object-name <> ".new.o", "-o", object-name]) "" of
+        Err error -> write-failure ir "bootstrap.object: cannot start dependency linker" pipeline-emit-refused
+        Ok (0, output) -> (case fs-read object of
+          Err error -> write-failure ir "bootstrap.object: cannot read linked object" pipeline-read-failed
+          Ok code -> case write-object-interfaces prefix exported of
+            Err message -> write-failure ir ("bootstrap.object: " <> message) pipeline-write-failed
+            Ok done -> case fs-write (refusal-path ir) (string-to-bytes "") of
+              Err error -> pipeline-write-failed
+              Ok done -> case fs-write abi (canonical-bytes (object-manifest document closure words units facts text code)) of
+                Err error -> pipeline-write-failed
+                Ok done -> pipeline-ok)
+        Ok (status, output) -> write-failure ir "bootstrap.object: dependency linker refused" pipeline-emit-refused)
+      Ok (status, output) -> write-failure ir "bootstrap.object: object assembler refused" pipeline-emit-refused

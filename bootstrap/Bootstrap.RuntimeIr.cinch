@@ -9,6 +9,7 @@ module Bootstrap.RuntimeIr where
   import Bootstrap.Core
   import Bootstrap.Builtin (array-plan, array-type-name)
   import Bootstrap.Index
+  import Bootstrap.ExportType (export-global)
   import Bootstrap.Nominal (interface-global)
   import Bootstrap.Instance
   import Bootstrap.Type
@@ -21,6 +22,7 @@ module Bootstrap.RuntimeIr where
 
   export emit-runtime-program, emit-runtime-program-with-object
   export emit-runtime-library-with-object, emit-runtime-library-artifact-with-object
+  export runtime-library-default-roots, emit-runtime-library-object-with-object
 
   -- Named families and anonymous tuples share one table, but distinct
   -- group caches: a tuple must retain tag0 even when a named constructor
@@ -2025,7 +2027,9 @@ module Bootstrap.RuntimeIr where
   demand-roots :: List (String, List Nat) -> Writer -> Writer
   demand-roots roots w = case roots of
     Nil -> w
-    Cons (name, classes) rest -> demand-roots rest (demand-worker name classes w)
+    Cons (name, classes) rest -> demand-roots rest (case constructor name (writer-data w) of
+      Some found -> request-demand (ConstructorDemand name classes) w
+      None -> demand-worker name classes w)
   plan-root-method-versions :: List CoreDefinition -> List (String, List Nat) -> ProgramInfo -> ProgramInfo
   plan-root-method-versions definitions roots info =
     let planned = writer-program (workers definitions (demand-roots roots (empty-writer info))) in
@@ -2095,6 +2099,17 @@ module Bootstrap.RuntimeIr where
         let accessor = line (line returned (cat ["define i64 ", llvm-object-symbol (cat [public, ".object-closure"]), "() {"])) "entry:" in
         case closure (Span 0 0 1 1) worker params Nil accessor of
           (ready, closure-value) -> line (line ready (cat ["  ret i64 ", closure-value])) "}"
+  library-checked-shape :: List CoreDefinition -> Writer -> String -> List Nat -> Option (List Nat, Nat)
+  library-checked-shape definitions w name classes = case definition name definitions of
+    Some d -> library-root-shape w d classes
+    None -> case constructor name (writer-data w) of
+      Some (owner, tag, c) -> (case data-declaration owner (writer-data w) of
+        Some d -> (case constructor-context d classes w of
+          Some context -> if not (constructor-supported context d c) then None else
+            (case class-vector context (core-constructor-fields c) of Some fields -> Some (fields, 1); None -> None)
+          None -> None)
+        None -> None)
+      None -> None
   library-bridges :: List CoreDefinition -> List (String, List Nat, String) -> List (String, List Nat, String) -> Writer -> (Writer, Json)
   library-bridges definitions roots seen w = case roots of
     Nil -> (w, JArrEnd)
@@ -2102,9 +2117,9 @@ module Bootstrap.RuntimeIr where
       Some True -> library-bridges definitions rest seen w
       Some False -> (refuse w (Span 0 0 1 1) "library ABI export symbols collide", JArrEnd)
       None -> if not (library-public-symbol public) then (refuse w (Span 0 0 1 1) "library ABI export symbol is empty or collides with typed workers", JArrEnd) else
-        case definition name definitions of
-          None -> (refuse w (Span 0 0 1 1) "library ABI root has no checked definition", JArrEnd)
-          Some d -> case library-root-shape w d classes of
+        if (case (definition name definitions, constructor name (writer-data w)) of (None, None) -> True; other -> False) then
+          (refuse w (Span 0 0 1 1) "library ABI root has no checked definition", JArrEnd) else
+          case library-checked-shape definitions w name classes of
             None -> (refuse w (Span 0 0 1 1) "library ABI root has no checked physical parameter/result shape", JArrEnd)
             Some (params, result) ->
               let bridged = library-bridge public (specialized-name name classes) params w in
@@ -2122,11 +2137,141 @@ module Bootstrap.RuntimeIr where
       let prefix = (case program-object (writer-program w) of None -> Nil; Some provider -> object-words provider) in
       let count = list-length prefix in
       prefix <> library-layout-tail count (layout-count layouts) (library-new-cells count cells)
+  -- Like the Native object collector, every non-generic checked definition
+  -- is a physical root. This inventory grants no source visibility: exports
+  -- remain in the independently checked interfaces. Do not synthesize a
+  -- Cartesian set of variants for generic definitions.
+  library-default-definitions :: List CoreDefinition -> Result String (List (String, List Nat, String))
+  library-default-definitions definitions = case definitions of
+    Nil -> Ok Nil
+    Cons d rest -> case library-default-definitions rest of
+      Err message -> Err message
+      Ok more -> if type-param-count (scheme-params (core-scheme d)) > 0 then Ok more else
+        (case export-global (core-name d) of
+          Err message -> Err message
+          Ok public -> if same public "Main.main" then Err "library objects cannot contain the process entry" else Ok (Cons (core-name d, Nil, public) more))
+  runtime-library-default-roots :: CheckedProgram -> Result String (List (String, List Nat, String))
+  runtime-library-default-roots checked =
+    let typed = checked-elaboration checked in
+    let info = ProgramInfo (elaboration-data typed) (elaboration-classes typed) (elaboration-instances typed) (elaboration-bindings typed) Nil None (Some Nil) in
+    case (library-default-definitions (elaboration-core typed), library-default-constructors (elaboration-data typed) (empty-writer info)) of
+      (Ok definitions, Ok constructors) -> Ok (definitions <> constructors)
+      (Err message, other) -> Err message
+      (other, Err message) -> Err message
+  library-source-name :: String -> Bool
+  library-source-name name = let bytes = string-to-bytes name in
+    bytes-len bytes > 2 && bytes-get bytes 0 == 109 && bytes-get bytes 1 == 46
+  library-default-constructors :: List CoreData -> Writer -> Result String (List (String, List Nat, String))
+  library-default-constructors datas w = case datas of
+    Nil -> Ok Nil
+    Cons d rest -> case library-default-constructors rest w of
+      Err message -> Err message
+      Ok more -> if not (library-source-name (core-data-name d)) then Ok more else library-default-data-constructors d (core-data-constructors d) w more
+  library-default-data-constructors :: CoreData -> List CoreConstructor -> Writer -> List (String, List Nat, String) -> Result String (List (String, List Nat, String))
+  library-default-data-constructors d constructors w more = case constructors of
+    Nil -> Ok more
+    Cons c rest -> case library-default-data-constructors d rest w more of
+      Err message -> Err message
+      Ok tail -> case class-vector (writer-context w) (core-constructor-fields c) of
+        None -> Ok tail
+        Some fields -> case export-global (core-constructor-name c) of
+          Err message -> Err message
+          Ok public -> Ok (Cons (core-constructor-name c, default-own (core-data-params d), public) tail)
+
+  -- The named layout cache is the authority for emitted nominal descriptors.
+  -- Decode only the planner's own representation suffix, never source text.
+  library-key-prefix :: Bytes -> Bytes -> Nat -> Bool
+  library-key-prefix prefix key index = if index >= bytes-len prefix then True else
+    index < bytes-len key && bytes-get prefix index == bytes-get key index && library-key-prefix prefix key (index + 1)
+  library-key-codes :: Bytes -> Nat -> Option (List Nat)
+  library-key-codes key index = if index < bytes-len key then
+    (let byte = bytes-get key index in if byte < 48 || byte > 50 then None else case library-key-codes key (index + 1) of
+      None -> None
+      Some rest -> Some (Cons (byte - 48) rest))
+    else if index == bytes-len key then Some Nil else None
+  library-key-classes :: String -> String -> Option (List Nat)
+  library-key-classes name key = if same name key then Some Nil else
+    let prefix = string-to-bytes (cat [name, ".r"]) in let bytes = string-to-bytes key in
+    if bytes-len bytes <= bytes-len prefix || not (library-key-prefix prefix bytes 0) then None else library-key-codes bytes (bytes-len prefix)
+  library-layout-data :: String -> List CoreData -> Option (CoreData, List Nat)
+  library-layout-data key datas = case datas of
+    Nil -> None
+    Cons d rest -> case library-key-classes (core-data-name d) key of
+      Some codes -> Some (d, codes)
+      None -> library-layout-data key rest
+  library-public-name :: String -> List Nat -> Result String String
+  library-public-name name codes = case export-global name of
+    Err message -> Err message
+    Ok public -> Ok (cat [public, if list-length codes == 0 then "" else cat ["@", native-classes codes]])
+  library-type-facts :: List (String, Nat) -> List CoreData -> Json
+  library-type-facts names datas = case names of
+    Nil -> JObjEnd
+    Cons (key, descriptor) rest -> case library-layout-data key datas of
+      None -> library-type-facts rest datas
+      Some (d, codes) -> case library-public-name (core-data-name d) codes of
+        Err message -> library-type-facts rest datas
+        Ok public -> JObj public (if list-length (core-data-constructors d) <= 64 && descriptor < 65472 then JObj "group" (JNum (nat-to-int (descriptor / 64))) JObjEnd else
+          JObj "base" (JNum (nat-to-int descriptor)) (JObj "shared" (JBool False) JObjEnd)) (library-type-facts rest datas)
+  library-constructor-facts :: CoreData -> List Nat -> Nat -> Nat -> List CoreConstructor -> Json -> Json
+  library-constructor-facts d codes descriptor tag constructors rest = case constructors of
+    Nil -> rest
+    Cons c more -> case library-public-name (core-constructor-name c) codes of
+      Err message -> library-constructor-facts d codes descriptor (tag + 1) more rest
+      Ok public -> JObj public (JObj "tag" (JNum (nat-to-int tag))
+        (JObj "arity" (JNum (nat-to-int (list-length (core-constructor-fields c))))
+          (JObj "descriptor" (JNum (nat-to-int (data-descriptor d descriptor tag))) JObjEnd)))
+        (library-constructor-facts d codes descriptor (tag + 1) more rest)
+  library-constructor-layout-facts :: List (String, Nat) -> List CoreData -> Json
+  library-constructor-layout-facts names datas = case names of
+    Nil -> JObjEnd
+    Cons (key, descriptor) rest -> case library-layout-data key datas of
+      None -> library-constructor-layout-facts rest datas
+      Some (d, codes) -> library-constructor-facts d codes descriptor 0 (core-data-constructors d) (library-constructor-layout-facts rest datas)
+  library-escaped :: List (String, Nat) -> List CoreData -> Bool
+  library-escaped names datas = case names of
+    Nil -> False
+    Cons (key, descriptor) rest -> (case library-layout-data key datas of Some (d, codes) -> list-length (core-data-constructors d) > 64 || descriptor >= 65472; None -> False) || library-escaped rest datas
+  library-method-slot-facts :: List MethodSlot -> Json
+  library-method-slot-facts plans = case plans of
+    Nil -> JArrEnd
+    Cons (MethodSlot logical physical own-codes) rest -> JArr (JObj "logical" (JNum (nat-to-int logical))
+      (JObj "physical" (JNum (nat-to-int physical)) (JObj "own" (JStr (native-classes own-codes)) JObjEnd))) (library-method-slot-facts rest)
+  library-method-family-facts :: Writer -> List CoreClass -> Json
+  library-method-family-facts w descriptions = case descriptions of
+    Nil -> JArrEnd
+    Cons description rest -> case export-global (class-name description) of
+      Err message -> library-method-family-facts w rest
+      Ok public -> JArr (JObj "class" (JStr public)
+        (JObj "declared_methods" (JNum (nat-to-int (list-length (class-methods description))))
+          (JObj "slots" (library-method-slot-facts (class-method-slots w description)) JObjEnd))) (library-method-family-facts w rest)
+  library-has-dictionary-demand :: List Demand -> Bool
+  library-has-dictionary-demand demands = case demands of
+    Nil -> False
+    Cons (DictionaryDemand name codes) rest -> True
+    Cons first rest -> library-has-dictionary-demand rest
+  library-object-facts :: Writer -> Json
+  library-object-facts w = case w of
+    Writer next globals code errors (LayoutPlan groups tuples names cells) context ->
+      let datas = program-data (writer-program w) in
+      let dictionary-demand = (case context of RuntimeContext info bounds rigids pending done -> library-has-dictionary-demand done) in
+      JObj "method_families" (library-method-family-facts w (program-classes (writer-program w))) (JObj "unpublished_dictionaries" (JBool dictionary-demand) (JObj "types" (library-type-facts names datas)
+        (JObj "constructors" (library-constructor-layout-facts names datas)
+          (JObj "escaped_descriptors" (JBool (library-escaped names datas)) JObjEnd))))
+
   -- The alias in each root is a physical symbol chosen by the caller from
   -- checked export identities. The pipeline owns that source-name authority.
   -- These are physical unit/layout facts, not a completed object manifest.
   emit-runtime-library-artifact-with-object :: CheckedProgram -> Option RuntimeObject -> List (String, List Nat, String) -> Result (List Diagnostic) (String, List Nat, Json)
-  emit-runtime-library-artifact-with-object checked provider roots =
+  emit-runtime-library-artifact-with-object checked provider roots = case emit-runtime-library-artifact True checked provider roots of
+    Err errors -> Err errors
+    Ok (ir, words, units, facts) -> Ok (ir, words, units)
+  -- A closed dependency object never installs a shorter layout table from a
+  -- global constructor. The final consumer registers its complete compatible
+  -- prefix, including this object's actual descriptors, once before use.
+  emit-runtime-library-object-with-object :: CheckedProgram -> Option RuntimeObject -> List (String, List Nat, String) -> Result (List Diagnostic) (String, List Nat, Json, Json)
+  emit-runtime-library-object-with-object checked provider roots = emit-runtime-library-artifact False checked provider roots
+  emit-runtime-library-artifact :: Bool -> CheckedProgram -> Option RuntimeObject -> List (String, List Nat, String) -> Result (List Diagnostic) (String, List Nat, Json, Json)
+  emit-runtime-library-artifact register checked provider roots =
     let typed = checked-elaboration checked in
     let definitions = elaboration-core typed <> instance-definitions (elaboration-instances typed) in
     let selected = library-selected-roots roots in
@@ -2135,8 +2280,8 @@ module Bootstrap.RuntimeIr where
     case library-bridges definitions roots Nil (workers definitions (demand-roots selected initial)) of
       (bridged, units) -> case workers definitions bridged of
         Writer next globals code Nil layouts context ->
-          let ir = cat [declarations, builder-run globals, layout-table layouts, apply-entry-with-linkage "internal ", builder-run code] in
-          Ok (ir, library-layout-words bridged layouts, units)
+          let ir = cat [declarations, builder-run globals, if register then layout-table layouts else "", apply-entry-with-linkage "internal ", builder-run code] in
+          Ok (ir, library-layout-words bridged layouts, units, if register then JObjEnd else library-object-facts (Writer next globals code Nil layouts context))
         Writer next globals code errors layouts context -> Err errors
   emit-runtime-program :: CheckedProgram -> Result (List Diagnostic) String
   emit-runtime-program checked = emit-runtime-program-with-object checked None

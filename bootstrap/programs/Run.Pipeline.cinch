@@ -7,7 +7,7 @@ module Main where
 
   import Bootstrap.Driver (read-argv)
   import Bootstrap.Report (render-diagnostic)
-  import Bootstrap.Pipeline (PipelineMode, CheckOnly, EmitOnly, EmitWithInterfaces, InterfacesOnly, CompileOnly, CompileAndRun, compile-source-mode, compile-source-with-manifest-mode, compile-source-with-object, compile-source-with-object-interfaces, four-words, pipeline-bad-args)
+  import Bootstrap.Pipeline (PipelineMode, CheckOnly, EmitOnly, EmitWithInterfaces, InterfacesOnly, ObjectOnly, compile-source-library-object, CompileOnly, CompileAndRun, compile-source-mode, compile-source-with-manifest-mode, compile-source-with-object, compile-source-with-object-interfaces, four-words, pipeline-bad-args)
   import Data.Path (path-from-string)
 
   run-words :: forall r. using (io :: Io r) => List String ->{IO r, Diverge} Int
@@ -24,6 +24,8 @@ module Main where
         if selected then pipeline-bad-args else run-options EmitOnly manifest object-config True rest
       else if string-compare flag "--emit-ir-with-interfaces" == 0 then
         if selected then pipeline-bad-args else run-options EmitWithInterfaces manifest object-config True rest
+      else if string-compare flag "--emit-object" == 0 then
+        if selected then pipeline-bad-args else run-options ObjectOnly manifest object-config True rest
       else if string-compare flag "--emit-interfaces" == 0 then
         if selected then pipeline-bad-args else run-options InterfacesOnly manifest object-config True rest
       else if string-compare flag "--interfaces" == 0 then
@@ -39,6 +41,10 @@ module Main where
 
   run-selected :: forall r. using (io :: Io r) => PipelineMode -> Option String -> Option String -> List String ->{IO r, Diverge} Int
   run-selected mode manifest object-config ws = case mode of
+    ObjectOnly -> case (manifest, object-config, ws) of
+      (Some contracts, Some provider, Cons source (Cons ir (Cons object (Cons abi (Cons prefix Nil))))) ->
+        compile-source-library-object contracts provider source (path-from-string ir) (path-from-string object) (path-from-string abi) prefix
+      other -> pipeline-bad-args
     EmitOnly -> case ws of
       Cons source (Cons ir Nil) -> run-source mode manifest object-config source ir ir ir
       other -> pipeline-bad-args
