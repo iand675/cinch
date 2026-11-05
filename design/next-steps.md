@@ -1,5 +1,30 @@
 # Next steps (as of 2026-11-05)
 
+## Updated parser compiler builds and performs the library round trip (2026-11-05)
+
+The exact 43 staged-driver inputs of compiler038f build into an actual Cinch
+compiler using the explicit Native22 seed role. Both complete adapter/object
+groups pass all nine tests. The actual Cinch CLI emits and reloads the library
+object; an independently linked owned-bignum/ADT/array client runs at32M with
+poisoning and zero leaks. All1,842 physical units, fourteen new public/accessor
+symbols,4,224 descriptor words,60 interface contracts and26 method families
+are independently audited. See `bootstrap/current-row-parser-compiler-results.json`.
+
+A new private guard is validating an independent Core-checking prerequisite
+for existential support. The old038f checker accepts a forged pattern that
+chooses Int for a constructor's hidden universal payload; five fresh scopes
+reproduce it with zero leaks. The source frontend still refuses existential
+constructors, so this record does not claim a current source execution exploit.
+The guard preserves polymorphic construction and regular patterns and passes
+the complete global-reference group plus25 new controls. The complete nominal
+group and its exact43-module compiler/object gate also pass. The full runtime
+group, including task/capture/cancellation cases, is the remaining publication
+gate; the guard is not included in this parser checkpoint.
+
+The earlier917f Stage2 build and Native6b full sweep continue on their frozen
+inputs. A matching final chain, full current suites, all105 required targets
+and Acceptance5 remain open.
+
 ## Row arguments preserve their complete syntax tree (2026-11-05)
 
 Compiler `038faba0` parses effect rows in type-argument position, including
