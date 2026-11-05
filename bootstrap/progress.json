@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "estimate": 90,
-  "commit": "ce5c24bf37ca3d88c164e33963beb3d3e84fb9b1",
+  "commit": "807e3f82f2b2bd7c396ea8ab54cbe4ebfc3dfa9f",
   "estimateNote": "Rough engineering estimate. Verified checks and remaining work are listed below.",
   "status": "Verification found a failure; correction required",
   "stages": [
@@ -183,7 +183,7 @@
     },
     {
       "title": "Current compiler: nine original interface/API groups",
-      "detail": "5 of 9 complete groups passed; 0 running, 4 failed and 0 pending. State: completed-with-failures; phase: interface_region_effects. Actual Cinch frontend/writer; complete cases and original assertions retained. This compiler fixture is separate from finalStage3 acceptance.",
+      "detail": "6 of 9 complete groups passed; 0 running, 3 failed and 0 pending. State: completed-with-failures; phase: interface_region_effects. Actual Cinch frontend/writer; complete cases and original assertions retained. This compiler fixture is separate from finalStage3 acceptance.",
       "state": "running"
     },
     {
@@ -195,16 +195,26 @@
       "title": "Full acceptance scope retained",
       "detail": "100 original targets plus five additions:96 portable and9 interface/API groups. Explicit inventory prevents cache helper refactors from hiding tests. Required execution and final audit remain open.",
       "state": "running"
+    },
+    {
+      "title": "Original array suite:13/15",
+      "detail": "Complete original15 cases:13 pass and2 fail. All31 actual runtime clients pass at32M with poisoning and zero leaks; real object emission passes. Copy/Ref/Thunk ownership and stage/generate named-array refusal remain open. This is a mixed target with one explicitly directNative packed-width API case.",
+      "state": "failed"
+    },
+    {
+      "title": "Original interface/API groups:6/9",
+      "detail": "All9 original groups, every original assertion retained:6 groups pass,3 fail;8 of11 tests pass. Actual Cinch source writer and authenticated imported library-only contracts keep distinct roles. Remaining gaps: existential/indexed constructors, typed foreign declarations and source-prelude replacements.",
+      "state": "failed"
     }
   ],
   "blockers": [
     {
-      "title": "Byte-observation repair published; finish arrays and API coverage",
-      "detail": "Published ce5c24b fixes imported byte-observation body authority and checks Core proofs in their actual elaboration context. Seven complete affected groups, all48 byte inputs, all43 compiler modules and9 compiler/object tests pass. The fresh matching917f bootstrap has passed Stage0 and the library provider; later stages and independent audit continue. The full original15-case array run has reproduced the unfinished copyOut/Ref/Thunk ownership check; other cases continue. Nine original interface/API groups are queued against the actual Cinch writer. The acceptance inventory preserves all original100 targets and five added groups. Matching final full suites, dictionary factories, generic object roots and Acceptance5 remain open."
+      "title": "Arrays13/15 and interface/API6/9; Stage2 rebuilding",
+      "detail": "Published807e3f8 records complete original groups on compiler917f: arrays13/15 and six of nine interface/API groups pass. All31 actual array runtime clients pass at32M with poisoning and zero leaks; the real array object case passes. Open cases require Copy/Ref/Thunk ownership, stage/generate behavior, existential/indexed constructors, typed foreign declarations and source-prelude replacements. The adapter replay preserves all original assertions and copies exact authenticated imported library contracts separately from actual Cinch source exports. The matching917f chain has passed Stage0/1 and is rebuilding Stage2. Private row-argument syntax passes both complete groups; its actual Cinch full43-source check continues. All original100 plus five additions, matching final suites, dictionary factories, generic object roots and Acceptance5 remain required."
     },
     {
       "title": "Investigate the recorded failure",
-      "detail": "Native compiler tests: bootstrap_byte_observations; self-built tests: bootstrap_total_semantics; self-built tests: bootstrap_type_syntax; self-built tests: arrays"
+      "detail": "Native compiler tests: bootstrap_byte_observations; self-built tests: bootstrap_total_semantics; self-built tests: bootstrap_type_syntax; self-built tests: arrays; Two original array cases remain open: ownership/copyOut and staging; Three original interface/API groups require language support"
     },
     {
       "title": "Finish the fresh bootstrap",
@@ -262,5 +272,5 @@
   "fullGoalComplete": false,
   "summary": "All 43 compiler-source checks: passed. 9 of 9 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_byte_observations: passed; bootstrap_buffer_aliases: passed; bootstrap_machine_values: passed; refinements and effects: passed; bootstrap_body_bindings: passed; bootstrap_globals: passed; bootstrap_imported_preconditions: passed; bootstrap_external_frontend: passed; bootstrap_library_object: passed.",
   "activity": "Current published Rust compiler: full suite: 176 of 232 complete groups passed; 1 running, 1 failed and 54 pending. Stage builds and smoke checks: 2 of 4; chain state: building-stage2. Repair gates: 9 of 9 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_byte_observations: passed; bootstrap_buffer_aliases: passed; bootstrap_machine_values: passed; refinements and effects: passed; bootstrap_body_bindings: passed; bootstrap_globals: passed; bootstrap_imported_preconditions: passed; bootstrap_external_frontend: passed; bootstrap_library_object: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
-  "updatedAt": "2026-11-05T21:26:00.343202+00:00"
+  "updatedAt": "2026-11-05T21:28:29.238106+00:00"
 }
