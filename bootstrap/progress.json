@@ -224,8 +224,8 @@
   ],
   "blockers": [
     {
-      "title": "Stage2 rebuild running; constructor contracts and suite failures under test",
-      "detail": "Published96b33ae retains valid checked numeric helpers and adds false-bound, wrong-argument and recursive-body refusals. The complete measure group passes21 runtime-fed inputs; all4 local controls match Native. Compiler production remains450711. Together with the constructor guard, six complete affected groups pass. Matching450711 Stage2 and earlier917f Stage3 builds continue. Private1dd5 constructor-local/indexed source schemes pass both source/global groups; the exporter replay now checks parsed application structure rather than a brittle added formatting assertion. Full43-module compiler/object and all9 original API groups remain gated on that replay. The publisher and active snapshots are protected in persistent workspace storage, original paths retained; all live snapshots independently audit intact. All105 targets and Acceptance5 remain open."
+      "title": "Six published gates green; private constructor contracts passed",
+      "detail": "Published96b33ae retains valid checked numeric helpers and adds false-bound, wrong-argument and recursive refusals. All6 affected published groups pass; complete measure group has21 inputs. Compiler remains450711: matchingStage2 is rebuilding, while earlier917f self-builtStage2 buildsStage3. Private1dd5 constructor declaration/introduction/global/interface contracts pass all3 complete groups and4tests, including10 new source controls and independent Native parsing of indexed result syntax. Original declaring-module fixities and private contract closures still pass. Actual43-module compiler/object gate, empty-PATH self-built917f source check, safe physical-layout refusal/ordinary zero-leak client controls and all9 original API groups remain under verification. Every active snapshot audits intact after storage protection. Full105-target acceptance remains open."
     },
     {
       "title": "Investigate the recorded failure",
@@ -287,5 +287,5 @@
   "fullGoalComplete": false,
   "summary": "All 43 compiler-source checks: passed. 6 of 6 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_globals: passed; bootstrap_nominals: passed; runtime behavior: passed; bootstrap_external_frontend: passed; bootstrap_library_object: passed; bootstrap_measure_contracts: passed.",
   "activity": "Current published Rust compiler: full suite: 195 of 232 complete groups passed; 1 running, 2 failed and 34 pending. Stage builds and smoke checks: 2 of 4; chain state: building-stage2. Repair gates: 6 of 6 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_globals: passed; bootstrap_nominals: passed; runtime behavior: passed; bootstrap_external_frontend: passed; bootstrap_library_object: passed; bootstrap_measure_contracts: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
-  "updatedAt": "2026-11-05T23:25:43.799255+00:00"
+  "updatedAt": "2026-11-05T23:26:45.948714+00:00"
 }
