@@ -213,7 +213,7 @@
     },
     {
       "title": "Published038f full compiler and library-object validation",
-      "detail": "Fresh full43-source actual compiler fixture plus complete adapter/object groups. State: running; phase: bootstrap_library_object. Explicit Native22 seed role; client frontend remains Cinch. Independent audit required.",
+      "detail": "Fresh full43-source actual compiler fixture plus complete adapter/object groups. State: passed; phase: bootstrap_library_object. Explicit Native22 seed role; client frontend remains Cinch. Independent audit required.",
       "state": "running"
     }
   ],
@@ -282,5 +282,5 @@
   "fullGoalComplete": false,
   "summary": "All 43 compiler-source checks: passed. 2 of 2 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_type_syntax: passed; parser: passed.",
   "activity": "Current published Rust compiler: full suite: 178 of 232 complete groups passed; 1 running, 1 failed and 52 pending. Stage builds and smoke checks: 2 of 4; chain state: building-stage2; earlier API source, not the published repair. Repair gates: 2 of 2 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_type_syntax: passed; parser: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
-  "updatedAt": "2026-11-05T21:44:12.064318+00:00"
+  "updatedAt": "2026-11-05T21:50:54.549127+00:00"
 }
