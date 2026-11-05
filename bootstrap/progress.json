@@ -143,7 +143,7 @@
     },
     {
       "title": "Latest source: complete fresh Rust sweep",
-      "detail": "129 of 232 complete groups passed; 1 running, 0 failed and 102 pending. State: running. All fresh test binaries use the matching source paths and explicit new pins; all cases run, including ignored cases. Retained prior results remain separately scoped.",
+      "detail": "131 of 232 complete groups passed; 1 running, 0 failed and 100 pending. State: running. All fresh test binaries use the matching source paths and explicit new pins; all cases run, including ignored cases. Retained prior results remain separately scoped.",
       "state": "running"
     },
     {
@@ -237,5 +237,5 @@
   "fullGoalComplete": false,
   "summary": "All 43 compiler-source checks: passed. 19 of 19 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_total_semantics: passed; bootstrap_instance_resolution: passed; bootstrap_body_bindings: passed; Core validation: passed; bootstrap_globals: passed; independent type checker: passed; inference: passed; typechecker: passed; bootstrap_export_interfaces: passed; bootstrap_export_types: passed; bootstrap_total: passed; index scope and representation: passed; refinements and effects: passed; bootstrap_source_proofs: passed; bootstrap_load: passed; bootstrap_interface: passed; bootstrap_function_preconditions: passed; bootstrap_imported_preconditions: passed; bootstrap_conditional_methods: passed.",
   "activity": "Pre-method-body16cef82 Rust suite (retained full run): 145 of 230 complete groups passed; 0 running, 1 failed and 84 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 19 of 19 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_total_semantics: passed; bootstrap_instance_resolution: passed; bootstrap_body_bindings: passed; Core validation: passed; bootstrap_globals: passed; independent type checker: passed; inference: passed; typechecker: passed; bootstrap_export_interfaces: passed; bootstrap_export_types: passed; bootstrap_total: passed; index scope and representation: passed; refinements and effects: passed; bootstrap_source_proofs: passed; bootstrap_load: passed; bootstrap_interface: passed; bootstrap_function_preconditions: passed; bootstrap_imported_preconditions: passed; bootstrap_conditional_methods: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
-  "updatedAt": "2026-11-05T14:45:52.478715+00:00"
+  "updatedAt": "2026-11-05T14:46:54.367886+00:00"
 }
