@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "estimate": 90,
-  "commit": "8acd312d33ed465f438f19220e7364c13a903c61",
+  "commit": "aa5e3bf231f931d44aacf810edd76e67e586a0bd",
   "estimateNote": "Rough engineering estimate. Verified checks and remaining work are listed below.",
   "status": "Verification found a failure; correction required",
   "stages": [
@@ -38,7 +38,7 @@
     },
     {
       "title": "Current repair gates",
-      "detail": "2 of 2 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_type_syntax: passed; parser: passed. All 43 source-module check: passed.",
+      "detail": "4 of 4 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_type_syntax: passed; parser: passed; bootstrap_external_frontend: passed; bootstrap_library_object: passed. All 43 source-module check: passed.",
       "state": "passed"
     },
     {
@@ -213,18 +213,28 @@
     },
     {
       "title": "Published038f full compiler and library-object validation",
-      "detail": "Fresh full43-source actual compiler fixture plus complete adapter/object groups. State: passed; phase: bootstrap_library_object. Explicit Native22 seed role; client frontend remains Cinch. Independent audit required.",
-      "state": "running"
+      "detail": "Fresh full43-source actual compiler fixture plus complete adapter/object groups. State: passed; phase: bootstrap_library_object. Explicit Native22 seed role; client frontend remains Cinch. Matching independent audit is recorded separately.",
+      "state": "passed"
+    },
+    {
+      "title": "Published038f: Core constructor-scope gap",
+      "detail": "Actual compiled checker accepts a forged hidden payload as Int in five fresh scopes. Source existential constructors still refuse. A separately verified private450711 guard is awaiting its whole runtime regression gate.",
+      "state": "failed"
+    },
+    {
+      "title": "Private450711 constructor guard: focused and compiler checks",
+      "detail": "Original global controls and25 scope controls pass; exact43-module compiler/object gate passes9tests. Whole nominal group passes separately. Runtime gate: running; phase: bootstrap_runtime_ir. Full source/API support remains open.",
+      "state": "passed"
     }
   ],
   "blockers": [
     {
-      "title": "Parser row arguments published; constructor and ownership gaps remain",
-      "detail": "Published8acd312 adds structured row arguments and exact nested Ref/Array/Thunk syntax: both complete syntax/corpus groups and the actual Cinch43-source check pass on038f. A fresh full compiler/object gate is running on038f with the explicit Native22 seed role. The separate917f chain has passed Stage0/1 and is rebuilding Stage2. Earlier917f complete arrays remain13/15 and interface/API groups6/9; receipts preserve every original case. Copy/borrow/Thunk ownership, staging, existential/indexed constructors, typedFFI and source-prelude replacement remain open. General user Row-family experiments stay private because the Native baseline supports only builtin Thunk/Lazy row application. Final matching full suites, all original100 plus five additions, dictionary factories, generic object roots and Acceptance5 remain required."
+      "title": "Updated compiler verified; constructor-scope guard awaiting runtime checks",
+      "detail": "Publishedaa5e3bf verifies compiler038f: all43 exact compiler inputs build; both complete adapter/object groups pass9tests; the real object reload/client passes32M poisoning with zero leaks. The parser syntax/corpus groups also pass. A new Core probe shows038f accepts a forged hidden-payload pattern; Source existential declarations still refuse. Private450711 guard passes the full global group and25 scope controls, the full nominal group and its actual43-module compiler/object gate. The complete runtime group, including task/capture/cancellation cases, remains its publication gate. The separate917f Stage2 and fullNative6b sweep continue on frozen inputs. Original arrays13/15 and interface/API6/9 remain earlier917f evidence. All105 required targets and Acceptance5 stay open."
     },
     {
       "title": "Investigate the recorded failure",
-      "detail": "Native compiler tests: bootstrap_byte_observations; self-built tests: bootstrap_total_semantics; self-built tests: bootstrap_type_syntax; self-built tests: arrays; Two original array cases remain open: ownership/copyOut and staging; Three original interface/API groups require language support"
+      "detail": "Native compiler tests: bootstrap_byte_observations; self-built tests: bootstrap_total_semantics; self-built tests: bootstrap_type_syntax; self-built tests: arrays; Two original array cases remain open: ownership/copyOut and staging; Three original interface/API groups require language support; Core constructor patterns need verified scoped openings before existential support"
     },
     {
       "title": "Finish the fresh bootstrap",
@@ -280,7 +290,7 @@
   "candidateSource": "038faba053d76f5297d7996e9032066e10994dd69460b6f500a2ddb2645cfa58",
   "candidatePublished": true,
   "fullGoalComplete": false,
-  "summary": "All 43 compiler-source checks: passed. 2 of 2 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_type_syntax: passed; parser: passed.",
-  "activity": "Current published Rust compiler: full suite: 185 of 232 complete groups passed; 1 running, 1 failed and 45 pending. Stage builds and smoke checks: 2 of 4; chain state: building-stage2; earlier API source, not the published repair. Repair gates: 2 of 2 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_type_syntax: passed; parser: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
-  "updatedAt": "2026-11-05T22:22:08.518293+00:00"
+  "summary": "All 43 compiler-source checks: passed. 4 of 4 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_type_syntax: passed; parser: passed; bootstrap_external_frontend: passed; bootstrap_library_object: passed.",
+  "activity": "Current published Rust compiler: full suite: 185 of 232 complete groups passed; 1 running, 1 failed and 45 pending. Stage builds and smoke checks: 2 of 4; chain state: building-stage2; earlier API source, not the published repair. Repair gates: 4 of 4 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_type_syntax: passed; parser: passed; bootstrap_external_frontend: passed; bootstrap_library_object: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
+  "updatedAt": "2026-11-05T22:28:37.728550+00:00"
 }
