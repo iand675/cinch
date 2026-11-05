@@ -57,8 +57,8 @@
       "state": "passed"
     },
     {
-      "title": "Current published Rust compiler: complete suite",
-      "detail": "118 of 232 complete groups passed; 0 running, 1 failed and 113 pending.Every group includes ignored tests. State: superseded-after-production-checker-change.",
+      "title": "Current alias follow-up: full Rust suite",
+      "detail": "3 of 232 complete groups passed; 1 running, 0 failed and 228 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -143,7 +143,7 @@
     },
     {
       "title": "Latest source: complete fresh Rust sweep",
-      "detail": "118 of 232 complete groups passed; 0 running, 1 failed and 113 pending. State: superseded-after-production-checker-change. All fresh test binaries use the matching source paths and explicit new pins; all cases run, including ignored cases. Retained prior results remain separately scoped.",
+      "detail": "3 of 232 complete groups passed; 1 running, 0 failed and 228 pending. State: running. All fresh test binaries use the matching source paths and explicit new pins; all cases run, including ignored cases. Retained prior results remain separately scoped.",
       "state": "running"
     },
     {
@@ -174,12 +174,12 @@
   ],
   "blockers": [
     {
-      "title": "Finish alias regression fix and advance refreshed bootstrap",
-      "detail": "Published85f00ca checkpoint141tests/11groups pass, but completeNative57 found an original linear_facts alias-spelling regression (assertion unchanged). Narrowed followup passes48tests across3completegroups andall43; alltargets/remaininggroups running, newfullNative58queued. Fresh private74f0 chain3 usesexplicit85seed+separatelibraryprovider:3Stage0smokes,55interfaces62artifacts/archiveABIobjecthashes independentlyverified. Stages1-3wait all19currentproof/interfacegroups.171runtimechecks pass; tooling/editorpending. Actualarray5597run10/15: aliasclientpasses; reservedrecordguardfixedin74f0; one matrixfailedonlymissingruntimeprerequisite,builtandrerunning; copyOut/Thunkrow, stagingandobjectemission remain real gaps. OriginalAPI/Acceptance5remainopen."
+      "title": "Verify narrowed alias fix and refreshed bootstrap",
+      "detail": "Published85checkpoint141tests/11groups pass, but full57 exposedoneoriginal alias-spelling regression in linear_facts. Narrowedfollowup6b5675passesall48earlytests/all43/alltargets;12completegroups finishing andfull58running. Private74f0 DRecordbuiltin guardandexplicit85seed/provider ready. Freshchain3seed3smokes/provider55interfaces62artifacts independentlypass;171runtime+41tooling+39editor=251matchingtests independentlypass. Stages1-3waitall19currentsourceproof/interfacegroups. Arraymatrixfixture runtimebuilt; original31programs/31zeroleaks/3forgeryrefusals pass in1test/14filtereddiagnostic, full15lateststillrequired. ActualcopyOut/Thunkrow, staging,ObjectEmit,originalAPI/Acceptance5remainopen."
     },
     {
       "title": "Investigate the recorded failure",
-      "detail": "Native compiler tests: linear_facts; self-built tests: bootstrap_total_semantics; self-built tests: bootstrap_type_syntax; self-built tests: arrays"
+      "detail": "self-built tests: bootstrap_total_semantics; self-built tests: bootstrap_type_syntax; self-built tests: arrays"
     },
     {
       "title": "Finish the fresh bootstrap",
@@ -187,7 +187,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "118 of 232 complete groups passed; 0 running, 1 failed and 113 pending."
+      "detail": "3 of 232 complete groups passed; 1 running, 0 failed and 228 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -236,6 +236,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "All 43 compiler-source checks: passed. 11 of 11 complete groups passed; 0 running, 0 failed and 0 pending. refinements: passed; dependent: passed; interface_preconditions: passed; interface_refinements: passed; bootstrap_export_types: passed; bootstrap_export_interfaces: passed; bootstrap_type_syntax: passed; proof_value_identity: passed; evidence_invalidation: passed; syntax_signature_scope: passed; syntax_objects: passed.",
-  "activity": "Current published Rust compiler: complete suite: 118 of 232 complete groups passed; 0 running, 1 failed and 113 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 11 of 11 complete groups passed; 0 running, 0 failed and 0 pending. refinements: passed; dependent: passed; interface_preconditions: passed; interface_refinements: passed; bootstrap_export_types: passed; bootstrap_export_interfaces: passed; bootstrap_type_syntax: passed; proof_value_identity: passed; evidence_invalidation: passed; syntax_signature_scope: passed; syntax_objects: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
-  "updatedAt": "2026-11-05T16:42:22.163797+00:00"
+  "activity": "Current alias follow-up: full Rust suite: 3 of 232 complete groups passed; 1 running, 0 failed and 228 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 11 of 11 complete groups passed; 0 running, 0 failed and 0 pending. refinements: passed; dependent: passed; interface_preconditions: passed; interface_refinements: passed; bootstrap_export_types: passed; bootstrap_export_interfaces: passed; bootstrap_type_syntax: passed; proof_value_identity: passed; evidence_invalidation: passed; syntax_signature_scope: passed; syntax_objects: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
+  "updatedAt": "2026-11-05T16:44:24.244738+00:00"
 }
