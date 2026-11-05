@@ -1,5 +1,22 @@
 # The bootstrap ladder
 
+Current source checkpoint (2026-11-05): the independent typed backend exposes
+`emit-runtime-library-with-object` for checked definition roots and explicit
+Raw/Obj/TObj vectors. It emits no process entry and keeps non-root workers local.
+`programs/Run.RuntimeLibrary.cinch` and the complete
+`bootstrap_runtime_library` test are the runnable artifact. This is a backend
+component; the external `EmitObject` path and complete ABI manifest remain open.
+All three original runtime groups and all nineteen proof/interface groups pass
+under the scopes recorded in `current-runtime-library-root-results.json` and
+`current-cinch-proof-interface-results.json`.
+
+The Stage0 and distinct library-only provider pins explicitly use 85f00ca, ABI6,
+Native 22c91 and an empty seed patch. Development Rust source 6b5675 remains a
+separate role. The preserved fresh 74f0 chain has passed Stage1/smokes and is
+continuing; a complete new 2a23 chain and full final API/suite acceptance remain
+required before claiming bootstrap completion.
+
+
 The artifacts behind the P35 milestones in `design/stdlib-and-bootstrap.md`:
 a compiler written in Cinch, built rung by rung, each rung a runnable Cinch
 artifact with an acceptance command rather than a claim.

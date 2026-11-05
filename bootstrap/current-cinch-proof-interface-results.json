@@ -1,0 +1,147 @@
+{
+  "compiler_source_sha256": "74f0d6617665919a3b3b87194c8cbb5e23e60b9f08f3ee4338eca24eaa37a330",
+  "full_goal_complete": false,
+  "groups": 19,
+  "native_rlib_sha256": "c2e3b862e212fe0d8557461ea9160e97ab23aa7d44d37113f1e2f855eec5c394",
+  "rows": [
+    {
+      "binary_sha256": "01a8d3ccd69e2afee3005a1055b260823924f2007ed36632ad0b90c584bf5469",
+      "log_sha256": "5fa75dd41a71d7ed2655dd946cc6a915bf1da4f3aa56c2e5844b31912ed0da8f",
+      "name": "bootstrap_total_semantics",
+      "tests": 3,
+      "zero_leak_reports": 0
+    },
+    {
+      "binary_sha256": "ac29e5dfe1dd541984fb29f5068b6683ecd2e3d382239f585de87f35c61c9ccb",
+      "log_sha256": "8d6cc67484cd6ef7e869a09fd058d7755c19703dcb1f4566477b0cef31caac9c",
+      "name": "bootstrap_instance_resolution",
+      "tests": 1,
+      "zero_leak_reports": 0
+    },
+    {
+      "binary_sha256": "31b0db22538cf4c8c54b6830ca9f3b522780f3b092346c71bf81a1314cdc1dea",
+      "log_sha256": "3ec0d170c722c4ac72617a770061383fefccf4f38a819aaf8e73f911b3572c64",
+      "name": "bootstrap_body_bindings",
+      "tests": 2,
+      "zero_leak_reports": 0
+    },
+    {
+      "binary_sha256": "1b18c67545a61e6ca0e078714f27bab9872831719bd3751c43ac3efb740c895b",
+      "log_sha256": "900fe6c347f69c378d81f1e5b01485767984b1aa4c90e284e0ddb82b2a4fa393",
+      "name": "bootstrap_core",
+      "tests": 1,
+      "zero_leak_reports": 0
+    },
+    {
+      "binary_sha256": "cc6a874bb88faa9c1e11747cda0561124131e36e2e6d0e469515654cc9260bf2",
+      "log_sha256": "99f57233d66b8e203a4a30e511a9a50794f903c37633f7ba4e6f43e5afc18007",
+      "name": "bootstrap_globals",
+      "tests": 1,
+      "zero_leak_reports": 0
+    },
+    {
+      "binary_sha256": "af9a810ccf3e316a7930db6aca693de4ab7c5a297a76555a26569d36a716108f",
+      "log_sha256": "f596b319e6ec9e4c6fc297d79a1357cd2acf5f59628c10a760e25d0a386bc754",
+      "name": "bootstrap_typing",
+      "tests": 1,
+      "zero_leak_reports": 0
+    },
+    {
+      "binary_sha256": "1e89e3f7185748db168ce6066f2b7695f2c0b4c5334a62418dfbda043852cd76",
+      "log_sha256": "5654ee30c62998b9eb0746bce366c74881c269956c4afab1fd6ddcf8893d0827",
+      "name": "bootstrap_infer",
+      "tests": 1,
+      "zero_leak_reports": 0
+    },
+    {
+      "binary_sha256": "c84a8914b266a3f122493e9bf421aa359853c60611bcae59faf6b5e4c3d0714f",
+      "log_sha256": "309dcece10483524dfd7a2be094f83540170b09270c4a31703d5e158b81122cd",
+      "name": "bootstrap_check",
+      "tests": 1,
+      "zero_leak_reports": 0
+    },
+    {
+      "binary_sha256": "7b8999bb2e10081d87a21856bb09298cbcea020800f2f14b64a07be218e71bf0",
+      "log_sha256": "719d31fffaf5b84dedf0e7d8d55b6af6872271b39df32fdd043981de06da2680",
+      "name": "bootstrap_export_interfaces",
+      "tests": 1,
+      "zero_leak_reports": 0
+    },
+    {
+      "binary_sha256": "9d192ac23e945cfa3b8812956ec5b0fed42e9059ed56662a677cb6c659c8e77e",
+      "log_sha256": "70e410fab1b953fa4ee0a9b0ab5910ec07bd0d994449b7274d26d4c34b5b3630",
+      "name": "bootstrap_export_types",
+      "tests": 1,
+      "zero_leak_reports": 0
+    },
+    {
+      "binary_sha256": "12de0ec627ec77ade48ca3ce81705dde4317c4d141f8ccd114b76c020e68bc2b",
+      "log_sha256": "d8a6eff97de7d4966b8cf11619a08bcb56d5d2f14c763a47c6a0f81f8ca1004d",
+      "name": "bootstrap_total",
+      "tests": 1,
+      "zero_leak_reports": 0
+    },
+    {
+      "binary_sha256": "9051c59f31609ab4525513dfe959b1e6adf2bfeee5a12f3d5abd84984b0529c0",
+      "log_sha256": "87c0afb5b8a04191bc9a5385424adb5f7a18096f2fe9c6d7f24fd448e0a6415e",
+      "name": "bootstrap_typed_indices",
+      "tests": 1,
+      "zero_leak_reports": 0
+    },
+    {
+      "binary_sha256": "4c0a0a29c7bd00b8a04252b06930bc30c4148d0f6c6e6f0377d593ea39056037",
+      "log_sha256": "e3454a2e06457be1a1749b9e2140ce154c776f5430642d3fb6d3f5c88a69bea6",
+      "name": "bootstrap_source_refinements",
+      "tests": 1,
+      "zero_leak_reports": 0
+    },
+    {
+      "binary_sha256": "26b31252e3889774d056436af68ac8317293e418598423d77766c6b4111c0d45",
+      "log_sha256": "7d644b452c119aff3d24f848273e01260f11f68beb99271922a83924ceafea97",
+      "name": "bootstrap_source_proofs",
+      "tests": 1,
+      "zero_leak_reports": 0
+    },
+    {
+      "binary_sha256": "9089328fec2994162948a4266f569a4725e3b1b749e3fe82143f2c37acb808dd",
+      "log_sha256": "eb8118158f9077ffd81715ae356d1e0878abedd7ebe9aea55f91b849c9918488",
+      "name": "bootstrap_load",
+      "tests": 2,
+      "zero_leak_reports": 0
+    },
+    {
+      "binary_sha256": "2099ca4a2d659bdd68c85055c298988771b8ae17d4c47545d8a8e218cc4b0b60",
+      "log_sha256": "bc4d5a7a92efbcc2a7f843e93607a5913370c814e6c08dce34f19ed932765ee5",
+      "name": "bootstrap_interface",
+      "tests": 2,
+      "zero_leak_reports": 0
+    },
+    {
+      "binary_sha256": "9a9c94d1d82b3aa4a948d91c746b700101004a290840328dbc38c323a53460ee",
+      "log_sha256": "05159fd92d2aee6050090e952ce63454abede7e92d134850060f99ff1fa241fb",
+      "name": "bootstrap_function_preconditions",
+      "tests": 1,
+      "zero_leak_reports": 0
+    },
+    {
+      "binary_sha256": "35afd375bf51a82740fce8f720eeab82d2aaabcbade608e884f38375aa633561",
+      "log_sha256": "3123848ee62a9a48662a252b9ad5bdee5e457fac7998c6e08e0ceab9bf47d4a4",
+      "name": "bootstrap_imported_preconditions",
+      "tests": 1,
+      "zero_leak_reports": 0
+    },
+    {
+      "binary_sha256": "9db4e4a45435f80f84a2583cf0423764aa71e947b0c76e1e8e05abdf7c60774e",
+      "log_sha256": "1267ef29081e50676b400053a0fb49a23d75f87fbd7e40b755b3995ff8eb5761",
+      "name": "bootstrap_conditional_methods",
+      "tests": 1,
+      "zero_leak_reports": 0
+    }
+  ],
+  "scope": "All nineteen original matching whole proof/interface groups, fresh correct-path test hosts, exact immutable74f0 compiler, published85f00ca Native6 production inputs, complete test counts and every exposed leak report independently verified. Some test hosts capture successful subprocess stderr; the leak count covers reports exposed in the complete logs only. All original cases remain; fresh original metadata/API and complete matching suites remain separate. This permits the separate fresh bootstrap; full matching Native/Stage3/API/Acceptance5 gates remain required.",
+  "source_sha256": "821b188a269f58bf986325011164a1051497bd94e64ce9145736e38cefa9f8a5",
+  "status": "passed-complete-matching-source-gates",
+  "tests": 24,
+  "verified_at": "2026-11-05T17:54:15.365920+00:00",
+  "zero_leak_reports": 0
+}

@@ -167,3 +167,59 @@ fn the_loader_checks_emitted_interfaces_and_dependency_identities() {
     common::cleanup(&source);
     common::cleanup(&dir);
 }
+
+
+#[test]
+fn body_owners_keep_longest_dot_boundary_prefixes_for_utf8_identities() {
+    let names = ["A", "A.B", "A.B.C", "AB", "A.BC", "Unicode.λ", "Unicode.λ.Nested", "Unicode.λNested", "Ö", "Ö.深", "Ö.深.Nested"];
+    let interfaces = names.iter().map(|name| {
+        let iface = Iface::new(*name, "owner-prefix-fixture");
+        format!("({}, {}, string-to-bytes {})", quote(name), quote(&iface.iface_hash()), quote(&iface.to_json()))
+    }).collect::<Vec<_>>().join(", ");
+    let cases = [
+        ("A.B.C.value", "A.B.C"), ("A.B.value", "A.B"), ("AB.value", "AB"),
+        ("A.BC.value", "A.BC"), ("A.Bogus.value", "A"), ("A.B", "A"),
+        ("A.B.", "A.B"), ("A", ""), ("Missing.value", ""),
+        ("Unicode.λ.Nested.value", "Unicode.λ.Nested"),
+        ("Unicode.λNested.value", "Unicode.λNested"),
+        ("Unicode.λ.Nest.value", "Unicode.λ"),
+        ("Ö.深.Nested.value", "Ö.深.Nested"), ("Ö.深x.value", "Ö"),
+    ];
+    let checks = cases.iter().map(|(identity, owner)| format!(
+        "same (body-node-owner (string-concat {} suffix) loaded \"\") {} && same (body-node-owner (string-concat {} suffix) (reverse loaded) \"\") {}",
+        quote(identity), quote(owner), quote(identity), quote(owner),
+    )).collect::<Vec<_>>().join(" &&\n          ");
+    let program = format!(r#"module Main where
+  import Bootstrap.Load
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read)
+  same :: String -> String -> Bool
+  same a b = string-compare a b == 0
+  main :: Unit ->{{IO r}} Int
+  main unit = with (io = newIO ()) in case fs-read (path-from-string "nonce.txt") of
+    Err error -> 90
+    Ok input -> case load-interface-set [{interfaces}] of
+      Err error -> 91
+      Ok loaded -> let suffix = string-repeat (bytes-len input) "λ" in
+        if {checks} then 0 else 1
+"#);
+    // Expose the private lookup only in this test's owned module copy.
+    // Production exports and admission paths retain their existing boundary.
+    let loader = include_str!("../../bootstrap/Bootstrap.Load.cinch").replacen(
+        "  export ImportedValue", "  export body-node-owner\n  export ImportedValue", 1,
+    );
+    let dir = common::project("owner_prefixes", &[
+        ("Bootstrap.Ast.cinch", include_str!("../../bootstrap/Bootstrap.Ast.cinch")),
+        ("Bootstrap.Report.cinch", include_str!("../../bootstrap/Bootstrap.Report.cinch")),
+        ("Bootstrap.Parse.cinch", include_str!("../../bootstrap/Bootstrap.Parse.cinch")),
+        ("Bootstrap.Interface.cinch", include_str!("../../bootstrap/Bootstrap.Interface.cinch")),
+        ("Bootstrap.Load.cinch", &loader), ("Main.cinch", &program),
+    ]);
+    let exe = common::build(&dir, "Main.cinch", "owner-prefixes").expect("build owner-prefix checks");
+    for size in [0, 1, 17, 129, 257] {
+        std::fs::write(dir.join("nonce.txt"), vec![b'x'; size]).unwrap();
+        let output = std::process::Command::new(&exe).current_dir(&dir).output().unwrap();
+        assert_eq!(output.status.code(), Some(0), "owner prefixes at {size}: {}", String::from_utf8_lossy(&output.stderr));
+    }
+    common::cleanup(&dir);
+}

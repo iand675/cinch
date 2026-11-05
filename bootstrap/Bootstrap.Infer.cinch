@@ -1727,7 +1727,10 @@ module Bootstrap.Infer where
           (env, add-error sp "array intrinsic requires its exact polymorphic kernel scheme" ready)
           else case lookup-binding name env of
             Some prior -> (env, add-error sp "duplicate intrinsic binding" ready)
-            None -> (Cons (MkIntrinsicBinding name actual symbol) env, unify sp (scheme-body actual) (scheme-body wanted) ready))
+            None -> let matched = unify sp (scheme-body actual) (scheme-body wanted) ready in
+              if list-length (store-errors matched) > list-length (store-errors ready) then
+                (env, add-error sp "array intrinsic does not match its checked polymorphic kernel scheme" matched)
+              else (Cons (MkIntrinsicBinding name actual symbol) env, matched))
       other -> (env, add-error sp "invalid array kernel intrinsic contract" checked)
   kernel-metadata :: String -> List Decl -> Option Json
   kernel-metadata name ds = case ds of

@@ -19,6 +19,7 @@ module Bootstrap.RuntimeIr where
   import Text.Lex (Span)
 
   export emit-runtime-program, emit-runtime-program-with-object
+  export emit-runtime-library-with-object
 
   -- Named families and anonymous tuples share one table, but distinct
   -- group caches: a tuple must retain tag0 even when a named constructor
@@ -49,7 +50,7 @@ module Bootstrap.RuntimeIr where
   data MethodSlot where
     MethodSlot :: Nat -> Nat -> List Nat -> MethodSlot
   data ProgramInfo where
-    ProgramInfo :: List CoreData -> List CoreClass -> List CoreInstance -> List CheckedBinding -> List MethodVersion -> Option RuntimeObject -> ProgramInfo
+    ProgramInfo :: List CoreData -> List CoreClass -> List CoreInstance -> List CheckedBinding -> List MethodVersion -> Option RuntimeObject -> Option (List String) -> ProgramInfo
   data RuntimeContext where
     RuntimeContext :: ProgramInfo -> List (Nat, Nat) -> List (Nat, Nat) -> List Demand -> List Demand -> RuntimeContext
   data Writer where
@@ -88,19 +89,26 @@ module Bootstrap.RuntimeIr where
   writer-program :: Writer -> ProgramInfo
   writer-program w = case writer-context w of RuntimeContext info bounds rigids pending done -> info
   program-data :: ProgramInfo -> List CoreData
-  program-data info = case info of ProgramInfo datas descriptions instances bindings versions provider -> datas
+  program-data info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed -> datas
   program-classes :: ProgramInfo -> List CoreClass
-  program-classes info = case info of ProgramInfo datas descriptions instances bindings versions provider -> descriptions
+  program-classes info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed -> descriptions
   program-instances :: ProgramInfo -> List CoreInstance
-  program-instances info = case info of ProgramInfo datas descriptions instances bindings versions provider -> instances
+  program-instances info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed -> instances
   program-bindings :: ProgramInfo -> List CheckedBinding
-  program-bindings info = case info of ProgramInfo datas descriptions instances bindings versions provider -> bindings
+  program-bindings info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed -> bindings
   program-versions :: ProgramInfo -> List MethodVersion
-  program-versions info = case info of ProgramInfo datas descriptions instances bindings versions provider -> versions
+  program-versions info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed -> versions
   program-object :: ProgramInfo -> Option RuntimeObject
-  program-object info = case info of ProgramInfo datas descriptions instances bindings versions provider -> provider
+  program-object info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed -> provider
   with-versions :: List MethodVersion -> ProgramInfo -> ProgramInfo
-  with-versions versions info = case info of ProgramInfo datas descriptions instances bindings old provider -> ProgramInfo datas descriptions instances bindings versions provider
+  with-versions versions info = case info of ProgramInfo datas descriptions instances bindings old provider exposed -> ProgramInfo datas descriptions instances bindings versions provider exposed
+  exposed-worker :: String -> List String -> Bool
+  exposed-worker name names = case names of Nil -> False; Cons first rest -> same name first || exposed-worker name rest
+  worker-linkage :: Writer -> String -> String
+  worker-linkage w name = case writer-program w of
+    ProgramInfo datas descriptions instances bindings versions provider exposed -> case exposed of
+      None -> ""
+      Some names -> if exposed-worker name names then "" else "internal "
   same-classes :: List Nat -> List Nat -> Bool
   same-classes first second = case (first, second) of
     (Nil, Nil) -> True
@@ -910,7 +918,7 @@ module Bootstrap.RuntimeIr where
     None -> refuse w (Span 0 0 1 1) "array worker unavailable in selected ABI"
     Some (operation, format, scheme) ->
       let parameters = array-argument-classes operation classes in
-      let started = line (line w (cat ["define i64 ", symbol (array-symbol name classes), "(", join (argument-words (value-parameters (list-length parameters) 0)), ") {"])) "entry:" in
+      let started = line (line w (cat ["define ", worker-linkage w (array-symbol name classes), "i64 ", symbol (array-symbol name classes), "(", join (argument-words (value-parameters (list-length parameters) 0)), ") {"])) "entry:" in
       case array-lower started operation format classes of
         (made, result) -> let done = array-drop-arguments parameters 0 made in line (line done (cat ["  ret i64 ", result])) "}"
 
@@ -936,7 +944,7 @@ module Bootstrap.RuntimeIr where
   builtin-worker :: String -> Writer -> Writer
   builtin-worker name w =
     let classes = builtin-classes name in
-    let started = line (line w (cat ["define i64 ", symbol name, "(", join (argument-words (value-parameters (list-length classes) 0)), ") {"])) "entry:" in
+    let started = line (line w (cat ["define ", worker-linkage w name, "i64 ", symbol name, "(", join (argument-words (value-parameters (list-length classes) 0)), ") {"])) "entry:" in
     let lowered = (if same name "b.newIO" then (started, "0")
       else if same name "cinch.prim.eqI64" then compare-word started "eq" "%arg0" "%arg1"
       else if same name "cinch.prim.wrappingAddI64" || same name "cinch.prim.wrappingSubI64" then
@@ -1450,7 +1458,7 @@ module Bootstrap.RuntimeIr where
         case dictionary-map factory plans scoped of
           Some fields -> case request-object-shape (Span 0 0 1 1) (Cons 0 fields) scoped of
             (planned, descriptor) ->
-              let started = line (line planned (cat ["define i64 ", symbol-for-dictionary (instance-name factory) classes, "(", join (argument-words (value-parameters (list-length context) 0)), ") {"])) "entry:" in
+              let started = line (line planned (cat ["define ", worker-linkage planned (dictionary-name (instance-name factory) classes), "i64 ", symbol-for-dictionary (instance-name factory) classes, "(", join (argument-words (value-parameters (list-length context) 0)), ") {"])) "entry:" in
               let (one, pointer) = fresh started "%ptr" in
               let allocated = line one (cat ["  ", pointer, " = call ptr @cinch_alloc_shaped(i64 ", nat-to-string (8 * (1 + list-length fields)), ", i64 3, i64 ", nat-to-string descriptor, ")"]) in
               let initialized = store-fields allocated pointer 0 (Cons (nat-to-string (list-length fields)) (zeros (list-length fields))) in
@@ -1607,7 +1615,7 @@ module Bootstrap.RuntimeIr where
   app-stub :: String -> List Nat -> Writer -> Writer
   app-stub name classes w = case request-shape (Span 0 0 1 1) classes w of
     (planned, descriptor) ->
-      let header = line (line planned (cat ["define i64 ", symbol (cat [name, ".app"]), "(ptr %self, i64 %argc, ptr %argv) {"])) "entry:" in
+      let header = line (line planned (cat ["define ", worker-linkage planned (cat [name, ".app"]), "i64 ", symbol (cat [name, ".app"]), "(ptr %self, i64 %argc, ptr %argv) {"])) "entry:" in
       let (loaded, filled) = load-word header "%self" "2" in
       let (one, total) = fresh loaded "%v" in
       let (two, saved) = fresh one "%ptr" in
@@ -1899,7 +1907,7 @@ module Bootstrap.RuntimeIr where
     Nil -> refuse w (Span 0 0 1 1) "runtime function has no checked proof stage"
     Cons count rest ->
       let name = proof-stage-name (specialized-name (core-name d) classes) rung in
-      let started = line (line w (cat ["define i64 ", symbol name, "(", join (argument-words (value-parameters count 0)), ") {"])) "entry:" in
+      let started = line (line w (cat ["define ", worker-linkage w name, "i64 ", symbol name, "(", join (argument-words (value-parameters count 0)), ") {"])) "entry:" in
       (case rest of
         Nil -> line (worker-clauses definitions prefix roots offset (core-clauses d) started) "}"
         Cons next-count more -> case class-vector (writer-context started) (take-types next-count types) of
@@ -1920,7 +1928,7 @@ module Bootstrap.RuntimeIr where
               (planned, descriptor) ->
                 let count = list-length (core-constructor-fields c) in
                 let values = value-parameters count 0 in
-                let started = line (line planned (cat ["define i64 ", symbol (specialized-name name classes), "(", join (argument-words values), ") {"])) "entry:" in
+                let started = line (line planned (cat ["define ", worker-linkage planned (specialized-name name classes), "i64 ", symbol (specialized-name name classes), "(", join (argument-words values), ") {"])) "entry:" in
                 case allocate started (data-descriptor d descriptor tag) values of
                   (allocated, result) -> line (line allocated (cat ["  ret i64 ", result])) "}"
         None -> refuse w (Span 0 0 1 1) "constructor worker needs representation specialization"
@@ -1934,12 +1942,12 @@ module Bootstrap.RuntimeIr where
       let offset = list-length types in
       case parameter of
         CPProof at predicate id display ->
-          let started = line (line scoped (cat ["define i64 ", symbol name, "(", join (argument-words (value-parameters offset 0)), ") {"])) "entry:" in
+          let started = line (line scoped (cat ["define ", worker-linkage w name, "i64 ", symbol name, "(", join (argument-words (value-parameters offset 0)), ") {"])) "entry:" in
           (case expression definitions (captured-bindings saved 0) started body of
             (done, result) -> line (line (drop-locals (capture-roots types 0) done) (cat ["  ret i64 ", result])) "}")
         other ->
           let roots = capture-roots types 0 <> parameter-roots [parameter] offset in
-          let started = line (line scoped (cat ["define i64 ", symbol name, "(", join (argument-words (value-parameters (offset + 1) 0)), ") {"])) "entry:" in
+          let started = line (line scoped (cat ["define ", worker-linkage w name, "i64 ", symbol name, "(", join (argument-words (value-parameters (offset + 1) 0)), ") {"])) "entry:" in
           line (worker-clauses definitions (captured-bindings saved 0) roots offset [MkCoreClause (Span 0 0 1 1) [parameter] body] started) "}"
   workers :: List CoreDefinition -> Writer -> Writer
   workers definitions w = case w of
@@ -1970,7 +1978,9 @@ module Bootstrap.RuntimeIr where
     "declare i64 @cinch_int_add(i64, i64)\ndeclare i64 @cinch_int_sub(i64, i64)\ndeclare i64 @cinch_int_mul(i64, i64)\ndeclare i64 @cinch_int_neg(i64)\ndeclare i64 @cinch_int_cmp(i64, i64)\n",
     "declare i64 @cinch_nat_add(i64, i64)\ndeclare i64 @cinch_nat_sub(i64, i64)\ndeclare i64 @cinch_nat_mul(i64, i64)\ndeclare i64 @cinch_nat_cmp(i64, i64)\n"]
   apply-entry :: String
-  apply-entry = cat ["define i64 @__apply(i64 %closure, i64 %argc, ptr %argv) {\nentry:\n",
+  apply-entry = apply-entry-with-linkage ""
+  apply-entry-with-linkage :: String -> String
+  apply-entry-with-linkage linkage = cat ["define ", linkage, "i64 @__apply(i64 %closure, i64 %argc, ptr %argv) {\nentry:\n",
     "  %self = inttoptr i64 %closure to ptr\n  %code = load i64, ptr %self\n  %function = inttoptr i64 %code to ptr\n",
     "  %result = call i64 %function(ptr %self, i64 %argc, ptr %argv)\n  ret i64 %result\n}\n"]
   entry :: Nat -> String
@@ -2008,9 +2018,32 @@ module Bootstrap.RuntimeIr where
   -- space. Plan to a fixed point before emitting dictionary layouts, so
   -- every instance and every indirect projection uses one class slot table.
   plan-method-versions :: List CoreDefinition -> ProgramInfo -> ProgramInfo
-  plan-method-versions definitions info =
-    let planned = writer-program (workers definitions (demand-worker "main" Nil (empty-writer info))) in
-    if list-length (program-versions planned) == list-length (program-versions info) then planned else plan-method-versions definitions planned
+  plan-method-versions definitions info = plan-root-method-versions definitions [("main", Nil)] info
+  root-symbols :: List (String, List Nat) -> List String
+  root-symbols roots = case roots of Nil -> Nil; Cons (name, classes) rest -> Cons (specialized-name name classes) (root-symbols rest)
+  demand-roots :: List (String, List Nat) -> Writer -> Writer
+  demand-roots roots w = case roots of
+    Nil -> w
+    Cons (name, classes) rest -> demand-roots rest (demand-worker name classes w)
+  plan-root-method-versions :: List CoreDefinition -> List (String, List Nat) -> ProgramInfo -> ProgramInfo
+  plan-root-method-versions definitions roots info =
+    let planned = writer-program (workers definitions (demand-roots roots (empty-writer info))) in
+    if list-length (program-versions planned) == list-length (program-versions info) then planned else plan-root-method-versions definitions roots planned
+  -- The caller selects checked definitions and explicit Raw/Obj/TObj
+  -- specializations. Every root and reached helper uses the same checked
+  -- worker/layout planner as an executable, without an entry requirement.
+  -- Only selected roots have external linkage. Generated helpers and the
+  -- closure dispatcher stay local; descriptor namespaces still require a
+  -- compatible provider layout prefix. Physical ABI metadata is separate.
+  emit-runtime-library-with-object :: CheckedProgram -> Option RuntimeObject -> List (String, List Nat) -> Result (List Diagnostic) String
+  emit-runtime-library-with-object checked provider roots =
+    let typed = checked-elaboration checked in
+    let definitions = elaboration-core typed <> instance-definitions (elaboration-instances typed) in
+    let info = ProgramInfo (elaboration-data typed) (elaboration-classes typed) (elaboration-instances typed) (elaboration-bindings typed) Nil provider (Some (root-symbols roots)) in
+    let initial = empty-writer (plan-root-method-versions definitions roots info) in
+    case workers definitions (demand-roots roots initial) of
+      Writer next globals code Nil layouts datas -> Ok (cat [declarations, builder-run globals, layout-table layouts, apply-entry-with-linkage "internal ", builder-run code])
+      Writer next globals code errors layouts datas -> Err errors
   emit-runtime-program :: CheckedProgram -> Result (List Diagnostic) String
   emit-runtime-program checked = emit-runtime-program-with-object checked None
   emit-runtime-program-with-object :: CheckedProgram -> Option RuntimeObject -> Result (List Diagnostic) String
@@ -2018,7 +2051,7 @@ module Bootstrap.RuntimeIr where
     let typed = checked-elaboration checked in
     let definitions = elaboration-core typed <> instance-definitions (elaboration-instances typed) in
     let datas = elaboration-data typed in
-    let info = ProgramInfo datas (elaboration-classes typed) (elaboration-instances typed) (elaboration-bindings typed) Nil provider in
+    let info = ProgramInfo datas (elaboration-classes typed) (elaboration-instances typed) (elaboration-bindings typed) Nil provider None in
     case definition "main" definitions of
       None -> Err [MkDiagnostic "bootstrap.runtime-ir" (Span 0 0 1 1) "runtime entry has no main definition"]
       Some d -> case entry-mode d of

@@ -26,6 +26,11 @@ module Main where
     let a = UBound nonce "a" KType in let q = MkQuant nonce "a" KType False in
     let identity = MkScheme [q] (UFun a a) in
     let member = qualified [q] [MkRequirement "self" (dictionary a)] (UFun a a) in
+    let alias-type = UBound (nonce + 2) "element" KType in
+    let alias-scheme = MkScheme [MkQuant (nonce + 2) "element" KType False] (UFun alias-type alias-type) in
+    let intrinsic = GlobalValue "runtime.identity" "intrinsic" identity in
+    let alias = GlobalValue "runtime.identity" "intrinsic" alias-scheme in
+    let intrinsic-declarations = add-global alias [intrinsic, GlobalValue "answer" "value" (mono int)] in
     let locals = qualified Nil [MkRequirement "context" (dictionary int)] int in
     let polymorphic = MkScheme [q, MkQuant (nonce + 1) "n" (value-kind a) False] (UFun a a) in
     let declarations =
@@ -101,6 +106,12 @@ module Main where
         , not (accepted globals (result (CCase sp int (CUse sp bool "truth" "constructor" Nil) (CAlternative sp (CPConstructor sp bool "one" Nil int (CPDone sp)) (CInt sp int "1") (CAlternativesEnd sp)))))
         , not (accepted globals (definition "unknown-definition" (mono int) Nil Nil (CInt sp int "1")))
         , not (accepted globals (definition "answer" (mono bool) Nil Nil (CUse sp bool "truth" "constructor" Nil)))
+        , globals-closed (add-global alias [intrinsic])
+        , globals-closed (add-global intrinsic [intrinsic])
+        , not (globals-closed (add-global (GlobalValue "runtime.identity" "intrinsic" (MkScheme [q] (UFun a bool))) [intrinsic]))
+        , not (globals-closed (add-global (GlobalValue "runtime.identity" "external" alias-scheme) [intrinsic]))
+        , (case close-globals intrinsic-declarations of Some actual -> accepted actual (result (project (CUse sp (UFun int int) "runtime.identity" "intrinsic" [int]))); None -> False)
+        , (case close-globals intrinsic-declarations of Some actual -> not (accepted actual (result (project (CUse sp (UFun int int) "runtime.identity" "intrinsic" [bool])))); None -> False)
         ]
   verdict :: Int -> List Bool -> Int
   verdict next values = case values of Nil -> 0; Cons True rest -> verdict (next + 1) rest; Cons False rest -> next

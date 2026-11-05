@@ -116,9 +116,10 @@ module Bootstrap.Global where
   -- conflicting duplicate so that context validation refuses it.
   add-global :: CoreGlobal -> List CoreGlobal -> List CoreGlobal
   add-global declaration declarations = case lookup-global (global-name declaration) declarations of
-    Some prior -> case (intrinsic-views declaration, intrinsic-views prior) of
-      (Some incoming, Some views) -> replace-intrinsic (global-name declaration) (merge-views incoming views) declarations
-      other -> if same-global declaration prior then declarations else Cons declaration declarations
+    Some prior -> if same-global declaration prior then declarations else
+      case (intrinsic-views declaration, intrinsic-views prior) of
+        (Some incoming, Some views) -> replace-intrinsic (global-name declaration) (merge-views incoming views) declarations
+        other -> Cons declaration declarations
     None -> Cons declaration declarations
   has-name :: String -> List String -> Bool
   has-name name names = case names of Nil -> False; Cons key rest -> same key name || has-name name rest

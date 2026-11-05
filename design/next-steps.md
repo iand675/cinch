@@ -1,5 +1,41 @@
 # Next steps (as of 2026-11-05)
 
+## Checked library roots and refreshed bootstrap inputs (2026-11-05)
+
+The typed LLVM backend can now emit a library from explicit checked definition
+roots and representation vectors without requiring `main`. Only selected roots
+have external linkage; reached helpers, constructor/lambda workers, dictionary
+workers and closure dispatchers stay local. The executable path preserves its
+existing linkage. Public object ABI metadata and CLI/adapter wiring remain open.
+
+The new complete library group and all three original runtime groups pass.
+The actual library test assembles two compatible objects, links an independent
+caller, checks exact bignum/ADT values and captured closures, and runs at 32M
+with ownership diagnostics. All 166 exposed reports have zero mortal leaks;
+three existing symbol tests retain their expected immortal interned handles.
+All 43 compiler modules check. See
+`bootstrap/current-runtime-library-root-results.json` for exact inputs/scopes.
+
+The preceding source repair passes all nineteen complete proof/interface groups:
+24 Rust tests, including every original imported-precondition caller case and
+conditional-method control. Those groups do not load RuntimeIr; their tested
+modules, fixture sources and producer are unchanged by the library-root step.
+Their original 74f0 receipt is retained in
+`bootstrap/current-cinch-proof-interface-results.json`. Exact polymorphic
+intrinsic aliases deduplicate; incompatible globals still refuse. Body owner
+lookup uses the longest UTF-8 byte prefix followed by a dot, and the reserved
+array names are refused in record declarations as well as data declarations.
+
+Seed and separate library-provider locks now explicitly pin 85f00ca/ABI6 with
+Native 22c91 sources and the unchanged empty seed patch. Their fresh archive,
+provider and Stage0 were independently verified. The current development Rust
+alias fix remains6b5675; changing these explicit roles never silently selects it.
+The fresh 74f0 chain has passed Stage1 and its smokes; later stages and its audit
+continue on that preserved snapshot. This new 2a23 compiler still needs its own
+staged/fixed-point evidence, complete matching suites, original 100-target/API
+coverage and Acceptance 5. Newer private ABI bridges are not included here.
+
+
 ## Ordinary aliases retain their source index spelling (2026-11-05)
 
 The full Native sweep exposed a diagnostic regression: an ordinary alias of

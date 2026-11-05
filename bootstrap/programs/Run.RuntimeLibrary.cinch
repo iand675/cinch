@@ -1,0 +1,69 @@
+-- Runtime-fed source and explicit representation roots become a library module.
+-- No source entry point or Native frontend participates in this compilation.
+module Main where
+  import Bootstrap.Check (check-and-retain)
+  import Bootstrap.RuntimeIr (emit-runtime-library-with-object)
+  import Bootstrap.Parse (parse-program)
+  import Bootstrap.Resolve (resolve-program-with)
+  import Bootstrap.Report (render-diagnostics)
+  import Text.Parse (ParseOutcome, Parsed, Failed)
+  import Text.Json (parse-json)
+  import Data.Json
+  import Data.Nat (nat-from-int)
+  import Text.Show (nat-to-string, int-to-string)
+  import Algebra.Semigroup
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read, fs-write)
+
+  classes :: Json -> Option (List Nat)
+  classes doc = case doc of
+    JArrEnd -> Some Nil
+    JArr (JNum code) rest -> if code < 0 then None else case classes rest of
+      Some more -> Some (Cons (nat-from-int code) more)
+      None -> None
+    other -> None
+  roots :: Json -> Option (List (String, List Nat))
+  roots doc = case doc of
+    JArrEnd -> Some Nil
+    JArr (JArr (JStr name) (JArr codes JArrEnd)) rest -> case (classes codes, roots rest) of
+      (Some vector, Some more) -> Some (Cons (name, vector) more)
+      other -> None
+    other -> None
+  compile :: Bytes -> List (String, List Nat) -> (Int, String, String)
+  compile bytes selected = case parse-program "library.source" bytes of
+    Failed errors -> (3, "", "parse failed")
+    Parsed program Nil -> case resolve-program-with program Nil of
+      (resolved, Nil) -> case check-and-retain resolved of
+        Err errors -> (4, "", render-diagnostics errors)
+        Ok checked -> case emit-runtime-library-with-object checked None selected of
+          Err errors -> (5, "", render-diagnostics errors)
+          Ok ir -> (0, ir, "")
+      (resolved, errors) -> (4, "", render-diagnostics errors)
+    Parsed program errors -> (3, "", "parse produced recovery errors")
+  store :: forall r. using (io :: Io r) => String -> (Int, String, String) ->{IO r} Int
+  store prefix result = case result of
+    (status, ir, diagnostics) -> case fs-write (path-from-string (prefix <> ".ll")) (string-to-bytes ir) of
+      Err error -> 6
+      Ok _ -> case fs-write (path-from-string (prefix <> ".diagnostics")) (string-to-bytes diagnostics) of
+        Err error -> 6
+        Ok _ -> case fs-write (path-from-string (prefix <> ".status")) (string-to-bytes (int-to-string status)) of
+          Err error -> 6
+          Ok _ -> 0
+  batch :: forall r. using (io :: Io r) => Nat ->{IO r} Int
+  batch count = if count == 0 then 0 else
+    let suffix = nat-to-string (count - 1) in
+    case fs-read (path-from-string ("input-" <> suffix <> ".source")) of
+      Err error -> 2
+      Ok bytes -> case fs-read (path-from-string ("input-" <> suffix <> ".roots")) of
+        Err error -> 2
+        Ok selected -> case parse-json "roots" selected of
+          Parsed doc Nil -> case roots doc of
+            None -> 2
+            Some names -> case store ("output-" <> suffix) (compile bytes names) of
+              0 -> batch (count - 1)
+              code -> code
+          other -> 2
+  main :: Unit ->{IO r, Diverge} Int
+  main u = with (io = newIO ()) in case fs-read (path-from-string "batch.count") of
+    Err error -> 2
+    Ok count -> batch (bytes-len count)

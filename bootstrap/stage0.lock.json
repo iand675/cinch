@@ -1,9 +1,9 @@
 {
-  "schema": 1,
-  "revision": "25b7e822e806ac767585cd34e9078ecd2a080c17",
-  "runtime_abi": 6,
+  "description": "Published85f00ca ABI6 Native seed with quantified value identity and checked method/primitive bodies; empty patch. Explicitly separate from the library-only producer.",
   "patch": "bootstrap/seed/stage0.patch",
   "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-  "source_sha256": "255f06b66561d5f47030b56e6fdb32f51fa7876c9f46787ed3f07580b211714b",
-  "description": "Exact published25b7e82 ABI6 Native seed with actual method and primitive body contracts; no patch. Current43 Cinch modules are built by Stage0/1/2/3 with independently checked interfaces."
+  "revision": "85f00ca880f0d9882c03c65031424a05c81b11bc",
+  "runtime_abi": 6,
+  "schema": 1,
+  "source_sha256": "22c91cf6c1855b049207612e9d94630850e880d5a49ea3e2c57c92aff7fdbe88"
 }
