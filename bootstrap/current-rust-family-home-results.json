@@ -1,0 +1,159 @@
+{
+  "changed_paths": [
+    "compiler/src/check_decls.rs",
+    "compiler/tests/interface_prelude_overrides.rs"
+  ],
+  "compiler_source_sha256": "e2f15c51f24f38e74ddf61943d96d828cade2e60f2cdc7db67c6eafdefd3f0a5",
+  "full_goal_complete": false,
+  "reproducer": {
+    "baseline_default_home": [
+      {
+        "core_sha256": "3ee42eb9b63a1cffe608355914e5c8295561ca8b17bea4d3b39b87f3e2f2a106",
+        "diagnostic": "",
+        "exit_code": 0,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "name": "control",
+        "phase": "check",
+        "source_sha256": "434821edc81b519726588c989e8397b049d2d65364dac60e4a96c225ed090050"
+      },
+      {
+        "artifact_exists": true,
+        "core_sha256": "3ee42eb9b63a1cffe608355914e5c8295561ca8b17bea4d3b39b87f3e2f2a106",
+        "diagnostic": "",
+        "exit_code": 0,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "name": "control",
+        "phase": "emit",
+        "source_sha256": "434821edc81b519726588c989e8397b049d2d65364dac60e4a96c225ed090050"
+      }
+    ],
+    "compiler": {
+      "path": "/tmp/cinch-rust-operation-value-validation-2/cargo/debug/cinch",
+      "sha256": "bc9f68ea7d2269512377a5afc8518a79262c1783f4480a0180fcfd3441d0b8d0"
+    },
+    "expected_acceptance": true,
+    "full_goal_complete": false,
+    "home_sha256": "3ee42eb9b63a1cffe608355914e5c8295561ca8b17bea4d3b39b87f3e2f2a106",
+    "scope": "Identical valid Main checks and emits against the embedded Core home. An exact byte-for-byte source copy of that same Core placed at the supported flat sibling Data.Core.cinch path is refused in embedded Data.Nat because Option is not yet collected. Existing checker defers every source family replacement until after the facade, including early homes. This proves the ordering regression only; failed-control array ABI probes are not array safety evidence.",
+    "source_sha256": "434821edc81b519726588c989e8397b049d2d65364dac60e4a96c225ed090050",
+    "status": "confirmed-current-native-source-family-collection-order-bug",
+    "unchanged_source_replacement": [
+      {
+        "core_sha256": "3ee42eb9b63a1cffe608355914e5c8295561ca8b17bea4d3b39b87f3e2f2a106",
+        "diagnostic": "cinch: 63:32: unknown type Option (in prelude/Data.Nat.cinch)\n",
+        "exit_code": 1,
+        "log_sha256": "9cd557c6a88eb0d6d3d2c17cf1ee45a65fd0d453191f22e302caf0ef9e8dbd62",
+        "name": "control",
+        "phase": "check",
+        "source_sha256": "434821edc81b519726588c989e8397b049d2d65364dac60e4a96c225ed090050"
+      },
+      {
+        "artifact_exists": false,
+        "core_sha256": "3ee42eb9b63a1cffe608355914e5c8295561ca8b17bea4d3b39b87f3e2f2a106",
+        "diagnostic": "cinch: 63:32: unknown type Option (in prelude/Data.Nat.cinch)\n",
+        "exit_code": 1,
+        "log_sha256": "9cd557c6a88eb0d6d3d2c17cf1ee45a65fd0d453191f22e302caf0ef9e8dbd62",
+        "name": "control",
+        "phase": "emit",
+        "source_sha256": "434821edc81b519726588c989e8397b049d2d65364dac60e4a96c225ed090050"
+      }
+    ]
+  },
+  "rows": [
+    {
+      "binary": "/tmp/cinch-rust-family-home-validation-1/cargo/debug/deps/interface_prelude_overrides-5828e7970823fa26",
+      "binary_sha256": "2bd9df0b77d20d760cab00c7428846dfd820a92f6f29997c673224cde04df9f1",
+      "exit_code": 0,
+      "log_sha256": "e1303c7c9ef8cb84b129a42906f1f4614131fe2cb2d7c8f7acf75640b9a223f0",
+      "name": "interface_prelude_overrides",
+      "status": "passed",
+      "tests": 1
+    },
+    {
+      "binary": "/tmp/cinch-rust-family-home-validation-1/cargo/debug/deps/prelude_split-92a228b92447f45e",
+      "binary_sha256": "959e3f256a4ce84ba5616cb135c2c8651344eed7d33e6d37e68c4a120fdb14ad",
+      "exit_code": 0,
+      "log_sha256": "2cf85136e5ab83d0ffd9d0cb546b61a008201aec8798d822b556586f9ed5fb70",
+      "name": "prelude_split",
+      "status": "passed",
+      "tests": 15
+    },
+    {
+      "binary": "/tmp/cinch-rust-family-home-validation-1/cargo/debug/deps/prelude_lib-f9a8b01ca373579c",
+      "binary_sha256": "edb8267fb401e8da8b256abf709e8128fe42f70b57b0239446d3867d95cb6c29",
+      "exit_code": 0,
+      "log_sha256": "13d1ea01d53e30e34fc4dc53ac1b7cba82d56e2a081496e96eb7e9b33c3752fc",
+      "name": "prelude_lib",
+      "status": "passed",
+      "tests": 13
+    },
+    {
+      "binary": "/tmp/cinch-rust-family-home-validation-1/cargo/debug/deps/arrays-ef4a95869f5e2b2e",
+      "binary_sha256": "a566350d85adb11f2464682d35068dfe5b44a95379d1eff4ea5a314869af61d4",
+      "exit_code": 0,
+      "log_sha256": "77a13653662afa1777bf0a605fd453900a2dd6edfcb00fd54915dcfc5fadb4df",
+      "name": "arrays",
+      "status": "passed",
+      "tests": 14
+    },
+    {
+      "binary": "/tmp/cinch-rust-family-home-validation-1/cargo/debug/deps/ffi-1eb5262e9fb991f5",
+      "binary_sha256": "7f9dc2077d6fdce2544d8e6b62d4917c4fa666a0813f9d114fa23b833d573e5f",
+      "exit_code": 0,
+      "log_sha256": "f225bea61874fb19da0f5905565e1399763e529ad4dedfb71b6f7f88938afbae",
+      "name": "ffi",
+      "status": "passed",
+      "tests": 12
+    },
+    {
+      "binary": "/tmp/cinch-rust-family-home-validation-1/cargo/debug/deps/interface_nominals-b971c55610e05eee",
+      "binary_sha256": "de5fe1bff966938597161752b6d60f413eca17ad787bd7b027b0ba364454e1ec",
+      "exit_code": 0,
+      "log_sha256": "def35dc85018df04570a2b291f3a49a62a843fd63833e2a0087a65e703c80fe0",
+      "name": "interface_nominals",
+      "status": "passed",
+      "tests": 1
+    },
+    {
+      "binary": "/tmp/cinch-rust-family-home-validation-1/cargo/debug/deps/interface_class_contracts-c7f87e16317c47a0",
+      "binary_sha256": "50dcf8f88225751a30862816c7c361e4538e77eefcec69f89d208bf1b37ee0fc",
+      "exit_code": 0,
+      "log_sha256": "e88be8c0b72951114d6e14dcaf85e14517dddbbed8716a55543eaefc4e35f76d",
+      "name": "interface_class_contracts",
+      "status": "passed",
+      "tests": 1
+    },
+    {
+      "binary": "/tmp/cinch-rust-family-home-validation-1/cargo/debug/deps/staging-43c9a5bc8d68f153",
+      "binary_sha256": "246af70658693c23701b6d5661982e272bd013e3f9af7115302f48adad405be4",
+      "exit_code": 0,
+      "log_sha256": "ffc97f7f0089d98c8f7f61c5adfff2be98cbeab8ab8f91320cb5b38cada5b51f",
+      "name": "staging",
+      "status": "passed",
+      "tests": 23
+    },
+    {
+      "binary": "/tmp/cinch-rust-family-home-validation-1/cargo/debug/deps/params-d3037ea95f2da87b",
+      "binary_sha256": "e15062018d38a3acb531e869612fd413df5f485af25a00e98fa6766001e7767e",
+      "exit_code": 0,
+      "log_sha256": "a0f8f249d6ca571e59ec00bbf207765af090850de2d778514400164d4d351fc6",
+      "name": "params",
+      "status": "passed",
+      "tests": 7
+    }
+  ],
+  "scope": "Source replacements occupy their original family manifest slot: early Core/Ordering declarations are available before embedded consumers and the facade; late category/algebra homes retain facade aliases. All9 complete affected Native groups with zero ignored/filtered cases and all43 compiler modules independently verified. Exact source-family interface hashes and dependency chains checked. Cinch compiler source unchanged; ABI unchanged. Separate actual CLI flat-Core array control/mutant probe remains recorded independently. Does not close complete Native/Stage3 suites, proof soundness, positive ABI6 stage pin/new chain or original API/Acceptance5.",
+  "source": "/tmp/cinch-rust-family-home-validation-1/source",
+  "source_check": {
+    "compiler": "/tmp/cinch-rust-family-home-validation-1/cargo/debug/cinch",
+    "compiler_modules": 43,
+    "compiler_sha256": "3831e15e35fe29056868a701511d115f5e91732614bd25b408401683ee0ba99a",
+    "exit_code": 0,
+    "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "status": "passed"
+  },
+  "source_sha256": "20f1912eb346571b10a68aed124d615fb4decd6a5ee1c8796737fa6d46ff793d",
+  "status": "passed-scoped-rust-family-home-order",
+  "total_tests": 87,
+  "verified_at": "2026-11-04T23:59:11.139019+00:00"
+}

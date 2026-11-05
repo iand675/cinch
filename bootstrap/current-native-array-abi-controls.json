@@ -1,0 +1,85 @@
+{
+  "compiler": "/tmp/cinch-rust-family-home-validation-1/cargo/debug/cinch",
+  "compiler_sha256": "3831e15e35fe29056868a701511d115f5e91732614bd25b408401683ee0ba99a",
+  "full_goal_complete": false,
+  "rows": [
+    {
+      "core_sha256": "3ee42eb9b63a1cffe608355914e5c8295561ca8b17bea4d3b39b87f3e2f2a106",
+      "diagnostic": "",
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "control",
+      "phase": "check",
+      "source_sha256": "434821edc81b519726588c989e8397b049d2d65364dac60e4a96c225ed090050"
+    },
+    {
+      "artifact_exists": true,
+      "core_sha256": "3ee42eb9b63a1cffe608355914e5c8295561ca8b17bea4d3b39b87f3e2f2a106",
+      "diagnostic": "",
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "control",
+      "phase": "emit",
+      "source_sha256": "434821edc81b519726588c989e8397b049d2d65364dac60e4a96c225ed090050"
+    },
+    {
+      "core_sha256": "7939c09dc0be3f88e8f293063c6a3fd2b63f3f6e4860b23d3fc4260941e415d2",
+      "diagnostic": "cinch: 65:20: type mismatch: expected Nat, got List Nat (in prelude/Data.Nat.cinch)\n",
+      "exit_code": 1,
+      "log_sha256": "3879f6228b7406fc45bffdc642ecfb921d19cf9c924dac8f4f223b833cfb7752",
+      "name": "option-payload",
+      "phase": "check",
+      "source_sha256": "e15188ca075e1fcbc3093a54caefd71168431800804a472d4be1d45bf46ebe13"
+    },
+    {
+      "artifact_exists": false,
+      "core_sha256": "7939c09dc0be3f88e8f293063c6a3fd2b63f3f6e4860b23d3fc4260941e415d2",
+      "diagnostic": "cinch: 65:20: type mismatch: expected Nat, got List Nat (in prelude/Data.Nat.cinch)\n",
+      "exit_code": 1,
+      "log_sha256": "3879f6228b7406fc45bffdc642ecfb921d19cf9c924dac8f4f223b833cfb7752",
+      "name": "option-payload",
+      "phase": "emit",
+      "source_sha256": "e15188ca075e1fcbc3093a54caefd71168431800804a472d4be1d45bf46ebe13"
+    },
+    {
+      "core_sha256": "0acb0feeb83851d834a283a133fef589743a7998b76ee39d6b3dae2db3d23605",
+      "diagnostic": "",
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "option-tags",
+      "phase": "check",
+      "source_sha256": "434821edc81b519726588c989e8397b049d2d65364dac60e4a96c225ed090050"
+    },
+    {
+      "artifact_exists": false,
+      "core_sha256": "0acb0feeb83851d834a283a133fef589743a7998b76ee39d6b3dae2db3d23605",
+      "diagnostic": "cinch: the prelude type Data.Core.Option has payload words [1, 0] per constructor; code generation builds it as [0, 1]\n",
+      "exit_code": 1,
+      "log_sha256": "4806ce7aa4399da1ff59212d6344637c84edc7ad8c2a6506f06c35f09f71a2fe",
+      "name": "option-tags",
+      "phase": "emit",
+      "source_sha256": "434821edc81b519726588c989e8397b049d2d65364dac60e4a96c225ed090050"
+    },
+    {
+      "core_sha256": "a077850141c0437b797f88388867da7dcdf2a48e949401e331e0cd3d4cc767e4",
+      "diagnostic": "cinch: 79:7: constructor None does not belong to type List (in prelude/Data.Option.cinch)\n",
+      "exit_code": 1,
+      "log_sha256": "d287f7c7d0df6e6949673307341a4f054af7301705dd9c9337b9a384ee341771",
+      "name": "list-fields",
+      "phase": "check",
+      "source_sha256": "b240b2c5baf0374277ce3d3b22ffbb961138ea3bb717f01d3a5c0c50492f46a0"
+    },
+    {
+      "artifact_exists": false,
+      "core_sha256": "a077850141c0437b797f88388867da7dcdf2a48e949401e331e0cd3d4cc767e4",
+      "diagnostic": "cinch: 79:7: constructor None does not belong to type List (in prelude/Data.Option.cinch)\n",
+      "exit_code": 1,
+      "log_sha256": "d287f7c7d0df6e6949673307341a4f054af7301705dd9c9337b9a384ee341771",
+      "name": "list-fields",
+      "phase": "emit",
+      "source_sha256": "b240b2c5baf0374277ce3d3b22ffbb961138ea3bb717f01d3a5c0c50492f46a0"
+    }
+  ],
+  "scope": "The exact family-home-fix CLI checks and emits the original valid array program using a byte-identical flat Core source replacement. Changed Some payload and reversed List fields fail checking of real embedded consumers; reversed Option tags pass checking but are refused by the existing codegen layout guard. All invalid cases produce no IR and are never linked or executed. Confirms corrected source selection and existing guard behavior, not a newly discovered array ABI flaw.",
+  "status": "passed-actual-native-source-core-array-abi-controls"
+}

@@ -7,6 +7,20 @@ use cinch::interface::Iface;
 fn source_family_homes_precede_embedded_consumers_with_checked_hashes() {
     let cases: &[(&str, &[(&str, &str)], &str, &str, &str)] = &[
         (
+            "core",
+            &[("Data.Core.cinch", include_str!("../prelude/Data/Core.cinch"))],
+            "Data.Core",
+            "Data.Nat",
+            "module Main where\n  import Data.Core\n  main :: Int\n  main = case Some (42 :: Int) of Some value -> value; None -> 1\n",
+        ),
+        (
+            "ordering",
+            &[("Data.Ordering.cinch", include_str!("../prelude/Data/Ordering.cinch"))],
+            "Data.Ordering",
+            "Relation.Ord",
+            "module Main where\n  import Data.Ordering\n  main :: Int\n  main = case LT of LT -> 42; _ -> 1\n",
+        ),
+        (
             "category",
             &[
                 ("Functor.cinch", include_str!("../prelude/Category/Functor.cinch")),

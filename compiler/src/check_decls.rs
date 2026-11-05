@@ -16346,38 +16346,31 @@ fn check_program_multi_full_impl(
             ));
         }
     }
-    // Collection order: the facade's export targets, then the facade
-    // (the implicit base layer), then source modules that shadow family
-    // homes (their programs' version of the home must exist before the
-    // family members that name its classes), then the late family, then
-    // the remaining source modules.
+    // An explicit source replacement occupies its home's manifest slot.
+    // Early homes define the types read by the facade and its consumers;
+    // deferring their replacements until after the facade loses those names.
+    // Late homes still follow the facade, with its presentation aliases.
     let shadow_set: std::collections::HashSet<&str> = prelude
         .iter()
         .filter(|p| user_names.contains(p.name.text.as_str()))
         .map(|p| p.name.text.as_str())
         .collect();
-    let facade_at = prelude.iter().position(|p| p.name.text == prelude_name);
     let mut family: Vec<&ast::Module> = Vec::new();
-    for (i, p) in prelude.iter().enumerate() {
-        if shadow_set.contains(p.name.text.as_str()) {
-            // An explicit source module shadows the embedded copy.
+    for p in prelude {
+        let module = if shadow_set.contains(p.name.text.as_str()) {
             c.shadowed_modules.insert(p.name.text.clone());
-            continue;
-        }
-        family.push(p);
-        c.embedded_modules.insert(p.name.text.clone());
-        let imports = imports_of(p);
-        c.collect_module(p, &prelude_name, &imports)
-            .map_err(|e| in_named_module(&c.module_files, &p.name.text, e))?;
-        if Some(i) == facade_at {
+            modules.iter().find(|m| m.name.text == p.name.text)
+                .expect("source replacement was selected from module names")
+        } else {
+            family.push(p);
+            c.embedded_modules.insert(p.name.text.clone());
+            p
+        };
+        let imports = imports_of(module);
+        c.collect_module(module, &prelude_name, &imports)
+            .map_err(|e| in_named_module(&c.module_files, &module.name.text, e))?;
+        if module.name.text == prelude_name {
             c.install_presentation_aliases();
-            for m in modules {
-                if shadow_set.contains(m.name.text.as_str()) {
-                    let imports = imports_of(m);
-                    c.collect_module(m, &prelude_name, &imports)
-                        .map_err(|e| in_named_module(&c.module_files, &m.name.text, e))?;
-                }
-            }
         }
     }
     c.install_presentation_aliases();

@@ -1,5 +1,30 @@
 # Next steps (as of 2026-11-05)
 
+## Rust source family replacements keep their manifest position (2026-11-05)
+
+A byte-identical source copy of `Data.Core` previously made valid programs
+fail in embedded `Data.Nat`: every source replacement was deferred until after
+the Prelude facade, so early consumers could not see `Option`. Replacements
+now occupy their original manifest slot. Early Core/Ordering homes precede
+their consumers; late category/algebra homes retain the facade's aliases.
+Checked source hashes and interface dependency chains remain authoritative.
+
+All nine complete affected Native groups pass independently: 87 tests with
+no ignored or filtered cases, plus all 43 Cinch compiler modules. The original
+array program now checks and emits with the unchanged Core source copy.
+Changed Option payloads and reversed List fields are refused by real embedded
+consumers; reversed Option tags are refused by the existing codegen layout
+guard. None of the malformed programs is executed. See
+`bootstrap/current-rust-family-home-results.json` and
+`bootstrap/current-native-array-abi-controls.json`.
+
+Cinch source, ABI and the pinned seed are unchanged, so the e2f bootstrap
+fixed-point proof below remains scoped to the same compiler and pinned inputs.
+The complete Native and test-host sweeps using the preceding Rust build are
+retained as earlier-producer evidence; fresh matching sweeps are queued for
+this Rust change. The recursive-proof defect, unpublished array/effect work,
+positive ABI6 stage transition and original API/Acceptance 5 remain open.
+
 ## Current row compiler reaches a genuine fixed point (2026-11-05)
 
 The published row/import compiler e2f now has its own independently audited
