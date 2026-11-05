@@ -1,5 +1,31 @@
 # Next steps (as of 2026-11-05)
 
+## Current ABI6 compiler bootstraps from Cinch (2026-11-05)
+
+The published array/effect compiler now has an independently audited
+Stage0/1/2/3 bootstrap. Stage1 rebuilds all 43 compiler modules into Stage2,
+which rebuilds Stage3. Every stage smoke passes. Stage2 and Stage3 have
+byte-identical LLVM, executables and all 43 checked compiler interfaces.
+The final compiler consumes its entry through those interfaces without
+compiler source bodies. Rebuilding changed compiler source also produces
+a changed executable with the expected changed diagnostic.
+
+See `bootstrap/current-abi6-bootstrap-results.json`, for canonical compiler
+`31ac09d621b8f8bc7b13f64f3eb6f61965f96507d7f8683b8512d4156ff40fa0`.
+Both final executables hash to
+`2a7db4640f3fd8ebb272ecd55a9ce9e680f768f555d0953d70ca11ff7544f5f8`.
+The seed and separate library-only provider use the explicitly pinned
+b64710b ABI6 source; previous ABI5 stages and build caches were not reused.
+This proves Acceptance 1-4 for the current compiler.
+
+Acceptance 5 and the complete requested outcome remain open. The full
+209-group Native suite and the 92-group exact final-Stage3 sweep are running.
+The latter retains every failure and includes all positive ABI6 arrays and
+the exact float payload cases. Fresh matching auxiliary checks, the original
+API scope and proof soundness remain required. The independently tested
+Native proof/float, explicit projection and decision/proof runtime repairs
+are separate unpublished candidates and are not claimed by this receipt.
+
 ## ABI6 arrays and closed kernel effects (2026-11-05)
 
 The Cinch implementation now lowers immutable Array, Tensor and Columnar
@@ -29,9 +55,9 @@ with 32M zero leaks and actual array runtime calls. See
 
 The current canonical compiler identity is
 `31ac09d621b8f8bc7b13f64f3eb6f61965f96507d7f8683b8512d4156ff40fa0`.
-Its ABI6 Stage2/3 rebuilds and fixed-point proof remain in progress. Earlier
-e2f/ABI5 bootstrap and complete-suite receipts retain their original scope;
-they do not prove this new compiler's final bootstrap. Full matching suites,
+Its ABI6 Stage2/3 rebuilds and fixed-point proof now pass independently, as
+recorded above. Earlier e2f/ABI5 bootstrap and complete-suite receipts retain
+their original scope. Full matching suites,
 all positive final-Stage3 arrays, original API parity, proof soundness and
 the remaining Acceptance gates remain required. The separate proof and decision-runtime
 repairs remain unpublished.

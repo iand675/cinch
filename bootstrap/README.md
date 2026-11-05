@@ -39,13 +39,17 @@ Each command freezes its compiler inputs once, so edits made during a
 stage build are picked up by the next command and cannot mix versions
 inside a bootstrap chain.
 
-The fresh repaired-source chain now builds all43 compiler modules through
-Stages1,2 and3. Stages2 and3 match in compiler IR, executable bytes and all43
-canonical interfaces; actual entry-interface consumption and changed-source
-behavior pass too. See [verified chain evidence](final-repaired-bootstrap-results.json).
-Exact-final-Stage3 external acceptance also passes; see
-[the original runner, fixity and portable class checks](final-stage3-external-results.json).
-The complete project test sweep remains open in `design/self-hosting.md`.
+The current ABI6 array/effect compiler builds all 43 compiler modules through
+Stages 0, 1, 2 and 3. All stage smokes pass. Stages 2 and 3 match in LLVM,
+executable bytes and all 43 canonical interfaces; interface-only entry
+consumption and an actual changed-source rebuild also pass independently.
+See [current ABI6 chain evidence](current-abi6-bootstrap-results.json).
+This proves Acceptance 1-4 for compiler source `31ac09d621b8f8bc7b13f64f3eb6f61965f96507d7f8683b8512d4156ff40fa0`.
+The complete matching Native and final-Stage3 suites, auxiliary checks,
+original API coverage, proof soundness and Acceptance 5 remain open.
+The older [repaired chain](final-repaired-bootstrap-results.json) and
+[external checks](final-stage3-external-results.json) retain their original
+source scope; they do not establish the current compiler's full acceptance.
 A compiler refusal is recorded with
 its diagnostics and never falls back to the Rust frontend.
 The runner applies a positive heap cap of at most 2G to every program.
