@@ -15,6 +15,10 @@ module Bootstrap.Infer where
   import Bootstrap.Core
   import Bootstrap.Instance
   import Bootstrap.Global
+  import Bootstrap.Contracts (declaration-references)
+  import Bootstrap.Load (InterfaceSet, load-checked-interface-set, interface-set-body)
+  import Text.Json (canonical-bytes)
+  import Bootstrap.ExportType (export-global)
   import Bootstrap.Typing
   import Bootstrap.Builtin (builtin-declarations, intrinsic-contract, array-plan, array-type-name)
   import Bootstrap.RuntimeAbi (runtime-abi-int)
@@ -64,6 +68,7 @@ module Bootstrap.Infer where
   data CheckedBinding where
     MkCheckedBinding :: String -> Scheme -> String -> CheckedBinding
     MkBodyBinding :: BodyBinding -> CheckedBinding
+    MkBodyContext :: BodyBindings -> CheckedBinding
     MkMethodBinding :: String -> Scheme -> String -> Nat -> CheckedBinding
     MkConditionalBinding :: String -> String -> Nat -> String -> UType -> Scheme -> Option GuardedBinding -> CheckedBinding
     MkGivenBinding :: String -> UType -> String -> CheckedBinding
@@ -76,11 +81,11 @@ module Bootstrap.Infer where
     MkErasedBinding :: String -> UType -> Nat -> CheckedBinding
     MkSyntaxBinding :: String -> CheckedBinding
   checked-name :: CheckedBinding -> String
-  checked-name b = case b of MkBodyBinding binding -> binding-name binding; MkCheckedBinding name sc role -> name; MkMethodBinding name sc owner slot -> name; MkConditionalBinding name owner slot dictionary head sc guarded -> name; MkGivenBinding name ty symbol -> name; MkLocalBinding name sc id level -> name; MkValueBinding name sc id level value -> name; MkIntrinsicBinding name sc symbol -> name; MkProofBinding fact -> ""; MkErasedBinding name predicate id -> name; MkSyntaxBinding name -> name
+  checked-name b = case b of MkBodyContext context -> ""; MkBodyBinding binding -> binding-name binding; MkCheckedBinding name sc role -> name; MkMethodBinding name sc owner slot -> name; MkConditionalBinding name owner slot dictionary head sc guarded -> name; MkGivenBinding name ty symbol -> name; MkLocalBinding name sc id level -> name; MkValueBinding name sc id level value -> name; MkIntrinsicBinding name sc symbol -> name; MkProofBinding fact -> ""; MkErasedBinding name predicate id -> name; MkSyntaxBinding name -> name
   checked-scheme :: CheckedBinding -> Scheme
-  checked-scheme b = case b of MkBodyBinding binding -> binding-scheme binding; MkCheckedBinding name sc role -> sc; MkMethodBinding name sc owner slot -> sc; MkConditionalBinding name owner slot dictionary head sc guarded -> sc; MkGivenBinding name ty symbol -> mono ty; MkLocalBinding name sc id level -> sc; MkValueBinding name sc id level value -> sc; MkIntrinsicBinding name sc symbol -> sc; MkProofBinding fact -> mono UError; MkErasedBinding name predicate id -> mono predicate; MkSyntaxBinding name -> mono UError
+  checked-scheme b = case b of MkBodyContext context -> mono UError; MkBodyBinding binding -> binding-scheme binding; MkCheckedBinding name sc role -> sc; MkMethodBinding name sc owner slot -> sc; MkConditionalBinding name owner slot dictionary head sc guarded -> sc; MkGivenBinding name ty symbol -> mono ty; MkLocalBinding name sc id level -> sc; MkValueBinding name sc id level value -> sc; MkIntrinsicBinding name sc symbol -> sc; MkProofBinding fact -> mono UError; MkErasedBinding name predicate id -> mono predicate; MkSyntaxBinding name -> mono UError
   checked-role :: CheckedBinding -> String
-  checked-role b = case b of MkBodyBinding binding -> binding-role binding; MkCheckedBinding name sc role -> role; MkMethodBinding name sc owner slot -> "method"; MkConditionalBinding name owner slot dictionary head sc guarded -> "external"; MkGivenBinding name ty symbol -> "dictionary"; MkLocalBinding name sc id level -> "local"; MkValueBinding name sc id level value -> "local"; MkIntrinsicBinding name sc symbol -> "intrinsic"; MkProofBinding fact -> "proof"; MkErasedBinding name predicate id -> "erased-proof"; MkSyntaxBinding name -> "builtin-syntax"
+  checked-role b = case b of MkBodyContext context -> "body-context"; MkBodyBinding binding -> binding-role binding; MkCheckedBinding name sc role -> role; MkMethodBinding name sc owner slot -> "method"; MkConditionalBinding name owner slot dictionary head sc guarded -> "external"; MkGivenBinding name ty symbol -> "dictionary"; MkLocalBinding name sc id level -> "local"; MkValueBinding name sc id level value -> "local"; MkIntrinsicBinding name sc symbol -> "intrinsic"; MkProofBinding fact -> "proof"; MkErasedBinding name predicate id -> "erased-proof"; MkSyntaxBinding name -> "builtin-syntax"
   -- Retain the declaring instance/slot for backend authorization. This
   -- does not introduce a source binding for the private implementation.
   checked-conditional-target :: CheckedBinding -> Option (String, String, Nat)
@@ -732,7 +737,7 @@ module Bootstrap.Infer where
         (value, checked) -> checked-typed-source-index sp (UIndexMath "-" (UIndex (normalize checked ty) (IInteger 0)) value) checked)
       else bad sp "unchecked unary operation in index" st
     CApply source ty (CApply partial function method first) second ->
-      case numeric-method-operation (map-term-types (normalize st) method) (map-term-types (normalize st) first) (map-term-types (normalize st) second) of
+      case scoped-numeric-method-operation (proof-context env st) (map-term-types (normalize st) method) (map-term-types (normalize st) first) (map-term-types (normalize st) second) of
         Some op -> case reify-argument sp env first st of
           (left, sl) -> case reify-argument sp env second sl of
             (right, sr) -> checked-typed-source-index sp (UIndexMath op left right) sr
@@ -1639,7 +1644,7 @@ module Bootstrap.Infer where
     Nil -> (env, st)
     Cons d rest -> case d of
       DSig s name ty -> case make-scheme False classes kinds Nil ty st of
-        (sc, ss) -> case add-binding s name sc "value" env ss of (e, se) -> register rows classes kinds rest e se
+        (sc, ss) -> case register-source-value s name sc kinds env ss of (e, se) -> register rows classes kinds rest e se
       DClass s name ps members -> case find-class name (context-source-classes kinds) of
         Some description -> case register-source-methods description (decls-of members) env st of
           (more, checked) -> register rows classes kinds rest more checked
@@ -1670,6 +1675,14 @@ module Bootstrap.Infer where
       DRefine s name params binder predicate -> register rows classes kinds rest env st
       DExport s text items -> register rows classes kinds rest env st
       other -> register rows classes kinds rest env (add-error (decl-span d) (unsupported-decl d) st)
+  register-source-value :: Span -> String -> Scheme -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-source-value sp name sc kinds env st = case context-total-observation name kinds of
+    Some binding -> if not (binding-matches name "value" sc binding) then (env, add-error sp "source total body disagrees with its checked defining signature" st) else
+      (case lookup-binding name env of
+        Some (MkBodyBinding prior) -> (env, if binding-equal prior binding then st else add-error sp "conflicting source total bodies" st)
+        Some other -> (env, add-error sp "source total body cannot replace another declaration" st)
+        None -> (Cons (MkBodyBinding binding) env, st))
+    None -> add-binding sp name sc "value" env st
   register-intrinsic :: Span -> String -> String -> String -> String -> TypeExpr -> List (String, Kind) -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   register-intrinsic sp direction abi symbol name syntax classes kinds env st =
     if not (same direction "import" && same abi "ccall") then (env, add-error sp "runtime intrinsic requires foreign import ccall" st)
@@ -1895,7 +1908,17 @@ module Bootstrap.Infer where
     (Nil, Nil) -> Cons (id, normalize st (scheme-body sc)) rest
     other -> rest
   proof-context :: List CheckedBinding -> Store -> ProofScope
-  proof-context env st = proof-erased env st (with-guarded-bindings (env-guarded-bindings env) (with-body-bindings (env-body-bindings env) (make-proof-scope (proof-gamma env st) (proof-values env st))))
+  proof-context env st = proof-erased env st (with-guarded-bindings (env-guarded-bindings env) (with-checked-body-bindings (env-body-context env) (make-proof-scope (proof-gamma env st) (proof-values env st))))
+  env-body-context :: List CheckedBinding -> BodyBindings
+  env-body-context env = case env of
+    Nil -> empty-body-bindings
+    Cons (MkBodyContext context) rest -> context
+    Cons (MkBodyBinding binding) rest -> (case extend-body-bindings binding (env-body-context rest) of Some context -> context; None -> empty-body-bindings)
+    Cons other rest -> env-body-context rest
+  cache-body-context :: List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  cache-body-context env st = case check-body-bindings (env-body-bindings env) of
+    Some context -> (Cons (MkBodyContext context) env, st)
+    None -> (env, add-error zero "conflicting body contracts in proof context" st)
   env-body-bindings :: List CheckedBinding -> List BodyBinding
   env-body-bindings env = case env of Nil -> Nil; Cons (MkBodyBinding binding) rest -> Cons binding (env-body-bindings rest); Cons other rest -> env-body-bindings rest
   proof-erased :: List CheckedBinding -> Store -> ProofScope -> ProofScope
@@ -3009,7 +3032,7 @@ module Bootstrap.Infer where
           None -> (Cons name seen, None, ss)
           Some core -> case resolve-dictionary-definition-with classes (env-instances env) core ss of
             (resolved, checked) -> let completed = default-task-failure-clauses (core-clauses resolved) checked in
-              (Cons name seen, Some (seal-definition-with-contracts (env-body-bindings env) (env-guarded-bindings env) completed resolved), completed)
+              (Cons name seen, Some (seal-definition-with-checked-contracts (env-body-context env) (env-guarded-bindings env) completed resolved), completed)
     DSig s name ty -> (seen, None, if has-definition name all then st else add-error s (string-concat "signature has no definition: " name) st)
     other -> (seen, None, st)
   -- Task errors left unconstrained by the complete body are existential
@@ -3057,6 +3080,7 @@ module Bootstrap.Infer where
   finish-binding :: Store -> CheckedBinding -> CheckedBinding
   finish-binding st b = case b of
     MkBodyBinding binding -> b
+    MkBodyContext context -> b
     MkCheckedBinding n sc role -> MkCheckedBinding n (map-scheme-types (normalize st) sc) role
     MkMethodBinding n sc owner slot -> MkMethodBinding n (map-scheme-types (normalize st) sc) owner slot
     MkConditionalBinding n owner slot dictionary head sc guarded -> MkConditionalBinding n owner slot dictionary (normalize st head) (map-scheme-types (normalize st) sc) guarded
@@ -3068,7 +3092,7 @@ module Bootstrap.Infer where
     MkErasedBinding name predicate id -> MkErasedBinding name (normalize st predicate) id
     MkSyntaxBinding name -> b
   finish-bindings :: Store -> List CheckedBinding -> List CheckedBinding
-  finish-bindings st env = case env of Nil -> Nil; Cons b rest -> Cons (finish-binding st b) (finish-bindings st rest)
+  finish-bindings st env = case env of Nil -> Nil; Cons (MkBodyContext context) rest -> finish-bindings st rest; Cons b rest -> Cons (finish-binding st b) (finish-bindings st rest)
   global-bindings :: List CheckedBinding -> List CoreGlobal -> List CoreGlobal
   global-bindings bindings globals = case bindings of
     Nil -> globals
@@ -3089,7 +3113,7 @@ module Bootstrap.Infer where
   check-core-closed :: TypingContext -> List CoreDefinition -> Store -> Store
   check-core-closed globals definitions st = case definitions of
     Nil -> st
-    Cons d rest -> check-core-closed globals rest (if not (core-definition-contracts-closed (context-bodies globals) (context-guarded-bodies globals) d) then add-error zero "typed core contains an unresolved scheme or error term" st
+    Cons d rest -> check-core-closed globals rest (if not (core-definition-checked-contracts-closed (context-body-context globals) (context-guarded-bodies globals) d) then add-error zero "typed core contains an unresolved scheme or error term" st
       else if not (task-definition-safe globals d) then add-error zero (string-concat "task handle must be consumed exactly once and scope/capture lifetimes and sharing must be valid: " (core-name d)) st
       else if typing-definition-closed globals d then st else add-error zero (string-concat "independent Core typing disagrees with the declaration or term: " (core-name d)) st)
   check-field-globals :: TypingContext -> List CoreDictionaryField -> Store -> Store
@@ -3099,7 +3123,7 @@ module Bootstrap.Infer where
   declared-kind-rows :: TypeContext -> List (String, Kind)
   declared-kind-rows context = case context of MkTypeContext kinds aliases active observers effects source-classes -> kinds
   check-global-core :: TypeContext -> List CheckedBinding -> List CoreInstance -> List CoreData -> List CoreDefinition -> Store -> Store
-  check-global-core kinds bindings instances datas definitions st = case close-typing-context-with-data (declared-kind-rows kinds) (instance-globals instances (global-bindings (finish-bindings st bindings) Nil)) (context-effects kinds) datas of
+  check-global-core kinds bindings instances datas definitions st = case close-typing-context-with-definitions (declared-kind-rows kinds) (instance-globals instances (global-bindings (finish-bindings st bindings) Nil)) (context-effects kinds) datas definitions of
     Some globals -> check-instance-globals globals instances (check-core-closed globals definitions st)
     None -> add-error zero "global declaration environment is not closed or contains conflicting identities" st
   -- Reuse the schemes registered and checked above. Re-reading a surface
@@ -3271,7 +3295,7 @@ module Bootstrap.Infer where
             (None, failed) -> (Nil, failed)
             (Some definition, checked) -> case resolve-dictionary-definition-with classes (env-instances env) definition checked of
               (resolved, final) -> case source-instance-fields classes kinds families env description symbol factory declarations rest final of
-                (more, done) -> (Cons (MkCoreDictionaryField zero (class-method-slot member) (seal-definition-with-contracts (env-body-bindings env) (env-guarded-bindings env) done resolved)) more, done)
+                (more, done) -> (Cons (MkCoreDictionaryField zero (class-method-slot member) (seal-definition-with-checked-contracts (env-body-context env) (env-guarded-bindings env) done resolved)) more, done)
   checked-source-instances :: List Json -> List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List Decl -> List CoreClass -> Store -> (List CoreClass, List CoreInstance, Store)
   checked-source-instances rows classes kinds families env ds descriptions st = case ds of
     Nil -> (descriptions, Nil, st)
@@ -3292,7 +3316,9 @@ module Bootstrap.Infer where
       None -> checked-source-instances rows classes kinds families env rest descriptions (add-error sp "source instance has no registered dictionary head" st)
     Cons other rest -> checked-source-instances rows classes kinds families env rest descriptions st
   elaborate-module :: String -> Module -> Elaboration
-  elaborate-module label m =
+  elaborate-module label m = elaborate-module-with-source-bodies True label m
+  elaborate-module-with-source-bodies :: Bool -> String -> Module -> Elaboration
+  elaborate-module-with-source-bodies enable label m =
     let ds = module-decls m in
     let contracts = check-imported-refinements ds Nil (empty-store label) in
     let start = data-order ds (data-names ds) Nil contracts in
@@ -3305,10 +3331,13 @@ module Bootstrap.Infer where
     let (identity-kinds, identity-store) = collect-source-identities ds ds classes runtime-kinds runtime-store in
     let aliases-checked = validate-refinements identity-kinds (context-aliases identity-kinds) identity-store in
     let (class-kinds, class-store) = collect-source-classes ds classes identity-kinds aliases-checked in
-    let (kinds, body-store) = collect-body-contracts ds classes class-kinds class-store in
+    let (import-kinds, import-body-store) = collect-body-contracts ds classes class-kinds class-store in
+    let (method-kinds, method-store) = collect-imported-total-methods ds rows classes import-kinds import-body-store in
+    let (kinds, body-store) = if enable then add-source-bodies (source-total-bodies label m classes method-kinds) method-kinds method-store else (method-kinds, method-store) in
     let (values, sv) = register rows classes kinds ds (context-body-bindings kinds <> builtins) body-store in
     let (ordinary-env, si) = register-implicit-instances classes kinds ds values sv in
-    let (env, conditional-store) = register-conditional-instances rows classes kinds ds ordinary-env si in
+    let (uncached-env, registration-store) = register-conditional-instances rows classes kinds ds ordinary-env si in
+    let (env, conditional-store) = cache-body-context uncached-env registration-store in
     let se = check-instance-coherence (env-instances env <> conditional-heads env Nil) conditional-store in
     let families = Cons ("Bool", ["True", "False"]) (Cons ("b.Dec", ["b.Yes", "b.No"]) (families-of ds <> imported-families ds)) in
     let (effects, sx) = case store-errors se of Nil -> checked-effects kinds env ds se; other -> (Nil, se) in
@@ -3321,6 +3350,161 @@ module Bootstrap.Infer where
     let finished = case store-errors sd of Nil -> check-data-closed datas (check-global-core linked-kinds env instances datas core sd); other -> sd in
     let retained-classes = case store-errors finished of Nil -> checked-imported-classes rows rows classes linked-kinds descriptions; other -> descriptions in
     MkElaboration (store-errors finished) (finish-bindings finished env) (contexts ds) core datas effects (MkCoreClassContext classes retained-classes) instances ds
+  -- Certify eligible definitions using an independent checked preliminary
+  -- elaboration. Only after its actual Core reconstructs a total graph can
+  -- the full elaboration use that graph in a type-level observation. The
+  -- final global kernel checks the graph against the full actual bodies again.
+  -- Candidate selection uses the checked carrier, so an imported/private
+  -- refinement alias is handled by its defining contract, not its spelling.
+  -- Selection grants no authority: actual preliminary Core, the closed graph
+  -- and final independent body/context association still have to agree.
+  total-interface-inputs :: List Decl -> List (String, String, Bytes)
+  total-interface-inputs declarations = case declarations of
+    Nil -> Nil
+    Cons (DInterface sp name hash metadata) rest -> Cons (name, hash, canonical-bytes metadata) (total-interface-inputs rest)
+    Cons other rest -> total-interface-inputs rest
+  total-imported-methods :: InterfaceSet -> String -> CoreClass -> Scheme -> List CoreClassMethod -> TypeContext -> Store -> (TypeContext, Store)
+  total-imported-methods interfaces dictionary description factory members kinds st = case members of
+    Nil -> (kinds, st)
+    Cons member rest -> case specialize-method description factory member of
+      Some sc -> (case check-imported-method-binding interfaces dictionary (class-method-slot member) sc of
+        Some binding -> (case context-add-total zero binding kinds st of (more, checked) -> total-imported-methods interfaces dictionary description factory rest more checked)
+        None -> total-imported-methods interfaces dictionary description factory rest kinds st)
+      None -> total-imported-methods interfaces dictionary description factory rest kinds st
+  total-imported-instances :: InterfaceSet -> List Json -> List (String, Kind) -> Json -> TypeContext -> Store -> (TypeContext, Store)
+  total-imported-instances interfaces descriptions classes instances kinds st = case instances of
+    JArr row rest -> let (factory, checked) = imported-scheme zero classes kinds (TUnmodeled zero "missing total method factory") row (empty-store "closed imported method") in
+      (case (store-errors checked, scheme-params factory, scheme-requirements factory, field "id" row, root-name (scheme-body factory)) of
+        (Nil, Nil, Nil, JStr native, Some owner) -> (case typed-class zero owner descriptions classes kinds checked of
+          (Some description, complete) -> (case store-errors complete of
+            Nil -> (case total-imported-methods interfaces (interface-global native) description factory (class-methods description) kinds st of
+              (more, done) -> total-imported-instances interfaces descriptions classes rest more done)
+            other -> total-imported-instances interfaces descriptions classes rest kinds st)
+          other -> total-imported-instances interfaces descriptions classes rest kinds st)
+        other -> total-imported-instances interfaces descriptions classes rest kinds st)
+    other -> (kinds, st)
+  total-imported-declarations :: InterfaceSet -> List Json -> List (String, Kind) -> List Decl -> TypeContext -> Store -> (TypeContext, Store)
+  total-imported-declarations interfaces descriptions classes declarations kinds st = case declarations of
+    Nil -> (kinds, st)
+    Cons (DInterface sp name hash metadata) rest -> (case total-imported-instances interfaces descriptions classes (field "instances" (field "exports" metadata)) kinds st of
+      (more, done) -> total-imported-declarations interfaces descriptions classes rest more done)
+    Cons (DExternal sp name category syntax metadata) rest -> if not (same category "value") then total-imported-declarations interfaces descriptions classes rest kinds st else
+      (case field "symbol" metadata of
+        JStr native -> (case interface-set-body native interfaces of
+          Some function -> (case imported-scheme sp classes kinds (case syntax of Some declared -> declared; None -> TUnmodeled sp "missing public dependency declaration") metadata (empty-store "actual imported dependency body") of
+            (sc, checked) -> (case store-errors checked of
+              Nil -> (case check-body-binding name native "external" sc function of
+                Some binding -> (case context-add-total sp binding kinds st of
+                  (more, done) -> total-imported-declarations interfaces descriptions classes rest more done)
+                None -> total-imported-declarations interfaces descriptions classes rest kinds st)
+              other -> total-imported-declarations interfaces descriptions classes rest kinds st))
+          None -> total-imported-declarations interfaces descriptions classes rest kinds st)
+        other -> total-imported-declarations interfaces descriptions classes rest kinds st)
+    Cons other rest -> total-imported-declarations interfaces descriptions classes rest kinds st
+  collect-imported-total-methods :: List Decl -> List Json -> List (String, Kind) -> TypeContext -> Store -> (TypeContext, Store)
+  collect-imported-total-methods declarations descriptions classes kinds st = case load-checked-interface-set (total-interface-inputs declarations) of
+    Ok interfaces -> total-imported-declarations interfaces descriptions classes declarations kinds st
+    Err error -> (kinds, st)
+  source-total-atom :: UType -> Bool
+  source-total-atom ty = case ty of UCon name KType -> has name ["Nat", "Int", "Bool", "Bytes", "I64"]; other -> False
+  source-total-type :: UType -> Bool
+  source-total-type ty = case ty of
+    UFun domain result -> source-total-atom domain && source-total-type result
+    UFunEff domain (URow UEnd) result -> source-total-atom domain && source-total-type result
+    URefine id name (UCon carrier KType) predicate -> has carrier ["Nat", "Int", "I64"]
+    other -> source-total-atom ty
+  source-total-candidate :: List (String, Kind) -> TypeContext -> TypeExpr -> Bool
+  source-total-candidate classes kinds syntax = case make-scheme False classes kinds Nil syntax (empty-store "source total candidate") of
+    (sc, checked) -> case (store-errors checked, scheme-params sc, scheme-requirements sc) of
+      (Nil, Nil, Nil) -> source-total-type (scheme-body sc)
+      other -> False
+  source-total-names :: List (String, Kind) -> TypeContext -> List Decl -> List String
+  source-total-names classes kinds declarations = case declarations of
+    Nil -> Nil
+    Cons (DSig sp name syntax) rest -> if source-total-candidate classes kinds syntax then Cons name (source-total-names classes kinds rest) else source-total-names classes kinds rest
+    Cons other rest -> source-total-names classes kinds rest
+  source-total-select :: List String -> List String -> List Decl -> List Decl
+  source-total-select names aliases declarations = case declarations of
+    Nil -> Nil
+    Cons declaration rest -> let more = source-total-select names aliases rest in
+      case declaration of
+        DSig sp name syntax -> if has name names then Cons declaration more else more
+        DFun sp name clauses -> if has name names then Cons declaration more else more
+        DExternal sp name category syntax metadata -> Cons declaration more
+        DInterface sp name hash metadata -> Cons declaration more
+        DSource sp name metadata -> Cons declaration more
+        DRefine sp name parameters binder predicate -> if has name aliases then Cons declaration more else more
+        DForeign sp direction abi symbol name syntax -> (case intrinsic-contract symbol of Some specification -> Cons declaration more; None -> more)
+        other -> more
+  source-total-selected-references :: List String -> List Decl -> List String
+  source-total-selected-references names declarations = case declarations of
+    Nil -> Nil
+    Cons declaration rest -> let more = source-total-selected-references names rest in
+      case declaration of
+        DSig sp name syntax -> if has name names then declaration-references [declaration] <> more else more
+        DFun sp name clauses -> if has name names then declaration-references [declaration] <> more else more
+        other -> more
+  source-total-find-alias :: String -> List Decl -> Option Decl
+  source-total-find-alias name declarations = case declarations of
+    Nil -> None
+    Cons declaration rest -> case declaration of
+      DRefine sp symbol parameters binder predicate -> if same symbol name then Some declaration else source-total-find-alias name rest
+      other -> source-total-find-alias name rest
+  source-total-parameter-references :: List TypeParam -> List String
+  source-total-parameter-references parameters = case parameters of
+    Nil -> Nil
+    Cons parameter rest -> (case param-kind parameter of Some syntax -> declaration-references [DSig zero "#kind" syntax]; None -> Nil) <> source-total-parameter-references rest
+  source-total-alias-references :: Decl -> List String
+  source-total-alias-references declaration = case declaration of
+    DRefine sp name parameters binder predicate -> source-total-parameter-references (Cons binder parameters) <> declaration-references [DSig sp "#predicate" predicate]
+    other -> Nil
+  source-total-alias-closure :: List Decl -> List String -> List String -> List String
+  source-total-alias-closure declarations pending seen = case pending of
+    Nil -> seen
+    Cons name rest -> if has name seen then source-total-alias-closure declarations rest seen else
+      case source-total-find-alias name declarations of
+        Some declaration -> source-total-alias-closure declarations (source-total-alias-references declaration <> rest) (Cons name seen)
+        None -> source-total-alias-closure declarations rest seen
+  source-total-refs :: String -> List Decl -> List String
+  source-total-refs name declarations = case declarations of
+    Nil -> Nil
+    Cons (DFun sp symbol clauses) rest -> if same name symbol then declaration-references [DFun sp symbol clauses] <> source-total-refs name rest else source-total-refs name rest
+    Cons other rest -> source-total-refs name rest
+  source-total-relevant :: List String -> List String -> List String
+  source-total-relevant names references = case references of Nil -> Nil; Cons first rest -> if has first names then Cons first (source-total-relevant names rest) else source-total-relevant names rest
+  source-total-closure :: List String -> List Decl -> List String -> List String -> List String
+  source-total-closure names declarations pending seen = case pending of
+    Nil -> seen
+    Cons first rest -> if has first seen then source-total-closure names declarations rest seen else
+      source-total-closure names declarations (source-total-relevant names (source-total-refs first declarations) <> rest) (Cons first seen)
+  source-total-from-checked :: List String -> Elaboration -> List BodyBinding
+  source-total-from-checked names preliminary = case names of
+    Nil -> Nil
+    Cons name rest -> let more = source-total-from-checked rest preliminary in
+      (case export-global name of
+        Ok native -> (case core-source-body (env-body-bindings (elaboration-bindings preliminary)) (elaboration-core preliminary) native of Some binding -> Cons binding more; None -> more)
+        Err error -> more)
+  source-total-preliminary :: String -> Module -> List String -> Elaboration
+  source-total-preliminary label m names = elaborate-module-with-source-bodies False (label <> " total bodies")
+    (MkModule (module-span m) (module-name m) (decl-spine (module-span m) (source-total-select names
+      (source-total-alias-closure (module-decls m) (source-total-selected-references names (module-decls m)) Nil) (module-decls m))))
+  source-total-individual :: String -> Module -> List String -> List String -> List BodyBinding
+  source-total-individual label m all names = case names of
+    Nil -> Nil
+    Cons name rest -> let more = source-total-individual label m all rest in
+      let needed = source-total-closure all (module-decls m) [name] Nil in
+      let preliminary = source-total-preliminary label m needed in
+      (case elaboration-errors preliminary of Nil -> source-total-from-checked [name] preliminary <> more; other -> more)
+  source-total-bodies :: String -> Module -> List (String, Kind) -> TypeContext -> List BodyBinding
+  source-total-bodies label m classes kinds = let names = source-total-names classes kinds (module-decls m) in
+    case names of
+      Nil -> Nil
+      other -> let preliminary = source-total-preliminary label m names in
+        (case elaboration-errors preliminary of Nil -> source-total-from-checked names preliminary; other -> source-total-individual label m names names)
+  add-source-bodies :: List BodyBinding -> TypeContext -> Store -> (TypeContext, Store)
+  add-source-bodies bindings kinds st = case bindings of
+    Nil -> (kinds, st)
+    Cons first rest -> case context-add-total zero first kinds st of (more, checked) -> add-source-bodies rest more checked
   elaborate-modules :: String -> List Module -> Elaboration
   elaborate-modules label ms = case ms of
     Nil -> MkElaboration Nil Nil Nil Nil Nil Nil (MkCoreClassContext Nil Nil) Nil Nil

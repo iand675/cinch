@@ -39,34 +39,29 @@ Each command freezes its compiler inputs once, so edits made during a
 stage build are picked up by the next command and cannot mix versions
 inside a bootstrap chain.
 
-The current ABI6 array/effect compiler builds all 43 compiler modules through
-Stages 0, 1, 2 and 3. All stage smokes pass. Stages 2 and 3 match in LLVM,
-executable bytes and all 43 canonical interfaces; interface-only entry
-consumption and an actual changed-source rebuild also pass independently.
-See [current ABI6 chain evidence](current-abi6-bootstrap-results.json).
-This proves Acceptance 1-4 for compiler source `31ac09d621b8f8bc7b13f64f3eb6f61965f96507d7f8683b8512d4156ff40fa0`.
-The complete matching Native and final-Stage3 suites, auxiliary checks,
-original API coverage, proof soundness and Acceptance 5 remain open.
-All 14 original external checks now pass on that exact ABI6 Stage3; see
-[current external evidence](current-abi6-stage3-external-results.json).
-The complete tooling suite passes all 41 tests, including both supported
-stage ABIs and their mismatch refusals; see
-[current tooling evidence](current-abi6-tooling-results.json).
-The complete matching auxiliary audit covers all 171 runtime, 41 tooling
-and 39 editor checks; see [auxiliary evidence](current-abi6-auxiliary-results.json).
-Each component records its actual execution source and checked input identity.
+The published actual-body compiler has source identity `29775cd` and explicit
+25b7e82 ABI6 seed and separate library-producer pins. All43 modules, all nineteen
+complete proof/interface groups,28 actual exporter controls and251 matching
+runtime/tooling/editor tests pass independently. See
+[current method-body evidence](current-cinch-method-body-results.json).
+Fresh Stage0 and its library-only provider are verified; a genuine new
+Stage1/2/3 chain and complete matching Native/finalStage3 suites remain required.
+The newer serializer and quantified-value precondition repairs are separate
+candidates and are not covered by this receipt.
 
-Portable client tests use the separate explicit
-[test library roots](test-library-object-roots.json), including concrete
-variants outside the compiler source's own dependency closure. The pinned
-Native producer builds only the generated `CinchBaseObject` library root
-and its admitted base modules with these roots. Its checked interfaces
-and runtime must match the compiler's library dependencies. See
-[test library provenance](current-abi6-test-library-results.json).
-Client parsing, checking and lowering remain with the exact Stage3 compiler.
-The older [repaired chain](final-repaired-bootstrap-results.json) and
-[external checks](final-stage3-external-results.json) retain their original
-source scope; they do not establish the current compiler's full acceptance.
+The preceding c8d6 compiler retains its verified four-stage fixed point; see
+[prior projection chain evidence](current-projection-proof-bootstrap-results.json).
+Those code/interface/API-consumer and changed-source checks prove Acceptance1-4
+for that earlier source. Acceptance5 and the current full compiler/API scope
+remain open. Earlier ABI6 [chain](current-abi6-bootstrap-results.json),
+[external](current-abi6-stage3-external-results.json),
+[auxiliary](current-abi6-auxiliary-results.json) and
+[tooling](current-abi6-tooling-results.json) receipts keep their recorded inputs.
+
+Portable clients use explicit [test library roots](test-library-object-roots.json),
+including variants outside the compiler's own dependency closure. The pinned
+Native producer builds only `CinchBaseObject` and admitted base modules. Client
+parsing, checking and lowering use the selected actual Cinch compiler.
 A compiler refusal is recorded with
 its diagnostics and never falls back to the Rust frontend.
 The runner applies a positive heap cap of at most 2G to every program.

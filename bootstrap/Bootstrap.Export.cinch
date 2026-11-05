@@ -5,10 +5,12 @@ module Bootstrap.Export where
   import Algebra.Semigroup
   import Bootstrap.Check (CheckedProgram, checked-elaboration, checked-surface)
   import Bootstrap.Ast (Program, Module, Decl, module-decls, program-modules, DClass, DInstance, DForeign, DRefine, DRecord, DEffect)
-  import Bootstrap.Infer (Elaboration, elaboration-bindings, elaboration-data, elaboration-contexts, elaboration-classes, elaboration-instances, elaboration-declarations, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches)
-  import Bootstrap.Core (CoreData, CoreConstructor, core-data-name, core-data-params, core-data-constructors, core-constructor-name, core-constructor-scheme, core-scheme)
+  import Bootstrap.Infer (Elaboration, elaboration-bindings, elaboration-core, elaboration-data, elaboration-contexts, elaboration-classes, elaboration-instances, elaboration-declarations, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-body-binding)
+  import Bootstrap.Core (CoreData, CoreConstructor, CoreDefinition, core-data-name, core-data-params, core-data-constructors, core-constructor-name, core-constructor-scheme, core-scheme, core-method-total-function)
   import Bootstrap.Instance
   import Bootstrap.Type
+  import Bootstrap.Total (TotalFunction, total-identity, total-function-document, total-function-equal, total-parameters, total-result)
+  import Bootstrap.BodyContract (BodyBinding, binding-function, binding-scheme)
   import Bootstrap.ExportType
   import Bootstrap.ExportNominal
   import Bootstrap.Load (LoadedInterface, loaded-module, loaded-hash, loaded-entry)
@@ -50,16 +52,93 @@ module Bootstrap.Export where
   sort-rows key rows = case rows of JArr row rest -> insert-row key row (sort-rows key rest); other -> JArrEnd
   append :: Json -> Json -> Json
   append first second = case first of JArr row rest -> JArr row (append rest second); other -> second
-  resolved-scheme :: Elaboration -> List LoadedInterface -> Scheme -> Result String Json
-  resolved-scheme typed interfaces scheme = case (export-scheme scheme, scheme-nominals scheme (elaboration-declarations typed) (elaboration-data typed) (elaboration-classes typed) interfaces) of
+  resolved-basic-scheme :: Elaboration -> List LoadedInterface -> Scheme -> Result String Json
+  resolved-basic-scheme typed interfaces scheme = case (export-scheme scheme, scheme-nominals scheme (elaboration-declarations typed) (elaboration-data typed) (elaboration-classes typed) interfaces) of
     (Ok spelling, Ok nominals) -> Ok (JObj "scheme" (JStr spelling) (JObj "nominals" nominals (JObj "measures" JArrEnd JObjEnd)))
     (Err error, other) -> Err error
     (other, Err error) -> Err error
+  -- Traverse the checked type, including kinds and dictionary requirements.
+  -- Only actual UIndexCall graphs create measure dependencies; names carry no
+  -- authority. Match the graph against the retained defining body association.
+  type-measures :: UType -> List TotalFunction
+  type-measures ty = case ty of
+    UIndexCall function args -> Cons function (type-measures args)
+    UCon name kind -> kind-measures kind
+    UBound id name kind -> kind-measures kind
+    URigid id name level kind -> kind-measures kind
+    UMeta id kind -> kind-measures kind
+    UIndex carrier term -> type-measures carrier
+    UIndexForget input -> type-measures input
+    UIndexPromote input -> type-measures input
+    UIndexByteLength input -> type-measures input
+    UIndexMath operation a b -> type-measures a <> type-measures b
+    UCompare relation a b -> type-measures a <> type-measures b
+    UPropAnd a b -> type-measures a <> type-measures b
+    UPropOr a b -> type-measures a <> type-measures b
+    UPropNot input -> type-measures input
+    UPropNonZero input -> type-measures input
+    UPropNonZeroPending input -> type-measures input
+    URequire predicates body -> type-measures predicates <> type-measures body
+    URefine id name carrier predicate -> type-measures carrier <> type-measures predicate
+    UPi id name domain row result -> type-measures domain <> type-measures row <> type-measures result
+    UApp a b -> type-measures a <> type-measures b
+    UFun a b -> type-measures a <> type-measures b
+    UFunEff a row b -> type-measures a <> type-measures row <> type-measures b
+    UProofFun a row b -> type-measures a <> type-measures row <> type-measures b
+    URow labels -> type-measures labels
+    URowJoin a b -> type-measures a <> type-measures b
+    UTuple fields -> type-measures fields
+    UArg a b -> type-measures a <> type-measures b
+    other -> Nil
+  kind-measures :: Kind -> List TotalFunction
+  kind-measures kind = case kind of
+    KValue payload -> (case value-carrier kind of Some carrier -> type-measures carrier; None -> Nil)
+    KFun a b -> kind-measures a <> kind-measures b
+    other -> Nil
+  parameter-measures :: List Quant -> List TotalFunction
+  parameter-measures parameters = case parameters of Nil -> Nil; Cons parameter rest -> kind-measures (quant-kind parameter) <> parameter-measures rest
+  requirement-measures :: List Requirement -> List TotalFunction
+  requirement-measures requirements = case requirements of Nil -> Nil; Cons requirement rest -> type-measures (requirement-type requirement) <> requirement-measures rest
+  scheme-measures :: Scheme -> List TotalFunction
+  scheme-measures scheme = parameter-measures (scheme-params scheme) <> requirement-measures (scheme-requirements scheme) <> type-measures (scheme-body scheme)
+  measure-binding :: TotalFunction -> List CheckedBinding -> Option BodyBinding
+  measure-binding function bindings = case bindings of
+    Nil -> None
+    Cons first rest -> case checked-body-binding first of
+      Some body -> if total-function-equal function (binding-function body) then Some body else measure-binding function rest
+      None -> measure-binding function rest
+  measure-rows :: Elaboration -> List LoadedInterface -> List String -> List TotalFunction -> Result String Json
+  measure-rows typed interfaces seen functions = case functions of
+    Nil -> Ok JArrEnd
+    Cons function rest -> let identity = total-identity function in
+      if measure-seen identity seen then measure-rows typed interfaces seen rest else
+        case measure-binding function (elaboration-bindings typed) of
+          None -> Err ("measure has no checked defining body: " <> identity)
+          Some binding -> case (resolved-basic-scheme typed interfaces (binding-scheme binding), measure-rows typed interfaces (Cons identity seen) rest) of
+            (Ok resolved, Ok more) -> (case scheme-measures (binding-scheme binding) of
+              Nil -> Ok (insert-row "identity" (JObj "identity" (JStr identity) (JObj "resolved" resolved (JObj "total_body" (total-function-document function) JObjEnd))) more)
+              other -> Err "a measure signature cannot depend on another observation")
+            (Err error, other) -> Err error
+            (other, Err error) -> Err error
+  measure-seen :: String -> List String -> Bool
+  measure-seen identity seen = case seen of Nil -> False; Cons first rest -> same identity first || measure-seen identity rest
+  resolved-scheme :: Elaboration -> List LoadedInterface -> Scheme -> Result String Json
+  resolved-scheme typed interfaces scheme = case (resolved-basic-scheme typed interfaces scheme, measure-rows typed interfaces Nil (scheme-measures scheme)) of
+    (Ok resolved, Ok measures) -> Ok (set-field "measures" measures resolved)
+    (Err error, other) -> Err error
+    (other, Err error) -> Err error
+  value-total-body :: CheckedBinding -> Json
+  value-total-body binding = case checked-body-binding binding of Some body -> total-function-document (binding-function body); None -> JNull
   resolved-source-scheme :: Elaboration -> List LoadedInterface -> String -> Scheme -> Result String Json
   resolved-source-scheme typed interfaces symbol scheme = case (resolved-scheme typed interfaces scheme, binding-refinements (elaboration-declarations typed) symbol) of
     (Ok resolved, Ok refinements) -> (case merge-nominals refinements (field "nominals" resolved) of
       Ok rows -> Ok (set-field "nominals" rows resolved)
       Err error -> Err error)
+    (Err error, other) -> Err error
+    (other, Err error) -> Err error
+  resolved-value-scheme :: Elaboration -> List LoadedInterface -> String -> Scheme -> Result String Json
+  resolved-value-scheme typed interfaces symbol scheme = case (resolved-source-scheme typed interfaces symbol scheme, export-value-scheme scheme) of
+    (Ok resolved, Ok spelling) -> Ok (set-field "scheme" (JStr spelling) resolved)
     (Err error, other) -> Err error
     (other, Err error) -> Err error
   imported-refinement-type :: List LoadedInterface -> String -> Option Json
@@ -84,11 +163,11 @@ module Bootstrap.Export where
     else if same (checked-role binding) "function" || same (checked-role binding) "value" || same (checked-role binding) "intrinsic" || same (checked-role binding) "instance" || same (checked-role binding) "implicit-instance" then
       let scheme = checked-scheme binding in
       let arity = scheme-runtime-arity scheme + list-length (scheme-requirements scheme) in
-      case (export-global symbol, resolved-source-scheme typed interfaces symbol scheme) of
+      case (export-global symbol, resolved-value-scheme typed interfaces symbol scheme) of
         (Ok identity, Ok resolved) -> Ok (JObj "name" (JStr name)
           (JObj "symbol" (JStr identity) (JObj "scheme" (field "scheme" resolved)
             (JObj "resolved" resolved (JObj "arity" (JNum (nat-to-int arity))
-              (JObj "total_body" JNull JObjEnd))))))
+              (JObj "total_body" (value-total-body binding) JObjEnd))))))
         (Err error, other) -> Err error
         (other, Err error) -> Err error
     else Err (string-concat "unsupported checked value export category: " (checked-role binding))
@@ -262,6 +341,49 @@ module Bootstrap.Export where
         Err error -> Err error
         Ok names -> Ok (JArr (JStr (string-concat-all [identity, ".", class-method-name member])) names))
     other -> Err "checked instance has an incomplete defining method table"
+  retained-body-bindings :: List CheckedBinding -> List BodyBinding
+  retained-body-bindings bindings = case bindings of
+    Nil -> Nil
+    Cons first rest -> case checked-body-binding first of Some body -> Cons body (retained-body-bindings rest); None -> retained-body-bindings rest
+  plain-total-sort :: UType -> Bool
+  plain-total-sort ty = case ty of UCon name KType -> same name "Nat" || same name "Int" || same name "Bool" || same name "Bytes" || same name "I64"; other -> False
+  plain-total-method-type :: UType -> Bool
+  plain-total-method-type ty = case ty of
+    UFun domain result -> plain-total-sort domain && plain-total-method-type result
+    UFunEff domain (URow UEnd) result -> plain-total-sort domain && plain-total-method-type result
+    other -> plain-total-sort ty
+  total-method-declaration :: List String -> String -> String
+  total-method-declaration parameters result = case parameters of Nil -> result; Cons first rest -> string-concat-all ["(", first, " -> ", total-method-declaration rest result, ")"]
+  actual-method-selector :: String -> Nat -> String -> List CheckedBinding -> String
+  actual-method-selector owner slot fallback bindings = case bindings of
+    Nil -> fallback
+    Cons first rest -> if checked-method-matches first (checked-name first) owner slot then
+      (case export-global (checked-name first) of Ok actual -> actual; Err error -> fallback)
+      else actual-method-selector owner slot fallback rest
+  instance-method-table :: Elaboration -> String -> String -> String -> List CoreClassMethod -> List CoreDictionaryField -> List (Nat, String, String, CoreDefinition)
+  instance-method-table typed owner identity declaring methods fields = case (methods, fields) of
+    (Cons member rest, Cons implementation more) -> if class-method-slot member /= dictionary-field-slot implementation then Nil else
+      Cons (class-method-slot member,
+        actual-method-selector owner (class-method-slot member) (string-concat-all [declaring, ".", class-method-name member]) (elaboration-bindings typed),
+        string-concat-all [identity, ".", class-method-name member], dictionary-field-definition implementation)
+        (instance-method-table typed owner identity declaring rest more)
+    other -> Nil
+  instance-method-bodies :: Elaboration -> CoreInstance -> String -> List (Nat, String, String, CoreDefinition) -> List (Nat, String, String, CoreDefinition) -> Json
+  instance-method-bodies typed declaration owner all remaining = case remaining of
+    Cons (slot, selector, native, definition) rest ->
+      let more = instance-method-bodies typed declaration owner all rest in
+      if not (plain-total-method-type (scheme-body (core-scheme definition))) then more else
+        (case core-method-total-function (retained-body-bindings (elaboration-bindings typed)) (elaboration-core typed)
+          (instance-name declaration) owner (instance-scheme declaration) all slot of
+          Some function -> JArr (JObj "slot" (JNum (nat-to-int slot))
+            (JObj "implementation" (JStr native)
+              (JObj "resolved" (JObj "scheme" (JStr (total-method-declaration (total-parameters function) (total-result function)))
+                (JObj "nominals" JArrEnd (JObj "measures" JArrEnd JObjEnd)))
+                (JObj "total_body" (total-function-document function) JObjEnd)))) more
+          None -> more)
+    other -> JArrEnd
+  with-instance-method-bodies :: Json -> Json -> Json
+  with-instance-method-bodies bodies row = case bodies of JArrEnd -> row; other -> set-field "method_bodies" bodies row
   instance-row :: Elaboration -> List LoadedInterface -> CoreInstance -> Result String Json
   instance-row typed interfaces declaration = let scheme = instance-scheme declaration in
     case scheme-requirements scheme of
@@ -273,9 +395,11 @@ module Bootstrap.Export where
           Some description -> case (export-global (instance-name declaration), export-global owner, resolved-source-scheme typed interfaces (instance-name declaration) scheme) of
             (Ok identity, Ok declaring, Ok resolved) -> case instance-method-names identity (class-methods description) (instance-fields declaration) of
               Err error -> Err error
-              Ok methods -> Ok (JObj "id" (JStr identity) (JObj "class" (JStr declaring)
-                (JObj "target" (field "scheme" resolved) (JObj "resolved" resolved (JObj "ctx" JArrEnd
-                  (JObj "methods" methods (JObj "method_contracts" JArrEnd (JObj "implicit" (JBool (instance-implicit declaration)) JObjEnd))))))))
+              Ok methods -> let table = instance-method-table typed owner identity declaring (class-methods description) (instance-fields declaration) in
+                Ok (with-instance-method-bodies (instance-method-bodies typed declaration owner table table)
+                (JObj "id" (JStr identity) (JObj "class" (JStr declaring)
+                  (JObj "target" (field "scheme" resolved) (JObj "resolved" resolved (JObj "ctx" JArrEnd
+                    (JObj "methods" methods (JObj "method_contracts" JArrEnd (JObj "implicit" (JBool (instance-implicit declaration)) JObjEnd)))))))))
             (Err error, other, more) -> Err error
             (other, Err error, more) -> Err error
             (other, more, Err error) -> Err error

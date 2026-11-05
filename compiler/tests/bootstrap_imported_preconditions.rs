@@ -73,5 +73,17 @@ fn imported_conditions_use_actual_caller_arguments() {
         assert_eq!(output.status.code(), Some(wanted), "{name}: {input}\n{report}\n{}", String::from_utf8_lossy(&output.stderr));
         if wanted == 4 { assert!(report.contains("precondition is not established"), "{name}: {report}"); }
     }
+    // Imported method facts require the same checked body declarations in
+    // the independent Core pass. Dropping that context must still refuse
+    // the branch certificate; restoring it must accept the unchanged input.
+    let branch = "module Main where\n  import Facade (previous)\n  safe :: Nat -> Nat\n  safe n = if n > 0 then previous n else 0\n  main :: Int\n  main = 0\n";
+    std::fs::write(dir.join("source.cinch"), branch).unwrap();
+    for (mode, wanted) in [("drop", 94), ("", 0)] {
+        std::fs::write(dir.join("body-context-mode.txt"), mode).unwrap();
+        let output = std::process::Command::new(&exe).current_dir(&dir).output().unwrap();
+        let report = common::read_output(&dir, "imported-report.txt");
+        assert_eq!(output.status.code(), Some(wanted), "actual imported method context {mode:?}: {report}\n{}", String::from_utf8_lossy(&output.stderr));
+        if wanted == 94 { assert!(report.contains("lost its Core evidence")); }
+    }
     common::cleanup(&source); common::cleanup(&dir);
 }

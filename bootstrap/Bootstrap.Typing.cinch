@@ -17,6 +17,7 @@ module Bootstrap.Typing where
 
   export close-typing-context-with-effects, close-typing-context-with-data, context-effects, task-definition-safe
   export TypingContext, close-typing-context, typing-definition-closed, context-bodies, context-guarded-bodies
+  export context-body-context, close-typing-context-with-definitions
   data TypingContext where
     CheckedTypingContext :: List (String, Kind) -> CoreGlobals -> List CoreEffect -> List CoreData -> TypingContext
   context-data :: TypingContext -> List CoreData
@@ -27,6 +28,8 @@ module Bootstrap.Typing where
   context-effects context = case context of CheckedTypingContext kinds globals effects datas -> effects
   context-bodies :: TypingContext -> List BodyBinding
   context-bodies context = case context of CheckedTypingContext kinds globals effects datas -> globals-bodies globals
+  context-body-context :: TypingContext -> BodyBindings
+  context-body-context context = case context of CheckedTypingContext kinds globals effects datas -> globals-body-context globals
   context-guarded-bodies :: TypingContext -> List GuardedBinding
   context-guarded-bodies context = case context of CheckedTypingContext kinds globals effects datas -> globals-guarded-bodies globals
   context-kinds :: TypingContext -> List (String, Kind)
@@ -84,9 +87,11 @@ module Bootstrap.Typing where
   close-typing-context-with-effects :: List (String, Kind) -> List CoreGlobal -> List CoreEffect -> Option TypingContext
   close-typing-context-with-effects kinds declarations effects = close-typing-context-with-data kinds declarations effects Nil
   close-typing-context-with-data :: List (String, Kind) -> List CoreGlobal -> List CoreEffect -> List CoreData -> Option TypingContext
-  close-typing-context-with-data kinds declarations effects datas = let all = kernel-effect-kinds <> kinds in
+  close-typing-context-with-data kinds declarations effects datas = close-typing-context-with-definitions kinds declarations effects datas Nil
+  close-typing-context-with-definitions :: List (String, Kind) -> List CoreGlobal -> List CoreEffect -> List CoreData -> List CoreDefinition -> Option TypingContext
+  close-typing-context-with-definitions kinds declarations effects datas definitions = let all = kernel-effect-kinds <> kinds in
     if nominal-kinds-closed all && global-types all declarations && effects-registered all declarations Nil effects && task-data-closed all datas then
-      (case close-globals declarations of Some globals -> Some (CheckedTypingContext all globals effects datas); None -> None)
+      (case close-globals-with-definitions declarations definitions of Some globals -> Some (CheckedTypingContext all globals effects datas); None -> None)
     else None
   wf :: TypingContext -> TypeScope -> UType -> Bool
   wf context scope ty = body-type-authorized (context-bodies context) ty && type-well-formed (context-kinds context) scope ty
@@ -625,10 +630,10 @@ module Bootstrap.Typing where
   clauses-typed-with :: TypingContext -> TypeScope -> List (Nat, UType) -> UType -> List CoreClause -> Bool
   clauses-typed-with context scope values expected clauses = case clauses of
     Nil -> True
-    Cons (MkCoreClause sp patterns body) rest -> clause-typed context scope (with-guarded-bindings (context-guarded-bodies context) (with-body-bindings (context-bodies context) (make-proof-scope values Nil))) expected empty-row patterns body && clauses-typed-with context scope values expected rest
+    Cons (MkCoreClause sp patterns body) rest -> clause-typed context scope (with-guarded-bindings (context-guarded-bodies context) (with-checked-body-bindings (context-body-context context) (make-proof-scope values Nil))) expected empty-row patterns body && clauses-typed-with context scope values expected rest
   typing-definition-closed :: TypingContext -> CoreDefinition -> Bool
   typing-definition-closed context definition = (case context of CheckedTypingContext kinds globals effects datas -> global-definition-closed globals definition)
-    && core-definition-contracts-closed (context-bodies context) (context-guarded-bodies context) definition
+    && core-definition-checked-contracts-closed (context-body-context context) (context-guarded-bodies context) definition
     && task-definition-safe context definition
     && (case openings-scope context empty-type-scope (core-openings definition) of
       Some opened -> (case private-scope opened (core-private-types definition) of

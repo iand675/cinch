@@ -25,3 +25,24 @@ fn compiled_cinch_rechecks_body_bindings_refinements_and_changed_callees() {
     }
     common::cleanup(&dir);
 }
+
+
+#[test]
+fn compiled_cinch_source_bodies_require_the_actual_root_and_dependency_definitions() {
+    let dir = common::project("source_body_bindings", &[
+        ("Bootstrap.Type.cinch", include_str!("../../bootstrap/Bootstrap.Type.cinch")),
+        ("Bootstrap.Core.cinch", include_str!("../../bootstrap/Bootstrap.Core.cinch")),
+        ("Bootstrap.Global.cinch", include_str!("../../bootstrap/Bootstrap.Global.cinch")),
+        ("Bootstrap.Instance.cinch", include_str!("../../bootstrap/Bootstrap.Instance.cinch")),
+        ("Main.cinch", include_str!("../../bootstrap/programs/Run.SourceBodyBindings.cinch")),
+    ]);
+    let exe = common::build(&dir, "Main.cinch", "source-body-bindings").expect("compile actual source-body association checker");
+    for size in [0, 8, 64] {
+        std::fs::write(dir.join("nonce.txt"), vec![b'x'; size]).unwrap();
+        let result = std::process::Command::new(&exe).current_dir(&dir)
+            .env("CINCH_HEAP_LIMIT", "32M").env("CINCH_RC_DEBUG", "1").env("CINCH_LEAK_CHECK", "1").output().unwrap();
+        assert_eq!(result.status.code(), Some(0), "source-body authority at nonce{size}; project {}\n{}", dir.display(), String::from_utf8_lossy(&result.stderr));
+        assert!(String::from_utf8_lossy(&result.stderr).contains("cinch-leak: live=0 immortal=0 leaked=0"));
+    }
+    common::cleanup(&dir);
+}

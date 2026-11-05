@@ -9,6 +9,7 @@ module Bootstrap.Total where
   import Text.Json (canonical-bytes)
 
   export TotalGraph, TotalFunction, check-total-graph, total-function, total-graph-for-roots
+  export total-decimal-value, total-function-closure
   export total-identity, total-parameters, total-result, total-body, total-document, total-bounds, total-function-document, total-function-equal, total-functions-compatible
 
   data TotalGraph where
@@ -155,6 +156,16 @@ module Bootstrap.Total where
   total-result function = text (field "result" (function-row function))
   total-function-document :: TotalFunction -> Json
   total-function-document function = case function of MkTotalFunction graph name -> total-document graph
+  closure-rows :: List String -> Json -> Json
+  closure-rows names rows = case rows of
+    JArr row rest -> if has (text (field "identity" row)) names then JArr row (closure-rows names rest) else closure-rows names rest
+    other -> JArrEnd
+  total-function-closure :: TotalGraph -> String -> Option TotalFunction
+  total-function-closure graph name = case graph of MkTotalGraph doc -> (case acyclic-calls (field "definitions" doc) Nil Nil [name] of
+    Some reachable -> (case check-total-graph (JObj "version" (JNum 1) (JObj "definitions" (closure-rows reachable (field "definitions" doc)) JObjEnd)) of
+      Some closed -> total-function closed name
+      None -> None)
+    None -> None)
   total-function-equal :: TotalFunction -> TotalFunction -> Bool
   total-function-equal first second = same (total-identity first) (total-identity second)
     && bytes-compare (canonical-bytes (total-function-document first)) (canonical-bytes (total-function-document second)) == 0
@@ -227,3 +238,6 @@ module Bootstrap.Total where
     other -> False
   total-functions-compatible :: TotalFunction -> TotalFunction -> Bool
   total-functions-compatible first second = compatible-definitions (field "definitions" (total-function-document first)) (field "definitions" (total-function-document second))
+
+  total-decimal-value :: String -> Option Int
+  total-decimal-value text = decimal-value text

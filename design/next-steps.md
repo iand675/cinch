@@ -1,5 +1,34 @@
 # Next steps (as of 2026-11-05)
 
+## Cinch consumes actual method bodies; full nineteen-group gate passes (2026-11-05)
+
+The published 29775 compiler retains actual checked dictionary-method bodies
+through loading, source projection, export and proof checking. It follows the
+selected implementation's own slot, type, private dependency closure and closed
+self dictionary. Names and class identities supply no arithmetic assumptions.
+Real self calls are reified through their checked fields; cyclic bodies remain
+opaque. Independent Core checking receives the same actual body declarations.
+
+All43 modules and all nineteen complete proof/interface groups pass:23 Rust
+harness tests, including both original method-proof matrices. Every original
+caller case remains, with explicit body-context removal/refusal and restoration
+controls. All28 fresh actual-exporter controls pass with13 zero-leak reports;
+independent decoding and bignum execution confirm changed private arithmetic,
+identity, chained methods, closure ownership and cycle refusal. All251 matching
+auxiliary tests pass. See `bootstrap/current-cinch-method-body-results.json`.
+
+The explicit seed and separate library-provider pins now select published
+25b7e82, with their exact archived source hash and ABI6. Fresh Stage0 passes its
+smokes and the library-only producer's55 interfaces and all62 artifacts pass
+independent audit. A genuine new Stage1/2/3 chain and full current suites remain
+required; the c8d6 fixed-point evidence keeps its earlier source scope.
+
+A newer private serializer candidate passes43 exporter controls and seven
+unchanged original metadata assertion blocks. Its new collision case exposed a
+Native false refusal of quantified values in signature predicates. That Rust
+repair is under validation, and the original failing case remains. Original
+GADT/local-forall/foreign/source-overlay API parity and Acceptance5 remain open.
+
 ## Current Cinch method-body candidate: exporter and auxiliary gates (2026-11-05)
 
 The private 29775 compiler now passes its all-43 module check and all 28 fresh

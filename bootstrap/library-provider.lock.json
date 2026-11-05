@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "revision": "b64710b29e57c0b73dbfce8fa67c3bf1e581ea6c",
+  "revision": "25b7e822e806ac767585cd34e9078ecd2a080c17",
   "runtime_abi": 6,
-  "source_sha256": "dbe00931df2b2ab7a14a56e4acc6653dc7a4d01a0dc1d3e1f4da22e9ce039ffb",
-  "description": "Exact ABI6 b64710b library-only Native producer. Never compiles Bootstrap implementation modules. Seed and provider retain separate explicit roles and private caches."
+  "source_sha256": "255f06b66561d5f47030b56e6fdb32f51fa7876c9f46787ed3f07580b211714b",
+  "description": "Exact published25b7e82 ABI6 library-only provider with actual checked method and primitive roots. Never compiles Bootstrap implementation modules; separate verified source and private cache from the seed."
 }

@@ -3,38 +3,142 @@
 -- cannot replace them. No source names or private callees are introduced here.
 module Bootstrap.BodyContract where
   import Bootstrap.Type
+  import Bootstrap.Ast (TypeExpr, TName, TApp, TArg, TArgsEnd)
+  import Bootstrap.Parse (parse-scheme)
+  import Text.Parse (ParseOutcome, Parsed, Failed)
   import Bootstrap.Index
   import Bootstrap.Total
   import Bootstrap.Proof
+  import Bootstrap.Load (LoadedInterface, InterfaceSet, loaded-contract, interface-set-members, interface-set-body, loaded-entry)
+  import Bootstrap.Nominal (interface-global, kernel-type-name, resolved-text)
+  import Data.Json
+  import Data.Nat (nat-to-int)
   import Text.Lex (Span)
   import Algebra.Semigroup
 
   export BodyBinding, check-body-binding, binding-name, binding-native, binding-role
   export binding-scheme, binding-function, binding-equal, binding-matches
+  export BodyBindings, empty-body-bindings, body-bindings-members, check-body-bindings, extend-body-bindings
   export body-bindings-closed, body-binding, body-function, body-type-authorized, body-kind-authorized, body-scheme-authorized
+  export check-source-body-binding, check-imported-method-binding, selected-method-body, method-selection-matches
 
   data BodyBinding where
     VerifiedBody :: String -> String -> String -> Scheme -> TotalFunction -> BodyBinding
+    VerifiedMethodBody :: String -> Nat -> String -> String -> String -> TypeExpr -> BodyBinding -> BodyBinding
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
   equal-type :: UType -> UType -> Bool
   equal-type a b = valid-type a && valid-type b && (case store-errors (unify (Span 0 0 1 1) (without-index-levels a) (without-index-levels b) (empty-store "body declaration")) of Nil -> True; other -> False)
   binding-name :: BodyBinding -> String
-  binding-name binding = case binding of VerifiedBody name native role sc function -> name
+  binding-name binding = case binding of VerifiedBody name native role sc function -> name; VerifiedMethodBody dictionary slot owner selector text factory actual -> binding-name actual
   binding-native :: BodyBinding -> String
-  binding-native binding = case binding of VerifiedBody name native role sc function -> native
+  binding-native binding = case binding of VerifiedBody name native role sc function -> native; VerifiedMethodBody dictionary slot owner selector text factory actual -> binding-native actual
   binding-role :: BodyBinding -> String
-  binding-role binding = case binding of VerifiedBody name native role sc function -> role
+  binding-role binding = case binding of VerifiedBody name native role sc function -> role; VerifiedMethodBody dictionary slot owner selector text factory actual -> binding-role actual
   binding-scheme :: BodyBinding -> Scheme
-  binding-scheme binding = case binding of VerifiedBody name native role sc function -> sc
+  binding-scheme binding = case binding of VerifiedBody name native role sc function -> sc; VerifiedMethodBody dictionary slot owner selector text factory actual -> binding-scheme actual
   binding-function :: BodyBinding -> TotalFunction
-  binding-function binding = case binding of VerifiedBody name native role sc function -> function
+  binding-function binding = case binding of VerifiedBody name native role sc function -> function; VerifiedMethodBody dictionary slot owner selector text factory actual -> binding-function actual
   binding-matches :: String -> String -> Scheme -> BodyBinding -> Bool
   binding-matches name role sc binding = same name (binding-name binding) && same role (binding-role binding)
     && (case (scheme-params sc, scheme-requirements sc) of (Nil, Nil) -> equal-type (scheme-body sc) (scheme-body (binding-scheme binding)); other -> False)
   binding-equal :: BodyBinding -> BodyBinding -> Bool
-  binding-equal first second = binding-matches (binding-name first) (binding-role first) (binding-scheme first) second
+  binding-equal first second = method-association-equal first second && binding-matches (binding-name first) (binding-role first) (binding-scheme first) second
     && same (binding-native first) (binding-native second) && total-function-equal (binding-function first) (binding-function second)
+  method-association-equal :: BodyBinding -> BodyBinding -> Bool
+  method-association-equal first second = case (first, second) of
+    (VerifiedMethodBody a slot owner selector text factory body, VerifiedMethodBody b number next member source subject other) -> same a b && slot == number && same owner next && same selector member && same text source && method-association-equal body other
+    (VerifiedBody a b c sc f, VerifiedBody x y z ty g) -> True
+    other -> False
+  selected-method-body :: String -> Nat -> List BodyBinding -> Option BodyBinding
+  selected-method-body dictionary slot bindings = case bindings of
+    Nil -> None
+    Cons first rest -> case first of
+      VerifiedMethodBody actual number owner selector text factory body -> if same actual dictionary && slot == number then Some first else selected-method-body dictionary slot rest
+      other -> selected-method-body dictionary slot rest
+  method-field :: String -> Json -> Json
+  method-field name document = case document of JObj key value rest -> if same key name then value else method-field name rest; other -> JNull
+  method-text :: Json -> String
+  method-text value = case value of JStr text -> text; other -> ""
+  method-at :: Nat -> Json -> Option String
+  method-at slot rows = case rows of JArr (JStr native) rest -> if slot == 0 then Some native else method-at (slot - 1) rest; other -> None
+  selected-implementation :: String -> Nat -> Json -> Option String
+  selected-implementation dictionary slot rows = case rows of
+    JArr row rest -> if same dictionary (interface-global (method-text (method-field "id" row))) then method-at slot (method-field "methods" row) else selected-implementation dictionary slot rest
+    other -> None
+  declared-implementation :: String -> Nat -> List LoadedInterface -> Option String
+  declared-implementation dictionary slot interfaces = case interfaces of
+    Nil -> None
+    Cons first rest -> case selected-implementation dictionary slot (method-field "instances" (method-field "exports" (loaded-contract first))) of
+      Some native -> Some native
+      None -> declared-implementation dictionary slot rest
+  -- Both the dictionary implementation and its declaring method come from
+  -- this complete checked interface set. A body alone cannot authorize a
+  -- different method name, owner, class actuals or evidence subject.
+  instance-row :: String -> Json -> Option Json
+  instance-row dictionary rows = case rows of
+    JArr row rest -> if same dictionary (interface-global (method-text (method-field "id" row))) then Some row else instance-row dictionary rest
+    other -> None
+  declared-instance :: String -> List LoadedInterface -> Option Json
+  declared-instance dictionary interfaces = case interfaces of
+    Nil -> None
+    Cons first rest -> case instance-row dictionary (method-field "instances" (method-field "exports" (loaded-contract first))) of Some row -> Some row; None -> declared-instance dictionary rest
+  factory-owner :: TypeExpr -> Option String
+  factory-owner factory = case factory of TName s name -> Some name; TApp s head args -> factory-owner head; other -> None
+  declared-member-at :: Nat -> Json -> Option String
+  declared-member-at slot rows = case rows of
+    JArr row rest -> (case method-field "slot" row of
+      JNum number -> if number == nat-to-int slot then Some (method-text (method-field "name" row)) else declared-member-at slot rest
+      other -> None)
+    other -> None
+  declared-member :: String -> Nat -> List LoadedInterface -> Option String
+  declared-member owner slot interfaces = case interfaces of
+    Nil -> None
+    Cons first rest -> case loaded-entry first "signature" owner of
+      Some class-row -> declared-member-at slot (method-field "methods" class-row)
+      None -> declared-member owner slot rest
+  -- These closed index-method factories are already checked by InterfaceSet.
+  -- Compare their resolved syntax structurally with the retained Core subject;
+  -- qualified nominal identities are never interpreted as source aliases.
+  factory-spine :: UType -> List UType -> (UType, List UType)
+  factory-spine ty arguments = case ty of UApp head arg -> factory-spine head (Cons arg arguments); other -> (ty, arguments)
+  resolved-arguments-match :: TypeExpr -> List UType -> Bool
+  resolved-arguments-match syntax actuals = case (syntax, actuals) of
+    (TArgsEnd s, Nil) -> True
+    (TArg s first rest, Cons actual more) -> resolved-factory-match first actual && resolved-arguments-match rest more
+    other -> False
+  resolved-factory-match :: TypeExpr -> UType -> Bool
+  resolved-factory-match syntax actual = valid-type actual && (case syntax of
+    TName s name -> (case actual of UCon identity kind -> same identity (if kernel-type-name name then name else interface-global name); other -> False)
+    TApp s head args -> (case factory-spine actual Nil of (subject, actuals) -> resolved-factory-match head subject && resolved-arguments-match args actuals)
+    other -> False)
+  same-types :: List UType -> List UType -> Bool
+  same-types first second = case (first, second) of
+    (Nil, Nil) -> True
+    (Cons a rest, Cons b more) -> equal-type a b && same-types rest more
+    other -> False
+  method-selection-matches :: String -> Nat -> String -> String -> List UType -> UType -> BodyBinding -> Bool
+  method-selection-matches dictionary slot name owner actuals subject binding = case binding of
+    VerifiedMethodBody actual number declared selector source factory body -> same dictionary actual && slot == number
+      && same owner declared && same name selector && resolved-factory-match factory subject
+      && (case factory-spine subject Nil of (UCon head kind, arguments) -> same head owner && same-types arguments actuals; other -> False)
+    other -> False
+  check-imported-method-binding :: InterfaceSet -> String -> Nat -> Scheme -> Option BodyBinding
+  check-imported-method-binding interfaces dictionary slot sc = case declared-instance dictionary (interface-set-members interfaces) of
+    Some row -> (case (method-at slot (method-field "methods" row), resolved-text row, method-field "ctx" row) of
+      (Some native, Some text, JArrEnd) -> (case parse-scheme "checked method factory" (string-to-bytes text) of
+        Parsed factory Nil -> (case factory-owner factory of
+          Some owner -> (case declared-member owner slot (interface-set-members interfaces) of
+            Some member -> (case interface-set-body native interfaces of
+              Some function -> (case check-body-binding (interface-global native) native "external" sc function of
+                Some body -> Some (VerifiedMethodBody dictionary slot (interface-global owner) (interface-global (string-concat-all [owner, ".", member])) text factory body)
+                None -> None)
+              None -> None)
+            None -> None)
+          None -> None)
+        other -> None)
+      other -> None)
+    None -> None
   sort-type :: String -> UType -> Bool
   sort-type sort ty = case ty of UCon name KType -> same name sort; other -> False
   numeric :: UType -> Bool
@@ -73,10 +177,10 @@ module Bootstrap.BodyContract where
     URefine id name carrier predicate -> sort-type (total-result function) carrier && numeric carrier
       && (case result-predicate id carrier predicate of Some goal -> (case prove (result-facts function) goal of Some evidence -> check-proof (result-facts function) goal evidence; None -> False); None -> False)
     other -> False
-  signature-valid :: TotalFunction -> List String -> UType -> Bool
-  signature-valid function parameters ty = case (parameters, ty) of
-    (Cons expected rest, UFun domain result) -> sort-type expected domain && signature-valid function rest result
-    (Cons expected rest, UFunEff domain (URow UEnd) result) -> sort-type expected domain && signature-valid function rest result
+  class-row-valid :: TotalFunction -> List String -> UType -> Bool
+  class-row-valid function parameters ty = case (parameters, ty) of
+    (Cons expected rest, UFun domain result) -> sort-type expected domain && class-row-valid function rest result
+    (Cons expected rest, UFunEff domain (URow UEnd) result) -> sort-type expected domain && class-row-valid function rest result
     (Nil, result) -> result-valid function result
     other -> False
   -- Source definitions and intrinsic/method tags need their own body/ABI
@@ -86,12 +190,42 @@ module Bootstrap.BodyContract where
     if string-length name == 0 || not (same native (total-identity function))
       || not (same role "external") then None
     else case (scheme-params sc, scheme-requirements sc) of
-      (Nil, Nil) -> if signature-valid function (total-parameters function) (scheme-body sc) then Some (VerifiedBody name native role sc function) else None
+      (Nil, Nil) -> if class-row-valid function (total-parameters function) (scheme-body sc) then Some (VerifiedBody name native role sc function) else None
       other -> None
+  -- Source associations require an actual matching Core definition when the
+  -- global context is closed. The imported admission above stays external-only.
+  check-source-body-binding :: String -> String -> Scheme -> TotalFunction -> Option BodyBinding
+  check-source-body-binding name native sc function =
+    if string-length name == 0 || not (same native (total-identity function)) then None else
+      case (scheme-params sc, scheme-requirements sc) of
+        (Nil, Nil) -> if source-class-row-valid function (total-parameters function) (scheme-body sc) then Some (VerifiedBody name native "value" sc function) else None
+        other -> None
+  source-class-row-valid :: TotalFunction -> List String -> UType -> Bool
+  source-class-row-valid function parameters ty = case (parameters, ty) of
+    (Cons expected rest, UFun domain result) -> sort-type expected domain && source-class-row-valid function rest result
+    (Cons expected rest, UFunEff domain (URow UEnd) result) -> sort-type expected domain && source-class-row-valid function rest result
+    (Nil, URefine id name carrier predicate) -> result-valid function ty && (case total-bounds function of Some bounds -> True; None -> False)
+    (Nil, result) -> result-valid function result
+    other -> False
   body-binding :: String -> List BodyBinding -> Option BodyBinding
   body-binding name bindings = case bindings of Nil -> None; Cons first rest -> if same name (binding-name first) then Some first else body-binding name rest
   body-function :: TotalFunction -> List BodyBinding -> Option BodyBinding
   body-function function bindings = case bindings of Nil -> None; Cons first rest -> if total-function-equal function (binding-function first) then Some first else body-function function rest
+  -- A closed context is immutable and cannot be forged by clients. Check
+  -- compatibility once, then carry this handle through proof/typing scopes.
+  data BodyBindings where
+    CheckedBodyBindings :: List BodyBinding -> BodyBindings
+  empty-body-bindings :: BodyBindings
+  empty-body-bindings = CheckedBodyBindings Nil
+  body-bindings-members :: BodyBindings -> List BodyBinding
+  body-bindings-members context = case context of CheckedBodyBindings members -> members
+  check-body-bindings :: List BodyBinding -> Option BodyBindings
+  check-body-bindings members = if body-bindings-closed members then Some (CheckedBodyBindings members) else None
+  extend-body-bindings :: BodyBinding -> BodyBindings -> Option BodyBindings
+  extend-body-bindings binding context = case body-binding (binding-name binding) (body-bindings-members context) of
+    Some prior -> if binding-equal prior binding then Some context else None
+    None -> if compatible binding (body-bindings-members context) then Some (CheckedBodyBindings (Cons binding (body-bindings-members context))) else None
+
   compatible :: BodyBinding -> List BodyBinding -> Bool
   compatible binding bindings = case bindings of
     Nil -> True

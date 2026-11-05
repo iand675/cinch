@@ -9,7 +9,7 @@ module Bootstrap.ExportType where
   import Data.String
   import Text.Show (nat-to-string, int-to-string)
 
-  export export-global, export-type, export-scheme, export-kind
+  export export-global, export-type, export-scheme, export-value-scheme, export-kind
   export export-parameters, export-constructor-fields
 
   join :: List (Result String String) -> Result String String
@@ -225,6 +225,38 @@ module Bootstrap.ExportType where
   export-scheme scheme = case quantifiers Nil (scheme-params scheme) of
     Err error -> Err error
     Ok (prefix, scope) -> case (requirements scope 0 (scheme-requirements scheme), scheme-result scope (scheme-body scheme)) of
+      (Err error, other) -> Err error
+      (other, Err error) -> Err error
+      (Ok dictionaries, Ok (body, predicates)) ->
+        let contexts = (if string-length dictionaries == 0 then Nil else [dictionaries]) <> predicates in
+        let constrained = case contexts of Nil -> Ok body; more -> join [Ok "using (", Ok (strings ", " more), Ok ") => ", Ok body] in
+        if string-length prefix == 0 then constrained else join [Ok "forall ", Ok prefix, Ok ". ", constrained]
+
+  -- Callable source contracts retain their declared binder names. Constructor
+  -- fields and nominal parameter tables keep the canonical quantifier printer.
+  -- Freshening still prevents a source spelling from capturing another binder.
+  source-binder :: String -> String -> List (Nat, String) -> String
+  source-binder fallback name scope = fresh-scoped-name (case unpack name of
+    Nil -> fallback
+    Cons first rest -> if char-code first == 35 || char-code first == 36 || same name "_" then fallback else name) scope
+  value-quantifiers :: List (Nat, String) -> List Quant -> Result String (String, List (Nat, String))
+  value-quantifiers scope quants = case quants of
+    Nil -> Ok ("", scope)
+    Cons q rest -> let name = source-binder (fresh-name "q" (list-length scope)) (quant-name q) scope in
+      (case (kind-in scope (quant-kind q), value-quantifiers (Cons (quant-id q, name) scope) rest) of
+        (Ok kind, Ok (more, bound)) -> Ok (string-concat-all [if quant-implicit q then "{" else "(", name, " :: ", kind, if quant-implicit q then "} " else ") ", more], bound)
+        (Err error, other) -> Err error
+        (other, Err error) -> Err error)
+  value-requirements :: List (Nat, String) -> List (Nat, String) -> Nat -> List Requirement -> Result String String
+  value-requirements scope used position needs = case needs of
+    Nil -> Ok ""
+    Cons first rest -> let name = source-binder (fresh-name "d" position) (requirement-name first) used in
+      join [Ok name, Ok " :: ", application-in scope (requirement-type first),
+        case rest of Nil -> Ok ""; more -> join [Ok ", ", value-requirements scope (Cons (0, name) used) (position + 1) more]]
+  export-value-scheme :: Scheme -> Result String String
+  export-value-scheme scheme = case value-quantifiers Nil (scheme-params scheme) of
+    Err error -> Err error
+    Ok (prefix, scope) -> case (value-requirements scope scope 0 (scheme-requirements scheme), scheme-result scope (scheme-body scheme)) of
       (Err error, other) -> Err error
       (other, Err error) -> Err error
       (Ok dictionaries, Ok (body, predicates)) ->

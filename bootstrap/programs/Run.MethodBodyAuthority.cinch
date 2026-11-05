@@ -1,0 +1,61 @@
+module Main where
+  import Bootstrap.Type
+  import Bootstrap.Core
+  import Bootstrap.Load
+  import Bootstrap.Inputs (read-interfaces)
+  import Bootstrap.BodyContract
+  import Bootstrap.Nominal (interface-global)
+  import Bootstrap.Total
+  import Bootstrap.Proof
+  import Bootstrap.Index
+  import Text.Lex (Span)
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read, fs-write)
+  sp :: Span
+  sp = Span 0 0 1 1
+  nat :: UType
+  nat = UCon "Nat" KType
+  boolean :: UType
+  boolean = UCon "Bool" KType
+  dict :: String
+  dict = interface-global "Data.Nat.Ord_Nat"
+  owner :: String
+  owner = interface-global "Relation.Ord.Ord"
+  method-type :: UType
+  method-type = UFun nat (UFun nat boolean)
+  evidence :: CoreEvidence
+  evidence = CEInstance sp (UApp (UCon owner (KFun KType KType)) nat) dict Nil (CEArgumentsEnd sp)
+  method :: Nat -> List CoreEvidence -> CoreTerm
+  method slot proofs = CMethod sp method-type (interface-global "Relation.Ord.Ord.<") owner slot [nat] proofs
+  call :: CoreTerm -> CoreTerm
+  call selected = CApply sp boolean (CApply sp (UFun nat boolean) selected (CInt sp nat "1")) (CInt sp nat "3")
+  unknown :: ProofScope -> CoreTerm -> Bool
+  unknown scope term = case scoped-core-condition scope Nil term of None -> True; Some fact -> False
+  selected :: BodyBinding -> ProofScope
+  selected body = with-body-bindings [body] (make-proof-scope Nil Nil)
+  actual :: ProofScope -> Bool
+  actual scope = case scoped-core-condition scope Nil (call (method 0 [evidence])) of
+    Some fact -> proposition-equal fact (PCompare Less (AInteger 1) (AInteger 3))
+    None -> False
+  closed :: BodyBinding -> Bool
+  closed body = case check-total-graph (total-function-document (binding-function body)) of
+    Some graph -> total-graph-for-roots graph [binding-native body] && (case total-function graph "Data.String.utf8-encode-width" of None -> True; Some unrelated -> False)
+    None -> False
+  run :: InterfaceSet -> Bool -> Int
+  run interfaces wanted = case check-imported-method-binding interfaces dict 0 (mono method-type) of
+    None -> 10
+    Some body -> let scope = selected body in
+      if not (closed body) then 11
+      else if not (unknown (make-proof-scope Nil Nil) (call (method 0 [evidence]))) then 12
+      else if not (unknown scope (call (method 1 [evidence]))) then 13
+      else if not (unknown scope (call (method 0 [CEGiven sp (UApp (UCon owner (KFun KType KType)) nat) "arbitrary-local-dictionary"]))) then 14
+      else if (case check-imported-method-binding interfaces dict 999 (mono method-type) of None -> False; Some forged -> True) then 15
+      else if (case check-imported-method-binding interfaces "made-up-dictionary" 0 (mono method-type) of None -> False; Some forged -> True) then 16
+      else if (case check-imported-method-binding interfaces dict 0 (mono (UFun boolean (UFun nat boolean))) of None -> False; Some forged -> True) then 17
+      else if wanted then (if actual scope then 0 else 18)
+      else (if unknown scope (call (method 0 [evidence])) then 0 else 19)
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case (read-interfaces "interfaces.json", fs-read (path-from-string "expect-comparison.txt")) of
+    (Ok loaded, Ok mode) -> (case check-interface-set loaded of Ok interfaces -> run interfaces (bytes-len mode > 0); Err error -> 20)
+    (Err message, other) -> (case fs-write (path-from-string "method-provider-error.txt") (string-to-bytes message) of Ok unit -> 90; Err error -> 90)
+    other -> 90

@@ -1,0 +1,73 @@
+module Main where
+  import Bootstrap.Type
+  import Algebra.Semigroup
+  import Bootstrap.Core
+  import Bootstrap.Global
+  import Bootstrap.BodyContract
+  import Bootstrap.Total (total-body)
+  import Data.Json
+  import Text.Lex (Span)
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read)
+  sp :: Span
+  sp = Span 0 0 1 1
+  nat :: UType
+  nat = UCon "Nat" KType
+  arrow :: UType
+  arrow = UFun nat nat
+  definition :: String -> Nat -> CoreTerm -> CoreDefinition
+  definition name id body = MkCoreDefinition sp name (mono arrow) Nil Nil Nil [MkCoreClause sp [CPVar sp nat id "input"] body]
+  local :: Nat -> CoreTerm
+  local id = CLocal sp nat id "input" Nil
+  constant :: CoreTerm
+  constant = CInt sp nat "7"
+  refused :: List CoreGlobal -> List CoreDefinition -> Bool
+  refused globals definitions = case close-globals-with-definitions globals definitions of None -> True; Some context -> False
+  associated :: BodyBinding -> CoreGlobal
+  associated body = GlobalBody (GlobalValue (binding-name body) "value" (binding-scheme body)) body
+  identity-checks :: Nat -> List Bool
+  identity-checks id = let actual = definition "width" id (local id) in
+    case core-source-body Nil [actual] "width" of
+      None -> [False]
+      Some body -> let globals = [associated body] in
+        [ (case close-globals-with-definitions globals [actual] of Some context -> global-definition-closed context actual; None -> False)
+        , (case close-globals globals of None -> True; Some context -> False)
+        , refused globals Nil
+        , refused globals [definition "width" id constant]
+        , refused [GlobalBody (GlobalValue "width" "external" (mono arrow)) body] [actual]
+        , refused [GlobalBody (GlobalValue "other" "value" (mono arrow)) body] [actual]
+        , (case close-globals-with-definitions globals [actual] of Some context -> not (global-definition-closed context (definition "width" id constant)); None -> False)
+        , (case core-source-body Nil [definition "width" id (CApply sp nat (CUse sp arrow "missing" "value" Nil) (local id))] "width" of None -> True; Some forged -> False)
+        ]
+  dependency-checks :: Nat -> List Bool
+  dependency-checks id = let helper = definition "helper" (id + 1) (local (id + 1)) in
+    let root = definition "width" id (CApply sp nat (CUse sp arrow "helper" "value" Nil) (local id)) in
+    let definitions = [root, helper] in
+    case core-source-body Nil definitions "width" of
+      None -> [False]
+      Some body -> let globals = [associated body, GlobalValue "helper" "value" (mono arrow)] in
+        [ (case close-globals-with-definitions globals definitions of Some context -> global-definition-closed context root && global-definition-closed context helper; None -> False)
+        , refused globals [root, definition "helper" (id + 1) constant]
+        , refused globals [root]
+        , (case close-globals-with-definitions globals definitions of Some context -> not (global-definition-closed context (definition "helper" (id + 1) constant)); None -> False)
+        , (case core-source-body Nil [root, definition "helper" (id + 1) (CApply sp nat (CUse sp arrow "width" "value" Nil) (local (id + 1)))] "width" of None -> True; Some forged -> False)
+        ]
+  field :: String -> Json -> Json
+  field name doc = case doc of JObj key value rest -> if string-compare name key == 0 then value else field name rest; other -> JNull
+  second-slot :: BodyBinding -> Bool
+  second-slot body = case (field "node" (total-body (binding-function body)), field "slot" (total-body (binding-function body))) of
+    (JStr node, JNum slot) -> string-compare node "local" == 0 && slot == 1
+    other -> False
+  wildcard-check :: Nat -> Bool
+  wildcard-check id = let sc = mono (UFun nat (UFun nat nat)) in
+    let actual = MkCoreDefinition sp "second" sc Nil Nil Nil [MkCoreClause sp [CPWild sp nat, CPVar sp nat id "second"] (local id)] in
+    case core-source-body Nil [actual] "second" of
+      Some body -> second-slot body && (case close-globals-with-definitions [associated body] [actual] of Some context -> global-definition-closed context actual; None -> False)
+      None -> False
+  verdict :: List Bool -> Int -> Int
+  verdict checks number = case checks of Nil -> 0; Cons True rest -> verdict rest (number + 1); Cons False rest -> number
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case fs-read (path-from-string "nonce.txt") of
+    Ok nonce -> let id = bytes-len nonce + 340282366920938463463374607431768211456 in
+      verdict (identity-checks id <> dependency-checks id <> [wildcard-check id]) 1
+    Err error -> 90

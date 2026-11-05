@@ -2,11 +2,13 @@
 -- A class name, a slot or a function's spelling supplies no equation.
 module Bootstrap.TotalSemantics where
   import Bootstrap.Total
+  import Bootstrap.Proof
   import Data.Json
   import Data.Nat (nat-from-int, nat-to-int)
   import Algebra.Semigroup
 
   export total-numeric-operation, total-numeric-comparison
+  export total-numeric-reading, total-bytes-reading, total-boolean-reading
 
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
@@ -31,9 +33,9 @@ module Bootstrap.TotalSemantics where
       (Some value, left) -> (case expand-arguments graph scope rest left of (Some more, remaining) -> (Some (JArr value more), remaining); other -> other)
       other -> other)
     other -> (None, fuel)
-  -- Shared fuel bounds expansion through reused callees. Only straight-line
-  -- equations are recognized here; conditionals and unsupported shapes stay
-  -- opaque. Eliminated strict lets already have checked total, pure RHSs.
+  -- Shared fuel bounds expansion through reused callees. Conditionals retain
+  -- their checked branches; the arithmetic reader selects only known tests.
+  -- Eliminated strict lets already have checked total, pure RHSs.
   expand :: TotalGraph -> List Json -> Json -> Nat -> (Option Json, Nat)
   expand graph scope term fuel = if fuel == 0 then (None, 0) else
     let left = fuel - 1 in let node = text (field "node" term) in
@@ -47,6 +49,13 @@ module Bootstrap.TotalSemantics where
         (Some arguments, remaining) -> (case values arguments of Some inputs -> expand graph inputs (total-body callee) remaining; None -> (None, remaining))
         other -> other)
       None -> (None, left))
+    else if same node "if" then (case expand graph scope (field "condition" term) left of
+      (Some condition, after-condition) -> (case expand graph scope (field "yes" term) after-condition of
+        (Some yes, after-yes) -> (case expand graph scope (field "no" term) after-yes of
+          (Some no, remaining) -> (Some (JObj "node" (JStr "if") (JObj "condition" condition (JObj "yes" yes (JObj "no" no JObjEnd)))), remaining)
+          other -> other)
+        other -> other)
+      other -> other)
     else if same node "let" then (case expand graph scope (field "value" term) left of
       (Some value, remaining) -> expand graph (scope <> [value]) (field "body" term) remaining
       other -> other)
@@ -91,3 +100,115 @@ module Bootstrap.TotalSemantics where
   total-numeric-comparison function = if not (same (total-result function) "Bool") then None else case expanded function of
     Some body -> if same (text (field "node" body)) "primitive" && comparison-inputs function (field "arguments" body) then relation (text (field "operation" body)) else None
     None -> None
+
+  -- This abstract evaluator reads only the already checked closed graph.
+  -- Bytes carry their length, never contents or identity. Unknown Bool values
+  -- retain both branches; an equality is exposed only when the reading is exact.
+  data BodyReading where
+    ReadNumber :: String -> Option Arithmetic -> BodyReading
+    ReadBool :: Option Bool -> BodyReading
+    ReadBytes :: Option Arithmetic -> BodyReading
+  reading-sort :: BodyReading -> String
+  reading-sort value = case value of ReadNumber sort reading -> sort; ReadBool reading -> "Bool"; ReadBytes reading -> "Bytes"
+  input-readings :: List String -> Arithmetic -> Option (List BodyReading)
+  input-readings sorts arguments = case (sorts, arguments) of
+    (Nil, AArgumentsEnd) -> Some Nil
+    (Cons sort rest, AArgument first more) -> case input-readings rest more of
+      Some values -> if same sort "Bool" then Some (Cons (ReadBool (case first of AInteger n -> if n == 0 then Some False else if n == 1 then Some True else None; other -> None)) values)
+        else if same sort "Bytes" then Some (Cons (ReadBytes (Some first)) values)
+        else if same sort "Nat" || same sort "Int" || same sort "I64" then Some (Cons (ReadNumber sort (Some first)) values) else None
+      None -> None
+    other -> None
+  reading-at :: Nat -> List BodyReading -> Option BodyReading
+  reading-at position scope = case scope of Nil -> None; Cons first rest -> if position == 0 then Some first else reading-at (position - 1) rest
+  arithmetic-constant :: Arithmetic -> Option Int
+  arithmetic-constant value = case value of
+    AInteger n -> Some n
+    APlus a b -> (case (arithmetic-constant a, arithmetic-constant b) of (Some first, Some second) -> Some (first + second); other -> None)
+    AMinus a b -> (case (arithmetic-constant a, arithmetic-constant b) of (Some first, Some second) -> Some (first - second); other -> None)
+    ATimes a b -> (case (arithmetic-constant a, arithmetic-constant b) of (Some first, Some second) -> Some (first * second); other -> None)
+    other -> None
+  same-reading :: Option Arithmetic -> Option Arithmetic -> Option Arithmetic
+  same-reading first second = case (first, second) of (Some a, Some b) -> if arithmetic-equal a b then Some a else None; other -> None
+  merge-reading :: BodyReading -> BodyReading -> Option BodyReading
+  merge-reading first second = case (first, second) of
+    (ReadNumber sort a, ReadNumber other b) -> if same sort other then Some (ReadNumber sort (same-reading a b)) else None
+    (ReadBytes a, ReadBytes b) -> Some (ReadBytes (same-reading a b))
+    (ReadBool (Some a), ReadBool (Some b)) -> Some (ReadBool (if a == b then Some a else None))
+    (ReadBool a, ReadBool b) -> Some (ReadBool None)
+    other -> None
+  math-reading :: String -> String -> Option Arithmetic -> Option Arithmetic -> BodyReading
+  math-reading sort operation a b = ReadNumber sort (case (a, b) of
+    (Some first, Some second) -> Some (if same operation "+" then APlus first second else if same operation "-" then AMinus first second else ATimes first second)
+    other -> None)
+  comparison-reading :: String -> Option Arithmetic -> Option Arithmetic -> BodyReading
+  comparison-reading operation a b = ReadBool (case (a, b) of
+    (Some first, Some second) -> (case (arithmetic-constant first, arithmetic-constant second) of
+      (Some left, Some right) -> Some (if same operation "I64Eq" then left == right else if same operation "I64Ne" then not (left == right) else if same operation "I64Lt" then left < right else if same operation "I64Le" then left <= right else if same operation "I64Gt" then left > right else left >= right)
+      other -> if arithmetic-equal first second then Some (same operation "I64Eq" || same operation "I64Le" || same operation "I64Ge") else None)
+    other -> None)
+  ordering-reading :: Option Arithmetic -> Option Arithmetic -> BodyReading
+  ordering-reading a b = ReadNumber "I64" (case (a, b) of
+    (Some first, Some second) -> (case (arithmetic-constant first, arithmetic-constant second) of
+      (Some left, Some right) -> Some (AInteger (if left < right then -1 else if left > right then 1 else 0))
+      other -> if arithmetic-equal first second then Some (AInteger 0) else None)
+    other -> None)
+  boolean-reading :: String -> Option Bool -> Option Bool -> BodyReading
+  boolean-reading operation a b = ReadBool (case (a, b) of
+    (Some first, Some second) -> Some (if same operation "BoolEq" then first == second else if same operation "BoolNe" then not (first == second) else if same operation "BoolAnd" then first && second else first || second)
+    (Some False, other) -> if same operation "BoolAnd" then Some False else None
+    (other, Some False) -> if same operation "BoolAnd" then Some False else None
+    (Some True, other) -> if same operation "BoolOr" then Some True else None
+    (other, Some True) -> if same operation "BoolOr" then Some True else None
+    other -> None)
+  primitive-reading :: String -> List BodyReading -> Option BodyReading
+  primitive-reading operation arguments = case arguments of
+    [ReadNumber sort first, ReadNumber other second] -> if not (same sort other) then None else
+      if same operation "NatAdd" && same sort "Nat" then Some (math-reading "Nat" "+" first second)
+      else if same operation "NatMul" && same sort "Nat" then Some (math-reading "Nat" "*" first second)
+      else if same operation "IntAdd" && same sort "Int" then Some (math-reading "Int" "+" first second)
+      else if same operation "IntSub" && same sort "Int" then Some (math-reading "Int" "-" first second)
+      else if same operation "IntMul" && same sort "Int" then Some (math-reading "Int" "*" first second)
+      else if (same operation "NatCmp" && same sort "Nat") || (same operation "IntCmp" && same sort "Int") then Some (ordering-reading first second)
+      else if same sort "I64" && (case relation operation of Some comparison -> True; None -> False) then Some (comparison-reading operation first second)
+      else None
+    [ReadNumber sort first] -> if same operation "IntNeg" && same sort "Int" then Some (math-reading "Int" "-" (Some (AInteger 0)) first)
+      else if (same operation "IntFromNat" && same sort "Nat") || (same operation "IntFromI64" && same sort "I64") then Some (ReadNumber "Int" first) else None
+    [ReadBytes length] -> if same operation "BytesLen" then Some (ReadNumber "Nat" length) else None
+    [ReadBool first, ReadBool second] -> if same operation "BoolEq" || same operation "BoolNe" || same operation "BoolAnd" || same operation "BoolOr" then Some (boolean-reading operation first second) else None
+    [ReadBool value] -> if same operation "BoolNot" then Some (ReadBool (case value of Some flag -> Some (not flag); None -> None)) else None
+    other -> None
+  read-arguments :: List BodyReading -> Json -> Nat -> (Option (List BodyReading), Nat)
+  read-arguments scope arguments fuel = case arguments of
+    JArrEnd -> (Some Nil, fuel)
+    JArr first rest -> (case read-body scope first fuel of
+      (Some value, left) -> (case read-arguments scope rest left of (Some more, remaining) -> (Some (Cons value more), remaining); (None, remaining) -> (None, remaining))
+      (None, remaining) -> (None, remaining))
+    other -> (None, fuel)
+  read-body :: List BodyReading -> Json -> Nat -> (Option BodyReading, Nat)
+  read-body scope body fuel = if fuel == 0 then (None, 0) else
+    let remaining = fuel - 1 in let node = text (field "node" body) in
+    if same node "local" then (case field "slot" body of JNum slot -> if slot >= 0 then (reading-at (nat-from-int slot) scope, remaining) else (None, remaining); other -> (None, remaining))
+    else if same node "number" then (case total-decimal-value (text (field "decimal" body)) of Some value -> (Some (ReadNumber (text (field "sort" body)) (Some (AInteger value))), remaining); None -> (None, remaining))
+    else if same node "bool" then (case field "value" body of JBool value -> (Some (ReadBool (Some value)), remaining); other -> (None, remaining))
+    else if same node "primitive" then (case read-arguments scope (field "arguments" body) remaining of
+      (Some arguments, left) -> (primitive-reading (text (field "operation" body)) arguments, left)
+      (None, left) -> (None, left))
+    else if same node "if" then (case read-body scope (field "condition" body) remaining of
+      (Some (ReadBool (Some True)), left) -> read-body scope (field "yes" body) left
+      (Some (ReadBool (Some False)), left) -> read-body scope (field "no" body) left
+      (Some (ReadBool None), left) -> (case read-body scope (field "yes" body) left of
+        (Some yes, after-yes) -> (case read-body scope (field "no" body) after-yes of (Some no, after-no) -> (merge-reading yes no, after-no); (None, after-no) -> (None, after-no))
+        (None, after-yes) -> (None, after-yes))
+      (other, left) -> (None, left))
+    else (None, remaining)
+  function-reading :: TotalFunction -> Arithmetic -> Option BodyReading
+  function-reading function arguments = case (input-readings (total-parameters function) arguments, expanded function) of
+    (Some inputs, Some body) -> (case read-body inputs body 4096 of (Some reading, fuel) -> if same (reading-sort reading) (total-result function) then Some reading else None; other -> None)
+    other -> None
+  total-numeric-reading :: TotalFunction -> Arithmetic -> Option Arithmetic
+  total-numeric-reading function arguments = case function-reading function arguments of Some (ReadNumber sort reading) -> reading; other -> None
+  total-bytes-reading :: TotalFunction -> Arithmetic -> Option Arithmetic
+  total-bytes-reading function arguments = case function-reading function arguments of Some (ReadBytes reading) -> reading; other -> None
+  total-boolean-reading :: TotalFunction -> Arithmetic -> Option Bool
+  total-boolean-reading function arguments = case function-reading function arguments of Some (ReadBool reading) -> reading; other -> None

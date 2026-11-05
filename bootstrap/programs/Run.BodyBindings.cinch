@@ -77,6 +77,24 @@ module Main where
       && (case scoped-prove-refinement (with-body-bindings [binding] scope) Nil too-strong value of None -> True; other -> False)
       && (case scoped-prove-refinement scope Nil wanted value of None -> True; other -> False)
       && (case scoped-prove-refinement (with-body-bindings [changed] scope) Nil wanted value of None -> True; other -> False)
+  checked-context-authority :: Nat -> BodyBinding -> BodyBinding -> Bool
+  checked-context-authority id binding changed = case check-body-bindings [binding] of
+    None -> False
+    Some context ->
+      let observed = UIndexCall (binding-function binding) (UArg (UIndex nat (IRigid id "input" 0)) UEnd) in
+      let plain = MkCoreDefinition sp "plain" (mono nat) Nil Nil Nil [MkCoreClause sp Nil (CInt sp nat "0")] in
+      core-definition-checked-contracts-closed context Nil plain
+        && body-type-authorized (body-bindings-members context) observed
+        && (case extend-body-bindings binding context of Some same -> list-length (body-bindings-members same) == 1; None -> False)
+        && (case check-body-binding "alias" (binding-native binding) "external" (binding-scheme binding) (binding-function binding) of
+          Some alias -> (case extend-body-bindings alias context of Some more -> list-length (body-bindings-members more) == 2; None -> False)
+          None -> False)
+        && (case check-body-binding "changed-alias" (binding-native changed) "external" (binding-scheme changed) (binding-function changed) of
+          Some conflict -> (case check-body-bindings [binding, conflict] of None -> True; Some invalid -> False)
+            && (case extend-body-bindings conflict context of None -> True; Some invalid -> False)
+            && not (core-definition-contracts-closed [binding, conflict] Nil plain)
+            && body-type-authorized (body-bindings-members context) observed
+          None -> False)
   checks :: Nat -> TotalFunction -> TotalFunction -> List Bool
   checks id function changed =
     let original = mono (UFun nat (bounded (id + 10) 1 4)) in
@@ -89,6 +107,7 @@ module Main where
         [ test-proof id binding next
         , hypothesis-bounds id binding next
         , argument-identity id binding
+        , checked-context-authority id binding next
         , missing (check-body-binding "width" "Main.other" "external" original function)
         , missing (check-body-binding "width" "Main.width" "external" original changed)
         , missing (check-body-binding "width" "Main.width" "external" (mono (UFun int nat)) function)

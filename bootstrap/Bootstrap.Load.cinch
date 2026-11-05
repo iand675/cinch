@@ -22,6 +22,7 @@ module Bootstrap.Load where
   export loaded-exports
   export load-interface, load-interface-set, validate-interface-set
   export loaded-entry
+  export InterfaceSet, load-checked-interface-set, check-interface-set, interface-set-members, interface-set-body
 
   data ImportedValue where
     MkImportedValue :: String -> String -> Nat -> String -> ImportedValue
@@ -44,6 +45,35 @@ module Bootstrap.Load where
   data LoadedInterface where
     MkLoadedInterface :: String -> String -> Json -> List ImportedValue
       -> List (String, String, Nat) -> List (String, String) -> LoadedInterface
+
+  -- Only a complete dependency-validated set constructs this handle. Keep
+  -- typed body graphs once, so method dispatch lookup never reparses them.
+  data InterfaceSet where
+    CheckedInterfaceSet :: List LoadedInterface -> List TotalGraph -> InterfaceSet
+  interface-set-members :: InterfaceSet -> List LoadedInterface
+  interface-set-members set = case set of CheckedInterfaceSet members bodies -> members
+  interface-set-body :: String -> InterfaceSet -> Option TotalFunction
+  interface-set-body native set = case set of CheckedInterfaceSet members bodies -> set-body native bodies
+  set-body :: String -> List TotalGraph -> Option TotalFunction
+  set-body native bodies = case bodies of Nil -> None; Cons first rest -> (case total-function-closure first native of Some actual -> Some actual; None -> set-body native rest)
+  set-value-bodies :: Json -> List TotalGraph
+  set-value-bodies rows = case rows of
+    JArr row rest -> (case check-total-graph (field "total_body" row) of Some graph -> Cons graph (set-value-bodies rest); None -> set-value-bodies rest)
+    other -> Nil
+  set-method-bodies :: Json -> List TotalGraph
+  set-method-bodies instances = case instances of
+    JArr row rest -> set-value-bodies (field "method_bodies" row) <> set-method-bodies rest
+    other -> Nil
+  set-bodies :: List LoadedInterface -> List TotalGraph
+  set-bodies interfaces = case interfaces of
+    Nil -> Nil
+    Cons first rest ->
+      let exports = field "exports" (loaded-contract first) in
+      set-value-bodies (field "values" exports) <> set-method-bodies (field "instances" exports) <> set-bodies rest
+  check-interface-set :: List LoadedInterface -> Result String InterfaceSet
+  check-interface-set loaded = case validate-interface-set loaded of Err error -> Err error; Ok members -> Ok (CheckedInterfaceSet members (set-bodies members))
+  load-checked-interface-set :: List (String, String, Bytes) -> Result String InterfaceSet
+  load-checked-interface-set inputs = case load-interface-set inputs of Err error -> Err error; Ok members -> Ok (CheckedInterfaceSet members (set-bodies members))
 
   loaded-module :: LoadedInterface -> String
   loaded-module i = case i of MkLoadedInterface name hash doc values fixes refs -> name
@@ -291,6 +321,31 @@ module Bootstrap.Load where
       && instance-methods-valid rest methods (Cons slot slots) (Cons name names)
     JArrEnd -> True
     other -> False
+  method-body-declaration :: List String -> String -> String
+  method-body-declaration parameters result = case parameters of Nil -> result; Cons first rest -> string-concat-all ["(", first, " -> ", method-body-declaration rest result, ")"]
+  method-bodies-valid :: Json -> Json -> List Nat -> List String -> Bool
+  method-bodies-valid rows methods slots names = case rows of
+    JArr row rest -> let slot = number (field "slot" row) in let identity = text (field "implementation" row) in
+      nat-p (field "slot" row) && not (member-slot slot slots) && string-length identity > 0 && not (member identity names)
+      && (case conditional-slot slot methods of Some actual -> same actual identity; None -> False)
+      && resolved-entry-valid row && (case (field "nominals" (field "resolved" row), field "measures" (field "resolved" row)) of (JArrEnd, JArrEnd) -> True; other -> False)
+      && (case check-total-graph (field "total_body" row) of
+        Some graph -> (case total-function graph identity of
+          Some function -> total-graph-for-roots graph [identity]
+            && same (text (field "scheme" (field "resolved" row))) (method-body-declaration (total-parameters function) (total-result function))
+          None -> False)
+        None -> False)
+      && method-bodies-valid rest methods (Cons slot slots) (Cons identity names)
+    JArrEnd -> True
+    other -> False
+  optional-method-bodies-valid :: Json -> Bool
+  optional-method-bodies-valid row = if not (has-field "method_bodies" row) then True else case field "method_bodies" row of
+    JArrEnd -> True
+    JArr first rest -> (case (field "ctx" row, field "method_contracts" row, field "resolved" row) of
+      (JArrEnd, JArrEnd, JNull) -> False
+      (JArrEnd, JArrEnd, resolved) -> method-bodies-valid (field "method_bodies" row) (field "methods" row) Nil Nil
+      other -> False)
+    other -> False
   member-slot :: Nat -> List Nat -> Bool
   member-slot slot slots = case slots of Nil -> False; Cons first rest -> slot == first || member-slot slot rest
   instances-valid :: Json -> List String -> Bool
@@ -301,6 +356,7 @@ module Bootstrap.Load where
       && string-length (text (field "class" row)) > 0 && string-length (text (field "target" row)) > 0
       && strings-p (field "ctx" row) && strings-p (field "methods" row)
       && (case field "implicit" row of JBool value -> True; other -> False)
+      && optional-method-bodies-valid row
       && resolved-entry-valid row && measure-bodies-valid (resolved-measures row) && instance-methods-valid (field "method_contracts" row) (field "methods" row) Nil Nil
       && (case field "method_contracts" row of JArrEnd -> True; other -> (case field "resolved" row of JNull -> True; other -> False))
       && instances-valid rest (Cons identity seen)
@@ -584,10 +640,18 @@ module Bootstrap.Load where
   signature-body-declarations rows = case rows of
     JArr row rest -> value-body-declarations (field "methods" row) <> signature-body-declarations rest
     other -> Nil
+  method-body-declarations :: Json -> List Json
+  method-body-declarations rows = case rows of
+    JArr row rest -> Cons (body-declaration (text (field "implementation" row)) row) (method-body-declarations rest)
+    other -> Nil
+  instance-body-declarations :: Json -> List Json
+  instance-body-declarations rows = case rows of
+    JArr row rest -> method-body-declarations (field "method_bodies" row) <> instance-body-declarations rest
+    other -> Nil
   interface-body-declarations :: LoadedInterface -> List Json
   interface-body-declarations i = let exports = field "exports" (loaded-contract i) in
     value-body-declarations (field "values" exports) <> signature-body-declarations (field "signatures" exports)
-      <> value-body-declarations (field "instances" exports) <> conditional-instance-body-declarations (field "instances" exports)
+      <> value-body-declarations (field "instances" exports) <> instance-body-declarations (field "instances" exports) <> conditional-instance-body-declarations (field "instances" exports)
   prefix-chars :: List Char -> List Char -> Bool
   prefix-chars first second = case (first, second) of
     (Nil, other) -> True
@@ -631,10 +695,23 @@ module Bootstrap.Load where
         None -> verify-body-declarations rest reachable all (Cons (identity, bytes) checked)
         Some prior -> if bytes-compare prior bytes == 0 then verify-body-declarations rest reachable all checked
           else Err (string-concat "conflicting defining total body declarations: " identity))
+  method-body-owners-valid :: Json -> String -> List LoadedInterface -> Bool
+  method-body-owners-valid rows owner all = case rows of
+    JArr row rest -> same (body-node-owner (text (field "implementation" row)) all "") owner && method-body-owners-valid rest owner all
+    JArrEnd -> True
+    other -> False
+  instance-body-owners-valid :: Json -> String -> List LoadedInterface -> Bool
+  instance-body-owners-valid rows owner all = case rows of
+    JArr row rest -> (case field "method_bodies" row of
+      JArr first more -> same (body-node-owner (text (field "id" row)) all "") owner && method-body-owners-valid (field "method_bodies" row) owner all
+      other -> True) && instance-body-owners-valid rest owner all
+    JArrEnd -> True
+    other -> False
   verify-body-set :: List LoadedInterface -> List LoadedInterface -> List (String, Bytes) -> Result String Unit
   verify-body-set remaining all seen = case remaining of
     Nil -> Ok ()
-    Cons i rest -> (case verify-body-declarations (interface-body-declarations i) (reachable-modules [loaded-module i] all Nil) all seen of
+    Cons i rest -> if not (instance-body-owners-valid (field "instances" (field "exports" (loaded-contract i))) (loaded-module i) all) then Err "method body is not owned by its declaring dictionary module"
+      else (case verify-body-declarations (interface-body-declarations i) (reachable-modules [loaded-module i] all Nil) all seen of
       Err message -> Err (string-concat-all [loaded-module i, ": ", message])
       Ok checked -> verify-body-set rest all checked)
 

@@ -1,9 +1,9 @@
 {
   "schema": 1,
-  "revision": "b64710b29e57c0b73dbfce8fa67c3bf1e581ea6c",
+  "revision": "25b7e822e806ac767585cd34e9078ecd2a080c17",
   "runtime_abi": 6,
   "patch": "bootstrap/seed/stage0.patch",
   "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-  "source_sha256": "dbe00931df2b2ab7a14a56e4acc6653dc7a4d01a0dc1d3e1f4da22e9ce039ffb",
-  "description": "Intentional isolated ABI6 stage transition. Exact published b64710b Native compiler/runtime sources, no patch. Rebuild the same complete Cinch array/effect compiler source at Stage1/2/3. Earlier ABI5 stage evidence is not reused as ABI6 proof."
+  "source_sha256": "255f06b66561d5f47030b56e6fdb32f51fa7876c9f46787ed3f07580b211714b",
+  "description": "Exact published25b7e82 ABI6 Native seed with actual method and primitive body contracts; no patch. Current43 Cinch modules are built by Stage0/1/2/3 with independently checked interfaces."
 }

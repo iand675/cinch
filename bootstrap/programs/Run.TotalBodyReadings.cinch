@@ -1,0 +1,52 @@
+module Main where
+  import Bootstrap.Total
+  import Bootstrap.TotalSemantics
+  import Bootstrap.Proof
+  import Text.Json (parse-json)
+  import Text.Parse (ParseOutcome, Parsed, Failed)
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read, fs-write)
+  numeric :: TotalGraph -> String -> Arithmetic -> Arithmetic -> Bool
+  numeric graph name arguments expected = case total-function graph name of
+    Some function -> (case total-numeric-reading function arguments of Some actual -> arithmetic-equal actual expected; None -> False)
+    None -> False
+  unknown-result :: TotalGraph -> String -> Arithmetic -> Bool
+  unknown-result graph name arguments = case total-function graph name of
+    Some function -> (case total-numeric-reading function arguments of None -> True; Some value -> False)
+    None -> False
+  flag :: TotalGraph -> String -> Arithmetic -> Bool -> Bool
+  flag graph name arguments expected = case total-function graph name of
+    Some function -> (case total-boolean-reading function arguments of Some actual -> actual == expected; None -> False)
+    None -> False
+  bytes :: TotalGraph -> String -> Arithmetic -> Arithmetic -> Bool
+  bytes graph name arguments expected = case total-function graph name of
+    Some function -> (case total-bytes-reading function arguments of Some actual -> arithmetic-equal actual expected; None -> False)
+    None -> False
+  row :: String -> Bool -> String
+  row name passed = string-concat-all [name, if passed then ":passed\n" else ":failed\n"]
+  report :: TotalGraph -> String
+  report graph = let x = AVariable "actual-x" in let length = AVariable "actual-bytes-length" in
+    let one = AArgument x AArgumentsEnd in
+    let unknown = AArgument (AVariable "actual-flag") one in string-concat-all
+    [ row "identity" (numeric graph "identity" one x)
+    , row "closed-call-and-strict-let" (numeric graph "forward" one (APlus x (AInteger 1)))
+    , row "known-true" (numeric graph "choose" (AArgument (AInteger 1) one) x)
+    , row "known-false" (numeric graph "choose" (AArgument (AInteger 0) one) (AInteger 9))
+    , row "unknown-different-branches" (unknown-result graph "choose" unknown)
+    , row "unknown-equal-branches" (numeric graph "same" unknown x)
+    , row "comparison" (flag graph "equal" (AArgument x one) True)
+    , row "bytes-length" (numeric graph "length" (AArgument length AArgumentsEnd) length)
+    , row "bytes-identity" (bytes graph "bytes" (AArgument length AArgumentsEnd) length)
+    , row "wrong-result-reader" (unknown-result graph "bytes" (AArgument length AArgumentsEnd))
+    , row "missing-argument" (unknown-result graph "identity" AArgumentsEnd)
+    , row "extra-argument" (unknown-result graph "identity" (AArgument x one))
+    , row "shared-expansion-fuel" (unknown-result graph "exhausted" one)
+    ]
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case fs-read (path-from-string "bodies.json") of
+    Ok source -> (case parse-json "total-body-readings" source of
+      Parsed doc Nil -> (case check-total-graph doc of
+        Some graph -> (case fs-write (path-from-string "readings.txt") (string-to-bytes (report graph)) of Ok _ -> 0; Err error -> 92)
+        None -> 4)
+      other -> 2)
+    other -> 90

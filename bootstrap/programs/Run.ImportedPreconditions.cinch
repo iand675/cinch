@@ -6,20 +6,25 @@ module Main where
   import Bootstrap.Contracts (interface-headers)
   import Bootstrap.Parse (parse-program-with)
   import Bootstrap.Resolve (resolve-program-with)
-  import Bootstrap.Infer (elaborate-program, elaboration-errors, elaboration-core)
-  import Bootstrap.Core (CoreDefinition, core-definition-closed)
+  import Bootstrap.Infer (elaborate-program, elaboration-errors, elaboration-core, elaboration-bindings, CheckedBinding, checked-body-binding)
+  import Bootstrap.Core (CoreDefinition, core-definition-bodies-closed)
+  import Bootstrap.BodyContract (BodyBinding)
   import Bootstrap.Report (render-diagnostics)
   import Text.Parse (ParseOutcome, Parsed, Failed, render-bundle)
   import Data.Path (path-from-string)
   import Effect.Fs (fs-read, fs-write)
-  closed :: List CoreDefinition -> Bool
-  closed definitions = case definitions of Nil -> True; Cons d rest -> core-definition-closed d && closed rest
-  run :: List LoadedInterface -> Bytes -> (Int, String)
-  run interfaces source = case parse-program-with "imported-preconditions" source (interface-headers interfaces) of
+  bindings-bodies :: List CheckedBinding -> List BodyBinding
+  bindings-bodies bindings = case bindings of
+    Nil -> Nil
+    Cons binding rest -> (case checked-body-binding binding of Some body -> Cons body (bindings-bodies rest); None -> bindings-bodies rest)
+  closed :: List BodyBinding -> List CoreDefinition -> Bool
+  closed bodies definitions = case definitions of Nil -> True; Cons d rest -> core-definition-bodies-closed bodies d && closed bodies rest
+  run :: List LoadedInterface -> Bytes -> Bool -> (Int, String)
+  run interfaces source empty-context = case parse-program-with "imported-preconditions" source (interface-headers interfaces) of
     Parsed program Nil -> case resolve-program-with program interfaces of
       (resolved, Nil) -> let result = elaborate-program "imported-preconditions" resolved in
         case elaboration-errors result of
-          Nil -> if closed (elaboration-core result) then (0, "") else (94, "imported condition lost its Core evidence")
+          Nil -> if closed (if empty-context then Nil else bindings-bodies (elaboration-bindings result)) (elaboration-core result) then (0, "") else (94, "imported condition lost its Core evidence")
           errors -> (4, render-diagnostics errors)
       (resolved, errors) -> (4, render-diagnostics errors)
     Failed bundle -> (2, render-bundle bundle)
@@ -29,7 +34,8 @@ module Main where
     Err message -> 90
     Ok interfaces -> case fs-read (path-from-string "source.cinch") of
       Err error -> 91
-      Ok source -> let (status, report) = run interfaces source in
+      Ok source -> let empty-context = case fs-read (path-from-string "body-context-mode.txt") of Ok mode -> bytes-len mode > 0; Err error -> False in
+        let (status, report) = run interfaces source empty-context in
         case fs-write (path-from-string "imported-report.txt") (string-to-bytes report) of
           Err error -> 92
           Ok _ -> status

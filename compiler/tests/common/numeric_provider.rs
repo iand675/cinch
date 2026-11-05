@@ -72,6 +72,8 @@ module Data.Int where
   implicit instance Sub_Int :: Sub Int where
     (-) x y = int-sub x y
 module Data.String where
+  export utf8-encode-width
+  import Data.Nat
   import Algebra.Arithmetic
   import Relation.Ord
   utf8-encode-width :: Nat -> InRange 1 4 Nat

@@ -86,6 +86,13 @@ pub fn project(tag: &str, files: &[(&str, &str)]) -> PathBuf {
     std::fs::write(dir.join("Bootstrap.Index.cinch"), include_str!("../../../bootstrap/Bootstrap.Index.cinch"))
         .expect("shared index syntax dependency");
     if files.iter().any(|(name, _)| matches!(*name, "Bootstrap.Core.cinch" | "Bootstrap.Global.cinch" | "Bootstrap.Typing.cinch" | "Bootstrap.Check.cinch" | "Bootstrap.Infer.cinch" | "Bootstrap.Dictionary.cinch" | "Bootstrap.Instance.cinch")) {
+        for (name, source) in [
+            ("Bootstrap.Load.cinch", include_str!("../../../bootstrap/Bootstrap.Load.cinch")),
+            ("Bootstrap.Interface.cinch", include_str!("../../../bootstrap/Bootstrap.Interface.cinch")),
+            ("Bootstrap.Parse.cinch", include_str!("../../../bootstrap/Bootstrap.Parse.cinch")),
+        ] { std::fs::write(dir.join(name), source).expect("checked method body dependency"); }
+        std::fs::write(dir.join("Bootstrap.ExportType.cinch"), include_str!("../../../bootstrap/Bootstrap.ExportType.cinch")).expect("checked Core identity export dependency");
+        std::fs::write(dir.join("Bootstrap.TotalSemantics.cinch"), include_str!("../../../bootstrap/Bootstrap.TotalSemantics.cinch")).expect("checked body arithmetic dependency");
         std::fs::write(dir.join("Bootstrap.BodyContract.cinch"), include_str!("../../../bootstrap/Bootstrap.BodyContract.cinch"))
             .expect("checked body/declaration association dependency");
         std::fs::write(dir.join("Bootstrap.Guarded.cinch"), include_str!("../../../bootstrap/Bootstrap.Guarded.cinch"))
@@ -93,7 +100,7 @@ pub fn project(tag: &str, files: &[(&str, &str)]) -> PathBuf {
     }
     std::fs::write(dir.join("Bootstrap.Total.cinch"), include_str!("../../../bootstrap/Bootstrap.Total.cinch"))
         .expect("checked total-body dependency");
-    if files.iter().any(|(name, _)| matches!(*name, "Bootstrap.Core.cinch" | "Bootstrap.Check.cinch" | "Bootstrap.Infer.cinch" | "Bootstrap.Dictionary.cinch")) {
+    if files.iter().any(|(name, _)| matches!(*name, "Bootstrap.Core.cinch" | "Bootstrap.Check.cinch" | "Bootstrap.Infer.cinch" | "Bootstrap.Dictionary.cinch" | "Bootstrap.TotalSemantics.cinch")) {
         std::fs::write(dir.join("Bootstrap.Proof.cinch"), include_str!("../../../bootstrap/Bootstrap.Proof.cinch"))
             .expect("shared proof checker dependency");
     }
@@ -108,6 +115,10 @@ pub fn project(tag: &str, files: &[(&str, &str)]) -> PathBuf {
         }
     }
     if files.iter().any(|(name, _)| matches!(*name, "Bootstrap.Check.cinch" | "Bootstrap.Infer.cinch")) {
+        std::fs::write(dir.join("Bootstrap.Parse.cinch"), include_str!("../../../bootstrap/Bootstrap.Parse.cinch")).expect("checked source signature parser dependency");
+        std::fs::write(dir.join("Bootstrap.Contracts.cinch"), include_str!("../../../bootstrap/Bootstrap.Contracts.cinch")).expect("checked source reference dependency");
+        std::fs::write(dir.join("Bootstrap.Load.cinch"), include_str!("../../../bootstrap/Bootstrap.Load.cinch")).expect("checked source interface dependency");
+        std::fs::write(dir.join("Bootstrap.Interface.cinch"), include_str!("../../../bootstrap/Bootstrap.Interface.cinch")).expect("checked source contract identity dependency");
         std::fs::write(dir.join("Bootstrap.Kinds.cinch"), include_str!("../../../bootstrap/Bootstrap.Kinds.cinch")).expect("independent kind checking dependency");
         std::fs::write(dir.join("Bootstrap.Typing.cinch"), include_str!("../../../bootstrap/Bootstrap.Typing.cinch")).expect("independent Core typing dependency");
         std::fs::write(dir.join("Bootstrap.Global.cinch"), include_str!("../../../bootstrap/Bootstrap.Global.cinch")).expect("global reference checking dependency");

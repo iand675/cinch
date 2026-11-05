@@ -1,0 +1,445 @@
+{
+  "schema": 1,
+  "status": "passed-scoped-cinch-method-body-source",
+  "verified_at": "2026-11-05T14:06:01.535426+00:00",
+  "compiler_source_sha256": "29775cd823d34f64e8ed526fda149c499309dc61cf73d664220e11ae745e8550",
+  "native_source_sha256": "255f06b66561d5f47030b56e6fdb32f51fa7876c9f46787ed3f07580b211714b",
+  "pins_revision": "25b7e822e806ac767585cd34e9078ecd2a080c17",
+  "native_production_unchanged": true,
+  "receipts": {
+    "proof": {
+      "compiler_source_sha256": "29775cd823d34f64e8ed526fda149c499309dc61cf73d664220e11ae745e8550",
+      "full_goal_complete": false,
+      "groups": 19,
+      "native_rlib_sha256": "9333e52ca2d33012085c98a4c68cc54b0f90a70ae7df72c3ae1c6f40ef0d74d2",
+      "rows": [
+        {
+          "binary_sha256": "0750e532e038016a6f52e6b49246871cdf122c6349ba1e4510a190e21eace9e6",
+          "log_sha256": "a60ac6a413e1f61abbdf808673cebf1ea399644983ab951e551e88df8732778f",
+          "name": "bootstrap_total_semantics",
+          "tests": 3,
+          "zero_leak_reports": 0
+        },
+        {
+          "binary_sha256": "3d9dc9ebfb5f3c01f41a45d4242ce87e8ac9563809e9d327828afa4e7103792f",
+          "log_sha256": "aaf62a0e6d7d68d9a206b527171c0f886d87e348d0c1bb9714628495876f6f8f",
+          "name": "bootstrap_instance_resolution",
+          "tests": 1,
+          "zero_leak_reports": 0
+        },
+        {
+          "binary_sha256": "5a9e8726c757c3c147d9083a8c8768d8b30358ce6f75fc30f93e6e5646574da4",
+          "log_sha256": "a37532312578a1eeae09c2b3363e995dba75a654c2841e78c2599b975f602478",
+          "name": "bootstrap_body_bindings",
+          "tests": 2,
+          "zero_leak_reports": 0
+        },
+        {
+          "binary_sha256": "875d7119d23c73ecf1e83ad5b2d6fb66373dda40526ade5e91868252d1a01729",
+          "log_sha256": "7e8775295777e4de3fb46aa6f3841ef32d77626109087248f98922761da3ca7d",
+          "name": "bootstrap_core",
+          "tests": 1,
+          "zero_leak_reports": 0
+        },
+        {
+          "binary_sha256": "06632853cde5324320605cb5e5633be980b0713635acf27654818490b91a5701",
+          "log_sha256": "21cdfcc1c60adcdd6345dd8848aba4cabd764b10f466ae96ed0a12b953bc6137",
+          "name": "bootstrap_globals",
+          "tests": 1,
+          "zero_leak_reports": 0
+        },
+        {
+          "binary_sha256": "3309fe5fae31acf3eb2fa7bbee2ff0c66e3cb18161042c26f45e4237415fc479",
+          "log_sha256": "0f7fa44144705bb03cea80d35f79d91d995b42d842c9ba697c531541b3bb3bf0",
+          "name": "bootstrap_typing",
+          "tests": 1,
+          "zero_leak_reports": 0
+        },
+        {
+          "binary_sha256": "d1600ff440b1607f1ddaac70898d37167f7a97c6281b65ada5e41acd28ace305",
+          "log_sha256": "12a256e5ba5379e5ec52197782abb30f06a91edd91b180c550d2276ca756b14f",
+          "name": "bootstrap_infer",
+          "tests": 1,
+          "zero_leak_reports": 0
+        },
+        {
+          "binary_sha256": "1376441202e28f457e20d6f8cae7e5926616567feda0154facc6a0c2a8b6509f",
+          "log_sha256": "eec16eef22f537408da11263cc3b8751682cad32fdaa5845d2254508035aaa75",
+          "name": "bootstrap_check",
+          "tests": 1,
+          "zero_leak_reports": 1
+        },
+        {
+          "binary_sha256": "623b7853280196272d3489e06aabd26c99aaf21d6b8d62dadace2ce156e78757",
+          "log_sha256": "1e47e734ba217199d7c906f4c96e8c7a4f1ec37c636f8eecaf8a515f0bf25dd8",
+          "name": "bootstrap_export_interfaces",
+          "tests": 1,
+          "zero_leak_reports": 0
+        },
+        {
+          "binary_sha256": "f7a65d34525476d4b36aa707a8df092b495c693379195fa4023060709b9710c9",
+          "log_sha256": "f13a3db2bbaab0fafa33f1ee8d7f4ecfa98e4d4d694a19e4197513e783015aaa",
+          "name": "bootstrap_export_types",
+          "tests": 1,
+          "zero_leak_reports": 0
+        },
+        {
+          "binary_sha256": "009bfb63ad18002fea716de47c2df3a38900f2ec1cab9ae94ee70cb2771bc356",
+          "log_sha256": "19a414de2729f497b3f51c44fb5718152f1f1148ec289391114c2007143c3bd2",
+          "name": "bootstrap_total",
+          "tests": 1,
+          "zero_leak_reports": 0
+        },
+        {
+          "binary_sha256": "ed73b0130143c62e832ee62999d79990a2d560ff0bb75c1c799c95b8956e0266",
+          "log_sha256": "e568b272ac47c8fecf837cdf38b58a19ad4167c11a30a07f8d117aeb5e597f59",
+          "name": "bootstrap_typed_indices",
+          "tests": 1,
+          "zero_leak_reports": 0
+        },
+        {
+          "binary_sha256": "08d8d99f0caea3299eca8397d6035e1012b94a6c2d16a7aaee571fad50b24bb3",
+          "log_sha256": "41fd7d5f87d1b8aa5c0b2e7d6a944bece922dbd3cabcfb417808de72e5e821fd",
+          "name": "bootstrap_source_refinements",
+          "tests": 1,
+          "zero_leak_reports": 0
+        },
+        {
+          "binary_sha256": "1d7cb1844f253eea9c366cc071923a160aa8a7c59503c0b7948f26ab5ffb9926",
+          "log_sha256": "3411e7c56a7b4583702810e90ce4b71211c331a3fde36de1b10d49f6707c233f",
+          "name": "bootstrap_source_proofs",
+          "tests": 1,
+          "zero_leak_reports": 0
+        },
+        {
+          "binary_sha256": "11b01bcd20252be35ee44aabf3680b45038eb239c5d568d7f96f2bc46872aa81",
+          "log_sha256": "9868b6422f74d64104a57a99faf1967515857fb44b6f877a8d7ebd0c981c7d99",
+          "name": "bootstrap_load",
+          "tests": 1,
+          "zero_leak_reports": 0
+        },
+        {
+          "binary_sha256": "97d6c6348da6509c7fd796740b1cb10e6d024721d60cc97082f545355924eaa2",
+          "log_sha256": "32729efcb18aa73a7fce96d57f7533d15688ffd043fb35f3597484779c1ad482",
+          "name": "bootstrap_interface",
+          "tests": 2,
+          "zero_leak_reports": 0
+        },
+        {
+          "binary_sha256": "cadfc1532c5c2157f7a1f87729c5854d30f9de7c885b2c208d9bf44f54d0772c",
+          "log_sha256": "757cba206470d03e8b5ca75edbb72dc53e00aa9f113d26b01cb254483a6f8911",
+          "name": "bootstrap_function_preconditions",
+          "tests": 1,
+          "zero_leak_reports": 0
+        },
+        {
+          "binary_sha256": "9664b9d2ba2d3016fd93260dfdc6d365c0caa4b9778232caf9b9fef5cc4ebd50",
+          "log_sha256": "b95155d010df695ea076bbc88bbb449e4f98438136a565ad64cb35a9d05ac4e4",
+          "name": "bootstrap_imported_preconditions",
+          "tests": 1,
+          "zero_leak_reports": 0
+        },
+        {
+          "binary_sha256": "902d322fa1bfc88377131b275f0c213595fb556abf32869fa8d952925030ed73",
+          "log_sha256": "e0c926900c2929f521ac514af8ba8ac3267e166b80bbf6defa64104f05bbe7c1",
+          "name": "bootstrap_conditional_methods",
+          "tests": 1,
+          "zero_leak_reports": 0
+        }
+      ],
+      "scope": "All nineteen original matching whole proof/interface groups, fresh correct-path test hosts, exact immutable29775 compiler, published25 Native production inputs, complete test counts and every exposed leak report independently verified. Some test hosts capture successful subprocess stderr; the leak count covers reports exposed in the complete logs only. This permits the separate fresh bootstrap; full matching Native/Stage3/API/Acceptance5 gates remain required.",
+      "source_sha256": "1cb82cbb9f49dee0b4112eaa991ffb0f47b9fe245cb824f25a003aef1496d48b",
+      "status": "passed-complete-matching-source-gates",
+      "tests": 23,
+      "verified_at": "2026-11-05T13:42:37.866708+00:00",
+      "zero_leak_reports": 1
+    },
+    "exporter": {
+      "compiler_modules": 43,
+      "compiler_sha256": "ab1b1f30f3ba2a3914d765c4388bea431a6c16459f1536bebb6442d87a13f124",
+      "compiler_source_sha256": "29775cd823d34f64e8ed526fda149c499309dc61cf73d664220e11ae745e8550",
+      "controls": 28,
+      "full_goal_complete": false,
+      "independent_replay": "Exact Owner documents equal independently inspected input-replay3; real helper +1/+2, identity and chained method compute correctly for0,7,bignum input; cycle omitted.",
+      "native_validator_sha256": "a543c3d63d1db3e4416ab351eeb9ee95ab4fd4906391f0e6cdbb7669e3b2dae9",
+      "rows": [
+        {
+          "exit_code": 0,
+          "expected": 0,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "name": "build-native-validator",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "expected": 0,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "name": "emit-current-library-method-contracts",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "expected": 0,
+          "log_sha256": "2342cd5f3cd618b31aae1d26a08eb0b8fc0230d0861d07ba8dd122216a4c5699",
+          "name": "validate-current-library-method-contracts",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "expected": 0,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "name": "build",
+          "status": "passed"
+        },
+        {
+          "exit_code": 4,
+          "expected": 4,
+          "log_sha256": "606bf3d213b597ffda44f3ef6c845c35ca5dbaa6a21c1fca3dca0d3a7e1aa211",
+          "name": "cyclic-measure-refused",
+          "status": "passed",
+          "zero_leaks": true
+        },
+        {
+          "exit_code": 0,
+          "expected": 0,
+          "log_sha256": "632b943ec9ecbbea79309a3d570f6eb064e363002d5196f179c35fece4b23387",
+          "name": "original-interface-preconditions",
+          "status": "passed",
+          "zero_leaks": true
+        },
+        {
+          "exit_code": 0,
+          "expected": 0,
+          "log_sha256": "3d115658b830e60b81a2128d96ac9b8c249ff3d7c8d348511ae86fccaeea8e09",
+          "name": "validate-original-interface-preconditions",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "expected": 0,
+          "log_sha256": "c3d39122b8d494fe5ea5a734f063b11f68682d0c9fb25ec1ed96d3f70cb8c6c6",
+          "name": "original-assertions",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "expected": 0,
+          "log_sha256": "4c08f2b5bf8bf3b713f3542bdb5a28489cad55f67f82bb05a979e85845eb424d",
+          "name": "private-dependency-and-facade",
+          "status": "passed",
+          "zero_leaks": true
+        },
+        {
+          "exit_code": 0,
+          "expected": 0,
+          "log_sha256": "f6fd68acd3d30f3e1b40efcfeeec548d25530436f526aacaa19afa3c3f3ffba1",
+          "name": "validate-private-dependency-and-facade",
+          "status": "passed"
+        },
+        {
+          "exit_code": 4,
+          "expected": 4,
+          "log_sha256": "e4ec200ab693e15664139b486fd67e9d59ec1e0e83f53716dad7d7d9110da6f1",
+          "name": "wrong-measure-sort-refused",
+          "status": "passed",
+          "zero_leaks": true
+        },
+        {
+          "exit_code": 0,
+          "expected": 0,
+          "log_sha256": "2676210345856aa5109227fed0cb568fe9e1c515f1d7531387dfc7017cfbf56d",
+          "name": "changed-interface-total-bodies",
+          "status": "passed",
+          "zero_leaks": true
+        },
+        {
+          "exit_code": 0,
+          "expected": 0,
+          "log_sha256": "f6fd68acd3d30f3e1b40efcfeeec548d25530436f526aacaa19afa3c3f3ffba1",
+          "name": "validate-changed-interface-total-bodies",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "expected": 0,
+          "log_sha256": "3bcfef7d3b0bb2ae3251541cbd3b3edee70cd777304f09fc614936d6f3fc3106",
+          "name": "original-interface-total-bodies",
+          "status": "passed",
+          "zero_leaks": true
+        },
+        {
+          "exit_code": 0,
+          "expected": 0,
+          "log_sha256": "f6fd68acd3d30f3e1b40efcfeeec548d25530436f526aacaa19afa3c3f3ffba1",
+          "name": "validate-original-interface-total-bodies",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "expected": 0,
+          "log_sha256": "46d75380f729ac066009bbaabf153d6bc037c694e2aef034d53178a502439712",
+          "name": "own-private-method-bodies",
+          "status": "passed",
+          "zero_leaks": true
+        },
+        {
+          "exit_code": 0,
+          "expected": 0,
+          "log_sha256": "9663d047d02e414b28574c3614bdf91bb1fe1fb478b3405d7339ff4a965d654e",
+          "name": "validate-own-private-method-bodies",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "expected": 0,
+          "log_sha256": "46d75380f729ac066009bbaabf153d6bc037c694e2aef034d53178a502439712",
+          "name": "changed-private-method-bodies",
+          "status": "passed",
+          "zero_leaks": true
+        },
+        {
+          "exit_code": 0,
+          "expected": 0,
+          "log_sha256": "9663d047d02e414b28574c3614bdf91bb1fe1fb478b3405d7339ff4a965d654e",
+          "name": "validate-changed-private-method-bodies",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "expected": 0,
+          "log_sha256": "3cc662567fb05a33ac346ef124def15d5a73680328ff85dfa6c4465f4dd1d05d",
+          "name": "own-self-method-calls",
+          "status": "passed",
+          "zero_leaks": true
+        },
+        {
+          "exit_code": 0,
+          "expected": 0,
+          "log_sha256": "9663d047d02e414b28574c3614bdf91bb1fe1fb478b3405d7339ff4a965d654e",
+          "name": "validate-own-self-method-calls",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "expected": 0,
+          "log_sha256": "9c72c168cb6a976939c71bbf080d9bc683a02ccbe6f13f65e054d3fb9bb90e92",
+          "name": "original-interface-preconditions-client-positive",
+          "status": "passed",
+          "zero_leaks": true
+        },
+        {
+          "exit_code": 4,
+          "expected": 4,
+          "log_sha256": "2db6029f72b99020fb0efd2daeb26942f4dadd5b866cb7e9db81bb702c8b8e83",
+          "name": "original-interface-preconditions-client-missing-proof",
+          "status": "passed",
+          "zero_leaks": true
+        },
+        {
+          "exit_code": 0,
+          "expected": 0,
+          "log_sha256": "575dff57fd6d78e320638bff004e8efdbedab2837314462388c2a1b0a6da0057",
+          "name": "private-dependency-and-facade-client-positive",
+          "status": "passed",
+          "zero_leaks": true
+        },
+        {
+          "exit_code": 4,
+          "expected": 4,
+          "log_sha256": "40bae7f4c6419a83491909847ebca5ed67cc9647ef60ccf0a0236072868a9f68",
+          "name": "private-dependency-and-facade-client-missing-proof",
+          "status": "passed",
+          "zero_leaks": true
+        },
+        {
+          "name": "own-private-method-bodies-actual-body-and-private-scope",
+          "status": "passed"
+        },
+        {
+          "name": "changed-private-method-bodies-actual-body-and-private-scope",
+          "status": "passed"
+        },
+        {
+          "name": "actual-self-dictionary-slot-and-cycle-refusal",
+          "status": "passed"
+        }
+      ],
+      "schema": 1,
+      "scope": "Fresh actual Cinch exporter from current43 inputs, compiled by exact Native primitive producer. All original export/metadata/consumer controls retained. Full matching19groups, new seed/provider pins, genuine bootstrap and complete API/suites stillrequired.",
+      "source_snapshot_sha256": "1cb82cbb9f49dee0b4112eaa991ffb0f47b9fe245cb824f25a003aef1496d48b",
+      "status": "passed-actual-cinch-method-body-export",
+      "verified_at": "2026-11-05T12:23:46.194560+00:00",
+      "zero_leak_reports": 13
+    },
+    "auxiliary": {
+      "compiler_sha256": "674b4aebbd58a084f7d65ccf4ac9dcbcf31c244238bc8e0da0c72bef6f5be11f",
+      "compiler_source_sha256": "29775cd823d34f64e8ed526fda149c499309dc61cf73d664220e11ae745e8550",
+      "full_goal_complete": false,
+      "runtime_tests": 171,
+      "scope": "Complete unchanged matching runtime/tooling/editor suites, logs, source identity and actual current Stage0 independently verified. These are auxiliary gates; they do not establish the new Cinch bootstrap or full compiler/API parity.",
+      "seed_revision": "25b7e822e806ac767585cd34e9078ecd2a080c17",
+      "source_sha256": "a35f8007bd163b4888aa9f24cc88f49dcfb4c0cc32509ddc37ae78f0b2f0176f",
+      "status": "passed-matching-auxiliary-audit",
+      "syntax_editor_tests": 39,
+      "tooling_tests": 41,
+      "verified_at": "2026-11-05T12:50:24.280259+00:00"
+    },
+    "seed": {
+      "compiler_sha256": "674b4aebbd58a084f7d65ccf4ac9dcbcf31c244238bc8e0da0c72bef6f5be11f",
+      "full_goal_complete": false,
+      "native_source_sha256": "255f06b66561d5f47030b56e6fdb32f51fa7876c9f46787ed3f07580b211714b",
+      "revision": "25b7e822e806ac767585cd34e9078ecd2a080c17",
+      "scope": "Fresh current Native Stage0 only, exact new explicit pin/archive inputs, all three smoke checks. Library provider and actualCinchStage1/2/3 are separate pending gates.",
+      "smokes": [
+        "fib",
+        "precedence",
+        "named-refusal"
+      ],
+      "status": "passed-current-seed-only",
+      "verified_at": "2026-11-05T12:33:28.052309+00:00"
+    },
+    "library_provider": {
+      "artifacts": 62,
+      "compiler_implementation_units": false,
+      "decoder_log_sha256": "2342cd5f3cd618b31aae1d26a08eb0b8fc0230d0861d07ba8dd122216a4c5699",
+      "full_goal_complete": false,
+      "interfaces": 55,
+      "native_decoder_sha256": "a543c3d63d1db3e4416ab351eeb9ee95ab4fd4906391f0e6cdbb7669e3b2dae9",
+      "native_source_sha256": "255f06b66561d5f47030b56e6fdb32f51fa7876c9f46787ed3f07580b211714b",
+      "revision": "25b7e822e806ac767585cd34e9078ecd2a080c17",
+      "runtime_abi": 6,
+      "scope": "Fresh separate library-only producer with exact pinned archived Native inputs, all artifact identities, actual base package closure, object ABI and Native interface decoding independently verified. It supplies no Bootstrap implementation modules.",
+      "status": "passed-current-library-only-provider",
+      "verified_at": "2026-11-05T12:50:25.198394+00:00"
+    }
+  },
+  "published_files": {
+    "bootstrap/Bootstrap.BodyContract.cinch": "980c24836344c3c821c587adce5c522e5c0264448f8a7c6dd16395085265f867",
+    "bootstrap/Bootstrap.Core.cinch": "4fdbc8761051f0bcad90784aeabb36d853dc74651a084648d180631585533d4a",
+    "bootstrap/Bootstrap.Export.cinch": "7cff2d7ecbdb543fbd271fa73e52f4f7397f1672e26d4ba4c9bc88a376a3463c",
+    "bootstrap/Bootstrap.ExportNominal.cinch": "b103906203ee709cc819932cc01fb49fd8d2242fb7cee84e7a58a588f9baaade",
+    "bootstrap/Bootstrap.ExportType.cinch": "e3239769ad1ad8e82f7d618d5df5e780f760ce2e384f859d4eb79e1fa51b970d",
+    "bootstrap/Bootstrap.Global.cinch": "27f7bbf0ab933ebe9dbdc1082f549a57c57554f4b003cc57ae7da5140894be8c",
+    "bootstrap/Bootstrap.Infer.cinch": "77d839c5e69dde9fd217d889e110ce0c072857a9b417f401148dcc2d87bde50e",
+    "bootstrap/Bootstrap.Load.cinch": "f25115f52d265ce8f0e3962d7f896e4eebd85256f61efa57f67ee87329db75d5",
+    "bootstrap/Bootstrap.Total.cinch": "bbad2865a0cf2ac4c6a677e0291d885421bd715f128d0a77ba324955a5034fe8",
+    "bootstrap/Bootstrap.TotalSemantics.cinch": "1e3be994545f1e7ee17c69fa4d568a037e875b58feb584e81ef169c6a3bc1066",
+    "bootstrap/Bootstrap.Typing.cinch": "c1eff99c202fbbc6bc28f063b6c3a652af05110c63094ad335c983dff978cab1",
+    "bootstrap/programs/Run.BodyBindings.cinch": "8bdcddb52564c33684385da0f0a0a356f6320acbf325873c1829f99e0e168bd4",
+    "bootstrap/programs/Run.SourceBodyBindings.cinch": "a95832f8a1862a5281e72603f8ffbdce7491ee247a3744813720de8e7772dff8",
+    "bootstrap/programs/Run.TotalBodyReadings.cinch": "e0769825b0b9709d122ab4acc6041232668dcc1942d65bae75c7196f54511460",
+    "bootstrap/programs/Run.MethodBodyAuthority.cinch": "be10ce923bba890996507499b62ac3d5d2232558eb1c115ced1401acf1080394",
+    "bootstrap/programs/Run.ImportedPreconditions.cinch": "2f2f45ad29e1abb8455b9d6f73970b176706ef42ffd645565e63043fe2240779",
+    "bootstrap/programs/Run.InstanceResolution.cinch": "f4af4b0f3d17a566e6b7d356e8eeac6e85dca62cdd3a03036cba0d1eb2eda0f1",
+    "compiler/tests/bootstrap_body_bindings.rs": "2da0828ad91538795808abc02f34bb996c909428b5f1c85d83cdc37d51db58f3",
+    "compiler/tests/bootstrap_total_semantics.rs": "d6e88d7cf7a1736a7aebeacaf07ef26dde88d0ca4c7e329305095775cbf0f8c2",
+    "compiler/tests/bootstrap_imported_preconditions.rs": "a4d50f54704cb708aa4275e19a996bfe6d23eb494a776b9cd140958d52ffa6d5",
+    "compiler/tests/bootstrap_instance_resolution.rs": "66d3f308797c07d6143421a562f26acdebf9259f40cb5c2887e6ade8a4eb5e0f",
+    "compiler/tests/common/mod.rs": "b747562e83e5c70050b1e3a28a4e44032420256e0ffc22a88cf2ef21fa069b67",
+    "compiler/tests/common/numeric_provider.rs": "6f1f5192df975d8af57a01864f0cdd3b7cd95ac5649f73a2fb7185da4b27fdf6",
+    "bootstrap/stage0.lock.json": "069cf1b43e36230bb215ef7b271446dff02a7b91cc71adad2f7789f1d880d14e",
+    "bootstrap/library-provider.lock.json": "46783cb80f4da853f477fa31f24a6d8604fe03a67e6c4cd11b1aa16aca5aef94"
+  },
+  "full_goal_complete": false,
+  "scope": "Published actual Cinch method-body loader/exporter/proof consumer and exact25 seed/provider locks. All43 modules,19 complete proof/interface groups (23tests),28 fresh actual export controls,251 matching auxiliary tests and fresh seed/provider preparation independently pass. Genuine new Stage1/2/3 and complete matching full suites/API/Acceptance5 remain required. Newer open-row/constructor/display repairs and the newly discovered Native quantified-precondition repair stay separate unpublished candidates."
+}

@@ -9,8 +9,12 @@ module Bootstrap.Core where
   import Bootstrap.Nominal (interface-global)
   import Bootstrap.Proof
   import Bootstrap.Total
+  import Bootstrap.TotalSemantics (total-numeric-reading, total-bytes-reading, total-boolean-reading, total-numeric-operation, total-numeric-comparison)
   import Bootstrap.BodyContract
   import Bootstrap.Guarded
+  import Bootstrap.ExportType (export-global)
+  import Data.Json
+  import Text.Json (canonical-bytes)
   import Data.Nat (nat-to-int)
   import Text.Lex (Span)
   import Algebra.Semigroup
@@ -29,10 +33,14 @@ module Bootstrap.Core where
   export CRefineProof, scoped-refinement-proof, byte-allocation-contract, byte-read-contract
   export CRefine, CForget, prove-refinement, CRequire, CDischarge, core-predicates, prove-predicates, required-body, CProved, core-condition, core-let-fact, prove-subtraction, numeric-method-operation
   export scope-guarded-bodies, with-guarded-bindings, scoped-guarded-call-index, core-definition-contracts-closed, seal-definition-with-contracts
+  export scoped-numeric-method-operation
   export ProofScope, make-proof-scope, scoped-prove-refinement, scoped-prove-predicates, scoped-core-predicates, scoped-core-condition, scoped-core-branch, scoped-core-let-fact, scoped-prove-subtraction
   export scoped-total-call-index, scope-bodies, with-body-bindings, core-definition-bodies-closed, seal-definition-with-bodies
   export CoreClause, MkCoreClause, CoreDefinition, MkCoreDefinition
   export term-children
+  export core-total-function
+  export with-checked-body-bindings, core-definition-checked-contracts-closed, seal-definition-with-checked-contracts
+  export core-source-body, core-total-function-uses, core-method-total-function
   export core-type, core-name, core-scheme, core-clauses, core-openings, core-private-types
   export CoreGiven, CGiven, CoreEvidence, CENeeded, CEGiven, CEInstance
   export CEArgument, CEArgumentsEnd
@@ -900,12 +908,12 @@ module Bootstrap.Core where
   unique entries seen = case entries of Nil -> Nil; Cons (id, k) rest -> if has-id id seen then unique rest seen else Cons (id, k) (unique rest (Cons (id, k) seen))
   seal-patterns :: Store -> List CorePattern -> List CorePattern
   seal-patterns st ps = case ps of Nil -> Nil; Cons p rest -> Cons (map-pattern-types (freeze-type st) p) (seal-patterns st rest)
-  seal-clauses :: List BodyBinding -> List GuardedBinding -> Store -> List CoreClause -> List CoreClause
+  seal-clauses :: BodyBindings -> List GuardedBinding -> Store -> List CoreClause -> List CoreClause
   seal-clauses bodies guards st clauses = case clauses of
     Nil -> Nil
     Cons (MkCoreClause s ps body) rest -> let patterns = seal-patterns st ps in
       let frozen = map-term-types (freeze-type st) body in
-      Cons (MkCoreClause s patterns (refresh-certificates (proof-patterns patterns (with-guarded-bindings guards (with-body-bindings bodies empty-proof-scope))) Nil frozen)) (seal-clauses bodies guards st rest)
+      Cons (MkCoreClause s patterns (refresh-certificates (proof-patterns patterns (with-guarded-bindings guards (with-checked-body-bindings bodies empty-proof-scope))) Nil frozen)) (seal-clauses bodies guards st rest)
   normalize-valid-type :: Store -> UType -> UType
   normalize-valid-type st ty = if valid-type ty then normalize st ty else UError
   seal-definition :: Store -> CoreDefinition -> CoreDefinition
@@ -913,7 +921,11 @@ module Bootstrap.Core where
   seal-definition-with-bodies :: List BodyBinding -> Store -> CoreDefinition -> CoreDefinition
   seal-definition-with-bodies bodies st definition = seal-definition-with-contracts bodies Nil st definition
   seal-definition-with-contracts :: List BodyBinding -> List GuardedBinding -> Store -> CoreDefinition -> CoreDefinition
-  seal-definition-with-contracts bodies guards st definition = case definition of
+  seal-definition-with-contracts bodies guards st definition = case check-body-bindings bodies of
+    Some checked -> seal-definition-with-checked-contracts checked guards st definition
+    None -> seal-definition-with-checked-contracts empty-body-bindings guards st definition
+  seal-definition-with-checked-contracts :: BodyBindings -> List GuardedBinding -> Store -> CoreDefinition -> CoreDefinition
+  seal-definition-with-checked-contracts bodies guards st definition = case definition of
     MkCoreDefinition s name sc openings givens private clauses -> MkCoreDefinition s name (map-scheme (normalize-valid-type st) sc) openings (map-givens (freeze-type st) givens) (unique (private <> given-metas st givens <> clauses-metas st clauses) Nil) (seal-clauses bodies guards st clauses)
 
   closed-type :: UType -> Bool
@@ -1213,9 +1225,13 @@ module Bootstrap.Core where
   core-definition-bodies-closed :: List BodyBinding -> CoreDefinition -> Bool
   core-definition-bodies-closed bodies definition = core-definition-contracts-closed bodies Nil definition
   core-definition-contracts-closed :: List BodyBinding -> List GuardedBinding -> CoreDefinition -> Bool
-  core-definition-contracts-closed bodies guards definition = body-bindings-closed bodies && guarded-bindings-closed guards && (case definition of
+  core-definition-contracts-closed bodies guards definition = case check-body-bindings bodies of
+    Some checked -> core-definition-checked-contracts-closed checked guards definition
+    None -> False
+  core-definition-checked-contracts-closed :: BodyBindings -> List GuardedBinding -> CoreDefinition -> Bool
+  core-definition-checked-contracts-closed checked guards definition = let bodies = body-bindings-members checked in guarded-bindings-closed guards && (case definition of
     MkCoreDefinition s name sc openings givens private clauses -> let values = opening-value-ids (scheme-params sc) openings in
-      scheme-closed sc && scheme-index-scope Nil sc && givens-closed givens && givens-index-scope values givens && valid-clauses clauses && scoped-clauses values clauses && body-scheme-authorized bodies sc && proof-contract-clauses-with bodies guards (opening-value-types openings) (substitute-bound openings (scheme-body sc)) clauses)
+      scheme-closed sc && scheme-index-scope Nil sc && givens-closed givens && givens-index-scope values givens && valid-clauses clauses && scoped-clauses values clauses && body-scheme-authorized bodies sc && proof-contract-clauses-checked checked guards (opening-value-types openings) (substitute-bound openings (scheme-body sc)) clauses)
 
   -- Operation certificates are rechecked against facts derived from the
   -- retained Core control flow. Display names never identify proof values.
@@ -1233,13 +1249,15 @@ module Bootstrap.Core where
   -- Elaboration may supply checked witness hints; closed Core reconstructs
   -- every definition from the actual strict let RHS before checking its body.
   data ProofScope where
-    MkProofScope :: List (Nat, UType) -> List (Nat, UType) -> List (Nat, UType) -> List BodyBinding -> List GuardedBinding -> ProofScope
+    MkProofScope :: List (Nat, UType) -> List (Nat, UType) -> List (Nat, UType) -> BodyBindings -> List GuardedBinding -> ProofScope
   empty-proof-scope :: ProofScope
-  empty-proof-scope = MkProofScope Nil Nil Nil Nil Nil
+  empty-proof-scope = MkProofScope Nil Nil Nil empty-body-bindings Nil
   scope-bodies :: ProofScope -> List BodyBinding
-  scope-bodies scope = case scope of MkProofScope types values proofs bodies guards -> bodies
+  scope-bodies scope = case scope of MkProofScope types values proofs bodies guards -> body-bindings-members bodies
   with-body-bindings :: List BodyBinding -> ProofScope -> ProofScope
-  with-body-bindings bindings scope = if body-bindings-closed bindings then (case scope of MkProofScope types values proofs old guards -> MkProofScope types values proofs bindings guards) else scope
+  with-body-bindings bindings scope = case check-body-bindings bindings of Some checked -> with-checked-body-bindings checked scope; None -> scope
+  with-checked-body-bindings :: BodyBindings -> ProofScope -> ProofScope
+  with-checked-body-bindings bindings scope = case scope of MkProofScope types values proofs old guards -> MkProofScope types values proofs bindings guards
   scope-types :: ProofScope -> List (Nat, UType)
   scope-types scope = case scope of MkProofScope types values proofs bodies guards -> types
   scope-entry :: Nat -> List (Nat, UType) -> Option UType
@@ -1261,7 +1279,7 @@ module Bootstrap.Core where
       Some carrier -> if scope-index-valid carrier value then Cons (id, value) (scope-definitions types rest) else scope-definitions types rest
       None -> scope-definitions types rest
   make-proof-scope :: List (Nat, UType) -> List (Nat, UType) -> ProofScope
-  make-proof-scope types values = MkProofScope types (scope-definitions types values) Nil Nil Nil
+  make-proof-scope types values = MkProofScope types (scope-definitions types values) Nil empty-body-bindings Nil
   scope-index :: ProofScope -> Nat -> String -> UType -> Option UType
   scope-index scope id name ty = case proof-local id scope of
     Some declared -> if not (contract-equal ty declared) then None else case scope-value id scope of
@@ -1468,7 +1486,7 @@ module Bootstrap.Core where
     CPrimitive s ty op (CArgument a first (CArgumentsEnd end)) ->
       if string-compare op "negate" == 0 && same-number-sort ty (core-type first) && not (nat-type ty) then
         (case core-arithmetic gamma facts first of Some x -> Some (AMinus (AInteger 0) x); None -> None) else None
-    CApply s ty (CApply partial function method first) second -> case numeric-method-operation method first second of
+    CApply s ty (CApply partial function method first) second -> case scoped-numeric-method-operation gamma method first second of
       Some op -> case (core-arithmetic gamma facts first, core-arithmetic gamma facts second) of
         (Some a, Some b) -> Some (if string-compare op "+" == 0 then APlus a b else if string-compare op "*" == 0 then ATimes a b else AMinus a b)
         other -> None
@@ -1491,7 +1509,7 @@ module Bootstrap.Core where
         (case (comparison-name op, core-arithmetic gamma facts first, core-arithmetic gamma facts second) of
           (Some rel, Some x, Some y) -> Some (PCompare rel x y)
           other -> None) else None
-    CApply s ty (CApply partial function method first) second -> case numeric-method-comparison method first second of
+    CApply s ty (CApply partial function method first) second -> case scoped-numeric-method-comparison gamma method first second of
       Some relation -> case (core-arithmetic gamma facts first, core-arithmetic gamma facts second) of
         (Some a, Some b) -> Some (PCompare relation a b)
         other -> None
@@ -1853,7 +1871,7 @@ module Bootstrap.Core where
   integer-index-carrier carrier = same-number-sort carrier carrier || valid-type (UIndexPromote (UIndex carrier (IBound 0 "#sort")))
   typed-index-arithmetic :: ProofScope -> UType -> Option Arithmetic
   typed-index-arithmetic gamma value = if not (typed-index-admissible value) then None else case value of
-    UIndexCall function args -> if not (integer-carrier (UCon (total-result function) KType)) then None else case body-function function (scope-bodies gamma) of Some binding -> (case total-index-arguments gamma args of Some values -> Some (ACall (body-call-key binding) values); None -> None); None -> None
+    UIndexCall function args -> if not (integer-carrier (UCon (total-result function) KType)) then None else case body-function function (scope-bodies gamma) of Some binding -> (case total-index-arguments gamma (total-parameters function) args of Some values -> Some (ACall (body-call-key binding) values); None -> None); None -> None
     UIndexByteLength input -> case byte-observation-id gamma input of Some id -> Some (byte-length-variable id); None -> None
     UIndex carrier index -> index-arithmetic gamma carrier index
     UIndexForget (UIndex carrier (IRigid id name level)) -> case proof-local id gamma of
@@ -1945,7 +1963,7 @@ module Bootstrap.Core where
     CPrimitive s ty op (CArgument a input (CArgumentsEnd end)) ->
       if string-compare op "negate" == 0 && same-number-sort ty (core-type input) && not (nat-type ty) && proof-term gamma facts input then
         actual-math-index gamma facts "-" (CInt s ty "0") input else None
-    CApply s ty (CApply partial function method first) second -> case numeric-method-operation method first second of
+    CApply s ty (CApply partial function method first) second -> case scoped-numeric-method-operation gamma method first second of
       Some op -> if proof-term gamma facts first && proof-term gamma facts second then actual-math-index gamma facts op first second else None
       None -> None
     CProved s ty evidence body -> if certified-operation gamma facts ty evidence body then (case body of
@@ -2054,48 +2072,36 @@ module Bootstrap.Core where
   proof-contract-clauses :: List BodyBinding -> List GuardedBinding -> UType -> List CoreClause -> Bool
   proof-contract-clauses bodies guards expected clauses = proof-contract-clauses-with bodies guards Nil expected clauses
   proof-contract-clauses-with :: List BodyBinding -> List GuardedBinding -> List (Nat, UType) -> UType -> List CoreClause -> Bool
-  proof-contract-clauses-with bodies guards values expected clauses = case clauses of
+  proof-contract-clauses-with bodies guards values expected clauses = case check-body-bindings bodies of
+    Some checked -> proof-contract-clauses-checked checked guards values expected clauses
+    None -> False
+  proof-contract-clauses-checked :: BodyBindings -> List GuardedBinding -> List (Nat, UType) -> UType -> List CoreClause -> Bool
+  proof-contract-clauses-checked bodies guards values expected clauses = case clauses of
     Nil -> True
     Cons (MkCoreClause s patterns body) rest -> (case patterns-result expected patterns of
-      Some result -> proof-expected (proof-patterns patterns (with-guarded-bindings guards (with-body-bindings bodies (make-proof-scope values Nil)))) Nil result body
-      None -> False) && proof-contract-clauses-with bodies guards values expected rest
+      Some result -> proof-expected (proof-patterns patterns (with-guarded-bindings guards (with-checked-body-bindings bodies (make-proof-scope values Nil)))) Nil result body
+      None -> False) && proof-contract-clauses-checked bodies guards values expected rest
 
-  numeric-method-comparison :: CoreTerm -> CoreTerm -> CoreTerm -> Option Comparison
-  numeric-method-comparison method first second = case method of
-    CMethod sp ty name owner slot [actual] [CEInstance at instance-type symbol types arguments] -> case (ty, instance-type) of
-      (UFun left (UFun right result), UApp (UCon signature-name kind) carrier) ->
-        if same-integer-carrier carrier actual && same-integer-carrier carrier left && same-integer-carrier carrier right
-          && same-integer-carrier carrier (core-type first) && same-integer-carrier carrier (core-type second)
-          && bool-type result && string-compare signature-name owner == 0
-          && evidence-closed (CEInstance at instance-type symbol types arguments) then canonical-comparison owner name slot else None
-      other -> None
+  selected-method-function :: ProofScope -> CoreTerm -> CoreTerm -> CoreTerm -> Option TotalFunction
+  selected-method-function gamma method first second = case method of
+    CMethod sp ty name owner slot actuals [CEInstance at factory dictionary Nil (CEArgumentsEnd end)] -> (case selected-method-body dictionary slot (scope-bodies gamma) of
+      Some binding -> if not (method-selection-matches dictionary slot name owner actuals factory binding && binding-matches (binding-name binding) "external" (mono ty) binding) then None else
+        (case ty of
+          UFun domain (UFun next result) -> if contract-equal domain (core-type first) && contract-equal next (core-type second) then Some (binding-function binding) else None
+          other -> None)
+      None -> None)
     other -> None
-  canonical-comparison :: String -> String -> Nat -> Option Comparison
-  canonical-comparison owner name slot =
-    if string-compare owner (interface-global "Relation.Ord.Ord") == 0 then
-      (if slot == 0 && string-compare name (interface-global "Relation.Ord.Ord.<") == 0 then Some Less
-       else if slot == 1 && string-compare name (interface-global "Relation.Ord.Ord.<=") == 0 then Some AtMost
-       else if slot == 2 && string-compare name (interface-global "Relation.Ord.Ord.>") == 0 then Some Greater
-       else if slot == 3 && string-compare name (interface-global "Relation.Ord.Ord.>=") == 0 then Some AtLeast else None)
-    else if string-compare owner (interface-global "Relation.Eq.Eq") == 0 then
-      (if slot == 0 && string-compare name (interface-global "Relation.Eq.Eq.==") == 0 then Some Equal
-       else if slot == 1 && string-compare name (interface-global "Relation.Eq.Eq./=") == 0 then Some Unequal else None)
-    else None
-
+  scoped-numeric-method-comparison :: ProofScope -> CoreTerm -> CoreTerm -> CoreTerm -> Option Comparison
+  scoped-numeric-method-comparison gamma method first second = case selected-method-function gamma method first second of
+    Some function -> (case total-numeric-comparison function of Some relation -> comparison-name relation; None -> None)
+    None -> None
+  scoped-numeric-method-operation :: ProofScope -> CoreTerm -> CoreTerm -> CoreTerm -> Option String
+  scoped-numeric-method-operation gamma method first second = case selected-method-function gamma method first second of
+    Some function -> total-numeric-operation function
+    None -> None
+  -- A type-only caller has no selected implementation body to inspect.
   numeric-method-operation :: CoreTerm -> CoreTerm -> CoreTerm -> Option String
-  numeric-method-operation method first second = case method of
-    CMethod sp ty name owner slot [actual] [CEInstance at instance-type symbol types arguments] -> case (ty, instance-type) of
-      (UFun left (UFun right result), UApp (UCon signature-name kind) carrier) ->
-        if same-number-sort carrier actual && same-number-sort carrier left && same-number-sort carrier right
-          && same-number-sort carrier result && same-number-sort carrier (core-type first)
-          && same-number-sort carrier (core-type second) && string-compare signature-name owner == 0
-          && evidence-closed (CEInstance at instance-type symbol types arguments) && slot == 0 then
-          (if string-compare owner (interface-global "Algebra.Arithmetic.Add") == 0 && string-compare name (interface-global "Algebra.Arithmetic.Add.+") == 0 then Some "+"
-           else if string-compare owner (interface-global "Algebra.Arithmetic.Mul") == 0 && string-compare name (interface-global "Algebra.Arithmetic.Mul.*") == 0 then Some "*"
-           else if not (nat-type carrier) && string-compare owner (interface-global "Algebra.Arithmetic.Sub") == 0 && string-compare name (interface-global "Algebra.Arithmetic.Sub.-") == 0 then Some "-" else None)
-        else None
-      other -> None
-    other -> None
+  numeric-method-operation method first second = None
 
   -- Existing type-only proof APIs keep their interface. Definition-aware
   -- elaboration uses the scoped variants; Core reconstructs those scopes.
@@ -2146,10 +2152,28 @@ module Bootstrap.Core where
     Some (UIndexCall function args) -> let value = UIndexCall function args in if kind-equal (type-kind value) (value-kind carrier) then Some value else None
     Some value -> let out = UIndexForget value in if typed-index-admissible out then Some out else None
     None -> None
-  total-index-arguments :: ProofScope -> UType -> Option Arithmetic
-  total-index-arguments gamma arguments = case arguments of
-    UEnd -> Some AArgumentsEnd
-    UArg first rest -> (case (typed-index-arithmetic gamma first, total-index-arguments gamma rest) of (Some value, Some more) -> Some (AArgument value more); other -> None)
+  total-value-call-key :: ProofScope -> UType -> String -> Option Arithmetic
+  total-value-call-key gamma value sort = case value of
+    UIndexCall function arguments -> (case body-function function (scope-bodies gamma) of
+      Some binding -> if not (string-compare (total-result function) sort == 0) then None else
+        (case total-index-arguments gamma (total-parameters function) arguments of
+          Some keys -> if string-compare sort "Bytes" == 0 then
+            (case total-bytes-reading function keys of Some length -> Some length; None -> Some (ACall (string-concat "#total-bytes-length:" (binding-native binding)) keys))
+            else (case total-boolean-reading function keys of Some flag -> Some (AInteger (if flag then 1 else 0)); None -> Some (ACall (body-call-key binding) keys))
+          None -> None)
+      None -> None)
+    other -> None
+  total-argument-key :: ProofScope -> String -> UType -> Option Arithmetic
+  total-argument-key gamma sort value = if not (typed-index-admissible value && kind-equal (type-kind value) (value-kind (UCon sort KType))) then None else
+    if string-compare sort "Bytes" == 0 then (case byte-observation-id gamma value of Some id -> Some (byte-length-variable id); None -> total-value-call-key gamma value sort)
+    else if string-compare sort "Bool" == 0 then (case value of
+      UIndex carrier (IRigid id name level) -> (case proof-local id gamma of Some declared -> if contract-equal carrier declared then Some (AVariable (string-concat "#total-bool:" (nat-to-string id))) else None; None -> None)
+      other -> total-value-call-key gamma value sort)
+    else typed-index-arithmetic gamma value
+  total-index-arguments :: ProofScope -> List String -> UType -> Option Arithmetic
+  total-index-arguments gamma sorts arguments = case (sorts, arguments) of
+    (Nil, UEnd) -> Some AArgumentsEnd
+    (Cons sort rest, UArg first more) -> (case (total-argument-key gamma sort first, total-index-arguments gamma rest more) of (Some value, Some others) -> Some (AArgument value others); other -> None)
     other -> None
   body-key-binding :: String -> List BodyBinding -> Option BodyBinding
   body-key-binding key bindings = case bindings of Nil -> None; Cons first rest -> if string-compare key (body-call-key first) == 0 then Some first else body-key-binding key rest
@@ -2159,7 +2183,7 @@ module Bootstrap.Core where
     <> (case total-bounds function of Some (low, high) -> [PCompare AtLeast value (AInteger low), PCompare AtMost value (AInteger high)]; None -> Nil)
   arithmetic-body-facts :: ProofScope -> Arithmetic -> List Proposition
   arithmetic-body-facts gamma value = case value of
-    ACall key arguments -> (case body-key-binding key (scope-bodies gamma) of Some binding -> body-application-facts binding value; None -> Nil) <> arithmetic-body-facts gamma arguments
+    ACall key arguments -> (case body-key-binding key (scope-bodies gamma) of Some binding -> body-application-facts binding value <> (case total-numeric-reading (binding-function binding) arguments of Some reading -> [PCompare Equal value reading]; None -> Nil); None -> Nil) <> arithmetic-body-facts gamma arguments
     AArgument first rest -> arithmetic-body-facts gamma first <> arithmetic-body-facts gamma rest
     APlus a b -> arithmetic-body-facts gamma a <> arithmetic-body-facts gamma b
     AMinus a b -> arithmetic-body-facts gamma a <> arithmetic-body-facts gamma b
@@ -2226,3 +2250,296 @@ module Bootstrap.Core where
       Some (binding, arguments) -> (case guarded-actual-readings gamma facts arguments of Some values -> guarded-reading binding values; None -> None)
       None -> None)
     other -> None
+
+
+  -- Reconstruct a closed executable graph from actual retained definitions.
+  -- This supplies no authority by itself: the caller must still associate
+  -- the graph with the declaration checked by the independent global kernel.
+  -- Unsupported, effectful, polymorphic and cyclic bodies yield no graph.
+  total-core-sort :: UType -> Option String
+  total-core-sort ty = case ty of
+    UCon name KType -> if string-compare name "Nat" == 0 || string-compare name "Int" == 0 || string-compare name "Bool" == 0 || string-compare name "Bytes" == 0 || string-compare name "I64" == 0 then Some name else None
+    other -> None
+  -- A checked result/local refinement keeps the same numeric runtime carrier.
+  -- Domains remain plain sorts; this does not erase an input obligation.
+  total-core-value-sort :: UType -> Option String
+  total-core-value-sort ty = case ty of
+    URefine id name carrier predicate -> case total-core-sort carrier of
+      Some sort -> if total-core-has sort ["Nat", "Int", "I64"] then Some sort else None
+      None -> None
+    other -> total-core-sort ty
+  total-core-json-list :: List Json -> Json
+  total-core-json-list values = case values of Nil -> JArrEnd; Cons first rest -> JArr first (total-core-json-list rest)
+  total-core-text-list :: List String -> Json
+  total-core-text-list values = case values of Nil -> JArrEnd; Cons first rest -> JArr (JStr first) (total-core-text-list rest)
+  total-core-field :: String -> Json -> Json
+  total-core-field name value = case value of JObj key item rest -> if string-compare name key == 0 then item else total-core-field name rest; other -> JNull
+  total-core-text :: Json -> String
+  total-core-text value = case value of JStr text -> text; other -> ""
+  total-core-members :: Json -> List Json
+  total-core-members values = case values of JArr first rest -> Cons first (total-core-members rest); other -> Nil
+  total-core-has :: String -> List String -> Bool
+  total-core-has name values = case values of Nil -> False; Cons first rest -> string-compare name first == 0 || total-core-has name rest
+  total-core-signature :: UType -> List String -> Option (List String, String)
+  total-core-signature ty parameters = case ty of
+    UFun domain result -> case total-core-sort domain of Some sort -> total-core-signature result (parameters <> [sort]); None -> None
+    UFunEff domain (URow UEnd) result -> case total-core-sort domain of Some sort -> total-core-signature result (parameters <> [sort]); None -> None
+    UPi id name domain (URow UEnd) result -> if pi-dependent ty then None else (case total-core-sort domain of Some sort -> total-core-signature result (parameters <> [sort]); None -> None)
+    other -> case total-core-value-sort ty of Some sort -> Some (parameters, sort); None -> None
+  total-core-local :: Nat -> List (Option Nat, String) -> Nat -> Option (Nat, String)
+  total-core-local id scope slot = case scope of
+    Nil -> None
+    Cons (Some key, sort) rest -> if id == key then Some (slot, sort) else total-core-local id rest (slot + 1)
+    Cons (None, sort) rest -> total-core-local id rest (slot + 1)
+  total-core-parameters :: List String -> List CorePattern -> List (Option Nat, String) -> Option (List (Option Nat, String))
+  total-core-parameters sorts patterns scope = case (sorts, patterns) of
+    (Nil, Nil) -> Some scope
+    (Cons sort rest, Cons (CPVar sp ty id name) more) -> case total-core-sort ty of
+      Some actual -> if string-compare sort actual == 0 && (case total-core-local id scope 0 of None -> True; other -> False) then total-core-parameters rest more (scope <> [(Some id, sort)]) else None
+      None -> None
+    (Cons sort rest, Cons (CPWild sp ty) more) -> case total-core-sort ty of
+      Some actual -> if string-compare sort actual == 0 then total-core-parameters rest more (scope <> [(None, sort)]) else None
+      None -> None
+    other -> None
+  total-core-flatten :: List CorePattern -> CoreTerm -> (List CorePattern, CoreTerm)
+  total-core-flatten parameters body = case body of
+    CLambda sp ty pattern inner -> total-core-flatten (parameters <> [pattern]) inner
+    other -> (parameters, body)
+  total-core-definition :: String -> List CoreDefinition -> Option CoreDefinition
+  total-core-definition name definitions = case definitions of
+    Nil -> None
+    Cons first rest -> if string-compare name (core-name first) == 0 then Some first else total-core-definition name rest
+  total-core-native-definition :: String -> List CoreDefinition -> Option CoreDefinition
+  total-core-native-definition name definitions = case definitions of
+    Nil -> None
+    Cons first rest -> case export-global (core-name first) of
+      Ok native -> if string-compare name native == 0 then Some first else total-core-native-definition name rest
+      Err error -> total-core-native-definition name rest
+  total-core-head :: CoreTerm -> CoreTerm
+  total-core-head term = case term of CApply sp ty f x -> total-core-head f; CApplyEff sp ty row f x -> total-core-head f; other -> term
+  total-core-arguments :: CoreTerm -> List CoreTerm -> List CoreTerm
+  total-core-arguments term rest = case term of CApply sp ty f x -> total-core-arguments f (Cons x rest); CApplyEff sp ty row f x -> total-core-arguments f (Cons x rest); other -> rest
+  total-core-primitive :: String -> List Json -> Json
+  total-core-primitive operation arguments = JObj "node" (JStr "primitive") (JObj "operation" (JStr operation) (JObj "arguments" (total-core-json-list arguments) JObjEnd))
+  total-core-number :: String -> String -> Json
+  total-core-number sort decimal = JObj "node" (JStr "number") (JObj "sort" (JStr sort) (JObj "decimal" (JStr decimal) JObjEnd))
+  total-core-relation :: String -> Option String
+  total-core-relation relation = if string-compare relation "==" == 0 then Some "I64Eq" else if string-compare relation "/=" == 0 then Some "I64Ne" else if string-compare relation "<" == 0 then Some "I64Lt" else if string-compare relation "<=" == 0 then Some "I64Le" else if string-compare relation ">" == 0 then Some "I64Gt" else if string-compare relation ">=" == 0 then Some "I64Ge" else None
+  total-core-operation :: String -> List CoreTerm -> List Json -> Option Json
+  total-core-operation operation terms values = case (terms, values) of
+    ([first], [value]) -> (case total-core-sort (core-type first) of
+      Some sort -> if string-compare operation "negate" == 0 && string-compare sort "Int" == 0 then Some (total-core-primitive "IntNeg" [value]) else None
+      None -> None)
+    ([first, second], [left, right]) -> (case (total-core-sort (core-type first), total-core-sort (core-type second)) of
+      (Some sort, Some other) -> if string-compare sort other /= 0 then None else
+        if string-compare sort "Nat" == 0 || string-compare sort "Int" == 0 then
+          (let prefix = if string-compare sort "Nat" == 0 then "Nat" else "Int" in
+           if string-compare operation "+" == 0 then Some (total-core-primitive (prefix <> "Add") [left, right])
+           else if string-compare operation "*" == 0 then Some (total-core-primitive (prefix <> "Mul") [left, right])
+           else if string-compare operation "-" == 0 && string-compare sort "Int" == 0 then Some (total-core-primitive "IntSub" [left, right])
+           else case total-core-relation operation of
+             Some relation -> Some (total-core-primitive relation [total-core-primitive (prefix <> "Cmp") [left, right], total-core-number "I64" "0"])
+             None -> None)
+        else if string-compare sort "I64" == 0 then (case total-core-relation operation of Some relation -> Some (total-core-primitive relation [left, right]); None -> None)
+        else if string-compare sort "Bool" == 0 && (string-compare operation "==" == 0 || string-compare operation "/=" == 0) then Some (total-core-primitive (if string-compare operation "==" == 0 then "BoolEq" else "BoolNe") [left, right]) else None
+      other -> None)
+    other -> None
+  total-core-expressions :: List BodyBinding -> List CoreDefinition -> List (Option Nat, String) -> List CoreTerm -> Option (List Json, List String)
+  total-core-expressions bindings definitions scope terms = case terms of
+    Nil -> Some (Nil, Nil)
+    Cons first rest -> case (total-core-expression bindings definitions scope first, total-core-expressions bindings definitions scope rest) of
+      (Some (value, calls), Some (more, others)) -> Some (Cons value more, calls <> others)
+      other -> None
+  total-core-call :: List BodyBinding -> List CoreDefinition -> List (Option Nat, String) -> CoreTerm -> Option (Json, List String)
+  total-core-call bindings definitions scope term = case total-core-head term of
+    CUse sp ty name role Nil -> (case total-core-expressions bindings definitions scope (total-core-arguments term Nil) of
+      None -> None
+      Some (arguments, references) -> if byte-length-function (core-type term) ty name role then
+        (case arguments of [argument] -> Some (total-core-primitive "BytesLen" [argument], references); other -> None)
+        else case total-core-definition name definitions of
+          Some definition -> if string-compare role "value" /= 0 || not (contract-equal ty (scheme-body (core-scheme definition))) then None else
+            (case export-global name of
+              Ok native -> Some (JObj "node" (JStr "call") (JObj "target" (JStr native) (JObj "arguments" (total-core-json-list arguments) JObjEnd)), Cons name references)
+              Err error -> None)
+          None -> case body-binding name bindings of
+            Some binding -> if binding-matches name role (mono ty) binding then Some (JObj "node" (JStr "call") (JObj "target" (JStr (binding-native binding)) (JObj "arguments" (total-core-json-list arguments) JObjEnd)), Cons name references) else None
+            None -> None)
+    CMethod sp ty name owner slot actuals [CEInstance at factory dictionary Nil (CEArgumentsEnd end)] ->
+      (case selected-method-body dictionary slot bindings of
+        Some binding -> if not (binding-matches (binding-name binding) "external" (mono ty) binding && method-selection-matches dictionary slot name owner actuals factory binding) then None else
+          (case total-core-expressions bindings definitions scope (total-core-arguments term Nil) of
+            Some (arguments, references) -> Some (JObj "node" (JStr "call") (JObj "target" (JStr (binding-native binding)) (JObj "arguments" (total-core-json-list arguments) JObjEnd)), Cons (binding-name binding) references)
+            None -> None)
+        None -> None)
+    other -> None
+  total-core-expression :: List BodyBinding -> List CoreDefinition -> List (Option Nat, String) -> CoreTerm -> Option (Json, List String)
+  total-core-expression bindings definitions scope term = if not (contract-equal (core-effects term) (URow UEnd)) then None else case term of
+    CLocal sp ty id name Nil -> (case (total-core-local id scope 0, total-core-value-sort ty) of
+      (Some (slot, expected), Some actual) -> if string-compare expected actual == 0 then Some (JObj "node" (JStr "local") (JObj "slot" (JNum (nat-to-int slot)) JObjEnd), Nil) else None
+      other -> None)
+    CInt sp ty decimal -> (case total-core-value-sort ty of Some sort -> Some (total-core-number sort decimal, Nil); None -> None)
+    CIf sp ty condition yes no -> (case (total-core-expression bindings definitions scope condition, total-core-expression bindings definitions scope yes, total-core-expression bindings definitions scope no) of
+      (Some (test, called), Some (first, left), Some (second, right)) -> Some (JObj "node" (JStr "if") (JObj "condition" test (JObj "yes" first (JObj "no" second JObjEnd))), called <> left <> right)
+      other -> None)
+    CLet sp ty id name sc rhs body -> if (case (scheme-params sc, scheme-requirements sc) of (Nil, Nil) -> True; other -> False) then
+      (case (total-core-expression bindings definitions scope rhs, total-core-value-sort (scheme-body sc)) of
+        (Some (value, called), Some sort) -> (case total-core-expression bindings definitions (scope <> [(Some id, sort)]) body of
+          Some (inside, more) -> Some (JObj "node" (JStr "let") (JObj "value" value (JObj "body" inside JObjEnd)), called <> more)
+          None -> None)
+        other -> None) else None
+    CRefine sp ty evidence body -> total-core-expression bindings definitions scope body
+    CForget sp ty body -> total-core-expression bindings definitions scope body
+    CPrimitive sp ty operation fields -> (case total-core-term-list fields of
+      Some terms -> (case total-core-expressions bindings definitions scope terms of
+        Some (values, references) -> (case total-core-operation operation terms values of Some value -> Some (value, references); None -> None)
+        None -> None)
+      None -> None)
+    CUse sp ty name role Nil -> if decision-constant True term then Some (JObj "node" (JStr "bool") (JObj "value" (JBool True) JObjEnd), Nil) else if decision-constant False term then Some (JObj "node" (JStr "bool") (JObj "value" (JBool False) JObjEnd), Nil) else total-core-call bindings definitions scope term
+    CApply sp ty f x -> total-core-call bindings definitions scope term
+    CApplyEff sp ty row f x -> total-core-call bindings definitions scope term
+    other -> None
+  total-core-term-list :: CoreTerm -> Option (List CoreTerm)
+  total-core-term-list terms = case terms of
+    CArgumentsEnd sp -> Some Nil
+    CArgument sp first rest -> (case total-core-term-list rest of Some more -> Some (Cons first more); None -> None)
+    other -> None
+  total-core-row :: List BodyBinding -> List CoreDefinition -> CoreDefinition -> Option (Json, List String)
+  total-core-row bindings definitions definition = if not (core-definition-closed definition && core-definition-result-types definition) then None else
+    case (scheme-params (core-scheme definition), scheme-requirements (core-scheme definition), core-givens definition, core-clauses definition) of
+      (Nil, Nil, Nil, [MkCoreClause sp patterns body]) -> (case (total-core-signature (scheme-body (core-scheme definition)) Nil, export-global (core-name definition), total-core-flatten patterns body) of
+        (Some (parameters, result), Ok native, (arguments, inner)) -> (case total-core-parameters parameters arguments Nil of
+          Some scope -> (case total-core-expression bindings definitions scope inner of
+            Some (value, references) -> Some (JObj "identity" (JStr native) (JObj "parameters" (total-core-text-list parameters) (JObj "result" (JStr result) (JObj "body" value JObjEnd))), references)
+            None -> None)
+          None -> None)
+        other -> None)
+      other -> None
+  total-core-insert :: Json -> List Json -> Option (List Json)
+  total-core-insert row rows = case rows of
+    Nil -> Some [row]
+    Cons first rest -> let order = string-compare (total-core-text (total-core-field "identity" row)) (total-core-text (total-core-field "identity" first)) in
+      if order == 0 then (if bytes-compare (canonical-bytes row) (canonical-bytes first) == 0 then Some rows else None)
+      else if order < 0 then Some (Cons row rows)
+      else (case total-core-insert row rest of Some more -> Some (Cons first more); None -> None)
+  total-core-merge :: List Json -> List Json -> Option (List Json)
+  total-core-merge first rest = case first of Nil -> Some rest; Cons row more -> (case total-core-insert row rest of Some rows -> total-core-merge more rows; None -> None)
+  total-core-gather :: List BodyBinding -> List CoreDefinition -> List String -> String -> Option (List Json)
+  total-core-gather bindings definitions visiting name = if total-core-has name visiting then None else case total-core-definition name definitions of
+    Some definition -> (case total-core-row bindings definitions definition of
+      Some (row, references) -> (case total-core-gather-list bindings definitions (Cons name visiting) references of Some more -> total-core-insert row more; None -> None)
+      None -> None)
+    None -> (case body-binding name bindings of Some binding -> total-core-merge (total-core-members (total-core-field "definitions" (total-function-document (binding-function binding)))) Nil; None -> None)
+  total-core-gather-list :: List BodyBinding -> List CoreDefinition -> List String -> List String -> Option (List Json)
+  total-core-gather-list bindings definitions visiting references = case references of
+    Nil -> Some Nil
+    Cons first rest -> (case (total-core-gather bindings definitions visiting first, total-core-gather-list bindings definitions visiting rest) of
+      (Some rows, Some more) -> total-core-merge rows more
+      other -> None)
+  core-total-function :: List BodyBinding -> List CoreDefinition -> String -> Option TotalFunction
+  core-total-function bindings definitions native = case total-core-native-definition native definitions of
+    Some definition -> (case total-core-gather bindings definitions Nil (core-name definition) of
+      Some rows -> (case check-total-graph (JObj "version" (JNum 1) (JObj "definitions" (total-core-json-list rows) JObjEnd)) of Some graph -> total-function graph native; None -> None)
+      None -> None)
+    None -> None
+
+  core-source-body :: List BodyBinding -> List CoreDefinition -> String -> Option BodyBinding
+  core-source-body bindings definitions native = case total-core-native-definition native definitions of
+    Some definition -> (case core-total-function bindings definitions native of
+      Some function -> check-source-body-binding (core-name definition) native (core-scheme definition) function
+      None -> None)
+    None -> None
+  -- Apply the real closed self dictionary before reading a method body.
+  -- The table is built from the checked defining class slots and actual
+  -- dictionary fields. It also lets the ordinary graph checker reject
+  -- recursive method cycles rather than inventing equations for a slot.
+  total-method-member :: Nat -> List (Nat, String, String, CoreDefinition) -> Option (String, String, CoreDefinition)
+  total-method-member slot members = case members of
+    Nil -> None
+    Cons (number, selector, native, definition) rest -> if slot == number then Some (selector, native, definition) else total-method-member slot rest
+  total-method-types :: List UType -> List UType -> Bool
+  total-method-types first second = case (first, second) of
+    (Nil, Nil) -> True
+    (Cons a rest, Cons b more) -> contract-equal a b && total-method-types rest more
+    other -> False
+  total-method-spine :: UType -> List UType -> (UType, List UType)
+  total-method-spine ty arguments = case ty of UApp head argument -> total-method-spine head (Cons argument arguments); other -> (ty, arguments)
+  total-method-self :: String -> String -> UType -> CoreEvidence -> Bool
+  total-method-self given dictionary factory evidence = contract-equal factory (evidence-type evidence) && (case evidence of
+    CEGiven sp ty symbol -> string-compare symbol given == 0
+    CEInstance sp ty symbol Nil (CEArgumentsEnd end) -> string-compare symbol dictionary == 0
+    other -> False)
+  total-method-term :: String -> String -> String -> UType -> List (Nat, String, String, CoreDefinition) -> CoreTerm -> Option CoreTerm
+  total-method-term given dictionary owner factory members term = case term of
+    CUse sp ty name role actuals -> Some term
+    CLocal sp ty id name actuals -> Some term
+    CInt sp ty text -> Some term
+    CString sp ty text -> Some term
+    CChar sp ty text -> Some term
+    CUnit sp ty -> Some term
+    CMethod sp ty name declaring slot actuals [evidence] ->
+      if total-method-self given dictionary factory evidence then
+        (case (total-method-member slot members, total-method-spine factory Nil, export-global name) of
+          (Some (selector, native, definition), (UCon subject kind, arguments), Ok selected) ->
+            if string-compare owner declaring == 0 && string-compare owner subject == 0 && string-compare selected selector == 0
+              && total-method-types actuals arguments && contract-equal ty (scheme-body (core-scheme definition)) then
+                Some (CUse sp ty (interface-global native) "value" Nil)
+            else None
+          other -> None)
+      else (case evidence of CEInstance at subject symbol Nil (CEArgumentsEnd end) -> Some term; other -> None)
+    CApply sp ty function argument -> (case (total-method-term given dictionary owner factory members function, total-method-term given dictionary owner factory members argument) of
+      (Some f, Some x) -> Some (CApply sp ty f x)
+      other -> None)
+    CApplyEff sp ty row function argument -> (case (total-method-term given dictionary owner factory members function, total-method-term given dictionary owner factory members argument) of
+      (Some f, Some x) -> Some (CApplyEff sp ty row f x)
+      other -> None)
+    CLambda sp ty pattern body -> (case total-method-term given dictionary owner factory members body of Some out -> Some (CLambda sp ty pattern out); None -> None)
+    CLet sp ty id name sc value body -> (case (total-method-term given dictionary owner factory members value, total-method-term given dictionary owner factory members body) of
+      (Some first, Some rest) -> Some (CLet sp ty id name sc first rest)
+      other -> None)
+    CIf sp ty condition yes no -> (case (total-method-term given dictionary owner factory members condition, total-method-term given dictionary owner factory members yes, total-method-term given dictionary owner factory members no) of
+      (Some c, Some y, Some n) -> Some (CIf sp ty c y n)
+      other -> None)
+    CRefine sp ty certificate body -> (case total-method-term given dictionary owner factory members body of Some out -> Some (CRefine sp ty certificate out); None -> None)
+    CForget sp ty body -> (case total-method-term given dictionary owner factory members body of Some out -> Some (CForget sp ty out); None -> None)
+    CPrimitive sp ty operation arguments -> (case total-method-term given dictionary owner factory members arguments of Some out -> Some (CPrimitive sp ty operation out); None -> None)
+    CArgument sp first rest -> (case (total-method-term given dictionary owner factory members first, total-method-term given dictionary owner factory members rest) of
+      (Some a, Some b) -> Some (CArgument sp a b)
+      other -> None)
+    CArgumentsEnd sp -> Some term
+    other -> None
+  total-method-clauses :: String -> String -> String -> UType -> List (Nat, String, String, CoreDefinition) -> List CoreClause -> Option (List CoreClause)
+  total-method-clauses given dictionary owner factory members clauses = case clauses of
+    Nil -> Some Nil
+    Cons (MkCoreClause sp patterns body) rest -> (case (total-method-term given dictionary owner factory members body, total-method-clauses given dictionary owner factory members rest) of
+      (Some out, Some more) -> Some (Cons (MkCoreClause sp patterns out) more)
+      other -> None)
+  total-method-definition :: List BodyBinding -> String -> String -> Scheme -> List (Nat, String, String, CoreDefinition) -> String -> CoreDefinition -> Option CoreDefinition
+  total-method-definition bindings dictionary owner factory members native definition =
+    if not (scheme-closed factory && core-definition-bodies-closed bindings definition && core-definition-result-types definition) then None else
+      case (scheme-params factory, scheme-requirements factory, definition) of
+        (Nil, Nil, MkCoreDefinition sp name sc Nil [given] private clauses) ->
+          (case (scheme-params sc, scheme-requirements sc) of
+            (Nil, [self]) -> if string-compare (requirement-name self) "#instance-self" /= 0
+              || not (contract-equal (requirement-type self) (scheme-body factory) && contract-equal (given-type given) (scheme-body factory)) then None else
+                (case total-method-clauses (given-symbol given) dictionary owner (scheme-body factory) members clauses of
+                  Some out -> Some (MkCoreDefinition sp (interface-global native) (mono (scheme-body sc)) Nil Nil private out)
+                  None -> None)
+            other -> None)
+        other -> None
+  total-method-definitions :: List BodyBinding -> String -> String -> Scheme -> List (Nat, String, String, CoreDefinition) -> List (Nat, String, String, CoreDefinition) -> List CoreDefinition
+  total-method-definitions bindings dictionary owner factory all remaining = case remaining of
+    Nil -> Nil
+    Cons (slot, selector, native, definition) rest -> let more = total-method-definitions bindings dictionary owner factory all rest in
+      (case total-method-definition bindings dictionary owner factory all native definition of Some actual -> Cons actual more; None -> more)
+  core-method-total-function :: List BodyBinding -> List CoreDefinition -> String -> String -> Scheme -> List (Nat, String, String, CoreDefinition) -> Nat -> Option TotalFunction
+  core-method-total-function bindings definitions dictionary owner factory members slot = case total-method-member slot members of
+    Some (selector, native, definition) -> core-total-function bindings (total-method-definitions bindings dictionary owner factory members members <> definitions) native
+    None -> None
+  core-total-function-uses :: TotalFunction -> String -> Bool
+  core-total-function-uses function name = case export-global name of
+    Ok native -> total-core-has-row native (total-core-members (total-core-field "definitions" (total-function-document function)))
+    Err error -> False
+  total-core-has-row :: String -> List Json -> Bool
+  total-core-has-row native rows = case rows of
+    Nil -> False
+    Cons first rest -> string-compare native (total-core-text (total-core-field "identity" first)) == 0 || total-core-has-row native rest
