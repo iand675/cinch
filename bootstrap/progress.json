@@ -58,7 +58,7 @@
     },
     {
       "title": "Current published Rust compiler: full suite",
-      "detail": "157 of 232 complete groups passed; 1 running, 0 failed and 74 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "157 of 232 complete groups passed; 1 running, 1 failed and 73 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -143,7 +143,7 @@
     },
     {
       "title": "Latest source: complete fresh Rust sweep",
-      "detail": "157 of 232 complete groups passed; 1 running, 0 failed and 74 pending. State: running. All fresh test binaries use the matching source paths and explicit new pins; all cases run, including ignored cases. Retained prior results remain separately scoped.",
+      "detail": "157 of 232 complete groups passed; 1 running, 1 failed and 73 pending. State: running. All fresh test binaries use the matching source paths and explicit new pins; all cases run, including ignored cases. Retained prior results remain separately scoped.",
       "state": "running"
     },
     {
@@ -179,7 +179,7 @@
     },
     {
       "title": "Investigate the recorded failure",
-      "detail": "self-built tests: bootstrap_total_semantics; self-built tests: bootstrap_type_syntax; self-built tests: arrays"
+      "detail": "Native compiler tests: bootstrap_byte_observations; self-built tests: bootstrap_total_semantics; self-built tests: bootstrap_type_syntax; self-built tests: arrays"
     },
     {
       "title": "Finish the fresh bootstrap",
@@ -187,7 +187,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "157 of 232 complete groups passed; 1 running, 0 failed and 74 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "157 of 232 complete groups passed; 1 running, 1 failed and 73 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -236,6 +236,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "All 43 compiler-source checks: passed. 6 of 6 complete groups passed; 0 running, 0 failed and 0 pending. runtime behavior: passed; bootstrap_runtime_emit: passed; library calls: passed; bootstrap_runtime_library: passed; bootstrap_runtime_library_abi: passed; bootstrap_external_frontend: passed.",
-  "activity": "Current published Rust compiler: full suite: 157 of 232 complete groups passed; 1 running, 0 failed and 74 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 6 of 6 complete groups passed; 0 running, 0 failed and 0 pending. runtime behavior: passed; bootstrap_runtime_emit: passed; library calls: passed; bootstrap_runtime_library: passed; bootstrap_runtime_library_abi: passed; bootstrap_external_frontend: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
-  "updatedAt": "2026-11-05T19:38:37.026838+00:00"
+  "activity": "Current published Rust compiler: full suite: 157 of 232 complete groups passed; 1 running, 1 failed and 73 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 6 of 6 complete groups passed; 0 running, 0 failed and 0 pending. runtime behavior: passed; bootstrap_runtime_emit: passed; library calls: passed; bootstrap_runtime_library: passed; bootstrap_runtime_library_abi: passed; bootstrap_external_frontend: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
+  "updatedAt": "2026-11-05T19:42:39.043109+00:00"
 }
