@@ -1,0 +1,236 @@
+{
+  "affected_rust_tests": 11,
+  "compiler_gate": {
+    "adapter_tests": 8,
+    "binary_sha256": "601b6e98bfa6ecd85bb3affc4d7eee7d4b299a30a7c446eb5dbc77f3b3a66910",
+    "client_heap_limit": "32M",
+    "client_rc_debug": true,
+    "compiler_heap_limit": "256M",
+    "compiler_input_cases": 4,
+    "compiler_modules_checked": 43,
+    "compiler_rc_debug": false,
+    "compiler_sha256": "4b47870a85c3ae1626539be0fbc7f79d8a8a4c467fbf3c24cef38ea453a45b46",
+    "compiler_source_sha256": "5f2f855665956b76117ea128547ecbdf841f988a487b64ff38b983b24dd38ec4",
+    "full_goal_complete": false,
+    "interface_closure": 60,
+    "layout_words": 4224,
+    "library_units": 1842,
+    "log_sha256": "5513b3b3f026b58e2249b440509546523cee399802318e402ef53ffce8054b9f",
+    "metadata_sha256": "0e85730f5c11307bdd06516ea291d6114460125d1d1db3fc4f1bdde4164c054e",
+    "method_families": 26,
+    "native_rlib_sha256": "c2e3b862e212fe0d8557461ea9160e97ab23aa7d44d37113f1e2f855eec5c394",
+    "new_units": 7,
+    "object_round_trip_tests": 1,
+    "object_sha256": "e2bddac9f26372ba5c2bf361087650fbec89860df066f38520510f0b6463db64",
+    "real_new_public_and_closure_symbols": 14,
+    "scope": "Merged checked-source-body decision compiler: actual Cinch CLI emits checked first-order function and concrete constructor bridges, exact final nominal/layout/method-family facts, checked source interfaces and a real closed dependency object combining authenticated library-only Native22 bytes with Cinch-generated code. Every original provider physical symbol/accessor and seven actual new units are independently confirmed in the final object. IR and object FNV and authenticated SHA identities verified, exact provider/object/final-consumer layout prefixes preserved, all43 actual compiler source bytes match the staged driver input set. A second real Cinch invocation reloads the object and interfaces and the linked array/owned-bignum/ADT client passes32M with poisoning and zero leaks. Private inventory grants no source name and failed rebuild invalidates prior metadata. Compiler uses normal reclamation with leak checks: poisoning quarantines cumulative parser allocations and is retained for the client, not the large compiler job. Reached source dictionaries are an explicit refusal; generic representation-root CLI requests, complete corresponding legacy runtime/whole15array/finalself-built/fullNative/originalAPI105/Acceptance5 gates remain open. No claim that this is the final self-built compiler or that the whole goal is complete.",
+    "seed_native_source_sha256": "22c91cf6c1855b049207612e9d94630850e880d5a49ea3e2c57c92aff7fdbe88",
+    "source_sha256": "5d1e74a8f3600ebbcfcf11e224d97e8ed4e2975f0988e2eeaccd9c44fd10e372",
+    "status": "passed-actual-cinch-library-object-round-trip",
+    "tests": 9,
+    "verified_at": "2026-11-06T02:17:38.768169+00:00",
+    "whole_groups": 2,
+    "zero_leak_reports": 5
+  },
+  "compiler_source_sha256": "5f2f855665956b76117ea128547ecbdf841f988a487b64ff38b983b24dd38ec4",
+  "core_nonce_contexts": 5,
+  "decision_groups": {
+    "child_pid": 48686,
+    "compiler_source_sha256": "5f2f855665956b76117ea128547ecbdf841f988a487b64ff38b983b24dd38ec4",
+    "full_goal_complete": false,
+    "native_source_sha256": "6b567529032465cde863607185da47aa7d5f9e5ecd99a596158174fd7efa6aa7",
+    "phase": "bootstrap_source_decisions",
+    "pid": 45612,
+    "rlib_sha256": "b9008bb6113767a9c027553cba3dc70ca05938cc2a1652c28de4670277d435ba",
+    "rows": [
+      {
+        "exit_code": 0,
+        "log_sha256": "94c46f03cb5af5f8ed6f058c6424fc772d8d11fae8c5eb3ec3f362ebd2774116",
+        "name": "build-own-runtime",
+        "status": "passed"
+      },
+      {
+        "exit_code": 0,
+        "log_sha256": "b58ed3656d348aca6f9ed94e2e252ccd29e795c4975dd83692680dc416d9d1a8",
+        "name": "compile-bootstrap_decisions",
+        "status": "passed"
+      },
+      {
+        "exit_code": 0,
+        "log_sha256": "48c144125a79ce7b417f49406c772f4c5b0176c4d45d671f894d171fa12d2972",
+        "name": "bootstrap_decisions",
+        "status": "passed"
+      },
+      {
+        "exit_code": 0,
+        "log_sha256": "6c8cd44f92c4f13d15441172923c82da7db9300f50e26536304498a30ef8f763",
+        "name": "compile-bootstrap_source_decisions",
+        "status": "passed"
+      },
+      {
+        "exit_code": 0,
+        "log_sha256": "21c3d1e819fd40b0f0b72d73861c62df8a616f100a76a31f53504f8abfce209c",
+        "name": "bootstrap_source_decisions",
+        "status": "passed"
+      }
+    ],
+    "source": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/source-decision-bodies-validation-3/source",
+    "source_sha256": "ed531e8c91850b6c66babde5da7c86b3cd7aceebc145d35c3b089a5c516959ba",
+    "status": "passed",
+    "worker_slot": 0
+  },
+  "filtered": 0,
+  "full_goal_complete": false,
+  "ignored": 0,
+  "native_source_sha256": "6b567529032465cde863607185da47aa7d5f9e5ecd99a596158174fd7efa6aa7",
+  "new_core_control_runs": 50,
+  "new_core_controls": 10,
+  "runtime": {
+    "artifacts": {
+      "changed-predicate/Main.cinch": "ac751c33a0f0a07b18907ef44c063bdeaa030a8b3de948048a3ea9e2daecafa9",
+      "effectful/Main.cinch": "45d0cc923464a38dab8632ca1567b13043d6500e0374ffe13b6bbf5501020c8c",
+      "first-int/Main.cinch": "0cb2b84ab6e13d93894b377e5c4b43557dbc614e584f16d877c970564bac6e9c",
+      "first-int/program": "782d478352574a5805aed67818280e38b03ded820db4996d03239e5b6cb6520e",
+      "first-int/program.ll": "9c922d1d6bd7c43c8e9aa079fc155df7fde99770f4d8722ed11b7c36ca823944",
+      "identity-int/Main.cinch": "33d620015b0567368425017588536ad62b481e37eda00449e7a34f8dee5ca415",
+      "identity-int/program": "bf87fee2ac64889f3b56040facf4cd85bdbdabf278ab8e1a0dea0b142b6e82ca",
+      "identity-int/program.ll": "cab5bcafadf2c0259f225d88304bc5830770273131e6bc090e79a76c6e4dd5cb",
+      "partial/Main.cinch": "2aadab503176113caf178e6cfc38ebe85226dffe39e731855adea8a1aca8dde5",
+      "second-nat/Main.cinch": "0c3252ff842e3a5bc2f46da96fb6cf74fa253aa36886f185b2b5fa9301540aed",
+      "second-nat/program": "0eb58ba3594a578cddc8ed354c21f6d970a700516d24684b07c8443d097b47df",
+      "second-nat/program.ll": "284acf9e458b6583084b805aea218297bf663058017c86dfe6b121ccb0f32922"
+    },
+    "child_pid": 40664,
+    "compiler_sha256": "4b47870a85c3ae1626539be0fbc7f79d8a8a4c467fbf3c24cef38ea453a45b46",
+    "compiler_source_sha256": "5f2f855665956b76117ea128547ecbdf841f988a487b64ff38b983b24dd38ec4",
+    "full_goal_complete": false,
+    "phase": "partial-check",
+    "pid": 22092,
+    "poisoned_client_heap_limit": "32M",
+    "positive_runtime_clients": 3,
+    "rows": [
+      {
+        "exit_code": 0,
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "identity-int-check"
+      },
+      {
+        "exit_code": 0,
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "identity-int-emit"
+      },
+      {
+        "exit_code": 0,
+        "log_sha256": "6021f33487b85f8a9c5f9471588485ff4234e50e83be3e5c4c6e23dd0c32b455",
+        "name": "identity-int-link"
+      },
+      {
+        "exit_code": 0,
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "identity-int-run"
+      },
+      {
+        "exit_code": 0,
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "first-int-check"
+      },
+      {
+        "exit_code": 0,
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "first-int-emit"
+      },
+      {
+        "exit_code": 0,
+        "log_sha256": "6021f33487b85f8a9c5f9471588485ff4234e50e83be3e5c4c6e23dd0c32b455",
+        "name": "first-int-link"
+      },
+      {
+        "exit_code": 0,
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "first-int-run"
+      },
+      {
+        "exit_code": 0,
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "second-nat-check"
+      },
+      {
+        "exit_code": 0,
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "second-nat-emit"
+      },
+      {
+        "exit_code": 0,
+        "log_sha256": "6021f33487b85f8a9c5f9471588485ff4234e50e83be3e5c4c6e23dd0c32b455",
+        "name": "second-nat-link"
+      },
+      {
+        "exit_code": 0,
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "second-nat-run"
+      },
+      {
+        "exit_code": 4,
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "effectful-check"
+      },
+      {
+        "exit_code": 4,
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "changed-predicate-check"
+      },
+      {
+        "exit_code": 4,
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "partial-check"
+      }
+    ],
+    "scope": "Actual merged Cinch CLI checks with empty PATH and emits typed shared-runtime LLVM. Unary big-Int identity and two-argument Int/Nat selectors execute both decision branches with the real authenticated library-only85 object/runtime,32M poisoning and zero leaks. Effectful, wrong-predicate and partial calls refuse at checking. No Native client frontend or runtime dictionary factory is introduced; final bootstrap/all105 acceptance remain open.",
+    "self_built_source_check": {
+      "builder_sha256": "f2f1e4f33863fe7ca8c63e696d8b794df11c4761e7a0a26112c39692e210d601",
+      "builder_source_sha256": "917f6e1fc2bc376224a6f2edb1ae951e73c364ff216cf558e2c714003cf6bc36",
+      "child_pid": 15086,
+      "compiler_modules": 43,
+      "compiler_source_sha256": "5f2f855665956b76117ea128547ecbdf841f988a487b64ff38b983b24dd38ec4",
+      "diagnostics": "",
+      "exit_code": 0,
+      "full_goal_complete": false,
+      "interfaces_sha256": "067ab7c76c130a53b952b9d8fa0a0cfd7702bddf64e3dae51724c0275ae98163",
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "pid": 15068,
+      "scope": "Actual self-built917f Stage2 checks the exact43 staged-driver inputs of merged checked-body decision and published interface compiler using55 authenticated85 library-only interfaces and an empty executable PATH. This proves actual Cinch parser/typechecker acceptance, with no client Native fallback. It does not establish matching current staged fixedpoint or full suites.",
+      "source": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/source-decision-bodies-self-built-check-1/source",
+      "source_sha256": "ed531e8c91850b6c66babde5da7c86b3cd7aceebc145d35c3b089a5c516959ba",
+      "status": "passed",
+      "worker_slot": 1
+    },
+    "source_refusals": 3,
+    "status": "passed-actual-checked-body-decisions",
+    "verified_at": "2026-11-06T02:18:08.959077+00:00",
+    "worker_slot": 0,
+    "zero_leak_reports": 3
+  },
+  "schema": 1,
+  "scope": "The exact merged compiler accepts fully applied pure total source helpers in numeric decisions. Core independently requires the exact checked body, binding role, scheme, numeric result and scoped arguments; ten additional mutation controls run at five fresh scopes. The source fixture retains its original valid identity input as a positive, agrees with the current Native oracle and explicitly rejects empty body authority. Both complete decision groups and both adapter/object groups pass eleven Rust tests on merged5f2f. All43 exact compiler inputs build and check through an actual Cinch-built reader with empty PATH. Three real Int/Nat clients run both branches with32M poisoning and zero leaks; three invalid source cases refuse. This is not a matching final fixed point or full-suite acceptance. The Native-accepted opaque callback case still needs higher-order reification; typed foreign declarations, source prelude replacement, complete original arrays/all105 targets and Acceptance5 remain open.",
+  "self_built_source_check": {
+    "builder_sha256": "f2f1e4f33863fe7ca8c63e696d8b794df11c4761e7a0a26112c39692e210d601",
+    "builder_source_sha256": "917f6e1fc2bc376224a6f2edb1ae951e73c364ff216cf558e2c714003cf6bc36",
+    "child_pid": 15086,
+    "compiler_modules": 43,
+    "compiler_source_sha256": "5f2f855665956b76117ea128547ecbdf841f988a487b64ff38b983b24dd38ec4",
+    "diagnostics": "",
+    "exit_code": 0,
+    "full_goal_complete": false,
+    "interfaces_sha256": "067ab7c76c130a53b952b9d8fa0a0cfd7702bddf64e3dae51724c0275ae98163",
+    "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+    "pid": 15068,
+    "scope": "Actual self-built917f Stage2 checks the exact43 staged-driver inputs of merged checked-body decision and published interface compiler using55 authenticated85 library-only interfaces and an empty executable PATH. This proves actual Cinch parser/typechecker acceptance, with no client Native fallback. It does not establish matching current staged fixedpoint or full suites.",
+    "source": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/source-decision-bodies-self-built-check-1/source",
+    "source_sha256": "ed531e8c91850b6c66babde5da7c86b3cd7aceebc145d35c3b089a5c516959ba",
+    "status": "passed",
+    "worker_slot": 1
+  },
+  "status": "passed-checked-source-body-decisions",
+  "verified_at": "2026-11-06T02:23:07.770047+00:00",
+  "whole_affected_groups": 4
+}

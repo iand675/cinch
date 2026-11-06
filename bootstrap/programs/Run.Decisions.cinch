@@ -1,4 +1,5 @@
 module Main where
+  import Algebra.Semigroup
   import Bootstrap.Type
   import Bootstrap.Index
   import Bootstrap.Core
@@ -6,6 +7,7 @@ module Main where
   import Bootstrap.Typing
   import Bootstrap.Proof
   import Bootstrap.Nominal (interface-global)
+  import Bootstrap.BodyContract (binding-function)
   import Text.Lex (Span)
   import Data.Path (path-from-string)
   import Effect.Fs (fs-read)
@@ -67,6 +69,35 @@ module Main where
     let index = if claim-arithmetic then UIndexMath "+" (UIndex int (IRigid x "x" 0)) (UIndex int (IInteger 0)) else UIndex int (IRigid alias "result" 0) in
     let predicate = positive index in
     scoped-decision-valid gamma Nil (decision-type predicate) predicate (comparison ">=" (CLocal sp int alias "result" Nil) zero)
+  body-decision-checks :: Nat -> List Bool
+  body-decision-checks nonce =
+    let formal = nonce + 50 in let x = nonce + 1 in let y = nonce + 2 in
+    let arrow = UFun int int in let name = "body-helper" in
+    let definition term = MkCoreDefinition sp name (mono arrow) Nil Nil Nil [MkCoreClause sp [CPVar sp int formal "formal"] term] in
+    case (core-source-body Nil [definition (CLocal sp int formal "formal" Nil)] name, core-source-body Nil [definition (CInt sp int "7")] name) of
+      (Some body, Some changed) ->
+        let value = CLocal sp int x "x" Nil in
+        let actual = UIndex int (IRigid x "x" 0) in
+        let predicate = positive (UIndexCall (binding-function body) (UArg actual UEnd)) in
+        let base = make-proof-scope [(x, int)] Nil in
+        let gamma = with-body-bindings [body] base in
+        let call symbol role result function input = CApply sp result (CUse sp function symbol role Nil) input in
+        let expression = call name "value" int arrow value in
+        let check scope p term = scoped-decision-valid scope Nil (decision-type p) p (comparison ">=" term zero) in
+        [ check gamma predicate expression
+        , not (check base predicate expression)
+        , not (check gamma predicate (call "another-helper" "value" int arrow value))
+        , not (check gamma predicate (call name "external" int arrow value))
+        , not (check gamma predicate (call name "value" int (UFun (UCon "Nat" KType) int) value))
+        , not (check gamma predicate (call name "value" (UCon "Nat" KType) arrow value))
+        , not (check gamma predicate (call name "value" int arrow (CLocal sp int y "x" Nil)))
+        , let scope = with-body-bindings [body] (make-proof-scope [(x, int), (y, int)] Nil) in
+            let different = positive (UIndexCall (binding-function body) (UArg (UIndex int (IRigid y "x" 0)) UEnd)) in
+            not (check scope different expression)
+        , not (check (with-body-bindings [changed] base) predicate expression)
+        , not (check gamma predicate (call name "value" int (UFun int arrow) value))
+        ]
+      other -> [False]
   checks :: Nat -> List Bool
   checks nonce =
     let x = nonce + 1 in let value = CLocal sp int x "x" Nil in
@@ -113,4 +144,5 @@ module Main where
   main :: Unit ->{IO r} Int
   main unit = with (io = newIO ()) in case fs-read (path-from-string "nonce.txt") of
     Err error -> 90
-    Ok input -> verdict 1 (checks (340282366920938463463374607431768211456 + bytes-len input))
+    Ok input -> let nonce = 340282366920938463463374607431768211456 + bytes-len input in
+      verdict 1 (checks nonce <> body-decision-checks nonce)

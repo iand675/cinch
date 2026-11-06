@@ -6,6 +6,7 @@ module Main where
   import Bootstrap.Infer
   import Bootstrap.Core
   import Bootstrap.Type
+  import Bootstrap.BodyContract (BodyBinding)
   import Bootstrap.Report (render-diagnostics)
   import Data.Json
   import Data.Path (path-from-string)
@@ -47,8 +48,16 @@ module Main where
   clause-decision clauses = case clauses of Nil -> False; Cons (MkCoreClause sp patterns body) rest -> has-decision body || clause-decision rest
   retained :: List CoreDefinition -> Bool
   retained definitions = case definitions of Nil -> False; Cons definition rest -> clause-decision (core-clauses definition) || retained rest
-  closed :: List CoreDefinition -> Bool
-  closed definitions = case definitions of Nil -> True; Cons definition rest -> core-definition-closed definition && closed rest
+  source-bodies :: List CheckedBinding -> List BodyBinding
+  source-bodies bindings = case bindings of
+    Nil -> Nil
+    Cons first rest -> case checked-body-binding first of
+      Some body -> Cons body (source-bodies rest)
+      None -> source-bodies rest
+  closed :: List BodyBinding -> List CoreDefinition -> Bool
+  closed bodies definitions = case definitions of
+    Nil -> True
+    Cons definition rest -> core-definition-bodies-closed bodies definition && closed bodies rest
   run :: Bytes -> String -> (Int, String)
   run source mutation = case parse-program "source-decisions" source of
     Parsed parsed Nil -> case resolve-program parsed of
@@ -58,7 +67,8 @@ module Main where
         let result = elaborate-program "source-decisions" program in
         let errors = checks <> elaboration-errors result in
         if list-length errors > 0 then (if list-length (elaboration-core result) == 0 then 4 else 93, render-diagnostics errors)
-        else if (same mutation "ordinary" || retained (elaboration-core result)) && closed (elaboration-core result) then (0, "") else (94, "decision lost its checked Core node or closed value identity")
+        else if same mutation "require-body-context" && closed Nil (elaboration-core result) then (95, "body-backed decision closed without its actual source body context")
+        else if (same mutation "ordinary" || retained (elaboration-core result)) && closed (source-bodies (elaboration-bindings result)) (elaboration-core result) then (0, "") else (94, "decision lost its checked Core node or closed value identity")
       (resolved, errors) -> (3, render-diagnostics errors)
     other -> (2, "source parse failed")
   main :: Unit ->{IO r} Int

@@ -2017,16 +2017,24 @@ module Bootstrap.Infer where
     other -> False
   decision-boolean :: Span -> Bool -> CoreTerm
   decision-boolean sp value = CPrimitive sp (primitive-type "Bool") (if value then "decision-true" else "decision-false") (CArgumentsEnd sp)
+  decision-call-name :: Expr -> Option String
+  decision-call-name expression = case expression of
+    EVar sp name -> Some name
+    EApp sp function argument -> decision-call-name function
+    EAnn sp value annotation -> decision-call-name value
+    other -> None
   decision-hint :: List CheckedBinding -> Expr -> Option UType
   decision-hint env expression = case expression of
     EVar sp name -> (case lookup-binding name env of Some binding -> let carrier = predicate-base-carrier (scheme-body (checked-scheme binding)) in if integer-carrier carrier then Some carrier else None; None -> None)
     EAnn sp value (TName at name) -> if primitive name && integer-carrier (primitive-type name) then Some (primitive-type name) else decision-hint env value
     EBin sp operation left right -> (case decision-hint env left of Some carrier -> Some carrier; None -> decision-hint env right)
     ENeg sp input -> decision-hint env input
-    EApp sp (EVar at name) input -> (case lookup-binding name env of
-      Some (MkIntrinsicBinding display sc symbol) -> if same symbol "cinch.runtime.bytesLen" then Some (primitive-type "Nat") else None
-      Some (MkBodyBinding binding) -> Some (primitive-type (total-result (binding-function binding)))
-      other -> None)
+    EApp sp function input -> (case decision-call-name function of
+      None -> None
+      Some name -> case lookup-binding name env of
+        Some (MkIntrinsicBinding display sc symbol) -> if same symbol "cinch.runtime.bytesLen" then Some (primitive-type "Nat") else None
+        Some (MkBodyBinding binding) -> Some (primitive-type (total-result (binding-function binding)))
+        other -> None)
     other -> None
   decision-carrier :: List CheckedBinding -> Expr -> Expr -> UType
   decision-carrier env first second = case decision-hint env first of Some carrier -> carrier; None -> (case decision-hint env second of Some carrier -> carrier; None -> primitive-type "Int")
@@ -2051,9 +2059,11 @@ module Bootstrap.Infer where
       Some (MkLocalBinding display sc id level) -> decision-local sp name carrier env st
       Some (MkValueBinding display sc id level index) -> decision-local sp name carrier env st
       other -> term-error sp "decision operands need actual scoped numeric values" st)
-    EApp sp (EVar at name) input -> if not (byte-length-binding name kinds || (case context-total-observation name kinds of Some binding -> True; None -> False)) then term-error sp "decision calls need checked pure total body authority" st else
-      (case infer classes kinds families env locals syntax st of
-        (value, checked) -> let projected = project-comparison sp value checked in (projected, unify sp carrier (core-type projected) checked))
+    EApp sp function input -> (case decision-call-name function of
+      None -> term-error sp "decision calls need checked pure total body authority" st
+      Some name -> if not (byte-length-binding name kinds || (case context-total-observation name kinds of Some binding -> True; None -> False)) then term-error sp "decision calls need checked pure total body authority" st else
+        (case infer classes kinds families env locals syntax st of
+          (value, checked) -> let projected = project-comparison sp value checked in (projected, unify sp carrier (core-type projected) checked)))
     other -> term-error (expr-span syntax) "decision operands need checked pure total reification" st
   decision-local :: Span -> String -> UType -> List CheckedBinding -> Store -> (CoreTerm, Store)
   decision-local sp name carrier env st = case lookup-value sp name env st of

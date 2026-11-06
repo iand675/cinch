@@ -1335,9 +1335,13 @@ module Bootstrap.Core where
   decision-constant expected term = bool-type (core-type term) && (case term of
     CPrimitive sp ty operation (CArgumentsEnd end) -> string-compare operation (if expected then "decision-true" else "decision-false") == 0
     other -> False)
-  -- No class projection or ordinary global call has numeric authority
-  -- here. Only fixed arithmetic, scoped values and the checked stable
-  -- byte-length ABI observation can contribute to a runtime decision.
+  -- A global call needs its exact checked body association and complete
+  -- application. A name, type annotation or opaque class projection cannot
+  -- supply numeric authority for a decision.
+  decision-total-operand :: ProofScope -> List Proposition -> CoreTerm -> Bool
+  decision-total-operand gamma facts term = integer-carrier (core-type term)
+    && contract-equal (core-effects term) (URow UEnd)
+    && (case checked-total-index gamma facts term of Some index -> typed-index-admissible index; None -> False)
   decision-operand :: ProofScope -> List Proposition -> CoreTerm -> Bool
   decision-operand gamma facts term = case term of
     CInt sp ty text -> integer-carrier ty && valid-integer-literal ty text
@@ -1352,9 +1356,10 @@ module Bootstrap.Core where
       && (string-compare operation "+" == 0 || string-compare operation "*" == 0 || (string-compare operation "-" == 0 && not (nat-type ty)))
       && decision-operand gamma facts first && decision-operand gamma facts second
     CPrimitive sp ty operation (CArgument a first (CArgumentsEnd end)) -> string-compare operation "negate" == 0 && same-number-sort ty (core-type first) && not (nat-type ty) && decision-operand gamma facts first
-    CApply sp ty (CUse at function symbol role Nil) (CLocal arg carrier id name Nil) -> byte-length-function ty function symbol role
-      && (case proof-local id gamma of Some declared -> contract-equal carrier declared; None -> False)
-    other -> False
+    CApply sp ty (CUse at function symbol role Nil) (CLocal arg carrier id name Nil) ->
+      (byte-length-function ty function symbol role && (case proof-local id gamma of Some declared -> contract-equal carrier declared; None -> False))
+      || decision-total-operand gamma facts term
+    other -> decision-total-operand gamma facts term
   decision-index-reading :: ProofScope -> List Proposition -> CoreTerm -> Option Arithmetic
   decision-index-reading gamma facts term = case actual-index gamma facts term of
     Some value -> (case typed-index-arithmetic gamma value of Some reading -> Some reading; None -> typed-index-arithmetic gamma (UIndexPromote value))

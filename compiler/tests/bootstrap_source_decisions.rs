@@ -45,7 +45,10 @@ fn source_decisions_preserve_predicates_and_check_authority() {
         ("proof reference is not procedure", "choose :: forall (p :: Prop). (h :: p) -> Dec p\n  choose h = decide h", 4),
         ("first class decide is rejected", "choose = decide", 4),
         ("arbitrary predicate function", "predicate :: Int -> Bool\n  predicate n = True\n  choose :: Int -> Int\n  choose n = case decide (predicate n) of Yes _ -> 1; No _ -> 0", 4),
-        ("ordinary global numeric function", "identity :: Int -> Int\n  identity n = n\n  choose :: Int -> Int\n  choose n = case decide (identity n > 0) of Yes _ -> 1; No _ -> 0", 4),
+        ("checked pure total source helper", "identity :: Int -> Int\n  identity n = n\n  choose :: Int -> Int\n  choose n = case decide (identity n > 0) of Yes _ -> 1; No _ -> 0", 0),
+        ("checked two-argument Int helper", "first :: Int -> Int -> Int\n  first x y = x\n  choose :: Int -> Int\n  choose n = case decide (first n 0 > 0) of Yes _ -> 1; No _ -> 0", 0),
+        ("checked two-argument Nat helper", "first :: Nat -> Nat -> Nat\n  first x y = x\n  choose :: Nat -> Int\n  choose n = case decide (first n 0 > 0) of Yes _ -> 1; No _ -> 0", 0),
+        ("partial helper is not numeric", "first :: Int -> Int -> Int\n  first x y = x\n  choose :: Int -> Int\n  choose n = case decide (first n > 0) of Yes _ -> 1; No _ -> 0", 4),
         ("machine arithmetic cannot pretend mathematical", "choose :: U8 -> Int\n  choose n = case decide (n + 1 > 0) of Yes _ -> 1; No _ -> 0", 4),
         ("Nat subtraction requires ordering", "choose :: Nat -> Int\n  choose n = case decide (n - 1 > 0) of Yes _ -> 1; No _ -> 0", 4),
         ("proof cannot be runtime result", "choose :: Int -> Int\n  choose n = case decide (NonZero n) of Yes h -> h; No h -> 0", 4),
@@ -53,7 +56,8 @@ fn source_decisions_preserve_predicates_and_check_authority() {
     for (name, body, expected) in cases {
         let source = format!("module Main where\n  {body}\n  main :: Int\n  main = 0\n");
         std::fs::write(dir.join("source.cinch"), &source).unwrap();
-        std::fs::write(dir.join("mutation.txt"), "").unwrap();
+        let mutation = if name.starts_with("checked ") { "require-body-context" } else { "" };
+        std::fs::write(dir.join("mutation.txt"), mutation).unwrap();
         let output = std::process::Command::new(&exe).current_dir(&dir).output().unwrap();
         let report = common::read_output(&dir, "source-decisions-report.txt");
         assert_eq!(output.status.code(), Some(expected), "case {name}; project {}\n{source}\n{report}\n{}", dir.display(), String::from_utf8_lossy(&output.stderr));
@@ -65,7 +69,7 @@ fn source_decisions_preserve_predicates_and_check_authority() {
     for (body, diagnostic) in [
         ("choose :: U8 -> Int\n  choose n = case decide (n + 1 > 0) of Yes _ -> 1; No _ -> 0", "decision arithmetic needs checked mathematical semantics"),
         ("choose :: Nat -> Int\n  choose n = case decide (n - 1 > 0) of Yes _ -> 1; No _ -> 0", "decision Nat subtraction needs checked ordering evidence"),
-        ("identity :: Int -> Int\n  identity n = n\n  choose :: Int -> Int\n  choose n = case decide (identity n > 0) of Yes _ -> 1; No _ -> 0", "decision calls need checked pure total body authority"),
+        ("identity :: Int ->{Diverge} Int\n  identity n = n\n  choose :: Int -> Int\n  choose n = case decide (identity n > 0) of Yes _ -> 1; No _ -> 0", "decision calls need checked pure total body authority"),
     ] {
         std::fs::write(dir.join("source.cinch"), format!("module Main where\n  {body}\n  main :: Int\n  main = 0\n")).unwrap();
         std::fs::write(dir.join("mutation.txt"), "").unwrap();

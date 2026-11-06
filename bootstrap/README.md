@@ -36,7 +36,18 @@ The artifacts behind the P35 milestones in `design/stdlib-and-bootstrap.md`:
 a compiler written in Cinch, built rung by rung, each rung a runnable Cinch
 artifact with an acceptance command rather than a claim.
 
-## Current interface checkpoint
+## Current checked-decision checkpoint
+
+Compiler `5f2f8556` accepts fully applied pure total source helpers in numeric
+decisions. Independent Core closure requires the exact body, role, scheme,
+result and scoped arguments. Four complete affected groups pass eleven tests;
+fifty added Core control runs, all43 actual compiler inputs and three real
+32M poisoned, zero-leak runtime clients pass. Three invalid clients refuse.
+See [checked decision evidence](current-checked-source-decision-results.json).
+A matching complete Native sweep and fresh four-stage bootstrap are running.
+The complete original105-target scope and final Acceptance1-5 remain required.
+
+## Earlier711 interface checkpoint
 
 Compiler `7111030f` passes all four affected exporter/adapter/object groups
 (eleven tests), checks all43 exact compiler inputs through a Cinch-built reader,

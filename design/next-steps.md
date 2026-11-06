@@ -1,5 +1,31 @@
 # Next steps (as of 2026-11-06)
 
+## Checked source helpers participate in runtime decisions (2026-11-06)
+
+Compiler `5f2f8556` accepts numeric decisions over fully applied pure total
+source helpers. The original identity input was valid according to the current
+Rust compiler; its previous negative expectation hid an independent Core gap.
+The source test now retains that input as a positive and checks real source-body
+closure. Empty, changed or mismatched body authority still refuses. Partial and
+effectful helpers remain rejected. Saturated two-argument Int/Nat helpers work.
+
+Both complete decision groups and both adapter/object groups pass eleven Rust
+tests on this exact merged source, without ignored or filtered cases. Ten new
+Core controls run at five fresh scopes. All43 exact compiler inputs build and
+check through the actual Cinch-built917f reader with empty PATH. Three real
+clients execute both branches, including128-bit-range Int values, at32M with
+poisoning and zero leaks; three invalid source cases refuse. The actual object
+round trip, canonical metadata/layouts and all physical entries are audited.
+See `bootstrap/current-checked-source-decision-results.json`.
+
+A fresh full Native suite and four-stage bootstrap are starting on this exact
+source, rather than carrying forward earlier-source pass counts. Interface
+API7/9 remains an earlier711 checkpoint until replayed. Typed foreign
+contracts, source-prelude replacement, original array ownership/staging gaps,
+higher-order opaque decision reification, all105 targets and final matching
+Acceptance1-5 remain open. The Native-accepted opaque function-argument case
+is retained as an explicit gap, not recast as an invalid negative test.
+
 ## Paired runtime measurement and earlier917f bootstrap complete (2026-11-06)
 
 One paired run checks the same43 compiler inputs with the exact same
