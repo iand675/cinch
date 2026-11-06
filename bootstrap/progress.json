@@ -2789,6 +2789,10 @@
               "cases": [
                 {
                   "name": "instance_contracts_recheck_slots_captures_and_method_specialization",
+                  "status": "passed"
+                },
+                {
+                  "name": "source_instances_build_checked_dictionaries_from_defining_class_interfaces",
                   "status": "running"
                 }
               ]
@@ -18228,5 +18232,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-06T22:43:28.083697+00:00"
+  "updatedAt": "2026-11-06T22:44:30.199689+00:00"
 }
