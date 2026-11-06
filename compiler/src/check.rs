@@ -6832,6 +6832,9 @@ impl Checker {
                 if !args.is_empty() {
                     return Err(Error::at(span, "a numeral takes no arguments"));
                 }
+                if let Some(carrier) = expected {
+                    self.check_numeric_index_carrier(carrier, span)?;
+                }
                 Ok(ITerm::Num(s.clone()))
             }
             ast::Type::Var(n, _) => {
@@ -6852,6 +6855,7 @@ impl Checker {
                         "+" => Some(IdxOp::Add), "-" => Some(IdxOp::Sub), "*" => Some(IdxOp::Mul), _ => None,
                     } {
                         if args.len() != 2 { return Err(Error::at(span, format!("`{}` takes two index arguments", n.source_spelling()))); }
+                        self.check_numeric_index_carrier(kind, span)?;
                         return Ok(ITerm::Bin(op, Box::new(self.conv_idx(args[0], vars, kind)?), Box::new(self.conv_idx(args[1], vars, kind)?)));
                     }
                     if matches!(n.source_spelling(), "length" | "toNat")
@@ -6860,7 +6864,9 @@ impl Checker {
                         return self.idx_app(n.source_spelling(), Some(n), &args, vars, expected, n.span);
                     }
                 }
-                let ordinary_local = !vars.contains(&n.text)
+                let header_carrier = self.header_index_carrier(n);
+                let header_variable = vars.contains(&n.text) || header_carrier.is_some();
+                let ordinary_local = !header_variable
                     && n.scoped_reference().is_none()
                     && n.resolved_binding().is_none()
                     && self.scoped_type_env.borrow().last()
@@ -6892,7 +6898,7 @@ impl Checker {
                     return self.idx_app(n.source_spelling(), Some(n), &args, vars, expected, n.span);
                 }
                 if args.is_empty() {
-                    if !vars.contains(&n.text) {
+                    if !header_variable {
                         // A bare named total definition is an index
                         // value too: a nullary method (`mempty`) or a
                         // named helper a law's equation mentions
@@ -6900,16 +6906,18 @@ impl Checker {
                         // specification section 5).
                         return self.idx_app(&n.text, Some(n), &args, vars, expected, n.span);
                     }
-                    let carrier = self.index_carriers.borrow().iter().rev().find(|(name, _)| name == &n.text).map(|(_, carrier)| carrier.clone());
-                    if let (Some(expected), Some(actual)) = (expected, carrier) {
+                    if let (Some(expected), Some(actual)) = (expected, header_carrier) {
                         self.check_captured_index_carrier("index parameter", &actual, expected, n.span)?;
                     }
-                    self.note_kind(&n.text, ParamKind::Val(kind.clone()));
+                    // Only quantified parameters need kind inference. A
+                    // dependent argument already has its checked domain.
+                    if vars.contains(&n.text) {
+                        self.note_kind(&n.text, ParamKind::Val(kind.clone()));
+                    }
                     return Ok(ITerm::Var(n.text.clone()));
                 }
-                if vars.contains(&n.text) {
-                    let carrier = self.index_carriers.borrow().iter().rev().find(|(name, _)| name == &n.text).map(|(_, carrier)| carrier.clone());
-                    if let Some(carrier) = carrier {
+                if header_variable {
+                    if let Some(carrier) = header_carrier {
                         let (arguments, result) = self.index_arguments(Some(carrier), &args, vars, kind, span)?;
                         if let (Some(expected), Some(actual)) = (expected, result) {
                             self.check_captured_index_carrier("index function parameter", &actual, expected, n.span)?;
@@ -6976,6 +6984,30 @@ impl Checker {
             Ty::Mut(_, inner) | Ty::Ref(_, inner) if self.int_view(inner).is_some() => self.numeric_index_read_carrier(inner),
             other => self.refine_base(other).unwrap_or_else(|| other.clone()),
         }
+    }
+
+    /// Signature argument names are not forall parameters. Their actual
+    /// domains nevertheless determine the kind of every index occurrence.
+    /// Captured syntax keeps its own lexical identity instead of acquiring
+    /// a header binding merely by sharing its printed name.
+    fn header_index_carrier(&self, name: &ast::Name) -> Option<Ty> {
+        if name.local_binding().is_some() || name.resolved_binding().is_some()
+            || name.scoped_reference().is_some() || name.declaration_binding().is_some() {
+            return None;
+        }
+        self.index_carriers.borrow().iter().rev()
+            .find(|(binder, _)| binder == &name.text).map(|(_, carrier)| carrier.clone())
+    }
+
+    fn check_numeric_index_carrier(&self, carrier: &Ty, span: ast::Span) -> Result<()> {
+        let carrier = self.numeric_index_read_carrier(carrier);
+        // Generic index applications validate their inferred domains after
+        // their arguments and result constrain the private inference store.
+        // This check never chooses a type for an unresolved metavariable.
+        if self.int_view(&carrier).is_some() || matches!(carrier, Ty::Meta(_)) {
+            return Ok(());
+        }
+        Err(Error::at(span, format!("numeric index needs an integer carrier, got {carrier}")))
     }
 
     fn check_captured_index_carrier(
@@ -7577,19 +7609,16 @@ impl Checker {
                 return Ok(result);
             }
         }
-        if name.local_binding().is_none() && name.resolved_binding().is_none()
-            && name.scoped_reference().is_none() && vars.contains(&name.text) {
-            if let Some((_, carrier)) = self.index_carriers.borrow().iter().rev().find(|(binder, _)| binder == &name.text) {
-                let mut result = carrier.clone();
-                for argument in &args {
-                    result = match result {
-                        Ty::Fun(_, _, _, cod) => *cod,
-                        Ty::Pi { var, dom, cod, .. } => cod.subst_idx(&var, &self.conv_idx(argument, vars, &dom)?),
-                        _ => return Ok(None),
-                    };
-                }
-                return Ok(Some(result));
+        if let Some(carrier) = self.header_index_carrier(name) {
+            let mut result = carrier;
+            for argument in &args {
+                result = match result {
+                    Ty::Fun(_, _, _, cod) => *cod,
+                    Ty::Pi { var, dom, cod, .. } => cod.subst_idx(&var, &self.conv_idx(argument, vars, &dom)?),
+                    _ => return Ok(None),
+                };
             }
+            return Ok(Some(result));
         }
         let value_scheme = |value: ValueInfo| {
             let label = index_value_label(&value);
@@ -7840,7 +7869,7 @@ impl Checker {
         Ok(if out.is_empty() { head } else { ITerm::App(Box::new(head), out) })
     }
 
-    fn proposition_indices(&self, left: &ast::Type, right: &ast::Type, vars: &[String]) -> Result<(ITerm, ITerm)> {
+    fn proposition_indices(&self, left: &ast::Type, right: &ast::Type, vars: &[String], numeric_order: bool) -> Result<(ITerm, ITerm)> {
         let mut inference = IndexInference::new(&self.uni);
         let left_ty = self.captured_index_carrier_in(&mut inference, left, vars, None)?.map(|ty| self.numeric_index_read_carrier(&ty));
         let right_ty = self.captured_index_carrier_in(&mut inference, right, vars, left_ty.as_ref())?.map(|ty| self.numeric_index_read_carrier(&ty));
@@ -7857,6 +7886,11 @@ impl Checker {
         });
         if carrier.as_ref().is_some_and(|ty| !self.uni.owns_all_metas(ty)) {
             return Err(Error::at(left.span(), "proposition operands have an unsolved carrier"));
+        }
+        if numeric_order {
+            if let Some(carrier) = &carrier {
+                self.check_numeric_index_carrier(carrier, left.span())?;
+            }
         }
         self.commit_index_inference(&mut inference)?;
         Ok((self.conv_idx_expected(left, vars, carrier.as_ref())?, self.conv_idx_expected(right, vars, carrier.as_ref())?))
@@ -7911,14 +7945,14 @@ impl Checker {
                         ))
                     }
                 };
-                let (left, right) = self.proposition_indices(args[0], args[1], vars)?;
+                let (left, right) = self.proposition_indices(args[0], args[1], vars, !matches!(cmp, IdxCmp::Eq | IdxCmp::Ne))?;
                 Ok(PTerm::Cmp(cmp, Box::new(left), Box::new(right)))
             }
             ast::Type::Con(p, _) if args.is_empty() && (p.parts() == ["True"] || p.parts() == ["False"]) => {
                 Ok(PTerm::Lit(p.parts() == ["True"]))
             }
             ast::Type::Con(p, _) if p.parts() == ["Eq"] && args.len() == 2 => {
-                let (left, right) = self.proposition_indices(args[0], args[1], vars)?;
+                let (left, right) = self.proposition_indices(args[0], args[1], vars, false)?;
                 Ok(PTerm::Eq(Box::new(left), Box::new(right)))
             }
             ast::Type::Con(p, _) if p.parts() == ["Not"] && args.len() == 1 => {

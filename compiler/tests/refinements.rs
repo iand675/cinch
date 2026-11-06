@@ -962,3 +962,27 @@ fn logical_literal_preconditions_are_propositions_without_runtime_boolean_coerci
         assert_eq!(result.is_ok(), accepted, "{name}: {result:?}\n{source}");
     }
 }
+
+
+#[test]
+fn signature_predicates_keep_checked_index_carrier_kinds() {
+    for (name, body, accepted) in [
+        ("numeric argument", "good :: using (n > 0) => (n :: Nat) -> Nat\n  good n = 0", true),
+        ("proof remains usable as proof", "good :: (h :: True) -> Dec True\n  good h = Yes h", true),
+        ("numeric argument after erased proof", "good :: using (n > 0) => (h :: True) -> (n :: Nat) -> Nat\n  good h n = 0", true),
+        ("numeric argument before erased proof", "good :: using (n > 0) => (n :: Nat) -> (h :: True) -> Nat\n  good n h = 0", true),
+        ("checked byte-length measure", "good :: using (j <= bytes-len b) => (b :: Bytes) -> (j :: Nat) -> Nat\n  good b j = j", true),
+        ("checked mutable numeric place", "good :: forall r. using (j < m) => (m :: Mut r Nat) -> (j :: Nat) -> Nat\n  good m j = j", true),
+        ("erased proof is not a number", "bad :: using (h > 0) => (h :: True) -> Nat\n  bad h = 0", false),
+        ("function is not a number", "bad :: using (f > 0) => (f :: Unit -> Nat) -> Nat\n  bad f = 0", false),
+        ("Boolean is not a number", "bad :: using (flag > 0) => (flag :: Bool) -> Nat\n  bad flag = 0", false),
+        ("Bytes needs an actual numeric measure", "bad :: using (b > 0) => (b :: Bytes) -> Nat\n  bad b = 0", false),
+        ("proof ordering without literals is invalid", "bad :: using (h > h) => (h :: True) -> Nat\n  bad h = 0", false),
+        ("proof arithmetic is invalid", "bad :: using (h + h > 0) => (h :: True) -> Nat\n  bad h = 0", false),
+    ] {
+        let source = format!("module Main where\n  import Data.Bytes\n  {body}\n  main :: Int\n  main = 0\n");
+        let result = check_sources(&source, "signature-index-carriers.cinch");
+        assert_eq!(result.is_ok(), accepted, "{name}: {}\n{source}",
+            result.as_ref().err().map(ToString::to_string).unwrap_or_else(|| "accepted".into()));
+    }
+}

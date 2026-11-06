@@ -1,0 +1,369 @@
+{
+  "actual_machine_consumer_cases": 13,
+  "bootstrap_seed_and_library_pins_unchanged": true,
+  "changed_native_production_paths": [
+    "compiler/src/check.rs"
+  ],
+  "compiler_inputs": [
+    {
+      "compiler_modules": 44,
+      "compiler_source_sha256": "1c76230c164fd47296646125bb0b911b387c9ffda5f18465ec3ca9d1b883ff27",
+      "files": {
+        "Bootstrap.Ast.cinch": "a7ed3904dde924f2468aa8d369bd6d513ca65bd9cac9d9a77a50ada5bdf72a53",
+        "Bootstrap.BodyContract.cinch": "980c24836344c3c821c587adce5c522e5c0264448f8a7c6dd16395085265f867",
+        "Bootstrap.Builtin.cinch": "a5e85fe8268f6917d050018858fea095cf7f529600b5c695cf8b9df9491dd8d4",
+        "Bootstrap.Check.cinch": "cf141a0b4be85b1411d4e13d3a119c38b07e114f01011994370a964dbd644d08",
+        "Bootstrap.Contracts.cinch": "323df95af64b6925235bbaab3117fd2e19d447fe3f93c947f62e008d63f4973d",
+        "Bootstrap.Core.cinch": "5c8ecaee756c5363c8ddfbe9aad2c33558b2a4f8a8db0ec1cc9fe7fb1e2548c2",
+        "Bootstrap.Dictionary.cinch": "d26a57426fe4cc32696c42378f7db6fffdc4684754069f509d3d61e4be6a4012",
+        "Bootstrap.Driver.cinch": "a9350fe510c1dd5a785e5f805a0da632d343a2cd8699f838d9bb3a2b22cab533",
+        "Bootstrap.Eval.cinch": "632d75a808c85d8d72e5b3335b2eacebdb3fb9e1cbd9fc302b46b1380565f9d8",
+        "Bootstrap.Export.cinch": "42600458e45451fe42bc0f7ab3eea2512c3525e15d26af1ed8e834384d7ac396",
+        "Bootstrap.ExportNominal.cinch": "b103906203ee709cc819932cc01fb49fd8d2242fb7cee84e7a58a588f9baaade",
+        "Bootstrap.ExportType.cinch": "5dac052b3fd6c0f33df349cbfa98ed365788ed065bc328f27d17f695da05c5f4",
+        "Bootstrap.Foreign.cinch": "afc83b030c9dbcbd6800a5cd29a388cf04dcad75314321f3635d30ea24c466fc",
+        "Bootstrap.Global.cinch": "5421f416538d3317354f73a8778522be3382fb7f1b540358b0b08f037fcefc5f",
+        "Bootstrap.Guarded.cinch": "024615db9bfcfc432cb0ee943f9390756cb43d1f52b1de36cd8584ce53dd6d98",
+        "Bootstrap.Index.cinch": "dcb92174c01a96faaf66bc7d550c4e443bfa2d4cdc88376f899eb547c5bf166f",
+        "Bootstrap.Infer.cinch": "6f60e483d23a0226f5a02cea79d38f02861e76d27a408b6e47a1989bf9699660",
+        "Bootstrap.Inputs.cinch": "0b69e6f9667acf7e5659741aeac32ba9c0dbe231204d297fbf7b9c88eed2b03c",
+        "Bootstrap.Instance.cinch": "f15e8149f76dcdcaf4cecb02a837af3e586dfe2d861aa1eee9f6b220581ec3ac",
+        "Bootstrap.Interface.cinch": "176ecc8db40bf583ac2b711f6f77029cc81d24fe0bfe3a50a9188ceccb2e632e",
+        "Bootstrap.Ir.cinch": "f50f2083f6672c1fb6a9094cef0ebcec65615a9bda5d193d0186838c2770727e",
+        "Bootstrap.Kinds.cinch": "43ef88263ca7d810b9caa28aa8f2c89c2e87285d98421cb2c9b3658a5b018ee4",
+        "Bootstrap.Load.cinch": "e9140f4a0ee83109217209d86892f36cdc8e8867c15f8187f1904c03a418fe2f",
+        "Bootstrap.Manifest.cinch": "ef5e1496af11a57909cc707921202b1dc3c867bcbcd1889ae35f76f1b09a37ac",
+        "Bootstrap.Nominal.cinch": "7d1f2e0c51df7fd63f48f388dc13b235b4221d78997b097770b2302adee99dee",
+        "Bootstrap.Object.cinch": "503cb43e2c1cd9397beb732194b11ecedcef9e928f8ec79b396d42096a859957",
+        "Bootstrap.Parse.cinch": "d740f3307bd28ddc3e56e875ee597a33fbe5b99547c722fe2193e0780da8db81",
+        "Bootstrap.Pipeline.cinch": "4ed6e65b7f36a5ac420410115dbdb67e30df7a620b915775a9e29190577cea0a",
+        "Bootstrap.Proof.cinch": "f64fa5d86c43ede8b4841983c681fe52a862ce32003408d1fc7358f214822972",
+        "Bootstrap.Report.cinch": "38e4a34dc34ddfed70ff7348874b0c16b2ae41b23c7026c0b2e10129c9e94d5b",
+        "Bootstrap.Resolve.cinch": "093e96a0bd844dbf8a6b23ea7eada08391fe905b8d49ed0af538d5d3d3ad6598",
+        "Bootstrap.RuntimeAbi.cinch": "a7f25347ef8b5be6baf048cd3339a913e15623d2717961d272e22a7ff34cddd1",
+        "Bootstrap.RuntimeIr.cinch": "424bb1a1338fc3cb3df6f2932e71327d108e2c51284e75d79f6a100e92e90dc8",
+        "Bootstrap.Test.cinch": "72f749b7d83d8513587b2eb43f4a51d84466dca4f912cef8eaae8caffb14adc4",
+        "Bootstrap.Total.cinch": "bbad2865a0cf2ac4c6a677e0291d885421bd715f128d0a77ba324955a5034fe8",
+        "Bootstrap.TotalSemantics.cinch": "1e3be994545f1e7ee17c69fa4d568a037e875b58feb584e81ef169c6a3bc1066",
+        "Bootstrap.Type.cinch": "dbe557bb6b20632375ebfa0470098bbe0572cfa79a1997ab035a90649b063a34",
+        "Bootstrap.Typing.cinch": "f1e5fc8e3fa546ba98b36edec25b9b679cf12b50df095b5f5be4ae48358e31c0",
+        "Main.cinch": "d45e44eb4c0bff16f93020ddd9726e345425ebb1561123128357f465b80092d6",
+        "Text.Builder.cinch": "c089e433293b637862387c71967e800c5cb57f4f7011724ee4d21b18c5ece24b",
+        "Text.Json.cinch": "461861b69d963202733c7016f571b393cfc048e45c04eaf92cef036fcfaeb47b",
+        "Text.Lex.cinch": "c7cc9f8fe6373e93ad0c32ddf262e746da44015394f40548c3ba6d84352dc786",
+        "Text.Parse.cinch": "4b6d00ab84e6969cf6fe8a21f29a255a9871c048b6df4baab006734efd7fabed",
+        "Text.Scan.cinch": "bc12b7a6cb5fe9a9b448047f9aeeb0fc3eac1e29927e2270e7be760014a93208"
+      },
+      "name": "latest1c76"
+    },
+    {
+      "compiler_modules": 44,
+      "compiler_source_sha256": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+      "files": {
+        "Bootstrap.Ast.cinch": "a7ed3904dde924f2468aa8d369bd6d513ca65bd9cac9d9a77a50ada5bdf72a53",
+        "Bootstrap.BodyContract.cinch": "980c24836344c3c821c587adce5c522e5c0264448f8a7c6dd16395085265f867",
+        "Bootstrap.Builtin.cinch": "a5e85fe8268f6917d050018858fea095cf7f529600b5c695cf8b9df9491dd8d4",
+        "Bootstrap.Check.cinch": "cf141a0b4be85b1411d4e13d3a119c38b07e114f01011994370a964dbd644d08",
+        "Bootstrap.Contracts.cinch": "323df95af64b6925235bbaab3117fd2e19d447fe3f93c947f62e008d63f4973d",
+        "Bootstrap.Core.cinch": "5c8ecaee756c5363c8ddfbe9aad2c33558b2a4f8a8db0ec1cc9fe7fb1e2548c2",
+        "Bootstrap.Dictionary.cinch": "d26a57426fe4cc32696c42378f7db6fffdc4684754069f509d3d61e4be6a4012",
+        "Bootstrap.Driver.cinch": "a9350fe510c1dd5a785e5f805a0da632d343a2cd8699f838d9bb3a2b22cab533",
+        "Bootstrap.Eval.cinch": "632d75a808c85d8d72e5b3335b2eacebdb3fb9e1cbd9fc302b46b1380565f9d8",
+        "Bootstrap.Export.cinch": "6fe249919f3dfd6f2372c33dbab3b2f37169b6f66ce21e979ae5afedb3bba3e0",
+        "Bootstrap.ExportNominal.cinch": "8a5dba04a2d0e93a452b74d03f279c8b212e1ffc529fc8891738f64cfc0aa23b",
+        "Bootstrap.ExportType.cinch": "162128c50d718fa1c8c5dac352df633e1548625f455119d3f3ee1fb34d8c7055",
+        "Bootstrap.Foreign.cinch": "afc83b030c9dbcbd6800a5cd29a388cf04dcad75314321f3635d30ea24c466fc",
+        "Bootstrap.Global.cinch": "5421f416538d3317354f73a8778522be3382fb7f1b540358b0b08f037fcefc5f",
+        "Bootstrap.Guarded.cinch": "024615db9bfcfc432cb0ee943f9390756cb43d1f52b1de36cd8584ce53dd6d98",
+        "Bootstrap.Index.cinch": "dcb92174c01a96faaf66bc7d550c4e443bfa2d4cdc88376f899eb547c5bf166f",
+        "Bootstrap.Infer.cinch": "a2d975dba662769f8cdacd5491b317d5a572a9ad986424daf6889a5d139af241",
+        "Bootstrap.Inputs.cinch": "0b69e6f9667acf7e5659741aeac32ba9c0dbe231204d297fbf7b9c88eed2b03c",
+        "Bootstrap.Instance.cinch": "f15e8149f76dcdcaf4cecb02a837af3e586dfe2d861aa1eee9f6b220581ec3ac",
+        "Bootstrap.Interface.cinch": "176ecc8db40bf583ac2b711f6f77029cc81d24fe0bfe3a50a9188ceccb2e632e",
+        "Bootstrap.Ir.cinch": "f50f2083f6672c1fb6a9094cef0ebcec65615a9bda5d193d0186838c2770727e",
+        "Bootstrap.Kinds.cinch": "43ef88263ca7d810b9caa28aa8f2c89c2e87285d98421cb2c9b3658a5b018ee4",
+        "Bootstrap.Load.cinch": "e9140f4a0ee83109217209d86892f36cdc8e8867c15f8187f1904c03a418fe2f",
+        "Bootstrap.Manifest.cinch": "ef5e1496af11a57909cc707921202b1dc3c867bcbcd1889ae35f76f1b09a37ac",
+        "Bootstrap.Nominal.cinch": "7d1f2e0c51df7fd63f48f388dc13b235b4221d78997b097770b2302adee99dee",
+        "Bootstrap.Object.cinch": "503cb43e2c1cd9397beb732194b11ecedcef9e928f8ec79b396d42096a859957",
+        "Bootstrap.Parse.cinch": "d740f3307bd28ddc3e56e875ee597a33fbe5b99547c722fe2193e0780da8db81",
+        "Bootstrap.Pipeline.cinch": "4ed6e65b7f36a5ac420410115dbdb67e30df7a620b915775a9e29190577cea0a",
+        "Bootstrap.Proof.cinch": "f64fa5d86c43ede8b4841983c681fe52a862ce32003408d1fc7358f214822972",
+        "Bootstrap.Report.cinch": "38e4a34dc34ddfed70ff7348874b0c16b2ae41b23c7026c0b2e10129c9e94d5b",
+        "Bootstrap.Resolve.cinch": "093e96a0bd844dbf8a6b23ea7eada08391fe905b8d49ed0af538d5d3d3ad6598",
+        "Bootstrap.RuntimeAbi.cinch": "a7f25347ef8b5be6baf048cd3339a913e15623d2717961d272e22a7ff34cddd1",
+        "Bootstrap.RuntimeIr.cinch": "424bb1a1338fc3cb3df6f2932e71327d108e2c51284e75d79f6a100e92e90dc8",
+        "Bootstrap.Test.cinch": "72f749b7d83d8513587b2eb43f4a51d84466dca4f912cef8eaae8caffb14adc4",
+        "Bootstrap.Total.cinch": "bbad2865a0cf2ac4c6a677e0291d885421bd715f128d0a77ba324955a5034fe8",
+        "Bootstrap.TotalSemantics.cinch": "1e3be994545f1e7ee17c69fa4d568a037e875b58feb584e81ef169c6a3bc1066",
+        "Bootstrap.Type.cinch": "dbe557bb6b20632375ebfa0470098bbe0572cfa79a1997ab035a90649b063a34",
+        "Bootstrap.Typing.cinch": "f1e5fc8e3fa546ba98b36edec25b9b679cf12b50df095b5f5be4ae48358e31c0",
+        "Main.cinch": "d45e44eb4c0bff16f93020ddd9726e345425ebb1561123128357f465b80092d6",
+        "Text.Builder.cinch": "c089e433293b637862387c71967e800c5cb57f4f7011724ee4d21b18c5ece24b",
+        "Text.Json.cinch": "461861b69d963202733c7016f571b393cfc048e45c04eaf92cef036fcfaeb47b",
+        "Text.Lex.cinch": "c7cc9f8fe6373e93ad0c32ddf262e746da44015394f40548c3ba6d84352dc786",
+        "Text.Parse.cinch": "4b6d00ab84e6969cf6fe8a21f29a255a9871c048b6df4baab006734efd7fabed",
+        "Text.Scan.cinch": "bc12b7a6cb5fe9a9b448047f9aeeb0fc3eac1e29927e2270e7be760014a93208"
+      },
+      "name": "private-erased-arrow"
+    }
+  ],
+  "compiler_source_sha256": "1c76230c164fd47296646125bb0b911b387c9ffda5f18465ec3ca9d1b883ff27",
+  "filtered": 0,
+  "full_goal_complete": false,
+  "ignored": 0,
+  "native_cli_sha256": "c87d139436f49d9ba4115817b97774515ef674e18eaf25dd079514d2cd9b7a3c",
+  "native_source_sha256": "d13df76cf5295fa5d91e8c07fd56cf266558535702b417ce2fda7f8beba7ae62",
+  "original_tests_and_assertions_retained": true,
+  "rlib": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-proof-index-kind-validation-1/cargo/debug/deps/libcinch-3a60df317721b74d.rlib",
+  "rlib_sha256": "74d9efe0261eb1af284d8ce2423bc912f625d9f188b5f3cf341e9895b13e8c48",
+  "runs": [
+    {
+      "heap": "32M",
+      "immortal_root_reports": [],
+      "log": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-proof-index-kind-validation-1/all-native-unit-tests.log",
+      "log_sha256": "3635eddb7140a1708fc6a9a4cb6090411ea6e0e7d40115e2cc278649cec6133b",
+      "name": "all-native-unit-tests",
+      "observed_zero_leak_reports": 45,
+      "poisoning": true,
+      "tests": 186
+    },
+    {
+      "heap": "32M",
+      "immortal_root_reports": [],
+      "log": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-proof-index-kind-validation-1/refinements.log",
+      "log_sha256": "39a49db08af21a8356f9350201bdc6b6aeb6de31e16734cd7aaf1d32391907bd",
+      "name": "refinements",
+      "observed_zero_leak_reports": 7,
+      "poisoning": true,
+      "tests": 27
+    },
+    {
+      "heap": "32M",
+      "immortal_root_reports": [],
+      "log": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-proof-index-kind-validation-1/dependent.log",
+      "log_sha256": "64172b15213b407a92868f90aa119993919849b11ec319f56b3e8668944ef5bd",
+      "name": "dependent",
+      "observed_zero_leak_reports": 10,
+      "poisoning": true,
+      "tests": 14
+    },
+    {
+      "heap": "32M",
+      "immortal_root_reports": [],
+      "log": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-proof-index-kind-validation-1/interface_kinds.log",
+      "log_sha256": "cec393a01574a709fbaa0e98601964305780c281d2a23973385b0e1ea20a7fba",
+      "name": "interface_kinds",
+      "observed_zero_leak_reports": 0,
+      "poisoning": true,
+      "tests": 2
+    },
+    {
+      "heap": "32M",
+      "immortal_root_reports": [],
+      "log": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-proof-index-kind-validation-1/interface_refinements.log",
+      "log_sha256": "7e7a3208bf24e744f75b658b258f5665bacb9d4b86142ef152726e881a0567fc",
+      "name": "interface_refinements",
+      "observed_zero_leak_reports": 0,
+      "poisoning": true,
+      "tests": 4
+    },
+    {
+      "heap": "32M",
+      "immortal_root_reports": [],
+      "log": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-proof-index-kind-validation-1/interface_region_effects.log",
+      "log_sha256": "35b1adc5d8195b2be00fdc0c1bd716d29d78666f84c94a8cc0a2e1fa83c77605",
+      "name": "interface_region_effects",
+      "observed_zero_leak_reports": 0,
+      "poisoning": true,
+      "tests": 2
+    },
+    {
+      "heap": "32M",
+      "immortal_root_reports": [],
+      "log": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-proof-index-kind-validation-1/interface_nominals.log",
+      "log_sha256": "10a2ec191681293d99b128140383d1ec7d5bba2e3bbb72c725a98ddb67f549e9",
+      "name": "interface_nominals",
+      "observed_zero_leak_reports": 0,
+      "poisoning": true,
+      "tests": 1
+    },
+    {
+      "heap": "32M",
+      "immortal_root_reports": [],
+      "log": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-proof-index-kind-validation-1/interface_preconditions.log",
+      "log_sha256": "2e288ae0cb77af5ea49223b5a2c3443d27d860bab07acee4399f5cdcecb300a6",
+      "name": "interface_preconditions",
+      "observed_zero_leak_reports": 0,
+      "poisoning": true,
+      "tests": 1
+    },
+    {
+      "heap": "32M",
+      "immortal_root_reports": [],
+      "log": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-proof-index-kind-validation-1/interface_anonymous_contracts.log",
+      "log_sha256": "8c850a47c25f457480004216594264ff98bce5fa7514c53e9ca013c7ad6edb4b",
+      "name": "interface_anonymous_contracts",
+      "observed_zero_leak_reports": 0,
+      "poisoning": true,
+      "tests": 1
+    },
+    {
+      "heap": "32M",
+      "immortal_root_reports": [],
+      "log": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-proof-index-kind-validation-1/proof_value_identity.log",
+      "log_sha256": "ce33fd0ac129cbdfecbc7553a10a688e949c990157ce6efd9bde1907c4b80070",
+      "name": "proof_value_identity",
+      "observed_zero_leak_reports": 5,
+      "poisoning": true,
+      "tests": 5
+    },
+    {
+      "heap": "32M",
+      "immortal_root_reports": [],
+      "log": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-proof-index-kind-validation-1/interface_refinement_closure.log",
+      "log_sha256": "3f377a867818064240c5eaefc33e7872db63290a1488ba840aa68c77914f63ff",
+      "name": "interface_refinement_closure",
+      "observed_zero_leak_reports": 0,
+      "poisoning": true,
+      "tests": 1
+    },
+    {
+      "heap": "32M",
+      "immortal_root_reports": [],
+      "log": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-proof-index-kind-validation-1/pattern_field_names.log",
+      "log_sha256": "4e3fc2958f8cab098b02928b1fb612705969c25563393e4a5a8b3468c66f47d9",
+      "name": "pattern_field_names",
+      "observed_zero_leak_reports": 5,
+      "poisoning": true,
+      "tests": 5
+    },
+    {
+      "heap": "256M",
+      "immortal_root_reports": [],
+      "log": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-proof-index-kind-validation-1/interface_machine_contracts.log",
+      "log_sha256": "57c20dd236c00c8adbacb122fe8b4149c2d7bff72e6d99eb1f98c42ee7077bc3",
+      "name": "interface_machine_contracts",
+      "observed_zero_leak_reports": 0,
+      "poisoning": false,
+      "tests": 2
+    },
+    {
+      "heap": "32M",
+      "immortal_root_reports": [],
+      "log": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-proof-index-kind-followup-2/proof_guarded_lets.log",
+      "log_sha256": "8e306202211cc09c4ffe0d83b4fc0212fe0da06739c6e1579e71e034e550be99",
+      "name": "proof_guarded_lets",
+      "observed_zero_leak_reports": 0,
+      "poisoning": true,
+      "tests": 7
+    },
+    {
+      "heap": "32M",
+      "immortal_root_reports": [],
+      "log": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-proof-index-kind-followup-2/evidence_invalidation.log",
+      "log_sha256": "f2d5d7703ed8e7da0dc3a472e609742b09354197355a224abb043c590d3a7e52",
+      "name": "evidence_invalidation",
+      "observed_zero_leak_reports": 1,
+      "poisoning": true,
+      "tests": 12
+    },
+    {
+      "heap": "32M",
+      "immortal_root_reports": [],
+      "log": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-proof-index-kind-followup-2/index_local_carriers.log",
+      "log_sha256": "c1fea9b2e0289adca1bceb99e5d788e96c1030c8d6738ab20d4203c053463296",
+      "name": "index_local_carriers",
+      "observed_zero_leak_reports": 1,
+      "poisoning": true,
+      "tests": 1
+    },
+    {
+      "heap": "32M",
+      "immortal_root_reports": [],
+      "log": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-proof-index-kind-followup-2/syntax_index_evidence.log",
+      "log_sha256": "b9ff1af58bf0e97d0015f11e9c69ed93d85ec02907d362d4cd19ec11b6087f17",
+      "name": "syntax_index_evidence",
+      "observed_zero_leak_reports": 18,
+      "poisoning": true,
+      "tests": 14
+    },
+    {
+      "heap": "32M",
+      "immortal_root_reports": [],
+      "log": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-proof-index-kind-followup-2/syntax_index_lambdas.log",
+      "log_sha256": "a6858f342c2e98b717c3f19e179fc6027381b12e4f69736cc1fd3b3602618c51",
+      "name": "syntax_index_lambdas",
+      "observed_zero_leak_reports": 9,
+      "poisoning": true,
+      "tests": 7
+    },
+    {
+      "heap": "32M",
+      "immortal_root_reports": [],
+      "log": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-proof-index-kind-followup-2/syntax_signature_scope.log",
+      "log_sha256": "ca4c4476983ff276ef8840402c89a1c43d937013d0daafc03493f20830a0d571",
+      "name": "syntax_signature_scope",
+      "observed_zero_leak_reports": 5,
+      "poisoning": true,
+      "tests": 7
+    },
+    {
+      "heap": "32M",
+      "immortal_root_reports": [
+        "cinch-leak: live=1 immortal=1 leaked=0"
+      ],
+      "log": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-proof-index-kind-followup-2/staging.log",
+      "log_sha256": "e34b3aa0463a471a036c30be52807ecfdfc6a1d3d983932313c23f2422fe6b91",
+      "name": "staging",
+      "observed_zero_leak_reports": 16,
+      "poisoning": true,
+      "tests": 24
+    }
+  ],
+  "rust_tests": 323,
+  "scope": "Actual checked signature argument domains constrain numeric ordering, arithmetic and literals independently of forall classification. Captured lexical names do not acquire a header binding by spelling. All20 complete groups pass323 Rust tests without skips/filters:13 original primary groups,2 evidence groups and5 complete index/syntax/staging groups. All13 actual machine cases pass at256M normal; smaller clients use32M poisoning. The staging symbol-interning case reports live=1 immortal=1 leaked=0; that process-lifetime root is recorded explicitly. All other observed reports retain zero live/immortal/leaked counts. Full27-test refinements retain all original26 tests and add12 meaningful valid/invalid carrier controls. Both current1c76 and private3268 exact44-module projects and original CLI proof/forgery controls pass. All five task-capture probes remain reproduced and required fixes. Separate quotation using/True type-resolution counterexamples remain unresolved by this repair; do not claim quoted precondition support from its early refusals. Immutable Native22 seed/library roles, all original assertions and final matching full suites/bootstrap/Acceptance1-5 requirements remain intact.",
+  "source": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-proof-index-kind-validation-1/source",
+  "source_sha256": "30c9c50b09e31213bdcafb98aa73c7c59e6d78f413b78acf76fc1f1fab07c74c",
+  "status": "passed-native-index-carrier-kind-gates",
+  "task_capture_counterexample": {
+    "compiler_sha256": "c87d139436f49d9ba4115817b97774515ef674e18eaf25dd079514d2cd9b7a3c",
+    "full_goal_complete": false,
+    "native_source_sha256": "d13df76cf5295fa5d91e8c07fd56cf266558535702b417ce2fda7f8beba7ae62",
+    "rows": [
+      {
+        "exit_code": 1,
+        "log_sha256": "9560f8b154f78bb58b0631fbe16ca5943687548f3933b780491ac990c99f4f9d",
+        "name": "direct-mutable-capture",
+        "source_sha256": "ae3941b0b92b4cb6d485515846ba3f2b91c285be76f25550629cdee8da858f2d"
+      },
+      {
+        "exit_code": 0,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "name": "literal-safe",
+        "source_sha256": "d970ac71bb4c9f187e17d27b3fb442419ec6d3a303c9a60fd0b56485db00d1f2"
+      },
+      {
+        "exit_code": 0,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "name": "opaque-mutable-capture",
+        "source_sha256": "c542ff3263b3e7427ddbfa64626d92968344e70baedce1c2be84f7e83b54bfe0"
+      },
+      {
+        "exit_code": 0,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "name": "wrapped-mutable-capture",
+        "source_sha256": "a4833dab9adae08967971d6d9854f0397157bbccfdbaf24cc34c2c6d65618a67"
+      },
+      {
+        "exit_code": 0,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "name": "wrapper-safe",
+        "source_sha256": "e3826799080011e177bb3f76da71600cd34ca06b9a3ebd362fb7129b655363c5"
+      }
+    ],
+    "status": "confirmed-native-opaque-task-capture-gap"
+  },
+  "verified_at": "2026-11-06T19:39:02.015663+00:00",
+  "whole_groups": 20
+}

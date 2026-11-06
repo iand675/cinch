@@ -1,5 +1,27 @@
 # Next steps (as of 2026-11-06)
 
+## Native signature arguments constrain numeric indices (2026-11-06)
+
+Actual argument domains now constrain numeric signature indices independently
+of forall parameter inference. Proof, function, Boolean and unmeasured Bytes
+arguments cannot become numeric literals, arithmetic or ordering operands.
+Captured names retain their lexical identities; numeric mutable places and
+explicit structural measures remain valid. All prior26 refinement tests remain,
+with12 new positive and negative controls in the new27th test.
+
+All20 complete affected Rust groups pass323 tests with no skips or filters.
+Both exact44-module compiler projects, all13 actual machine-contract cases,
+the original False-proof and forgery CLI controls and five task-capture probes
+are independently audited. The staging symbol-interning case retains one
+intentional immortal root and reports zero leaked cells; all other observed
+reports are zero throughout. See `bootstrap/current-native-index-kind-results.json`.
+
+This publishes Native d13; Cinch remains1c76 for this checkpoint. Quoted using
+contexts and logical proof types need the separately validated hygiene fix.
+Opaque task captures, source-Prelude replacement, every other original failure,
+matching latest self-built bootstrap/full suites and Acceptance1-5 remain open.
+Immutable Native22 seed/library pins and defining-module-only fixities remain.
+
 ## Numeric preconditions need actual argument-kind checks (2026-11-06)
 
 The complete Cinch precondition comparison passes all25 original cases and
