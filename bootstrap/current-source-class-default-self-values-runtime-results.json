@@ -1,0 +1,240 @@
+{
+  "status": "audited-strict-default-runtime-partial-with-retained-failures",
+  "verified_at": "2026-11-06T23:11:01.446343+00:00",
+  "compiler_source_sha256": "75fbd2f9a8596fa48c2ded66efa15834412b9bc478247b7c94ab048fa84774c0",
+  "compiler_sha256": "a891799a0e5145b0f9d38ce7f0a34225fac6e35ae9108868f33a1c357350e16d",
+  "total_cases": 17,
+  "passed_cases": 15,
+  "positive_clients_passed": 10,
+  "negative_controls_passed": 5,
+  "retained_owned_case_failure": true,
+  "owned_case_native": {
+    "status": "native-accepted-owned-case",
+    "exit_code": 0,
+    "source_sha256": "9e51448bf386e0910abb8635d8227f8cacf57b500382d27b9686f8a0667b760a",
+    "compiler_sha256": "82707997b842e13810dbce82b58233796ac09b5965946003ea2053fe9a3b85fb",
+    "diagnostic": "",
+    "full_goal_complete": false
+  },
+  "cycle_semantic_refusal_observed": true,
+  "cycle_interface_output_contract": "unresolved-new-runner-assertion; do not classify as a compiler defect or waive it before contract review",
+  "rows": [
+    {
+      "compile_exit": 0,
+      "compile_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "diagnostic": "",
+      "expected_compile_exit": 0,
+      "expected_run_exit": 42,
+      "link_exit": 0,
+      "name": "class-annotation",
+      "run_exit": 42,
+      "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "source_sha256": "bd5e4c80fb91b29ee6252302c86f228cedede78190a82274e0c56ea4e0ecd8cf",
+      "status": "passed",
+      "zero_leak_reports": 1
+    },
+    {
+      "compile_exit": 0,
+      "compile_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "diagnostic": "",
+      "expected_compile_exit": 0,
+      "expected_run_exit": 42,
+      "link_exit": 0,
+      "name": "method-annotation",
+      "run_exit": 42,
+      "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "source_sha256": "58d70973db6a3fc62ca7e08b79ac49a1518852fb3469c09f7ffa327624bfbc3f",
+      "status": "passed",
+      "zero_leak_reports": 1
+    },
+    {
+      "compile_exit": 0,
+      "compile_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "diagnostic": "",
+      "expected_compile_exit": 0,
+      "expected_run_exit": 42,
+      "link_exit": 0,
+      "name": "term-type-same-spelling",
+      "run_exit": 42,
+      "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "source_sha256": "568ce55011deb50b2fee11edcea7ec0c79d44ffa266fbd08e19234057a2777fa",
+      "status": "passed",
+      "zero_leak_reports": 1
+    },
+    {
+      "compile_exit": 0,
+      "compile_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "diagnostic": "",
+      "expected_compile_exit": 0,
+      "expected_run_exit": 42,
+      "link_exit": 0,
+      "name": "owner-private-helper",
+      "run_exit": 42,
+      "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "source_sha256": "c34f80597c058be6781fb49c773e947f3efe5d17eda4c308573a2c7cca1da7de",
+      "status": "passed",
+      "zero_leak_reports": 1
+    },
+    {
+      "compile_exit": 0,
+      "compile_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "diagnostic": "",
+      "expected_compile_exit": 0,
+      "expected_run_exit": 42,
+      "link_exit": 0,
+      "name": "caller-helper-does-not-capture",
+      "run_exit": 42,
+      "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "source_sha256": "cb201908d238b08c4589c453740e148ad14dc8800d790f10f7329f0532914272",
+      "status": "passed",
+      "zero_leak_reports": 1
+    },
+    {
+      "compile_exit": 0,
+      "compile_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "diagnostic": "",
+      "expected_compile_exit": 0,
+      "expected_run_exit": 7,
+      "link_exit": 0,
+      "name": "explicit-override",
+      "run_exit": 7,
+      "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "source_sha256": "ba36f2e8adecc8a36a63c9c337dde8c9c592a4b34cf295847d29175118f9f646",
+      "status": "passed",
+      "zero_leak_reports": 1
+    },
+    {
+      "compile_exit": 0,
+      "compile_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "diagnostic": "",
+      "expected_compile_exit": 0,
+      "expected_run_exit": 42,
+      "link_exit": 0,
+      "name": "function-carrier",
+      "run_exit": 42,
+      "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "source_sha256": "c2ebd8e78d81fdbd3bde80d1c1209e2159f171ee7a2043e41f18309fc424900f",
+      "status": "passed",
+      "zero_leak_reports": 1
+    },
+    {
+      "compile_exit": 0,
+      "compile_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "diagnostic": "",
+      "expected_compile_exit": 0,
+      "expected_run_exit": 7,
+      "link_exit": 0,
+      "name": "nullary-field",
+      "run_exit": 7,
+      "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "source_sha256": "4ce2d1e47fabb481cad3d8f47b9b68c3f9d1881053d34e0f99cb69ea7e8b9eb5",
+      "status": "passed",
+      "zero_leak_reports": 1
+    },
+    {
+      "compile_exit": 4,
+      "compile_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "diagnostic": "bootstrap.check:6:19: type mismatch: expected Int, found a\n",
+      "expected_compile_exit": 4,
+      "name": "unused-invalid-default",
+      "source_sha256": "9703292a64e78946529daec1d64bccf240603c8a54d76e486065efae706b8fab",
+      "status": "passed"
+    },
+    {
+      "compile_exit": 4,
+      "compile_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "diagnostic": "bootstrap.check:6:19: type mismatch: expected a, found Bool\nbootstrap.check:6:19: type mismatch: expected a, found Bool\n",
+      "expected_compile_exit": 4,
+      "name": "override-cannot-hide-invalid-default",
+      "source_sha256": "5aa1cd0e82ccc846fc39a98eca427c292d3c96b8406790cb01e5590e8d05952f",
+      "status": "passed"
+    },
+    {
+      "compile_exit": 4,
+      "compile_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "diagnostic": "bootstrap.check:1:1: instance is missing class method: seed\nbootstrap.check:9:12: source dictionary constructor disagrees with its defining class or method contracts\n",
+      "expected_compile_exit": 4,
+      "name": "missing-required-method",
+      "source_sha256": "90c47e0a1ea6d3e6cb1c7b77e58f0bd05d2fa824e8be6f9f57ab4f451ccea684",
+      "status": "passed"
+    },
+    {
+      "compile_exit": 4,
+      "compile_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "diagnostic": "bootstrap.resolve:14:10: name is not in scope: helper\n",
+      "expected_compile_exit": 4,
+      "name": "private-helper-inaccessible",
+      "source_sha256": "a3ae8ee336a2263c7ebbdac865a72f8d274319871540df7c917ec66a078fbc35",
+      "status": "passed"
+    },
+    {
+      "compile_exit": 4,
+      "compile_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "diagnostic": "bootstrap.check:5:23: type mismatch: expected b, found a\nbootstrap.check:5:23: type mismatch: expected b, found a\n",
+      "expected_compile_exit": 4,
+      "name": "distinct-method-binders",
+      "source_sha256": "5d98f48a7137b264da0c1c83d7b7f8bc3a11d9f21fba2034428fefa407a3fcc7",
+      "status": "passed"
+    },
+    {
+      "compile_exit": 0,
+      "compile_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "diagnostic": "",
+      "expected_compile_exit": 0,
+      "expected_run_exit": 7,
+      "link_exit": 0,
+      "name": "strict-values-reversed-order",
+      "run_exit": 7,
+      "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "source_sha256": "3799232231c3217b4b4aecd7c919803cb6b5cbc05849dfb144c1aa8e19cd036e",
+      "status": "passed",
+      "zero_leak_reports": 1
+    },
+    {
+      "compile_exit": 0,
+      "compile_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "diagnostic": "",
+      "expected_compile_exit": 0,
+      "expected_run_exit": 7,
+      "link_exit": 0,
+      "name": "strict-values-through-method",
+      "run_exit": 7,
+      "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "source_sha256": "38ce13b5e65354739a3e762467720f94873c1f3815c9a11a68d24c1dc349d7d9",
+      "status": "passed",
+      "zero_leak_reports": 1
+    },
+    {
+      "compile_exit": 4,
+      "compile_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "diagnostic": "bootstrap.check:13:10: non-exhaustive patterns\n",
+      "expected_compile_exit": 0,
+      "name": "strict-owned-constructor-field",
+      "source_sha256": "9e51448bf386e0910abb8635d8227f8cacf57b500382d27b9686f8a0667b760a",
+      "status": "failed"
+    },
+    {
+      "name": "strict-value-cycle",
+      "status": "failed",
+      "failure_kind": "new-runner-artifact-contract-needs-review",
+      "semantic_cycle_refusal_observed": true,
+      "compile_exit": 5,
+      "expected_compile_exit": 5,
+      "diagnostic": "bootstrap.runtime-ir:1:1: cyclic strict dictionary values need recursive environment lowering\n",
+      "compile_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "source_sha256": "6003451a43dc5bd9d6a6e6952bb5a8253acd7c48ced71046d793edce172ce16b",
+      "checked_interface_artifacts": [
+        {
+          "name": "client.ll.Defaults.cinchif",
+          "sha256": "e2c673b77968b43e6ce5f321e2b62c4105d66659294fb22b85f60fb99cdff2d2"
+        },
+        {
+          "name": "client.ll.Main.cinchif",
+          "sha256": "1aa72f2b0ad08bf0565ac2d6cf176682ad6a4df37222d42390557adc3916b2cb"
+        }
+      ]
+    }
+  ],
+  "full_goal_complete": false,
+  "scope": "Actual75fb full44-module compiler passes the complete9 compiler/object audit. All13 prior intended source-default/runtime controls now pass, including both real8fce regressions. Reversed field order and transitive self-method dependencies also execute correctly. Ten positive clients run32M poisoned with observed zero leaks; five semantic refusal controls pass. The owned Box case is accepted by current Native but rejected by Cinch during premature case coverage. Strict cycles are rejected with empty IR; the new runner stopped because checked interfaces remained after a backend refusal. That artifact expectation remains explicitly unresolved. No17/17 success or feature promotion is claimed."
+}

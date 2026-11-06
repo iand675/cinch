@@ -1,0 +1,13 @@
+module Defaults where
+  signature Value a where
+    value :: a
+    duplicate :: a
+    duplicate = value
+module Main where
+  import Defaults
+  data Box where
+    Box :: Int -> Box
+  implicit instance ValueBox :: Value Box where
+    value = Box 7
+  main :: Int
+  main = case duplicate of Box result -> result

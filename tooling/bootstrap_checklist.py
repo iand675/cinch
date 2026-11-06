@@ -258,6 +258,7 @@ def build_checklist(root, cfg, previous=None):
     annotation_published=annotation_receipt.get('native_source_sha256')==native and annotation_receipt.get('whole_groups')==21 and annotation_receipt.get('rust_tests')==332
     default_receipt=read(cfg.get('sourceClassDefaultComponentReceipt'))
     default_runtime=read(cfg.get('sourceClassDefaultRuntime'))
+    strict_runtime=read(cfg.get('sourceClassDefaultSelfValuesRuntimeReceipt'))
     default_api=read(cfg.get('sourceClassDefaultApi'))
     default_full=read(cfg.get('sourceClassDefaultFullCompiler'))
     default_detail=('All four complete component groups pass independent audit, including all15 defaults and all30 original source dictionary controls. Actual compiler/object gate: '+default_full.get('status','pending')+'. Runtime13 cases: '+default_runtime.get('status','pending')+'. Original9 API groups plus7 default tests: '+default_api.get('status','waiting for full compiler')+'. Imported default transport and complete matching bootstrap remain open.')
@@ -270,12 +271,15 @@ def build_checklist(root, cfg, previous=None):
         item('gap:type-term-scope','Keep term and type annotation names separate','running',
              'Private8fce rejects identity a = (a :: a). Candidate00b5 separates proper type-head lookup from dependent value-index lookup; original controls and three extra index groups are validating.',
              'The unchanged source executes42 through the repaired actual compiler, all16 source default controls pass, and dependent indices retain their checked identities.',link('bootstrap/current-source-class-default-runtime-results.json')),
-        item('gap:strict-defaults','Initialize nullary default fields from checked dependencies','blocked',
-             'Private8fce checks duplicate = value, then cannot lower its strict self-evidence dependency. Two original default runtime/build assertions also stop here.',
+        item('gap:strict-defaults','Initialize nullary default fields from checked dependencies','running' if strict_runtime else 'blocked',
+             'Candidate75fb now executes nullary fields, reversed declaration order and transitive self-method dependencies. Its extended run passes15 controls; the owned constructor case and the cycle output-contract review remain before closure.' if strict_runtime else 'Private8fce checks duplicate = value, then cannot lower its strict self-evidence dependency. Two original default runtime/build assertions also stop here.',
              'Initialize acyclic strict fields in dependency order while preserving checked self evidence, closure ownership and cycle refusals; execute all original default runtime cases with zero leaks.',link('bootstrap/current-source-class-default-runtime-results.json')),
         item('gap:default-diagnostics','Preserve original class/default diagnostic details and source files','blocked',
              'Three original default refusal tests reject correctly but still fail their exact message, class/instance name or source-file assertions. These remain failures.',
              'Every original diagnostic and filename assertion passes with accurate attribution to the defining source; semantic rejection alone grants no pass.',link('bootstrap/current-source-class-default-api-results.json')),
+        item('gap:inferred-case-coverage','Infer a constructor case before deciding coverage','blocked',
+             'Candidate75fb rejects case duplicate of Box result -> result as non-exhaustive. The exact unchanged program is accepted by current Native8ba8. Strict default values themselves now execute in the other tested cases.',
+             'Infer the checked constructor family without borrowing branch-local index equalities as global coverage proof; retain every existing indexed/GADT refusal and run the owned constructor client with zero leaks.',link('bootstrap/current-source-class-default-self-values-runtime-results.json')),
         item('gap:default-refinement','Preserve refinement carriers in the original default runtime program','blocked',
              'The unchanged original mconcat function/refinement client fails at NonZero Int elimination before reaching its full required runtime behavior.',
              'The original function carrier, refined product and unit cases compile and execute their expected results without guessing an underlying carrier.',link('bootstrap/current-source-class-default-api-results.json')),

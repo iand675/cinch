@@ -1,5 +1,31 @@
 # Next steps (as of 2026-11-06)
 
+## Strict defaults execute; constructor-case inference remains a real gap (2026-11-07)
+
+Candidate75fb passes the independently audited full44-module compiler/object gate:
+all9 tests,17 real C clients and50 zero-leak reports. Its runtime extension passes
+15 controls, including all13 prior intended cases, reversed strict-field order
+and transitive method dependencies. Both actual8fce regressions now execute
+correctly. Ten positive clients run32M poisoned with zero-leak reports; five
+semantic rejection controls pass. See
+`bootstrap/current-source-class-default-self-values-compiler-results.json` and
+`bootstrap/current-source-class-default-self-values-runtime-results.json`.
+
+The owned Box client is accepted by current Native8ba8 but rejected by Cinch as
+non-exhaustive before constructor-pattern inference finishes. Its unchanged
+source is `bootstrap/programs/ClassDefaults.OwnedCase.Counterexample.cinch`.
+This remains a real frontend gap, not a reason to replace the inference case
+with an easier annotated program. Strict cycles do reject with empty IR, but
+the new runner stopped because checked interfaces remained after backend
+refusal. The combined-mode intermediate-output contract needs review before
+classifying that assertion as a compiler defect or claiming17/17 success.
+The terminal runner state and all original artifacts remain recorded.
+
+Original/default/API replay and the two corrected complete remaining regression
+groups continue. Published Cinch stays3268; neither candidate is promoted.
+All diagnostic/source attribution, refinement, imported default/library-family,
+matching full bootstrap, complete suites and Acceptance1-5 requirements remain.
+
 ## Namespace controls pass; strict-default dependencies are under validation (2026-11-06)
 
 Candidate00b5 passes all16 original/new source-default controls and five complete
