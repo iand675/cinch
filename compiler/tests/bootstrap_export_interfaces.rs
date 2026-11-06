@@ -26,7 +26,7 @@ fn source_interfaces_preserve_private_nominals_and_defining_fixities() {
     }).collect();
     assert_eq!(interfaces.len(), 3);
     let source = std::fs::read_to_string(dir.join("export-fixture.cinch")).unwrap();
-    cinch::driver::check_sources(&source, "cinch-interface-producer-source.cinch")
+    let (_, native_interfaces) = cinch::driver::check_sources_ifaces(&source, "cinch-interface-producer-source.cinch")
         .expect("independent Native acceptance of the complete actual producer fixture");
     for (index, interface) in interfaces.iter().enumerate() {
         let begin = source.find(&format!("module {} where", interface.module)).unwrap();
@@ -39,6 +39,19 @@ fn source_interfaces_preserve_private_nominals_and_defining_fixities() {
     let a = interfaces.iter().find(|i| i.module == "A").unwrap();
     let b = interfaces.iter().find(|i| i.module == "B").unwrap();
     let main = interfaces.iter().find(|i| i.module == "Main").unwrap();
+    assert_eq!(b.exports.signatures[0].identity, "B.Alpha", "canonical class order compares names before defining identities");
+    let alpha = &b.exports.signatures[0];
+    assert!(alpha.exports.is_empty() && alpha.methods.iter().all(|m| m.exports.is_empty()), "private closure granted source names");
+    let native_a = native_interfaces.iter().find(|i| i.module == "A").unwrap();
+    for name in ["Parcel", "Vec", "Phantom"] {
+        let actual = a.exports.types.iter().find(|t| t.name == name).unwrap();
+        let reference = native_a.exports.types.iter().find(|t| t.name == name).unwrap();
+        assert_eq!(actual.params, reference.params, "{name}: definition-site parameter names");
+        assert_eq!(actual.parameters, reference.parameters, "{name}: kinds and implicit parameters");
+    }
+    let phantom = a.exports.types.iter().find(|t| t.name == "Phantom").unwrap();
+    assert_eq!(phantom.params, ["element"]);
+    assert!(phantom.parameters[0].implicit);
     assert_eq!(main.exports.values.iter().find(|v| v.name == "main").unwrap().symbol, "Main.main");
     assert_eq!(a.exports.fixities.len(), 1);
     assert_eq!(a.exports.fixities[0].op, "<+>");
@@ -69,11 +82,36 @@ fn source_interfaces_preserve_private_nominals_and_defining_fixities() {
             assert!(resolved.scheme.contains(if name == "inspect-scope" { "Scope" } else { "Task" }));
         }
     }
+    let give = a.exports.signatures.iter().find(|s| s.identity == "A.Give").unwrap();
+    let method = give.methods.iter().find(|m| m.name == "give").unwrap().resolved.as_ref().unwrap();
+    assert!(method.scheme.contains("dict :: A.Give a"), "{}", method.scheme);
+    let factory = a.exports.instances.iter().find(|i| i.id == "A.ContextOnly_Values").unwrap();
+    assert!(factory.implicit);
+    assert_eq!(factory.ctx.len(), 1);
+    let (dictionary, requirement) = factory.ctx[0].split_once(" :: ").unwrap();
+    assert_ne!(dictionary, "eq", "dictionary name captured the quantified type parameter");
+    assert_eq!(requirement, "A.Evidence eq");
+    let resolved = factory.resolved.as_ref().unwrap();
+    assert!(resolved.scheme.contains("eq :: Type"), "{}", resolved.scheme);
+    assert!(resolved.scheme.contains(&format!("using ({dictionary} :: {requirement})")), "{}", resolved.scheme);
+    assert_eq!(factory.target, "A.ContextOnly (A.Values eq)");
+    assert!(factory.method_bodies.is_empty(), "a contextual factory cannot grant closed executable method authority");
+    assert_eq!(factory.methods, ["A.ContextOnly_Values.context-only"]);
+    for identity in ["A.ContextOnly", "A.Evidence"] {
+        assert!(resolved.nominals.iter().any(|n| n.identity == identity && n.kind == "signature"));
+    }
+    for identity in ["A.ContextOnly", "A.Evidence", "A.Inner", "A.Deep"] {
+        let hidden = a.exports.signatures.iter().find(|s| s.identity == identity).unwrap();
+        assert!(hidden.exports.is_empty(), "retained factory class context exposed a source class name");
+        assert!(hidden.methods.iter().all(|m| m.exports.is_empty()), "private class closure exposed a method name");
+    }
+    assert!(!a.exports.types.iter().any(|t| t.name == "Values"), "factory context exposed its private data carrier");
     let exists = a.exports.types.iter().find(|t| t.name == "Exists").unwrap();
     let pack = exists.ctors.iter().find(|c| c.name == "PackAny").unwrap();
     assert!(pack.scheme.contains("t :: Type"), "{}", pack.scheme);
     assert!(pack.resolved.is_none(), "hidden constructor parameters cannot authorize ordinary universal pattern instantiation");
     assert_eq!(pack.fields.len(), 1);
+    assert_eq!(pack.fields, ["t"], "hidden field keeps its own binder name");
     let vector = a.exports.types.iter().find(|t| t.name == "Vec").unwrap();
     assert_eq!(vector.parameters.iter().map(|p| p.kind.as_str()).collect::<Vec<_>>(), ["Nat", "Type"]);
     let nil = vector.ctors.iter().find(|c| c.name == "VNil").unwrap();
@@ -220,10 +258,10 @@ fn source_interfaces_preserve_private_nominals_and_defining_fixities() {
     assert_eq!(instance.methods, ["A.GiveNat.give"]);
     assert!(instance.method_contracts.is_empty());
     let parcel = a.exports.types.iter().find(|t| t.name == "Parcel").unwrap();
-    assert_eq!(parcel.params, ["q0"]);
+    assert_eq!(parcel.params, ["a"]);
     assert_eq!(parcel.ctors.iter().map(|c| (c.name.as_str(), c.tag)).collect::<Vec<_>>(), [("Empty", 0), ("Loaded", 1)]);
     assert!(parcel.ctors[0].fields.is_empty());
-    assert_eq!(parcel.ctors[1].fields, ["q0"]);
+    assert_eq!(parcel.ctors[1].fields, ["a"]);
     assert_eq!(parcel.ctors[1].erased, [false]);
     for interface in [a, b] {
         let token = interface.exports.types.iter().find(|t| t.name == "Token").unwrap();

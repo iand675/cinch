@@ -1,80 +1,62 @@
 {
-  "compiler_source_sha256": "917f6e1fc2bc376224a6f2edb1ae951e73c364ff216cf558e2c714003cf6bc36",
-  "failed_groups": 3,
-  "failed_tests": 3,
+  "compiler_source_sha256": "7111030f9c0ded542854b714b727a3a3fced758ca7061490868c9aac19d8dfe7",
+  "failed_groups": 2,
+  "failed_tests": 2,
   "filtered": 0,
   "full_goal_complete": false,
   "groups": [
     {
-      "failed": 0,
-      "log_sha256": "ef0c6c2a892f5431d94d2d027f4be8aea01ec457f2fc5a2c0ed49cb25592b5ae",
+      "exit_code": 0,
+      "log_sha256": "67bafe4c9b027d68108a9435041d27f3d919b5a39d74e1f3325c0e7ce5455a27",
       "name": "interface_anonymous_contracts",
-      "passed": 1,
-      "source_sha256": "6b16f6d5fdd9104f602373e62769c47a1876dbbbc40531a76c9581861555da8b",
       "status": "passed"
     },
     {
-      "failed": 1,
-      "log_sha256": "944e13ae25f1012e545a66c4c31214918859cd9fd97871f10eccda05cc9ed8be",
+      "exit_code": 0,
+      "log_sha256": "cbba44cac7b46723705b7b836e5327aacebbcb6e6afc5e4830ebac25fbeabfe2",
       "name": "interface_class_contracts",
-      "passed": 0,
-      "source_sha256": "fc5d1b585a6b49d75510713eef592c78a29f7318a48feef75d01b79309b57d61",
-      "status": "failed"
+      "status": "passed"
     },
     {
-      "failed": 1,
-      "log_sha256": "9277799393125b89fea13ee30d80c6899401486242aec793ca770fbf0059614b",
+      "exit_code": 101,
+      "log_sha256": "960ecea1da7eea0ea241fb7f9d8935a07cadc49da57989bf60e59c5160ed26f6",
       "name": "interface_kinds",
-      "passed": 1,
-      "source_sha256": "9f6b2d4e753dc90f0addeb33fab6a1a6f36ea129c2a0f5a845cf416c7c637e32",
       "status": "failed"
     },
     {
-      "failed": 0,
-      "log_sha256": "22ac41559cb091c1d8f1919b0fca85bcda1cd273d870dae52d7a3f91a0bdf955",
+      "exit_code": 0,
+      "log_sha256": "2ef373f2b3ec41564df09ef7263db278c97adefaf91d362bc5d8d25d17151e97",
       "name": "interface_nominals",
-      "passed": 1,
-      "source_sha256": "1c25c1443aa5d1954930a2996bc2b3740c308d95d101f07fb3dae9a28e79e31b",
       "status": "passed"
     },
     {
-      "failed": 0,
-      "log_sha256": "b5192fbb19e923165c8c0c44a7e81aaf6aa5c89f4d4e25ced355160347612a76",
+      "exit_code": 0,
+      "log_sha256": "f1ffa4126c258caffd20101dcee0365edb1186614d230ca4b1b44e526f8f95d5",
       "name": "interface_preconditions",
-      "passed": 1,
-      "source_sha256": "40047ff8b0f2e5638cfcf38f91a195fb42b9267734385ccb54e5e4cbb2aab8bf",
       "status": "passed"
     },
     {
-      "failed": 1,
-      "log_sha256": "bfc2a6348e6888f88d0a8cb7468b8d52bf9b726d6374f3e8766b70366dc4ef82",
+      "exit_code": 101,
+      "log_sha256": "eb2cb4f7090568ad29bf530a92996e9be46427201a0f00ead71262298a4d43d9",
       "name": "interface_prelude_overrides",
-      "passed": 0,
-      "source_sha256": "1d0b1cc10f9d1788183686a742e455c0ddbccb40f8b46720050c857a07e86630",
       "status": "failed"
     },
     {
-      "failed": 0,
-      "log_sha256": "9cd09a4904e1591372058c13e098afb815acba1cca6a5050c3462fad19037e6c",
+      "exit_code": 0,
+      "log_sha256": "d84396436ec313fdd96499eecad875a9b7ccd3377602a3ede6a83f91727e78a3",
       "name": "interface_refinement_closure",
-      "passed": 1,
-      "source_sha256": "7edc1a3b9c6bcfc352f7b44d4cd8e76266c27d42ac63a87fb0c9c32b1b07c4c6",
       "status": "passed"
     },
     {
-      "failed": 0,
-      "log_sha256": "cb938521c2e95a3a1b6f9066618e4f63f82fa36d5ecbe481b9accb43d7d970a0",
+      "exit_code": 0,
+      "log_sha256": "dd259033f4a890e874c9df9fb0f1c3d7e28f997331eea920d7d6f5d913ec605e",
       "name": "interface_refinements",
-      "passed": 1,
-      "source_sha256": "ab51e27d5119c4d9855e689f5ac05b89924394366124e0575c07ab403f2f692d",
       "status": "passed"
     },
     {
-      "failed": 0,
-      "log_sha256": "774df666ba87e3f1bf846a6fb7ab03bab293c4184b5d3644af36c65533f25142",
+      "exit_code": 0,
+      "log_sha256": "06f4b0d19f682d4b15b4b33c726d1c7756f22298966f7d4dee702fd94cf9b7b9",
       "name": "interface_region_effects",
-      "passed": 2,
-      "source_sha256": "57b891008a369083a7ccfd407d1da72892e5e549e51c39b56cba72f3784e9e5d",
       "status": "passed"
     }
   ],
@@ -87,20 +69,20 @@
     "source_sha256": "22c91cf6c1855b049207612e9d94630850e880d5a49ea3e2c57c92aff7fdbe88"
   },
   "native_source_sha256": "6b567529032465cde863607185da47aa7d5f9e5ecd99a596158174fd7efa6aa7",
-  "passed_groups": 6,
-  "passed_tests": 8,
+  "passed_groups": 7,
+  "passed_tests": 9,
   "schema": 1,
-  "scope": "All9 original interface/API groups outside the93 portable sweep execute with every original source case and assertion unchanged. Actual917f Cinch frontend/writer emits all source contracts; the wrapper only selects the actual interfaces CLI and copies byte-identical emitted source files and authenticated imported library-only contracts into the original build folder convention. Imported55 base contracts are supplied dependencies from explicit85 Native22, not new Cinch writer outputs or a Native client frontend fallback. All original Native public-reader/hash/mutation assertions execute on those contracts. Six groups pass, including anonymous predicates, nominal identities, numeric preconditions, private refinement closure, refined exports and region/effect metadata. The mixed kinds group also passes its opaque-kinds test but its indexed/existential/foreign case fails. Three whole groups remain failed: existential class-contract fixture, indexed constructors/typedFFI, and source-family prelude replacements. Run1 missing imported dependency files is preserved as a transport failure; replay2 includes those exact input contracts and its anonymous group passes. The actual compiler fixture is separately Native-built, not finalStage3. Original100 plus5 additions, matching full suites and Acceptance5 remain open.",
+  "scope": "All nine original interface/API files are byte-identical to the publication tree; all11 Rust tests execute without ignored/filtered tests. Seven whole groups/9tests pass, including the entire original class-context/factory/private-closure/coherence/hash/mutation test. Kinds still refuses typed foreign declarations; source-family replacements still conflict with loaded interfaces. Failed tests stop at their original failing assertion; later assertions within those failed tests are not claimed executed. Actual Cinch source writer and exact authenticated Native library-only contracts remain distinct; no Native client frontend fallback. The actual43-source compiler fixture is not final self-builtStage3 acceptance.",
   "selected_compiler": {
-    "compiler": "/var/folders/8w/44rf3zr512nd0pd0bwb70vfm0000gn/T/cinch_boot_library_object_cli_36010_1/object-compiler",
-    "compiler_sha256": "be97b34eafcdad1bdcd8c15ac956a79f1271eb124d5c460e378cda4f1db2a0dd",
-    "project": "/var/folders/8w/44rf3zr512nd0pd0bwb70vfm0000gn/T/cinch_boot_library_object_cli_36010_1",
-    "provider": "/var/folders/8w/44rf3zr512nd0pd0bwb70vfm0000gn/T/cinch_boot_object_cli_provider_36010_0"
+    "compiler": "/var/folders/8w/44rf3zr512nd0pd0bwb70vfm0000gn/T/cinch_boot_library_object_cli_67657_1/object-compiler",
+    "compiler_sha256": "56512a4505cc0e5b19ed943234debdf3b7866fc3b004e74864fe383ef1c77c46",
+    "project": "/var/folders/8w/44rf3zr512nd0pd0bwb70vfm0000gn/T/cinch_boot_library_object_cli_67657_1",
+    "provider": "/var/folders/8w/44rf3zr512nd0pd0bwb70vfm0000gn/T/cinch_boot_object_cli_provider_67657_0"
   },
-  "source_sha256": "21aa2cd0e48f15692ff23c3051b1cc3e0635d3bf4a962b28a8b352175e253a5f",
+  "source_sha256": "3e50ebc6cb7383f1c609ea259cd2f25f415d4dc688089200b60e76e6bde82056",
   "status": "failed-current-original-interface-api-groups",
   "tests": 11,
-  "verified_at": "2026-11-05T21:26:00.505816+00:00",
+  "verified_at": "2026-11-06T01:35:32.156892+00:00",
   "whole_groups": 9,
-  "wrapper_sha256": "d252b733df4e32a9415ee8ceac1cb10bedff3c2061358327621e91f92e3e4e23"
+  "wrapper_sha256": "bae231e3294c78b0c22ef5db7eed5548e1e9e7bba08911509bd4e742ff5575dd"
 }

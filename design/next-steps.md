@@ -1,5 +1,39 @@
 # Next steps (as of 2026-11-06)
 
+## Original class contracts pass; API scope is7/9 (2026-11-06)
+
+Compiler `7111030f` exports contextual dictionary factories with one hygienic
+binder allocation for their target, context and complete scheme. Contextual
+factories grant no closed method-body authority. Private classes needed by
+retained methods are included transitively without publishing their names.
+Admitted class headers/methods retain exact defining contracts. Signature rows
+sort by name then identity, matching the Native canonical bytes and hashes.
+
+Source data parameters and constructor fields now retain their declared names,
+consistent with Native interfaces. The two former `q0` goldens require the
+actual source `a`; direct Native comparisons cover Vec/Parcel/Phantom names,
+kinds and implicitness. Canonical scheme alpha-stability remains unchanged.
+The three-level private dependency and cross-module ordering controls pass.
+
+All four complete affected exporter/adapter/object groups pass eleven tests.
+All43 exact compiler inputs build with the explicit Native22 seed role and
+check through the actual Cinch-built917f reader with empty PATH. The real
+object round trip passes, including five zero-leak client reports. See
+`bootstrap/current-contextual-factory-results.json`.
+
+All nine original API groups execute unchanged: seven groups and nine of eleven
+Rust tests pass. The complete original class-contract test now passes its
+factory, private closure, defining-contract/hash and mutation assertions. The
+two failures still require typed foreign declarations and source-family
+replacement with genuine dependency rechecking. See
+`bootstrap/current-original-interface-api-results.json`.
+
+The frozen full Native sweep also exposes a valid checked-helper decision
+rejection, reproduced in the actual current Cinch CLI and accepted by current
+Rust. Its independent Core repair controls pass privately; complete source
+fixture validation is still open. No runtime dictionary-factory, final
+Stage2/3, all105-target or Acceptance5 completion is claimed here.
+
 ## Stage1 links an optimized pinned runtime (2026-11-06)
 
 The stage builder now builds the exact pinned seed runtime in release mode

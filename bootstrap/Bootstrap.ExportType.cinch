@@ -10,7 +10,7 @@ module Bootstrap.ExportType where
   import Text.Show (nat-to-string, int-to-string)
 
   export export-global, export-type, export-scheme, export-value-scheme, export-display-scheme, export-kind
-  export export-parameters, export-constructor-fields
+  export export-parameters, export-constructor-fields, export-instance-scheme
 
   join :: List (Result String String) -> Result String String
   join parts = case parts of
@@ -76,6 +76,14 @@ module Bootstrap.ExportType where
     KRow -> Ok "Row"
     KFun a b -> join [Ok "(", kind-in scope a, Ok " -> ", kind-in scope b, Ok ")"]
     KValue value -> case value-carrier kind of Some carrier -> type-in scope carrier; None -> Err "invalid checked value kind"
+  kind-display-in :: List (Nat, String) -> Kind -> Result String String
+  kind-display-in scope kind = case kind of
+    KFun first rest -> join [kind-argument-in scope first, Ok " -> ", kind-display-in scope rest]
+    other -> kind-in scope kind
+  kind-argument-in :: List (Nat, String) -> Kind -> Result String String
+  kind-argument-in scope kind = case kind of
+    KFun first rest -> join [Ok "(", kind-display-in scope kind, Ok ")"]
+    other -> kind-in scope kind
   export-kind :: Kind -> Result String String
   export-kind kind = kind-in Nil kind
   export-parameters :: List Quant -> Result String (List (String, String, Bool))
@@ -83,13 +91,13 @@ module Bootstrap.ExportType where
   parameter-rows :: List (Nat, String) -> List Quant -> Result String (List (String, String, Bool))
   parameter-rows scope quants = case quants of
     Nil -> Ok Nil
-    Cons q rest -> let name = fresh-name "q" (list-length scope) in
-      case (kind-in scope (quant-kind q), parameter-rows (Cons (quant-id q, name) scope) rest) of
+    Cons q rest -> let name = source-binder (fresh-name "q" (list-length scope)) (quant-name q) scope in
+      case (kind-display-in scope (quant-kind q), parameter-rows (Cons (quant-id q, name) scope) rest) of
         (Ok kind, Ok more) -> Ok (Cons (name, kind, quant-implicit q) more)
         (Err error, other) -> Err error
         (other, Err error) -> Err error
   export-constructor-fields :: Scheme -> Result String (List String)
-  export-constructor-fields scheme = case quantifiers Nil (scheme-params scheme) of
+  export-constructor-fields scheme = case value-quantifiers Nil (scheme-params scheme) of
     Err error -> Err error
     Ok (prefix, scope) -> constructor-field-rows scope (scheme-body scheme)
   constructor-field-rows :: List (Nat, String) -> UType -> Result String (List String)
@@ -237,9 +245,9 @@ module Bootstrap.ExportType where
         let constrained = case contexts of Nil -> Ok body; more -> join [Ok "using (", Ok (strings ", " more), Ok ") => ", Ok body] in
         if string-length prefix == 0 then constrained else join [Ok "forall ", Ok prefix, Ok ". ", constrained]
 
-  -- Callable source contracts retain their declared binder names. Constructor
-  -- fields and nominal parameter tables keep the canonical quantifier printer.
-  -- Freshening still prevents a source spelling from capturing another binder.
+  -- Source contracts, declaration parameters and constructor fields retain
+  -- their declared binder names. The separate canonical scheme printer stays
+  -- alpha-stable. Freshening prevents a source spelling from capturing a binder.
   source-binder :: String -> String -> List (Nat, String) -> String
   source-binder fallback name scope = fresh-scoped-name (case unpack name of
     Nil -> fallback
@@ -248,16 +256,32 @@ module Bootstrap.ExportType where
   value-quantifiers scope quants = case quants of
     Nil -> Ok ("", scope)
     Cons q rest -> let name = source-binder (fresh-name "q" (list-length scope)) (quant-name q) scope in
-      (case (kind-in scope (quant-kind q), value-quantifiers (Cons (quant-id q, name) scope) rest) of
+      (case (kind-display-in scope (quant-kind q), value-quantifiers (Cons (quant-id q, name) scope) rest) of
         (Ok kind, Ok (more, bound)) -> Ok (string-concat-all [if quant-implicit q then "{" else "(", name, " :: ", kind, if quant-implicit q then "}" else ")", if string-length more == 0 then "" else " ", more], bound)
         (Err error, other) -> Err error
         (other, Err error) -> Err error)
+  -- Display and factory metadata share one binder allocation. A dictionary
+  -- name may collide with a quantified type name without capturing it.
+  value-requirement-rows :: List (Nat, String) -> List (Nat, String) -> Nat -> List Requirement -> Result String (List String)
+  value-requirement-rows scope used position needs = case needs of
+    Nil -> Ok Nil
+    Cons first rest -> let name = source-binder (if same (requirement-name first) "#self" then "dict" else fresh-name "d" position) (requirement-name first) used in
+      (case (application-in scope (requirement-type first), value-requirement-rows scope (Cons (0, name) used) (position + 1) rest) of
+        (Ok head, Ok more) -> Ok (Cons (string-concat-all [name, " :: ", head]) more)
+        (Err error, other) -> Err error
+        (other, Err error) -> Err error)
   value-requirements :: List (Nat, String) -> List (Nat, String) -> Nat -> List Requirement -> Result String String
-  value-requirements scope used position needs = case needs of
-    Nil -> Ok ""
-    Cons first rest -> let name = source-binder (fresh-name "d" position) (requirement-name first) used in
-      join [Ok name, Ok " :: ", application-in scope (requirement-type first),
-        case rest of Nil -> Ok ""; more -> join [Ok ", ", value-requirements scope (Cons (0, name) used) (position + 1) more]]
+  value-requirements scope used position needs = case value-requirement-rows scope used position needs of
+    Ok rows -> Ok (strings ", " rows)
+    Err error -> Err error
+  export-instance-scheme :: Scheme -> Result String (String, List String, String)
+  export-instance-scheme scheme = case value-quantifiers Nil (scheme-params scheme) of
+    Err error -> Err error
+    Ok (prefix, scope) -> case (application-in scope (scheme-body scheme), value-requirement-rows scope scope 0 (scheme-requirements scheme)) of
+      (Ok head, Ok context) -> let constrained = case context of Nil -> head; more -> string-concat-all ["using (", strings ", " more, ") => ", head] in
+        Ok (head, context, if string-length prefix == 0 then constrained else string-concat-all ["forall ", prefix, ". ", constrained])
+      (Err error, other) -> Err error
+      (other, Err error) -> Err error
   export-value-scheme :: Scheme -> Result String String
   export-value-scheme scheme = value-scheme-in False scheme
   has-preconditions :: UType -> Bool

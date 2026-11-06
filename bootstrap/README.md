@@ -36,6 +36,17 @@ The artifacts behind the P35 milestones in `design/stdlib-and-bootstrap.md`:
 a compiler written in Cinch, built rung by rung, each rung a runnable Cinch
 artifact with an acceptance command rather than a claim.
 
+## Current interface checkpoint
+
+Compiler `7111030f` passes all four affected exporter/adapter/object groups
+(eleven tests), checks all43 exact compiler inputs through a Cinch-built reader,
+and passes7/9 original interface/API groups. Contextual dictionary factories,
+private method dependency closure, canonical class hashes and declared parameter
+names are verified. Typed foreign declarations, source-prelude replacements,
+matching final bootstrap/suites and all105-target/Acceptance5 coverage remain open.
+See [current interface evidence](current-contextual-factory-results.json) and
+[original API results](current-original-interface-api-results.json).
+
 ## Compiler stages
 
 The self-hosting continuation uses explicit stages, with separate outputs:
@@ -77,14 +88,14 @@ Each command freezes its compiler inputs once, so edits made during a
 stage build are picked up by the next command and cannot mix versions
 inside a bootstrap chain.
 
-The current Cinch source is `5cea0ea`, with the checked binder-aware serializer
+The earlier `5cea0ea` source snapshot includes the checked binder-aware serializer
 and quantified-value identity repair in the development Rust compiler. All eleven
 affected complete groups pass141 tests, all43 compiler modules check and all
 Native test targets compile. The actual Cinch exporter separately passes43
 controls and seven original metadata assertion blocks. See
 [current quantified-value results](current-native-quantified-value-results.json)
 and [current serializer results](current-cinch-serializer-results.json).
-The full matching Native57 suite is running. Explicit seed/provider pins remain
+That checkpoint started a matching Native57 sweep. Its seed/provider pins were
 25b7e82/ABI6; a deliberate refresh and genuine current-source Stage1/2/3 chain,
 full final-stage suites and original API/Acceptance5 coverage remain required.
 
