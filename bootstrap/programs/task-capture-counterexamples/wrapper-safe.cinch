@@ -1,0 +1,9 @@
+module Main where
+  work :: forall r. using (io :: Io r) => Bytes ->{Async r, Cancel r, Diverge} Result Int Nat
+  work bytes = withScope $ \s -> do
+    h <- fork s (\() -> Ok 42)
+    joinAllOrCancel s h
+  fork :: forall r s x a e. Scope r s -> (Unit ->{|e} Result x a) ->{Async r | e} Task s x a
+  fork scope body = spawn scope body
+  main :: Int
+  main = 0

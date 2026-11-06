@@ -1,0 +1,7 @@
+module Main where
+  work :: forall r. using (io :: Io r) => Bytes ->{Async r, Cancel r, Diverge} Result Int Nat
+  work bytes = withScope $ \s -> do
+    h <- spawn s (\() -> Ok 42)
+    joinAllOrCancel s h
+  main :: Int
+  main = 0

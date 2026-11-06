@@ -1,5 +1,27 @@
 # Next steps (as of 2026-11-06)
 
+## Task wrappers need capture contracts in both compilers (2026-11-06)
+
+Five exact source checks confirm a NativeE5 gap: a direct mutable Bytes
+capture at `spawn` refuses, while the same capture through a let-bound
+callback or a normally typed `fork` helper is accepted. Both safe no-capture
+controls pass. No race was executed. The programs, actual compiler identity
+and log/source hashes are retained in
+`bootstrap/current-native-task-capture-counterexample.json`.
+The correction must preserve safe wrappers while carrying real capture,
+transfer and lifetime requirements through aliases, helpers and interfaces.
+Cinch currently conservatively refuses the opaque wrapper; making every
+function shareable would reproduce the Native hole. This remains required
+work even when existing Native tests pass.
+
+The completed earlier4f Stage3 language replay is independently audited:
+7/13 positives execute, all21 negatives refuse,2 intended diagnostic checks
+pass and25 failed subcases remain. Every original source/assertion remains,
+and all seven successful programs independently rerun with32M poisoning and
+zero leaks. See `bootstrap/current-record-indexed-stage3-language-results.json`.
+The newer1c76 development result remains separate:8/13 positives and3/21
+intended diagnostic checks pass after the Format correction.
+
 ## Proof elimination order repairs Format; four-stage4f bootstrap verified (2026-11-06)
 
 Compiler1c76 chooses the arithmetic elimination column producing the fewest
