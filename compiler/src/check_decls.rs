@@ -558,6 +558,7 @@ impl Checker {
     fn install_builtins(&mut self) {
         for n in ["Nat", "Int", "Bool", "Unit", "Bytes", "Sym"] {
             self.types.entry(n.to_string()).or_default().push(TypeKind {
+                data_family: false,
                 module: "<builtin>".into(),
                 name: n.into(), identity: n.into(),
                 arity: 0,
@@ -571,6 +572,7 @@ impl Checker {
         // a shape or a column layout.
         for name in ["Array", "Tensor", "Columnar"] {
             self.types.entry(name.into()).or_default().push(TypeKind {
+                data_family: false,
                 module: "<builtin>".into(), name: name.into(), identity: name.into(), arity: 1,
                 param_kinds: vec![ParamKind::Type], ctors: Vec::new(), fields: None,
                 field_erased: Vec::new(), opaque: false, refine: None,
@@ -580,6 +582,7 @@ impl Checker {
         // section 4, decision D21). The value is a uniform word; the
         // identity lives in the type.
         self.types.entry("Io".to_string()).or_default().push(TypeKind {
+            data_family: false,
             module: "<builtin>".into(),
             name: "Io".into(), identity: "Io".into(),
             arity: 1,
@@ -592,6 +595,7 @@ impl Checker {
         // (primitive types specification, section 2).
         for s in Scalar::ALL {
             self.types.entry(s.name().to_string()).or_default().push(TypeKind {
+                data_family: false,
                 module: "<builtin>".into(),
                 name: s.name().into(), identity: s.name().into(),
                 arity: 0,
@@ -664,6 +668,7 @@ impl Checker {
         use crate::types::{EffLabel, EffRow, Mult, RowTail};
         for (n, arity) in [("Scope", 2), ("Task", 3)] {
             self.types.entry(n.to_string()).or_default().push(TypeKind {
+                data_family: false,
                 module: "<builtin>".into(),
                 name: n.into(), identity: n.into(),
                 arity,
@@ -1273,6 +1278,7 @@ impl Checker {
             ("SchemaRead", 0),
         ] {
             self.types.entry(n.to_string()).or_default().push(TypeKind {
+                data_family: false,
                 module: "<builtin>".into(),
                 name: n.into(), identity: n.into(),
                 arity,
@@ -2038,6 +2044,7 @@ impl Checker {
             ctor_names.push((cname, tag));
         }
         self.types.entry(name.to_string()).or_default().push(TypeKind {
+            data_family: true,
             module: "<builtin>".to_string(),
             name: name.to_string(), identity: name.to_string(),
             arity: params.len(),
@@ -3352,6 +3359,7 @@ impl Checker {
                     // layout projection (foreign function interface
                     // specification section 2).
                     let tk = TypeKind {
+                        data_family: false,
                         module: module.clone(),
                         name: o.name.text.clone(), identity: nominal_identity(&module, &o.name),
                         arity: params.len(),
@@ -3423,6 +3431,7 @@ impl Checker {
                     // Register the type before converting constructor types,
                     // which may mention the type being declared.
                     self.types.entry(data.name.text.clone()).or_default().push(TypeKind {
+                        data_family: true,
                         module: module.clone(),
                         name: data.name.text.clone(), identity: nominal_identity(&module, &data.name),
                         arity: params.len(),
@@ -3812,6 +3821,7 @@ impl Checker {
                     // Register the type before its transparent
                     // constructor (whose scheme mentions the type).
                     self.types.entry(r.name.text.clone()).or_default().push(TypeKind {
+                        data_family: false,
                         module: module.clone(),
                         name: r.name.text.clone(), identity: nominal_identity(&module, &r.name),
                         arity: params.len(),
@@ -3990,6 +4000,7 @@ impl Checker {
                     // Register the type before converting field types, which
                     // may mention the record being declared.
                     self.types.entry(rec.name.text.clone()).or_default().push(TypeKind {
+                        data_family: false,
                         module: module.clone(),
                         name: rec.name.text.clone(), identity: nominal_identity(&module, &rec.name),
                         arity: params.len(),
@@ -4203,6 +4214,7 @@ impl Checker {
                     // types, which may mention the type being declared
                     // (`tail :: Later (Stream a)`).
                     self.types.entry(rec.name.text.clone()).or_default().push(TypeKind {
+                        data_family: false,
                         module: module.clone(),
                         name: rec.name.text.clone(), identity: nominal_identity(&module, &rec.name),
                         arity: params.len(),
@@ -4559,6 +4571,7 @@ impl Checker {
                     // a type former (the capability binder rule of
                     // decision D21 already builds `Ty::Adt(class, args)`).
                     let tk = TypeKind {
+                        data_family: false,
                         module: module.clone(),
                         name: sig.name.text.clone(), identity: sig.name.text.clone(),
                         arity: info.params.len(),

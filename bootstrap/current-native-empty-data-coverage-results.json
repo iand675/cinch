@@ -1,0 +1,21 @@
+{
+  "client_heap_limit": "32M",
+  "client_rc_debug": true,
+  "evidence": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-empty-case-validation-1",
+  "filtered": 0,
+  "full_goal_complete": false,
+  "ignored": 0,
+  "log_sha256": "0a69ac1b882f7d9ec756110ef8a059e36c04fc00748201066eacfb97f41652ef",
+  "native_cli_sha256": "cfa5ac94c022c29c4f198a3c507389a7b9260e8d63fb70879f8c22474627fe29",
+  "native_source_sha256": "58e019b817f2fed4b18e99499a26e54025efec1298383f4ea95bd7483ee37fdd",
+  "new_source_controls": 8,
+  "new_valid_programs_compiled_and_run": 2,
+  "rlib_sha256": "5f9c40cc0fa89b8a16da67a9bf7718459a0e615e396c1d4727847bbf47672512",
+  "rust_tests": 4,
+  "scope": "Native checker now considers an empty data column before rejecting empty pattern rows. Checked data-family provenance excludes opaque, primitive, record and dictionary carriers. No declared constructors or every actual constructor refuted justifies elimination; unknown/possible/error trials never do. Every unifier trial is restored. Complete original pattern-field group plus eight new source controls pass; both new valid programs compile/execute, with four total actual poisoned32M zero-leak native executions. This Native-only repair does not claim the current Cinch record field-carrier bug fixed, a matching fullNative suite, latest-source bootstrap or Acceptance5.",
+  "source_snapshot_sha256": "0005e5a0f6fe70f4c0a493dce86826b30af6f36b5d050735b77fea2623c0ab1e",
+  "status": "passed-native-empty-data-coverage",
+  "verified_at": "2026-11-06T10:11:28.435811+00:00",
+  "whole_groups": 1,
+  "zero_leak_reports": 4
+}

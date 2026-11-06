@@ -53,3 +53,26 @@ fn fields_mentioned_by_later_fields_still_require_consistent_names() {
         "{error}"
     );
 }
+
+
+#[test]
+fn empty_data_and_refuted_index_columns_admit_empty_matches() {
+    let cases = [
+        ("data Empty where {}\n  absurd :: Empty -> Int\n  absurd value = case value of {}", true),
+        ("data Signal (n :: Nat) where\n    Mono :: Int -> Signal 1\n    Stereo :: Int -> Int -> Signal 2\n  absurd :: Signal 0 -> Int\n  absurd value = case value of {}", true),
+        ("data Signal (n :: Nat) where\n    Mono :: Int -> Signal 1\n  bad :: Signal 1 -> Int\n  bad value = case value of {}", false),
+        ("data Signal (n :: Nat) where\n    Mono :: Int -> Signal 1\n  bad :: forall (n :: Nat). Signal n -> Int\n  bad value = case value of {}", false),
+        ("opaque type Handle :: Type\n  bad :: Handle -> Int\n  bad value = case value of {}", false),
+        ("import Data.Array\n  bad :: Array Int -> Int\n  bad value = case value of {}", false),
+        ("signature Marker a where {}\n  bad :: Marker Int -> Int\n  bad value = case value of {}", false),
+        ("record Empty where {}\n  bad :: Empty -> Int\n  bad value = case value of {}", false),
+    ];
+    for (body, valid) in cases {
+        let source = format!("module Main where\n  {body}\n  main :: Int\n  main = 0\n");
+        let result = check_sources(&source, "empty-data-column.cinch");
+        assert_eq!(result.is_ok(), valid, "{source}\n{result:?}");
+        if valid {
+            assert_eq!(run_source(&source).expect("compile empty data match"), 0);
+        }
+    }
+}

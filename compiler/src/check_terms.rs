@@ -7487,6 +7487,28 @@ impl Checker {
         }
     }
 
+    /// Empty rows cover a data column only when its declaration has no
+    /// constructors or every declared constructor is actually refuted.
+    /// Unknown equations remain possible. Trials must not constrain later
+    /// columns, even when an earlier constructor was merely possible.
+    fn empty_data_column(&mut self, ty: &Ty) -> bool {
+        let Ty::Adt(name, args) = self.uni.zonk(ty) else { return false };
+        let Ok(info) = self.lookup_known_type(&name) else { return false };
+        if !info.data_family || info.opaque || info.refine.is_some() {
+            return false;
+        }
+        for (name, _) in &info.ctors {
+            let Ok(constructor) = self.ctor_of_type(&info, name) else { return false };
+            let before = self.uni.clone();
+            let matched = self.match_ctor(&constructor, &args);
+            self.uni = before;
+            if !matches!(matched, Ok(CtorMatch::Refuted)) {
+                return false;
+            }
+        }
+        true
+    }
+
     /// Pattern-matrix compilation with source-order, fall-through
     /// semantics: the first row that matches wins, and a guarded row whose
     /// guard fails falls through to the later rows. Compilation is the
@@ -7505,6 +7527,11 @@ impl Checker {
         uncovered: &str,
     ) -> Result<ECore> {
         if rows.is_empty() {
+            for (column, ty) in cols.iter().zip(&types) {
+                if self.empty_data_column(ty) {
+                    return Ok(ECore::Case { scrut: Box::new(column.clone()), alts: Vec::new() });
+                }
+            }
             return Err(Error::at(
                 ctx_span,
                 format!(

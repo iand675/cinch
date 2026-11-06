@@ -1,6 +1,34 @@
 # Next steps (as of 2026-11-06)
 
 
+## Native empty matches use checked data-family provenance (2026-11-06)
+
+Native58e fixes a coverage fast-path bug: empty rows previously failed before
+checking whether the scrutinee could have any constructor. A declared empty
+data type, or a data family whose every constructor is refuted by its indices,
+now justifies an empty match. Ordinary primitive, opaque, record and dictionary
+carriers do not gain emptiness from lacking exposed constructors. Unknown or
+possible equations remain non-exhaustive. Every constructor trial restores the
+original unifier, including failed and unknown trials.
+
+The complete original pattern-field group plus8 new source controls passes4
+Rust tests with0 skipped/filtered cases. Both valid new programs compile and
+execute; all4 native executions report zero leaks at32M with poisoning. See
+`bootstrap/current-native-empty-data-coverage-results.json`.
+
+The Cinch implementation remains dd8d; its valid numeric record-initializer
+counterexample remains open. The separate Cinch typed-field correction passes
+its complete constructor/inference groups. A combined closed-index/projection
+repair is validating against this new Native oracle. The abandoned lookahead
+prototype's original ambiguous lambda is retained: Native correctly requires
+an annotation when an unknown receiver has multiple visible declaring records.
+Its replacement uses actual module visibility, not a global field-name guess.
+
+The seed and library producer stay explicitly pinned to Native22/85f00ca ABI6.
+This development Native fix does not replace those roles or prove a matching
+full235-target Native sweep, current-source bootstrap,105 frontend targets,
+14 external acceptance checks,34 external language cases or Acceptance1-5.
+
 ## Source records and constructor parameter identity pass scoped gates (2026-11-06)
 
 Compiler dd8d supports named record construction, complete named patterns,

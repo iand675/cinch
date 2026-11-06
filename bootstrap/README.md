@@ -1,5 +1,13 @@
 # The bootstrap ladder
 
+Native58e independently fixes empty pattern rows for checked data families:
+no constructors, or all constructors actually refuted, permits elimination.
+Opaque/primitive/dictionary carriers and unknown equations remain refused.
+The complete pattern-field group passes4 tests with8 new source controls and
+4 poisoned32M zero-leak executions. See
+[Native coverage evidence](current-native-empty-data-coverage-results.json).
+The pinned Native22 seed/library roles remain unchanged.
+
 Current compiler dd8d supports named source record construction, complete
 patterns and projection, with generic/nested fields, written initializer order
 and strict discarded-field evaluation. Ordinary constructor parameters retain

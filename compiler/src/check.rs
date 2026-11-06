@@ -1768,6 +1768,9 @@ struct TypeKind {
     /// index values (`Vec (n :: Nat)`'s `n`), and proposition parameters
     /// (`Dec (p :: Prop)`'s `p`).
     param_kinds: Vec<ParamKind>,
+    /// A checked data declaration (including the installed indexed data
+    /// families), rather than an opaque, primitive or dictionary carrier.
+    data_family: bool,
     /// Constructor names with tags, in declaration order.
     ctors: Vec<(String, usize)>,
     /// For a `record` type: the declared field names in declaration order.
