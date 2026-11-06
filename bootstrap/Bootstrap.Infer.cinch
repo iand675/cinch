@@ -968,10 +968,10 @@ module Bootstrap.Infer where
 
   make-scheme :: Bool -> List (String, Kind) -> TypeContext -> List Quant -> TypeExpr -> Store -> (Scheme, Store)
   make-scheme external classes kinds inherited ty st = case ty of
-    TForall s binders body -> case inherited of
-      Cons q rest -> (mono UError, add-error s "constructor-local quantifiers need existential/index elaboration" st)
-      Nil -> case parameters external kinds Nil (inferred-forall-parameters kinds Nil (region-parameters (forall-params-of binders) (region-names body)) body) 0 Nil (if quantifiers-ok binders then st else add-error s "malformed quantified parameter spine" st) of
-        (qs, sq) -> scheme-body-from external classes kinds (implicit-row-regions qs (latent-regions body)) body sq
+    TForall s binders body -> case parameters external kinds (quant-locals inherited)
+      (inferred-forall-parameters kinds (quant-locals inherited) (region-parameters (forall-params-of binders) (region-names body)) body)
+      (quant-next inherited) (quant-names inherited) (if quantifiers-ok binders then st else add-error s "malformed quantified parameter spine" st) of
+        (local, checked) -> scheme-body-from external classes kinds (implicit-row-regions (inherited <> local) (latent-regions body)) body checked
     other -> scheme-body-from external classes kinds (case inherited of Nil -> implicit-row-regions Nil (latent-regions ty); more -> inherited) ty st
   scheme-body-from :: Bool -> List (String, Kind) -> TypeContext -> List Quant -> TypeExpr -> Store -> (Scheme, Store)
   scheme-body-from external classes kinds qs ty st = case ty of
@@ -1600,12 +1600,36 @@ module Bootstrap.Infer where
   applied-family name k qs = apply-quantifiers (UCon name k) qs
   apply-quantifiers :: UType -> List Quant -> UType
   apply-quantifiers head qs = case qs of Nil -> head; Cons q rest -> apply-quantifiers (UApp head (UBound (quant-id q) (quant-name q) (quant-kind q))) rest
+  -- A fixed family index is not a constructor parameter. Keep explicit
+  -- constructor binders, but do not quantify unused family placeholders.
+  constructor-id-member :: Nat -> List Nat -> Bool
+  constructor-id-member id ids = case ids of Nil -> False; Cons first rest -> id == first || constructor-id-member id rest
+  constructor-parameter-member :: Nat -> List Quant -> Bool
+  constructor-parameter-member id parameters = case parameters of Nil -> False; Cons first rest -> id == quant-id first || constructor-parameter-member id rest
+  constructor-kind-ids :: List Quant -> List Nat
+  constructor-kind-ids parameters = case parameters of Nil -> Nil; Cons first rest -> kind-free-bound (quant-kind first) <> constructor-kind-ids rest
+  constructor-used-parameters :: List Quant -> List Nat -> List Quant -> List Quant
+  constructor-used-parameters inherited used all = case all of
+    Nil -> Nil
+    Cons q rest -> if constructor-parameter-member (quant-id q) inherited && not (constructor-id-member (quant-id q) used)
+      then constructor-used-parameters inherited used rest
+      else Cons q (constructor-used-parameters inherited used rest)
+  constructor-scheme :: List Quant -> Scheme -> Scheme
+  constructor-scheme inherited sc = qualified (constructor-used-parameters inherited (type-free-bound (scheme-body sc) <> requirement-free-parameters (scheme-requirements sc) <> constructor-kind-ids (scheme-params sc)) (scheme-params sc)) (scheme-requirements sc) (scheme-body sc)
+  requirement-free-parameters :: List Requirement -> List Nat
+  requirement-free-parameters requirements = case requirements of Nil -> Nil; Cons first rest -> type-free-bound (requirement-type first) <> requirement-free-parameters rest
   register-ctors :: TypeContext -> String -> List Quant -> List (String, TypeExpr) -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   register-ctors kinds owner qs cs env st = case cs of
     Nil -> (env, st)
-    Cons (name, ty) rest -> case make-scheme False Nil kinds qs ty (case ty of TForall s binders body -> add-error s "constructor-local quantifiers need existential/index elaboration" st; other -> st) of
-      (sc, ss) ->
-        let sr = unify (type-expr-span ty) (result-type (scheme-body sc)) (applied-family owner (kind-arrow qs) qs) ss in
+    Cons (name, ty) rest -> case make-scheme False Nil kinds qs ty st of
+      (raw, ss) ->
+        let sc = constructor-scheme qs raw in
+        -- Family arguments may be fixed or computed indices; checking them
+        -- as the family's universally bound parameters would equate distinct
+        -- rigid variables. Conversion already checked the saturated kind.
+        -- Pattern elimination separately needs scoped openings/equations.
+        let result = result-type (scheme-body sc) in
+        let sr = if valid-type result && kind-equal (type-kind result) KType && (case root-name result of Some actual -> same actual owner; None -> False) then ss else add-error (type-expr-span ty) "constructor must return its saturated declaring family" ss in
         let sp = check-positive (type-expr-span ty) owner (domains (scheme-body sc)) sr in
         case add-binding (type-expr-span ty) name sc "constructor" env sp of (e, se) -> register-ctors kinds owner qs rest e se
   source-effect-kind :: List Quant -> Kind

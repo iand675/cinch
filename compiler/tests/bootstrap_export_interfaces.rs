@@ -69,6 +69,31 @@ fn source_interfaces_preserve_private_nominals_and_defining_fixities() {
             assert!(resolved.scheme.contains(if name == "inspect-scope" { "Scope" } else { "Task" }));
         }
     }
+    let exists = a.exports.types.iter().find(|t| t.name == "Exists").unwrap();
+    let pack = exists.ctors.iter().find(|c| c.name == "PackAny").unwrap();
+    assert!(pack.scheme.contains("t :: Type"), "{}", pack.scheme);
+    assert!(pack.resolved.is_none(), "hidden constructor parameters cannot authorize ordinary universal pattern instantiation");
+    assert_eq!(pack.fields.len(), 1);
+    let vector = a.exports.types.iter().find(|t| t.name == "Vec").unwrap();
+    assert_eq!(vector.parameters.iter().map(|p| p.kind.as_str()).collect::<Vec<_>>(), ["Nat", "Type"]);
+    let nil = vector.ctors.iter().find(|c| c.name == "VNil").unwrap();
+    // Compare the independently parsed application tree; grouping is
+    // canonical interface syntax, not a flat pretty-print contract.
+    let input = format!("module MetadataProbe where\n  item :: {}\n", nil.scheme);
+    let tokens = cinch::layout::layout(cinch::lexer::lex(&input).unwrap()).unwrap();
+    let mut parsed = cinch::parser::parse_module(&tokens, &cinch::parser::FixityTable::new()).unwrap();
+    let cinch::ast::Decl::ValueSig { ty, .. } = parsed.module.decls.pop().unwrap() else { panic!("missing constructor scheme"); };
+    let cinch::ast::Type::Forall(parameters, body, _) = ty else { panic!("missing constructor parameters"); };
+    assert_eq!(parameters.iter().map(|p| p.name.text.as_str()).collect::<Vec<_>>(), ["a"]);
+    let cinch::ast::Type::App(head, element, _) = *body else { panic!("missing element argument"); };
+    let cinch::ast::Type::App(family, index, _) = *head else { panic!("missing result index"); };
+    assert!(matches!(*family, cinch::ast::Type::Con(ref path, _) if path.parts() == ["A", "Vec"]));
+    assert!(matches!(*index, cinch::ast::Type::Num(ref n, _) if n == "0"));
+    assert!(matches!(*element, cinch::ast::Type::Var(ref name, _) if name.text == "a"));
+    assert!(!nil.scheme.contains("n :: Nat"), "unused family index was quantified: {}", nil.scheme);
+    let cons = vector.ctors.iter().find(|c| c.name == "VCons").unwrap();
+    assert!(cons.scheme.contains("k :: Nat") && cons.scheme.contains("k + 1"), "{}", cons.scheme);
+    assert!(!cons.scheme.contains("n :: Nat"), "unused family index was quantified: {}", cons.scheme);
     let public = a.exports.types.iter().find(|t| t.name == "PublicPositive").expect("public defining refinement");
     let parcel = a.exports.types.iter().find(|t| t.name == "Parcel").unwrap();
     for constructor in &parcel.ctors {

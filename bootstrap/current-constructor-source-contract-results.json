@@ -1,0 +1,190 @@
+{
+  "affected_rust_tests": 13,
+  "compiler_gate": {
+    "adapter_tests": 8,
+    "binary_sha256": "a07d82d9334adb84284b68149523d4f5b70d134d8f3e8bad2329e6e567e50222",
+    "client_heap_limit": "32M",
+    "client_rc_debug": true,
+    "compiler_heap_limit": "256M",
+    "compiler_input_cases": 4,
+    "compiler_modules_checked": 43,
+    "compiler_rc_debug": false,
+    "compiler_sha256": "e0247d25c1c2443329b12e63e330f0d389fed30afa52319c460b43fc9d5278bc",
+    "compiler_source_sha256": "1dd5b24b5f6208b375406bb02dfec795770ad9ff99c9aa8ae2b1661fb50bd163",
+    "full_goal_complete": false,
+    "interface_closure": 60,
+    "layout_words": 4224,
+    "library_units": 1842,
+    "log_sha256": "5971418f6d0ba10b31738adeb86e900061e48c1f7f76bc007f2dc5a32a8e72da",
+    "metadata_sha256": "8c9851ec35b1412a7650953b3bcedac9417a1c7d5bd466bccf355b9f86f774a8",
+    "method_families": 26,
+    "native_rlib_sha256": "c2e3b862e212fe0d8557461ea9160e97ab23aa7d44d37113f1e2f855eec5c394",
+    "new_units": 7,
+    "object_round_trip_tests": 1,
+    "object_sha256": "e2bddac9f26372ba5c2bf361087650fbec89860df066f38520510f0b6463db64",
+    "real_new_public_and_closure_symbols": 14,
+    "scope": "Actual Cinch CLI emits checked first-order function and concrete constructor bridges, exact final nominal/layout/method-family facts, checked source interfaces and a real closed dependency object combining authenticated library-only Native22 bytes with Cinch-generated code. Every original provider physical symbol/accessor and seven actual new units are independently confirmed in the final object. IR and object FNV and authenticated SHA identities verified, exact provider/object/final-consumer layout prefixes preserved, all43 actual compiler source bytes match the staged driver input set. A second real Cinch invocation reloads the object and interfaces and the linked array/owned-bignum/ADT client passes32M with poisoning and zero leaks. Private inventory grants no source name and failed rebuild invalidates prior metadata. Compiler uses normal reclamation with leak checks: poisoning quarantines cumulative parser allocations and is retained for the client, not the large compiler job. Reached source dictionaries are an explicit refusal; generic representation-root CLI requests, complete corresponding legacy runtime/whole15array/finalself-built/fullNative/originalAPI105/Acceptance5 gates remain open. No claim that this is the final self-built compiler or that the whole goal is complete.",
+    "seed_native_source_sha256": "22c91cf6c1855b049207612e9d94630850e880d5a49ea3e2c57c92aff7fdbe88",
+    "source_sha256": "9e75ffbe7b86fe9a081e8fe769a57fcc3721892092af79b45b2f1c54440e2e46",
+    "status": "passed-actual-cinch-library-object-round-trip",
+    "tests": 9,
+    "verified_at": "2026-11-05T23:42:39.600880+00:00",
+    "whole_groups": 2,
+    "zero_leak_reports": 5
+  },
+  "compiler_source_sha256": "1dd5b24b5f6208b375406bb02dfec795770ad9ff99c9aa8ae2b1661fb50bd163",
+  "full_goal_complete": false,
+  "interface_export_gate": {
+    "compiler_source_sha256": "1dd5b24b5f6208b375406bb02dfec795770ad9ff99c9aa8ae2b1661fb50bd163",
+    "filtered": 0,
+    "full_goal_complete": false,
+    "ignored": 0,
+    "log_sha256": "bea61495ace0bde657f1676b93c62e797fc9b4414ac251608f8e6eef28816fb3",
+    "native_source_sha256": "6b567529032465cde863607185da47aa7d5f9e5ecd99a596158174fd7efa6aa7",
+    "scope": "Complete original actual Cinch interface writer group passes every original assertion: canonical Native schema8 readback, exact source/dependency identities, private nominal/class closures, actual consumer checks and declaring-module-owned fixities. Added hidden constructor emits its proper Type-binder scheme with resolved:null; fixed/computed Vec result indices and local Nat binder survive without an unused family placeholder. VNil scheme is independently parsed as forall a. ((A.Vec 0) a), avoiding a formatting-only expectation. The first export run exposed only that new assertion mismatch; production compiler bytes are identical and original assertions remain. This proves source/interface contracts, not scoped hidden/indexed elimination, runtime representation support, all original API groups or final bootstrap acceptance.",
+    "source_sha256": "8c15007c9d55dc57ee331179a0dbf456e25446e9cc8496779143337174010653",
+    "status": "passed-constructor-quantifier-interface-export",
+    "tests": 1,
+    "verified_at": "2026-11-05T23:26:04.215756+00:00",
+    "whole_groups": 1
+  },
+  "native_source_sha256": "6b567529032465cde863607185da47aa7d5f9e5ecd99a596158174fd7efa6aa7",
+  "new_source_controls": 10,
+  "original_api": {
+    "failed_groups": 3,
+    "groups": [
+      {
+        "exit_code": 0,
+        "log_sha256": "aa41de53d24172150e929d71ff62dbf4190d1aa80fe9a6c1fd91a427551e97bd",
+        "name": "interface_anonymous_contracts",
+        "status": "passed"
+      },
+      {
+        "exit_code": 101,
+        "log_sha256": "6776478356e0b6481b10801b41e96c0de0cbe63f458abb9bb43d24abc47e92ae",
+        "name": "interface_class_contracts",
+        "status": "failed"
+      },
+      {
+        "exit_code": 101,
+        "log_sha256": "881b19d23978fc029373525e51373dae4d33209db7af8820926b744b8bd076b4",
+        "name": "interface_kinds",
+        "status": "failed"
+      },
+      {
+        "exit_code": 0,
+        "log_sha256": "259d21edf1346a64e3191c2c4b95d8b80c1db4f45a27bbd24e7a5f34cdccfa3b",
+        "name": "interface_nominals",
+        "status": "passed"
+      },
+      {
+        "exit_code": 0,
+        "log_sha256": "a0ce77e9ffd2db69be668b7d52753684f218ed65576612964b3da9c5f9a47060",
+        "name": "interface_preconditions",
+        "status": "passed"
+      },
+      {
+        "exit_code": 101,
+        "log_sha256": "3727e94e653585eeef2d45649329280061d4495259731c95105acda6f89ac9c7",
+        "name": "interface_prelude_overrides",
+        "status": "failed"
+      },
+      {
+        "exit_code": 0,
+        "log_sha256": "f59559eeae903df8fe9438a8daa75493080ac831965ac5a4b52dd3c65156a702",
+        "name": "interface_refinement_closure",
+        "status": "passed"
+      },
+      {
+        "exit_code": 0,
+        "log_sha256": "7283a37ca0234c9b39ca44d00d60ed19d57870974bd87749b301fecf3885c680",
+        "name": "interface_refinements",
+        "status": "passed"
+      },
+      {
+        "exit_code": 0,
+        "log_sha256": "3799ea9179171b70b68549207d86636f88edb3a85137899296ab593aa6de0fd0",
+        "name": "interface_region_effects",
+        "status": "passed"
+      }
+    ],
+    "passed_groups": 6,
+    "scope": "All9 original groups run with every original source/assertion retained; failing groups stop at the genuine missing feature. Constructor declarations now pass before the class export reaches missing contextual dictionary-factory support; kinds reaches typed foreign declarations; source-family replacements remain refused. This is a failed complete API replay, not frontend parity.",
+    "whole_groups": 9
+  },
+  "runtime_boundaries": {
+    "child_pid": 1525,
+    "compiler_sha256": "e0247d25c1c2443329b12e63e330f0d389fed30afa52319c460b43fc9d5278bc",
+    "compiler_source_sha256": "1dd5b24b5f6208b375406bb02dfec795770ad9ff99c9aa8ae2b1661fb50bd163",
+    "full_goal_complete": false,
+    "phase": "regular-family-client",
+    "pid": 99046,
+    "rows": [
+      {
+        "check_exit": 0,
+        "diagnostic": "bootstrap.runtime-ir:7:28: constructor parameters need first-order representation classes\n",
+        "emit_exit": 5,
+        "name": "hidden-type",
+        "source_sha256": "3d1e2a2857b388ca4ef568caf4cc446456de4176a57e087065707229467ec074",
+        "status": "passed"
+      },
+      {
+        "check_exit": 0,
+        "diagnostic": "bootstrap.runtime-ir:1:1: constructor needs dependent, existential or extended runtime lowering\n",
+        "emit_exit": 5,
+        "name": "fixed-index",
+        "source_sha256": "9dee58fb70d841ee7be0d5e2c056daa29dc93ee07b359e525fc05abe91cfca74",
+        "status": "passed"
+      },
+      {
+        "check_exit": 0,
+        "diagnostic": "",
+        "emit_exit": 0,
+        "name": "regular-family",
+        "source_sha256": "de35ec7fd012c7c10b0ba4824d471cc61864f3fa7b9ce94259bd031544982b16",
+        "status": "passed"
+      }
+    ],
+    "scope": "Actual private1dd5 Cinch frontend checks hidden/fixed-index constructor programs and explicitly refuses reached unsupported physical layouts with an empty IR sentinel and no executable. Ordinary generic Box construction/pattern lowering links and runs42 at32M with poisoning and zero leaks. Native supplies only authenticated ABI6 library object/runtime dependencies; no client frontend fallback. This establishes safe runtime boundaries, not existential/indexed elimination support or final self-built acceptance.",
+    "status": "passed",
+    "worker_slot": 2
+  },
+  "schema": 1,
+  "scope": "Source schemes retain inherited and constructor-local Type/Nat binders; unused family index placeholders are not added as constructor quantifiers. Saturated result kind/declaring identity, strict positivity, independent Core closure and the existing hidden-pattern guard remain checked. Actual hidden construction checks, unrelated/unsaturated/ill-kinded results and hidden payload escapes are covered. Actual schema8 writer preserves local/fixed/computed index contracts and emits resolved:null for hidden payload constructors. Five complete affected groups/13tests and exact43-module Native22 compiler/object/adapter gate pass; a separately copied checksum-identical self-built917f reader checks all43 with empty PATH. Two reached unsupported hidden/indexed layouts refuse with empty IR sentinel/no executable; ordinary generic Box client runs42 at32M poisoning with zero leaks. Runtime elimination/representation support is not granted. All original API groups run:6/9 pass and3 remain failed with later genuine missing features exposed. Full matching bootstrap/current complete suites/all105 targets and Acceptance5 remain required.",
+  "seed_native_source_sha256": "22c91cf6c1855b049207612e9d94630850e880d5a49ea3e2c57c92aff7fdbe88",
+  "self_built_source_check": {
+    "builder_sha256": "f2f1e4f33863fe7ca8c63e696d8b794df11c4761e7a0a26112c39692e210d601",
+    "builder_source_sha256": "917f6e1fc2bc376224a6f2edb1ae951e73c364ff216cf558e2c714003cf6bc36",
+    "child_pid": 99025,
+    "compiler_modules": 43,
+    "compiler_source_sha256": "1dd5b24b5f6208b375406bb02dfec795770ad9ff99c9aa8ae2b1661fb50bd163",
+    "diagnostics": "",
+    "exit_code": 0,
+    "full_goal_complete": false,
+    "interfaces_sha256": "067ab7c76c130a53b952b9d8fa0a0cfd7702bddf64e3dae51724c0275ae98163",
+    "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+    "pid": 98993,
+    "scope": "Actual self-built917f Stage2 checks the exact43 staged-driver inputs of private1dd5 constructor-scheme/export work using55 authenticated85 library-only interfaces and an empty executable PATH. This proves actual Cinch parser/typechecker acceptance, with no client Native fallback. It does not establish matching1dd5 staged fixedpoint or full suites.",
+    "source": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/constructor-quantifier-self-built-source-check-2/source",
+    "source_sha256": "1fdfffa2185fdc4c636e9740dac43940f484bf725d85c3c95935058aada3f8ae",
+    "status": "passed",
+    "worker_slot": 1
+  },
+  "source_gate": {
+    "compiler_source_sha256": "1dd5b24b5f6208b375406bb02dfec795770ad9ff99c9aa8ae2b1661fb50bd163",
+    "filtered": 0,
+    "full_goal_complete": false,
+    "ignored": 0,
+    "native_source_sha256": "6b567529032465cde863607185da47aa7d5f9e5ecd99a596158174fd7efa6aa7",
+    "new_source_cases": 10,
+    "scope": "Both complete original groups pass with all original source controls and kernel metadata mutations. Added actual source controls preserve constructor-local type and Nat binders, accept existential introduction and fixed/computed indexed declarations, refuse unrelated/unsaturated/ill-kinded constructor results and hidden payload escape. Original direct Core guard controls remain unchanged. Explicit constructor parameters are retained; unused family index placeholders are trimmed. This proves source/Core checks only; exporter/full compiler/actual originalAPI groups, scoped pattern elimination and runtime representation support remain separate. Native oracle differs on the existential introduction because its current constructor-local binders support only indices; that is recorded, not counted as a matching oracle pass.",
+    "source_sha256": "b7c50857c204d1d95e630ffc3e515945a01e94197eb67455299b3680bc159f56",
+    "status": "passed-constructor-quantifier-source-and-global-groups",
+    "tests": 3,
+    "verified_at": "2026-11-05T22:58:01.471173+00:00",
+    "whole_groups": 2
+  },
+  "status": "passed-constructor-source-and-interface-contracts",
+  "verified_at": "2026-11-06T00:04:24.750344+00:00",
+  "whole_affected_groups": 5
+}

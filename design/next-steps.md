@@ -1,5 +1,40 @@
 # Next steps (as of 2026-11-05)
 
+## Constructor declarations retain their own type and index binders (2026-11-06)
+
+Compiler `1dd5b24b` checks constructor-local Type/Nat binders and fixed or
+computed result indices. It keeps inherited and local scopes distinct and
+omits unused family index placeholders from the constructor scheme. Result
+kinds and declaring identities, strict positivity, independent Core closure
+and the hidden-pattern scope guard remain checked. Actual hidden construction
+checks; a hidden payload still cannot escape as Int or Bool.
+
+The real interface writer preserves these schemes and indices. A hidden
+payload constructor has `resolved: null`, rather than an ordinary universal
+pattern contract. All five complete affected groups pass thirteen Rust tests,
+including ten new source controls and independent Native schema/tree checks.
+All43 exact staged inputs also build with the explicit Native22 seed role and
+are checked by a checksum-verified copy of the actual Cinch-built917f compiler
+with an empty executable PATH. The real object round trip remains green.
+See `bootstrap/current-constructor-source-contract-results.json`.
+
+Actual CLI controls refuse reached hidden/indexed physical layouts with code5,
+a cleared empty IR sentinel and no executable. An ordinary generic Box client
+runs42 at32M with poisoning and zero leaks. Scoped elimination and physical
+representation support remain separate; declaration support does not grant
+those features. The Rust comparison still has its documented constructor-local
+index-only boundary, so the valid hidden construction is not reported as a
+matching Rust oracle pass.
+
+All nine original API groups run with their assertions retained: six pass and
+three fail. The class-contract fixture now reaches contextual dictionary
+factory export; kinds reaches typed foreign declarations. Source-family
+replacement remains refused. Those failures, matching full bootstraps/suites,
+all105 required targets and Acceptance5 remain open. A separate private factory
+exporter is being validated. Storage migration changed canonical dependency
+paths and triggered an extra cache rebuild in the older chain; existing builds
+continue on their fixed source, and their storage paths will stay fixed.
+
 ## Constructor patterns preserve hidden type scope (2026-11-05)
 
 Compiler `4507111e` refuses retained constructor patterns that choose a concrete

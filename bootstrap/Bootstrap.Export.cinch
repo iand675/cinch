@@ -207,16 +207,29 @@ module Bootstrap.Export where
             (JObj "total_body" JNull JObjEnd))))))
       (Err error, other) -> Err error
       (other, Err error) -> Err error
+  constructor-result :: UType -> UType
+  constructor-result ty = case ty of UFun domain result -> constructor-result result; UFunEff domain effects result -> constructor-result result; UPi id name domain effects result -> constructor-result result; UProofFun predicate effects result -> constructor-result result; URequire predicates result -> constructor-result result; other -> ty
+  constructor-id-member :: Nat -> List Nat -> Bool
+  constructor-id-member id ids = case ids of Nil -> False; Cons first rest -> id == first || constructor-id-member id rest
+  constructor-hidden-parameters :: List Quant -> List Nat -> Bool
+  constructor-hidden-parameters parameters visible = case parameters of
+    Nil -> False
+    Cons first rest -> not (constructor-id-member (quant-id first) visible) || constructor-hidden-parameters rest visible
+  constructor-resolved :: Elaboration -> List LoadedInterface -> CoreConstructor -> Result String Json
+  constructor-resolved typed interfaces constructor = let scheme = core-constructor-scheme constructor in
+    if constructor-hidden-parameters (scheme-params scheme) (type-free-bound (constructor-result (scheme-body scheme)))
+      then Ok JNull else resolved-value-scheme typed interfaces (core-constructor-name constructor) scheme
   constructor-row :: Elaboration -> List LoadedInterface -> String -> Nat -> CoreConstructor -> Result String Json
   constructor-row typed interfaces name tag constructor = let scheme = core-constructor-scheme constructor in
-    case (export-global (core-constructor-name constructor), export-constructor-fields scheme, resolved-value-scheme typed interfaces (core-constructor-name constructor) scheme) of
-      (Ok identity, Ok fields, Ok resolved) -> Ok (JObj "name" (JStr name)
+    case (export-global (core-constructor-name constructor), export-constructor-fields scheme, constructor-resolved typed interfaces constructor, export-value-scheme scheme) of
+      (Ok identity, Ok fields, Ok resolved, Ok spelling) -> Ok (JObj "name" (JStr name)
         (JObj "symbol" (JStr identity) (JObj "tag" (JNum (nat-to-int tag))
-          (JObj "scheme" (field "scheme" resolved) (JObj "resolved" resolved
+          (JObj "scheme" (JStr spelling) (JObj "resolved" resolved
             (JObj "fields" (strings fields) (JObj "erased" (bools fields) JObjEnd)))))))
-      (Err error, other, more) -> Err error
-      (other, Err error, more) -> Err error
-      (other, more, Err error) -> Err error
+      (Err error, other, more, spelling) -> Err error
+      (other, Err error, more, spelling) -> Err error
+      (other, more, Err error, spelling) -> Err error
+      (other, more, resolved, Err error) -> Err error
   constructor-rows :: Elaboration -> List LoadedInterface -> Json -> Nat -> List CoreConstructor -> Result String Json
   constructor-rows typed interfaces surface tag constructors = case constructors of
     Nil -> Ok JArrEnd
