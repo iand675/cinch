@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "221 of 235 complete groups passed; 1 running, 1 failed and 12 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "222 of 235 complete groups passed; 1 running, 1 failed and 11 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -469,7 +469,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "221 of 235 complete groups passed; 1 running, 1 failed and 12 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "222 of 235 complete groups passed; 1 running, 1 failed and 11 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -760,8 +760,8 @@
           "verified": 22,
           "blocked": 0,
           "running": 0,
-          "pending": 12,
-          "recheck": 201
+          "pending": 11,
+          "recheck": 202
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
         "items": [
@@ -2838,16 +2838,16 @@
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_source_pi.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "startedAt": "2026-11-06T22:59:43.841694+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-06T23:06:16.868810+00:00",
+              "exitCode": 0,
+              "logSha256": "b775df00ea1b16f46ca52960655563590ca8d3e6d2e77bb61fcd97daeb82d3ef",
               "cases": [
                 {
                   "name": "source_dependent_functions_use_checked_argument_values",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -2856,18 +2856,23 @@
           {
             "id": "native:bootstrap_source_projection",
             "title": "bootstrap_source_projection",
-            "state": "pending",
+            "state": "recheck",
             "detail": "Awaiting a complete run on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_source_projection.rs",
             "observed": {
-              "status": "pending",
+              "status": "running",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": null,
+              "startedAt": "2026-11-06T23:06:16.879692+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "source_projection_preserves_carriers_and_kernel_authority",
+                  "status": "running"
+                }
+              ]
             },
             "currentTests": null
           },
@@ -11702,10 +11707,10 @@
           }
         ],
         "observedCounts": {
-          "passed": 221,
+          "passed": 222,
           "failed": 1,
           "running": 1,
-          "pending": 12
+          "pending": 11
         },
         "observedSource": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2"
       },
@@ -18188,8 +18193,8 @@
       {
         "title": "Cinch strict-default repair: complete groups",
         "status": "running",
-        "phase": "bootstrap_export_types",
-        "passed": 3,
+        "phase": "bootstrap_export_interfaces",
+        "passed": 5,
         "failed": 0,
         "total": 7,
         "source": "75fbd2f9a8596fa48c2ded66efa15834412b9bc478247b7c94ab048fa84774c0",
@@ -18239,8 +18244,8 @@
       {
         "title": "Earlier compiler: full Rust sweep",
         "status": "running",
-        "phase": "bootstrap_source_pi",
-        "passed": 221,
+        "phase": "bootstrap_source_projection",
+        "passed": 222,
         "failed": 1,
         "total": 235,
         "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
@@ -18261,8 +18266,8 @@
       "verified": 194,
       "blocked": 6,
       "running": 2,
-      "pending": 62,
-      "recheck": 402
+      "pending": 61,
+      "recheck": 403
     },
     "total": 666,
     "acceptanceVerified": 0,
@@ -18270,5 +18275,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-06T23:05:37.266012+00:00"
+  "updatedAt": "2026-11-06T23:06:39.619729+00:00"
 }
