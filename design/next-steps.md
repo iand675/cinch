@@ -15,8 +15,10 @@ checked scheme and span-free resolved source clauses. Fifteen Native-compared
 cases check inheritance, overrides, unused errors, private helpers, class/method
 annotations, nullary fields and identity change/stability.
 
-The first prototype passed all44 Native source checks. The current generic-call
-revision's44-module check and complete affected component groups are running;
+The current generic-call revision now passes all44 Native source checks under
+independent artifact audit. See `bootstrap/current-source-class-default-input-results.json`.
+Its actual compiled-Cinch component groups and an input check by genuine earlier4f
+Stage3 are running;
 a later parser failure and interrupted test attempt remain recorded separately.
 The current source-interface format records imported default hashes but does not
 carry the checked implementation needed to inherit an arbitrary imported default.
