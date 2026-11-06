@@ -193,8 +193,30 @@ fn interface_output(dir: &Path, exe: &Path) {
     std::fs::write(&source, "module Main where\n  foreign import ccall \"external_identity\" external-identity :: Nat -> Nat\n  main :: Int\n  main = 0\n").unwrap();
     let args = vec!["--emit-interfaces".into(), source.display().to_string(), dir.join("unsupported-interface").display().to_string()];
     assert_eq!(run_built(exe, dir, &args).0, Some(4));
-    assert!(common::read_output(dir, "unsupported-interface.diagnostics").contains("foreign declarations are not supported without a checked runtime intrinsic contract"));
+    assert!(common::read_output(dir, "unsupported-interface.diagnostics").contains("foreign import needs a function type, closed explicit rows and accounted result effects"));
     assert!(!dir.join("unsupported-interface.Main.cinchif").exists(), "unsupported contract silently produced an interface");
+    // Typed FFI is supported, with explicit effects and a representable ABI.
+    // The pure unaccounted declaration above must still refuse and leave no
+    // interface; a valid foreign declaration must retain its actual contract.
+    std::fs::write(&source, "module Main where\n  foreign import ccall \"external_identity\" external-identity :: I64 ->{Foreign Test} I64\n  main :: Int\n  main = 0\n").unwrap();
+    let checked = dir.join("checked-foreign-interface");
+    let args = vec!["--emit-interfaces".into(), source.display().to_string(), checked.display().to_string()];
+    let (code, stderr) = run_built(exe, dir, &args);
+    assert_eq!(code, Some(0), "{stderr}; {}", common::read_output(dir, "checked-foreign-interface.diagnostics"));
+    let bytes = common::read_output(dir, "checked-foreign-interface.Main.cinchif");
+    let iface = cinch::interface::Iface::from_json(&bytes).expect("checked typed foreign interface");
+    assert_eq!(iface.to_json(), bytes, "canonical typed foreign interface");
+    assert_eq!(iface.exports.foreign.len(), 1);
+    let foreign = &iface.exports.foreign[0];
+    assert_eq!((foreign.symbol.as_str(), foreign.external.as_str(), foreign.kind.as_str()), ("external-identity", "external_identity", "import"));
+    assert_eq!(foreign.effects, "Foreign Test");
+    assert_eq!(foreign.params.len(), 1);
+    assert_eq!((foreign.params[0].ty.as_str(), foreign.result.ty.as_str()), ("I64", "I64"));
+    assert_eq!(iface.assumptions.foreign, vec!["external_identity"]);
+    assert_eq!(common::read_output(dir, "checked-foreign-interface.diagnostics"), "");
+    assert!(!checked.exists(), "interface-only FFI output emitted IR");
+    std::fs::write(&source, "module Main where\n  foreign import ccall \"external_identity\" external-identity :: Nat -> Nat\n  main :: Int\n  main = 0\n").unwrap();
+
     let args = vec!["--emit-ir-with-interfaces".into(), source.display().to_string(), dir.join("missing-object").display().to_string()];
     assert_eq!(run_built(exe, dir, &args).0, Some(1), "combined IR/interface output requires the checked object configuration");
 }
@@ -396,7 +418,7 @@ fn refused_source(dir: &Path, exe: &Path) {
         ("function-value", "module Main where\n  identity :: Int -> Int\n  identity x = x\n  main :: Int\n  main = let f = identity in f 3\n", 5, "closure lowering"),
         ("builtin-capability", "module Main where\n  main :: Unit ->{IO r} Int\n  main unit = with (io = Runtime.newIO ()) in let writer = ioWrite in 0\n", 5, "shared uniform-word ABI"),
         ("capability-scope", "module Main where\n  main :: Int\n  main = with (io = io) in 0\n", 4, "name is not in scope: io"),
-        ("foreign-contract", "module Main where\n  foreign import ccall \"external_identity\" ffi-id :: Int -> Int\n  main :: Int\n  main = ffi-id 1\n", 4, "foreign declarations are not supported"),
+        ("foreign-contract", "module Main where\n  foreign import ccall \"external_identity\" ffi-id :: Int -> Int\n  main :: Int\n  main = ffi-id 1\n", 4, "foreign import needs a function type, closed explicit rows and accounted result effects"),
         ("intrinsic-lowering", "module Main where\n  foreign import ccall \"cinch.runtime.textSha256\" digest :: Bytes -> Bytes\n  main :: Int\n  main = 0\n", 5, "foreign import"),
         ("intrinsic-module-alias", "module Hash where\n  export hash\n  foreign import ccall \"cinch.runtime.textSha256\" hash :: Bytes -> Bytes\nmodule Main where\n  import Hash (hash as digest)\n  probe :: Bytes -> Bytes\n  probe input = digest input\n  main :: Int\n  main = 0\n", 5, "foreign import"),
         ("effect-declaration-lowering", "module Main where\n  effect Event where\n    poke :: Int ->{Event} Int\n  main :: Int\n  main = 0\n", 5, "is not in the fragment"),

@@ -1,5 +1,19 @@
 # Next steps (as of 2026-11-06)
 
+## The complete pipeline target passes with current typed-FFI diagnostics (2026-11-06)
+
+The full original bootstrap_pipeline test now freshly builds and passes all its
+original fib, modes, source checks, interface readback and invalidation cases.
+Two pure unaccounted foreign declarations remain unchanged and continue to refuse.
+Only their obsolete pre-typed-FFI diagnostic strings change to the current precise
+closed/function/effect requirement. A new positive effectful I64 binding verifies
+canonical interface JSON, local/external symbols, effects, parameter/result ABI
+types and the explicit foreign assumption; interface-only mode emits no IR.
+The full target has zero failed, ignored or filtered tests, and its exact inputs
+and original-case retention are independently audited. See
+`bootstrap/current-native-pipeline-results.json`. This is Native8ba8/Cinch3268
+pipeline evidence; matching final Stage3 and all complete suites remain required.
+
 ## Actual source-default runtime and original tests retain new failures (2026-11-06)
 
 Private Cinch8fce passes the complete actual44-module compiler/object gate:

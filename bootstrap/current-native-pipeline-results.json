@@ -1,0 +1,26 @@
+{
+  "all_original_cases_retained": true,
+  "compiler_source_sha256": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+  "filtered": 0,
+  "full_goal_complete": false,
+  "ignored": 0,
+  "native_source_sha256": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+  "new_positive_ffi_contract_control": true,
+  "runs": [
+    {
+      "log": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/pipeline-interface-diagnostic-validation-2/bootstrap_pipeline.log",
+      "log_sha256": "376617e996e33a9a0f9206601dd6e44efcb8e5c386d2b37d61cc360afb48b40b",
+      "name": "bootstrap_pipeline",
+      "tests": 1
+    }
+  ],
+  "rust_tests": 1,
+  "scope": "The complete original pipeline target freshly builds its actual Cinch pipeline and passes every original case. Both unaccounted pure foreign declarations remain unchanged and still reject with the now-correct typed-FFI effect/ABI diagnostic. Every other original source, assertion, mode, fib compilation/runtime behavior, interface readback and output invalidation check remains. Added valid effectful I64 FFI interface proves canonical JSON, exact local/external symbols, declared effects, parameter/result ABI types and explicit foreign assumption; interface-only mode emits no IR. This corrects two stale pre-typed-FFI expectation strings; it does not waive a compiler failure. Native8ba8 is the builder and public reader; the compiled pipeline runs Cinch3268 implementation. Final matching self-built chain and complete suites remain required.",
+  "source": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/pipeline-interface-diagnostic-validation-2/source",
+  "source_sha256": "31d298605aaf80b12914edac2fed976390ad2b5dfd0cb8aaa5622258676a9579",
+  "status": "passed-complete-pipeline-typed-ffi-regression",
+  "test_sha256": "b96f63914787f54be6e36feb2b889d5f079c5bc075bbc6591d76948ec4b25819",
+  "two_obsolete_diagnostic_strings_updated": true,
+  "verified_at": "2026-11-06T22:25:47.522894+00:00",
+  "whole_groups": 1
+}

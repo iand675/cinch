@@ -103,7 +103,7 @@ def build_checklist(root, cfg, previous=None):
     # their exact test source match the current published inputs. These receipts
     # do not satisfy the separate final-Stage3 frontend requirement.
     current_native = {}
-    for key in ('nativeQuotedReceipt', 'nativeDefaultAnnotationReceipt', 'nativeLiteralContextReceipt', 'nativeIndexKindReceipt'):
+    for key in ('nativeQuotedReceipt', 'nativeDefaultAnnotationReceipt', 'nativePipelineReceipt', 'nativeLiteralContextReceipt', 'nativeIndexKindReceipt'):
         receipt = read(cfg.get(key))
         if receipt.get('native_source_sha256') != native:
             continue
