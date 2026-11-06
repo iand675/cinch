@@ -238,7 +238,7 @@
     },
     {
       "title": "Latest development compiler: all105 required targets",
-      "detail": "2 of 105 complete groups passed; 1 running, 0 failed and 102 pending. State: running; current target: bootstrap_total_semantics. Actual43-module Cinch compiler fixture and matching freshly built Rust hosts; all100 original targets plus5 additions, including all9 API groups. Every original case runs. This diagnostic compiler is separate from finalStage3 acceptance.",
+      "detail": "3 of 105 complete groups passed; 1 running, 0 failed and 101 pending. State: running; current target: arrays. Actual43-module Cinch compiler fixture and matching freshly built Rust hosts; all100 original targets plus5 additions, including all9 API groups. Every original case runs. This diagnostic compiler is separate from finalStage3 acceptance.",
       "state": "running"
     },
     {
@@ -317,5 +317,5 @@
   "fullGoalComplete": false,
   "summary": "All 43 compiler-source checks: passed. 4 of 4 complete groups passed; 0 running, 0 failed and 0 pending. Core decision contracts: passed; source decision behavior: passed; frontend adapter: passed; object round trip: passed.",
   "activity": "Current matching Rust and Cinch-source full suite: 28 of 235 complete groups passed; 1 running, 0 failed and 206 pending. Stage builds and smoke checks: 3 of 4; chain state: building-stage3. Repair gates: 4 of 4 complete groups passed; 0 running, 0 failed and 0 pending. Core decision contracts: passed; source decision behavior: passed; frontend adapter: passed; object round trip: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
-  "updatedAt": "2026-11-06T02:44:52.586232+00:00"
+  "updatedAt": "2026-11-06T02:46:34.722804+00:00"
 }
