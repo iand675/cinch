@@ -348,7 +348,7 @@
     },
     {
       "title": "Private class defaults: source gates and complete components",
-      "detail": "0/4 complete groups; phase bootstrap_source_instances. Native995f all44 source inputs: passed. Genuine earlier4f Stage3 all44 source inputs with empty PATH: running. The reviewable development patch is pushed to main but is not applied to the published compiler. Fifteen source controls cover defining scope, unused/overridden errors, generic annotations, value fields and identity stability. Imported default implementations, actual full runtime/object/API and matching latest full bootstrap remain required.",
+      "detail": "0/4 complete groups; phase bootstrap_source_instances. Native995f all44 source inputs: passed. Genuine earlier4f Stage3 all44 source inputs with empty PATH: passed. The reviewable development patch is pushed to main but is not applied to the published compiler. Fifteen source controls cover defining scope, unused/overridden errors, generic annotations, value fields and identity stability. Imported default implementations, actual full runtime/object/API and matching latest full bootstrap remain required.",
       "state": "running"
     },
     {
@@ -505,5 +505,5 @@
   "fullGoalComplete": false,
   "summary": "All 44 compiler-source checks: passed. 4 of 5 complete groups passed; 0 running, 1 failed and 0 pending. Native995f all44 source modules: passed; Earlier4f Stage3 all44 source modules: passed; all3 complete interface components: passed; actual compiler and object9tests: passed; original interface/API13of14: failed.",
   "activity": "Earlier4f/NativeE5: complete235-group sweep: 205 of 235 complete groups passed; 1 running, 1 failed and 28 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 4 of 5 complete groups passed; 0 running, 1 failed and 0 pending. Native995f all44 source modules: passed; Earlier4f Stage3 all44 source modules: passed; all3 complete interface components: passed; actual compiler and object9tests: passed; original interface/API13of14: failed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 49 of 105 complete groups passed; 1 running, 2 failed and 53 pending. Published-source verification gates: recorded-failure; 4 of 5 complete groups passed; 0 running, 1 failed and 0 pending.",
-  "updatedAt": "2026-11-06T21:04:13.333697+00:00"
+  "updatedAt": "2026-11-06T21:09:55.866442+00:00"
 }
