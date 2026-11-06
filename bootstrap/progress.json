@@ -26,7 +26,7 @@
     {
       "name": "Stage 3",
       "state": "passed",
-      "label": "Smokes passed; final checks remain",
+      "label": "Fixed point verified",
       "description": "Fresh rebuild by Stage2, followed by code/interface matching and changed-source checks."
     }
   ],
@@ -58,13 +58,13 @@
     },
     {
       "title": "Current NativeE5/4f: complete235-group sweep",
-      "detail": "70 of 235 complete groups passed; 1 running, 0 failed and 164 pending.Every group includes ignored tests. State: running.",
+      "detail": "72 of 235 complete groups passed; 1 running, 0 failed and 162 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
       "title": "Fresh compiler bootstrap",
       "detail": "4 of 4 stages built and smoke-tested. Fixed point, 44 interfaces, API consumption and changed-source behavior are required.",
-      "state": "running"
+      "state": "passed"
     },
     {
       "title": "Early API-checkpoint behavior through Stage1",
@@ -73,7 +73,7 @@
     },
     {
       "title": "Complete behavior through exact final Stage3",
-      "detail": "0 of 105 complete groups passed; 0 running, 0 failed and 105 pending.All105 required targets:96 portable and9 original interface/API groups, preserving the original100 plus5 additions. Original explicit32M poisoned client limits remain; compiler/checker consumers use256M. Direct Native operations in mixed targets remain classified separately.",
+      "detail": "0 of 105 complete groups passed; 1 running, 0 failed and 104 pending.All105 required targets:96 portable and9 original interface/API groups, preserving the original100 plus5 additions. Original explicit32M poisoned client limits remain; compiler/checker consumers use256M. Direct Native operations in mixed targets remain classified separately.",
       "state": "running"
     },
     {
@@ -82,8 +82,8 @@
       "state": "passed"
     },
     {
-      "title": "Exact final Stage3 acceptance",
-      "detail": "Test-runner reports, 32M zero-leak runs, definition-owned fixities, separate facades and class behavior: waiting-for-final-chain.",
+      "title": "Earlier API checkpoint: final Stage3 acceptance",
+      "detail": "Test-runner reports, 32M zero-leak runs, definition-owned fixities, separate facades and class behavior: waiting-for-fifth-slot. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -328,12 +328,12 @@
     },
     {
       "title": "Private proof-search correction: component and source checks",
-      "detail": "4/4 complete proof/guarded/refinement/argument groups; 1/2 groups with six new actual source controls. Ten new captured-context proof packets retain the original certificate tests. Exact44-module Native check: passed. Actual full compiler and unchanged Format replay remain required; this correction is not published.",
-      "state": "running"
+      "detail": "4/4 complete proof/guarded/refinement/argument groups; 2/2 groups with six new actual source controls. Ten new captured-context proof packets retain the original certificate tests. Exact44-module Native check: passed. Actual full compiler and unchanged Format replay remain required; this correction is not published.",
+      "state": "passed"
     },
     {
       "title": "Matching Stage3: all34 original language cases",
-      "detail": "State: waiting-matching-stage3-audit. All13 positives and21 negatives retain their exact original assertions. Waits for the matching independent Stage3 audit; no Native source frontend fallback. The development4f7/13 result remains separately reported.",
+      "detail": "State: waiting-shared-worker. All13 positives and21 negatives retain their exact original assertions. Waits for the matching independent Stage3 audit; no Native source frontend fallback. The development4f7/13 result remains separately reported.",
       "state": "running"
     },
     {
@@ -357,16 +357,12 @@
       "detail": "Two original array cases remain open: ownership/copyOut and staging; Observed byte-size allocation proof is still refused by published4f"
     },
     {
-      "title": "Finish the fresh bootstrap",
-      "detail": "All repair gates passed. Current phase: building-stage3; Stage0/1/2/3, matching code/interfaces, actual API consumption and changed-source checks remain."
-    },
-    {
       "title": "Finish all current compiler tests",
-      "detail": "70 of 235 complete groups passed; 1 running, 0 failed and 164 pending."
+      "detail": "72 of 235 complete groups passed; 1 running, 0 failed and 162 pending."
     },
     {
       "title": "Finish the exact self-built compiler tests",
-      "detail": "0 of 105 complete groups passed; 0 running, 0 failed and 105 pending."
+      "detail": "0 of 105 complete groups passed; 1 running, 0 failed and 104 pending."
     },
     {
       "title": "Pass all external language examples through Stage3",
@@ -374,7 +370,7 @@
     },
     {
       "title": "Finish final external acceptance",
-      "detail": "waiting-for-final-chain."
+      "detail": "waiting-for-fifth-slot. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Complete the coverage and acceptance audit",
@@ -410,7 +406,7 @@
   "candidateSource": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
   "candidatePublished": true,
   "fullGoalComplete": false,
-  "summary": "All 44 compiler-source checks: passed. 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. native44: passed; cinch-built44: passed; runtime behavior: passed; actual_compiler_object: passed; record_indexed_runtime13_refusals5: passed.",
-  "activity": "Current NativeE5/4f: complete235-group sweep: 70 of 235 complete groups passed; 1 running, 0 failed and 164 pending. Stage builds and smoke checks: 4 of 4; chain state: building-stage3. Repair gates: 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. native44: passed; cinch-built44: passed; runtime behavior: passed; actual_compiler_object: passed; record_indexed_runtime13_refusals5: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 0 of 105 complete groups passed; 0 running, 0 failed and 105 pending.",
-  "updatedAt": "2026-11-06T14:06:33.694377+00:00"
+  "summary": "The fresh current-source compiler chain passes its smoke tests, matching Stage2/Stage3 IR, executable and all 44 canonical interfaces, actual API consumption and changed-source behavior. Complete tests and the final acceptance audit remain separate requirements.",
+  "activity": "Current NativeE5/4f: complete235-group sweep: 72 of 235 complete groups passed; 1 running, 0 failed and 162 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit. Repair gates: 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. native44: passed; cinch-built44: passed; runtime behavior: passed; actual_compiler_object: passed; record_indexed_runtime13_refusals5: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 0 of 105 complete groups passed; 1 running, 0 failed and 104 pending.",
+  "updatedAt": "2026-11-06T14:07:35.823017+00:00"
 }
