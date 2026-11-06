@@ -1,0 +1,106 @@
+{
+  "compiler_sha256": "39013c769055ebd3091d2fd39ee055b9ea9d36dead8ba6b0f74a378c98f04b80",
+  "compiler_source_sha256": "1c76230c164fd47296646125bb0b911b387c9ffda5f18465ec3ca9d1b883ff27",
+  "failed_groups": [
+    "interface_prelude_overrides",
+    "interface_refinements"
+  ],
+  "failed_tests": 2,
+  "filtered": 0,
+  "full_goal_complete": false,
+  "groups": [
+    {
+      "failed_tests": 0,
+      "host_sha256": "5b5a229153584aaf233268ab55c1142583d2303cfbbd308989cc7396fb333b84",
+      "log_sha256": "4dec1c63c39c858c19f2ab934e7ffd3df7c693f37a0452d12e299159a521f31a",
+      "name": "interface_anonymous_contracts",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "host_sha256": "ae014c1775ebf7512c32d126332502c769ecabe369a8d62d420a9d71975c301d",
+      "log_sha256": "43f10121a861c3a161e9753b24b8c607a12ce7a2a5361830294e80b39babbcda",
+      "name": "interface_class_contracts",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "host_sha256": "17373df177e6a3892dbe7fda579f3d2412ab9dace273b3e71f3d7e6c3f839e80",
+      "log_sha256": "f63537bd93aa83c86108525adb6ef671dc6533c5af2d2d8ee6d39e0e3e6e676d",
+      "name": "interface_kinds",
+      "passed_tests": 2,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "host_sha256": "de2e7c0f78c58706daa719d3fa884f33e7b9cc5944e5154573e59b9ac6e3995f",
+      "log_sha256": "1525b7f8ec4aa0ebc5fc2790cc8d1bde61f26606fd7809c3ed5f6dc563c1e628",
+      "name": "interface_nominals",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "host_sha256": "98bb481788e262d17a6cbc5a11dfeb8f22a80cfe9abb3d10c613643722748ac3",
+      "log_sha256": "49ea8c2a491ea1260d469b513cede695fd5075dfe8e86202be6383ebdc79d08b",
+      "name": "interface_preconditions",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 1,
+      "host_sha256": "7a13b00353bb36cb721611382907d5b6f901b160e697fa084c6f550466cc0651",
+      "log_sha256": "493e0136afe512ed75523bb43f0a8a29f90ddcdb0d4e5724a9ea75e1d636cc71",
+      "name": "interface_prelude_overrides",
+      "passed_tests": 0,
+      "status": "failed"
+    },
+    {
+      "failed_tests": 0,
+      "host_sha256": "5ecf3f150a1536e01d8b2d10f7e7199f658220713c4c073795bd1b1f6359b2fd",
+      "log_sha256": "52c074103e10505a1ca7320803099c6473eb4107dd4011ab2f04b117dd677182",
+      "name": "interface_refinement_closure",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 1,
+      "host_sha256": "528cdde54f4f231cea48019397c76a2bf61400f246702236074ed519c198eb5a",
+      "log_sha256": "3d0a35b226e89ebed9d7ac1c0590667fd8c82ce0d5656937c15eb7ffdd38f4cf",
+      "name": "interface_refinements",
+      "passed_tests": 1,
+      "status": "failed"
+    },
+    {
+      "failed_tests": 0,
+      "host_sha256": "83087f4524c3662751cb4c8e3b9d950ddcf95587b7ea7b3388f9ac5dd71eba61",
+      "log_sha256": "c10c5cb0b56f5519bc40ea701a4876c3d355c927f0f4d0451783e49385c64617",
+      "name": "interface_region_effects",
+      "passed_tests": 2,
+      "status": "passed"
+    }
+  ],
+  "ignored": 0,
+  "literal_counterexample": {
+    "actual_cinch_interface_export": 5,
+    "actual_cinch_source_check": 0,
+    "failure": "checked type has no portable interface representation",
+    "source": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-literal-interface-api-1/literal-proof-contract-counterexample.cinch",
+    "source_check_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+    "source_sha256": "80e1c42db1f846987d766e9e36aafe0d0f13d45f106eac052ecaca86f6471b07",
+    "retained_program": "bootstrap/programs/ErasedProofArrow.Interface.Counterexample.cinch"
+  },
+  "native_source_sha256": "91cfd75fd4cb5811c5f7e6c34eb5c9db99f8b038d95d049a6fd6183e3a9765bd",
+  "new_literal_interface_test": true,
+  "original_api_groups": 9,
+  "original_tests_and_assertions_retained": true,
+  "passed_groups": 7,
+  "passed_tests": 10,
+  "scope": "All nine original API groups and unchanged original assertions run with actual published1c76 Cinch as the sole parser/resolver/checker/writer and exact current Native91cf reader/mutation host. The new Native-validated literal-proof interface test is also included. Every original test remains: original11 outcomes remain10 passed/1 failed; the added literal interface test exposes a second writer failure, so the complete latest9 groups are7/9 with10/12 Rust tests passing. Its unchanged source independently checks through the actual Cinch CLI but interface export fails. Source-Prelude replacement and literal-proof interface transport both remain required. Imported55 authenticated dependency contracts are not claimed as newly emitted source interfaces. No Native source frontend fallback; matching finalStage3/full acceptance remains required.",
+  "source_sha256": "b6938525bd014306a2d1b4fd4f1f2bd46a438ee51624358a1cb328aaea3b2657",
+  "status": "audited-original-api-with-retained-failures",
+  "total_tests": 12,
+  "verified_at": "2026-11-06T15:37:12.468554+00:00"
+}

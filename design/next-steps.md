@@ -1,5 +1,25 @@
 # Next steps (as of 2026-11-06)
 
+## Cinch erased-proof arrows need portable interface transport (2026-11-06)
+
+The current1c76 Cinch producer and Native91cf reader run all nine original
+API groups, preserving every original assertion and adding the new logical
+proof-contract case. Ten of the original11 tests still pass; source-Prelude
+replacement still fails. The added test exposes another gap: its unchanged
+source passes actual Cinch checking, but interface export refuses its erased
+proof arrow. The complete latest API result is therefore7/9 groups and10/12
+tests passing, with no skips. See
+`bootstrap/current-native-reader-interface-api-results.json` and the retained
+`bootstrap/programs/ErasedProofArrow.Interface.Counterexample.cinch`.
+
+The missing cases are in the type printer and nominal-dependency visitor,
+not logical literal spelling. A private correction retains the proposition
+domain, latent effects, result and nominal references; malformed proof arrows
+and moving early preconditions across an erased argument remain refused.
+Its complete original exporter groups plus six new formatting/Native-readback
+controls are validating. Actual full compiler/API replay, complete matching
+suites and every Acceptance1-5 requirement remain required before completion.
+
 ## Native logical literals retain checked proof hypotheses (2026-11-06)
 
 Native91cf supports logical True/False in Prop, separately from Boolean

@@ -1,0 +1,22 @@
+-- source: Evidence.cinch
+module Evidence where
+  export wrap, reject
+  wrap :: (h :: False) -> Dec False
+  wrap h = Yes h
+  reject :: (h :: Not False) -> Dec False
+  reject h = No h
+
+
+-- source: Facade.cinch
+module Facade where
+  import Evidence (wrap as evidence, reject as refute)
+  export evidence, refute
+
+
+-- source: Main.cinch
+module Main where
+  import Facade
+  main :: Int
+  main = case decide False of Yes _ -> 1; No h -> case refute h of No _ -> 0; Yes _ -> 2
+
+
