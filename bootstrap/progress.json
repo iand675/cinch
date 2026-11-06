@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "commit": "807fccdc43b1413a6c163e43b5ae5c9822b1dd73",
+  "commit": "f3895bc31e1f09aa51a10a7345c46ecb7ed64d8d",
   "status": "Full bootstrap verification remains open",
   "stages": [
     {
@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "212 of 235 complete groups passed; 1 running, 1 failed and 21 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "213 of 235 complete groups passed; 1 running, 1 failed and 20 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -71,7 +71,7 @@
     },
     {
       "title": "Earlier API checkpoint: exact Stage3 behavior",
-      "detail": "52 of 105 complete groups passed; 1 running, 2 failed and 50 pending.All105 required targets:96 portable and9 original interface/API groups, preserving the original100 plus5 additions. Original explicit32M poisoned client limits remain; compiler/checker consumers use256M. Direct Native operations in mixed targets remain classified separately. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "53 of 105 complete groups passed; 1 running, 2 failed and 49 pending.All105 required targets:96 portable and9 original interface/API groups, preserving the original100 plus5 additions. Original explicit32M poisoned client limits remain; compiler/checker consumers use256M. Direct Native operations in mixed targets remain classified separately. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -350,8 +350,13 @@
       "state": "passed"
     },
     {
-      "title": "Published Native995f: quotation hygiene and index kinds",
+      "title": "Earlier Native995f: quotation hygiene and index kinds",
       "detail": "All20 complete groups pass325 Rust tests without skips/filters, including all13 machine cases. Nine quoted source controls and an actual run returning42 preserve following argument scope, nested scope and same-named global hygiene. Both exact44-module projects, original proof/forgery controls and four actual quoted CLI probes pass independent audit. Task-capture gaps remain reproduced; matching full bootstrap/suites remain required.",
+      "state": "passed"
+    },
+    {
+      "title": "Published Native8ba8: definition-owned generic annotations",
+      "detail": "All21 whole affected groups pass332 Rust tests with no skips or filters. All186 units, all6 original class-default tests,11 controls in the seventh test, actual inherited execution42, both exact44-module source projects and all13 machine cases pass independent audit. Three actual valid examples refuse on995f and pass on8ba8. Unknown types, distinct rigids and ended scopes still refuse. Task callback/helper capture gaps remain reproduced; this is Rust evidence, not matching self-built Stage3/full-suite acceptance.",
       "state": "passed"
     },
     {
@@ -449,7 +454,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "212 of 235 complete groups passed; 1 running, 1 failed and 21 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "213 of 235 complete groups passed; 1 running, 1 failed and 20 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -457,7 +462,7 @@
     },
     {
       "title": "Finish the exact self-built compiler tests",
-      "detail": "52 of 105 complete groups passed; 1 running, 2 failed and 50 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "53 of 105 complete groups passed; 1 running, 2 failed and 49 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Pass all external language examples through Stage3",
@@ -507,7 +512,7 @@
     "version": 1,
     "target": {
       "compiler": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
-      "native": "995f5d5954f3d556ff940b6d002e7e1e19a970b5ff34bf5cd15669de7f0d30a4"
+      "native": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b"
     },
     "acceptance": [
       {
@@ -589,7 +594,7 @@
         "id": "gap:source-defaults",
         "title": "Check and inherit source class defaults",
         "state": "running",
-        "detail": "Development compiler8fce passes all15 controls in a retained-checker replay with the corrected Rust oracle; complete groups and runtime integration remain separate.",
+        "detail": "All four complete component groups now pass independent audit, including all15 defaults and all30 original source dictionary controls. The actual full compiler/object and runtime integration are running; imported defaults and complete bootstrap remain open.",
         "doneWhen": "All source default controls, unused errors, generic scopes, metadata stability, runtime and original class-default behavior pass.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-source-class-default-development.json"
       },
@@ -636,10 +641,10 @@
       {
         "id": "gap:rust-annotations",
         "title": "Preserve Rust class/default annotation binders",
-        "state": "blocked",
-        "detail": "The published995f compiler rejects three valid annotation examples. The private8ba8 repair has finished execution of its affected groups and both44-module checks; independent audit and publication remain required.",
+        "state": "verified",
+        "detail": "Published8ba8 passes independent audit: all21 complete groups,332 tests, both44-module projects, actual inherited execution42 and three old/new CLI comparisons. Original refusal controls remain.",
         "doneWhen": "Complete the affected proof/syntax/interface groups and both compiler-source projects, retain kind/scope refusals, then publish the validated repair.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/design/next-steps.md"
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-default-annotation-results.json"
       },
       {
         "id": "gap:records",
@@ -705,10 +710,10 @@
         "unit": "targets",
         "total": 235,
         "counts": {
-          "verified": 20,
+          "verified": 21,
           "blocked": 0,
           "running": 0,
-          "pending": 21,
+          "pending": 20,
           "recheck": 194
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -2567,16 +2572,16 @@
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_runtime_library.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "startedAt": "2026-11-06T21:48:00.998058+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-06T21:54:35.413994+00:00",
+              "exitCode": 0,
+              "logSha256": "5eadd7fc55e073850417e8d8c9473820cfb17bd8bb61285a0643b1dbe0bb0cae",
               "cases": [
                 {
                   "name": "checked_library_roots_emit_linkable_owned_and_specialized_workers",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -2585,18 +2590,23 @@
           {
             "id": "native:bootstrap_runtime_library_abi",
             "title": "bootstrap_runtime_library_abi",
-            "state": "pending",
+            "state": "recheck",
             "detail": "Awaiting a complete run on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_runtime_library_abi.rs",
             "observed": {
-              "status": "pending",
+              "status": "running",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": null,
+              "startedAt": "2026-11-06T21:54:35.424571+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "library_abi_entries_describe_actual_workers_and_owned_closure_accessors",
+                  "status": "running"
+                }
+              ]
             },
             "currentTests": null
           },
@@ -3073,10 +3083,10 @@
           {
             "id": "native:class_defaults",
             "title": "class_defaults",
-            "state": "recheck",
-            "detail": "Awaiting a complete run on the current compiler inputs.",
+            "state": "verified",
+            "detail": "7 tests passed; current Rust production identity and test source match.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/class_defaults.rs",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-default-annotation-results.json",
             "observed": {
               "status": "passed",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
@@ -3111,7 +3121,7 @@
                 }
               ]
             },
-            "currentTests": null
+            "currentTests": 7
           },
           {
             "id": "native:class_identity",
@@ -3383,7 +3393,7 @@
             "state": "verified",
             "detail": "14 tests passed; current Rust production identity and test source match.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-quoted-precondition-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-default-annotation-results.json",
             "observed": {
               "status": "passed",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
@@ -3567,7 +3577,7 @@
             "state": "verified",
             "detail": "12 tests passed; current Rust production identity and test source match.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-quoted-precondition-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-default-annotation-results.json",
             "observed": {
               "status": "passed",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
@@ -4137,7 +4147,7 @@
             "state": "verified",
             "detail": "1 tests passed; current Rust production identity and test source match.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-quoted-precondition-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-default-annotation-results.json",
             "observed": {
               "status": "passed",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
@@ -4335,7 +4345,7 @@
             "state": "verified",
             "detail": "1 tests passed; current Rust production identity and test source match.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-quoted-precondition-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-default-annotation-results.json",
             "observed": {
               "status": "passed",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
@@ -4450,7 +4460,7 @@
             "state": "verified",
             "detail": "2 tests passed; current Rust production identity and test source match.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-quoted-precondition-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-default-annotation-results.json",
             "observed": {
               "status": "passed",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
@@ -4477,7 +4487,7 @@
             "state": "verified",
             "detail": "2 tests passed; current Rust production identity and test source match.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-quoted-precondition-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-default-annotation-results.json",
             "observed": {
               "status": "passed",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
@@ -4551,7 +4561,7 @@
             "state": "verified",
             "detail": "1 tests passed; current Rust production identity and test source match.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-quoted-precondition-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-default-annotation-results.json",
             "observed": {
               "status": "passed",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
@@ -4574,7 +4584,7 @@
             "state": "verified",
             "detail": "1 tests passed; current Rust production identity and test source match.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-quoted-precondition-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-default-annotation-results.json",
             "observed": {
               "status": "passed",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
@@ -4647,7 +4657,7 @@
             "state": "verified",
             "detail": "1 tests passed; current Rust production identity and test source match.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-quoted-precondition-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-default-annotation-results.json",
             "observed": {
               "status": "passed",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
@@ -4670,7 +4680,7 @@
             "state": "verified",
             "detail": "4 tests passed; current Rust production identity and test source match.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-quoted-precondition-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-default-annotation-results.json",
             "observed": {
               "status": "passed",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
@@ -4693,7 +4703,7 @@
             "state": "verified",
             "detail": "2 tests passed; current Rust production identity and test source match.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-quoted-precondition-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-default-annotation-results.json",
             "observed": {
               "status": "passed",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
@@ -5034,7 +5044,7 @@
             "state": "verified",
             "detail": "186 tests passed; current Rust production identity and test source match.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-quoted-precondition-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-default-annotation-results.json",
             "observed": {
               "status": "passed",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
@@ -8277,7 +8287,7 @@
             "state": "verified",
             "detail": "5 tests passed; current Rust production identity and test source match.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-quoted-precondition-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-default-annotation-results.json",
             "observed": {
               "status": "passed",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
@@ -8830,7 +8840,7 @@
             "state": "verified",
             "detail": "7 tests passed; current Rust production identity and test source match.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-quoted-precondition-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-default-annotation-results.json",
             "observed": {
               "status": "passed",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
@@ -8877,7 +8887,7 @@
             "state": "verified",
             "detail": "5 tests passed; current Rust production identity and test source match.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-quoted-precondition-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-default-annotation-results.json",
             "observed": {
               "status": "passed",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
@@ -9089,7 +9099,7 @@
             "state": "verified",
             "detail": "27 tests passed; current Rust production identity and test source match.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-quoted-precondition-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-default-annotation-results.json",
             "observed": {
               "status": "passed",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
@@ -9777,7 +9787,7 @@
             "state": "verified",
             "detail": "26 tests passed; current Rust production identity and test source match.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-quoted-precondition-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-default-annotation-results.json",
             "observed": {
               "status": "passed",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
@@ -10515,7 +10525,7 @@
             "state": "verified",
             "detail": "14 tests passed; current Rust production identity and test source match.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-quoted-precondition-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-default-annotation-results.json",
             "observed": {
               "status": "passed",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
@@ -10590,7 +10600,7 @@
             "state": "verified",
             "detail": "7 tests passed; current Rust production identity and test source match.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-quoted-precondition-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-default-annotation-results.json",
             "observed": {
               "status": "passed",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
@@ -11227,7 +11237,7 @@
             "state": "verified",
             "detail": "7 tests passed; current Rust production identity and test source match.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-quoted-precondition-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-default-annotation-results.json",
             "observed": {
               "status": "passed",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
@@ -11593,10 +11603,10 @@
           }
         ],
         "observedCounts": {
-          "passed": 212,
+          "passed": 213,
           "failed": 1,
           "running": 1,
-          "pending": 21
+          "pending": 20
         },
         "observedSource": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2"
       },
@@ -11609,8 +11619,8 @@
           "verified": 0,
           "blocked": 0,
           "running": 0,
-          "pending": 50,
-          "recheck": 55
+          "pending": 49,
+          "recheck": 56
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
         "items": [
@@ -12720,16 +12730,16 @@
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_library_object.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "startedAt": "2026-11-06T21:31:15.339041+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-06T21:53:48.432858+00:00",
+              "exitCode": 0,
+              "logSha256": "5a1696a01576e4911be7c2ad04f2df176ab66fc8f10915d91b424cb90ca1e5cd",
               "cases": [
                 {
                   "name": "cinch_cli_emits_a_closed_object_that_another_cinch_invocation_can_consume",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -12738,18 +12748,23 @@
           {
             "id": "stage3:bootstrap_load",
             "title": "bootstrap_load",
-            "state": "pending",
+            "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_load.rs",
             "observed": {
-              "status": "pending",
+              "status": "running",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": null,
+              "startedAt": "2026-11-06T21:53:48.446447+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "body_owners_keep_longest_dot_boundary_prefixes_for_utf8_identities",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -13929,10 +13944,10 @@
           }
         ],
         "observedCounts": {
-          "passed": 52,
+          "passed": 53,
           "failed": 2,
           "running": 1,
-          "pending": 50
+          "pending": 49
         },
         "observedSource": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2"
       },
@@ -17939,7 +17954,7 @@
         "total": 14,
         "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
         "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
-        "auditPending": true
+        "auditPending": false
       },
       {
         "title": "Rust annotation repair: proof/syntax groups",
@@ -17949,7 +17964,7 @@
         "total": 7,
         "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
         "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
-        "auditPending": true
+        "auditPending": false
       },
       {
         "title": "Cinch default implementation: complete component groups",
@@ -17959,13 +17974,33 @@
         "total": 4,
         "source": "8fcedce1381fe2d1a14468b9cc10eff26cd7f07b64d3beb72fb121533dbb5095",
         "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
-        "auditPending": true
+        "auditPending": false
+      },
+      {
+        "title": "Cinch defaults: full compiler/object gate",
+        "status": "running",
+        "phase": "bootstrap_library_object",
+        "passed": 1,
+        "failed": 0,
+        "total": 2,
+        "source": "8fcedce1381fe2d1a14468b9cc10eff26cd7f07b64d3beb72fb121533dbb5095",
+        "auditPending": false
+      },
+      {
+        "title": "Published Cinch: Rust reader/API replay",
+        "status": "running",
+        "phase": "interface_region_effects",
+        "passed": 7,
+        "failed": 1,
+        "total": 9,
+        "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+        "auditPending": false
       },
       {
         "title": "Earlier compiler: full Rust sweep",
         "status": "running",
-        "phase": "bootstrap_runtime_library",
-        "passed": 212,
+        "phase": "bootstrap_runtime_library_abi",
+        "passed": 213,
         "failed": 1,
         "total": 235,
         "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
@@ -17974,8 +18009,8 @@
       {
         "title": "Earlier Stage3: complete frontend sweep",
         "status": "running",
-        "phase": "bootstrap_library_object",
-        "passed": 52,
+        "phase": "bootstrap_load",
+        "passed": 53,
         "failed": 2,
         "total": 105,
         "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
@@ -17983,11 +18018,11 @@
       }
     ],
     "counts": {
-      "verified": 191,
-      "blocked": 4,
+      "verified": 193,
+      "blocked": 3,
       "running": 1,
-      "pending": 78,
-      "recheck": 387
+      "pending": 76,
+      "recheck": 388
     },
     "total": 661,
     "acceptanceVerified": 0,
@@ -17995,5 +18030,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-06T21:48:07.476305+00:00"
+  "updatedAt": "2026-11-06T21:55:26.596131+00:00"
 }
