@@ -230,12 +230,22 @@
       "title": "Published source interfaces: factories, private classes and parameter names",
       "detail": "Four complete affected groups pass11tests. All43 exact compiler inputs build and check through a Cinch-built reader with empty PATH. Factories retain hygienic context; private method dependencies close transitively without exposing names. Source parameter names/kinds/implicitness match Native, canonical scheme alpha stability stays intact, and cross-module signature order matches exact canonical bytes/hashes. Original API is7/9; final self-built/full-scope acceptance remains open.",
       "state": "passed"
+    },
+    {
+      "title": "Measured optimized Stage1 runtime",
+      "detail": "Same compiler LLVM and43 exact inputs, exact pinned85 runtime source, empty PATH and zero leaks on both sides. One paired observation:664.45s release versus4508.15s debug,6.78x faster for this input. This is a measured checkpoint, not a general timing promise.",
+      "state": "passed"
+    },
+    {
+      "title": "Earlier917f bootstrap: Acceptance1-4",
+      "detail": "All4 actual stages and12 smokes pass. Stage2/3 LLVM, executable and43 canonical interfaces match; compiler API consumption and changed-source behavior pass. Explicit85 seed/library-only roles. This exact earlier source proves Acceptance1-4; latest-source bootstrap/all105/Acceptance5 remain open.",
+      "state": "passed"
     }
   ],
   "blockers": [
     {
-      "title": "Published API7/9; checked-helper decision groups pass privately",
-      "detail": "Published3e20ef7 compiler711103 passes4 complete exporter/adapter/object groups11tests, actual43 compiler build, actual self-built43 check and7/9 unchanged original API groups(9/11tests). Typed foreign declarations and genuine source-prelude/dependency replacement remain failed. Private71b62 decision repair now passes complete Core and source groups;50 new Core controls retain exact body/name/role/type/argument authority, source fixture requires actual body context and refuses an empty one. Exact original helper call and two-argument Int/Nat cases pass; effectful/partial/wrong-predicate cases remain refused. Merged5f2f combines this with published interface changes; its actual self-built43-module check is live, then complete compiler/object and real32M poisoned runtime clients follow. Frozen Native6b/older5cea sweep finished229/232 with3 retained failures(byte observation, measure expectation, helper decision); later scoped repairs stay distinct from that frozen run. Performance comparison debug control and older bootstrap chains remain live. Full matching bootstrap/all105/Acceptance5 remain open."
+      "title": "API7/9 published; earlier917f fixed point and measured6.78x runtime gain verified",
+      "detail": "Published3e20ef7 compiler711103 retains7/9 original API groups(9/11tests), four affected groups11tests, actual43 module compiler/object and actual self-built source checking. New49dd09e publishes scoped evidence: earlier917f all4 stages/12 smokes, exactStage2/3 code/executable/43interfaces, API-only entry and changed-source behavior prove Acceptance1-4 for917f; latest-source Acceptance5 remains open. Paired sameLLVM/43-input runtime comparison passes both sides with zero leaks: release664.45s/debug4508.15s, observed6.78x for this input. Private merged5f2f decision fix passed the actual self-built43-source check after complete Core/source groups; full compiler/object runs and3 real32M poisoned runtime clients plus3 refusals wait on it. Typed foreign declarations/source-prelude replacement, higher-order opaque reification, final matching suites/all105/Acceptance5 remain open. Frozen older-source Native sweep remains229/232 with3 recorded failures. All workers remain bounded to6."
     },
     {
       "title": "Investigate the recorded failure",
@@ -297,5 +307,5 @@
   "fullGoalComplete": false,
   "summary": "All 43 compiler-source checks: passed. 4 of 4 complete groups passed; 0 running, 0 failed and 0 pending. type contracts: passed; interface contracts: passed; frontend adapter: passed; object round trip: passed.",
   "activity": "Current published Rust compiler: full suite: 229 of 232 complete groups passed; 0 running, 3 failed and 0 pending. Stage builds and smoke checks: 4 of 4; chain state: building-stage3; earlier API source, not the published repair. Repair gates: 4 of 4 complete groups passed; 0 running, 0 failed and 0 pending. type contracts: passed; interface contracts: passed; frontend adapter: passed; object round trip: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
-  "updatedAt": "2026-11-06T02:01:31.103627+00:00"
+  "updatedAt": "2026-11-06T02:08:25.294434+00:00"
 }
