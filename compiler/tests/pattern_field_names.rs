@@ -76,3 +76,39 @@ fn empty_data_and_refuted_index_columns_admit_empty_matches() {
         }
     }
 }
+
+
+#[test]
+fn concrete_lambda_patterns_infer_their_input_shape_and_keep_coverage() {
+    let cases = [
+        ("original nullary constructor lambda", "data Leaf where\n    End :: Leaf\n  read :: Leaf -> Int -> Int\n  read leaf n = (\\End value -> value) leaf n", true),
+        ("constructor payload lambda", "data Box a where\n    Box :: a -> Box a\n  read :: Box Int -> Int\n  read box = (\\(Box value) -> value) box", true),
+        ("constructor lambda keeps later argument distinct", "data Box a where\n    Box :: a -> Box a\n  read :: Box Int -> Int -> Int\n  read box increment = (\\(Box value) next -> value + next) box increment", true),
+        ("tuple lambda", "read :: (Int, Bool) -> Int\n  read pair = (\\(value, flag) -> if flag then value else 0) pair", true),
+        ("unit lambda", "read :: Unit -> Int\n  read unit = (\\() -> 7) unit", true),
+        ("complete bool matrix", "read :: Bool -> Int\n  read flag = (\\value -> case value of True -> 1; False -> 0) flag", true),
+        ("list matrix", "read :: List Int -> Int\n  read items = (\\value -> case value of [] -> 0; _ -> 1) items", true),
+        ("literal matrix", "read :: Int -> Int\n  read number = (\\value -> case value of 0 -> 0; _ -> 1) number", true),
+        ("incomplete constructor matrix", "data Leaf where\n    End :: Leaf\n    Item :: Int -> Leaf\n  bad :: Leaf -> Int\n  bad leaf = (\\End -> 0) leaf", false),
+        ("incomplete bool matrix", "bad :: Bool -> Int\n  bad flag = (\\True -> 0) flag", false),
+        ("different family at application", "data A where\n    First :: A\n  data B where\n    Second :: B\n  bad :: B -> Int\n  bad value = (\\First -> 0) value", false),
+        ("incompatible tuple rows", "bad :: (Int, Int) -> Int\n  bad pair = (\\value -> case value of (x, y) -> x; (x, y, z) -> z) pair", false),
+    ];
+    for (name, body, valid) in cases {
+        let source = format!("module Main where\n  {body}\n  main :: Int\n  main = 0\n");
+        let result = check_sources(&source, "inferred-pattern-shape.cinch");
+        assert_eq!(result.is_ok(), valid, "{name}: {result:?}\n{source}");
+    }
+    let runtime = r#"module Main where
+  data Leaf where
+    End :: Leaf
+  data Box a where
+    Box :: a -> Box a
+  main :: Int
+  main = if (\End value -> value) End 42 == 42
+    && (\(Box value) next -> value + next) (Box 20) 22 == 42
+    && (\(value, flag) -> if flag then value else 0) (42, True) == 42
+    then 0 else 1
+"#;
+    assert_eq!(run_source(runtime).expect("compile inferred lambda pattern shapes"), 0);
+}

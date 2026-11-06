@@ -1,6 +1,36 @@
 # Next steps (as of 2026-11-06)
 
 
+## Native constructor patterns infer their input shape (2026-11-06)
+
+Native e5a9 fixes the original nullary-constructor lambda failure. An unknown
+match input can obtain its shape from a concrete pattern or the scheme of its
+normally resolved constructor. The existing matrix compiler still checks each
+row, field, family and uncovered case. Later application arguments do not choose
+the constructor owner, and rigid generic inputs do not become concrete families.
+
+Four complete groups pass29 Rust tests, none skipped or filtered, with17
+zero-leak reports. Twelve new controls retain the original nullary lambda and
+cover payload, tuple, unit, Bool/list/literal matrices, incomplete matches,
+wrong families and incompatible tuples. A real program executes constructor
+and tuple lambda paths. All original pattern/empty-data controls and the earlier
+proposition correction remain. Both exact44-module compiler projects pass the
+real Native loader, and the unchanged original lambda now passes the actual CLI.
+See `bootstrap/current-native-pattern-inference-results.json`.
+
+Native existential introduction and False-proposition domains remain retained
+parity gaps. Full matching Native/Cinch suites remain required; seed/library
+roles stay Native22/85f00ca. The public Cinch compiler remains dd8d.
+
+The private4f indexed-constructor backend repair now passes the complete runtime
+IR group:137 client executions plus two C ABI executions,139 zero-leak reports.
+All original cases/assertions remain and three new fixed-index programs execute,
+including generic payload representations and a first-class constructor. Exact44
+sources pass optimized NativeA2 checking. The full actual compiler/object gate,
+Cinch-built source check and fresh runtime/API/external replays are running or
+queued. These are separate gates; the latest full bootstrap,105 frontend targets,
+14 external acceptance checks, all34 language cases and Acceptance1-5 stay open.
+
 ## Native proposition binders retain proof carriers (2026-11-06)
 
 Native a2b9 fixes the original positive-proof constructor failure. An explicitly

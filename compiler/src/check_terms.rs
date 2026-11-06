@@ -8439,10 +8439,49 @@ impl Checker {
                 ctx_span,
                 "cannot pattern match on a borrow of a borrow in the bootstrap slice; copyOut it first",
             )),
-            Ty::Meta(_) => Err(Error::at(
-                ctx_span,
-                "cannot determine the type of the scrutinee; add a type annotation",
-            )),
+            Ty::Meta(_) => {
+                // A concrete pattern supplies its own input shape. A
+                // constructor's owner comes from normal lexical lookup,
+                // never from a later application argument or a global
+                // spelling search. The ordinary matrix compiler still
+                // checks every row, field, family and uncovered case.
+                let mut inferred = None;
+                for row in &rows {
+                    let pattern = self.expand_pat(&row.pats[0])?;
+                    let shape = match pattern {
+                        ast::Pat::Unit(_) => Ty::Unit,
+                        ast::Pat::Int(..) => Ty::Int,
+                        ast::Pat::Sym(..) => Ty::Sym,
+                        ast::Pat::Tuple(items, _) => {
+                            Ty::Tuple(items.iter().map(|_| self.uni.fresh()).collect())
+                        }
+                        ast::Pat::Con(path, _, span) => {
+                            let constructor = self.resolve_con(&path, span)?;
+                            match &constructor.kind {
+                                ValueKind::BoolLit(_) => Ty::Bool,
+                                ValueKind::Ctor { .. } => {
+                                    let (mut result, _, _, _) = self.instantiate_at(&constructor.scheme);
+                                    loop {
+                                        result = match result {
+                                            Ty::Fun(_, _, _, cod) | Ty::Pi { cod, .. } => *cod,
+                                            other => break other,
+                                        };
+                                    }
+                                }
+                                _ => return Err(Error::at(span, "a constructor pattern requires a constructor")),
+                            }
+                        }
+                        ast::Pat::Var(..) | ast::Pat::Wild(_) => continue,
+                        other => return Err(Error::at(other.span(), "cannot infer this pattern's input shape")),
+                    };
+                    inferred = Some(shape);
+                    break;
+                }
+                let shape = inferred.ok_or_else(|| Error::at(
+                    ctx_span, "cannot determine the type of the scrutinee; add a type annotation"))?;
+                self.uni.unify(&inner_ty, &shape).map_err(|message| Error::at(ctx_span, message))?;
+                self.compile_rows(rows, cols, types, expected, ctx_span, uncovered)
+            }
             Ty::Region(r) => Err(Error::at(
                 ctx_span,
                 format!("cannot pattern match on a runtime identity ({r})"),
