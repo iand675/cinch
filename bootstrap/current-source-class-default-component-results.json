@@ -1,0 +1,85 @@
+{
+  "actual_text_json_source_dictionary": true,
+  "bootstrap_seed_and_library_pins_unchanged": true,
+  "changed_compiler_modules": [
+    "Bootstrap.Ast.cinch",
+    "Bootstrap.Export.cinch",
+    "Bootstrap.Infer.cinch",
+    "Bootstrap.Resolve.cinch"
+  ],
+  "compiler_source_sha256": "8fcedce1381fe2d1a14468b9cc10eff26cd7f07b64d3beb72fb121533dbb5095",
+  "earlier_stage3_input_gate": {
+    "builder_sha256": "856510792ec46c33500f249d252e77ecccd731979d6d394c60914b7e217ddb77",
+    "builder_source_sha256": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+    "child_pid": 61818,
+    "compiler_modules": 44,
+    "compiler_source_sha256": "8fcedce1381fe2d1a14468b9cc10eff26cd7f07b64d3beb72fb121533dbb5095",
+    "diagnostics": "",
+    "exit_code": 0,
+    "full_goal_complete": false,
+    "interfaces_sha256": "067ab7c76c130a53b952b9d8fa0a0cfd7702bddf64e3dae51724c0275ae98163",
+    "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+    "pid": 61783,
+    "scope": "Actual independently audited independently verified4f Stage3 compiler checks the exact44 staged-driver inputs of the private source-class-default implementation using55 authenticated85 library-only interfaces and an empty executable PATH. This proves actual Cinch parser/typechecker acceptance, with no client Native fallback. It does not establish matching current staged fixedpoint or full suites.",
+    "source": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/source-class-default-stage3-source-check-1/source",
+    "source_sha256": "1a7812b6f8d376f93c36bc99732a37d1cf565bf2aa8e21265287f44c9dfaf3dc",
+    "status": "passed",
+    "worker_slot": 3
+  },
+  "full_goal_complete": false,
+  "native_rlib_sha256": "43fff8fc4bf987d8ab1fb9ccd9d3cfffcd5542a9f1bae69990efe5603e7d9292",
+  "native_source_input_gate": "8fcedce1381fe2d1a14468b9cc10eff26cd7f07b64d3beb72fb121533dbb5095",
+  "native_source_sha256": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+  "new_default_controls": [
+    "inherited default",
+    "explicit override",
+    "unused valid default",
+    "owner private helper wins over caller helper",
+    "changed default",
+    "comment and span changes preserve default",
+    "unused bad default",
+    "overrides cannot hide a bad default",
+    "undeclared default",
+    "missing nondefault method",
+    "bad override",
+    "default helper stays private",
+    "class parameter annotation in inherited default",
+    "method local parameter annotation in inherited default",
+    "nullary default field"
+  ],
+  "original_source_instance_controls": 30,
+  "original_tests_and_assertions_retained": true,
+  "runs": [
+    {
+      "log_sha256": "bab2b4ab53daaa26f4ac78a6707f06db1c42bd8bc1c57396923b6920b9beefa6",
+      "name": "bootstrap_source_instances",
+      "observed_zero_leak_reports": 0,
+      "tests": 3
+    },
+    {
+      "log_sha256": "1bdfb8db45a8a76a085f210a16175d969bf1560211e5a51216556cd6041ae2d2",
+      "name": "bootstrap_instance_resolution",
+      "observed_zero_leak_reports": 0,
+      "tests": 1
+    },
+    {
+      "log_sha256": "c1bc792ee6adb7454566d026dfc7bfdbd91ea3307ccfc38bd3115d56b2060f76",
+      "name": "bootstrap_export_types",
+      "observed_zero_leak_reports": 0,
+      "tests": 1
+    },
+    {
+      "log_sha256": "c23637d8cf760c133cc2e720ff4feb5d3db1de5c228b33c29ae28d63386712f5",
+      "name": "bootstrap_export_interfaces",
+      "observed_zero_leak_reports": 0,
+      "tests": 1
+    }
+  ],
+  "rust_tests": 6,
+  "scope": "All four complete affected Cinch components pass six original/new Rust tests without skips or filters. Actual compiled Cinch resolver/checker/writer runs all15 source default controls, preserves class/method annotation binders, resolves author-private helpers, independently rejects unused or overridden invalid defaults and checks canonical default identity change/span stability, privacy, emitted owner chains and failure invalidation. All30 original source dictionary controls and actual Text.Json dictionary remain. All44 actual compiler sources pass Native995f and genuine earlier4f Stage3; the latter is an input check, not a matching8fce fixed point. These are component checks built with private Native8ba8. Actual full44-module compiler/object, source-default runtime clients, all original API families, latest bootstrap and complete original suites still remain.",
+  "source": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/source-class-default-validation-4/source",
+  "source_sha256": "acc9459c5a601eb6a9b1df7e8114ae9dd157f6d82a3051b286f8d4d9c069c898",
+  "status": "passed-independent-source-class-default-components",
+  "verified_at": "2026-11-06T21:53:58.580909+00:00",
+  "whole_groups": 4
+}

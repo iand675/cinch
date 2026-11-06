@@ -343,9 +343,19 @@ impl Checker {
         }
         let previous = self.code_quantifiers.clone();
         let (rigid, _, bindings) = self.rigidify(&scheme);
+        let previous_annotations = self.body_annotation_scope.clone();
+        for name in bindings.types.keys().chain(bindings.rows.keys()).chain(bindings.regions.keys()) {
+            self.body_annotation_scope.types.remove(name);
+            self.body_annotation_scope.rows.remove(name);
+            self.body_annotation_scope.regions.remove(name);
+        }
+        self.body_annotation_scope.types.extend(bindings.types.clone());
+        self.body_annotation_scope.rows.extend(bindings.rows.clone());
+        self.body_annotation_scope.regions.extend(bindings.regions.clone());
         let recursion_start = self.pending_rec.len();
         let checked = self.check(env, body, &rigid);
         self.code_quantifiers = previous;
+        self.body_annotation_scope = previous_annotations;
         let checked = checked?;
         let recursion_end = self.pending_rec.len();
         let ((_, _, _, _), instantiated) = self.instantiate_scoped(&scheme);
@@ -402,7 +412,13 @@ impl Checker {
             };
             return Ok(ty);
         }
-        self.conv_type_in_env(env, annotation, &[])
+        let scope = &self.body_annotation_scope;
+        let mut parameters: Vec<String> = scope.types.keys().chain(scope.rows.keys())
+            .chain(scope.regions.keys()).cloned().collect();
+        parameters.sort();
+        parameters.dedup();
+        let actual = self.conv_type_in_env(env, annotation, &parameters)?;
+        Ok(Self::subst_namespaces(&actual, &scope.types, &scope.rows, &scope.regions, &scope.evidence))
     }
 
     /// Carry concrete usage constraints through internal inference arrows.

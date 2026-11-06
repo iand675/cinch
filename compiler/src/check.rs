@@ -3177,6 +3177,12 @@ struct Checker {
     /// These are native rigidification identities, never source spellings
     /// collected from a generated fragment.
     code_quantifiers: Scheme,
+    /// Lexical type/row/region names map to this definition's actual rigid
+    /// identities. A nested definition saves and restores this scope.
+    body_annotation_scope: StageTypeBindings,
+    /// Class defaults are written with the class/method parameter names;
+    /// their instance copies retain those aliases after specialization.
+    method_annotation_aliases: Option<HashMap<String, Ty>>,
     /// Checked compile-time references and their full use-site instantiations.
     /// These private identities never enter runtime interfaces or object data.
     stage_calls: RefCell<HashMap<String, StageCall>>,
@@ -3722,6 +3728,8 @@ impl Checker {
             index_dictionary_scope: RefCell::new(Vec::new()),
             law_index_context: RefCell::new(None),
             code_quantifiers: Scheme::mono(Ty::Unit),
+            body_annotation_scope: StageTypeBindings::default(),
+            method_annotation_aliases: None,
             stage_calls: RefCell::new(HashMap::new()),
             stage_definition_scopes: HashMap::new(),
             hole_tys: Vec::new(),

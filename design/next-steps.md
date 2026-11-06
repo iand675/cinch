@@ -1,5 +1,29 @@
 # Next steps (as of 2026-11-06)
 
+## Native annotation binders fixed; source defaults pass component audit (2026-11-06)
+
+Native8ba8 preserves definition-owned annotation binders and the actual class and
+method substitutions used by inherited defaults. Unknown names still refuse;
+independent rigid parameters do not unify, nested quantifiers shadow safely and
+the annotation scope ends with its definition. All21 complete affected groups
+pass332 Rust tests, including all186 units, all6 original class-default tests and
+11 new controls in the seventh test. A real inherited annotated default runs42.
+Both exact44-module compiler projects, all13 machine-contract cases, original
+False-proof/forgery controls and three actual old/new CLI examples pass independent
+audit. See `bootstrap/current-native-default-annotation-results.json`.
+The callback/helper task-capture gaps still reproduce and remain required fixes.
+Immutable Native22 seed/library pins remain unchanged.
+
+The private Cinch8fce source-default patch separately passes all four complete
+component groups: six Rust tests, all15 new default controls, all30 original
+source-dictionary cases and actual Text.Json behavior. Its44 sources also pass
+Native995f and genuine earlier4f Stage3 checks; these are input checks, not a
+matching8fce bootstrap. See `bootstrap/current-source-class-default-component-results.json`.
+The actual44-module compiler/object gate now runs with pinned Native22 as builder.
+The private patch remains unapplied pending full compiler/runtime/API validation.
+Imported defaults, source-Prelude families, laws, implicit base names, every
+original failure and complete matching Acceptance1-5 remain required.
+
 ## Source class-default implementation is under validation (2026-11-06)
 
 The reviewable implementation is retained as

@@ -238,13 +238,19 @@ def build_checklist(root, cfg, previous=None):
             requirement,link('design/self-hosting.md#acceptance'), observed=dict(status='passed'if old_proven else'pending',source=chain.get('compiler_source_sha256'),cases=[])))
 
     api=read(cfg.get('interfaceApiReceipt'))
-    api_current=api.get('compiler_source_sha256')==compiler and api.get('native_source_sha256')==native
+    # A preserved failure from the unchanged actual Cinch frontend remains a
+    # blocker while its Rust public-reader replay is pending. This grants no
+    # current positive API credit to a different reader.
+    api_current=api.get('compiler_source_sha256')==compiler
     failed_api=set(api.get('failed_groups',[])) if api_current else set()
+    annotation_receipt=read(cfg.get('nativeDefaultAnnotationReceipt'))
+    annotation_published=annotation_receipt.get('native_source_sha256')==native and annotation_receipt.get('whole_groups')==21 and annotation_receipt.get('rust_tests')==332
+    default_receipt=read(cfg.get('sourceClassDefaultComponentReceipt'))
     gaps=[
         item('gap:prelude','Replace source copies of library modules safely','blocked'if 'interface_prelude_overrides'in failed_api else'pending',
              'The current interface/API run fails when source Data.Core is supplied alongside its cached interface. All four original families remain required.',
              'Core, Ordering, Category and Algebra replacements pass with fresh checked provider hashes, valid consumer chains and no Prelude back-edge.',link('bootstrap/current-source-prelude-counterexample.json')),
-        item('gap:source-defaults','Check and inherit source class defaults','running','Development compiler8fce passes all15 controls in a retained-checker replay with the corrected Rust oracle; complete groups and runtime integration remain separate.',
+        item('gap:source-defaults','Check and inherit source class defaults','running','All four complete component groups now pass independent audit, including all15 defaults and all30 original source dictionary controls. The actual full compiler/object and runtime integration are running; imported defaults and complete bootstrap remain open.' if default_receipt else 'Development compiler8fce passes all15 controls in a retained-checker replay with the corrected Rust oracle; complete groups and runtime integration remain separate.',
              'All source default controls, unused errors, generic scopes, metadata stability, runtime and original class-default behavior pass.',link('bootstrap/current-source-class-default-development.json')),
         item('gap:imported-defaults','Transport checked imported default implementations','pending','A default hash alone does not provide the checked implementation required by an inheriting source instance.',
              'Inherited imported defaults retain owner scope, private closure, actual method contracts and compiled behavior; missing or stale contracts refuse.',link('design/compiled-interface-metadata.md')),
@@ -256,8 +262,8 @@ def build_checklist(root, cfg, previous=None):
              'The callback carries checked capture/transfer/lifetime facts and refuses the bad capture while safe callbacks still pass.',link('bootstrap/current-native-task-capture-counterexample.json')),
         item('gap:task-helper','Reject mutable task captures hidden by helpers','blocked','Reproduced on the current published Rust compiler; helper indirection still hides a mutable capture.',
              'Capture requirements survive helpers, aliases and interfaces, with both bad and valid cases checked.',link('bootstrap/current-native-task-capture-counterexample.json')),
-        item('gap:rust-annotations','Preserve Rust class/default annotation binders','blocked','The published995f compiler rejects three valid annotation examples. The private8ba8 repair has finished execution of its affected groups and both44-module checks; independent audit and publication remain required.',
-             'Complete the affected proof/syntax/interface groups and both compiler-source projects, retain kind/scope refusals, then publish the validated repair.',link('design/next-steps.md')),
+        item('gap:rust-annotations','Preserve Rust class/default annotation binders','verified' if annotation_published else 'blocked','Published8ba8 passes independent audit: all21 complete groups,332 tests, both44-module projects, actual inherited execution42 and three old/new CLI comparisons. Original refusal controls remain.' if annotation_published else 'The published995f compiler rejects three valid annotation examples. The private8ba8 repair has finished execution of its affected groups and both44-module checks; independent audit and publication remain required.',
+             'Complete the affected proof/syntax/interface groups and both compiler-source projects, retain kind/scope refusals, then publish the validated repair.',link('bootstrap/current-native-default-annotation-results.json') if annotation_published else link('design/next-steps.md')),
         item('gap:records','Finish record interface transport','recheck','A known earlier compiler gap; latest exact behavior still needs a complete check.',
              'The original record construction, projection, privacy, layout and interface assertions pass on the matching compiler.',link('design/next-steps.md')),
         item('gap:copyout','Finish Copy / borrow / Thunk ownership','recheck','The original array target had13/15 passing cases; ownership/copyOut is one of its two retained failures.',
@@ -283,7 +289,15 @@ def build_checklist(root, cfg, previous=None):
         if state:
             wanted={'proof_guarded_lets','evidence_invalidation','index_local_carriers','syntax_index_evidence','syntax_index_lambdas','syntax_signature_scope','staging'} if 'Followup'in key else None
             rows=[r for r in state.get('rows',[])if not r['name'].startswith(skip)and(wanted is None or r['name']in wanted)]
-            active.append(dict(title=title,status=state.get('status'),phase=state.get('phase'),passed=sum(r['status']=='passed'for r in rows),total=total,source=state.get('compiler_source_sha256'),nativeSource=state.get('native_source_sha256'), auditPending=state.get('status','').startswith('passed-')))
+            receipt=annotation_receipt if key.startswith('nativeDefaultAnnotation') else default_receipt
+            audited=bool(receipt) and receipt.get('source')==state.get('source')
+            active.append(dict(title=title,status=state.get('status'),phase=state.get('phase'),passed=sum(r['status']=='passed'for r in rows),total=total,source=state.get('compiler_source_sha256'),nativeSource=state.get('native_source_sha256'), auditPending=state.get('status','').startswith('passed-') and not audited))
+
+    for key,title,total in [('sourceClassDefaultFullCompiler','Cinch defaults: full compiler/object gate',2), ('nativeDefaultAnnotationApi','Published Cinch: Rust reader/API replay',9)]:
+        state=read(cfg.get(key))
+        if state:
+            rows=[r for r in state.get('rows',[]) if not r['name'].startswith(('compile-','build-'))]
+            active.append(dict(title=title,status=state.get('status'),phase=state.get('phase'),passed=sum(r['status']=='passed'for r in rows),failed=sum(r['status']=='failed'for r in rows),total=total,source=state.get('compiler_source_sha256'),auditPending=state.get('status')=='passed'))
 
     for title, state, total in [('Earlier compiler: full Rust sweep', full, len(native_names)),
                                 ('Earlier Stage3: complete frontend sweep', front, len(front_names))]:

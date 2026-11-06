@@ -5496,7 +5496,12 @@ impl Checker {
             let mut tparams = params.clone();
             tparams.extend(own_names);
             self.method_tparams = Some(tparams);
+            let saved_aliases = self.method_annotation_aliases.take();
+            if from_default {
+                self.method_annotation_aliases = Some(body_map.clone());
+            }
             let checked = self.check_equations(&mname, &gid, &scheme, &eqs, Vec::new());
+            self.method_annotation_aliases = saved_aliases;
             self.method_tparams = None;
             if from_default {
                 self.build_scope(module, true);
@@ -6742,11 +6747,14 @@ impl Checker {
         extra_dicts: Vec<(LocalId, ClassApp)>,
     ) -> Result<()> {
         let saved = self.code_quantifiers.clone();
+        let saved_annotations = std::mem::take(&mut self.body_annotation_scope);
+        let annotation_aliases = self.method_annotation_aliases.take();
         if self.compile_time {
             self.stage_definition_scopes.insert(id.0.clone(), (scheme.clone(), Scheme::mono(Ty::Unit)));
         }
-        let result = self.check_equations_inner(name, id, scheme, eqs, extra_dicts);
+        let result = self.check_equations_inner(name, id, scheme, eqs, extra_dicts, annotation_aliases);
         self.code_quantifiers = saved;
+        self.body_annotation_scope = saved_annotations;
         result
     }
 
@@ -6757,6 +6765,7 @@ impl Checker {
         scheme: &Scheme,
         eqs: &[ast::Equation],
         extra_dicts: Vec<(LocalId, ClassApp)>,
+        annotation_aliases: Option<HashMap<String, Ty>>,
     ) -> Result<()> {
         // The top-level recording marker belongs to this entry alone:
         // a nested check (a staged unit compiled on demand) is not a
@@ -6779,6 +6788,13 @@ impl Checker {
             .map(|(name, _)| (name.clone(), self.fresh_local())).collect();
         self.quantified_value_locals.extend(quantified_values.iter().map(|(_, local)| *local));
         let (ty, ctx, map) = self.rigidify_with_value_locals(scheme, &quantified_values);
+        self.body_annotation_scope = map.clone();
+        if let Some(aliases) = annotation_aliases {
+            for (name, actual) in aliases {
+                self.body_annotation_scope.types.insert(name,
+                    Self::subst_namespaces(&actual, &map.types, &map.rows, &map.regions, &map.evidence));
+            }
+        }
         // The class-vector order: an instance method's list (the instance's
         // parameters, then its own), else the scheme's parameters' rigid
         // names. It is re-set before lowering, since a nested check (a

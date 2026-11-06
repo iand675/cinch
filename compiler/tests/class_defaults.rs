@@ -224,3 +224,28 @@ fn the_mconcat_default_works_at_a_function_carrier_and_a_refinement() {
     let dir = project(&[("Main.cinch", CARRIERS)]);
     assert_eq!(outcome(Mode::Run, &dir), Ok(0));
 }
+
+#[test]
+fn annotations_keep_definition_and_default_parameter_identities() {
+    let class = "module Defaults where\n  signature Identity a where\n    seed :: a -> a\n    identity :: a -> a\n    identity x = (x :: a)\n";
+    let instance = "module Main where\n  import Defaults\n  implicit instance IdentityInt :: Identity Int where\n    seed x = x\n  main :: Int\n  main = identity 42\n";
+    for (name, source, accepted) in [
+        ("class parameter in inherited default", format!("{class}{instance}"), true),
+        ("term and type names remain separate", format!("{}{instance}", class.replace("identity x = (x :: a)", "identity a = (a :: a)")), true),
+        ("unused default still checks abstract carrier", format!("{}module Main where\n  import Defaults\n  main :: Int\n  main = 0\n", class.replace("identity x = (x :: a)", "identity x = (x :: Int)")), false),
+        ("override cannot hide invalid generic default", format!("{}{}", class.replace("identity x = (x :: a)", "identity x = (True :: a)"), instance.replace("    seed x = x\n", "    seed x = x\n    identity x = x\n")), false),
+        ("method parameter in inherited default", "module Defaults where\n  signature Pick a where\n    seed :: a -> a\n    pick :: forall b. b -> a -> b\n    pick x ignored = (x :: b)\nmodule Main where\n  import Defaults\n  implicit instance PickInt :: Pick Int where\n    seed x = x\n  main :: Int\n  main = pick 42 0\n".into(), true),
+        ("generic body annotation", "module Main where\n  identity :: forall a. a -> a\n  identity x = (x :: a)\n  main :: Int\n  main = identity 42\n".into(), true),
+        ("different rigid parameters do not unify", "module Main where\n  bad :: forall a b. a -> b -> a\n  bad x ignored = (x :: b)\n  main :: Int\n  main = 0\n".into(), false),
+        ("unknown type is not inferred", "module Main where\n  bad :: forall a. a -> a\n  bad x = (x :: unknown)\n  main :: Int\n  main = 0\n".into(), false),
+        ("type scope ends at its definition", "module Main where\n  identity :: forall a. a -> a\n  identity x = (x :: a)\n  bad :: Int -> Int\n  bad x = (x :: a)\n  main :: Int\n  main = 0\n".into(), false),
+        ("nested forall shadows the outer binder", "module Main where\n  identity :: forall a. a -> a\n  identity x = let inner = ((\\value -> (value :: a)) :: forall a. a -> a) in inner x\n  main :: Int\n  main = identity 42\n".into(), true),
+        ("unused class parameter cannot be concretized", "module Main where\n  signature Bad a where\n    bad :: a -> a\n    bad x = (1 :: a)\n  main :: Int\n  main = 0\n".into(), false),
+    ] {
+        let result = cinch::driver::check_sources(&source, "default-annotation-scope.cinch");
+        assert_eq!(result.is_ok(), accepted, "{name}: {result:?}\n{source}");
+    }
+    let dir = project(&[("Defaults.cinch", class), ("Main.cinch", &instance[instance.find("module Main where").unwrap()..])]);
+    assert_eq!(outcome(Mode::Run, &dir), Ok(42), "the inherited annotated default must execute");
+    std::fs::remove_dir_all(dir).unwrap();
+}

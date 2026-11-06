@@ -38,15 +38,19 @@
   "patch_application_independently_verified": true,
   "patch_sha256": "8e0f09648eb3fb043de99e5fed8dbfa67aa5bd4fe815810defd7ed4f989530a0",
   "private_cinch_source_sha256": "8fcedce1381fe2d1a14468b9cc10eff26cd7f07b64d3beb72fb121533dbb5095",
-  "scope": "Development patch only; not applied to the published compiler. Defines class-author-scoped defaults, checks them independently even if unused/overridden, retains closed generic Core, inherits by an eta-applied checked generic call and publishes span-free resolved-source/default-scheme identities. Fifteen source controls compare Native/Cinch behavior and metadata stability/privacy. The first e29 prototype passed the complete44-module Native source check. A later parser failure and interrupted attempt remain recorded. Current private8fce Native44 source check passed independent audit; compiled-Cinch component and genuine earlier4f Stage3 input checks are still live; no passing result is inferred from this mechanical patch audit. Imported defaults, library source provenance/dependency refresh, class laws, implicit family base, actual runtime/object/API replay and full matching bootstrap/suites remain required.",
+  "scope": "Development patch only, not applied to published Cinch3268. All four complete component groups now pass independent audit: six whole Rust tests, all15 new source-default controls, all30 original source-dictionary cases and actual Text.Json dictionary. Both exact44 Native and genuine earlier4f Stage3 source-input gates pass. Native8ba8 supplies the corrected annotation oracle; pinned Native22 separately builds the full44-module compiler/object gate now running. Default owner scope, unused/overridden error checking, closed Core retention and span-free checked default metadata are exercised. Actual full compiler/object/runtime and original API, imported default transport, library dependencies, laws, implicit base and full matching bootstrap/suites still remain.",
   "source_cases": 15,
   "status": "reviewable-private-source-class-default-implementation",
   "validation": {
-    "complete_component_groups": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/source-class-default-validation-3/state.json",
+    "complete_component_groups": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/source-class-default-validation-4/state.json",
     "genuine_earlier_stage3_source_gate": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/source-class-default-stage3-source-check-1/result.json",
     "input_gate": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/source-class-default-input-check-3/state.json",
     "native44_input_gate": "bootstrap/current-source-class-default-input-results.json",
-    "native44_input_status": "passed-independent-class-default-native-input-gate"
+    "native44_input_status": "passed-independent-class-default-native-input-gate",
+    "component_audit": "bootstrap/current-source-class-default-component-results.json",
+    "component_status": "passed-independent-source-class-default-components",
+    "genuine_earlier_stage3_source_status": "passed",
+    "actual_full_compiler_gate": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/source-class-default-full-compiler-validation-1/state.json"
   },
   "verified_at": "2026-11-06T20:52:03.879385+00:00"
 }
