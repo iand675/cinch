@@ -1,0 +1,477 @@
+--- a/bootstrap/Bootstrap.Ast.cinch
++++ b/bootstrap/Bootstrap.Ast.cinch
+@@ -31,7 +31,7 @@
+ module Bootstrap.Ast where
+ 
+   import Text.Lex (Span, span-start, span-end, span-line, span-col)
+-  import Data.Json (Json)
++  import Data.Json (Json, JArr, JArrEnd, JStr, JBool, JNull)
+ 
+   -- ------------------------------------------------------------------ spans
+ 
+@@ -663,3 +663,98 @@
+   modules-unmodeled ms = case ms of
+     Nil -> 0
+     Cons m rest -> module-unmodeled-count m + modules-unmodeled rest
++
++  -- Span-free constructor-tagged identity of resolved source syntax.
++  -- Used only after type checking; this grants no typing or proof authority.
++  -- Qualified globals and argument order remain explicit.
++  source-identity-type :: TypeExpr -> Json
++  source-identity-type value = case value of
++    TName part0 part1 -> JArr (JStr "TName") (JArr (JStr part1) (JArrEnd))
++    TIndex part0 part1 -> JArr (JStr "TIndex") (JArr (JStr part1) (JArrEnd))
++    TNegate part0 part1 -> JArr (JStr "TNegate") (JArr (source-identity-type part1) (JArrEnd))
++    TInfix part0 part1 part2 part3 -> JArr (JStr "TInfix") (JArr (JStr part1) (JArr (source-identity-type part2) (JArr (source-identity-type part3) (JArrEnd))))
++    TRefined part0 part1 part2 -> JArr (JStr "TRefined") (JArr (source-identity-type part1) (JArr (source-identity-type part2) (JArrEnd)))
++    TApp part0 part1 part2 -> JArr (JStr "TApp") (JArr (source-identity-type part1) (JArr (source-identity-type part2) (JArrEnd)))
++    TFun part0 part1 part2 -> JArr (JStr "TFun") (JArr (source-identity-type part1) (JArr (source-identity-type part2) (JArrEnd)))
++    TFunEff part0 part1 part2 part3 -> JArr (JStr "TFunEff") (JArr (source-identity-type part1) (JArr (source-identity-type part2) (JArr (source-identity-type part3) (JArrEnd))))
++    TRow part0 part1 part2 -> JArr (JStr "TRow") (JArr (source-identity-type part1) (JArr (source-identity-optional part2) (JArrEnd)))
++    TTuple part0 part1 -> JArr (JStr "TTuple") (JArr (source-identity-type part1) (JArrEnd))
++    TForall part0 part1 part2 -> JArr (JStr "TForall") (JArr (source-identity-type part1) (JArr (source-identity-type part2) (JArrEnd)))
++    TQuantifier part0 part1 part2 part3 part4 -> JArr (JStr "TQuantifier") (JArr (JStr part1) (JArr (JBool part2) (JArr (source-identity-type part3) (JArr (source-identity-type part4) (JArrEnd)))))
++    TQuantifiersEnd part0 -> JArr (JStr "TQuantifiersEnd") (JArrEnd)
++    TNoKind part0 -> JArr (JStr "TNoKind") (JArrEnd)
++    TUsing part0 part1 part2 -> JArr (JStr "TUsing") (JArr (source-identity-type part1) (JArr (source-identity-type part2) (JArrEnd)))
++    TArg part0 part1 part2 -> JArr (JStr "TArg") (JArr (source-identity-type part1) (JArr (source-identity-type part2) (JArrEnd)))
++    TArgsEnd part0 -> JArr (JStr "TArgsEnd") (JArrEnd)
++    TBound part0 part1 part2 part3 -> JArr (JStr "TBound") (JArr (JStr part1) (JArr (source-identity-type part2) (JArr (source-identity-type part3) (JArrEnd))))
++    TBoundsEnd part0 -> JArr (JStr "TBoundsEnd") (JArrEnd)
++    TUnmodeled part0 part1 -> JArr (JStr "TUnmodeled") (JArr (JStr part1) (JArrEnd))
++
++  source-identity-pat :: Pat -> Json
++  source-identity-pat value = case value of
++    PWild part0 -> JArr (JStr "PWild") (JArrEnd)
++    PVar part0 part1 -> JArr (JStr "PVar") (JArr (JStr part1) (JArrEnd))
++    PCon part0 part1 part2 -> JArr (JStr "PCon") (JArr (JStr part1) (JArr (source-identity-pat part2) (JArrEnd)))
++    PRecord part0 part1 part2 -> JArr (JStr "PRecord") (JArr (JStr part1) (JArr (source-identity-pat part2) (JArrEnd)))
++    PRecordField part0 part1 part2 part3 -> JArr (JStr "PRecordField") (JArr (JStr part1) (JArr (source-identity-pat part2) (JArr (source-identity-pat part3) (JArrEnd))))
++    PLitInt part0 part1 -> JArr (JStr "PLitInt") (JArr (JStr part1) (JArrEnd))
++    PLitStr part0 part1 -> JArr (JStr "PLitStr") (JArr (JStr part1) (JArrEnd))
++    PLitChar part0 part1 -> JArr (JStr "PLitChar") (JArr (JStr part1) (JArrEnd))
++    PTuple part0 part1 -> JArr (JStr "PTuple") (JArr (source-identity-pat part1) (JArrEnd))
++    PList part0 part1 -> JArr (JStr "PList") (JArr (source-identity-pat part1) (JArrEnd))
++    PAs part0 part1 part2 -> JArr (JStr "PAs") (JArr (JStr part1) (JArr (source-identity-pat part2) (JArrEnd)))
++    PAnn part0 part1 part2 -> JArr (JStr "PAnn") (JArr (source-identity-pat part1) (JArr (source-identity-type part2) (JArrEnd)))
++    PArg part0 part1 part2 -> JArr (JStr "PArg") (JArr (source-identity-pat part1) (JArr (source-identity-pat part2) (JArrEnd)))
++    PArgsEnd part0 -> JArr (JStr "PArgsEnd") (JArrEnd)
++    PUnmodeled part0 part1 -> JArr (JStr "PUnmodeled") (JArr (JStr part1) (JArrEnd))
++
++  source-identity-expr :: Expr -> Json
++  source-identity-expr value = case value of
++    EVar part0 part1 -> JArr (JStr "EVar") (JArr (JStr part1) (JArrEnd))
++    ECon part0 part1 part2 -> JArr (JStr "ECon") (JArr (JStr part1) (JArr (source-identity-expr part2) (JArrEnd)))
++    ERecord part0 part1 part2 -> JArr (JStr "ERecord") (JArr (JStr part1) (JArr (source-identity-expr part2) (JArrEnd)))
++    ERecordField part0 part1 part2 part3 -> JArr (JStr "ERecordField") (JArr (JStr part1) (JArr (source-identity-expr part2) (JArr (source-identity-expr part3) (JArrEnd))))
++    EProject part0 part1 part2 -> JArr (JStr "EProject") (JArr (source-identity-expr part1) (JArr (JStr part2) (JArrEnd)))
++    ELitInt part0 part1 -> JArr (JStr "ELitInt") (JArr (JStr part1) (JArrEnd))
++    ELitFloat part0 part1 -> JArr (JStr "ELitFloat") (JArr (JStr part1) (JArrEnd))
++    ELitStr part0 part1 -> JArr (JStr "ELitStr") (JArr (JStr part1) (JArrEnd))
++    ELitChar part0 part1 -> JArr (JStr "ELitChar") (JArr (JStr part1) (JArrEnd))
++    EUnit part0 -> JArr (JStr "EUnit") (JArrEnd)
++    ETuple part0 part1 -> JArr (JStr "ETuple") (JArr (source-identity-expr part1) (JArrEnd))
++    EList part0 part1 -> JArr (JStr "EList") (JArr (source-identity-expr part1) (JArrEnd))
++    EApp part0 part1 part2 -> JArr (JStr "EApp") (JArr (source-identity-expr part1) (JArr (source-identity-expr part2) (JArrEnd)))
++    EBin part0 part1 part2 part3 -> JArr (JStr "EBin") (JArr (JStr part1) (JArr (source-identity-expr part2) (JArr (source-identity-expr part3) (JArrEnd))))
++    ENeg part0 part1 -> JArr (JStr "ENeg") (JArr (source-identity-expr part1) (JArrEnd))
++    ELam part0 part1 part2 -> JArr (JStr "ELam") (JArr (source-identity-pats part1) (JArr (source-identity-expr part2) (JArrEnd)))
++    ELet part0 part1 part2 -> JArr (JStr "ELet") (JArr (source-identity-expr part1) (JArr (source-identity-expr part2) (JArrEnd)))
++    EIf part0 part1 part2 part3 -> JArr (JStr "EIf") (JArr (source-identity-expr part1) (JArr (source-identity-expr part2) (JArr (source-identity-expr part3) (JArrEnd))))
++    ECase part0 part1 part2 -> JArr (JStr "ECase") (JArr (source-identity-expr part1) (JArr (source-identity-expr part2) (JArrEnd)))
++    EGuarded part0 part1 part2 -> JArr (JStr "EGuarded") (JArr (source-identity-expr part1) (JArr (source-identity-expr part2) (JArrEnd)))
++    EAnn part0 part1 part2 -> JArr (JStr "EAnn") (JArr (source-identity-expr part1) (JArr (source-identity-type part2) (JArrEnd)))
++    EForall part0 part1 part2 -> JArr (JStr "EForall") (JArr (source-identity-names part1) (JArr (source-identity-expr part2) (JArrEnd)))
++    EUsing part0 part1 part2 -> JArr (JStr "EUsing") (JArr (source-identity-type part1) (JArr (source-identity-expr part2) (JArrEnd)))
++    EBind part0 part1 part2 -> JArr (JStr "EBind") (JArr (JStr part1) (JArr (source-identity-expr part2) (JArrEnd)))
++    EDo part0 part1 -> JArr (JStr "EDo") (JArr (source-identity-expr part1) (JArrEnd))
++    EHandle part0 part1 part2 -> JArr (JStr "EHandle") (JArr (source-identity-expr part1) (JArr (source-identity-expr part2) (JArrEnd)))
++    EHandler part0 part1 part2 -> JArr (JStr "EHandler") (JArr (source-identity-type part1) (JArr (source-identity-expr part2) (JArrEnd)))
++    EHandlerClause part0 part1 part2 part3 part4 part5 -> JArr (JStr "EHandlerClause") (JArr (JStr part1) (JArr (source-identity-pats part2) (JArr (source-identity-optional part3) (JArr (source-identity-expr part4) (JArr (source-identity-expr part5) (JArrEnd))))))
++    EHandlerEnd part0 -> JArr (JStr "EHandlerEnd") (JArrEnd)
++    EWith part0 part1 part2 -> JArr (JStr "EWith") (JArr (source-identity-expr part1) (JArr (source-identity-expr part2) (JArrEnd)))
++    EArg part0 part1 part2 -> JArr (JStr "EArg") (JArr (source-identity-expr part1) (JArr (source-identity-expr part2) (JArrEnd)))
++    EArgsEnd part0 -> JArr (JStr "EArgsEnd") (JArrEnd)
++    EBinding part0 part1 part2 part3 -> JArr (JStr "EBinding") (JArr (JStr part1) (JArr (source-identity-expr part2) (JArr (source-identity-expr part3) (JArrEnd))))
++    EBindingsEnd part0 -> JArr (JStr "EBindingsEnd") (JArrEnd)
++    EAlt part0 part1 part2 part3 -> JArr (JStr "EAlt") (JArr (source-identity-pat part1) (JArr (source-identity-expr part2) (JArr (source-identity-expr part3) (JArrEnd))))
++    EAltsEnd part0 -> JArr (JStr "EAltsEnd") (JArrEnd)
++    EUnmodeled part0 part1 -> JArr (JStr "EUnmodeled") (JArr (JStr part1) (JArrEnd))
++
++  source-identity-pats :: List Pat -> Json
++  source-identity-pats values = case values of Nil -> JArrEnd; Cons first rest -> JArr (source-identity-pat first) (source-identity-pats rest)
++  source-identity-names :: List String -> Json
++  source-identity-names values = case values of Nil -> JArrEnd; Cons first rest -> JArr (JStr first) (source-identity-names rest)
++  source-identity-optional :: Option String -> Json
++  source-identity-optional value = case value of None -> JNull; Some name -> JStr name
++  source-clauses-document :: List (List Pat, Expr) -> Json
++  source-clauses-document clauses = case clauses of
++    Nil -> JArrEnd
++    Cons (patterns, body) rest -> JArr (JArr (source-identity-pats patterns) (JArr (source-identity-expr body) JArrEnd)) (source-clauses-document rest)
+--- a/bootstrap/Bootstrap.Resolve.cinch
++++ b/bootstrap/Bootstrap.Resolve.cinch
+@@ -666,11 +666,23 @@
+     other -> (Cons d Nil, fail (decl-span d) "this declaration requires further namespace elaboration")
+ 
+   rename-class-members :: String -> List Binding -> List String -> List Decl -> (List Decl, List Diagnostic)
+-  rename-class-members home visible locals ds = case ds of
++  rename-class-members home visible locals ds = rename-class-members-with home visible locals ds ds
++  declared-class-method :: String -> List Decl -> Bool
++  declared-class-method name ds = case ds of
++    Nil -> False
++    Cons (DSig sp member ty) rest -> same name member || declared-class-method name rest
++    Cons other rest -> declared-class-method name rest
++  rename-class-members-with :: String -> List Binding -> List String -> List Decl -> List Decl -> (List Decl, List Diagnostic)
++  rename-class-members-with home visible locals all ds = case ds of
+     Nil -> (Nil, Nil)
+-    Cons (DSig s name ty) rest -> case rename-class-members home visible locals rest of
++    Cons (DSig s name ty) rest -> case rename-class-members-with home visible locals all rest of
+       (more, errors) -> (Cons (DMethod s name (global-name home name) (rename-type visible locals ty)) more, errors)
+-    Cons other rest -> case rename-class-members home visible locals rest of
++    Cons (DFun s name clauses) rest -> case rename-class-members-with home visible locals all rest of
++      (more, errors) -> if declared-class-method name all then
++        (case rename-member-clauses visible (instance-method-names name all <> locals) clauses of
++          (renamed, failures) -> (Cons (DFun s name renamed) more, failures <> errors))
++        else (Cons (DFun s name clauses) more, fail s (cat ["default names an undeclared class method: ", name]) <> errors)
++    Cons other rest -> case rename-class-members-with home visible locals all rest of
+       (more, errors) -> (Cons other more, fail (decl-span other) "source signature member needs checked default or declaration elaboration" <> errors)
+ 
+   rename-decls :: String -> List Binding -> List Decl -> (List Decl, List Diagnostic)
+--- a/bootstrap/Bootstrap.Infer.cinch
++++ b/bootstrap/Bootstrap.Infer.cinch
+@@ -38,6 +38,7 @@
+   export CheckedBinding, checked-name, checked-scheme, checked-role, checked-body-binding, checked-guarded-binding, checked-method-matches, checked-conditional-target
+   export checked-foreign-plan
+   export elaboration-declarations, elaboration-data, elaboration-effects, elaboration-classes, elaboration-class-context, elaboration-instances
++  export source-class-default-symbol, source-class-default-clauses
+ 
+   -- Surface templates live only in this elaboration context. Checked
+   -- Core and the type engine continue to contain typed terms exclusively.
+@@ -1690,6 +1691,7 @@
+         let actual = qualified (scheme-params sc) (Cons (MkRequirement "#self" self) (scheme-requirements sc)) (scheme-body sc) in
+         case source-class-methods owner ps classes kinds (slot + 1) rest checked of
+           (more, done) -> (Cons (MkCoreClassMethod sp label slot actual) more, done)
++    Cons (DFun sp name clauses) rest -> source-class-methods owner ps classes kinds slot rest st
+     Cons other rest -> source-class-methods owner ps classes kinds slot rest (add-error (decl-span other) "source signature member needs checked method elaboration" st)
+   collect-source-classes :: List Decl -> List (String, Kind) -> TypeContext -> Store -> (TypeContext, Store)
+   collect-source-classes ds classes kinds st = case ds of
+@@ -1710,7 +1712,58 @@
+     Cons (DMethod sp label symbol syntax) rest -> case (source-method label (class-methods description), lookup-binding symbol env) of
+       (Some method, None) -> register-source-methods description rest (Cons (MkMethodBinding symbol (class-method-scheme method) (class-name description) (class-method-slot method)) env) st
+       other -> register-source-methods description rest env (add-error sp "source method has a duplicate binding or no declaring slot" st)
++    Cons (DFun sp label clauses) rest -> case source-method label (class-methods description) of
++      Some member -> let name = source-class-default-symbol description member in
++        (case lookup-binding name env of
++          None -> register-source-methods description rest (Cons (MkCheckedBinding name (class-method-scheme member) "value") env) st
++          Some previous -> register-source-methods description rest env (if scheme-equivalent (checked-scheme previous) (class-method-scheme member) then st else add-error sp "conflicting class default contract" st))
++      None -> register-source-methods description rest env (add-error sp "default names an undeclared class method" st)
+     Cons other rest -> register-source-methods description rest env (add-error (decl-span other) "invalid resolved source method declaration" st)
++  source-class-default-symbol :: CoreClass -> CoreClassMethod -> String
++  source-class-default-symbol description member = string-concat-all ["#class-default:", class-name description, ":", class-method-name member]
++  source-class-default-clauses :: CoreClass -> CoreClassMethod -> List Decl -> Option (List (List Pat, Expr))
++  source-class-default-clauses description member ds = case ds of
++    Nil -> None
++    Cons (DClass sp owner ps members) rest -> if same owner (class-name description) then
++      (let declarations = decls-of members in if has-definition (class-method-name member) declarations then Some (function-clauses (class-method-name member) declarations) else None)
++      else source-class-default-clauses description member rest
++    Cons other rest -> source-class-default-clauses description member rest
++  source-class-default-members :: CoreClass -> List Decl -> List Decl -> List String -> List Decl
++  source-class-default-members description all remaining seen = case remaining of
++    Nil -> Nil
++    Cons (DFun sp label clauses) rest -> if has label seen then source-class-default-members description all rest seen else
++      (case source-method label (class-methods description) of
++        Some member -> Cons (DFun sp (source-class-default-symbol description member) (function-clauses label all)) (source-class-default-members description all rest (Cons label seen))
++        None -> source-class-default-members description all rest (Cons label seen))
++    Cons other rest -> source-class-default-members description all rest seen
++  source-default-definitions :: List Decl -> List CoreClass -> List Decl
++  source-default-definitions ds descriptions = case ds of
++    Nil -> Nil
++    Cons (DClass sp owner ps members) rest -> (case find-class owner descriptions of
++      Some description -> let all = decls-of members in source-class-default-members description all all Nil
++      None -> Nil) <> source-default-definitions rest descriptions
++    Cons other rest -> source-default-definitions rest descriptions
++  -- An inherited method calls the already checked generic default. Reusing
++  -- its surface clauses at the instance would lose class/method binder
++  -- identities in annotations. Eta application retains every source arrow,
++  -- including erased proofs and dependent arguments, at the instance type.
++  source-default-call :: String -> UType -> Nat -> Expr -> (List Pat, Expr)
++  source-default-call symbol ty next call = case ty of
++    URequire predicates body -> source-default-call symbol body next call
++    UFun domain result -> source-default-call-argument symbol result next call
++    UFunEff domain row result -> source-default-call-argument symbol result next call
++    UProofFun predicate row result -> source-default-call-argument symbol result next call
++    UPi id name domain row result -> source-default-call-argument symbol result next call
++    other -> (Nil, call)
++  source-default-call-argument :: String -> UType -> Nat -> Expr -> (List Pat, Expr)
++  source-default-call-argument symbol result next call =
++    let name = string-concat "#instance-default-argument-" (int-to-string (nat-to-int next)) in
++    case source-default-call symbol result (next + 1) (EApp zero call (EVar zero name)) of
++      (more, body) -> (Cons (PVar zero name) more, body)
++  inherited-default-clauses :: CoreClass -> CoreClassMethod -> List Decl -> Scheme -> Option (List (List Pat, Expr))
++  inherited-default-clauses description member defaults actual = case source-class-default-clauses description member defaults of
++    None -> None
++    Some original -> Some [source-default-call (source-class-default-symbol description member) (scheme-body actual) 0 (EVar zero (source-class-default-symbol description member))]
+   source-instance-scheme :: Span -> List (String, Kind) -> TypeContext -> List TypeParam -> TypeExpr -> Store -> (Scheme, Store)
+   source-instance-scheme sp classes kinds ps head-type st = case parameters False kinds Nil ps 0 Nil st of
+     (qs, prepared) -> case make-scheme False classes kinds qs head-type prepared of
+@@ -3485,8 +3538,8 @@
+     None -> (expected, st)
+     Some syntax -> case member-annotation-scheme classes kinds (scheme-params factory) syntax st of
+       (annotated, checked) -> (annotated, if scheme-equivalent expected annotated then checked else add-error (type-expr-span syntax) "instance method signature disagrees with the specialized class contract" checked)
+-  source-instance-fields :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> CoreClass -> String -> Scheme -> List Decl -> List CoreClassMethod -> Store -> (List CoreDictionaryField, Store)
+-  source-instance-fields classes kinds families env description symbol factory declarations methods st = case methods of
++  source-instance-fields :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List Decl -> CoreClass -> String -> Scheme -> List Decl -> List CoreClassMethod -> Store -> (List CoreDictionaryField, Store)
++  source-instance-fields classes kinds families env defaults description symbol factory declarations methods st = case methods of
+     Nil -> (Nil, st)
+     Cons member rest -> let name = class-method-name member in
+       case specialize-method description factory member of
+@@ -3496,31 +3549,35 @@
+           let private-name = dictionary-method-symbol symbol (class-method-slot member) in
+           let implementation = implementation-scheme factory actual in
+           let bound = Cons (MkCheckedBinding private-name implementation "instance-method") env in
+-          if not (has-definition name declarations) then (Nil, add-error zero (string-concat "instance is missing class method: " name) prepared) else
+-          case check-definition classes kinds families bound zero private-name (function-clauses name declarations) prepared of
+-            (None, failed) -> (Nil, failed)
+-            (Some definition, checked) -> case resolve-dictionary-definition-with classes (env-instances env) definition checked of
+-              (resolved, final) -> case source-instance-fields classes kinds families env description symbol factory declarations rest final of
+-                (more, done) -> (Cons (MkCoreDictionaryField zero (class-method-slot member) (seal-definition-with-checked-contracts (env-body-context env) (env-guarded-bindings env) done resolved)) more, done)
++          let clauses = if has-definition name declarations then Some (function-clauses name declarations) else inherited-default-clauses description member defaults actual in
++          case clauses of
++            None -> (Nil, add-error zero (string-concat "instance is missing class method: " name) prepared)
++            Some body -> (case check-definition classes kinds families bound zero private-name body prepared of
++              (None, failed) -> (Nil, failed)
++              (Some definition, checked) -> case resolve-dictionary-definition-with classes (env-instances env) definition checked of
++                (resolved, final) -> case source-instance-fields classes kinds families env defaults description symbol factory declarations rest final of
++                  (more, done) -> (Cons (MkCoreDictionaryField zero (class-method-slot member) (seal-definition-with-checked-contracts (env-body-context env) (env-guarded-bindings env) done resolved)) more, done))
+   checked-source-instances :: List Json -> List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List Decl -> List CoreClass -> Store -> (List CoreClass, List CoreInstance, Store)
+-  checked-source-instances rows classes kinds families env ds descriptions st = case ds of
++  checked-source-instances rows classes kinds families env ds descriptions st = checked-source-instances-with rows classes kinds families env ds ds descriptions st
++  checked-source-instances-with :: List Json -> List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List Decl -> List Decl -> List CoreClass -> Store -> (List CoreClass, List CoreInstance, Store)
++  checked-source-instances-with rows classes kinds families env all ds descriptions st = case ds of
+     Nil -> (descriptions, Nil, st)
+     Cons (DInstance sp flag name ps head-type members) rest -> case lookup-binding name env of
+       Some binding -> let factory = checked-scheme binding in
+         (case root-name (scheme-body factory) of
+           Some owner -> (case (case find-class owner descriptions of Some description -> (Some description, st); None -> typed-class sp owner rows classes kinds st) of
+-            (Some description, checked) -> let all = decls-of members in
+-              let prepared = instance-member-errors all (class-member-names (class-methods description)) Nil checked in
+-              (case source-instance-fields classes kinds families env description name factory all (class-methods description) prepared of
++            (Some description, checked) -> let members-list = decls-of members in
++              let prepared = instance-member-errors members-list (class-member-names (class-methods description)) Nil checked in
++              (case source-instance-fields classes kinds families env all description name factory members-list (class-methods description) prepared of
+                 (fields, done) -> let constructor = MkCoreInstance sp name flag factory fields in
+                   let retained = case find-class owner descriptions of Some prior -> descriptions; None -> Cons description descriptions in
+                   let verified = if instance-closed (MkCoreClassContext classes retained) constructor then done else add-error sp "source dictionary constructor disagrees with its defining class or method contracts" done in
+-                  (case checked-source-instances rows classes kinds families env rest retained verified of
++                  (case checked-source-instances-with rows classes kinds families env all rest retained verified of
+                     (more, others, final) -> (more, Cons constructor others, final)))
+-            (None, failed) -> checked-source-instances rows classes kinds families env rest descriptions failed)
+-          None -> checked-source-instances rows classes kinds families env rest descriptions (add-error sp "instance target has no defining signature identity" st))
+-      None -> checked-source-instances rows classes kinds families env rest descriptions (add-error sp "source instance has no registered dictionary head" st)
+-    Cons other rest -> checked-source-instances rows classes kinds families env rest descriptions st
++            (None, failed) -> checked-source-instances-with rows classes kinds families env all rest descriptions failed)
++          None -> checked-source-instances-with rows classes kinds families env all rest descriptions (add-error sp "instance target has no defining signature identity" st))
++      None -> checked-source-instances-with rows classes kinds families env all rest descriptions (add-error sp "source instance has no registered dictionary head" st)
++    Cons other rest -> checked-source-instances-with rows classes kinds families env all rest descriptions st
+   elaborate-module :: String -> Module -> Elaboration
+   elaborate-module label m = elaborate-module-with-source-bodies True label m
+   elaborate-module-with-source-bodies :: Bool -> String -> Module -> Elaboration
+@@ -3547,10 +3604,13 @@
+     let (env, conditional-store) = cache-body-context uncached-env registration-store in
+     let se = check-instance-coherence (env-instances env <> conditional-heads env Nil) conditional-store in
+     let families = Cons ("Bool", ["True", "False"]) (Cons ("b.Dec", ["b.Yes", "b.No"]) (families-of ds <> imported-families ds)) in
+-    let (effects, sx) = case store-errors se of Nil -> checked-effects kinds env ds se; other -> (Nil, se) in
++    let default-decls = source-default-definitions ds (context-source-classes kinds) in
++    let (defaults, default-store) = case store-errors se of Nil -> check-bodies classes kinds families env Nil (default-decls <> ds) default-decls se; other -> (Nil, se) in
++    let (effects, sx) = case store-errors default-store of Nil -> checked-effects kinds env ds default-store; other -> (Nil, default-store) in
+     let linked-kinds = context-with-effects effects kinds in
+     let (descriptions, instances, sm) = case store-errors sx of Nil -> checked-source-instances rows classes linked-kinds families env ds (context-source-classes linked-kinds) sx; other -> (Nil, Nil, sx) in
+-    let (core, done) = case store-errors sm of Nil -> check-bodies classes linked-kinds families env Nil ds ds sm; other -> (Nil, sm) in
++    let (ordinary-core, done) = case store-errors sm of Nil -> check-bodies classes linked-kinds families env Nil ds ds sm; other -> (Nil, sm) in
++    let core = defaults <> ordinary-core in
+     let (declared-data, declared-store) = case store-errors done of Nil -> checked-data classes linked-kinds env ds Nil done; other -> (Nil, done) in
+     let (nominal-data, nominal-store) = case store-errors declared-store of Nil -> checked-nominal-data ds linked-kinds declared-data declared-store; other -> (declared-data, declared-store) in
+     let (datas, sd) = case store-errors nominal-store of Nil -> complete-runtime-data ds classes linked-kinds nominal-data nominal-store; other -> (nominal-data, nominal-store) in
+--- a/bootstrap/Bootstrap.Export.cinch
++++ b/bootstrap/Bootstrap.Export.cinch
+@@ -4,9 +4,9 @@
+   import Bootstrap.Builtin (array-plan)
+   import Algebra.Semigroup
+   import Bootstrap.Check (CheckedProgram, checked-elaboration, checked-surface)
+-  import Bootstrap.Ast (Program, Module, Decl, module-decls, program-modules, DClass, DInstance, DForeign, DRefine, DRecord, DEffect)
+-  import Bootstrap.Infer (Elaboration, elaboration-bindings, elaboration-core, elaboration-data, elaboration-contexts, elaboration-classes, elaboration-instances, elaboration-declarations, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-body-binding, checked-foreign-plan)
+-  import Bootstrap.Core (CoreData, CoreConstructor, CoreDefinition, core-data-name, core-data-params, core-data-constructors, core-constructor-name, core-constructor-scheme, core-scheme, core-method-total-function)
++  import Bootstrap.Ast (Program, Module, Decl, module-decls, program-modules, DClass, DInstance, DForeign, DRefine, DRecord, DEffect, source-clauses-document)
++  import Bootstrap.Infer (Elaboration, elaboration-bindings, elaboration-core, elaboration-data, elaboration-contexts, elaboration-classes, elaboration-instances, elaboration-declarations, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-body-binding, checked-foreign-plan, source-class-default-symbol, source-class-default-clauses)
++  import Bootstrap.Core (CoreData, CoreConstructor, CoreDefinition, core-data-name, core-data-params, core-data-constructors, core-constructor-name, core-constructor-scheme, core-name, core-scheme, core-method-total-function, core-definition-closed)
+   import Bootstrap.Instance
+   import Bootstrap.Type
+   import Bootstrap.Total (TotalFunction, total-identity, total-function-document, total-function-equal, total-parameters, total-result)
+@@ -317,13 +317,14 @@
+             else Err "admitted class method disagrees with its checked slot"
+           None -> case resolved-method-scheme typed interfaces description member of
+             Err error -> Err error
+-            Ok resolved -> Ok (JArr
+-              (method-default description member interfaces
++            Ok resolved -> case method-default typed description member interfaces
+                 (JObj "name" (JStr (class-method-name member))
+                   (JObj "slot" (JNum (nat-to-int slot))
+                     (JObj "exports" (method-names typed description member surface)
+                       (JObj "scheme" (field "scheme" resolved)
+-                        (JObj "resolved" resolved JObjEnd)))))) more)
++                        (JObj "resolved" resolved JObjEnd))))) of
++              Err error -> Err error
++              Ok row -> Ok (JArr row more)
+   methods-public :: Json -> Bool
+   methods-public rows = case rows of
+     JArr row rest -> (case field "exports" row of JArr name more -> True; other -> False) || methods-public rest
+@@ -334,14 +335,27 @@
+   defining-signature identity interfaces = case interfaces of Nil -> None; Cons first rest -> case loaded-entry first "signature" identity of Some row -> Some row; None -> defining-signature identity rest
+   defining-method :: String -> Json -> Option Json
+   defining-method name methods = case methods of JArr row rest -> if same name (text (field "name" row)) then Some row else defining-method name rest; other -> None
+-  method-default :: CoreClass -> CoreClassMethod -> List LoadedInterface -> Json -> Json
+-  method-default description member interfaces row = case export-global (class-name description) of
+-    Err error -> row
+-    Ok identity -> case defining-signature identity interfaces of
+-      None -> row
+-      Some source -> case defining-method (class-method-name member) (field "methods" source) of
+-        None -> row
+-        Some original -> case field "default" original of JStr identity -> set-field "default" (JStr identity) row; other -> row
++  default-definition :: String -> List CoreDefinition -> Option CoreDefinition
++  default-definition name definitions = case definitions of
++    Nil -> None
++    Cons first rest -> if same name (core-name first) then Some first else default-definition name rest
++  method-default :: Elaboration -> CoreClass -> CoreClassMethod -> List LoadedInterface -> Json -> Result String Json
++  method-default typed description member interfaces row = case source-class-default-clauses description member (elaboration-declarations typed) of
++    Some clauses -> (case default-definition (source-class-default-symbol description member) (elaboration-core typed) of
++      Some definition -> if core-definition-closed definition && scheme-equivalent (core-scheme definition) (class-method-scheme member) then
++        (case export-scheme (core-scheme definition) of
++          Err error -> Err error
++          Ok scheme -> let document = JObj "scheme" (JStr scheme) (JObj "clauses" (source-clauses-document clauses) JObjEnd) in
++            Ok (set-field "default" (JStr (fnv-source-hash (canonical-bytes document))) row))
++        else Err "source class default lacks its closed defining method contract"
++      None -> Err "source class default has no checked definition")
++    None -> (case export-global (class-name description) of
++      Err error -> Err error
++      Ok identity -> case defining-signature identity interfaces of
++        None -> Ok row
++        Some source -> case defining-method (class-method-name member) (field "methods" source) of
++          None -> Ok row
++          Some original -> case field "default" original of JStr identity -> Ok (set-field "default" (JStr identity) row); other -> Ok row)
+   nominal-mentioned :: String -> Json -> Bool
+   nominal-mentioned identity doc = case doc of
+     JObj key value rest -> (same identity (text (field "identity" doc)) && same "signature" (text (field "kind" doc)))
+--- /dev/null
++++ b/bootstrap/programs/Run.ClassDefaults.cinch
+@@ -0,0 +1,42 @@
++-- Runtime source input passes the actual Cinch resolver, checker and writer.
++module Main where
++  import Bootstrap.Ast
++  import Bootstrap.Inputs (read-interfaces)
++  import Bootstrap.Load (LoadedInterface)
++  import Bootstrap.Contracts (interface-headers)
++  import Bootstrap.Parse (parse-program-with)
++  import Bootstrap.Resolve (resolve-program-with)
++  import Bootstrap.Check (check-and-retain)
++  import Bootstrap.Export (export-interfaces)
++  import Bootstrap.Report (render-diagnostics)
++  import Text.Parse (ParseOutcome, Parsed, Failed, render-bundle)
++  import Text.Json (canonical-json)
++  import Data.Json (Json)
++  import Data.Path (path-from-string)
++  import Effect.Fs (fs-read, fs-write)
++  rows-text :: List (String, Json) -> String
++  rows-text rows = case rows of
++    Nil -> ""
++    Cons (name, row) rest -> string-concat (canonical-json row) (string-concat "\n" (rows-text rest))
++  run :: List LoadedInterface -> Bytes -> (Int, String, String)
++  run interfaces source = case parse-program-with "class-default-source" source (interface-headers interfaces) of
++    Parsed program Nil -> (case resolve-program-with program interfaces of
++      (resolved, Nil) -> case check-and-retain resolved of
++        Err errors -> (4, render-diagnostics errors, "")
++        Ok checked -> (case export-interfaces checked interfaces source of
++          Err message -> (5, message, "")
++          Ok rows -> (0, "", rows-text rows))
++      (resolved, errors) -> (4, render-diagnostics errors, ""))
++    Failed bundle -> (2, render-bundle bundle, "")
++    other -> (2, "recoverable parse errors", "")
++  main :: Unit ->{IO r} Int
++  main unit = with (io = newIO ()) in case read-interfaces "interfaces.json" of
++    Err message -> 90
++    Ok interfaces -> case fs-read (path-from-string "source.cinch") of
++      Err error -> 91
++      Ok source -> let (status, report, rows) = run interfaces source in
++        case fs-write (path-from-string "class-default-report.txt") (string-to-bytes report) of
++          Err error -> 92
++          Ok done -> case fs-write (path-from-string "class-default-interfaces.jsonl") (string-to-bytes rows) of
++            Err error -> 93
++            Ok done -> status
+--- a/compiler/tests/bootstrap_source_instances.rs
++++ b/compiler/tests/bootstrap_source_instances.rs
+@@ -117,3 +117,66 @@
+     println!("actual Text.Json source dictionary passed");
+     common::cleanup(&producer); common::cleanup(&dir);
+ }
++
++#[test]
++fn source_class_defaults_are_checked_at_the_owner_and_inherited_with_closed_contracts() {
++    use cinch::interface::Iface;
++    let dir = common::project("source_class_defaults", &[
++        ("Bootstrap.Check.cinch", include_str!("../../bootstrap/Bootstrap.Check.cinch")),
++        ("Bootstrap.Resolve.cinch", include_str!("../../bootstrap/Bootstrap.Resolve.cinch")),
++        ("Bootstrap.Export.cinch", include_str!("../../bootstrap/Bootstrap.Export.cinch")),
++        ("Bootstrap.ExportNominal.cinch", include_str!("../../bootstrap/Bootstrap.ExportNominal.cinch")),
++        ("Bootstrap.Inputs.cinch", include_str!("../../bootstrap/Bootstrap.Inputs.cinch")),
++        ("Main.cinch", include_str!("../../bootstrap/programs/Run.ClassDefaults.cinch")),
++    ]);
++    std::fs::write(dir.join("interfaces.json"), "{\"schema\":1,\"interfaces\":[]}").unwrap();
++    let exe = common::build(&dir, "Main.cinch", "class-default-checker").expect("build actual Cinch class-default checker/writer");
++    let owner = "module Defaults where\n  export Describe, size, twice\n  helper :: Int -> Int\n  helper n = n + n\n  signature Describe a where\n    size :: a -> Int\n    twice :: a -> Int\n    twice x = helper (size x)\n";
++    let inherited = "module Main where\n  import Defaults\n  implicit instance DescribeInt :: Describe Int where\n    size x = x\n  answer :: Int\n  answer = twice 21\n  main :: Int\n  main = 0\n";
++    let overridden = inherited.replace("    size x = x\n", "    size x = x\n    twice x = 7\n");
++    let unused = "module Main where\n  import Defaults\n  main :: Int\n  main = 0\n";
++    let mut default_id = None;
++    for (name, source, wanted) in [
++        ("inherited default", format!("{owner}{inherited}"), 0),
++        ("explicit override", format!("{owner}{overridden}"), 0),
++        ("unused valid default", format!("{owner}{unused}"), 0),
++        ("owner private helper wins over caller helper", format!("{owner}{}", inherited.replace("  answer ::", "  helper :: Bool -> Bool\n  helper x = x\n  answer ::")), 0),
++        ("changed default", format!("{}{inherited}", owner.replace("helper (size x)", "helper (size x) + 0")), 0),
++        ("comment and span changes preserve default", format!("\n-- shifted source\n{}{inherited}", owner.replace("    twice x =", "    -- default implementation\n    twice x =")), 0),
++        ("unused bad default", format!("{}{unused}", owner.replace("helper (size x)", "helper x")), 4),
++        ("overrides cannot hide a bad default", format!("{}{overridden}", owner.replace("helper (size x)", "helper x")), 4),
++        ("undeclared default", format!("{}{unused}", owner.replace("    twice x =", "    thrice x = 3\n    twice x =")), 4),
++        ("missing nondefault method", format!("{owner}{}", inherited.replace("    size x = x\n", "    twice x = 7\n")), 4),
++        ("bad override", format!("{owner}{}", overridden.replace("    twice x = 7", "    twice x = True")), 4),
++        ("default helper stays private", format!("{owner}{}", inherited.replace("  answer = twice 21", "  answer = helper 21")), 4),
++        ("class parameter annotation in inherited default", "module Defaults where\n  signature Identity a where\n    seed :: a -> a\n    identity :: a -> a\n    identity x = (x :: a)\nmodule Main where\n  import Defaults\n  implicit instance IdentityInt :: Identity Int where\n    seed x = x\n  main :: Int\n  main = identity 42\n".into(), 0),
++        ("method local parameter annotation in inherited default", "module Defaults where\n  signature Pick a where\n    seed :: a -> a\n    pick :: forall b. b -> a -> b\n    pick x ignored = (x :: b)\nmodule Main where\n  import Defaults\n  implicit instance PickInt :: Pick Int where\n    seed x = x\n  main :: Int\n  main = pick 42 0\n".into(), 0),
++        ("nullary default field", "module Defaults where\n  signature Value a where\n    value :: a\n    duplicate :: a\n    duplicate = value\nmodule Main where\n  import Defaults\n  implicit instance ValueInt :: Value Int where\n    value = 7\n  main :: Int\n  main = duplicate\n".into(), 0),
++    ] {
++        let native = cinch::driver::check_sources_ifaces(&source, "class-default-oracle.cinch");
++        assert_eq!(native.is_ok(), wanted == 0, "Native oracle {name}: {native:?}\n{source}");
++        std::fs::write(dir.join("source.cinch"), &source).unwrap();
++        let result = std::process::Command::new(&exe).current_dir(&dir).output().unwrap();
++        let report = common::read_output(&dir, "class-default-report.txt");
++        assert_eq!(result.status.code(), Some(wanted), "{name}; project {}\n{source}\n{report}\n{}", dir.display(), String::from_utf8_lossy(&result.stderr));
++        let text = common::read_output(&dir, "class-default-interfaces.jsonl");
++        if wanted == 0 {
++            let interfaces: Vec<_> = text.lines().map(|line| Iface::from_json(line).expect("independent public interface reader")).collect();
++            cinch::interface::verify_chain(&interfaces).expect("source dependency hashes refer to the emitted owner");
++            assert!(interfaces.iter().all(|i| i.exports.values.iter().all(|v| !v.name.contains("#class-default:"))), "a default acquired a source-visible name");
++            if !matches!(name, "nullary default field" | "class parameter annotation in inherited default" | "method local parameter annotation in inherited default") {
++                let defining = interfaces.iter().find(|i| i.module == "Defaults").unwrap();
++                let describe = defining.exports.signatures.iter().find(|s| s.identity == "Defaults.Describe").unwrap();
++                assert_eq!(describe.methods[0].name, "size");
++                assert_eq!(describe.methods[0].default, None);
++                assert_eq!(describe.methods[1].name, "twice");
++                let identity = describe.methods[1].default.clone().expect("checked default body identity");
++                if name == "inherited default" { default_id = Some(identity); }
++                else if name == "changed default" { assert_ne!(Some(identity), default_id); }
++                else { assert_eq!(Some(identity), default_id, "{name}"); }
++            }
++        } else { assert!(text.is_empty(), "failed input retained stale interface output"); }
++        println!("source class default case passed: {name}");
++    }
++    common::cleanup(&dir);
++}

@@ -1,5 +1,30 @@
 # Next steps (as of 2026-11-06)
 
+## Source class-default implementation is under validation (2026-11-06)
+
+The reviewable implementation is retained as
+`bootstrap/source-class-default-development.patch`, with exact inputs and scope
+in `bootstrap/current-source-class-default-development.json`. It is a development
+patch, not applied to the published Cinch3268 compiler.
+
+Defaults resolve in the class author's scope and check at their own defining
+scheme even when unused or overridden. Checked generic Core remains explicit;
+an inheriting method calls that checked default at the instance's actual types,
+including dependent and erased arrows. Exported default identities cover the
+checked scheme and span-free resolved source clauses. Fifteen Native-compared
+cases check inheritance, overrides, unused errors, private helpers, class/method
+annotations, nullary fields and identity change/stability.
+
+The first prototype passed all44 Native source checks. The current generic-call
+revision's44-module check and complete affected component groups are running;
+a later parser failure and interrupted test attempt remain recorded separately.
+The current source-interface format records imported default hashes but does not
+carry the checked implementation needed to inherit an arbitrary imported default.
+That transport, source-family dependencies, class laws and implicit base names,
+actual runtime/object/API replay, matching latest full bootstrap, all original
+suites and Acceptance1-5 remain required. No current passing default result is
+claimed from this patch-application audit.
+
 ## Source-Prelude replacement needs a checked cache transition (2026-11-06)
 
 The current actual Cinch3268 executable accepts the retained Data.Core source

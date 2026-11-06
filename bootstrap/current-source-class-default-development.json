@@ -1,0 +1,49 @@
+{
+  "status": "reviewable-private-source-class-default-implementation",
+  "verified_at": "2026-11-06T20:52:03.879385+00:00",
+  "baseline_native_source_sha256": "995f5d5954f3d556ff940b6d002e7e1e19a970b5ff34bf5cd15669de7f0d30a4",
+  "baseline_cinch_source_sha256": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+  "private_cinch_source_sha256": "8fcedce1381fe2d1a14468b9cc10eff26cd7f07b64d3beb72fb121533dbb5095",
+  "patch": "bootstrap/source-class-default-development.patch",
+  "patch_sha256": "8e0f09648eb3fb043de99e5fed8dbfa67aa5bd4fe815810defd7ed4f989530a0",
+  "patch_application_independently_verified": true,
+  "files": [
+    {
+      "path": "bootstrap/Bootstrap.Ast.cinch",
+      "before_sha256": "a7ed3904dde924f2468aa8d369bd6d513ca65bd9cac9d9a77a50ada5bdf72a53",
+      "after_sha256": "449d7fb137f266815be5de347f9e67d2b57d8c4e7bfee80e69ebb2d2eda93305"
+    },
+    {
+      "path": "bootstrap/Bootstrap.Resolve.cinch",
+      "before_sha256": "093e96a0bd844dbf8a6b23ea7eada08391fe905b8d49ed0af538d5d3d3ad6598",
+      "after_sha256": "b996a79df0457558069b5e472e229e08b6003d3faa04b85feadead498655c06f"
+    },
+    {
+      "path": "bootstrap/Bootstrap.Infer.cinch",
+      "before_sha256": "a2d975dba662769f8cdacd5491b317d5a572a9ad986424daf6889a5d139af241",
+      "after_sha256": "4d73a3a9f5c2fc6d6843a5f7e57fbc3ec2461406c226d0a7e3afdf9953426bc4"
+    },
+    {
+      "path": "bootstrap/Bootstrap.Export.cinch",
+      "before_sha256": "6fe249919f3dfd6f2372c33dbab3b2f37169b6f66ce21e979ae5afedb3bba3e0",
+      "after_sha256": "5e9cc440e07445cdb382aa57267204c5b5678355177c81ab0f54ec26fb06c9b3"
+    },
+    {
+      "path": "bootstrap/programs/Run.ClassDefaults.cinch",
+      "before_sha256": null,
+      "after_sha256": "136eb3ca5f76209ed3d6e817911b9ac69317ca3d75ead2d3031aeb05c4d1f25a"
+    },
+    {
+      "path": "compiler/tests/bootstrap_source_instances.rs",
+      "before_sha256": "fa8840791195a1de88df488bf9631fafb9ed7f9a42919776b349161975b8644a",
+      "after_sha256": "e1368842114b38e2277ec5ff34cd511e4bd9be0a1521f79fba71e65eed3442aa"
+    }
+  ],
+  "source_cases": 15,
+  "validation": {
+    "input_gate": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/source-class-default-input-check-3/state.json",
+    "complete_component_groups": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/source-class-default-validation-3/state.json"
+  },
+  "scope": "Development patch only; not applied to the published compiler. Defines class-author-scoped defaults, checks them independently even if unused/overridden, retains closed generic Core, inherits by an eta-applied checked generic call and publishes span-free resolved-source/default-scheme identities. Fifteen source controls compare Native/Cinch behavior and metadata stability/privacy. The first e29 prototype passed the complete44-module Native source check. A later parser failure and interrupted attempt remain recorded. Current production8fce source and component validations are still live; no passing result is inferred from this mechanical patch audit. Imported defaults, library source provenance/dependency refresh, class laws, implicit family base, actual runtime/object/API replay and full matching bootstrap/suites remain required.",
+  "full_goal_complete": false
+}
