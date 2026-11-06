@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "estimate": 90,
-  "commit": "f08bf3c68d6c2852fd78230c53dcd0dc5af24419",
+  "commit": "ea682d9d7f05b9628944e4d8f89080a314594cf4",
   "estimateNote": "Rough engineering estimate. Verified checks and remaining work are listed below.",
   "status": "Verification found a failure; correction required",
   "stages": [
@@ -282,6 +282,21 @@
       "state": "failed"
     },
     {
+      "title": "Published Native constructor-pattern inference",
+      "detail": "Four complete groups/29 tests and17 zero-leak reports. Twelve new pattern/coverage/kind controls and actual lambda execution retain every earlier case. Exact44-module DD8d/D13 projects and both original CLI reproductions pass. Constructor owners come from normal lexical lookup; incomplete or wrong-family patterns refuse. Matching full suites remain required.",
+      "state": "passed"
+    },
+    {
+      "title": "Private indexed backend: complete runtime-IR suite",
+      "detail": "All original cases/assertions plus3 new fixed-index constructor programs pass.137 program executions and2 C ABI checks report139 zero-leak outcomes. Generic payload classes and first-class constructor use execute. The actual full CLI and all matching suites remain separate required gates.",
+      "state": "passed"
+    },
+    {
+      "title": "Private indexed backend: full compiler/object gate",
+      "detail": "State passed; phase bootstrap_library_object. Exact44-module compiler uses the audited Native22 release test host. All8 adapter tests and the complete object/C-client/contract test must pass. New large fixtures live in the workspace.",
+      "state": "passed"
+    },
+    {
       "title": "Published Native proposition-binder correction",
       "detail": "Four complete groups/28 tests,11 new kind/scope/erasure controls and16 zero-leak reports. Two actual erased-proof programs execute. Both exact44-module compiler projects pass; the unchanged original positive-proof source now passes the actual CLI. Seed/library roles stay Native22. Full matching suites remain required.",
       "state": "passed"
@@ -319,8 +334,8 @@
   ],
   "blockers": [
     {
-      "title": "Numeric record fields pass; indexed constructor lowering under repair",
-      "detail": "Public NativeA2 proposition-binder fix is pushed f08bf3c;4 complete groups/28 tests and16 zero-leak reports, both44-module compiler projects and the unchanged original CLI reproduction pass. Public Cinch compiler remainsDD8d. PrivateD13 passes all5 constructor/inference/resolver/export groups, all70 constructor source cases and9 original mutations, both44-source checks, plus the independently audited actual Native22-built compiler/object gate:9 tests,17 optimized C clients,50 zero-leak reports and3 real resolved-writer comparisons. All9 original API groups finish8/9, with source-Prelude replacement still failing. Twelve of13 corrected runtime clients pass, including numeric fields, U8 bounds, nested records, callbacks and projection. The byte-identical original Nat-field counterexample now passes the actual D13 CLI, with no Native fallback. The final Signal fixed-index client checks but emitter refuses its constructors. The failure and source remain retained; all34 external cases remain required and their next replay stopped at this prerequisite. A backend repair preserves ordinary type identities and checked field layouts while erasing phantom value indices; all44-source check2 and complete runtime-IR tests are queued/running. Its first source check caught an unexported helper reference, retained and corrected to the public API. Two earlier new runtime fixture escapes were separately corrected; no original case changed. Private NativeE5 pattern-input inference passes full focused groups/runtime; exact compiler-source checks continue. Older Native6b/5f2f full sweep finished234/235 groups and1630/1631 tests green,0 skipped/filtered. AA4e has independent Acceptance1-4 proof. Latest matching bootstrap, all105 frontend targets,14 acceptance checks,all34 language cases and every Acceptance1-5 remain required. Maximum6 workers; future large fixtures stay inside workspace."
+      "title": "Indexed runtime suite passes; full compiler and language replay continue",
+      "detail": "Two verified Native fixes are pushed: proposition carriers in f08bf3c, constructor-pattern inference in ea682d9. Latest scoped Native proof:4 complete groups/29 tests and17 zero-leak reports, both44-module compiler projects and unchanged original failure reproductions pass. Public Cinch staysDD8d. PrivateD13 passes5 complete source/export groups, all70 constructor cases and9 metadata mutations, both44-source checks and the actual compiler/object gate with17 optimized C clients/50 zero-leak reports. Its original9 API groups remain8/9; source Prelude is open. Twelve corrected runtime clients pass and the exact original Nat-field failure now passes its actual CLI. The final Signal client exposed a backend gap. Private4f repairs checked value-index erasure while preserving ordinary type identities and field layouts. Its full runtime-IR group now passes all original cases plus3 new indexed clients:137 program executions and2 C ABI checks,139 zero-leak reports. Exact44 sources pass optimized NativeA2; the full actual compiler/object gate and Cinch-built reader check are running. Fresh13-client/5-refusal runtime,9 API groups and unchanged34 external language cases are queued behind the compiler. Older6b/5f2f full Native sweep finished1630/1631 tests and234/235 groups green,0 skipped/filtered; its historical failure stays failed. Latest full bootstrap/all105 frontend targets/14 external checks/all34 language cases/Acceptance1-5 stay required. Up to6 workers; large new fixtures use workspace folders."
     },
     {
       "title": "Investigate the recorded failure",
@@ -386,5 +401,5 @@
   "fullGoalComplete": false,
   "summary": "All 44 compiler-source checks: passed. 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. constructor contracts: passed; module resolution: passed; type inference: passed; type contracts: passed; interface contracts: passed; parser: passed; frontend adapter: passed; object round trip: passed.",
   "activity": "Earlier checkpoint: complete235-group Native sweep: 234 of 235 complete groups passed; 0 running, 1 failed and 0 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. constructor contracts: passed; module resolution: passed; type inference: passed; type contracts: passed; interface contracts: passed; parser: passed; frontend adapter: passed; object round trip: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 68 of 105 complete groups passed; 1 running, 4 failed and 32 pending.",
-  "updatedAt": "2026-11-06T12:24:13.888245+00:00"
+  "updatedAt": "2026-11-06T12:34:47.060999+00:00"
 }
