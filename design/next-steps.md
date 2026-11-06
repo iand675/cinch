@@ -1,5 +1,30 @@
 # Next steps (as of 2026-11-06)
 
+## Actual Stage3 external language parity exposes further gaps (2026-11-06)
+
+The complete original external behavioral module now runs through the audited
+5f2f Stage3, with its original assertions retained: all13 positive examples
+and21 negative examples. Circuit executes at32M with poisoning and zero leaks.
+The other12 positives refuse before producing IR. All21 invalid examples
+refuse, but none reaches its original expected diagnostic reason; these are
+failed assertions, not passing negative controls. Both whole tests fail with
+33 failed subcases. No cases are skipped or filtered.
+
+An independent audit reconstructs every exact expanded source section from
+the unchanged engine, syntax libraries and examples, verifies the actual
+Stage3 executable and invocation records, and reruns Circuit. The Python
+adapter only bundles source, selects the actual Cinch CLI, links its emitted
+IR and maps source positions; it never substitutes a Native source frontend
+or rewrites diagnostic reasons. See
+`bootstrap/current-stage3-external-behavior-results.json`.
+
+Source records and their construction/pattern/projection syntax, borrow/lazy
+operations, indexed-pattern coverage, source assertions/proof search and task
+sharing remain frontend parity work. The matching Native editor suite's39
+passing tests exercise its own explicitly recorded Native CLI role and do not
+close this gap. The original105-target inventory and separate14-check external
+acceptance suite remain intact and required. Acceptance5 is not complete.
+
 ## Matching runtime, tooling and Native editor checks pass (2026-11-06)
 
 Published5f2f/Native6b passes all171 runtime tests,43 tooling tests and39
