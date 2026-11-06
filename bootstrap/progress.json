@@ -278,7 +278,7 @@
     },
     {
       "title": "Private repaired compiler:13 record and indexed runtime clients",
-      "detail": "0/13 clients executed; phase queued; status waiting-shared-worker. Original6 clients retained,7 added numeric/callback/projection/indexed clients and5 source refusals. Two new source-string escapes corrected in attempt2; original attempt retained. Compiler256M; clients32M poisoning with zero leaks.",
+      "detail": "1/13 clients executed; phase nested-pattern-emit; status running. Original6 clients retained,7 added numeric/callback/projection/indexed clients and5 source refusals. Two new source-string escapes corrected in attempt2; original attempt retained. Compiler256M; clients32M poisoning with zero leaks.",
       "state": "running"
     },
     {
@@ -376,5 +376,5 @@
   "fullGoalComplete": false,
   "summary": "All 44 compiler-source checks: passed. 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. constructor contracts: passed; module resolution: passed; type inference: passed; type contracts: passed; interface contracts: passed; parser: passed; frontend adapter: passed; object round trip: passed.",
   "activity": "Earlier checkpoint: complete235-group Native sweep: 234 of 235 complete groups passed; 0 running, 1 failed and 0 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. constructor contracts: passed; module resolution: passed; type inference: passed; type contracts: passed; interface contracts: passed; parser: passed; frontend adapter: passed; object round trip: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 59 of 105 complete groups passed; 1 running, 4 failed and 41 pending.",
-  "updatedAt": "2026-11-06T11:35:10.718110+00:00"
+  "updatedAt": "2026-11-06T11:36:12.473716+00:00"
 }
