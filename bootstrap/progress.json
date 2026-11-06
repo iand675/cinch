@@ -353,7 +353,7 @@
     },
     {
       "title": "Private Native d13df: checked numeric index kinds",
-      "detail": "12/13 primary groups and 7/7 evidence/index/syntax/staging groups; phase interface_machine_contracts. The full27-test refinement group retains every original assertion plus12 positive/negative carrier controls. Actual header types are checked without treating source arguments as forall variables or capturing names by spelling. Numeric order, arithmetic and literals preserve numeric places and structural measures. Both44-input projects, original CLI proof controls and retained task-capture probes also rerun. This remains private pending complete gates.",
+      "detail": "13/13 primary groups and 7/7 evidence/index/syntax/staging groups; phase interface_machine_contracts. The full27-test refinement group retains every original assertion plus12 positive/negative carrier controls. Actual header types are checked without treating source arguments as forall variables or capturing names by spelling. Numeric order, arithmetic and literals preserve numeric places and structural measures. Both44-input projects, original CLI proof controls and retained task-capture probes also rerun. This remains private pending complete gates.",
       "state": "running"
     },
     {
@@ -491,5 +491,5 @@
   "fullGoalComplete": false,
   "summary": "All 44 compiler-source checks: passed. 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. Native all44 source modules: passed; Cinch-built all44 source modules: passed; five whole proof component groups: passed; actual compiler and object nine tests: passed; thirteen runtime clients and five refusals: passed.",
   "activity": "Earlier4f/NativeE5: complete235-group sweep: 187 of 235 complete groups passed; 1 running, 0 failed and 47 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. Native all44 source modules: passed; Cinch-built all44 source modules: passed; five whole proof component groups: passed; actual compiler and object nine tests: passed; thirteen runtime clients and five refusals: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 40 of 105 complete groups passed; 1 running, 2 failed and 62 pending. Proposed compiler repair (separate unpublished source): under-validation; 2 of 5 complete groups passed; 1 running, 0 failed and 2 pending.",
-  "updatedAt": "2026-11-06T19:19:39.428937+00:00"
+  "updatedAt": "2026-11-06T19:22:41.812317+00:00"
 }
