@@ -1,96 +1,116 @@
 {
-  "status": "published-correction-validation-in-progress",
-  "verified_at": "2026-11-06T18:44:15.609367+00:00",
+  "status": "passed-15-whole-groups-input-gates-running",
+  "verified_at": "2026-11-06T18:46:51.002509+00:00",
   "native_source_sha256": "30139479f5243a8ac14825502e57d52e9c6258005d0c59ff660c0d2ce8eb418a",
   "compiler_source_sha256": "1c76230c164fd47296646125bb0b911b387c9ffda5f18465ec3ca9d1b883ff27",
-  "whole_groups_passed": 14,
+  "whole_groups_passed": 15,
   "whole_groups_required": 15,
-  "rust_tests_passed": 267,
-  "remaining_required_group": "interface_machine_contracts: both original Rust tests/all13 actual consumers remain required; currently running",
+  "rust_tests_passed": 269,
   "runs": [
     {
       "name": "all-native-unit-tests",
       "tests": 186,
       "log_sha256": "1ce76996b91d2b8f821cb44e2731ce17b713ef0fa54a547cbb4367c8dca56a87",
-      "evidence_root": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-literal-context-validation-2"
+      "evidence_root": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-literal-context-validation-2",
+      "observed_zero_leak_reports": 45
     },
     {
       "name": "interface_refinements",
       "tests": 4,
       "log_sha256": "25864ba6f11ef0f1cc82afd836316370610f93bc15011eed0fecd55d770879d6",
-      "evidence_root": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-literal-context-validation-2"
+      "evidence_root": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-literal-context-validation-2",
+      "observed_zero_leak_reports": 0
     },
     {
       "name": "interface_region_effects",
       "tests": 2,
       "log_sha256": "2955934cccf678f1da569a5a0f8fb24507be9cf5dfd4e4acdd7416f808aba6c2",
-      "evidence_root": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-literal-context-validation-2"
+      "evidence_root": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-literal-context-validation-2",
+      "observed_zero_leak_reports": 0
     },
     {
       "name": "interface_nominals",
       "tests": 1,
       "log_sha256": "fff85f94f97d8da14379738c5478f30566ae255dff9ed9ca760d11a6718c2fb3",
-      "evidence_root": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-literal-context-validation-2"
+      "evidence_root": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-literal-context-validation-2",
+      "observed_zero_leak_reports": 0
     },
     {
       "name": "interface_kinds",
       "tests": 2,
       "log_sha256": "96ce19d5581600879bf8ffd67ffaf86866ac631e50c0725623e44610e5795ea0",
-      "evidence_root": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-literal-context-validation-2"
+      "evidence_root": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-literal-context-validation-2",
+      "observed_zero_leak_reports": 0
     },
     {
       "name": "interface_preconditions",
       "tests": 1,
       "log_sha256": "4bec59b3eefe86e127405412dbf0996b2149af254a8c9bfbd8fc24bcd81c8590",
-      "evidence_root": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-literal-context-validation-2"
+      "evidence_root": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-literal-context-validation-2",
+      "observed_zero_leak_reports": 0
     },
     {
       "name": "interface_anonymous_contracts",
       "tests": 1,
       "log_sha256": "c7a6a945edce29c347567183fb995d9c1587833c036a8c80e10dcf84721188b2",
-      "evidence_root": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-literal-context-validation-2"
+      "evidence_root": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-literal-context-validation-2",
+      "observed_zero_leak_reports": 0
     },
     {
       "name": "proof_value_identity",
       "tests": 5,
       "log_sha256": "0938c5606b942fa72662941beab80ecd179bea5945504392d1629d1c5aca18f5",
-      "evidence_root": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-literal-context-validation-2"
+      "evidence_root": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-literal-context-validation-2",
+      "observed_zero_leak_reports": 5
     },
     {
       "name": "dependent",
       "tests": 14,
       "log_sha256": "940c39e698d31e3b42f0c3de0d107988fd22e212ab94611fb65dbccc593a4e81",
-      "evidence_root": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-literal-context-validation-2"
+      "evidence_root": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-literal-context-validation-2",
+      "observed_zero_leak_reports": 10
     },
     {
       "name": "refinements",
       "tests": 26,
       "log_sha256": "92b79fe43942a009409b1cc4bbf10da92269e958753567562b4d9aa44aae9ead",
-      "evidence_root": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-literal-context-refinement-strengthening-3"
+      "evidence_root": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-literal-context-refinement-strengthening-3",
+      "observed_zero_leak_reports": 7
     },
     {
       "name": "interface_refinement_closure",
       "tests": 1,
       "log_sha256": "a98e50d6e7743634386b3fc0c2b9c1982593a9da6ef0486d4fc8687713cd5be5",
-      "evidence_root": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-literal-context-validation-2"
+      "evidence_root": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-literal-context-validation-2",
+      "observed_zero_leak_reports": 0
     },
     {
       "name": "pattern_field_names",
       "tests": 5,
       "log_sha256": "ef635e350886c639c2cf20fe0211800ad9da433816129e7d7aaac7da4c423b18",
-      "evidence_root": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-literal-context-validation-2"
+      "evidence_root": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-literal-context-validation-2",
+      "observed_zero_leak_reports": 5
+    },
+    {
+      "name": "interface_machine_contracts",
+      "tests": 2,
+      "log_sha256": "64e86d7c8a25ec72a809eea7e757f59c6b56ec8ebd964472b83b42b57a8af2c8",
+      "evidence_root": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-literal-context-validation-2",
+      "observed_zero_leak_reports": 0
     },
     {
       "name": "proof_guarded_lets",
       "tests": 7,
       "log_sha256": "bfec0a7230cc6556a2f418bd17b789fdc4e8c664922b0f011d24764773795501",
-      "evidence_root": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-literal-context-followup-3"
+      "evidence_root": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-literal-context-followup-3",
+      "observed_zero_leak_reports": 0
     },
     {
       "name": "evidence_invalidation",
       "tests": 12,
       "log_sha256": "c21a58c6665257b55bcab2c75d0facc3f00662f62cbdafbb4c5ede81fa3eed43",
-      "evidence_root": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-literal-context-followup-3"
+      "evidence_root": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-literal-context-followup-3",
+      "observed_zero_leak_reports": 1
     }
   ],
   "primary_state": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-literal-context-validation-2/state.json",
@@ -100,6 +120,8 @@
   "bootstrap_seed_and_library_pins_unchanged": true,
   "original_tests_and_assertions_retained": true,
   "source_table_cases": 14,
-  "scope": "Incremental publication of checked literal and nullary preconditions. All186 units and13 additional whole groups pass267 tests. One final complete machine-consumer group remains actively running; this receipt does not claim its result or completion of all15 affected groups. Final original235/105+14+34/171+43+39 suites, source-Prelude replacement, task-capture contracts, hidden-type introduction and all Acceptance1-5 remain required.",
-  "full_goal_complete": false
+  "scope": "All15 complete affected Rust groups pass269 tests without skips/filters. Full13-case machine consumer passes at the established256M normal profile; smaller runtime clients retain32M poisoning. Entire strengthened26-test refinement group checks a valid quantified nullary declaration and rejection of its actual unresolved index obligation. Both exact44-module input projects and original CLI controls continue; no input-gate or final-goal completion is claimed by this group-only receipt. Immutable Native22 seed/library roles, every original test/assertion and known task-capture counterexamples remain.",
+  "full_goal_complete": false,
+  "actual_machine_consumer_cases": 13,
+  "remaining_required_input_checks": "Both exact44-module projects and original actual CLI proof/forgery controls are still completing in followup3. Matching full bootstrap/suites/Acceptance1-5 remain required."
 }

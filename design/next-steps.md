@@ -1,6 +1,6 @@
 # Next steps (as of 2026-11-06)
 
-## Native literal preconditions corrected; final affected group still running (2026-11-06)
+## Native literal preconditions corrected; all15 affected groups pass (2026-11-06)
 
 Native301 treats `using (True)` and `using (False)` as propositions. A constant
 with preconditions checks its instantiated predicates at its reference, using
@@ -11,13 +11,15 @@ The identical retained source refuses on published NativeF6e and checks on
 Native301. A real provider/facade program executes7 and preserves checked
 True/False metadata through aliases, serialization and contract hashing.
 
-Fourteen of15 complete affected groups pass267 Rust tests, including all186
-unit tests. The final complete machine-consumer group remains running; its
-two Rust tests and all13 original cases are still required. The strengthened
-26-test refinement group replaces an added early signature refusal with a
-valid quantified declaration plus its actual unresolved-index-use refusal.
-All original assertions remain. This is an incremental publication, not an
-all15-green receipt. See `bootstrap/current-native-literal-context-validation.json`
+All15 complete affected groups pass269 Rust tests, including all186 unit
+tests, without ignored or filtered cases. The full13-case machine consumer
+passes with the established256M normal profile; smaller runtime groups keep
+32M poisoning. The strengthened26-test refinement group replaces an added
+early signature refusal with a valid quantified declaration plus its actual
+unresolved-index-use refusal. Every original assertion remains. Both exact
+44-module input projects and original actual CLI proof/forgery controls are
+still completing. This is an affected-test-group receipt, not a final source
+or bootstrap acceptance. See `bootstrap/current-native-literal-context-validation.json`
 and `bootstrap/current-native-literal-precondition-comparison.json`.
 
 All five task-capture probes rerun on exact Native301: both opaque callback/
