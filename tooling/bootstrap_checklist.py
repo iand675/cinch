@@ -226,10 +226,10 @@ def build_checklist(root, cfg, previous=None):
     if additional:
         group = next(r for r in additional['groups'] if r['name'] == 'class_defaults')
         row = item('additional:class_defaults', 'class_defaults / actual Cinch frontend', 'recheck',
-            'Coverage expansion preserves all seven original/new default tests. The private8fce compiler passes1/7; all six original failures remain, including diagnostics and source attribution.',
+            'All seven original/new default tests remain. Private75fb passes3/7, improved from1/7: both original strict-value runtime/build tests pass. Three exact diagnostic/source assertions and the refinement client remain failures.',
             'Pass every original default source, runtime, identity and diagnostic/path assertion through the final matching Cinch-built compiler; classify the11 direct Rust annotation checks separately.',
-            link('bootstrap/current-source-class-default-api-results.json'),
-            observed=dict(status='failed',source=additional['compiler_source_sha256'],cases=cases(Path(cfg.get('artifactRoot', BASE))/'source-class-default-interface-api-1/class_defaults.log')))
+            link('bootstrap/current-source-class-default-self-values-api-results.json'),
+            observed=dict(status='failed',source=additional['compiler_source_sha256'],cases=cases(Path(cfg.get('artifactRoot', BASE))/'source-class-default-interface-api-2/class_defaults.log')))
         suites.append(suite('additional','Additional frontend coverage','targets',[row],
             'Added by the coverage audit. All original105 Stage3 targets remain separately required; direct Rust calls do not grant Cinch frontend credit.'))
 
@@ -261,7 +261,8 @@ def build_checklist(root, cfg, previous=None):
     strict_runtime=read(cfg.get('sourceClassDefaultSelfValuesRuntimeReceipt'))
     default_api=read(cfg.get('sourceClassDefaultApi'))
     default_full=read(cfg.get('sourceClassDefaultFullCompiler'))
-    default_detail=('All four complete component groups pass independent audit, including all15 defaults and all30 original source dictionary controls. Actual compiler/object gate: '+default_full.get('status','pending')+'. Runtime13 cases: '+default_runtime.get('status','pending')+'. Original9 API groups plus7 default tests: '+default_api.get('status','waiting for full compiler')+'. Imported default transport and complete matching bootstrap remain open.')
+    coverage_state=read(cfg.get('inferredCaseCoverageValidation'))
+    default_detail='Latest75fb passes all seven complete default/dependent component groups (nine tests), all nine full compiler/object tests and both original strict-value runtime/build tests. Original API/default replay:16/21 tests pass; source-Prelude, three diagnostic assertions and the refinement runtime client remain failures. Imported checked default transport and matching final bootstrap remain required.'
     gaps=[
         item('gap:prelude','Replace source copies of library modules safely','blocked'if 'interface_prelude_overrides'in failed_api else'pending',
              'The current interface/API run fails when source Data.Core is supplied alongside its cached interface. All four original families remain required.',
@@ -269,20 +270,20 @@ def build_checklist(root, cfg, previous=None):
         item('gap:source-defaults','Check and inherit source class defaults','running',default_detail if default_receipt else 'Development compiler8fce passes all15 controls in a retained-checker replay with the corrected Rust oracle; complete groups and runtime integration remain separate.',
              'All source default controls, unused errors, generic scopes, metadata stability, runtime and original class-default behavior pass.',link('bootstrap/current-source-class-default-development.json')),
         item('gap:type-term-scope','Keep term and type annotation names separate','running',
-             'Private8fce rejects identity a = (a :: a). Candidate00b5 separates proper type-head lookup from dependent value-index lookup; original controls and three extra index groups are validating.',
+             'Private8fce rejects identity a = (a :: a). Candidate00b5 separates proper type-head lookup from dependent value-index lookup. Both00b5 and75fb pass independent audit of all seven complete default/dependent groups (nine tests). Actual75fb executes the unchanged annotation client42. Published3268 still requires promotion and matching bootstrap.',
              'The unchanged source executes42 through the repaired actual compiler, all16 source default controls pass, and dependent indices retain their checked identities.',link('bootstrap/current-source-class-default-runtime-results.json')),
         item('gap:strict-defaults','Initialize nullary default fields from checked dependencies','running' if strict_runtime else 'blocked',
              'Candidate75fb now executes nullary fields, reversed declaration order and transitive self-method dependencies. Its extended run passes15 controls; the owned constructor case and the cycle output-contract review remain before closure.' if strict_runtime else 'Private8fce checks duplicate = value, then cannot lower its strict self-evidence dependency. Two original default runtime/build assertions also stop here.',
              'Initialize acyclic strict fields in dependency order while preserving checked self evidence, closure ownership and cycle refusals; execute all original default runtime cases with zero leaks.',link('bootstrap/current-source-class-default-runtime-results.json')),
         item('gap:default-diagnostics','Preserve original class/default diagnostic details and source files','blocked',
              'Three original default refusal tests reject correctly but still fail their exact message, class/instance name or source-file assertions. These remain failures.',
-             'Every original diagnostic and filename assertion passes with accurate attribution to the defining source; semantic rejection alone grants no pass.',link('bootstrap/current-source-class-default-api-results.json')),
-        item('gap:inferred-case-coverage','Infer a constructor case before deciding coverage','blocked',
-             'Candidate75fb rejects case duplicate of Box result -> result as non-exhaustive. The exact unchanged program is accepted by current Native8ba8. Strict default values themselves now execute in the other tested cases.',
+             'Every original diagnostic and filename assertion passes with accurate attribution to the defining source; semantic rejection alone grants no pass.',link('bootstrap/current-source-class-default-self-values-api-results.json')),
+        item('gap:inferred-case-coverage','Infer a constructor case before deciding coverage','running' if coverage_state else 'blocked',
+             'Candidate75fb rejects case duplicate of Box result -> result as non-exhaustive. The exact unchanged program is accepted by current Native8ba8. Private28d2 learns a fresh nominal/tuple shape only in the coverage store. Eight added source cases and eight complete original component groups are validating; the owned runtime client and full compiler remain required.',
              'Infer the checked constructor family without borrowing branch-local index equalities as global coverage proof; retain every existing indexed/GADT refusal and run the owned constructor client with zero leaks.',link('bootstrap/current-source-class-default-self-values-runtime-results.json')),
         item('gap:default-refinement','Preserve refinement carriers in the original default runtime program','blocked',
              'The unchanged original mconcat function/refinement client fails at NonZero Int elimination before reaching its full required runtime behavior.',
-             'The original function carrier, refined product and unit cases compile and execute their expected results without guessing an underlying carrier.',link('bootstrap/current-source-class-default-api-results.json')),
+             'The original function carrier, refined product and unit cases compile and execute their expected results without guessing an underlying carrier.',link('bootstrap/current-source-class-default-self-values-api-results.json')),
         item('gap:imported-defaults','Transport checked imported default implementations','pending','A default hash alone does not provide the checked implementation required by an inheriting source instance.',
              'Inherited imported defaults retain owner scope, private closure, actual method contracts and compiled behavior; missing or stale contracts refuse.',link('design/compiled-interface-metadata.md')),
         item('gap:laws','Elaborate source class laws and declarations','pending','Category and Algebra source probes reach this explicit refusal.',
@@ -317,7 +318,8 @@ def build_checklist(root, cfg, previous=None):
         ('nativeDefaultAnnotationFollowup','Rust annotation repair: proof/syntax groups',7,'compile-'),
         ('sourceClassDefaultValidation','Cinch default implementation: complete component groups',4,'compile-'),
         ('sourceClassDefaultScopeValidation','Cinch annotation namespace repair: complete groups',7,'compile-'),
-        ('sourceClassDefaultSelfValuesValidation','Cinch strict-default repair: complete groups',7,'compile-')]:
+        ('sourceClassDefaultSelfValuesValidation','Cinch strict-default repair: complete groups',7,'compile-'),
+        ('inferredCaseCoverageValidation','Cinch constructor coverage: complete groups',8,'compile-')]:
         state=read(cfg.get(key))
         if state:
             wanted={'proof_guarded_lets','evidence_invalidation','index_local_carriers','syntax_index_evidence','syntax_index_lambdas','syntax_signature_scope','staging'} if 'Followup'in key else None
@@ -334,7 +336,9 @@ def build_checklist(root, cfg, previous=None):
                     runner_error=any(r['name']in ('compile-bootstrap_source_value_aliases','compile-bootstrap_precondition_schemes') and r['status']=='failed' for r in state.get('rows',[]))
                     semantic_failure=any(r['status']=='failed' for r in rows)
                     if runner_error and not semantic_failure:
-                        display_status='passed-execution-awaiting-audit' if len(rows)==total and all(r['status']=='passed' for r in rows) else 'running'
+                        proof=read(cfg.get({'sourceClassDefaultScopeValidation':'sourceClassDefaultScopeComponentReceipt','sourceClassDefaultSelfValuesValidation':'sourceClassDefaultSelfValuesComponentReceipt'}[key]))
+                        proof_matches=proof.get('compiler_source_sha256')==state.get('compiler_source_sha256') and proof.get('whole_groups')==total and proof.get('rust_tests')==9
+                        display_status=('passed-audited' if proof_matches else 'passed-execution-awaiting-audit') if len(rows)==total and all(r['status']=='passed' for r in rows) else 'running'
                         display_phase='Runner target-name error preserved; remaining real groups: '+follow_state.get('phase',follow_state.get('status','queued'))
             receipt=annotation_receipt if key.startswith('nativeDefaultAnnotation') else default_receipt
             audited=bool(receipt) and receipt.get('source')==state.get('source')

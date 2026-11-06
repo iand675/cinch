@@ -1,0 +1,73 @@
+diff --git a/bootstrap/Bootstrap.Infer.cinch b/bootstrap/Bootstrap.Infer.cinch
+--- a/bootstrap/Bootstrap.Infer.cinch
++++ b/bootstrap/Bootstrap.Infer.cinch
+@@ -3152,10 +3152,41 @@
+   spine-list xs = case xs of UArg x rest -> Cons x (spine-list rest); other -> Nil
+   family-ctors :: String -> List (String, List String) -> Option (List String)
+   family-ctors name families = case families of Nil -> None; Cons (n, cs) rest -> if same name n then Some cs else family-ctors name rest
++  -- Coverage can run before the patterns have inferred a scrutinee's head.
++  -- Learn only its nominal/tuple shape in the coverage store, never a
++  -- constructor's fixed indices. Branch checking still performs the actual
++  -- unification; its local equalities cannot justify dropping other branches.
++  coverage-family-shape :: UType -> Store -> (UType, Store)
++  coverage-family-shape ty st = case ty of
++    UApp head argument -> (case coverage-family-shape head st of
++      (family, opened) -> case fresh-meta (type-kind argument) opened of
++        (parameter, ready) -> (UApp family parameter, ready))
++    UCon name kind -> (ty, st)
++    other -> (UError, st)
++  coverage-pattern-head :: List CheckedBinding -> UType -> List (List Pat) -> Store -> (UType, Store)
++  coverage-pattern-head env ty rows st = case rows of
++    Cons (Cons pattern tail) rest -> (case strip-pattern pattern of
++      PCon sp name arguments -> (case lookup-binding name env of
++        Some binding -> if same (checked-role binding) "constructor" then
++          (case instantiate (checked-scheme binding) st of
++            (constructor, opened) -> case coverage-family-shape (normalize opened (result-type constructor)) opened of
++              (family, ready) -> (family, unify sp ty family ready))
++          else coverage-pattern-head env ty rest st
++        None -> coverage-pattern-head env ty rest st)
++      PTuple sp arguments -> (case pattern-fields arguments st of
++        (fields, ready) -> let tuple = tuple-type fields in (tuple, unify sp ty tuple ready))
++      other -> coverage-pattern-head env ty rest st)
++    Cons Nil rest -> coverage-pattern-head env ty rest st
++    Nil -> (ty, st)
+   covers :: List (String, List String) -> List CheckedBinding -> List UType -> List (List Pat) -> Store -> Bool
+   covers families env tys rows st = case tys of
+     Nil -> has-empty-row rows
+-    Cons ty rest -> if empty-family (normalize st ty) families then True else case rows of
++    Cons ty rest -> (case (case normalize st ty of
++      UMeta id KType -> coverage-pattern-head env ty rows st
++      actual -> (actual, st)) of
++        (head, shaped) -> covers-head families env head rest rows shaped)
++  covers-head :: List (String, List String) -> List CheckedBinding -> UType -> List UType -> List (List Pat) -> Store -> Bool
++  covers-head families env ty rest rows st = if empty-family (normalize st ty) families then True else case rows of
+       Nil -> coverage-index-empty families env ty st
+       other -> if only-defaults rows then covers families env rest (defaults rows) st else case normalize st ty of
+         UTuple fields -> covers families env (spine-list fields <> rest) (tuple-rows (list-length (spine-list fields)) rows) st
+diff --git a/compiler/tests/bootstrap_source_constructors.rs b/compiler/tests/bootstrap_source_constructors.rs
+--- a/compiler/tests/bootstrap_source_constructors.rs
++++ b/compiler/tests/bootstrap_source_constructors.rs
+@@ -17,6 +17,14 @@
+     let exe = common::build(&dir, "Main.cinch", "source-constructors").expect("build source constructor checker");
+     let yes = "wrap :: forall (p :: Prop). (h :: p) -> Dec p\n  wrap h = Yes h";
+     let cases = [
++        ("inferred coverage single constructor in checked case", "data Box where\n    Box :: Int -> Box\n  apply :: forall a b. (a -> b) -> a -> b\n  apply f x = f x\n  answer :: Int\n  answer = apply (\\box -> case box of Box n -> n) (Box 7)", true),
++        ("inferred coverage single constructor in inferred case", "data Box where\n    Box :: Int -> Box\n  answer :: Int\n  answer = let read = \\box -> case box of Box n -> n in read (Box 7)", true),
++        ("inferred coverage both constructors", "data Choice where\n    First :: Int -> Choice\n    Second :: Int -> Choice\n  answer :: Int\n  answer = let read = \\choice -> case choice of First n -> n; Second n -> n in read (Second 7)", true),
++        ("inferred coverage missing feasible constructor", "data Choice where\n    First :: Int -> Choice\n    Second :: Int -> Choice\n  answer :: Int\n  answer = let read = \\choice -> case choice of First n -> n in read (First 7)", false),
++        ("inferred coverage nested tuple and constructor", "data Box where\n    Box :: Int -> Box\n  answer :: Int\n  answer = let read = \\pair -> case pair of (Box n, _) -> n in read (Box 7, True)", true),
++        ("inferred coverage guard does not cover", "data Box where\n    Box :: Int -> Box\n  answer :: Int\n  answer = let read = \\box -> case box of Box n | False -> n in read (Box 7)", false),
++        ("inferred coverage constructor family mismatch", "data Box where\n    Box :: Int -> Box\n  data Other where\n    Other :: Int -> Other\n  answer :: Int\n  answer = let read = \\box -> case box of Box n -> n; Other n -> n in read (Box 7)", false),
++        ("inferred coverage rigid index keeps other constructor", "data Signal (channels :: Nat) where\n    Mono :: Int -> Signal 1\n    Stereo :: Int -> Int -> Signal 2\n  observe :: forall (n :: Nat). Signal n -> Int\n  observe signal = case signal of Mono x -> x", false),
+         ("projection scope infers a unique visible declaring record", "record User where\n    age :: Nat\n  apply :: forall a b. (a -> b) -> a -> b\n  apply f value = f value\n  user :: User\n  user = User { age = 36 }\n  age :: Nat\n  age = apply (\\value -> value.age) user", true),
+         ("projection scope retains the original ambiguous lambda refusal", "record Number where\n    value :: Nat\n  record Flag where\n    value :: Bool\n  apply :: forall a b. (a -> b) -> a -> b\n  apply f value = f value\n  flag :: Flag\n  flag = Flag { value = True }\n  read :: Bool\n  read = apply (\\item -> item.value) flag", false),
+         ("projection scope accepts an annotated receiver among identical labels", "record Number where\n    value :: Nat\n  record Flag where\n    value :: Bool\n  apply :: forall a b. (a -> b) -> a -> b\n  apply f value = f value\n  flag :: Flag\n  flag = Flag { value = True }\n  read :: Bool\n  read = apply (\\item -> (item :: Flag).value) flag", true),
+@@ -92,7 +100,7 @@
+     ];
+     for (name, body, accepted) in cases {
+         let source = if body.starts_with("module ") { body.to_string() } else { format!("module Main where\n  {body}\n  main :: Int\n  main = 0\n") };
+-        if name.starts_with("record ") || name.starts_with("constructor result ") || name.starts_with("indexed coverage ") || name.starts_with("projection scope ") {
++        if name.starts_with("inferred coverage ") || name.starts_with("record ") || name.starts_with("constructor result ") || name.starts_with("indexed coverage ") || name.starts_with("projection scope ") {
+             let oracle = cinch::driver::check_sources(&source, "native-record-source-oracle.cinch");
+             assert_eq!(oracle.is_ok(), accepted, "Native record oracle: {name}\n{oracle:?}");
+         }

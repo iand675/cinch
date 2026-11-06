@@ -1,0 +1,96 @@
+{
+  "compiler_sha256": "a891799a0e5145b0f9d38ce7f0a34225fac6e35ae9108868f33a1c357350e16d",
+  "compiler_source_sha256": "75fbd2f9a8596fa48c2ded66efa15834412b9bc478247b7c94ab048fa84774c0",
+  "default_adapter_only_changes_outcome_dispatch": true,
+  "default_tests_failed": 4,
+  "default_tests_passed": 3,
+  "direct_native_annotation_controls": 11,
+  "failed_tests": 5,
+  "filtered": 0,
+  "full_goal_complete": false,
+  "groups": [
+    {
+      "failed_tests": 0,
+      "log_sha256": "20223075006c5fc00106ca69e532eed65623f76ac3532bccc4e3c37967f0cba7",
+      "name": "interface_anonymous_contracts",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "c54fc3c8df8f2d7e13e128b3fce77a5464c877ff0dd7978aa3d5891eafe7b48c",
+      "name": "interface_class_contracts",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "6f17ca9b045679d92ecf026090fa9c575f60d2383e3b6f6fed52f93918364986",
+      "name": "interface_kinds",
+      "passed_tests": 2,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "3e896763eb457d8ea8f7f2c852220f63f29d11229ea55aac8cedb9e1739f337b",
+      "name": "interface_nominals",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "687957c42c7b26822ff5d848297f86b0a71380fed1de18f63940c508fdfb6193",
+      "name": "interface_preconditions",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 1,
+      "log_sha256": "27bcdf92a8ded0b21b25915a41ae108ed34001a7eafba87fc54218ed0ea85d4c",
+      "name": "interface_prelude_overrides",
+      "passed_tests": 0,
+      "status": "failed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "b54dd2560dff5e58e84cbfc27124e135a30dbfc12d67e62b7fd2d6be351b7987",
+      "name": "interface_refinement_closure",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "1e5afb88673bb419d937e0fba0c9ffd4b06a3b71784baa056848920fe1848fba",
+      "name": "interface_refinements",
+      "passed_tests": 4,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "e7db9887776b23232f316fdf7f828f1e9b9dbcfcf9c5e3b34cfeed098ab89055",
+      "name": "interface_region_effects",
+      "passed_tests": 2,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 4,
+      "log_sha256": "620db41bc78a96a6782f7f2f8102cd0c55efb50c603eb02f0290f3c6b9833f69",
+      "name": "class_defaults",
+      "passed_tests": 3,
+      "status": "failed"
+    }
+  ],
+  "ignored": 0,
+  "native_source_sha256": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+  "original_default_tests": 6,
+  "original_tests_and_assertions_retained": true,
+  "passed_groups": 8,
+  "passed_tests": 16,
+  "scope": "All9 original interface/API groups plus all7 class_defaults Rust tests execute with every original source and assertion. Class-default outcome dispatch explicitly requires the actual Cinch75fb frontend, with no Native fallback. The11 direct Native annotation checks in the seventh test remain classified as Native source/API evidence; its final inherited runtime42 uses actual Cinch. Original API is8/9 groups13/14 tests; original defaults are3/7 tests, improved from1/7: both original strict-value runtime/build tests now pass. The4 remaining default failures retain exact class/instance diagnostic and source-file attribution, and refinement/container elimination gaps. Correct semantic rejection alone does not pass an original diagnostic/path assertion. Current-source library collision still fails. These are development compiler checks, not final matching Stage3.",
+  "source": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/source-class-default-interface-api-2/source",
+  "source_sha256": "12d04e06ec435892e41e0b98b62ca766a60e3f7ab62b7e82020c60530bd54830",
+  "status": "audited-original-api-and-defaults-with-failures",
+  "total_tests": 21,
+  "verified_at": "2026-11-06T23:20:59.468701+00:00",
+  "whole_groups": 10
+}

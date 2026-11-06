@@ -1,0 +1,25 @@
+{
+  "baseline_cinch_source_sha256": "75fbd2f9a8596fa48c2ded66efa15834412b9bc478247b7c94ab048fa84774c0",
+  "files": [
+    {
+      "after_sha256": "303ebdd22d59164a70abec82ab4678a44032d5005a1c56f18724c4c027867cf4",
+      "before_sha256": "6ea42e7f11cedc20588e0af80ae52b468407277d7760b6d36521c122ac80ff92",
+      "path": "bootstrap/Bootstrap.Infer.cinch"
+    },
+    {
+      "after_sha256": "a776cc8320a7e5dc0ff45585d5c46e2f7b89c54af2cc7c96c633e47a520d06b6",
+      "before_sha256": "690d489ecf6265b5bac6f17c8019722d442c282a90bdfc1c05dc57248122f712",
+      "path": "compiler/tests/bootstrap_source_constructors.rs"
+    }
+  ],
+  "full_goal_complete": false,
+  "new_source_controls": 8,
+  "patch": "bootstrap/inferred-case-coverage-development.patch",
+  "patch_application_independently_verified": true,
+  "patch_sha256": "5431fa8c3b5c62b365fbf8aeb7e176ba706bcfd60e12506b2e9d01464f58ab0e",
+  "private_cinch_source_sha256": "28d2abf7398291b1ecd4b905117858d454cabb8f5c217d7fc02a86993f51ad61",
+  "required_complete_component_groups": 8,
+  "scope": "Unapplied development patch above75fb. Coverage learns only an unknown scrutinee nominal or tuple shape inside its private store. Every constructor result argument, including fixed indices, is replaced by a fresh parameter of the checked kind. Actual pattern/body checking remains separate and unchanged. All original constructor, inferred, typed-index, source-instance, Pi, Core, value-index and precondition groups remain required. Native44 and genuine earlier4f Stage3 exact-input checks, full actual compiler and owned runtime client remain separate required gates. Published Cinch3268 and immutable seed/library pins are unchanged.",
+  "status": "reviewable-private-inferred-case-coverage-repair-under-validation",
+  "verified_at": "2026-11-06T23:23:11.301064+00:00"
+}

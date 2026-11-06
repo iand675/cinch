@@ -1,0 +1,81 @@
+{
+  "bootstrap_seed_and_library_pins_unchanged": true,
+  "compiler_source_sha256": "75fbd2f9a8596fa48c2ded66efa15834412b9bc478247b7c94ab048fa84774c0",
+  "coordinator_error_preserved": "Primary runner used a nonexistent sixth target after five passing groups. The error remains recorded; the two intended original targets both pass in the matching-source followup. Seven distinct whole groups are audited here; no semantic failure has been waived.",
+  "full_goal_complete": false,
+  "native_source_sha256": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+  "new_default_controls": [
+    "inherited default",
+    "explicit override",
+    "unused valid default",
+    "owner private helper wins over caller helper",
+    "changed default",
+    "comment and span changes preserve default",
+    "unused bad default",
+    "overrides cannot hide a bad default",
+    "undeclared default",
+    "missing nondefault method",
+    "bad override",
+    "default helper stays private",
+    "class parameter annotation in inherited default",
+    "method local parameter annotation in inherited default",
+    "term and type names stay separate in inherited annotations",
+    "nullary default field"
+  ],
+  "original_tests_and_assertions_retained": true,
+  "runs": [
+    {
+      "evidence": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/source-class-default-validation-6/bootstrap_source_instances.log",
+      "log_sha256": "13b6212151026b993ee574431448315020d5c5ae596d0490b6bc6ea60eb57a9a",
+      "name": "bootstrap_source_instances",
+      "observed_zero_leak_reports": 0,
+      "tests": 3
+    },
+    {
+      "evidence": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/source-class-default-validation-6/bootstrap_instance_resolution.log",
+      "log_sha256": "39625365d76ab58dde63980cd4979ffd27363f02633a72ffe6ba414aa2cbe302",
+      "name": "bootstrap_instance_resolution",
+      "observed_zero_leak_reports": 0,
+      "tests": 1
+    },
+    {
+      "evidence": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/source-class-default-validation-6/bootstrap_export_types.log",
+      "log_sha256": "239e3723aec1d75c01d4adeea27654c9fb5e871b5df4959a4630d503bdb0a71c",
+      "name": "bootstrap_export_types",
+      "observed_zero_leak_reports": 0,
+      "tests": 1
+    },
+    {
+      "evidence": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/source-class-default-validation-6/bootstrap_export_interfaces.log",
+      "log_sha256": "e6735752c015918dec2bb980212b6ad766454635559c553eca0b148450184e30",
+      "name": "bootstrap_export_interfaces",
+      "observed_zero_leak_reports": 0,
+      "tests": 1
+    },
+    {
+      "evidence": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/source-class-default-validation-6/bootstrap_value_indices.log",
+      "log_sha256": "6241ef9a2940f0e7b9fd46a5d81a16f3cf0dd232453a65490a8d5524f185b609",
+      "name": "bootstrap_value_indices",
+      "observed_zero_leak_reports": 0,
+      "tests": 1
+    },
+    {
+      "evidence": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/source-class-default-self-values-followup-1/bootstrap_buffer_aliases.log",
+      "log_sha256": "42e19963c270fa24f734f5bafdebf8140723adb7aec2f48e88b1efdd76d4f574",
+      "name": "bootstrap_buffer_aliases",
+      "observed_zero_leak_reports": 0,
+      "tests": 1
+    },
+    {
+      "evidence": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/source-class-default-self-values-followup-1/bootstrap_function_preconditions.log",
+      "log_sha256": "111f281ce35dbfcbb7c2c1bd8faf795be111e599693510c8f7271c9e92f8d067",
+      "name": "bootstrap_function_preconditions",
+      "observed_zero_leak_reports": 0,
+      "tests": 1
+    }
+  ],
+  "rust_tests": 9,
+  "status": "audited-seven-complete-default-and-dependent-groups",
+  "verified_at": "2026-11-06T23:21:54.738952+00:00",
+  "whole_groups": 7
+}
