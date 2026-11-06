@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "estimate": 90,
-  "commit": "e94a3d95f5e309b13f39dfd671ced28add30bd7f",
+  "commit": "18b03a9febcc8d4c58092156a9fb26816f9da1dc",
   "estimateNote": "Rough engineering estimate. Verified checks and remaining work are listed below.",
   "status": "Verification found a failure; correction required",
   "stages": [
@@ -19,14 +19,14 @@
     },
     {
       "name": "Stage 2",
-      "state": "running",
-      "label": "Building",
+      "state": "passed",
+      "label": "Verified",
       "description": "Every compiler module is being freshly rebuilt by Stage1; all repair gates passed."
     },
     {
       "name": "Stage 3",
-      "state": "pending",
-      "label": "Pending",
+      "state": "running",
+      "label": "Building",
       "description": "Fresh rebuild by Stage2, followed by code/interface matching and changed-source checks."
     }
   ],
@@ -58,12 +58,12 @@
     },
     {
       "title": "Current NativeE5/4f: complete235-group sweep",
-      "detail": "26 of 235 complete groups passed; 1 running, 0 failed and 208 pending.Every group includes ignored tests. State: running.",
+      "detail": "28 of 235 complete groups passed; 1 running, 0 failed and 206 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
       "title": "Fresh compiler bootstrap",
-      "detail": "2 of 4 stages built and smoke-tested. Fixed point, 44 interfaces, API consumption and changed-source behavior are required.",
+      "detail": "3 of 4 stages built and smoke-tested. Fixed point, 44 interfaces, API consumption and changed-source behavior are required.",
       "state": "running"
     },
     {
@@ -322,6 +322,21 @@
       "state": "passed"
     },
     {
+      "title": "Observed byte-size proof search needs repair",
+      "detail": "Native accepts three reduced valid writes where n=bytes-len payload and allocation is n+4; the actual published4f compiler refuses each. All seven ordinary-size controls and both end-index refusals agree. The captured actual goal and hypotheses are retained. A separate private correction changes only untrusted elimination order; its certificate checker and budgets stay unchanged.",
+      "state": "failed"
+    },
+    {
+      "title": "Private proof-search correction: component and source checks",
+      "detail": "1/4 complete proof/guarded/refinement/argument groups; 0/2 groups with six new actual source controls. Ten new captured-context proof packets retain the original certificate tests. Exact44-module Native check: running. Actual full compiler and unchanged Format replay remain required; this correction is not published.",
+      "state": "running"
+    },
+    {
+      "title": "Matching Stage3: all34 original language cases",
+      "detail": "State: waiting-matching-stage3-audit. All13 positives and21 negatives retain their exact original assertions. Waits for the matching independent Stage3 audit; no Native source frontend fallback. The development4f7/13 result remains separately reported.",
+      "state": "running"
+    },
+    {
       "title": "Development record compiler: original external language cases",
       "detail": "7/13 positives execute; 2/21 negative cases meet their original reason/path assertions. All34 original cases run; 25 failed subcases. All seven successful binaries independently rerun at32M poisoning with zero leaks. This independently audited replay uses the exact published4f compiler. It is development-compiler evidence; finalStage3 and complete acceptance remain required.",
       "state": "failed"
@@ -334,20 +349,20 @@
   ],
   "blockers": [
     {
-      "title": "Published record/indexed fixes; full bootstrap and suite verification running",
-      "detail": "Published Cinch4f fixes typed record fields, module-visible projection and closed numeric indexed constructors. Exact44 source checks pass Native and the actual Cinch-built reader. Full runtime-IR group:137 program plus2 C ABI executions,139 zero-leak reports. Actual compiler/object gate:9 tests,17 C clients,50 zero-leak reports. All13 runtime clients plus5 refusals pass; all13 independently rerun with poisoning and zero leaks. Latest original language suite executes7/13 positives;21 negatives refuse but only2 meet original diagnostics,25 failed assertions retained. Original API8/9; source-Prelude replacement and record interface transport remain. A matching4f four-stage chain and fresh NativeE5/4f235-group sweep are running. Earlier6b/5f2f suite remains historical234/235 groups. Latest105 frontend targets,14 external acceptance checks,34 language cases and Acceptance1-5 remain required. New temporary build files stay in the workspace; the latest/tmp cleanup reclaimed30.5GB."
+      "title": "Matching auxiliary suites pass; observed byte-size proof correction validating",
+      "detail": "Published4f/NativeE5:171 runtime +43 tooling +39 Native editor integration tests pass with independent source/log/provenance verification. All5 scoped4f gates pass:44 source inputs through Native and actual Cinch-built reader; runtime139 zero-leak reports; full compiler/object9 tests/17 C clients/50 zero-leak reports;13 focused clients and5 refusals. Actual development language7/13 positives;21 negatives refuse but only2 meet original diagnostics,25 failures retained. Matching four-stage chain is building Stage2; fresh235-group Native sweep runs. All105 frontend targets,14 external acceptance checks and34 language cases are queued behind exact independently audited Stage3. Source-Prelude replacement, record interface transport and language gaps remain. Three valid reduced byte writes deriving n from bytes-len reproduce a proof-search failure in actual4f; Native accepts. Private1c76 chooses cheaper elimination columns without changing trusted certificate checking or budgets. Its complete proof group and10 new packets pass; six actual source controls, full component/source/compiler checks continue. This correction remains private. All Acceptance1-5 requirements remain; up to6 shared workers and new temporary outputs in workspace."
     },
     {
       "title": "Investigate the recorded failure",
-      "detail": "Two original array cases remain open: ownership/copyOut and staging"
+      "detail": "Two original array cases remain open: ownership/copyOut and staging; Observed byte-size allocation proof is still refused by published4f"
     },
     {
       "title": "Finish the fresh bootstrap",
-      "detail": "All repair gates passed. Current phase: building-stage2; Stage0/1/2/3, matching code/interfaces, actual API consumption and changed-source checks remain."
+      "detail": "All repair gates passed. Current phase: building-stage3; Stage0/1/2/3, matching code/interfaces, actual API consumption and changed-source checks remain."
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "26 of 235 complete groups passed; 1 running, 0 failed and 208 pending."
+      "detail": "28 of 235 complete groups passed; 1 running, 0 failed and 206 pending."
     },
     {
       "title": "Finish the exact self-built compiler tests",
@@ -396,6 +411,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "All 44 compiler-source checks: passed. 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. native44: passed; cinch-built44: passed; runtime behavior: passed; actual_compiler_object: passed; record_indexed_runtime13_refusals5: passed.",
-  "activity": "Current NativeE5/4f: complete235-group sweep: 26 of 235 complete groups passed; 1 running, 0 failed and 208 pending. Stage builds and smoke checks: 2 of 4; chain state: building-stage2. Repair gates: 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. native44: passed; cinch-built44: passed; runtime behavior: passed; actual_compiler_object: passed; record_indexed_runtime13_refusals5: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 0 of 105 complete groups passed; 0 running, 0 failed and 105 pending.",
-  "updatedAt": "2026-11-06T13:22:20.351621+00:00"
+  "activity": "Current NativeE5/4f: complete235-group sweep: 28 of 235 complete groups passed; 1 running, 0 failed and 206 pending. Stage builds and smoke checks: 3 of 4; chain state: building-stage3. Repair gates: 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. native44: passed; cinch-built44: passed; runtime behavior: passed; actual_compiler_object: passed; record_indexed_runtime13_refusals5: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 0 of 105 complete groups passed; 0 running, 0 failed and 105 pending.",
+  "updatedAt": "2026-11-06T13:25:56.933312+00:00"
 }
