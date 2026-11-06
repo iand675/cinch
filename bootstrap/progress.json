@@ -58,7 +58,7 @@
     },
     {
       "title": "Current NativeE5/4f: complete235-group sweep",
-      "detail": "24 of 235 complete groups passed; 1 running, 0 failed and 210 pending.Every group includes ignored tests. State: running.",
+      "detail": "25 of 235 complete groups passed; 1 running, 0 failed and 209 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -347,7 +347,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "24 of 235 complete groups passed; 1 running, 0 failed and 210 pending."
+      "detail": "25 of 235 complete groups passed; 1 running, 0 failed and 209 pending."
     },
     {
       "title": "Finish the exact self-built compiler tests",
@@ -396,6 +396,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "All 44 compiler-source checks: passed. 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. native44: passed; cinch-built44: passed; runtime behavior: passed; actual_compiler_object: passed; record_indexed_runtime13_refusals5: passed.",
-  "activity": "Current NativeE5/4f: complete235-group sweep: 24 of 235 complete groups passed; 1 running, 0 failed and 210 pending. Stage builds and smoke checks: 2 of 4; chain state: building-stage2. Repair gates: 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. native44: passed; cinch-built44: passed; runtime behavior: passed; actual_compiler_object: passed; record_indexed_runtime13_refusals5: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 0 of 105 complete groups passed; 0 running, 0 failed and 105 pending.",
-  "updatedAt": "2026-11-06T13:19:56.344876+00:00"
+  "activity": "Current NativeE5/4f: complete235-group sweep: 25 of 235 complete groups passed; 1 running, 0 failed and 209 pending. Stage builds and smoke checks: 2 of 4; chain state: building-stage2. Repair gates: 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. native44: passed; cinch-built44: passed; runtime behavior: passed; actual_compiler_object: passed; record_indexed_runtime13_refusals5: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 0 of 105 complete groups passed; 0 running, 0 failed and 105 pending.",
+  "updatedAt": "2026-11-06T13:21:18.490715+00:00"
 }
