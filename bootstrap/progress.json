@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "230 of 235 complete groups passed; 1 running, 1 failed and 3 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "231 of 235 complete groups passed; 1 running, 1 failed and 2 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -71,7 +71,7 @@
     },
     {
       "title": "Earlier API checkpoint: exact Stage3 behavior",
-      "detail": "63 of 105 complete groups passed; 1 running, 2 failed and 39 pending.All105 required targets:96 portable and9 original interface/API groups, preserving the original100 plus5 additions. Original explicit32M poisoned client limits remain; compiler/checker consumers use256M. Direct Native operations in mixed targets remain classified separately. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "64 of 105 complete groups passed; 1 running, 2 failed and 38 pending.All105 required targets:96 portable and9 original interface/API groups, preserving the original100 plus5 additions. Original explicit32M poisoned client limits remain; compiler/checker consumers use256M. Direct Native operations in mixed targets remain classified separately. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -474,7 +474,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "230 of 235 complete groups passed; 1 running, 1 failed and 3 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "231 of 235 complete groups passed; 1 running, 1 failed and 2 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -482,7 +482,7 @@
     },
     {
       "title": "Finish the exact self-built compiler tests",
-      "detail": "63 of 105 complete groups passed; 1 running, 2 failed and 39 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "64 of 105 complete groups passed; 1 running, 2 failed and 38 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Pass all external language examples through Stage3",
@@ -773,8 +773,8 @@
           "verified": 22,
           "blocked": 0,
           "running": 0,
-          "pending": 3,
-          "recheck": 210
+          "pending": 2,
+          "recheck": 211
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
         "items": [
@@ -3070,16 +3070,16 @@
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_typed_indices.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "startedAt": "2026-11-06T23:32:29.784459+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-06T23:34:03.409673+00:00",
+              "exitCode": 0,
+              "logSha256": "782023e33212eb80d67e085cf34a39d903b07874ad0d4a4e633586d640d7ed39",
               "cases": [
                 {
                   "name": "typed_indices_preserve_sorts_scope_and_numeric_conversion",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -3088,18 +3088,23 @@
           {
             "id": "native:bootstrap_typing",
             "title": "bootstrap_typing",
-            "state": "pending",
+            "state": "recheck",
             "detail": "Awaiting a complete run on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_typing.rs",
             "observed": {
-              "status": "pending",
+              "status": "running",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": null,
+              "startedAt": "2026-11-06T23:34:03.419460+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "core_typing_rechecks_annotations_with_actual_declarations_and_scopes",
+                  "status": "running"
+                }
+              ]
             },
             "currentTests": null
           },
@@ -11772,10 +11777,10 @@
           }
         ],
         "observedCounts": {
-          "passed": 230,
+          "passed": 231,
           "failed": 1,
           "running": 1,
-          "pending": 3
+          "pending": 2
         },
         "observedSource": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2"
       },
@@ -11788,8 +11793,8 @@
           "verified": 0,
           "blocked": 0,
           "running": 0,
-          "pending": 39,
-          "recheck": 66
+          "pending": 38,
+          "recheck": 67
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
         "items": [
@@ -13164,16 +13169,16 @@
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_pi.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "startedAt": "2026-11-06T23:28:10.091102+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-06T23:34:09.524041+00:00",
+              "exitCode": 0,
+              "logSha256": "70928f6a3d8f111dacf9f6049fed4174895d20307bdcffd59da126670298d25c",
               "cases": [
                 {
                   "name": "dependent_functions_preserve_binding_scope_effects_and_application",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -13182,18 +13187,23 @@
           {
             "id": "stage3:bootstrap_pipeline",
             "title": "bootstrap_pipeline",
-            "state": "pending",
+            "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_pipeline.rs",
             "observed": {
-              "status": "pending",
+              "status": "running",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": null,
+              "startedAt": "2026-11-06T23:34:09.537013+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "the_ladder_compiles_the_fib_example_with_itself",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -14175,10 +14185,10 @@
           }
         ],
         "observedCounts": {
-          "passed": 63,
+          "passed": 64,
           "failed": 2,
           "running": 1,
-          "pending": 39
+          "pending": 38
         },
         "observedSource": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2"
       },
@@ -18344,8 +18354,8 @@
       {
         "title": "Earlier compiler: full Rust sweep",
         "status": "running",
-        "phase": "bootstrap_typed_indices",
-        "passed": 230,
+        "phase": "bootstrap_typing",
+        "passed": 231,
         "failed": 1,
         "total": 235,
         "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
@@ -18354,8 +18364,8 @@
       {
         "title": "Earlier Stage3: complete frontend sweep",
         "status": "running",
-        "phase": "bootstrap_pi",
-        "passed": 63,
+        "phase": "bootstrap_pipeline",
+        "passed": 64,
         "failed": 2,
         "total": 105,
         "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
@@ -18366,8 +18376,8 @@
       "verified": 194,
       "blocked": 5,
       "running": 4,
-      "pending": 49,
-      "recheck": 415
+      "pending": 47,
+      "recheck": 417
     },
     "total": 667,
     "acceptanceVerified": 0,
@@ -18375,5 +18385,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-06T23:33:56.635223+00:00"
+  "updatedAt": "2026-11-06T23:34:58.784491+00:00"
 }
