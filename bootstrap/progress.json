@@ -73,7 +73,7 @@
     },
     {
       "title": "Earlier API checkpoint: exact Stage3 behavior",
-      "detail": "37 of 105 complete groups passed; 1 running, 3 failed and 64 pending.All105 required targets:96 portable and9 original interface/API groups, preserving the original100 plus5 additions. Original explicit32M poisoned client limits remain; compiler/checker consumers use256M. Direct Native operations in mixed targets remain classified separately. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "38 of 105 complete groups passed; 1 running, 3 failed and 63 pending.All105 required targets:96 portable and9 original interface/API groups, preserving the original100 plus5 additions. Original explicit32M poisoned client limits remain; compiler/checker consumers use256M. Direct Native operations in mixed targets remain classified separately. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -295,7 +295,7 @@
     },
     {
       "title": "Finish the exact self-built compiler tests",
-      "detail": "37 of 105 complete groups passed; 1 running, 3 failed and 64 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "38 of 105 complete groups passed; 1 running, 3 failed and 63 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Pass all external language examples through Stage3",
@@ -340,6 +340,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "All 44 compiler-source checks: passed. 10 of 10 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_intrinsics: passed; type contracts: passed; interface contracts: passed; bootstrap_globals: passed; bootstrap_effects: passed; runtime behavior: passed; library calls: passed; parser: passed; frontend adapter: passed; object round trip: passed.",
-  "activity": "Current matching Rust and Cinch-source full suite: 192 of 235 complete groups passed; 1 running, 1 failed and 41 pending. Stage builds and smoke checks: 4 of 4; chain state: building-stage3. Repair gates: 10 of 10 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_intrinsics: passed; type contracts: passed; interface contracts: passed; bootstrap_globals: passed; bootstrap_effects: passed; runtime behavior: passed; library calls: passed; parser: passed; frontend adapter: passed; object round trip: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 37 of 105 complete groups passed; 1 running, 3 failed and 64 pending.",
-  "updatedAt": "2026-11-06T07:46:35.931289+00:00"
+  "activity": "Current matching Rust and Cinch-source full suite: 192 of 235 complete groups passed; 1 running, 1 failed and 41 pending. Stage builds and smoke checks: 4 of 4; chain state: building-stage3. Repair gates: 10 of 10 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_intrinsics: passed; type contracts: passed; interface contracts: passed; bootstrap_globals: passed; bootstrap_effects: passed; runtime behavior: passed; library calls: passed; parser: passed; frontend adapter: passed; object round trip: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 38 of 105 complete groups passed; 1 running, 3 failed and 63 pending.",
+  "updatedAt": "2026-11-06T07:49:37.870605+00:00"
 }
