@@ -58,7 +58,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "198 of 235 complete groups passed; 1 running, 0 failed and 36 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "199 of 235 complete groups passed; 1 running, 0 failed and 35 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -430,7 +430,7 @@
   "blockers": [
     {
       "title": "Source-Prelude replacement, task captures and matching final bootstrap remain",
-      "detail": "Published Cinch3268 passes all3 complete component groups,27 formatter controls,16 provider/facade arity comparisons,37 precondition source cases and all9 actual compiler/object tests. API6 with published Native995f passes13/14 tests after complete replay and independent audit; source-Prelude replacement is the retained failure. Data.Core source passes without conflicting cached interfaces; its fresh contract differs in public spellings. Dependency-closed subset probes retain every cached byte/hash: Ordering then exposes inherited mconcat defaults, Category source laws/declarations and Algebra implicit base names. Cache invalidation alone is insufficient; all four original families and their checked dependency graph remain required. Native995f passes20 whole groups325 Rust tests, all13 machine cases, both exact44-input projects and quote-scope controls; the two opaque task-capture bypasses remain reproduced. Native22 seed/library pins stay fixed. Original source-Prelude/record/copyOut/staging/language/hidden-type requirements, full matching235/105+14+34/171+43+39 suites and every Acceptance1-5 requirement remain open."
+      "detail": "Published Cinch3268 passes all3 complete component groups,27 formatter controls,16 provider/facade arity comparisons,37 precondition source cases and all9 actual compiler/object tests. API6 with published Native995f passes13/14 tests after complete replay and independent audit; source-Prelude replacement is the retained failure. Data.Core source passes without conflicting cached interfaces; its fresh contract differs in public spellings. Dependency-closed subset probes retain every cached byte/hash: Ordering then exposes inherited mconcat defaults, Category source laws/declarations and Algebra implicit base names. Cache invalidation alone is insufficient; all four original families and their checked dependency graph remain required. Native995f passes20 whole groups325 Rust tests, all13 machine cases, both exact44-input projects and quote-scope controls; the two opaque task-capture bypasses remain reproduced. Native22 seed/library pins stay fixed. Original source-Prelude/record/copyOut/staging/language/hidden-type requirements, full matching235/105+14+34/171+43+39 suites and every Acceptance1-5 requirement remain open. A private class-default implementation now checks the owner body even when unused/overridden, retains checked Core and exported body identities, and inherits via the checked generic default. Fifteen source controls include class/method type annotations; component and current44-module checks are running. The first44-module prototype passed; a later syntax failure is retained and corrected in a new frozen attempt. This work is not yet published."
     },
     {
       "title": "Investigate the recorded failure",
@@ -446,7 +446,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "198 of 235 complete groups passed; 1 running, 0 failed and 36 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "199 of 235 complete groups passed; 1 running, 0 failed and 35 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -499,6 +499,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "All 44 compiler-source checks: passed. 4 of 5 complete groups passed; 0 running, 1 failed and 0 pending. Native995f all44 source modules: passed; Earlier4f Stage3 all44 source modules: passed; all3 complete interface components: passed; actual compiler and object9tests: passed; original interface/API13of14: failed.",
-  "activity": "Earlier4f/NativeE5: complete235-group sweep: 198 of 235 complete groups passed; 1 running, 0 failed and 36 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 4 of 5 complete groups passed; 0 running, 1 failed and 0 pending. Native995f all44 source modules: passed; Earlier4f Stage3 all44 source modules: passed; all3 complete interface components: passed; actual compiler and object9tests: passed; original interface/API13of14: failed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 46 of 105 complete groups passed; 1 running, 2 failed and 56 pending. Published-source verification gates: recorded-failure; 4 of 5 complete groups passed; 0 running, 1 failed and 0 pending.",
-  "updatedAt": "2026-11-06T20:43:28.379651+00:00"
+  "activity": "Earlier4f/NativeE5: complete235-group sweep: 199 of 235 complete groups passed; 1 running, 0 failed and 35 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 4 of 5 complete groups passed; 0 running, 1 failed and 0 pending. Native995f all44 source modules: passed; Earlier4f Stage3 all44 source modules: passed; all3 complete interface components: passed; actual compiler and object9tests: passed; original interface/API13of14: failed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 46 of 105 complete groups passed; 1 running, 2 failed and 56 pending. Published-source verification gates: recorded-failure; 4 of 5 complete groups passed; 0 running, 1 failed and 0 pending.",
+  "updatedAt": "2026-11-06T20:45:10.277920+00:00"
 }
