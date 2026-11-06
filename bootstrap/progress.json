@@ -17988,9 +17988,9 @@
       },
       {
         "title": "Published Cinch: Rust reader/API replay",
-        "status": "running",
+        "status": "completed-with-failures",
         "phase": "interface_region_effects",
-        "passed": 7,
+        "passed": 8,
         "failed": 1,
         "total": 9,
         "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
@@ -18030,5 +18030,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-06T21:55:26.596131+00:00"
+  "updatedAt": "2026-11-06T21:56:28.797637+00:00"
 }
