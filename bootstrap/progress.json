@@ -58,7 +58,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "150 of 235 complete groups passed; 1 running, 0 failed and 84 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "151 of 235 complete groups passed; 1 running, 0 failed and 83 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -357,7 +357,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "150 of 235 complete groups passed; 1 running, 0 failed and 84 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "151 of 235 complete groups passed; 1 running, 0 failed and 83 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -410,6 +410,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "All 44 compiler-source checks: passed. 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. Native all44 source modules: passed; Cinch-built all44 source modules: passed; five whole proof component groups: passed; actual compiler and object nine tests: passed; thirteen runtime clients and five refusals: passed.",
-  "activity": "Earlier4f/NativeE5: complete235-group sweep: 150 of 235 complete groups passed; 1 running, 0 failed and 84 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. Native all44 source modules: passed; Cinch-built all44 source modules: passed; five whole proof component groups: passed; actual compiler and object nine tests: passed; thirteen runtime clients and five refusals: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 13 of 105 complete groups passed; 1 running, 2 failed and 89 pending.",
-  "updatedAt": "2026-11-06T14:58:08.293431+00:00"
+  "activity": "Earlier4f/NativeE5: complete235-group sweep: 151 of 235 complete groups passed; 1 running, 0 failed and 83 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. Native all44 source modules: passed; Cinch-built all44 source modules: passed; five whole proof component groups: passed; actual compiler and object nine tests: passed; thirteen runtime clients and five refusals: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 13 of 105 complete groups passed; 1 running, 2 failed and 89 pending.",
+  "updatedAt": "2026-11-06T14:59:10.061498+00:00"
 }
