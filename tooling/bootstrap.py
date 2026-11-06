@@ -204,6 +204,28 @@ def build_seed() -> Path:
     return record_build(directory, inputs, code, log)
 
 
+def build_seed_runtime() -> Path:
+    """Link Stage1 with an optimized runtime from the exact seed archive."""
+    lock, _ = seed_inputs()
+    snapshot = BUILD / "seed-sources" / digest(json.dumps(lock, sort_keys=True).encode())
+    if source_hash(seed_sources(snapshot)) != lock["source_sha256"]:
+        raise BootstrapError("the seed runtime source differs from the pinned seed")
+    runtime = snapshot / "compiler/runtime"
+    archive = runtime / "target/release/libcinchruntime.a"
+    log = BUILD / "stage0/runtime-build.log"
+    code = run(["cargo", "build", "--locked", "--release", "--manifest-path",
+                runtime / "Cargo.toml", "--target-dir", runtime / "target"],
+               snapshot / "compiler", log)
+    if code or not archive.is_file():
+        raise BootstrapError(f"the optimized seed runtime did not build: {log}")
+    # The pinned Native linker prefers a fresh release archive. Never let a
+    # failed/stale optimized build quietly select its debug fallback.
+    sources = [runtime / "Cargo.toml", *[p for p in (runtime / "src").rglob("*") if p.is_file()]]
+    if any(p.stat().st_mtime_ns > archive.stat().st_mtime_ns for p in sources):
+        raise BootstrapError("the optimized seed runtime is older than its source")
+    return archive
+
+
 def runtime_abi_source(abi: int) -> bytes:
     # This is build configuration, not permission to translate artifacts.
     # Interfaces and the linked archive must come from the same producer.
@@ -269,8 +291,10 @@ def build_stage(stage: int) -> Path:
         if source.read_bytes() != bundle(files):
             raise BootstrapError("compiler sources changed while preparing the stage chain")
         return build_self(builder, files, BUILD / f"stage{stage}", stage - 1, source)
+    runtime = build_seed_runtime()
     inputs = {"protocol": PROTOCOL, "host": HOST, "source_sha256": source_hash(files),
-              "builder_sha256": file_hash(builder), "built_by_stage": stage - 1}
+              "builder_sha256": file_hash(builder), "built_by_stage": stage - 1,
+              "seed_runtime_profile": "release", "seed_runtime_sha256": file_hash(runtime)}
     directory = BUILD / f"stage{stage}"
     if cached(directory, inputs):
         print(f"stage{stage}: verified cached compiler", flush=True)

@@ -63,6 +63,12 @@ are reported in the stage's `requested-roots.json` for the producer's explicit
 root protocol. The produced compiler must also
 run and return its bad-arguments status before the build is accepted.
 Cache hits verify source/builder identities and output hashes.
+Stage1 also builds the exact seed runtime with `--release` and records its
+archive hash in the cache inputs. A failed optimized runtime build is an error;
+it cannot quietly select the Native linker's debug fallback. This profile
+choice changes neither the pinned seed nor later stages' independent library
+provider. Fresh Stage0/1 builds and all six smoke outcomes are recorded in
+[current runtime profile results](current-stage1-runtime-profile-results.json).
 The fixed-point check requires the actual compiler modules' canonical
 interfaces, so base-library interfaces cannot stand in for compiler output.
 The final check also rebuilds a changed checker diagnostic and requires

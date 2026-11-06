@@ -1,4 +1,26 @@
-# Next steps (as of 2026-11-05)
+# Next steps (as of 2026-11-06)
+
+## Stage1 links an optimized pinned runtime (2026-11-06)
+
+The stage builder now builds the exact pinned seed runtime in release mode
+before building Stage1. The runtime archive hash participates in the Stage1
+cache key. A failed or stale runtime build refuses instead of silently using
+the Native linker's debug fallback; changing archive bytes invalidates the
+cached compiler. The seed revision and compiler sources remain explicit.
+
+All43 tooling tests pass, including two cache/failure controls. A fresh
+85f00ca/Native22 seed builds all43 inputs of compiler1dd5b24b into Stage1;
+Stage0 and Stage1 each pass the original fib, precedence and named-refusal
+smokes. See `bootstrap/current-stage1-runtime-profile-results.json`.
+This is a verified build-profile correction; a same-IR runtime performance
+comparison is still running. It grants no Stage2/3 fixedpoint or final suite
+acceptance. Existing older chains retain their inputs and binaries.
+
+The private dictionary-context exporter builds and passes its complete
+exporter, adapter and object gates, but its original class API replay exposes
+missing transitive private-class method dependencies. A closure repair with
+three levels of private class context is in validation. All105 required
+targets, matching final bootstrap/suites and Acceptance5 remain open.
 
 ## Constructor declarations retain their own type and index binders (2026-11-06)
 

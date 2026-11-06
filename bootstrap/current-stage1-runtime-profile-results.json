@@ -1,0 +1,27 @@
+{
+  "compiler_heap_limit": "256M",
+  "compiler_leak_check": true,
+  "compiler_modules": 43,
+  "compiler_rc_debug": false,
+  "compiler_source_sha256": "1dd5b24b5f6208b375406bb02dfec795770ad9ff99c9aa8ae2b1661fb50bd163",
+  "final_log_paths_verified": 14,
+  "full_goal_complete": false,
+  "new_tooling_controls": 2,
+  "runtime_abi": 6,
+  "schema": 1,
+  "scope": "Fresh exact85f00ca Native22 seed and runtime, all43 constructor-source compiler inputs and original Stage0/1 fib/precedence/named-refusal smokes pass. The Stage1 cache includes the optimized seed archive bytes; failed runtime builds cannot use the debug fallback and changed archive bytes invalidate a cached compiler. All43 Python tooling tests pass. Final bytes of every distinct command log are verified; repeated runtime cache checks overwrite runtime-build.log, so earlier copies of that log are not claimed retained. Existing running chains are untouched. This receipt does not prove Stage2/3 fixedpoint, final suites, API parity or a measured speedup.",
+  "seed_native_source_sha256": "22c91cf6c1855b049207612e9d94630850e880d5a49ea3e2c57c92aff7fdbe88",
+  "seed_revision": "85f00ca880f0d9882c03c65031424a05c81b11bc",
+  "seed_runtime_profile": "release",
+  "seed_runtime_sha256": "2fab721751aa601f3ca72d7677f8520e5bdd37d93887275b5636fce478f959c6",
+  "smoke_outcomes": 6,
+  "stage0_compiler_sha256": "e64d05d381b0c858d32b704142ea43a3a6b2521969baf74c9e432e19142eb345",
+  "stage1_compiler_sha256": "ac71a8f0bbc79114a94d8d0e0e69a7f501eec8f2213c0e58f45107a8ad6903b9",
+  "stages_passed": [
+    0,
+    1
+  ],
+  "status": "passed-optimized-seed-runtime-stage1",
+  "tooling_tests": 43,
+  "verified_at": "2026-11-06T00:31:45.461430+00:00"
+}

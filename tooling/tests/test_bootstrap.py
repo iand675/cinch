@@ -13,6 +13,62 @@ import bootstrap
 
 
 class BootstrapContract(unittest.TestCase):
+    def test_seed_runtime_failure_cannot_fall_back_to_a_debug_archive(self):
+        with tempfile.TemporaryDirectory() as temp:
+            build = Path(temp)
+            files = {"compiler/runtime/src/lib.rs": b"pinned runtime"}
+            lock = {"revision": "seed", "source_sha256": bootstrap.source_hash(files)}
+            archive = build / "seed-sources" / bootstrap.digest(json.dumps(lock, sort_keys=True).encode())
+            runtime = archive / "compiler/runtime"
+            (runtime / "src").mkdir(parents=True)
+            (runtime / "src/lib.rs").write_bytes(files["compiler/runtime/src/lib.rs"])
+            (runtime / "Cargo.toml").write_text("pinned package")
+            debug = runtime / "target/debug/libcinchruntime.a"
+            debug.parent.mkdir(parents=True)
+            debug.write_bytes(b"working debug runtime")
+            with patch.object(bootstrap, "BUILD", build), \
+                    patch.object(bootstrap, "seed_inputs", return_value=(lock, b"")), \
+                    patch.object(bootstrap, "seed_sources", return_value=files), \
+                    patch.object(bootstrap, "run", return_value=1):
+                with self.assertRaisesRegex(bootstrap.BootstrapError, "optimized seed runtime did not build"):
+                    bootstrap.build_seed_runtime()
+            self.assertEqual(debug.read_bytes(), b"working debug runtime")
+
+    def test_stage1_cache_is_invalidated_when_its_seed_runtime_changes(self):
+        with tempfile.TemporaryDirectory() as temp:
+            build = Path(temp)
+            stage = build / "stage1"
+            (stage / "sources/build").mkdir(parents=True)
+            files = {"Main.cinch": b"frozen compiler source"}
+            builder = build / "seed"
+            builder.write_bytes(b"same seed compiler")
+            runtime = build / "runtime.a"
+            runtime.write_bytes(b"optimized runtime A")
+            inputs = {"protocol": bootstrap.PROTOCOL, "host": bootstrap.HOST,
+                      "source_sha256": bootstrap.source_hash(files),
+                      "builder_sha256": bootstrap.file_hash(builder), "built_by_stage": 0,
+                      "seed_runtime_profile": "release", "seed_runtime_sha256": bootstrap.file_hash(runtime)}
+            (stage / "compiler.cinch").write_bytes(bootstrap.bundle(files))
+            (stage / "sources/build/Main.manifest.json").write_text("{}")
+            compiler = stage / "cinch"
+            compiler.write_bytes(b"previous compiler")
+            compiler.chmod(0o755)
+            log = stage / "build.log"
+            log.write_text("")
+            bootstrap.record_build(stage, inputs, 0, log)
+            with patch.object(bootstrap, "BUILD", build), \
+                    patch.object(bootstrap, "build_seed", return_value=builder), \
+                    patch.object(bootstrap, "compiler_sources", return_value=files), \
+                    patch.object(bootstrap, "build_seed_runtime", return_value=runtime), \
+                    patch.object(bootstrap, "run", return_value=9) as invoke:
+                self.assertEqual(bootstrap.build_stage(1), compiler)
+                invoke.assert_not_called()
+                runtime.write_bytes(b"optimized runtime B")
+                with self.assertRaises(bootstrap.BootstrapError):
+                    bootstrap.build_stage(1)
+                self.assertEqual(invoke.call_count, 1)
+                self.assertFalse(compiler.exists(), "a failed runtime-triggered rebuild left a stale compiler")
+
     def test_seed_stage_imports_every_bundled_compiler_module(self):
         files = bootstrap.collect_compiler_sources()
         entry = files["Main.cinch"].decode()
