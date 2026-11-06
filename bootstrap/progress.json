@@ -13,8 +13,8 @@
     },
     {
       "name": "Stage 1",
-      "state": "pending",
-      "label": "Pending",
+      "state": "running",
+      "label": "Building",
       "description": "Fresh Cinch compiler built from the seed; all three smoke checks."
     },
     {
@@ -258,7 +258,7 @@
     },
     {
       "title": "Finish the fresh bootstrap",
-      "detail": "All repair gates passed. Current phase: building-library-only-provider; Stage0/1/2/3, matching code/interfaces, actual API consumption and changed-source checks remain."
+      "detail": "All repair gates passed. Current phase: building-stage1; Stage0/1/2/3, matching code/interfaces, actual API consumption and changed-source checks remain."
     },
     {
       "title": "Finish all current compiler tests",
@@ -311,6 +311,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "All 43 compiler-source checks: passed. 4 of 4 complete groups passed; 0 running, 0 failed and 0 pending. Core decision contracts: passed; source decision behavior: passed; frontend adapter: passed; object round trip: passed.",
-  "activity": "Current matching Rust and Cinch-source full suite: 0 of 232 complete groups passed; 0 running, 0 failed and 232 pending. Stage builds and smoke checks: 1 of 4; chain state: building-library-only-provider. Repair gates: 4 of 4 complete groups passed; 0 running, 0 failed and 0 pending. Core decision contracts: passed; source decision behavior: passed; frontend adapter: passed; object round trip: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
-  "updatedAt": "2026-11-06T02:25:17.659406+00:00"
+  "activity": "Current matching Rust and Cinch-source full suite: 0 of 232 complete groups passed; 0 running, 0 failed and 232 pending. Stage builds and smoke checks: 1 of 4; chain state: building-stage1. Repair gates: 4 of 4 complete groups passed; 0 running, 0 failed and 0 pending. Core decision contracts: passed; source decision behavior: passed; frontend adapter: passed; object round trip: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
+  "updatedAt": "2026-11-06T02:26:19.442942+00:00"
 }
