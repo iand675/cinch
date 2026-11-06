@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "estimate": 90,
-  "commit": "e9acd3549d85297d64fb2157bf9e5048a6c6c0ad",
+  "commit": "067446e700c310dc5d9c4efbcf3afcd57787e2dc",
   "estimateNote": "Rough engineering estimate. Verified checks and remaining work are listed below.",
   "status": "Verification found a failure; correction required",
   "stages": [
@@ -234,8 +234,8 @@
   ],
   "blockers": [
     {
-      "title": "API replay exposes transitive private-class closure; repair is in validation",
-      "detail": "Published constructor contracts remain validated; published original API stays6/9. Privatee1a0 dictionary-factory exporter passes both complete exporter groups, actual43-module self-built check, all8 adapter tests and independently audited library-object round trip. Its original class API now emits the fixture and advances to a real assertion: a private Eq contract needed only by a retained private class method is missing from its facade. New privatec1f37 closure fix retains transitive method dependencies, deduplicates by defining identity and bounds cyclic closure; adds a three-level private-class fixture with hidden method visibility checks. Fresh exporter/self-built/full-compiler/originalAPI gates are queued through shared workers. Isolated optimized-runtime Stage0 passed3 smokes; Stage1 build continues. All105 targets and final matching bootstrap/Acceptance5 remain open."
+      "title": "Optimized Stage1 runtime pushed; transitive private-class repair in validation",
+      "detail": "Published067446e builds Stage1 against the exact optimized pinned85 runtime and includes its archive hash in the compiler cache. All43 tooling tests, fresh pinned Stage0/1 and6 original smoke outcomes pass; same-IR performance comparison is waiting for a shared worker. Cinch production remains1dd5b24b with original API6/9. Privatee1a factory exporter passes complete exporter/adapter/object and actual43-module self-built gates, but original class API advances to a missing private Eq class needed only by a retained method. New privatec1f37 transitive closure repair with three-level hidden method dependency controls passes the type-export group; interface/self-built checks run and complete compiler/original API gates wait. All105 targets and final matching bootstrap/Acceptance5 remain open."
     },
     {
       "title": "Investigate the recorded failure",
@@ -297,5 +297,5 @@
   "fullGoalComplete": false,
   "summary": "All 43 compiler-source checks: passed. 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_source_constructors: passed; bootstrap_globals: passed; bootstrap_export_interfaces: passed; bootstrap_external_frontend: passed; bootstrap_library_object: passed.",
   "activity": "Current published Rust compiler: full suite: 210 of 232 complete groups passed; 1 running, 2 failed and 19 pending. Stage builds and smoke checks: 2 of 4; chain state: building-stage2; earlier API source, not the published repair. Repair gates: 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_source_constructors: passed; bootstrap_globals: passed; bootstrap_export_interfaces: passed; bootstrap_external_frontend: passed; bootstrap_library_object: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
-  "updatedAt": "2026-11-06T00:30:08.801693+00:00"
+  "updatedAt": "2026-11-06T00:33:20.412458+00:00"
 }
