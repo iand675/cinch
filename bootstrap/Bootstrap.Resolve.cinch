@@ -380,10 +380,18 @@ module Bootstrap.Resolve where
     Nil -> Nil
     Cons (name, ty) rest -> Cons (global-name home name, rename-type visible locals ty) (rename-ctors home visible locals rest)
 
+  -- Labels belong to the record. Only their field types use module names.
+  rename-record-fields :: List Binding -> List String -> List (String, TypeExpr) -> List (String, TypeExpr)
+  rename-record-fields visible locals fields = case fields of
+    Nil -> Nil
+    Cons (name, ty) rest -> Cons (name, rename-type visible locals ty) (rename-record-fields visible locals rest)
+
   pattern-names :: Pat -> List String
   pattern-names p = case p of
     PVar s name -> Cons name Nil
     PCon s name args -> pattern-names args
+    PRecord s name fields -> pattern-names fields
+    PRecordField s name value rest -> pattern-names value <> pattern-names rest
     PTuple s args -> pattern-names args
     PList s args -> pattern-names args
     PAs s name inner -> Cons name (pattern-names inner)
@@ -410,6 +418,12 @@ module Bootstrap.Resolve where
     other -> PUnmodeled sp "invalid list pattern spine"
   rename-pat :: List Binding -> Pat -> (Pat, List Diagnostic)
   rename-pat visible p = case p of
+    PRecord s name fields -> case resolve-use s True visible Nil name of
+      (symbol, errors) -> case rename-pat visible fields of
+        (renamed, more) -> (PRecord s symbol renamed, errors <> more)
+    PRecordField s name value rest -> case rename-pat visible value of
+      (renamed, errors) -> case rename-pat visible rest of
+        (more, others) -> (PRecordField s name renamed more, errors <> others)
     PCon s name args -> case resolve-use s True visible Nil name of
       (symbol, errors) -> case rename-pat visible args of
         (renamed, more) -> (PCon s symbol renamed, errors <> more)
@@ -489,6 +503,14 @@ module Bootstrap.Resolve where
     other -> (other, fail (expr-span other) "malformed do statement spine")
   rename-expr :: List Binding -> List String -> Expr -> (Expr, List Diagnostic)
   rename-expr visible locals e = case e of
+    ERecord s name fields -> case resolve-use s True visible Nil name of
+      (symbol, errors) -> case rename-expr visible locals fields of
+        (renamed, more) -> (ERecord s symbol renamed, errors <> more)
+    ERecordField s name value rest -> case rename-expr visible locals value of
+      (renamed, errors) -> case rename-expr visible locals rest of
+        (more, others) -> (ERecordField s name renamed more, errors <> others)
+    EProject s value name -> case rename-expr visible locals value of
+      (renamed, errors) -> (EProject s renamed name, errors)
     EVar s name -> case resolve-use s False visible locals name of
       (symbol, errors) -> (EVar s symbol, errors)
     ECon s name args -> case resolve-use s True visible Nil name of
@@ -613,7 +635,8 @@ module Bootstrap.Resolve where
       (rename-ctors home visible (parameter-names params) ctors)) Nil, Nil)
     DRecord s name params fields -> if has-name name ["Array", "Tensor", "Columnar"] then
       (Nil, fail s "a builtin array primitive cannot be redefined as a record")
-      else (Cons d Nil, fail s "record declaration requires further namespace elaboration")
+      else (Cons (DRecord s (global-name home name) (rename-params visible Nil params)
+        (rename-record-fields visible (parameter-names params) fields)) Nil, Nil)
     DClass s name params members ->
       if same name "Copy" || same name "Share" then (Nil, fail s "Copy and Share are compiler-owned structural signatures and cannot be declared") else
         case rename-class-members home visible (parameter-names params) (decls-of members) of

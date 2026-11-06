@@ -17,6 +17,29 @@ fn decision_constructors_check_erasure_metadata_and_source_evidence() {
     let exe = common::build(&dir, "Main.cinch", "source-constructors").expect("build source constructor checker");
     let yes = "wrap :: forall (p :: Prop). (h :: p) -> Dec p\n  wrap h = Yes h";
     let cases = [
+        ("constructor result keeps ordinary type parameters", "data Box a where\n    Box :: a -> Box a", true),
+        ("constructor result cannot fix a type parameter", "data Box a where\n    Box :: a -> Box Bool", false),
+        ("constructor result cannot permute type parameters", "data Pair a b where\n    Pair :: a -> b -> Pair b a", false),
+        ("constructor result keeps proposition parameters", "data Witness (p :: Prop) where\n    Witness :: Witness p", true),
+        ("constructor result cannot fix a proposition parameter", "data Witness (p :: Prop) where\n    Witness :: Witness False", false),
+
+        ("record declaration retains generic fields", "record Box a where\n    value :: a\n    label :: String", true),
+        ("record construction follows labels rather than initializer order", "record Box where\n    count :: Int\n    label :: String\n  make :: Box\n  make = Box { label = \"owned label\", count = 42 }", true),
+        ("record generic field projection", "record Box a where\n    value :: a\n    label :: String\n  payload :: forall a. Box a -> a\n  payload box = box.value", true),
+        ("record incomplete pattern is rejected", "record Box a where\n    value :: a\n    label :: String\n  payload :: forall a. Box a -> a\n  payload (Box { value = x }) = x", false),
+        ("record explicit wildcard discards owned field", "record Box a where\n    value :: a\n    label :: String\n  payload :: forall a. Box a -> a\n  payload (Box { label = _, value = x }) = x", true),
+        ("record nested construction and patterns", "record Inner where\n    value :: Int\n  record Outer where\n    value :: Inner\n  make :: Outer\n  make = Outer { value = Inner { value = 42 } }\n  payload :: Outer -> Int\n  payload (Outer { value = Inner { value = n } }) = n", true),
+        ("record field names are selected by receiver type", "record Number where\n    value :: Int\n  record Flag where\n    value :: Bool\n  read-number :: Number -> Int\n  read-number value = value.value\n  read-flag :: Flag -> Bool\n  read-flag value = value.value", true),
+        ("record function field", "record Callback where\n    run :: Int -> Int\n  call :: Callback -> Int\n  call callback = callback.run 42", true),
+        ("record missing construction field", "record Box where\n    value :: Int\n    label :: String\n  bad :: Box\n  bad = Box { value = 42 }", false),
+        ("record duplicate construction field", "record Box where\n    value :: Int\n  bad :: Box\n  bad = Box { value = 1, value = 2 }", false),
+        ("record unknown construction field", "record Box where\n    value :: Int\n  bad :: Box\n  bad = Box { unknown = 42 }", false),
+        ("record duplicate declaration field", "record Box where\n    value :: Int\n    value :: Bool", false),
+        ("record wrong field type", "record Box where\n    value :: Int\n  bad :: Box\n  bad = Box { value = True }", false),
+        ("record projection keeps its actual field type", "record Box where\n    value :: Bool\n  bad :: Box -> Int\n  bad box = box.value", false),
+        ("record unknown projection", "record Box where\n    value :: Int\n  bad :: Box -> Int\n  bad box = box.unknown", false),
+        ("record unknown pattern field", "record Box where\n    value :: Int\n  bad :: Box -> Int\n  bad (Box { unknown = n }) = n", false),
+        ("record duplicate pattern field", "record Box where\n    value :: Int\n  bad :: Box -> Int\n  bad (Box { value = a, value = b }) = a", false),
         ("nullary constructor does not capture following field", "data Leaf where\n    End :: Leaf\n    Item :: Int -> Leaf\n  data Box where\n    Box :: Leaf -> Int -> Box\n  read :: Box -> Int\n  read (Box End n) = n\n  read (Box (Item value) n) = value + n", true),
         ("two adjacent nullary constructor fields", "data Leaf where\n    End :: Leaf\n  data Pair where\n    Pair :: Leaf -> Leaf -> Pair\n  read :: Pair -> Int\n  read (Pair End End) = 0", true),
         ("nested fields require parentheses", "data Leaf where\n    Item :: Int -> Leaf\n  data Box where\n    Box :: Leaf -> Int -> Box\n  bad :: Box -> Int\n  bad (Box Item value n) = n", false),
@@ -47,6 +70,10 @@ fn decision_constructors_check_erasure_metadata_and_source_evidence() {
     ];
     for (name, body, accepted) in cases {
         let source = format!("module Main where\n  {body}\n  main :: Int\n  main = 0\n");
+        if name.starts_with("record ") || name.starts_with("constructor result ") {
+            let oracle = cinch::driver::check_sources(&source, "native-record-source-oracle.cinch");
+            assert_eq!(oracle.is_ok(), accepted, "Native record oracle: {name}\n{oracle:?}");
+        }
         std::fs::write(dir.join("source.cinch"), &source).unwrap();
         std::fs::write(dir.join("mutation.txt"), "").unwrap();
         let output = std::process::Command::new(&exe).current_dir(&dir).output().unwrap();

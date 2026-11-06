@@ -191,6 +191,7 @@ module Bootstrap.Infer where
     Cons d rest -> (case d of
       DSig s name ty -> needs-type ty
       DClass s name ps members -> True
+      DRecord s name ps fields -> True
       DOpaque s name params kind -> True
       DRefine s name params binder predicate -> True
       DEffect s name params ops -> True
@@ -1151,6 +1152,10 @@ module Bootstrap.Infer where
         (qs, sq) -> case add-kind s name (source-effect-kind qs) kinds (declaration-kind-errors s qs sq) of (ks, sk) -> collect-kinds rest ks sk
       DData s name ps cs -> case parameters False kinds Nil ps 0 Nil st of
         (qs, sq) -> case add-kind s name (kind-arrow qs) kinds (declaration-kind-errors s qs sq) of (ks, sk) -> collect-kinds rest ks sk
+      -- The generated single-constructor data has already checked the
+      -- kind. Keep the defining labels as separate source provenance.
+      DRecord s name ps fields -> collect-kinds rest (context-add-alias d kinds)
+        (duplicate-names s (record-labels fields) Nil st)
       DClass s name ps members -> case parameters False kinds Nil ps 0 Nil st of
         (qs, sq) -> case add-kind s name (kind-arrow qs) kinds (declaration-kind-errors s qs sq) of (ks, sk) -> collect-kinds rest ks sk
       DExternal s name category scheme metadata ->
@@ -1627,18 +1632,33 @@ module Bootstrap.Infer where
   constructor-scheme inherited sc = qualified (constructor-used-parameters inherited (type-free-bound (scheme-body sc) <> requirement-free-parameters (scheme-requirements sc) <> constructor-kind-ids (scheme-params sc)) (scheme-params sc)) (scheme-requirements sc) (scheme-body sc)
   requirement-free-parameters :: List Requirement -> List Nat
   requirement-free-parameters requirements = case requirements of Nil -> Nil; Cons first rest -> type-free-bound (requirement-type first) <> requirement-free-parameters rest
+  constructor-result-arguments :: UType -> List UType -> List UType
+  constructor-result-arguments result tail = case result of
+    UApp function argument -> constructor-result-arguments function (Cons argument tail)
+    other -> tail
+  -- Only value indices may vary in a constructor's family result. Ordinary
+  -- type, constructor and proposition parameters keep their declared identity.
+  constructor-result-parameters :: List Quant -> List UType -> Bool
+  constructor-result-parameters parameters arguments = case (parameters, arguments) of
+    (Nil, Nil) -> True
+    (Cons parameter rest, Cons argument tail) ->
+      (case quant-kind parameter of
+        KValue payload -> True
+        other -> case argument of
+          UBound id name kind -> id == quant-id parameter && kind-equal kind (quant-kind parameter)
+          other -> False) && constructor-result-parameters rest tail
+    other -> False
   register-ctors :: TypeContext -> String -> List Quant -> List (String, TypeExpr) -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   register-ctors kinds owner qs cs env st = case cs of
     Nil -> (env, st)
     Cons (name, ty) rest -> case make-scheme False Nil kinds qs ty st of
       (raw, ss) ->
         let sc = constructor-scheme qs raw in
-        -- Family arguments may be fixed or computed indices; checking them
-        -- as the family's universally bound parameters would equate distinct
-        -- rigid variables. Conversion already checked the saturated kind.
-        -- Pattern elimination separately needs scoped openings/equations.
         let result = result-type (scheme-body sc) in
-        let sr = if valid-type result && kind-equal (type-kind result) KType && (case root-name result of Some actual -> same actual owner; None -> False) then ss else add-error (type-expr-span ty) "constructor must return its saturated declaring family" ss in
+        let shape = valid-type result && kind-equal (type-kind result) KType && (case root-name result of Some actual -> same actual owner; None -> False) in
+        let sr = (if not shape then add-error (type-expr-span ty) "constructor must return its saturated declaring family" ss
+          else if constructor-result-parameters qs (constructor-result-arguments result Nil) then ss
+          else add-error (type-expr-span ty) "constructor result type mismatch: only value indices may differ from declaring parameters" ss) in
         let sp = check-positive (type-expr-span ty) owner (domains (scheme-body sc)) sr in
         case add-binding (type-expr-span ty) name sc "constructor" env sp of (e, se) -> register-ctors kinds owner qs rest e se
   source-effect-kind :: List Quant -> Kind
@@ -1716,6 +1736,7 @@ module Bootstrap.Infer where
         (e, se) -> register rows classes kinds rest e se
       DData s owner ps cs -> case parameters False kinds Nil ps 0 Nil st of
         (qs, sq) -> case register-ctors kinds owner qs cs env sq of (e, se) -> register rows classes kinds rest e se
+      DRecord s owner ps fields -> register rows classes kinds rest env st
       DForeign s direction abi symbol name ty -> case register-intrinsic s direction abi symbol name ty classes kinds env st of
         (e, se) -> register rows classes kinds rest e se
       DExternal s name category (Some ty) metadata ->
@@ -2274,6 +2295,7 @@ module Bootstrap.Infer where
 
   infer :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> Store -> (CoreTerm, Store)
   infer classes kinds families env locals expr st = case expr of
+    EProject sp value label -> infer-record-projection classes kinds families env locals sp value label st
     EVar s name -> case lookup-expression-value s kinds name env st of (term, checked) -> discharge-call classes s env term checked
     ECon s name args -> case lookup-expression-value s kinds name env st of (term, sn) -> infer-arguments classes kinds families env locals term args sn
     EList s args -> infer-collection classes kinds families env locals s args None st
@@ -3477,7 +3499,8 @@ module Bootstrap.Infer where
   elaborate-module label m = elaborate-module-with-source-bodies True label m
   elaborate-module-with-source-bodies :: Bool -> String -> Module -> Elaboration
   elaborate-module-with-source-bodies enable label m =
-    let ds = module-decls m in
+    let original = module-decls m in
+    let ds = if record-definitions-present original then record-declarations original original else original in
     let contracts = check-imported-refinements ds Nil (empty-store label) in
     let start = data-order ds (data-names ds) Nil contracts in
     let (source-kinds, source-store) = collect-kinds ds primitive-kinds start in
@@ -3508,6 +3531,139 @@ module Bootstrap.Infer where
     let finished = case store-errors sd of Nil -> check-data-closed datas (check-global-core linked-kinds env instances datas core sd); other -> sd in
     let retained-classes = case store-errors finished of Nil -> checked-imported-classes rows rows classes linked-kinds descriptions; other -> descriptions in
     MkElaboration (store-errors finished) (finish-bindings finished env) (contexts ds) core datas effects (MkCoreClassContext classes retained-classes) instances ds
+
+  -- Records use the ordinary independently checked single-constructor
+  -- representation. Labels remain in a DRecord for source provenance;
+  -- field values are bound in written order before layout-order assembly.
+  record-labels :: List (String, TypeExpr) -> List String
+  record-labels fields = case fields of Nil -> Nil; Cons (name, ty) rest -> Cons name (record-labels rest)
+  record-definition :: String -> List Decl -> Option Decl
+  record-definition name ds = case ds of
+    Nil -> None
+    Cons (DRecord sp actual params fields) rest -> if same name actual then Some (DRecord sp actual params fields) else record-definition name rest
+    Cons other rest -> record-definition name rest
+  record-definitions-present :: List Decl -> Bool
+  record-definitions-present ds = case ds of
+    Nil -> False
+    Cons (DRecord sp name params fields) rest -> True
+    Cons other rest -> record-definitions-present rest
+  record-result :: Span -> String -> List TypeParam -> TypeExpr
+  record-result sp name params = case params of
+    Nil -> TName sp name
+    other -> TApp sp (TName sp name) (type-arg-spine sp (record-parameter-types params))
+  record-parameter-types :: List TypeParam -> List TypeExpr
+  record-parameter-types params = case params of Nil -> Nil; Cons param rest -> Cons (TName (param-span param) (param-name param)) (record-parameter-types rest)
+  record-constructor :: Span -> List (String, TypeExpr) -> TypeExpr -> TypeExpr
+  record-constructor sp fields result = case fields of Nil -> result; Cons (name, ty) rest -> TFun sp ty (record-constructor sp rest result)
+  record-declarations :: List Decl -> List Decl -> List Decl
+  record-declarations all ds = case ds of
+    Nil -> Nil
+    Cons declaration rest -> let more = record-declarations all rest in
+      case declaration of
+        DRecord sp name params fields -> Cons (DData sp name params [(name, record-constructor sp fields (record-result sp name params))]) (Cons declaration more)
+        DFun sp name clauses -> Cons (DFun sp name (record-clauses all clauses)) more
+        DInstance sp flag name params head members -> Cons (DInstance sp flag name params head (decl-spine sp (record-declarations all (decls-of members)))) more
+        other -> Cons declaration more
+  record-clauses :: List Decl -> List (List Pat, Expr) -> List (List Pat, Expr)
+  record-clauses all clauses = case clauses of
+    Nil -> Nil
+    Cons (patterns, body) rest -> Cons (record-patterns all patterns, record-expression all body) (record-clauses all rest)
+  record-patterns :: List Decl -> List Pat -> List Pat
+  record-patterns all patterns = case patterns of Nil -> Nil; Cons first rest -> Cons (record-pattern all first) (record-patterns all rest)
+  record-pattern-fields :: Pat -> Option (List (String, Pat))
+  record-pattern-fields fields = case fields of
+    PArgsEnd sp -> Some Nil
+    PRecordField sp name value rest -> (case record-pattern-fields rest of Some more -> Some (Cons (name, value) more); None -> None)
+    other -> None
+  record-expression-fields :: Expr -> Option (List (String, Expr))
+  record-expression-fields fields = case fields of
+    EArgsEnd sp -> Some Nil
+    ERecordField sp name value rest -> (case record-expression-fields rest of Some more -> Some (Cons (name, value) more); None -> None)
+    other -> None
+  record-labels-valid :: List String -> List String -> List String -> Bool
+  record-labels-valid allowed labels seen = case labels of
+    Nil -> True
+    Cons name rest -> has name allowed && not (has name seen) && record-labels-valid allowed rest (Cons name seen)
+  record-pattern-labels :: List (String, Pat) -> List String
+  record-pattern-labels fields = case fields of Nil -> Nil; Cons (name, value) rest -> Cons name (record-pattern-labels rest)
+  record-expression-labels :: List (String, Expr) -> List String
+  record-expression-labels fields = case fields of Nil -> Nil; Cons (name, value) rest -> Cons name (record-expression-labels rest)
+  record-field-pattern :: Span -> String -> List (String, Pat) -> Pat
+  record-field-pattern sp label fields = case fields of
+    Nil -> PUnmodeled sp "missing record pattern field"
+    Cons (name, value) rest -> if same name label then value else record-field-pattern sp label rest
+  record-ordered-patterns :: List Decl -> Span -> List (String, TypeExpr) -> List (String, Pat) -> List Pat
+  record-ordered-patterns all sp declared fields = case declared of
+    Nil -> Nil
+    Cons (name, ty) rest -> Cons (record-pattern all (record-field-pattern sp name fields)) (record-ordered-patterns all sp rest fields)
+  record-pattern :: List Decl -> Pat -> Pat
+  record-pattern all pattern = case pattern of
+    PRecord sp name fields -> (case (record-definition name all, record-pattern-fields fields) of
+      (Some (DRecord at owner params declared), Some values) -> if list-length declared == list-length values && record-labels-valid (record-labels declared) (record-pattern-labels values) Nil then
+        PCon sp name (pat-spine sp (record-ordered-patterns all sp declared values)) else PUnmodeled sp "missing, duplicate or unknown record pattern field"
+      other -> PUnmodeled sp "record pattern has no defining field contract")
+    PCon sp name fields -> PCon sp name (record-pattern all fields)
+    PTuple sp fields -> PTuple sp (record-pattern all fields)
+    PList sp fields -> PList sp (record-pattern all fields)
+    PAs sp name inner -> PAs sp name (record-pattern all inner)
+    PAnn sp inner ty -> PAnn sp (record-pattern all inner) ty
+    PArg sp first rest -> PArg sp (record-pattern all first) (record-pattern all rest)
+    other -> pattern
+  record-local-name :: String -> String
+  record-local-name label = "#record-field:" <> label
+  record-value-bindings :: List Decl -> Span -> List (String, Expr) -> Expr
+  record-value-bindings all sp fields = case fields of
+    Nil -> EBindingsEnd sp
+    Cons (name, value) rest -> EBinding (expr-span value) (record-local-name name) (record-expression all value) (record-value-bindings all sp rest)
+  record-value-arguments :: Span -> List (String, TypeExpr) -> List Expr
+  record-value-arguments sp fields = case fields of Nil -> Nil; Cons (name, ty) rest -> Cons (EVar sp (record-local-name name)) (record-value-arguments sp rest)
+  record-expression :: List Decl -> Expr -> Expr
+  record-expression all expression = case expression of
+    ERecord sp name fields -> (case (record-definition name all, record-expression-fields fields) of
+      (Some (DRecord at owner params declared), Some values) -> if list-length declared == list-length values && record-labels-valid (record-labels declared) (record-expression-labels values) Nil then
+        ELet sp (record-value-bindings all sp values) (ECon sp name (expr-spine sp (record-value-arguments sp declared)))
+        else EUnmodeled sp "missing, duplicate or unknown record construction field"
+      other -> EUnmodeled sp "record construction has no defining field contract")
+    EProject sp value name -> EProject sp (record-expression all value) name
+    ECon sp name args -> ECon sp name (record-expression all args)
+    EApp sp f x -> EApp sp (record-expression all f) (record-expression all x)
+    EBin sp op a b -> EBin sp op (record-expression all a) (record-expression all b)
+    ENeg sp x -> ENeg sp (record-expression all x)
+    ELam sp patterns body -> ELam sp (record-patterns all patterns) (record-expression all body)
+    ELet sp bindings body -> ELet sp (record-expression all bindings) (record-expression all body)
+    EIf sp c a b -> EIf sp (record-expression all c) (record-expression all a) (record-expression all b)
+    ECase sp value alternatives -> ECase sp (record-expression all value) (record-expression all alternatives)
+    EGuarded sp guard body -> EGuarded sp (record-expression all guard) (record-expression all body)
+    EAnn sp value ty -> EAnn sp (record-expression all value) ty
+    EForall sp names body -> EForall sp names (record-expression all body)
+    EUsing sp bounds body -> EUsing sp bounds (record-expression all body)
+    EBind sp name value -> EBind sp name (record-expression all value)
+    EDo sp statements -> EDo sp (record-expression all statements)
+    EWith sp bindings body -> EWith sp (record-expression all bindings) (record-expression all body)
+    EHandle sp body handled-by -> EHandle sp (record-expression all body) (record-expression all handled-by)
+    EHandler sp label clauses -> EHandler sp label (record-expression all clauses)
+    EHandlerClause sp name patterns continuation body rest -> EHandlerClause sp name (record-patterns all patterns) continuation (record-expression all body) (record-expression all rest)
+    ETuple sp fields -> ETuple sp (record-expression all fields)
+    EList sp fields -> EList sp (record-expression all fields)
+    EArg sp first rest -> EArg sp (record-expression all first) (record-expression all rest)
+    EBinding sp name value rest -> EBinding sp name (record-expression all value) (record-expression all rest)
+    EAlt sp pattern body rest -> EAlt sp (record-pattern all pattern) (record-expression all body) (record-expression all rest)
+    other -> expression
+  record-projection-pattern :: Span -> String -> List (String, TypeExpr) -> List Pat
+  record-projection-pattern sp label fields = case fields of
+    Nil -> Nil
+    Cons (name, ty) rest -> Cons (if same name label then PVar sp (record-local-name label) else PWild sp) (record-projection-pattern sp label rest)
+  infer-record-projection :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> String -> Store -> (CoreTerm, Store)
+  infer-record-projection classes kinds families env locals sp value label st = case infer classes kinds families env locals value st of
+    (scrutinee, checked) -> (case root-name (normalize checked (core-type scrutinee)) of
+      Some owner -> (case record-definition owner (context-aliases kinds) of
+        Some (DRecord at name params fields) -> if has label (record-labels fields) then
+          (case bind-pattern classes kinds families env locals (PCon sp owner (pat-spine sp (record-projection-pattern sp label fields))) (core-type scrutinee) checked of
+            (bound, pattern, prepared) -> (case lookup-expression-value sp kinds (record-local-name label) bound prepared of
+              (selected, done) -> (CCase sp (core-type selected) scrutinee (CAlternative sp pattern selected (CAlternativesEnd sp)), done)))
+          else term-error sp ("record has no field: " <> label) checked
+        other -> term-error sp "field projection needs the checked defining record contract" checked)
+      None -> term-error sp "field projection needs a known record type" checked)
   -- Certify eligible definitions using an independent checked preliminary
   -- elaboration. Only after its actual Core reconstructs a total graph can
   -- the full elaboration use that graph in a type-level observation. The

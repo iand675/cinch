@@ -148,13 +148,13 @@ const EXPECTED_UNMODELED: &[(&str, usize)] = &[
     ("03-map-fusion", 3),
     ("04-productive-stream", 5),
     ("05-schema-generator", 3),
-    ("06-counter-upgrade", 6),
+    ("06-counter-upgrade", 3),
     ("07-rejected-programs", 2),
     ("08-platform-simd", 1),
     ("09-foreign-codec", 1),
-    // Parsing the do body exposes the record-construction alternative as
-    // a pattern/body recovery pair, beside the unmodeled record declaration.
-    ("10-wasm-component", 3),
+    // Record construction is modeled; the surrounding component form
+    // remains an explicit unmodeled declaration.
+    ("10-wasm-component", 1),
     ("11-structured-tasks", 0),
     ("12-runtime-effects", 1),
 ];
@@ -420,4 +420,58 @@ fn the_parser_reads_the_examples_and_agrees_on_the_corpus() {
         ));
     }
     assert!(problems.is_empty(), "{}", problems.join("\n"));
+}
+
+#[test]
+fn record_syntax_keeps_labels_order_patterns_and_nested_values() {
+    let dir = common::project("record_syntax", &[
+        ("Bootstrap.Ast.cinch", AST_SRC),
+        ("Bootstrap.Report.cinch", REPORT_SRC),
+        ("Bootstrap.Parse.cinch", PARSE_SRC),
+        ("Main.cinch", include_str!("../../bootstrap/programs/Run.RecordSyntax.cinch")),
+    ]);
+    let exe = common::build(&dir, "Main.cinch", "record-syntax").expect("build record parser");
+    let source = "module Records where\n  record Box a where\n    zed :: Int\n    value :: a\n    name :: String\n  make = Box { value = 42, name = \"kept\", zed = 7 }\n  nested = use (Box { value = Other.Pair { second = 2, first = 1 }, zed = 0, name = \"nested\" })\n  read (Box { value = x, zed = n }) = x\n  project box = (box).value\n  direct box = box.value\n  qualified = Module.value.field\n  applied = (make 42).value\n  empty = Box {}\n  duplicates = Box { value = 1, value = 2 }\n";
+    let prelude = cinch::driver::parse_prelude(&[]).unwrap();
+    let native = cinch::driver::parse_source(source, "records", &prelude.base, &prelude.exported_fixities)
+        .expect("the Native parser accepts these record forms");
+    let equations: BTreeMap<_, _> = native.modules[0].decls.iter().filter_map(|decl| {
+        if let cinch::ast::Decl::Equation { eq, .. } = decl { Some((eq.name.text.as_str(), eq)) } else { None }
+    }).collect();
+    let cinch::ast::Term::Record(_, fields, _) = &equations["make"].body else { panic!("Native make is not a record") };
+    assert_eq!(fields.iter().map(|(name, _)| name.text.as_str()).collect::<Vec<_>>(), ["value", "name", "zed"]);
+    let cinch::ast::Pat::Record(_, fields, _) = &equations["read"].pats[0] else { panic!("Native read lost its record pattern") };
+    assert_eq!(fields.iter().map(|(name, _)| name.text.as_str()).collect::<Vec<_>>(), ["value", "zed"]);
+    let cinch::ast::Term::Record(_, fields, _) = &equations["duplicates"].body else { panic!("Native duplicates is not a record") };
+    assert_eq!(fields.iter().map(|(name, _)| name.text.as_str()).collect::<Vec<_>>(), ["value", "value"]);
+    std::fs::write(dir.join("source.cinch"), source).unwrap();
+    let output = std::process::Command::new(&exe).current_dir(&dir).output().unwrap();
+    let report = common::read_output(&dir, "record-syntax-report.txt");
+    assert_eq!(output.status.code(), Some(0), "{}\n{report}", String::from_utf8_lossy(&output.stderr));
+    for expected in [
+        "make[]=record(Box:value=42;name=string(kept);zed=7;)",
+        "nested[]=apply(use:record(Box:value=record(Other.Pair:second=2;first=1;);zed=0;name=string(nested);))",
+        "read[record(Box:value=x;zed=n;);]=x",
+        "project[box;]=project(box:value)",
+        "direct[box;]=project(box:value)",
+        "qualified[]=project(Module.value:field)",
+        "applied[]=project(apply(make:42):value)",
+        "empty[]=record(Box:)",
+        "duplicates[]=record(Box:value=1;value=2;)",
+    ] {
+        assert!(report.lines().any(|line| line == expected), "missing {expected}\n{report}");
+    }
+    // A malformed field must remain a parser failure or an explicit
+    // unmodeled node; it must not become an empty/shortened record.
+    for body in ["Box { value = 42", "Box { value 42 }", "Box { value = }", "Box { value = 42 name = 7 }", "Box { _ = 42 }", "Box { value = 42, }", "Box { value = 42; name = 7 }", "(Box {}). _"] {
+        let malformed = format!("module Records where\n  make = {body}\n");
+        assert!(cinch::driver::parse_source(&malformed, "malformed-record", &prelude.base, &prelude.exported_fixities).is_err(), "Native accepts negative parser control: {body}");
+        std::fs::write(dir.join("source.cinch"), malformed).unwrap();
+        let output = std::process::Command::new(&exe).current_dir(&dir).output().unwrap();
+        assert_eq!(output.status.code(), Some(4), "malformed record accepted: {body}\n{}", String::from_utf8_lossy(&output.stderr));
+    }
+    std::fs::write(dir.join("source.cinch"), "module Records where\n  read (Box {}) = 0\n").unwrap();
+    let output = std::process::Command::new(&exe).current_dir(&dir).output().unwrap();
+    assert_eq!(output.status.code(), Some(4), "empty record pattern silently accepted");
+    common::cleanup(&dir);
 }

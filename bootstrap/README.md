@@ -1,21 +1,28 @@
 # The bootstrap ladder
 
-Current compiler aa4e corrects the actual resolved-value writer. Public type
-applications remain flat; canonical resolved applications stay binary. Three
-permanent real-writer comparisons agree exactly with Native. Five complete
-groups pass12 tests,17 optimized C clients and50 zero-leak reports. All44 exact
-inputs pass Native and the audited Cinch-built checker. All9 original API
-groups run unchanged:8 pass; source-Prelude replacement still fails. See
-[current writer evidence](current-resolved-application-results.json) and
-[original API outcomes](current-original-interface-api-results.json).
+Current compiler dd8d supports named source record construction, complete
+patterns and projection, with generic/nested fields, written initializer order
+and strict discarded-field evaluation. Ordinary constructor parameters retain
+identity; fixed/computed value indices remain supported. Eight complete groups
+pass16 tests,17 optimized C clients and50 zero-leak reports. Six fresh record
+runtime clients pass32M poisoning with12 further zero-leak reports. All44 exact
+inputs pass Native and the audited Cinch-built checker. All9 original API groups
+run unchanged:8 pass; source-Prelude replacement still fails. See
+[current record/constructor evidence](current-record-and-constructor-results.json).
 
-The preceding29e6 compiler independently proves Acceptance1-4 with all4 stages,
-12 smokes, identical Stage2/3 code and44 canonical interfaces, actual compiler
-interface consumption and changed-source checks. See
+Record interface transport and declared numeric field carrier propagation remain
+open. A valid Nat record literal still rejects; its unchanged positive source
+and real failure are retained in
+[the field-carrier counterexample](current-record-field-carrier-counterexample.json).
+A private typed-initializer correction passes its complete constructor and
+inference groups; further application/coverage work keeps separate evidence.
+
+The preceding aa4e chain continues its independent fixed-point audit.
+The29e6 compiler proves Acceptance1-4 with4 stages,12 smokes, identical Stage2/3
+code and44 interfaces, API consumption and changed-source behavior. See
 [29e6 bootstrap proof](current-owner-display-bootstrap-results.json).
-This is a source-specific proof; the matching latest chain, complete suites,
-all105 targets,14 external acceptance checks,34 external language cases and
-Acceptance5 remain required.
+A matching latest-source chain, full suites/all105 targets,14 external acceptance
+checks,34 original external language cases and Acceptance5 remain required.
 
 ABI facts checkpoint (2026-11-05, source ad6733):
 `emit-runtime-library-artifact-with-object` adds real named public calls and

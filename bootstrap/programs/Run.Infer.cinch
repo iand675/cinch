@@ -69,7 +69,7 @@ module Main where
     , (string-concat sequence-source "  first :: forall a. Seq a -> a\n  first xs = case xs of End -> 0; Link x rest -> x\n  main :: Int\n  main = 0\n", "type mismatch")
     , ("module Main where\n  bad :: forall a. using (io :: Io r) => a -> a\n  bad x = x\n  main :: Int\n  main = 0\n", "checked signature type")
     , (string-concat identity-source "  bad :: Int -> Int\n  bad x = x / 0\n  main :: Int\n  main = 0\n", "NonZero proof")
-    , ("module Main where\n  data Hidden where\n    Pack :: forall a. a -> Hidden\n  unpack :: Hidden -> Int\n  unpack (Pack x) = x\n  main :: Int\n  main = 0\n", "constructor-local quantifiers")
+    , ("module Main where\n  data Hidden where\n    Pack :: forall a. a -> Hidden\n  unpack :: Hidden -> Int\n  unpack (Pack x) = x\n  main :: Int\n  main = 0\n", "independent Core typing disagrees with the declaration or term")
     , (string-concat identity-source "  constant :: Int -> Int\n  constant x = 0\n  constant y = 1\n  main :: Int\n  main = 0\n", "unreachable clause")
     , ("module Main where\n  main :: Int\n  main = (\\f -> let local = \\y -> f y in if local True then local 0 else 0) (\\x -> x)\n", "type mismatch")
     , ("module Main where\n  bad :: forall (x :: later) later. Int -> Int\n  bad y = y\n  main :: Int\n  main = 0\n", "unbound type variable")

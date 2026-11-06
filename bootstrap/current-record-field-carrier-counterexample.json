@@ -1,0 +1,25 @@
+{
+  "child_pid": 85669,
+  "compiler_sha256": "e7beb15a1347eed81f5ef679e07093a092019b6354f99f5bea12c84afca1f8bd",
+  "compiler_source_sha256": "dd8dd439a99818dcdd2d5e9b27222d3497865202bf124deb23015bfe84bee3ab",
+  "diagnostics": "bootstrap.check:5:10: type mismatch: expected Nat, found Int\n",
+  "full_goal_complete": false,
+  "phase": "cinch",
+  "pid": 75371,
+  "rows": [
+    {
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "native"
+    },
+    {
+      "exit_code": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "cinch"
+    }
+  ],
+  "scope": "The byte-identical valid Nat record initializer is accepted by Native6b but rejected by actual dd8d Cinch CLI. Untyped source temporaries default the literal before its declared field type reaches it. Typed initializer correction9f and combined E8 retain this original positive source; this is an open compiler bug, not a passing negative control.",
+  "source_sha256": "0348927e1a08b63c92573d6f593c1287f3d9d3cf11e19fdfa8affd74bd63444c",
+  "status": "confirmed-record-field-carrier-gap",
+  "worker_slot": 0
+}

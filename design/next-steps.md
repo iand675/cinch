@@ -1,6 +1,43 @@
 # Next steps (as of 2026-11-06)
 
 
+## Source records and constructor parameter identity pass scoped gates (2026-11-06)
+
+Compiler dd8d supports named record construction, complete named patterns,
+projection and generic/nested fields through ordinary independently checked
+single-constructor Core. It preserves written initializer order and strict
+evaluation of discarded fields. Missing, duplicate and unknown labels refuse.
+Record interface writing/import transport remains incomplete.
+
+Constructor results retain their declared ordinary type, constructor and
+proposition parameters; only value indices may be fixed or computed. The
+original invalid `Box :: a -> Box Bool` source now refuses. The hidden-payload
+escape source remains unchanged and rejects via the independent Core guard;
+its old unsupported-feature diagnostic expectation now names that actual guard.
+Five new Native-compared parameter controls preserve the numeric-index cases.
+
+Eight complete affected groups pass16 Rust tests. The actual44-module compiler
+passes17 optimized C clients and50 zero-leak reports, including the3 actual
+resolved-writer comparisons. Six fresh record runtime clients pass at32M with
+poisoning and12 further zero-leak reports. All44 exact inputs pass Native and
+the independently audited Cinch-built checker. All9 original API groups run
+unchanged:8 pass; source-Prelude replacement still fails. See
+`bootstrap/current-record-and-constructor-results.json`.
+
+A real current-CLI counterexample remains: the valid `User { age = 36 }` for a
+Nat field is rejected because an untyped temporary defaults the literal to Int.
+Native accepts the identical source. The retained positive program and actual
+rejection are in `bootstrap/programs/Record.FieldCarrier.Counterexample.cinch`
+and `bootstrap/current-record-field-carrier-counterexample.json`. The private
+typed-initializer correction passes its complete constructor and inference
+groups. Combined application-inference and indexed-coverage repairs continue;
+these later sources are not claimed as part of this checkpoint.
+
+The preceding aa4e four-stage chain continues its exact-source independent
+audit. The29e6 Acceptance1-4 proof stays scoped to29e6. A matching latest chain,
+full105 targets, complete Native suite, separate14 external acceptance checks,
+all34 original external language cases and every Acceptance1-5 remain required.
+
 ## Actual resolved value contracts match Native (2026-11-06)
 
 Compiler aa4e fixes the missed real-writer call site. Public type applications

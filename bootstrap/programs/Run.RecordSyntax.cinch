@@ -1,0 +1,52 @@
+module Main where
+  import Bootstrap.Ast
+  import Bootstrap.Parse (parse-program)
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read, fs-write)
+  import Text.Parse (ParseOutcome, Parsed, Failed)
+  import Algebra.Semigroup
+
+  expression :: Expr -> String
+  expression value = case value of
+    ERecord sp name fields -> "record(" <> name <> ":" <> expression fields <> ")"
+    ERecordField sp label value rest -> label <> "=" <> expression value <> ";" <> expression rest
+    EProject sp value label -> "project(" <> expression value <> ":" <> label <> ")"
+    EVar sp name -> name
+    ECon sp name args -> "constructor(" <> name <> ":" <> expression args <> ")"
+    EApp sp function argument -> "apply(" <> expression function <> ":" <> expression argument <> ")"
+    ELitInt sp digits -> digits
+    ELitStr sp text -> "string(" <> text <> ")"
+    EArg sp first rest -> expression first <> ";" <> expression rest
+    EArgsEnd sp -> ""
+    other -> "other"
+  pattern :: Pat -> String
+  pattern value = case value of
+    PRecord sp name fields -> "record(" <> name <> ":" <> pattern fields <> ")"
+    PRecordField sp label value rest -> label <> "=" <> pattern value <> ";" <> pattern rest
+    PVar sp name -> name
+    PCon sp name args -> "constructor(" <> name <> ":" <> pattern args <> ")"
+    PArg sp first rest -> pattern first <> ";" <> pattern rest
+    PArgsEnd sp -> ""
+    PWild sp -> "_"
+    other -> "other"
+  patterns :: List Pat -> String
+  patterns values = case values of Nil -> ""; Cons first rest -> pattern first <> ";" <> patterns rest
+  clauses :: String -> List (List Pat, Expr) -> String
+  clauses name values = case values of
+    Nil -> ""
+    Cons (parameters, body) rest -> name <> "[" <> patterns parameters <> "]=" <> expression body <> "\n" <> clauses name rest
+  declarations :: List Decl -> String
+  declarations values = case values of
+    Nil -> ""
+    Cons (DFun sp name equations) rest -> clauses name equations <> declarations rest
+    Cons other rest -> declarations rest
+  modules :: List Module -> String
+  modules values = case values of Nil -> ""; Cons first rest -> declarations (module-decls first) <> modules rest
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case fs-read (path-from-string "source.cinch") of
+    Err error -> 90
+    Ok source -> (case parse-program "record-syntax" source of
+      Parsed program Nil -> (case fs-write (path-from-string "record-syntax-report.txt") (string-to-bytes (modules (program-modules program))) of
+        Ok done -> if program-unmodeled-count program == 0 then 0 else 4
+        Err error -> 91)
+      other -> 4)

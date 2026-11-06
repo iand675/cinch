@@ -1349,9 +1349,7 @@ module Bootstrap.Parse where
               PBad -> PBad)
             else POk (PVar (sp-of t) s) rest
           Nil -> POk (PVar (sp-of t) s) rest
-      TCon s -> case parse-ctr-pats rest src Nil of
-        POk args rest2 -> POk (PCon (sp-of t) s (pat-spine (sp-of t) args)) rest2
-        PBad -> POk (PCon (sp-of t) s (pat-spine (sp-of t) Nil)) rest
+      TCon s -> parse-named-pat (sp-of t) s rest src True
       TInt s -> POk (PLitInt (sp-of t) s) rest
       TStr b -> POk (PLitStr (sp-of t) (bytes-to-string b)) rest
       TChar n -> case char-from-code n of
@@ -1370,8 +1368,57 @@ module Bootstrap.Parse where
   parse-as-atomic :: List LToken -> Bytes -> Ps Pat
   parse-as-atomic toks src = case toks of
     Cons t rest -> case lt-token t of
-      TCon name -> POk (PCon (sp-of t) name (pat-spine (sp-of t) Nil)) rest
+      TCon name -> parse-named-pat (sp-of t) name rest src False
       other -> parse-pat-atomic toks src
+    Nil -> PBad
+
+  -- A record keeps labels and written order. Declaration-order selection
+  -- belongs to checked elaboration, never to a spelling-based parser sort.
+  parse-named-pat :: Span -> String -> List LToken -> Bytes -> Bool -> Ps Pat
+  parse-named-pat sp name toks src applied = case toks of
+    Cons t rest -> if is-punct-t (lt-token t) "." then
+      (case rest of
+        Cons segment more -> case lt-token segment of
+          TCon part -> parse-named-pat sp (string-concat-all [name, ".", part]) more src applied
+          other -> PBad
+        Nil -> PBad)
+      else if is-punct-t (lt-token t) "{" then parse-record-pat-fields sp name rest src Nil
+      else finish-named-pat sp name toks src applied
+    Nil -> finish-named-pat sp name toks src applied
+  finish-named-pat :: Span -> String -> List LToken -> Bytes -> Bool -> Ps Pat
+  finish-named-pat sp name toks src applied = if applied then
+    (case parse-ctr-pats toks src Nil of
+      POk args rest -> POk (PCon sp name (pat-spine sp args)) rest
+      PBad -> PBad)
+    else POk (PCon sp name (PArgsEnd sp)) toks
+  record-pat-spine :: Span -> List (String, Pat) -> Pat
+  record-pat-spine sp fields = case fields of
+    Nil -> PArgsEnd sp
+    Cons (name, value) rest -> PRecordField (pat-span value) name value (record-pat-spine sp rest)
+  record-field-label :: List LToken -> Ps String
+  record-field-label toks = case toks of
+    Cons t rest -> case lt-token t of
+      TVar name -> if string-compare name "_" == 0 then PBad else POk name rest
+      other -> PBad
+    Nil -> PBad
+  parse-record-pat-fields :: Span -> String -> List LToken -> Bytes -> List (String, Pat) -> Ps Pat
+  parse-record-pat-fields sp name toks src acc = case toks of
+    Cons t rest -> if is-punct-t (lt-token t) "}" then
+      (case acc of Nil -> PBad; Cons first more -> POk (PRecord (span-join sp (sp-of t)) name (record-pat-spine sp (reverse acc))) rest)
+      else (case record-field-label toks of
+        POk label (Cons equals input) -> if is-punct-t (lt-token equals) "=" then
+          (case parse-pat input src of
+            POk value remaining -> record-pat-separator sp name remaining src (Cons (label, value) acc)
+            PBad -> PBad)
+          else PBad
+        other -> PBad)
+    Nil -> PBad
+  record-pat-separator :: Span -> String -> List LToken -> Bytes -> List (String, Pat) -> Ps Pat
+  record-pat-separator sp name toks src acc = case toks of
+    Cons t rest -> if is-punct-t (lt-token t) "," then (case rest of
+      Cons next more -> if is-punct-t (lt-token next) "}" then PBad else parse-record-pat-fields sp name rest src acc
+      Nil -> PBad)
+      else if is-punct-t (lt-token t) "}" then parse-record-pat-fields sp name toks src acc else PBad
     Nil -> PBad
 
   parse-ctr-pats :: List LToken -> Bytes -> List Pat -> Ps (List Pat)
@@ -1522,6 +1569,30 @@ module Bootstrap.Parse where
       else finish-app head toks acc
     Nil -> finish-app head toks acc
 
+  record-expr-spine :: Span -> List (String, Expr) -> Expr
+  record-expr-spine sp fields = case fields of
+    Nil -> EArgsEnd sp
+    Cons (name, value) rest -> ERecordField (expr-span value) name value (record-expr-spine sp rest)
+  parse-record-expr-fields :: Span -> String -> List LToken -> Bytes -> List (String, Fix) -> List (String, Expr) -> Ps Expr
+  parse-record-expr-fields sp name toks src fix acc = case toks of
+    Cons t rest -> if is-punct-t (lt-token t) "}" then
+      POk (ERecord (span-join sp (sp-of t)) name (record-expr-spine sp (reverse acc))) rest
+      else (case record-field-label toks of
+        POk label (Cons equals input) -> if is-punct-t (lt-token equals) "=" then
+          (case parse-expr input src fix of
+            POk value remaining -> record-expr-separator sp name remaining src fix (Cons (label, value) acc)
+            PBad -> PBad)
+          else PBad
+        other -> PBad)
+    Nil -> PBad
+  record-expr-separator :: Span -> String -> List LToken -> Bytes -> List (String, Fix) -> List (String, Expr) -> Ps Expr
+  record-expr-separator sp name toks src fix acc = case toks of
+    Cons t rest -> if is-punct-t (lt-token t) "," then (case rest of
+      Cons next more -> if is-punct-t (lt-token next) "}" then PBad else parse-record-expr-fields sp name rest src fix acc
+      Nil -> PBad)
+      else if is-punct-t (lt-token t) "}" then parse-record-expr-fields sp name toks src fix acc else PBad
+    Nil -> PBad
+
   finish-app :: Expr -> List LToken -> List Expr -> Ps Expr
   finish-app head toks acc = case acc of
     Nil -> POk head toks
@@ -1547,7 +1618,25 @@ module Bootstrap.Parse where
     Nil -> PBad
 
   parse-atom :: List LToken -> Bytes -> List (String, Fix) -> Ps Expr
-  parse-atom toks src fix = case toks of
+  parse-atom toks src fix = case parse-atom-base toks src fix of
+    POk value rest -> parse-postfix value rest src fix
+    PBad -> PBad
+  parse-postfix :: Expr -> List LToken -> Bytes -> List (String, Fix) -> Ps Expr
+  parse-postfix value toks src fix = case toks of
+    Cons t rest -> if is-punct-t (lt-token t) "{" then (case value of
+      ECon sp name (EArgsEnd end) -> (case parse-record-expr-fields sp name rest src fix Nil of
+        POk constructed more -> parse-postfix constructed more src fix
+        PBad -> PBad)
+      other -> POk value toks)
+      else if is-punct-t (lt-token t) "." then (case rest of
+        Cons label more -> (case lt-token label of
+          TVar name -> if string-compare name "_" == 0 then PBad else parse-postfix (EProject (span-join (expr-span value) (sp-of label)) value name) more src fix
+          other -> PBad)
+        Nil -> PBad)
+      else POk value toks
+    Nil -> POk value toks
+  parse-atom-base :: List LToken -> Bytes -> List (String, Fix) -> Ps Expr
+  parse-atom-base toks src fix = case toks of
     Cons t rest -> case lt-token t of
       TInt s -> POk (ELitInt (sp-of t) s) rest
       TFloat s -> POk (ELitFloat (sp-of t) s) rest
@@ -1557,7 +1646,7 @@ module Bootstrap.Parse where
         None -> POk (ELitChar (sp-of t) empty-string) rest
       TVar s ->
         if string-compare s "handler" == 0 then parse-handler (sp-of t) rest src fix
-        else name-atom (sp-of t) rest (Cons s Nil)
+        else POk (EVar (sp-of t) s) rest
       TCon s -> name-atom (sp-of t) rest (Cons s Nil)
       TPunct p ->
         if string-compare p "(" == 0 then parse-paren-expr (sp-of t) rest src fix
@@ -1712,7 +1801,7 @@ module Bootstrap.Parse where
         if string-compare p "." == 0 then
           case rest of
             Cons t2 rest2 -> case lt-token t2 of
-              TVar s2 -> name-atom sp rest2 (Cons s2 acc)
+              TVar s2 -> finish-name sp rest2 (join-dots (Cons s2 acc))
               TCon s2 -> name-atom sp rest2 (Cons s2 acc)
               _ -> finish-name sp toks (join-dots acc)
             Nil -> finish-name sp toks (join-dots acc)

@@ -1,0 +1,7 @@
+module Main where
+  record User where
+    age :: Nat
+  user :: User
+  user = User { age = 36 }
+  main :: Int
+  main = 0

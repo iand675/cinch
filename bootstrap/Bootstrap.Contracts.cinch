@@ -149,6 +149,8 @@ module Bootstrap.Contracts where
   pat-references :: Pat -> List String
   pat-references p = case p of
     PCon s name args -> Cons name (pat-references args)
+    PRecord s name fields -> Cons name (pat-references fields)
+    PRecordField s name value rest -> pat-references value <> pat-references rest
     PTuple s args -> pat-references args
     PList s args -> [interface-global "Data.Core.Nil", interface-global "Data.Core.Cons"] <> pat-references args
     PAs s name inner -> pat-references inner
@@ -163,6 +165,9 @@ module Bootstrap.Contracts where
   expr-references e = case e of
     EVar s name -> Cons name Nil
     ECon s name args -> Cons name (expr-references args)
+    ERecord s name fields -> Cons name (expr-references fields)
+    ERecordField s name value rest -> expr-references value <> expr-references rest
+    EProject s value name -> expr-references value
     ETuple s args -> expr-references args
     EList s args -> [interface-global "Data.Core.Nil", interface-global "Data.Core.Cons", interface-global "Data.FromList.FromList.from-list"] <> expr-references args
     EApp s f a -> expr-references f <> expr-references a
@@ -210,6 +215,7 @@ module Bootstrap.Contracts where
     DFun s name clauses -> clause-references clauses
     DOpaque s name params kind -> param-references params <> type-references kind
     DData s name params ctors -> param-references params <> ctor-references ctors
+    DRecord s name params fields -> param-references params <> ctor-references fields
     DEffect s name params ops -> param-references params <> ctor-references ops
     DInstance s only name params class-app members -> param-references params <> type-references class-app <> declaration-references (decls-of members)
     DForeign s direction abi symbol name ty -> type-references ty <> (if same direction "export" then Cons name Nil else Nil)

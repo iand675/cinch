@@ -423,6 +423,9 @@ module Bootstrap.Check where
       None -> (TyHole, fail s (string-concat "unbound variable: " n))
       Some t -> (t, Nil)
     ECon s n args -> infer-con env s n args
+    ERecord s name fields -> (TyHole, fail s "record construction requires typed record elaboration")
+    ERecordField s name value rest -> (TyHole, fail s "record field spine is not an expression")
+    EProject s value name -> (TyHole, fail s "field projection requires typed record elaboration")
     ELitInt s text -> (TyInt, Nil)
     ELitStr s text -> (TyStr, Nil)
     ELitChar s text -> (TyChr, Nil)
@@ -686,6 +689,8 @@ module Bootstrap.Check where
     PLitStr s text -> (env, ty-compare s TyStr expected)
     PLitChar s text -> (env, ty-compare s TyChr expected)
     PCon s n args -> check-con-pat env s n args expected
+    PRecord s name fields -> (env, fail s "record pattern requires typed record elaboration")
+    PRecordField s name value rest -> (env, fail s "record field spine is not a pattern")
     PTuple s xs -> check-tuple-pat env s xs expected
     PList s xs -> (env, fail s "unsupported pattern: list literal")
     PAs s n inner -> (env, fail s "unsupported pattern: as binding")

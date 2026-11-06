@@ -708,6 +708,9 @@ module Bootstrap.Ir where
   expr-node-name e = case e of
     EVar s n -> "variable"
     ECon s n args -> "constructor application"
+    ERecord s name fields -> "record construction"
+    ERecordField s name value rest -> "record field spine"
+    EProject s value name -> "field projection"
     ELitInt s text -> "integer literal"
     ELitFloat s text -> "float literal"
     ELitStr s text -> "string literal"

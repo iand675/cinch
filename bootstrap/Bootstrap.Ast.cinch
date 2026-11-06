@@ -202,6 +202,8 @@ module Bootstrap.Ast where
     PWild :: Span -> Pat
     PVar :: Span -> String -> Pat
     PCon :: Span -> String -> Pat -> Pat
+    PRecord :: Span -> String -> Pat -> Pat
+    PRecordField :: Span -> String -> Pat -> Pat -> Pat
     PLitInt :: Span -> String -> Pat
     PLitStr :: Span -> String -> Pat
     PLitChar :: Span -> String -> Pat
@@ -229,6 +231,8 @@ module Bootstrap.Ast where
     PWild s -> s
     PVar s n -> s
     PCon s n args -> s
+    PRecord s n fields -> s
+    PRecordField s name value rest -> s
     PLitInt s text -> s
     PLitStr s text -> s
     PLitChar s text -> s
@@ -245,6 +249,9 @@ module Bootstrap.Ast where
   data Expr where
     EVar :: Span -> String -> Expr
     ECon :: Span -> String -> Expr -> Expr
+    ERecord :: Span -> String -> Expr -> Expr
+    ERecordField :: Span -> String -> Expr -> Expr -> Expr
+    EProject :: Span -> Expr -> String -> Expr
     ELitInt :: Span -> String -> Expr
     ELitFloat :: Span -> String -> Expr
     ELitStr :: Span -> String -> Expr
@@ -317,6 +324,9 @@ module Bootstrap.Ast where
   expr-span e = case e of
     EVar s n -> s
     ECon s n args -> s
+    ERecord s n fields -> s
+    ERecordField s name value rest -> s
+    EProject s value name -> s
     ELitInt s text -> s
     ELitFloat s text -> s
     ELitStr s text -> s
@@ -514,6 +524,8 @@ module Bootstrap.Ast where
     PWild s -> 0
     PVar s n -> 0
     PCon s n args -> pats-unmodeled (pats-of args)
+    PRecord s name fields -> pat-unmodeled-count fields
+    PRecordField s name value rest -> pat-unmodeled-count value + pat-unmodeled-count rest
     PLitInt s text -> 0
     PLitStr s text -> 0
     PLitChar s text -> 0
@@ -534,6 +546,9 @@ module Bootstrap.Ast where
   expr-unmodeled-count e = case e of
     EVar s n -> 0
     ECon s n args -> exprs-unmodeled (exprs-of args)
+    ERecord s name fields -> expr-unmodeled-count fields
+    ERecordField s name value rest -> expr-unmodeled-count value + expr-unmodeled-count rest
+    EProject s value name -> expr-unmodeled-count value
     ELitInt s text -> 0
     ELitFloat s text -> 0
     ELitStr s text -> 0

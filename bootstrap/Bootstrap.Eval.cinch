@@ -527,6 +527,9 @@ module Bootstrap.Eval where
         VFun name arity clauses collected -> if arity == 0 then apply-fun globals s name arity clauses collected else Ok v
         other -> Ok v
     ECon s n args -> eval-con globals env s n args
+    ERecord s name fields -> fail s "record construction requires typed record evaluation"
+    ERecordField s name value rest -> fail s "record field spine is not an expression"
+    EProject s value name -> fail s "field projection requires typed record evaluation"
     ELitInt s text -> Ok (VInt (lit-int-value text))
     ELitStr s text -> Ok (VStr text)
     ELitChar s text -> case string-first-char text of
