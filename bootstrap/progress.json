@@ -58,13 +58,13 @@
     },
     {
       "title": "Current matching Rust and Cinch-source full suite",
-      "detail": "111 of 235 complete groups passed; 1 running, 0 failed and 123 pending.Every group includes ignored tests. State: running.",
+      "detail": "149 of 235 complete groups passed; 1 running, 0 failed and 85 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
       "title": "Fresh compiler bootstrap",
       "detail": "4 of 4 stages built and smoke-tested. Fixed point, 43 interfaces, API consumption and changed-source behavior are required.",
-      "state": "running"
+      "state": "passed"
     },
     {
       "title": "Early API-checkpoint behavior through Stage1",
@@ -72,8 +72,8 @@
       "state": "passed"
     },
     {
-      "title": "Earlier API checkpoint: exact Stage3 behavior",
-      "detail": "90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.81 complete bootstrap groups, eight ordinary and four mixed targets. Includes all positive ABI6 arrays, exact float patterns and the new projection group. Every case runs; direct Native operations remain separately classified. Separate compiler snapshot; a matching published-source run remains required.",
+      "title": "Complete behavior through exact final Stage3",
+      "detail": "1 of 105 complete groups passed; 1 running, 0 failed and 103 pending.All105 required targets:96 portable and9 original interface/API groups, preserving the original100 plus5 additions. Original explicit32M poisoned client limits remain; compiler/checker consumers use256M. Direct Native operations in mixed targets remain classified separately.",
       "state": "running"
     },
     {
@@ -237,9 +237,9 @@
       "state": "passed"
     },
     {
-      "title": "Latest development compiler: all105 required targets",
-      "detail": "13 of 105 complete groups passed; 1 running, 4 failed and 87 pending. State: running; current target: bootstrap_anonymous_contracts. Actual43-module Cinch compiler fixture and matching freshly built Rust hosts; all100 original targets plus5 additions, including all9 API groups. Every original case runs. This diagnostic compiler is separate from finalStage3 acceptance.",
-      "state": "running"
+      "title": "Current published compiler: bootstrap fixed point",
+      "detail": "Four actual stages and12 smokes pass independently. Stage2/3 LLVM, executable and43 canonical interfaces match; compiler API consumption and changed-source behavior pass. Stage1 uses the optimized exact pinned runtime. Acceptance1-4 proved for the current source; full matching suites/all105 and Acceptance5 remain required.",
+      "state": "passed"
     },
     {
       "title": "Measured optimized Stage1 runtime",
@@ -254,16 +254,16 @@
   ],
   "blockers": [
     {
-      "title": "Checked-helper decision repair pushed; matching full suite and fresh bootstrap running",
-      "detail": "Published0903872 compiler5f2f accepts valid pure fully-applied source helpers in numeric decisions. Four complete affected groups pass11tests;50 new Core control runs, actual43module compiler/self-built check and three real32M poisoned zero-leak clients plus three refusals pass. Fresh Native6b/Cinch5f2f full suite, all105-target actual-Cinch development diagnostic and four-stage bootstrap are now running on frozen matching inputs under six workers, with one build thread and optimized pinned Stage1 runtime. Earlier711 API7/9 and917f array13/15 are retained as earlier-source evidence. Typed foreign declarations, source-prelude dependency rechecking, array ownership/staging, opaque higher-order decisions, matching all105/Acceptance1-5 remain open. Earlier450 and917 chains prove scoped Acceptance1-4; olderNative58 retains229/232 groups and1620/1624tests, with no skips."
+      "title": "Current published compiler fixed point proved; full matching Stage3 acceptance running",
+      "detail": "Published5f2f compiler independently proves Acceptance1-4: four stages/twelve smokes, identical Stage2/3 LLVM/executable/all43 canonical interfaces, actual compiler-interface consumption and changed-source behavior. Proof pushed in1b7c022. Exact immutable Stage3 now runs all105 original/current targets using matching freshly built Native6b hosts and authenticated85 library-only inputs. The blanket32M compiler-consumer limit was independently diagnosed and corrected to256M; original explicit32M poisoned clients remain unchanged, previous outcomes retained. Native6b/Cinch5f2f full235-group sweep continues. Arrays ownership/staging, typed foreign declarations, source-prelude replacement and final runtime/tooling/editor/external/all105 Acceptance5 remain open. Private44-module typed foreign candidate passes its entire Native source check; pinned actual compiler/object and real C-call/interface checks are validating, not published support. Six shared workers maximum."
     },
     {
       "title": "Investigate the recorded failure",
-      "detail": "self-built tests: bootstrap_total_semantics; self-built tests: bootstrap_type_syntax; self-built tests: arrays; Two original array cases remain open: ownership/copyOut and staging; 2 original interface/API groups remain open"
+      "detail": "Two original array cases remain open: ownership/copyOut and staging; 2 original interface/API groups remain open"
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "111 of 235 complete groups passed; 1 running, 0 failed and 123 pending."
+      "detail": "149 of 235 complete groups passed; 1 running, 0 failed and 85 pending."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -271,7 +271,7 @@
     },
     {
       "title": "Finish the exact self-built compiler tests",
-      "detail": "90 of 93 complete groups passed; 0 running, 3 failed and 0 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "1 of 105 complete groups passed; 1 running, 0 failed and 103 pending."
     },
     {
       "title": "Finish final external acceptance",
@@ -312,6 +312,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "The fresh current-source compiler chain passes its smoke tests, matching Stage2/Stage3 IR, executable and all 43 canonical interfaces, actual API consumption and changed-source behavior. Complete tests and the final acceptance audit remain separate requirements.",
-  "activity": "Current matching Rust and Cinch-source full suite: 111 of 235 complete groups passed; 1 running, 0 failed and 123 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit. Repair gates: 4 of 4 complete groups passed; 0 running, 0 failed and 0 pending. Core decision contracts: passed; source decision behavior: passed; frontend adapter: passed; object round trip: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
-  "updatedAt": "2026-11-06T03:21:26.397549+00:00"
+  "activity": "Current matching Rust and Cinch-source full suite: 149 of 235 complete groups passed; 1 running, 0 failed and 85 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit. Repair gates: 4 of 4 complete groups passed; 0 running, 0 failed and 0 pending. Core decision contracts: passed; source decision behavior: passed; frontend adapter: passed; object round trip: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 1 of 105 complete groups passed; 1 running, 0 failed and 103 pending.",
+  "updatedAt": "2026-11-06T03:39:59.875147+00:00"
 }
