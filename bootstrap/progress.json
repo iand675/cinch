@@ -1,33 +1,33 @@
 {
   "schema": 1,
   "estimate": 90,
-  "commit": "ea682d9d7f05b9628944e4d8f89080a314594cf4",
+  "commit": "e94a3d95f5e309b13f39dfd671ced28add30bd7f",
   "estimateNote": "Rough engineering estimate. Verified checks and remaining work are listed below.",
   "status": "Verification found a failure; correction required",
   "stages": [
     {
-      "name": "Prior API Stage 0",
+      "name": "Stage 0",
       "state": "passed",
       "label": "Verified",
-      "description": "Pinned Rust seed, independently revalidated and smoke-tested. Separate compiler snapshot; a matching published-source run remains required."
+      "description": "Pinned Rust seed, independently revalidated and smoke-tested."
     },
     {
-      "name": "Prior API Stage 1",
-      "state": "passed",
-      "label": "Verified",
-      "description": "Fresh Cinch compiler built from the seed; all three smoke checks. Separate compiler snapshot; a matching published-source run remains required."
+      "name": "Stage 1",
+      "state": "pending",
+      "label": "Pending",
+      "description": "Fresh Cinch compiler built from the seed; all three smoke checks."
     },
     {
-      "name": "Prior API Stage 2",
-      "state": "passed",
-      "label": "Verified",
-      "description": "Every compiler module is being freshly rebuilt by Stage1; all repair gates passed. Separate compiler snapshot; a matching published-source run remains required."
+      "name": "Stage 2",
+      "state": "pending",
+      "label": "Pending",
+      "description": "Every compiler module is being freshly rebuilt by Stage1; all repair gates passed."
     },
     {
-      "name": "Prior API Stage 3",
-      "state": "passed",
-      "label": "Fixed point verified",
-      "description": "Fresh rebuild by Stage2, followed by code/interface matching and changed-source checks. Separate compiler snapshot; a matching published-source run remains required."
+      "name": "Stage 3",
+      "state": "pending",
+      "label": "Pending",
+      "description": "Fresh rebuild by Stage2, followed by code/interface matching and changed-source checks."
     }
   ],
   "checks": [
@@ -38,7 +38,7 @@
     },
     {
       "title": "Current repair gates",
-      "detail": "8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. constructor contracts: passed; module resolution: passed; type inference: passed; type contracts: passed; interface contracts: passed; parser: passed; frontend adapter: passed; object round trip: passed. All 44 source-module check: passed.",
+      "detail": "5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. native44: passed; cinch-built44: passed; runtime behavior: passed; actual_compiler_object: passed; record_indexed_runtime13_refusals5: passed. All 44 source-module check: passed.",
       "state": "passed"
     },
     {
@@ -57,13 +57,13 @@
       "state": "passed"
     },
     {
-      "title": "Earlier checkpoint: complete235-group Native sweep",
-      "detail": "234 of 235 complete groups passed; 0 running, 1 failed and 0 pending.Every group includes ignored tests. State: finished-with-failures. Separate compiler snapshot; a matching published-source run remains required.",
+      "title": "Current NativeE5/4f: complete235-group sweep",
+      "detail": "0 of 235 complete groups passed; 0 running, 0 failed and 235 pending.Every group includes ignored tests. State: compiling-all-native-runners.",
       "state": "running"
     },
     {
-      "title": "Earlier API compiler bootstrap",
-      "detail": "4 of 4 stages built and smoke-tested. Fixed point, 43 interfaces, API consumption and changed-source behavior are required. Separate compiler snapshot; a matching published-source run remains required.",
+      "title": "Fresh compiler bootstrap",
+      "detail": "1 of 4 stages built and smoke-tested. Fixed point, 44 interfaces, API consumption and changed-source behavior are required.",
       "state": "running"
     },
     {
@@ -73,7 +73,7 @@
     },
     {
       "title": "Earlier API checkpoint: exact Stage3 behavior",
-      "detail": "70 of 105 complete groups passed; 1 running, 4 failed and 30 pending.All105 required targets:96 portable and9 original interface/API groups, preserving the original100 plus5 additions. Original explicit32M poisoned client limits remain; compiler/checker consumers use256M. Direct Native operations in mixed targets remain classified separately. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "72 of 105 complete groups passed; 1 running, 4 failed and 28 pending.All105 required targets:96 portable and9 original interface/API groups, preserving the original100 plus5 additions. Original explicit32M poisoned client limits remain; compiler/checker consumers use256M. Direct Native operations in mixed targets remain classified separately. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -207,9 +207,9 @@
       "state": "failed"
     },
     {
-      "title": "Current compiler: original interface/API groups:8/9",
-      "detail": "All9 original groups retain their original files/assertions: 8 groups pass, 1 fail; 10 of11 tests pass. Failed tests stop at their first failing assertion. Indexed-type and typed C metadata now pass. Source-Prelude replacement still needs genuine dependency rechecking. The actual Cinch frontend/writer fixture is separate from final Stage3 acceptance.",
-      "state": "failed"
+      "title": "Earlier compiler: original interface/API groups:8/9",
+      "detail": "All9 original groups retain their original files/assertions: 8 groups pass, 1 fail; 10 of11 tests pass. Failed tests stop at their first failing assertion. This receipt belongs to an earlier source; it is not a current pass count. The actual Cinch frontend/writer fixture is separate from final Stage3 acceptance.",
+      "state": "running"
     },
     {
       "title": "Earlier038f parser and full-source check",
@@ -267,19 +267,24 @@
       "state": "running"
     },
     {
-      "title": "Source records and constructor parameter identity",
+      "title": "Earlier dd8d records and constructor parameter identity",
       "detail": "All8 complete groups/16 Rust tests pass. All44 exact sources pass Native and actual Cinch-built checks; the actual compiler passes17 optimized C clients/50 zero-leak reports and6 fresh32M poisoned record clients/12 further zero-leak reports. Named construction, complete patterns, projection, generic/nested fields, written order and strict discarded fields are checked. Original API is8/9. Numeric field propagation, record interface transport and full acceptance stay open.",
+      "state": "running"
+    },
+    {
+      "title": "Published4f record and indexed runtime checkpoint",
+      "detail": "Declared/generic numeric fields, written strict initializer order, module-visible projection and closed indexed coverage are repaired. Exact44 sources pass both checkers. Actual compiler/object9 tests,17 C clients and50 zero-leak reports; runtime component139 zero-leak reports;13 focused clients plus5 refusals all pass. Original API8/9 and language7/13 positives remain incomplete. Matching full suites and Acceptance1-5 stay required.",
       "state": "passed"
     },
     {
-      "title": "Private repaired compiler: actual object/runtime contract gate",
-      "detail": "The actual44-module Native22-built D13 compiler passes all8 adapter tests and the complete object test:17 optimized C clients,50 zero-leak reports and3 actual resolved-writer comparisons. Physical code, object/layout/interface inventories independently audited. The new compiler remains private; finalStage3 and matching full suites stay required.",
+      "title": "Published4f: actual compiler/object contract gate",
+      "detail": "The actual44-module Native22-built4f compiler passes all8 adapter tests and the complete object test:17 optimized C clients,50 zero-leak reports and3 actual resolved-writer comparisons. Physical code, object/layout/interface inventories independently audited. The checkpoint is published; finalStage3 and matching full suites stay required.",
       "state": "passed"
     },
     {
-      "title": "Private repaired compiler:13 record and indexed runtime clients",
-      "detail": "12/13 clients executed; phase closed-index-constructor-coverage-emit; status failed. Original6 clients retained,7 added numeric/callback/projection/indexed clients and5 source refusals. Two new source-string escapes corrected in attempt2; original attempt retained. Compiler256M; clients32M poisoning with zero leaks.",
-      "state": "failed"
+      "title": "Published4f:13 record and indexed runtime clients",
+      "detail": "13/13 clients executed; phase negative-4; status passed-source-record-runtime-clients. Original6 clients retained,7 added numeric/callback/projection/indexed clients and5 source refusals. Two new source-string escapes corrected in attempt2; original attempt retained. Compiler256M; clients32M poisoning with zero leaks.",
+      "state": "passed"
     },
     {
       "title": "Published Native constructor-pattern inference",
@@ -287,12 +292,12 @@
       "state": "passed"
     },
     {
-      "title": "Private indexed backend: complete runtime-IR suite",
+      "title": "Published4f: complete runtime-IR suite",
       "detail": "All original cases/assertions plus3 new fixed-index constructor programs pass.137 program executions and2 C ABI checks report139 zero-leak outcomes. Generic payload classes and first-class constructor use execute. The actual full CLI and all matching suites remain separate required gates.",
       "state": "passed"
     },
     {
-      "title": "Private indexed backend: full compiler/object gate",
+      "title": "Published4f: full compiler/object gate",
       "detail": "State passed; phase bootstrap_library_object. Exact44-module compiler uses the audited Native22 release test host. All8 adapter tests and the complete object/C-client/contract test must pass. New large fixtures live in the workspace.",
       "state": "passed"
     },
@@ -302,8 +307,8 @@
       "state": "passed"
     },
     {
-      "title": "Private indexed-constructor backend repair",
-      "detail": "Exact44-module source check: passed. Ordinary type identities and field representations stay checked; only phantom value indices may share layout. Complete runtime-IR group preserves every original case and adds3 real constructor clients. No passing runtime claim before those execute.",
+      "title": "Published4f indexed-constructor backend",
+      "detail": "Exact44-module source check: passed. Ordinary type identities and field representations stay checked; only phantom value indices may share layout. Complete runtime-IR group preserves every original case and adds3 real constructor clients. The complete component and actual CLI runtime gates have passed; full acceptance remains open.",
       "state": "passed"
     },
     {
@@ -312,18 +317,13 @@
       "state": "passed"
     },
     {
-      "title": "Private repair: typed fields, indexed coverage and visible projection",
-      "detail": "3/3 complete groups passed; phase bootstrap_resolve; state passed. Both44-source checks pass. All70 constructor component cases and9 original mutations remain required. This source is not yet published; actual compiler, runtime and API results are shown separately below.",
+      "title": "Earlier D13 frontend: typed fields, indexed coverage and visible projection",
+      "detail": "3/3 complete groups passed; phase bootstrap_resolve; state passed. Both44-source checks pass. All70 constructor component cases and9 original mutations remain required. This earlier frontend layer is retained unchanged in published4f; its exact full-source scope stays D13. Current actual compiler, runtime and API results are separate.",
       "state": "passed"
     },
     {
-      "title": "Declared numeric record field type needs propagation",
-      "detail": "The identical valid Nat field initializer is accepted by Native but rejected by the actual current Cinch CLI after an untyped temporary defaults it to Int. The original positive source and failure are retained. The typed-initializer correction passes its complete constructor/inference groups; the combined application/coverage repair keeps its own evidence.",
-      "state": "failed"
-    },
-    {
       "title": "Development record compiler: original external language cases",
-      "detail": "5/13 positives execute; 2/21 negative cases meet their original reason/path assertions. All34 original cases run; 27 failed subcases. Five successful binaries independently rerun at32M poisoning with zero leaks. This independently audited replay uses the exact publishedDD8d compiler. It is development-compiler evidence; finalStage3 and complete acceptance remain required.",
+      "detail": "7/13 positives execute; 2/21 negative cases meet their original reason/path assertions. All34 original cases run; 25 failed subcases. All seven successful binaries independently rerun at32M poisoning with zero leaks. This independently audited replay uses the exact published4f compiler. It is development-compiler evidence; finalStage3 and complete acceptance remain required.",
       "state": "failed"
     },
     {
@@ -334,20 +334,20 @@
   ],
   "blockers": [
     {
-      "title": "Indexed runtime suite passes; full compiler and language replay continue",
-      "detail": "Two verified Native fixes are pushed: proposition carriers in f08bf3c, constructor-pattern inference in ea682d9. Latest scoped Native proof:4 complete groups/29 tests and17 zero-leak reports, both44-module compiler projects and unchanged original failure reproductions pass. Public Cinch staysDD8d. PrivateD13 passes5 complete source/export groups, all70 constructor cases and9 metadata mutations, both44-source checks and the actual compiler/object gate with17 optimized C clients/50 zero-leak reports. Its original9 API groups remain8/9; source Prelude is open. Twelve corrected runtime clients pass and the exact original Nat-field failure now passes its actual CLI. The final Signal client exposed a backend gap. Private4f repairs checked value-index erasure while preserving ordinary type identities and field layouts. Its full runtime-IR group now passes all original cases plus3 new indexed clients:137 program executions and2 C ABI checks,139 zero-leak reports. Exact44 sources pass optimized NativeA2; the full actual compiler/object gate and Cinch-built reader check are running. Fresh13-client/5-refusal runtime,9 API groups and unchanged34 external language cases are queued behind the compiler. Older6b/5f2f full Native sweep finished1630/1631 tests and234/235 groups green,0 skipped/filtered; its historical failure stays failed. Latest full bootstrap/all105 frontend targets/14 external checks/all34 language cases/Acceptance1-5 stay required. Up to6 workers; large new fixtures use workspace folders."
+      "title": "Published record/indexed fixes; full bootstrap and suite verification running",
+      "detail": "Published Cinch4f fixes typed record fields, module-visible projection and closed numeric indexed constructors. Exact44 source checks pass Native and the actual Cinch-built reader. Full runtime-IR group:137 program plus2 C ABI executions,139 zero-leak reports. Actual compiler/object gate:9 tests,17 C clients,50 zero-leak reports. All13 runtime clients plus5 refusals pass; all13 independently rerun with poisoning and zero leaks. Latest original language suite executes7/13 positives;21 negatives refuse but only2 meet original diagnostics,25 failed assertions retained. Original API8/9; source-Prelude replacement and record interface transport remain. A matching4f four-stage chain and fresh NativeE5/4f235-group sweep are running. Earlier6b/5f2f suite remains historical234/235 groups. Latest105 frontend targets,14 external acceptance checks,34 language cases and Acceptance1-5 remain required. New temporary build files stay in the workspace; the latest/tmp cleanup reclaimed30.5GB."
     },
     {
       "title": "Investigate the recorded failure",
-      "detail": "Native compiler tests: bootstrap_infer; self-built tests: arrays; self-built tests: interface_kinds; self-built tests: interface_prelude_overrides; self-built tests: bootstrap_infer; Two original array cases remain open: ownership/copyOut and staging; 1 original interface/API groups remain open; Valid Nat record initializer still defaults to Int"
+      "detail": "self-built tests: arrays; self-built tests: interface_kinds; self-built tests: interface_prelude_overrides; self-built tests: bootstrap_infer; Two original array cases remain open: ownership/copyOut and staging"
     },
     {
       "title": "Finish the fresh bootstrap",
-      "detail": " Separate compiler snapshot; a matching published-source run remains required. A matching final chain is not yet verified."
+      "detail": "All repair gates passed. Current phase: building-library-only-provider; Stage0/1/2/3, matching code/interfaces, actual API consumption and changed-source checks remain."
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "234 of 235 complete groups passed; 0 running, 1 failed and 0 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "0 of 235 complete groups passed; 0 running, 0 failed and 235 pending."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -355,7 +355,7 @@
     },
     {
       "title": "Finish the exact self-built compiler tests",
-      "detail": "70 of 105 complete groups passed; 1 running, 4 failed and 30 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "72 of 105 complete groups passed; 1 running, 4 failed and 28 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Pass all external language examples through Stage3",
@@ -396,10 +396,10 @@
       "title": "Earlier source: Changed-source rebuilding verified"
     }
   ],
-  "candidateSource": "dd8dd439a99818dcdd2d5e9b27222d3497865202bf124deb23015bfe84bee3ab",
+  "candidateSource": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
   "candidatePublished": true,
   "fullGoalComplete": false,
-  "summary": "All 44 compiler-source checks: passed. 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. constructor contracts: passed; module resolution: passed; type inference: passed; type contracts: passed; interface contracts: passed; parser: passed; frontend adapter: passed; object round trip: passed.",
-  "activity": "Earlier checkpoint: complete235-group Native sweep: 234 of 235 complete groups passed; 0 running, 1 failed and 0 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. constructor contracts: passed; module resolution: passed; type inference: passed; type contracts: passed; interface contracts: passed; parser: passed; frontend adapter: passed; object round trip: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 70 of 105 complete groups passed; 1 running, 4 failed and 30 pending.",
-  "updatedAt": "2026-11-06T12:41:11.292907+00:00"
+  "summary": "All 44 compiler-source checks: passed. 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. native44: passed; cinch-built44: passed; runtime behavior: passed; actual_compiler_object: passed; record_indexed_runtime13_refusals5: passed.",
+  "activity": "Current NativeE5/4f: complete235-group sweep: 0 of 235 complete groups passed; 0 running, 0 failed and 235 pending. Stage builds and smoke checks: 1 of 4; chain state: building-library-only-provider. Repair gates: 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. native44: passed; cinch-built44: passed; runtime behavior: passed; actual_compiler_object: passed; record_indexed_runtime13_refusals5: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 72 of 105 complete groups passed; 1 running, 4 failed and 28 pending.",
+  "updatedAt": "2026-11-06T13:02:27.737358+00:00"
 }
