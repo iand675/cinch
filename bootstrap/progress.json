@@ -18141,9 +18141,9 @@
       },
       {
         "title": "Pipeline: complete FFI and mode checks",
-        "status": "running",
+        "status": "passed-complete-pipeline-with-typed-ffi-contracts",
         "phase": "bootstrap_pipeline",
-        "passed": 0,
+        "passed": 1,
         "failed": 0,
         "total": 1,
         "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
@@ -18193,5 +18193,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-06T22:19:35.141632+00:00"
+  "updatedAt": "2026-11-06T22:23:55.352215+00:00"
 }
