@@ -1,7 +1,7 @@
 {
-  "compiler_sha256": "ef9583ede397d8c14e770f465e7a2e570d0189f4660419f0c6661f2b42a87f81",
-  "compiler_source_sha256": "29e6a77bfe4b90c12f8f9dc5c63632b574b49fe4296abb7878483feb74b3a125",
-  "evidence": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/type-application-interface-api-2",
+  "compiler_sha256": "1263593c9e7b87ef0e272837c1c33cddf8ce90faedc69faf74b1867d103ef42d",
+  "compiler_source_sha256": "aa4e06c58418599493ac806f582dfc1797b1d56f8af64e7b9bdc82c19f7aeb56",
+  "evidence": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/canonical-contract-interface-api-1",
   "failed_groups": 1,
   "failed_tests": 1,
   "filtered": 0,
@@ -9,55 +9,55 @@
   "groups": [
     {
       "exit_code": 0,
-      "log_sha256": "41746eb16096f56a13dd0bb2d2c2a72d28efbcdcc4d9c8c87b2d64f70c341c57",
+      "log_sha256": "feb4aee33582e484cbeea34c907bfd536df6b93d2b82f991dd6fcc5aeb8cd46c",
       "name": "interface_anonymous_contracts",
       "status": "passed"
     },
     {
       "exit_code": 0,
-      "log_sha256": "22576d8641ee44ffa25ed6792bf1daa7cf8a20a5ee22885a0da5e376657c7859",
+      "log_sha256": "a04d293772f5546a91ebe45c86f081840534c6ad07e46a683baf8930d94aeb20",
       "name": "interface_class_contracts",
       "status": "passed"
     },
     {
       "exit_code": 0,
-      "log_sha256": "5bacb0fa70e45ceab44b849d96fd1b0c1b4734b5346216167e84da6cb6687a85",
+      "log_sha256": "ffb8ba92cdaf7cbacd995a919eb0d76a47ef4d52507232f7053060a5e2bfe465",
       "name": "interface_kinds",
       "status": "passed"
     },
     {
       "exit_code": 0,
-      "log_sha256": "54d90bd9848c282474aebf08877ecf6e612b7f48ceb0ca8a965616fbaa51e568",
+      "log_sha256": "68d08494f4f585fd266c6d8ca96f56aadd119519d33bd840e2f80777b24c103b",
       "name": "interface_nominals",
       "status": "passed"
     },
     {
       "exit_code": 0,
-      "log_sha256": "8b928e5c1672f9b3914f380b97a1999fb1e7f9076dce70657ac86f3bfbe2666e",
+      "log_sha256": "6c9d554b07a3a324fddd79981c50562d86e42350d642d23aa15aef7eace8b11b",
       "name": "interface_preconditions",
       "status": "passed"
     },
     {
       "exit_code": 101,
-      "log_sha256": "a165a308ffbf9eed8323dbd318606b86be4a44498dc9ea412555476f6a18f5d9",
+      "log_sha256": "13a461295c9ab30dae320bd123fd2b6b34025d96aa1ba29dd488be8af912c219",
       "name": "interface_prelude_overrides",
       "status": "failed"
     },
     {
       "exit_code": 0,
-      "log_sha256": "d86923687b580d822368b275c876172c29cb646c1a2d80114d2f824dfa779be7",
+      "log_sha256": "6546b56ff401dc2f330239d83c60a1887490e9de4fb93fe9a00040f31cb03f97",
       "name": "interface_refinement_closure",
       "status": "passed"
     },
     {
       "exit_code": 0,
-      "log_sha256": "b899791bc9fe8f9c5023968d43ccec976dc4cb819c012f625e2a2e71539e399c",
+      "log_sha256": "34d366af26a8c6512904659d019deaf6c26eb8fc9aa3087b05e955474455e05b",
       "name": "interface_refinements",
       "status": "passed"
     },
     {
       "exit_code": 0,
-      "log_sha256": "e6ad152596a66a9fa845de13df8ad6b4b7f93b6da41960bf208bdd3870266d72",
+      "log_sha256": "e252b4f056a2a158a390e4b5991ef7ff42a96d150db66873aeb508159ad03f9a",
       "name": "interface_region_effects",
       "status": "passed"
     }
@@ -66,7 +66,7 @@
   "native_source_sha256": "6b567529032465cde863607185da47aa7d5f9e5ecd99a596158174fd7efa6aa7",
   "passed_groups": 8,
   "passed_tests": 10,
-  "scope": "All9 original groups and11 Rust tests retain their exact original files and assertions. Actual29e6 Cinch CLI performs source parser/resolver/checker/writer work. Authenticated85 objects/interfaces/runtime supply only library dependencies; wrapper preserves file placement. Native public-reader/in-memory assertions stay explicit oracle roles. Indexed/foreign metadata now passes. Source-Prelude replacement still fails its original check; no blind dependency hash rewriting. This is the Native22-built Cinch fixture, not finalStage3 or all105/Acceptance5 completion.",
-  "source_sha256": "c5eab91c16bcf891fdbf20f500d1943d0c4d1244df1753accee65ea1605be625",
+  "scope": "All9 original groups and11 Rust tests retain their exact original files and assertions. Actualaa4e Cinch CLI performs source parser/resolver/checker/writer work. Authenticated85 objects/interfaces/runtime supply only library dependencies; wrapper preserves file placement. Native public-reader/in-memory assertions stay explicit oracle roles. Indexed/foreign metadata now passes. Source-Prelude replacement still fails its original check; no blind dependency hash rewriting. This is the Native22-built Cinch fixture, not finalStage3 or all105/Acceptance5 completion.",
+  "source_sha256": "34dbf1649f0bcaf894e39f0122e5add9908a72f4cf4b54c7dc5bedda8b2fad36",
   "status": "failed-current-original-interface-api-groups"
 }

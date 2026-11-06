@@ -138,7 +138,7 @@ module Bootstrap.Export where
     (Err error, other) -> Err error
     (other, Err error) -> Err error
   resolved-value-scheme :: Elaboration -> List LoadedInterface -> String -> Scheme -> Result String Json
-  resolved-value-scheme typed interfaces symbol scheme = case (resolved-source-scheme typed interfaces symbol scheme, export-value-scheme scheme) of
+  resolved-value-scheme typed interfaces symbol scheme = case (resolved-source-scheme typed interfaces symbol scheme, export-resolved-value-scheme scheme) of
     (Ok resolved, Ok spelling) -> Ok (set-field "scheme" (JStr spelling) resolved)
     (Err error, other) -> Err error
     (other, Err error) -> Err error

@@ -1,6 +1,28 @@
 # Next steps (as of 2026-11-06)
 
 
+## Actual resolved value contracts match Native (2026-11-06)
+
+Compiler aa4e fixes the missed real-writer call site. Public type applications
+remain flat; resolved value contracts retain canonical binary applications.
+Three permanent real CLI comparisons check complete Pair, Scope and Task
+resolved contracts against Native. All21 earlier exporter controls remain.
+
+Five complete affected groups pass12 Rust tests,17 optimized C clients and50
+zero-leak reports. All44 exact compiler inputs pass Native checking and the
+independently audited Cinch-built5f2f checker with an empty executable PATH.
+All9 unchanged API groups run:8 pass; source-Prelude replacement still fails.
+See `bootstrap/current-resolved-application-results.json`.
+
+The preceding29e6 compiler independently proves Acceptance1-4: all4 stages,
+12 smokes, identical Stage2/3 code and44 interfaces, actual compiler interface
+consumption and changed-source behavior. See
+`bootstrap/current-owner-display-bootstrap-results.json`. This proof is scoped
+to29e6; a matching aa4e chain and all matching suites remain required.
+The full105-target inventory, complete Native suite, separate14 acceptance
+checks, all34 external language cases and Acceptance1-5 remain the goal.
+Record syntax/type/runtime work stays private while external parity is tested.
+
 ## Defining owners and public type applications pass scoped gates (2026-11-06)
 
 Compiler29e6 requires an opaque foreign header's exact defining module.

@@ -241,6 +241,37 @@ uint32_t make_u32(void) { return UINT32_C(4000000000); }
         assert!(!std::fs::read(output.with_extension("diagnostics")).unwrap().is_empty());
     }
 }
+fn resolved_application_contracts(compiler: &Path, dir: &Path, manifest: &Path, objects: &Path) {
+    let root = dir.join("resolved-application-contracts");
+    std::fs::create_dir(&root).unwrap();
+    let source = r#"module ContractShapes where
+  data Pair a b where
+    Pair :: a -> b -> Pair a b
+  identity :: forall a b. Pair a b -> Pair a b
+  identity value = value
+  inspect :: forall r s. Scope r s -> Int
+  inspect token = 7
+  pending :: forall s e a. Unit -> Task s e a
+  pending unit = pending unit
+"#;
+    let (_, native) = cinch::driver::check_sources_ifaces(source, "native-application-contracts.cinch").unwrap();
+    let expected = native.iter().find(|iface| iface.module == "ContractShapes").unwrap();
+    let input = root.join("ContractShapes.cinch");
+    let prefix = root.join("written");
+    std::fs::write(&input, source).unwrap();
+    assert!(run(compiler, &[&input, &prefix], "--emit-interfaces", manifest, objects).status.success());
+    let actual = cinch::interface::Iface::from_json(&std::fs::read_to_string(root.join("written.ContractShapes.cinchif")).unwrap()).unwrap();
+    for name in ["identity", "inspect", "pending"] {
+        let value = actual.exports.values.iter().find(|value| value.name == name).unwrap();
+        let reference = expected.exports.values.iter().find(|value| value.name == name).unwrap();
+        assert!(value.resolved.is_some(), "missing real resolved value contract: {name}");
+        assert_eq!(value.resolved, reference.resolved, "actual Cinch writer disagrees with Native: {name}");
+    }
+    let identity = actual.exports.values.iter().find(|value| value.name == "identity").unwrap();
+    assert!(identity.scheme.contains("ContractShapes.Pair a b"), "public spelling: {}", identity.scheme);
+    assert!(identity.resolved.as_ref().unwrap().scheme.contains("((ContractShapes.Pair a) b)"), "canonical spelling lost binary application");
+}
+
 #[test]
 fn cinch_cli_emits_a_closed_object_that_another_cinch_invocation_can_consume() {
     // Native supplies library dependencies only. The source library below
@@ -359,6 +390,7 @@ fn cinch_cli_emits_a_closed_object_that_another_cinch_invocation_can_consume() {
     std::fs::write(&library, "module Library where\n  broken = (\n").unwrap();
     assert!(!run(&compiler, &[&library, &ir, &out, &abi, Path::new(&prefix)], "--emit-object", &manifest, &objects).status.success());
     assert!(std::fs::read(&abi).unwrap().is_empty());
+    resolved_application_contracts(&compiler, &dir, &manifest, &objects);
     foreign_roundtrip(&compiler, &dir, &provider, &manifest, &objects, &runtime);
     if retained.is_none() { common::cleanup(&dir); common::cleanup(&provider); }
 }

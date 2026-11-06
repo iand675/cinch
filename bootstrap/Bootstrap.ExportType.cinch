@@ -11,6 +11,7 @@ module Bootstrap.ExportType where
 
   export export-global, export-type, export-scheme, export-value-scheme, export-display-scheme, export-kind
   export export-parameters, export-constructor-fields, export-instance-scheme
+  export export-resolved-value-scheme
 
   join :: List (Result String String) -> Result String String
   join parts = case parts of
@@ -293,6 +294,10 @@ module Bootstrap.ExportType where
       (other, Err error) -> Err error
   export-value-scheme :: Scheme -> Result String String
   export-value-scheme scheme = value-scheme-in False scheme
+  -- Keep checked source binder names in a resolved value contract, while
+  -- preserving canonical binary applications throughout its type tree.
+  export-resolved-value-scheme :: Scheme -> Result String String
+  export-resolved-value-scheme scheme = value-scheme-style False False scheme
   has-preconditions :: UType -> Bool
   has-preconditions ty = case ty of
     UPi id name domain row result -> has-preconditions result
@@ -303,9 +308,11 @@ module Bootstrap.ExportType where
   export-display-scheme :: Scheme -> Result String String
   export-display-scheme scheme = value-scheme-in (has-preconditions (scheme-body scheme)) scheme
   value-scheme-in :: Bool -> Scheme -> Result String String
-  value-scheme-in positions scheme = case value-quantifiers Nil (scheme-params scheme) of
+  value-scheme-in positions scheme = value-scheme-style True positions scheme
+  value-scheme-style :: Bool -> Bool -> Scheme -> Result String String
+  value-scheme-style display positions scheme = case value-quantifiers Nil (scheme-params scheme) of
     Err error -> Err error
-    Ok (prefix, scope) -> case (value-requirements scope scope 0 (scheme-requirements scheme), result-in True positions scope 0 (scheme-body scheme)) of
+    Ok (prefix, scope) -> case (value-requirements scope scope 0 (scheme-requirements scheme), result-in display positions scope 0 (scheme-body scheme)) of
       (Err error, other) -> Err error
       (other, Err error) -> Err error
       (Ok dictionaries, Ok (body, predicates)) ->

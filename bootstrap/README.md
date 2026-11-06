@@ -1,18 +1,21 @@
 # The bootstrap ladder
 
-Current compiler29e6 checks exact defining owners for foreign opaque types
-and improves public type application display. A later real-writer comparison
-found that resolved value rows still use public spelling; the correction is
-validating. See [the counterexample](current-resolved-application-counterexample.json).
-All10 affected groups pass18 tests, with17 optimized real C clients and49
-zero-leak reports. The nested-owner forgery now refuses. All9 original API
+Current compiler aa4e corrects the actual resolved-value writer. Public type
+applications remain flat; canonical resolved applications stay binary. Three
+permanent real-writer comparisons agree exactly with Native. Five complete
+groups pass12 tests,17 optimized C clients and50 zero-leak reports. All44 exact
+inputs pass Native and the audited Cinch-built checker. All9 original API
 groups run unchanged:8 pass; source-Prelude replacement still fails. See
-[current evidence](current-owner-and-display-results.json) and
+[current writer evidence](current-resolved-application-results.json) and
 [original API outcomes](current-original-interface-api-results.json).
 
-The earlier5f2f four-stage proof remains scoped to its own source. A fresh
-matching44-module chain is running; full matching suites, external language
-parity and every Acceptance1-5 requirement remain open.
+The preceding29e6 compiler independently proves Acceptance1-4 with all4 stages,
+12 smokes, identical Stage2/3 code and44 canonical interfaces, actual compiler
+interface consumption and changed-source checks. See
+[29e6 bootstrap proof](current-owner-display-bootstrap-results.json).
+This is a source-specific proof; the matching latest chain, complete suites,
+all105 targets,14 external acceptance checks,34 external language cases and
+Acceptance5 remain required.
 
 ABI facts checkpoint (2026-11-05, source ad6733):
 `emit-runtime-library-artifact-with-object` adds real named public calls and
