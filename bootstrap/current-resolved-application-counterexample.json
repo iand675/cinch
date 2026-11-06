@@ -1,0 +1,30 @@
+{
+  "child_pid": 16261,
+  "compiler_sha256": "ef9583ede397d8c14e770f465e7a2e570d0189f4660419f0c6661f2b42a87f81",
+  "compiler_source_sha256": "29e6a77bfe4b90c12f8f9dc5c63632b574b49fe4296abb7878483feb74b3a125",
+  "full_goal_complete": false,
+  "native_sha256": "74be0a7a9f16d23e4465e6103c38c001fbefb374079751cf5d4f6437bedfcd1a",
+  "phase": "cinch",
+  "pid": 15894,
+  "rows": [
+    {
+      "actual_public": "forall (a :: Type) (b :: Type). ((Types.Pair a b) -> (Types.Pair a b))",
+      "actual_resolved": "forall (a :: Type) (b :: Type). ((Types.Pair a b) -> (Types.Pair a b))",
+      "expected_public": "forall a b . (Types.Pair a b -> Types.Pair a b)",
+      "expected_resolved": "forall (a :: Type) (b :: Type). (((Types.Pair a) b) -> ((Types.Pair a) b))",
+      "name": "identity",
+      "same_resolved": false
+    },
+    {
+      "actual_public": "forall (r :: Region) (s :: Region). ((Scope r s) -> Int)",
+      "actual_resolved": "forall (r :: Region) (s :: Region). ((Scope r s) -> Int)",
+      "expected_public": "forall r s . (Scope r s -> Int)",
+      "expected_resolved": "forall (r :: Region) (s :: Region). (((Scope r) s) -> Int)",
+      "name": "inspect",
+      "same_resolved": false
+    }
+  ],
+  "source_sha256": "a8aef665e2f6300ab43902a527286d7b6285d6293accda63c3bd75745a70f612",
+  "status": "confirmed-resolved-application-format-gap",
+  "worker_slot": 2
+}

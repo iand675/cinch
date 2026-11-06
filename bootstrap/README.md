@@ -1,7 +1,9 @@
 # The bootstrap ladder
 
 Current compiler29e6 checks exact defining owners for foreign opaque types
-and separates public type application display from canonical resolved contracts.
+and improves public type application display. A later real-writer comparison
+found that resolved value rows still use public spelling; the correction is
+validating. See [the counterexample](current-resolved-application-counterexample.json).
 All10 affected groups pass18 tests, with17 optimized real C clients and49
 zero-leak reports. The nested-owner forgery now refuses. All9 original API
 groups run unchanged:8 pass; source-Prelude replacement still fails. See

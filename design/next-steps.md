@@ -8,10 +8,14 @@ An admitted Host interface cannot claim Host.Nested.Handle without that
 module's defining header. The original fresh-hash forgery is retained as a
 negative control; legitimate direct and facade pointer clients still pass.
 
-Public value schemes flatten type applications, including nested applications,
-while resolved canonical contracts keep their original binary form. Every
-original19 exporter control remains, plus2 Native readback cases. The complete
-unchanged indexed-type API group now passes.
+Public value schemes flatten type applications, including nested applications.
+Every original19 exporter control remains, plus2 Native readback cases; the
+complete unchanged indexed-type API group now passes. A later actual-writer
+comparison exposes a missed call site: resolved Pair and Scope value contracts
+still use public spelling, unlike Native canonical contracts. The original
+formatter controls did not cover that path. The incorrect acceptance is retained
+in `bootstrap/current-resolved-application-counterexample.json`; a correction
+with3 permanent actual-writer/Native comparisons is validating.
 
 All10 complete affected groups pass18 Rust tests. The actual44-module compiler
 passes17 permanent optimized C clients and49 zero-leak reports, ABI and object

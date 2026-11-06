@@ -136,7 +136,7 @@
     }
   ],
   "schema": 1,
-  "scope": "Exact defining-owner checks reject Host.Nested.Handle when only Host is admitted, while preserving direct/facade opaque C clients. Public type applications flatten through nested types; canonical binary resolved contracts remain distinct and unchanged. All original19 exporter controls plus2 Native readback controls pass. The exact44-module candidate passes10 complete affected groups/18 Rust tests, 17 optimized real C clients and49 zero-leak reports. The independently audited Cinch-built5f2f Stage3 checks all44 exact inputs with empty PATH. All9 original API groups execute unchanged:8 pass, source-Prelude replacement still refuses. A matching final staged fixed point, all105 required frontend groups, complete Native suite,14 external acceptance checks, external language behavior and Acceptance1-5 remain required; this scoped receipt does not close the goal.",
+  "scope": "Exact defining-owner checks reject Host.Nested.Handle when only Host is admitted, while preserving direct/facade opaque C clients. Public type applications flatten through nested types; the low-level canonical formatter controls pass. The actual resolved value writer call site still uses public display applications, as the later retained counterexample proves. All original19 exporter controls plus2 Native readback controls pass. The exact44-module candidate passes10 complete affected groups/18 Rust tests, 17 optimized real C clients and49 zero-leak reports. The independently audited Cinch-built5f2f Stage3 checks all44 exact inputs with empty PATH. All9 original API groups execute unchanged:8 pass, source-Prelude replacement still refuses. A matching final staged fixed point, all105 required frontend groups, complete Native suite,14 external acceptance checks, external language behavior and Acceptance1-5 remain required; this scoped receipt does not close the goal.",
   "self_built_source_check": {
     "builder_sha256": "96d695d34c9b03346d7c374d8c871c99c7ca533fb8cc20d82cff9a62fd3ca41c",
     "builder_source_sha256": "5f2f855665956b76117ea128547ecbdf841f988a487b64ff38b983b24dd38ec4",
@@ -157,5 +157,12 @@
   },
   "status": "passed-owner-and-application-display-gates",
   "verified_at": "2026-11-06T06:53:25.472538+00:00",
-  "whole_affected_groups": 10
+  "whole_affected_groups": 10,
+  "known_followups": [
+    {
+      "status": "confirmed-resolved-application-format-gap",
+      "receipt": "current-resolved-application-counterexample.json",
+      "scope": "The original21 formatter controls did not exercise the actual resolved value writer call site. Real Pair and Scope contracts still contain public display applications. This followup remains open; original passing group counts are retained under their actual scope."
+    }
+  ]
 }
