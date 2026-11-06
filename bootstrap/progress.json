@@ -343,7 +343,7 @@
     },
     {
       "title": "Private Rust: literal and nullary preconditions",
-      "detail": "8/13 primary groups and 0/2 evidence groups; phase dependent. Published Rust rejects using(True); the correction preserves logical literals and checks instantiated constant obligations at the reference. Real False hypotheses stay scoped; unproven False, unrelated proofs, unknown propositions and indirect obligation-bearing functions refuse. Full current source projects, original proof/forgery controls and retained capture counterexamples rerun. This remains private; task-capture contracts and matching final suites are required.",
+      "detail": "9/13 primary groups and 0/2 evidence groups; phase refinements. Published Rust rejects using(True); the correction preserves logical literals and checks instantiated constant obligations at the reference. Real False hypotheses stay scoped; unproven False, unrelated proofs, unknown propositions and indirect obligation-bearing functions refuse. Full current source projects, original proof/forgery controls and retained capture counterexamples rerun. This remains private; task-capture contracts and matching final suites are required.",
       "state": "running"
     },
     {
@@ -476,5 +476,5 @@
   "fullGoalComplete": false,
   "summary": "All 44 compiler-source checks: passed. 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. Native all44 source modules: passed; Cinch-built all44 source modules: passed; five whole proof component groups: passed; actual compiler and object nine tests: passed; thirteen runtime clients and five refusals: passed.",
   "activity": "Earlier4f/NativeE5: complete235-group sweep: 180 of 235 complete groups passed; 1 running, 0 failed and 54 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. Native all44 source modules: passed; Cinch-built all44 source modules: passed; five whole proof component groups: passed; actual compiler and object nine tests: passed; thirteen runtime clients and five refusals: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 33 of 105 complete groups passed; 1 running, 2 failed and 69 pending. Proposed compiler repair (separate unpublished source): under-validation; 2 of 5 complete groups passed; 1 running, 0 failed and 2 pending.",
-  "updatedAt": "2026-11-06T18:28:34.828500+00:00"
+  "updatedAt": "2026-11-06T18:29:36.935730+00:00"
 }
