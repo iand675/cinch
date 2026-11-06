@@ -58,7 +58,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "208 of 235 complete groups passed; 1 running, 1 failed and 25 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "209 of 235 complete groups passed; 1 running, 1 failed and 24 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -451,7 +451,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "208 of 235 complete groups passed; 1 running, 1 failed and 25 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "209 of 235 complete groups passed; 1 running, 1 failed and 24 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -504,6 +504,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "All 44 compiler-source checks: passed. 4 of 5 complete groups passed; 0 running, 1 failed and 0 pending. Native995f all44 source modules: passed; Earlier4f Stage3 all44 source modules: passed; all3 complete interface components: passed; actual compiler and object9tests: passed; original interface/API13of14: failed.",
-  "activity": "Earlier4f/NativeE5: complete235-group sweep: 208 of 235 complete groups passed; 1 running, 1 failed and 25 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 4 of 5 complete groups passed; 0 running, 1 failed and 0 pending. Native995f all44 source modules: passed; Earlier4f Stage3 all44 source modules: passed; all3 complete interface components: passed; actual compiler and object9tests: passed; original interface/API13of14: failed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 50 of 105 complete groups passed; 1 running, 2 failed and 52 pending. Published-source verification gates: recorded-failure; 4 of 5 complete groups passed; 0 running, 1 failed and 0 pending.",
-  "updatedAt": "2026-11-06T21:26:27.455143+00:00"
+  "activity": "Earlier4f/NativeE5: complete235-group sweep: 209 of 235 complete groups passed; 1 running, 1 failed and 24 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 4 of 5 complete groups passed; 0 running, 1 failed and 0 pending. Native995f all44 source modules: passed; Earlier4f Stage3 all44 source modules: passed; all3 complete interface components: passed; actual compiler and object9tests: passed; original interface/API13of14: failed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 50 of 105 complete groups passed; 1 running, 2 failed and 52 pending. Published-source verification gates: recorded-failure; 4 of 5 complete groups passed; 0 running, 1 failed and 0 pending.",
+  "updatedAt": "2026-11-06T21:27:49.433351+00:00"
 }
