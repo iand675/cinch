@@ -8689,6 +8689,7 @@ impl Checker {
     /// `None` where the machinery cannot decide it.
     fn pred_value(&self, pred: &PTerm, binder: &str, v: &Value) -> Option<bool> {
         match pred {
+            PTerm::Lit(value) => Some(*value),
             PTerm::Pred(PredFn::NotNull, _) => match v {
                 // The empty form is the nullary constructor; every other
                 // constructor carries the elements.

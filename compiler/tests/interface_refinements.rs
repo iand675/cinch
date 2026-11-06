@@ -42,3 +42,34 @@ fn interfaces_publish_preconditions_and_named_refinement_definitions() {
     assert!(Iface::from_json(&previous).is_err(), "old incomplete contracts must be rebuilt");
     common::cleanup(&dir);
 }
+
+
+#[test]
+fn logical_literal_proof_contracts_round_trip_without_becoming_boolean_values() {
+    let dir = common::project("logical_literal_contracts", &[
+        ("Evidence.cinch", r#"module Evidence where
+  export wrap, reject
+  wrap :: (h :: False) -> Dec False
+  wrap h = Yes h
+  reject :: (h :: Not False) -> Dec False
+  reject h = No h
+"#),
+        ("Facade.cinch", "module Facade where\n  import Evidence (wrap as evidence, reject as refute)\n  export evidence, refute\n"),
+        ("Main.cinch", "module Main where\n  import Facade\n  main :: Int\n  main = case decide False of Yes _ -> 1; No h -> case refute h of No _ -> 0; Yes _ -> 2\n"),
+    ]);
+    common::check(&dir, "Main.cinch").expect("emit logical literal proof contracts");
+    let read = |name| Iface::from_json(&std::fs::read_to_string(dir.join(format!("build/{name}.cinchif"))).unwrap()).unwrap();
+    let provider = read("Evidence");
+    let facade = read("Facade");
+    for iface in [&provider, &facade] {
+        assert_eq!(Iface::from_json(&iface.to_json()).unwrap(), *iface);
+        assert!(iface.exports.values.iter().all(|value| value.scheme.contains("False")));
+    }
+    let original = provider.exports.values.iter().find(|value| value.name == "wrap").unwrap();
+    let renamed = facade.exports.values.iter().find(|value| value.name == "evidence").unwrap();
+    assert_eq!(original.resolved, renamed.resolved);
+    let mut changed = provider.clone();
+    changed.exports.values.iter_mut().find(|value| value.name == "wrap").unwrap().scheme = original.scheme.replace("False", "True");
+    assert_ne!(provider.iface_hash(), changed.iface_hash());
+    common::cleanup(&dir);
+}

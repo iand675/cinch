@@ -1,0 +1,255 @@
+{
+  "bootstrap_seed_and_library_pins_unchanged": true,
+  "changed_native_production_paths": [
+    "compiler/src/types.rs",
+    "compiler/src/check.rs",
+    "compiler/src/check_terms.rs",
+    "compiler/src/check_decls.rs"
+  ],
+  "compiler_inputs": [
+    {
+      "compiler_modules": 44,
+      "compiler_source_sha256": "1c76230c164fd47296646125bb0b911b387c9ffda5f18465ec3ca9d1b883ff27",
+      "files": {
+        "Bootstrap.Ast.cinch": "a7ed3904dde924f2468aa8d369bd6d513ca65bd9cac9d9a77a50ada5bdf72a53",
+        "Bootstrap.BodyContract.cinch": "980c24836344c3c821c587adce5c522e5c0264448f8a7c6dd16395085265f867",
+        "Bootstrap.Builtin.cinch": "a5e85fe8268f6917d050018858fea095cf7f529600b5c695cf8b9df9491dd8d4",
+        "Bootstrap.Check.cinch": "cf141a0b4be85b1411d4e13d3a119c38b07e114f01011994370a964dbd644d08",
+        "Bootstrap.Contracts.cinch": "323df95af64b6925235bbaab3117fd2e19d447fe3f93c947f62e008d63f4973d",
+        "Bootstrap.Core.cinch": "5c8ecaee756c5363c8ddfbe9aad2c33558b2a4f8a8db0ec1cc9fe7fb1e2548c2",
+        "Bootstrap.Dictionary.cinch": "d26a57426fe4cc32696c42378f7db6fffdc4684754069f509d3d61e4be6a4012",
+        "Bootstrap.Driver.cinch": "a9350fe510c1dd5a785e5f805a0da632d343a2cd8699f838d9bb3a2b22cab533",
+        "Bootstrap.Eval.cinch": "632d75a808c85d8d72e5b3335b2eacebdb3fb9e1cbd9fc302b46b1380565f9d8",
+        "Bootstrap.Export.cinch": "42600458e45451fe42bc0f7ab3eea2512c3525e15d26af1ed8e834384d7ac396",
+        "Bootstrap.ExportNominal.cinch": "b103906203ee709cc819932cc01fb49fd8d2242fb7cee84e7a58a588f9baaade",
+        "Bootstrap.ExportType.cinch": "5dac052b3fd6c0f33df349cbfa98ed365788ed065bc328f27d17f695da05c5f4",
+        "Bootstrap.Foreign.cinch": "afc83b030c9dbcbd6800a5cd29a388cf04dcad75314321f3635d30ea24c466fc",
+        "Bootstrap.Global.cinch": "5421f416538d3317354f73a8778522be3382fb7f1b540358b0b08f037fcefc5f",
+        "Bootstrap.Guarded.cinch": "024615db9bfcfc432cb0ee943f9390756cb43d1f52b1de36cd8584ce53dd6d98",
+        "Bootstrap.Index.cinch": "dcb92174c01a96faaf66bc7d550c4e443bfa2d4cdc88376f899eb547c5bf166f",
+        "Bootstrap.Infer.cinch": "6f60e483d23a0226f5a02cea79d38f02861e76d27a408b6e47a1989bf9699660",
+        "Bootstrap.Inputs.cinch": "0b69e6f9667acf7e5659741aeac32ba9c0dbe231204d297fbf7b9c88eed2b03c",
+        "Bootstrap.Instance.cinch": "f15e8149f76dcdcaf4cecb02a837af3e586dfe2d861aa1eee9f6b220581ec3ac",
+        "Bootstrap.Interface.cinch": "176ecc8db40bf583ac2b711f6f77029cc81d24fe0bfe3a50a9188ceccb2e632e",
+        "Bootstrap.Ir.cinch": "f50f2083f6672c1fb6a9094cef0ebcec65615a9bda5d193d0186838c2770727e",
+        "Bootstrap.Kinds.cinch": "43ef88263ca7d810b9caa28aa8f2c89c2e87285d98421cb2c9b3658a5b018ee4",
+        "Bootstrap.Load.cinch": "e9140f4a0ee83109217209d86892f36cdc8e8867c15f8187f1904c03a418fe2f",
+        "Bootstrap.Manifest.cinch": "ef5e1496af11a57909cc707921202b1dc3c867bcbcd1889ae35f76f1b09a37ac",
+        "Bootstrap.Nominal.cinch": "7d1f2e0c51df7fd63f48f388dc13b235b4221d78997b097770b2302adee99dee",
+        "Bootstrap.Object.cinch": "503cb43e2c1cd9397beb732194b11ecedcef9e928f8ec79b396d42096a859957",
+        "Bootstrap.Parse.cinch": "d740f3307bd28ddc3e56e875ee597a33fbe5b99547c722fe2193e0780da8db81",
+        "Bootstrap.Pipeline.cinch": "4ed6e65b7f36a5ac420410115dbdb67e30df7a620b915775a9e29190577cea0a",
+        "Bootstrap.Proof.cinch": "f64fa5d86c43ede8b4841983c681fe52a862ce32003408d1fc7358f214822972",
+        "Bootstrap.Report.cinch": "38e4a34dc34ddfed70ff7348874b0c16b2ae41b23c7026c0b2e10129c9e94d5b",
+        "Bootstrap.Resolve.cinch": "093e96a0bd844dbf8a6b23ea7eada08391fe905b8d49ed0af538d5d3d3ad6598",
+        "Bootstrap.RuntimeAbi.cinch": "a7f25347ef8b5be6baf048cd3339a913e15623d2717961d272e22a7ff34cddd1",
+        "Bootstrap.RuntimeIr.cinch": "424bb1a1338fc3cb3df6f2932e71327d108e2c51284e75d79f6a100e92e90dc8",
+        "Bootstrap.Test.cinch": "72f749b7d83d8513587b2eb43f4a51d84466dca4f912cef8eaae8caffb14adc4",
+        "Bootstrap.Total.cinch": "bbad2865a0cf2ac4c6a677e0291d885421bd715f128d0a77ba324955a5034fe8",
+        "Bootstrap.TotalSemantics.cinch": "1e3be994545f1e7ee17c69fa4d568a037e875b58feb584e81ef169c6a3bc1066",
+        "Bootstrap.Type.cinch": "dbe557bb6b20632375ebfa0470098bbe0572cfa79a1997ab035a90649b063a34",
+        "Bootstrap.Typing.cinch": "f1e5fc8e3fa546ba98b36edec25b9b679cf12b50df095b5f5be4ae48358e31c0",
+        "Main.cinch": "d45e44eb4c0bff16f93020ddd9726e345425ebb1561123128357f465b80092d6",
+        "Text.Builder.cinch": "c089e433293b637862387c71967e800c5cb57f4f7011724ee4d21b18c5ece24b",
+        "Text.Json.cinch": "461861b69d963202733c7016f571b393cfc048e45c04eaf92cef036fcfaeb47b",
+        "Text.Lex.cinch": "c7cc9f8fe6373e93ad0c32ddf262e746da44015394f40548c3ba6d84352dc786",
+        "Text.Parse.cinch": "4b6d00ab84e6969cf6fe8a21f29a255a9871c048b6df4baab006734efd7fabed",
+        "Text.Scan.cinch": "bc12b7a6cb5fe9a9b448047f9aeeb0fc3eac1e29927e2270e7be760014a93208"
+      },
+      "name": "latest1c76"
+    },
+    {
+      "compiler_modules": 44,
+      "compiler_source_sha256": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+      "files": {
+        "Bootstrap.Ast.cinch": "a7ed3904dde924f2468aa8d369bd6d513ca65bd9cac9d9a77a50ada5bdf72a53",
+        "Bootstrap.BodyContract.cinch": "980c24836344c3c821c587adce5c522e5c0264448f8a7c6dd16395085265f867",
+        "Bootstrap.Builtin.cinch": "a5e85fe8268f6917d050018858fea095cf7f529600b5c695cf8b9df9491dd8d4",
+        "Bootstrap.Check.cinch": "cf141a0b4be85b1411d4e13d3a119c38b07e114f01011994370a964dbd644d08",
+        "Bootstrap.Contracts.cinch": "323df95af64b6925235bbaab3117fd2e19d447fe3f93c947f62e008d63f4973d",
+        "Bootstrap.Core.cinch": "5c8ecaee756c5363c8ddfbe9aad2c33558b2a4f8a8db0ec1cc9fe7fb1e2548c2",
+        "Bootstrap.Dictionary.cinch": "d26a57426fe4cc32696c42378f7db6fffdc4684754069f509d3d61e4be6a4012",
+        "Bootstrap.Driver.cinch": "a9350fe510c1dd5a785e5f805a0da632d343a2cd8699f838d9bb3a2b22cab533",
+        "Bootstrap.Eval.cinch": "632d75a808c85d8d72e5b3335b2eacebdb3fb9e1cbd9fc302b46b1380565f9d8",
+        "Bootstrap.Export.cinch": "42600458e45451fe42bc0f7ab3eea2512c3525e15d26af1ed8e834384d7ac396",
+        "Bootstrap.ExportNominal.cinch": "b103906203ee709cc819932cc01fb49fd8d2242fb7cee84e7a58a588f9baaade",
+        "Bootstrap.ExportType.cinch": "5dac052b3fd6c0f33df349cbfa98ed365788ed065bc328f27d17f695da05c5f4",
+        "Bootstrap.Foreign.cinch": "afc83b030c9dbcbd6800a5cd29a388cf04dcad75314321f3635d30ea24c466fc",
+        "Bootstrap.Global.cinch": "5421f416538d3317354f73a8778522be3382fb7f1b540358b0b08f037fcefc5f",
+        "Bootstrap.Guarded.cinch": "024615db9bfcfc432cb0ee943f9390756cb43d1f52b1de36cd8584ce53dd6d98",
+        "Bootstrap.Index.cinch": "dcb92174c01a96faaf66bc7d550c4e443bfa2d4cdc88376f899eb547c5bf166f",
+        "Bootstrap.Infer.cinch": "6f60e483d23a0226f5a02cea79d38f02861e76d27a408b6e47a1989bf9699660",
+        "Bootstrap.Inputs.cinch": "0b69e6f9667acf7e5659741aeac32ba9c0dbe231204d297fbf7b9c88eed2b03c",
+        "Bootstrap.Instance.cinch": "f15e8149f76dcdcaf4cecb02a837af3e586dfe2d861aa1eee9f6b220581ec3ac",
+        "Bootstrap.Interface.cinch": "176ecc8db40bf583ac2b711f6f77029cc81d24fe0bfe3a50a9188ceccb2e632e",
+        "Bootstrap.Ir.cinch": "f50f2083f6672c1fb6a9094cef0ebcec65615a9bda5d193d0186838c2770727e",
+        "Bootstrap.Kinds.cinch": "43ef88263ca7d810b9caa28aa8f2c89c2e87285d98421cb2c9b3658a5b018ee4",
+        "Bootstrap.Load.cinch": "e9140f4a0ee83109217209d86892f36cdc8e8867c15f8187f1904c03a418fe2f",
+        "Bootstrap.Manifest.cinch": "ef5e1496af11a57909cc707921202b1dc3c867bcbcd1889ae35f76f1b09a37ac",
+        "Bootstrap.Nominal.cinch": "7d1f2e0c51df7fd63f48f388dc13b235b4221d78997b097770b2302adee99dee",
+        "Bootstrap.Object.cinch": "503cb43e2c1cd9397beb732194b11ecedcef9e928f8ec79b396d42096a859957",
+        "Bootstrap.Parse.cinch": "d740f3307bd28ddc3e56e875ee597a33fbe5b99547c722fe2193e0780da8db81",
+        "Bootstrap.Pipeline.cinch": "4ed6e65b7f36a5ac420410115dbdb67e30df7a620b915775a9e29190577cea0a",
+        "Bootstrap.Proof.cinch": "d8cc2e3b314dccd4314245ee56efe1ecc763346df1d7ab51d3ad55f61a65fb2b",
+        "Bootstrap.Report.cinch": "38e4a34dc34ddfed70ff7348874b0c16b2ae41b23c7026c0b2e10129c9e94d5b",
+        "Bootstrap.Resolve.cinch": "093e96a0bd844dbf8a6b23ea7eada08391fe905b8d49ed0af538d5d3d3ad6598",
+        "Bootstrap.RuntimeAbi.cinch": "a7f25347ef8b5be6baf048cd3339a913e15623d2717961d272e22a7ff34cddd1",
+        "Bootstrap.RuntimeIr.cinch": "424bb1a1338fc3cb3df6f2932e71327d108e2c51284e75d79f6a100e92e90dc8",
+        "Bootstrap.Test.cinch": "72f749b7d83d8513587b2eb43f4a51d84466dca4f912cef8eaae8caffb14adc4",
+        "Bootstrap.Total.cinch": "bbad2865a0cf2ac4c6a677e0291d885421bd715f128d0a77ba324955a5034fe8",
+        "Bootstrap.TotalSemantics.cinch": "1e3be994545f1e7ee17c69fa4d568a037e875b58feb584e81ef169c6a3bc1066",
+        "Bootstrap.Type.cinch": "dbe557bb6b20632375ebfa0470098bbe0572cfa79a1997ab035a90649b063a34",
+        "Bootstrap.Typing.cinch": "f1e5fc8e3fa546ba98b36edec25b9b679cf12b50df095b5f5be4ae48358e31c0",
+        "Main.cinch": "d45e44eb4c0bff16f93020ddd9726e345425ebb1561123128357f465b80092d6",
+        "Text.Builder.cinch": "c089e433293b637862387c71967e800c5cb57f4f7011724ee4d21b18c5ece24b",
+        "Text.Json.cinch": "461861b69d963202733c7016f571b393cfc048e45c04eaf92cef036fcfaeb47b",
+        "Text.Lex.cinch": "c7cc9f8fe6373e93ad0c32ddf262e746da44015394f40548c3ba6d84352dc786",
+        "Text.Parse.cinch": "4b6d00ab84e6969cf6fe8a21f29a255a9871c048b6df4baab006734efd7fabed",
+        "Text.Scan.cinch": "bc12b7a6cb5fe9a9b448047f9aeeb0fc3eac1e29927e2270e7be760014a93208"
+      },
+      "name": "earlier4f"
+    }
+  ],
+  "compiler_source_sha256": "1c76230c164fd47296646125bb0b911b387c9ffda5f18465ec3ca9d1b883ff27",
+  "filtered": 0,
+  "full_goal_complete": false,
+  "ignored": 0,
+  "independent_runtime_clients": [
+    {
+      "binary_sha256": "aaf7945574b92100d57ddc01b334f3d00995216be5e2bef76784e1898b78f285",
+      "build_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "exit_code": 0,
+      "name": "literal-0",
+      "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "source_sha256": "1c9ffef078582993601b48dd956e4ec4b2b5480b7cd16b99f518295d2213dda1",
+      "zero_leaks": true
+    },
+    {
+      "binary_sha256": "2b5ef9741ca1d6c4deffb5ab634ab42f8eb255d1ba2634c83282032421365b57",
+      "build_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "exit_code": 0,
+      "name": "literal-1",
+      "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "source_sha256": "b94f1e9a7c8572a3dac785778e3cb4381ed60b305be8c40303999216929915d8",
+      "zero_leaks": true
+    },
+    {
+      "binary_sha256": "4eddf61e4ae26fe24aa4fd6a5d8f9d49c7bde60e5f51795d464fad79dc989f5a",
+      "build_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "exit_code": 0,
+      "name": "literal-2",
+      "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "source_sha256": "c0d0c43f3bb6f3989210e118d3c3497871776a08f4006109d287bbda829246b8",
+      "zero_leaks": true
+    }
+  ],
+  "native_cli_sha256": "1db8e3095edb2b4014115afd224f8a2d8f97fb77c18197098bd943ad14f194d8",
+  "native_source_sha256": "91cfd75fd4cb5811c5f7e6c34eb5c9db99f8b038d95d049a6fd6183e3a9765bd",
+  "new_retained_runtime_clients": 3,
+  "new_source_carrier_controls": 14,
+  "observed_zero_leak_reports": 73,
+  "original_False_forgery_source_sha256": "ff4f93d2312766bf5eb14838601aa3799ef3c57fbc92845553345ffc01a042fa",
+  "original_False_witness_source_sha256": "80a190e9f997d559fd5063718a9d585e8f1d76dfc7b8650d16e23fd505918a6d",
+  "original_tests_and_assertions_retained": true,
+  "rlib_sha256": "98d92a176febf204b055ce22c9fba3b94f5039f8be43f78b224b152bbd58d382",
+  "runs": [
+    {
+      "log_sha256": "ef73a67d0f88d7b392d0e2559c10f2c9638d770072e4e3900126333e73b59c6a",
+      "name": "all-native-unit-tests",
+      "tests": 186,
+      "zero_leak_reports": 45
+    },
+    {
+      "log_sha256": "1d62731a6ee748d5293805e267d9dea35fd6805320775aa06deea9319bcb1502",
+      "name": "proof_value_identity",
+      "tests": 5,
+      "zero_leak_reports": 5
+    },
+    {
+      "log_sha256": "2a3f5e7be2ae904af81d3eabae8ac40a278210c0cb40bac3cd8d57412dbc0b04",
+      "name": "dependent",
+      "tests": 14,
+      "zero_leak_reports": 10
+    },
+    {
+      "log_sha256": "2c0f4f293ce904aecadcf71339b387fac9532f896873a9fc94786dcc979bfe06",
+      "name": "refinements",
+      "tests": 25,
+      "zero_leak_reports": 7
+    },
+    {
+      "log_sha256": "62d9f004e6ffb82113e7f199ee8363e54921764c1c1fe34cd878ad8fb168c421",
+      "name": "interface_refinements",
+      "tests": 2,
+      "zero_leak_reports": 0
+    },
+    {
+      "log_sha256": "2d5beaabc58fe5a663033e92cef81add448353322ed922c69671b566ba2dd1ce",
+      "name": "interface_refinement_closure",
+      "tests": 1,
+      "zero_leak_reports": 0
+    },
+    {
+      "log_sha256": "1a8f78819819e35becbb0639e0d0108049f8426fde1d45a1b51b5003cab680ab",
+      "name": "pattern_field_names",
+      "tests": 5,
+      "zero_leak_reports": 5
+    },
+    {
+      "log_sha256": "e048c9c681cd42b4940f129dcd9ff5e82478e264cab13731bb1ab078991b9c32",
+      "name": "proof_guarded_lets",
+      "tests": 7,
+      "zero_leak_reports": 0
+    },
+    {
+      "log_sha256": "c91abb51c6987ecb54a90106f5d6fb8bba03092b805bc83734e900b307be00b0",
+      "name": "evidence_invalidation",
+      "tests": 12,
+      "zero_leak_reports": 1
+    }
+  ],
+  "rust_tests": 257,
+  "scope": "Native logical True/False inhabit Prop and remain distinct from ordinary Bool values. Literal traversal, equality, unification, display, admissibility and static/runtime decisions are implemented. An exact already checked lexical proof hypothesis remains usable despite a closed static disproof; selected-term checking and evidence invalidation still apply. All original unit/proof/dependent/refinement/interface/pattern/guarded/stale-evidence tests run:9 whole groups/257 tests, none filtered or ignored. Fourteen new source controls, three decision programs and a real provider/facade interface round trip retain all earlier controls. Three actual new CLI clients are physically retained and independently rerun32M poisoned with zero leaks. Both exact44-source compiler projects pass and actual CLI accepts original False-domain witness while refusing original forged Yes1. The earlier first attempt and its rejection stay retained. Two opaque task capture bypasses are independently reproduced on this exact new Native build and remain required fixes; they are not green rejection tests. Native22/85f00ca seed/library roles unchanged. Matching latest full suites/bootstrap/105+14+34 and every Acceptance1-5 remain required.",
+  "source_sha256": "b6938525bd014306a2d1b4fd4f1f2bd46a438ee51624358a1cb328aaea3b2657",
+  "status": "passed-native-proposition-literal-gates",
+  "task_capture_counterexample": {
+    "compiler_sha256": "1db8e3095edb2b4014115afd224f8a2d8f97fb77c18197098bd943ad14f194d8",
+    "full_goal_complete": false,
+    "native_source_sha256": "91cfd75fd4cb5811c5f7e6c34eb5c9db99f8b038d95d049a6fd6183e3a9765bd",
+    "rows": [
+      {
+        "exit_code": 1,
+        "log_sha256": "9560f8b154f78bb58b0631fbe16ca5943687548f3933b780491ac990c99f4f9d",
+        "name": "direct-mutable-capture",
+        "source_sha256": "ae3941b0b92b4cb6d485515846ba3f2b91c285be76f25550629cdee8da858f2d"
+      },
+      {
+        "exit_code": 0,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "name": "literal-safe",
+        "source_sha256": "d970ac71bb4c9f187e17d27b3fb442419ec6d3a303c9a60fd0b56485db00d1f2"
+      },
+      {
+        "exit_code": 0,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "name": "opaque-mutable-capture",
+        "source_sha256": "c542ff3263b3e7427ddbfa64626d92968344e70baedce1c2be84f7e83b54bfe0"
+      },
+      {
+        "exit_code": 0,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "name": "wrapped-mutable-capture",
+        "source_sha256": "a4833dab9adae08967971d6d9854f0397157bbccfdbaf24cc34c2c6d65618a67"
+      },
+      {
+        "exit_code": 0,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "name": "wrapper-safe",
+        "source_sha256": "e3826799080011e177bb3f76da71600cd34ca06b9a3ebd362fb7129b655363c5"
+      }
+    ],
+    "status": "confirmed-native-opaque-task-capture-gap"
+  },
+  "verified_at": "2026-11-06T15:24:05.906940+00:00",
+  "whole_groups": 9
+}

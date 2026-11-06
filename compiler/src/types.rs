@@ -986,6 +986,8 @@ impl fmt::Display for ITerm {
 /// inference variables for implicit solving.
 #[derive(Clone, Debug, PartialEq)]
 pub enum PTerm {
+    /// Logical constants in Prop, distinct from Bool values.
+    Lit(bool),
     Cmp(IdxCmp, Box<ITerm>, Box<ITerm>),
     Eq(Box<ITerm>, Box<ITerm>),
     Not(Box<PTerm>),
@@ -1192,7 +1194,7 @@ pub fn pred_entails(p: &PTerm, q: &PTerm) -> bool {
 }
 
 fn pred_implies_canon(p: &PTerm, q: &PTerm) -> bool {
-    if p.eq(q) {
+    if matches!(q, PTerm::Lit(true)) || matches!(p, PTerm::Lit(false)) || p.eq(q) {
         return true;
     }
     match q {
@@ -2481,7 +2483,7 @@ impl PTerm {
             PTerm::Not(prop) => prop.visit_types(visit),
             PTerm::And(a, b) | PTerm::Or(a, b) => { a.visit_types(visit); b.visit_types(visit); }
             PTerm::Pred(_, term) => term.visit_types(visit),
-            PTerm::Var(_) | PTerm::MVar(_) => {}
+            PTerm::Lit(_) | PTerm::Var(_) | PTerm::MVar(_) => {}
         }
     }
 
@@ -2520,7 +2522,7 @@ impl PTerm {
                     out.push(n.clone());
                 }
             }
-            PTerm::MVar(_) => {}
+            PTerm::Lit(_) | PTerm::MVar(_) => {}
         }
     }
 
@@ -2534,7 +2536,7 @@ impl PTerm {
     /// metavariables have a separate namespace and are not index variables.
     pub fn free_mvars(&self, out: &mut Vec<usize>) {
         match self {
-            PTerm::MVar(_) | PTerm::Var(_) => {}
+            PTerm::Lit(_) | PTerm::MVar(_) | PTerm::Var(_) => {}
             PTerm::Cmp(_, a, b) | PTerm::Eq(a, b) => {
                 a.free_mvars(out);
                 b.free_mvars(out);
@@ -2566,7 +2568,7 @@ impl PTerm {
             Self::Not(body) => body.local_values(out),
             Self::And(left, right) | Self::Or(left, right) => { left.local_values(out); right.local_values(out); }
             Self::Pred(_, value) => value.local_values(out),
-            Self::Var(_) | Self::MVar(_) => {}
+            Self::Lit(_) | Self::Var(_) | Self::MVar(_) => {}
         }
     }
 
@@ -2590,7 +2592,7 @@ impl PTerm {
                 Box::new(b.substitute(substitution)),
             ),
             PTerm::Pred(pf, a) => PTerm::Pred(*pf, Box::new(a.substitute(substitution))),
-            PTerm::Var(_) | PTerm::MVar(_) => self.clone(),
+            PTerm::Lit(_) | PTerm::Var(_) | PTerm::MVar(_) => self.clone(),
         }
     }
 
@@ -2621,6 +2623,7 @@ impl PTerm {
                 (*a).eq(&*c) && (*b).eq(&*d)
             }
             (PTerm::Pred(pf, a), PTerm::Pred(pf2, b)) => pf == pf2 && (*a).eq(&*b),
+            (PTerm::Lit(x), PTerm::Lit(y)) => x == y,
             (PTerm::Var(x), PTerm::Var(y)) => x == y,
             (PTerm::MVar(x), PTerm::MVar(y)) => x == y,
             _ => false,
@@ -2637,6 +2640,7 @@ impl fmt::Display for PTerm {
             PTerm::And(a, b) => write!(f, "({a} && {b})"),
             PTerm::Or(a, b) => write!(f, "({a} || {b})"),
             PTerm::Pred(pf, a) => write!(f, "{pf} {a}"),
+            PTerm::Lit(value) => f.write_str(if *value { "True" } else { "False" }),
             PTerm::Var(n) => write!(f, "{n}"),
             PTerm::MVar(m) => write!(f, "?p{m}"),
         }
@@ -4270,7 +4274,7 @@ impl Unifier {
             PTerm::Pred(_, term) => self.owns_index_metas(term),
             PTerm::Not(prop) => self.owns_proposition_metas(prop),
             PTerm::And(a, b) | PTerm::Or(a, b) => self.owns_proposition_metas(a) && self.owns_proposition_metas(b),
-            PTerm::Var(_) => true,
+            PTerm::Lit(_) | PTerm::Var(_) => true,
         }
     }
 
@@ -5660,4 +5664,23 @@ mod local_value_identity_tests {
         assert_ne!(var, "subject");
         assert_eq!(**cod, Ty::Idx(Box::new(ITerm::Var("subject".into()))));
     }
+
+    #[test]
+    fn logical_literals_keep_identity_under_unification_and_substitution() {
+        let mut uni = Unifier::new();
+        assert!(PTerm::Lit(true).eq(&PTerm::Lit(true)));
+        assert!(!PTerm::Lit(true).eq(&PTerm::Lit(false)));
+        assert!(uni.unify_prop(&PTerm::Lit(true), &PTerm::Lit(false)).is_err());
+        let Ty::Prp(meta) = uni.fresh_prop() else { unreachable!() };
+        uni.unify_prop(&meta, &PTerm::Lit(false)).unwrap();
+        assert_eq!(uni.resolve_prop(&meta), PTerm::Lit(false));
+        assert_eq!(PTerm::Lit(false).subst("False", &ITerm::num(1)), PTerm::Lit(false));
+        assert!(!pred_entails(&PTerm::Lit(true), &PTerm::Lit(false)));
+        assert!(pred_entails(&PTerm::Lit(false), &PTerm::Var("p".into())));
+        assert!(pred_entails(&PTerm::Var("p".into()), &PTerm::Lit(true)));
+        assert!(!uni.conv_eq(&Ty::Prp(Box::new(PTerm::Lit(true))), &Ty::Bool));
+        assert_eq!(PTerm::Lit(true).to_string(), "True");
+        assert_eq!(PTerm::Lit(false).to_string(), "False");
+    }
+
 }

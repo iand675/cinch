@@ -1,5 +1,35 @@
 # Next steps (as of 2026-11-06)
 
+## Native logical literals retain checked proof hypotheses (2026-11-06)
+
+Native91cf supports logical True/False in Prop, separately from Boolean
+runtime values. Their traversal, equality, unification, printed contracts and
+static/runtime decisions retain that distinction. An already checked lexical
+proof hypothesis remains usable even when its proposition is closed and
+false: `(h :: False) -> Dec False` is a valid function over an uninhabited
+domain. The selected proof term still checks normally, including evidence
+identity and invalidation. An ordinary Bool, integer or unrelated proof cannot
+forge False. The unchanged original positive source now passes the actual CLI;
+the unchanged original `Yes 1` forgery still refuses.
+
+All nine complete affected unit/proof/dependent/refinement/interface/pattern/
+guarded/stale-evidence groups pass257 Rust tests, with no ignored or filtered
+cases and73 observed zero-leak reports. Fourteen new source controls, three
+decision programs, a real provider/facade interface round trip and a kernel
+identity test retain every original assertion. Three physically retained CLI
+programs also independently execute with32M poisoning and zero leaks. Both
+exact44-module compiler projects pass. See
+`bootstrap/current-native-proposition-literal-results.json`.
+
+The two opaque task-capture bypasses are reproduced on this exact Native91cf
+build and remain required fixes. Cinch stays1c76, and the immutable Native22/
+85f00ca seed/library roles stay unchanged. Source-Prelude replacement, record
+interface transport, remaining language and staging declarations, copyOut,
+Native existential introduction and the complete matching latest-source
+bootstrap/suites/105+14+34/Acceptance1-5 remain open. Earlier4f Stage3's14
+external checks now have their own independent artifact/replay audit in
+`bootstrap/current-record-indexed-external-acceptance-results.json`.
+
 ## Task wrappers need capture contracts in both compilers (2026-11-06)
 
 Five exact source checks confirm a NativeE5 gap: a direct mutable Bytes

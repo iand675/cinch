@@ -1,50 +1,51 @@
 {
-  "status": "confirmed-native-opaque-task-capture-gap",
-  "verified_at": "2026-11-06T14:57:28.659185+00:00",
-  "native_source_sha256": "e5a981ac7ba7545c618fb368458a0917c07bac3d1746c7f4aa612cf7c22e459b",
-  "compiler_sha256": "aea1200c10c14b43525feb08742d515e0d3cc016c5d29a6489ada8f3d9fd1438",
+  "compiler_sha256": "1db8e3095edb2b4014115afd224f8a2d8f97fb77c18197098bd943ad14f194d8",
+  "full_goal_complete": false,
+  "native_source_sha256": "91cfd75fd4cb5811c5f7e6c34eb5c9db99f8b038d95d049a6fd6183e3a9765bd",
   "rows": [
     {
-      "name": "direct-mutable-capture",
       "exit_code": 1,
-      "source_sha256": "ae3941b0b92b4cb6d485515846ba3f2b91c285be76f25550629cdee8da858f2d",
       "log_sha256": "9560f8b154f78bb58b0631fbe16ca5943687548f3933b780491ac990c99f4f9d",
-      "diagnostics": "cinch: 4:40: a task capture must be `Copy`, a shared `Ref`, or transferred exactly once: bytes is shared across tasks without shareable evidence (concurrency specification, section 3) (in /Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/task-callback-capture-probe-1/direct-mutable-capture.cinch)\n",
-      "source": "bootstrap/programs/task-capture-counterexamples/direct-mutable-capture.cinch"
+      "name": "direct-mutable-capture",
+      "source_sha256": "ae3941b0b92b4cb6d485515846ba3f2b91c285be76f25550629cdee8da858f2d",
+      "source": "bootstrap/programs/task-capture-counterexamples/direct-mutable-capture.cinch",
+      "diagnostics": "cinch: 4:40: a task capture must be `Copy`, a shared `Ref`, or transferred exactly once: bytes is shared across tasks without shareable evidence (concurrency specification, section 3) (in /Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/task-callback-capture-probe-1/direct-mutable-capture.cinch)\n"
     },
     {
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "name": "literal-safe",
-      "exit_code": 0,
       "source_sha256": "d970ac71bb4c9f187e17d27b3fb442419ec6d3a303c9a60fd0b56485db00d1f2",
-      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "diagnostics": "",
-      "source": "bootstrap/programs/task-capture-counterexamples/literal-safe.cinch"
+      "source": "bootstrap/programs/task-capture-counterexamples/literal-safe.cinch",
+      "diagnostics": ""
     },
     {
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "name": "opaque-mutable-capture",
-      "exit_code": 0,
       "source_sha256": "c542ff3263b3e7427ddbfa64626d92968344e70baedce1c2be84f7e83b54bfe0",
-      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "diagnostics": "",
-      "source": "bootstrap/programs/task-capture-counterexamples/opaque-mutable-capture.cinch"
+      "source": "bootstrap/programs/task-capture-counterexamples/opaque-mutable-capture.cinch",
+      "diagnostics": ""
     },
     {
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "name": "wrapped-mutable-capture",
-      "exit_code": 0,
       "source_sha256": "a4833dab9adae08967971d6d9854f0397157bbccfdbaf24cc34c2c6d65618a67",
-      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "diagnostics": "",
-      "source": "bootstrap/programs/task-capture-counterexamples/wrapped-mutable-capture.cinch"
+      "source": "bootstrap/programs/task-capture-counterexamples/wrapped-mutable-capture.cinch",
+      "diagnostics": ""
     },
     {
-      "name": "wrapper-safe",
       "exit_code": 0,
-      "source_sha256": "e3826799080011e177bb3f76da71600cd34ca06b9a3ebd362fb7129b655363c5",
       "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "diagnostics": "",
-      "source": "bootstrap/programs/task-capture-counterexamples/wrapper-safe.cinch"
+      "name": "wrapper-safe",
+      "source_sha256": "e3826799080011e177bb3f76da71600cd34ca06b9a3ebd362fb7129b655363c5",
+      "source": "bootstrap/programs/task-capture-counterexamples/wrapper-safe.cinch",
+      "diagnostics": ""
     }
   ],
-  "scope": "Actual current NativeE5 CLI rejects a mutable Bytes capture written directly at spawn, but accepts the same capture hidden behind a let-bound closure and a normally typed Tasks.fork-style helper. Literal and wrapper no-capture controls both pass. All are source checks; no race execution was attempted. The aliases and helper lose the task-boundary capture requirement. Current Cinch conservatively refuses the opaque callback wrapper. A correction must preserve safe wrappers and propagate real capture/transfer/lifetime requirements across aliases, helpers and interfaces; treating unknown functions as universally shareable is not a correction. Initial CLI-flag and added-alias-syntax mistakes are separately retained; this completed five-case result uses valid syntax and the documented Native check command.",
-  "full_goal_complete": false
+  "status": "confirmed-native-opaque-task-capture-gap",
+  "verified_at": "2026-11-06T15:27:11.717171+00:00",
+  "evidence": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-proposition-literals-followup-2",
+  "scope": "Actual current Native91cf CLI rejects a direct mutable Bytes task capture but accepts the same capture through a let-bound callback and normally typed fork helper. Both no-capture controls pass. All5 unchanged source programs were independently rerun on the new Native literal-correction build; exact log/source/binary identities are retained. No race was executed. Earlier NativeE5 receipt remains in bootstrap/native-e5-task-capture-counterexample.json. The capture/transfer/lifetime contract gap remains required work in both compilers; unknown functions must not become universally shareable. This report is a retained failing rejection requirement, not a successful capture repair."
 }

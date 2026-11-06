@@ -2573,7 +2573,7 @@ fn collect_prop_reads(p: &PTerm, out: &mut Vec<String>) {
             collect_prop_reads(b, out);
         }
         PTerm::Pred(_, a) => collect_idx_reads(a, out),
-        PTerm::Var(_) | PTerm::MVar(_) => {}
+        PTerm::Lit(_) | PTerm::Var(_) | PTerm::MVar(_) => {}
     }
 }
 
@@ -3555,7 +3555,7 @@ fn index_heads(p: &PTerm, out: &mut Vec<(String, usize)>) {
             index_heads(b, out);
         }
         PTerm::Pred(_, a) => term(a, out),
-        PTerm::Var(_) | PTerm::MVar(_) => {}
+        PTerm::Lit(_) | PTerm::Var(_) | PTerm::MVar(_) => {}
     }
 }
 
@@ -4266,7 +4266,7 @@ impl Checker {
                     preds(b, out);
                 }
                 PTerm::Pred(_, a) => terms(a, out),
-                PTerm::Var(_) | PTerm::MVar(_) => {}
+                PTerm::Lit(_) | PTerm::Var(_) | PTerm::MVar(_) => {}
             }
         }
         let mut apps = Vec::new();
@@ -7905,6 +7905,9 @@ impl Checker {
                 let (left, right) = self.proposition_indices(args[0], args[1], vars)?;
                 Ok(PTerm::Cmp(cmp, Box::new(left), Box::new(right)))
             }
+            ast::Type::Con(p, _) if args.is_empty() && (p.parts() == ["True"] || p.parts() == ["False"]) => {
+                Ok(PTerm::Lit(p.parts() == ["True"]))
+            }
             ast::Type::Con(p, _) if p.parts() == ["Eq"] && args.len() == 2 => {
                 let (left, right) = self.proposition_indices(args[0], args[1], vars)?;
                 Ok(PTerm::Eq(Box::new(left), Box::new(right)))
@@ -8020,6 +8023,7 @@ impl Checker {
         span: ast::Span,
     ) -> Result<()> {
         match pred {
+            PTerm::Lit(_) => Ok(()),
             PTerm::Pred(pf, operand) => {
                 if !matches!(&**operand, ITerm::Var(n) if n == binder) {
                     return Err(Error::at(
@@ -9045,6 +9049,8 @@ impl Checker {
                     // `Type : Type` is never admitted.
                     ["Type"] => Ok(Ty::Sort(Sort::Type(0))),
                     ["Prop"] => Ok(Ty::Sort(Sort::Prop)),
+                    ["True"] => Ok(Ty::Prp(Box::new(PTerm::Lit(true)))),
+                    ["False"] => Ok(Ty::Prp(Box::new(PTerm::Lit(false)))),
                     ["CVoid"] => Ok(Ty::Unit),
                     ["Thunk"] | ["Lazy"] | ["Later"] | ["Ref"] | ["Mut"] | ["Io"] => Err(Error::at(
                         *span,

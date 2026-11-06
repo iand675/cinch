@@ -82,6 +82,7 @@ fn idx_ground(t: &Ty) -> bool {
     match t {
         Ty::Idx(it) => matches!(it.normalize(), ITerm::Num(_)),
         Ty::Prp(p) => match p.normalize() {
+            PTerm::Lit(_) => true,
             PTerm::Var(_) | PTerm::MVar(_) => false,
             PTerm::Cmp(_, a, b) | PTerm::Eq(a, b) => {
                 matches!(a.normalize(), ITerm::Num(_)) && matches!(b.normalize(), ITerm::Num(_))
@@ -2756,6 +2757,10 @@ impl Checker {
         let no = ECore::Ctor(fn_id("<builtin>", "No"), Vec::new());
         let dec_ty = |p: PTerm| Ty::Adt("Dec".into(), vec![Ty::Prp(Box::new(p))]);
         match t {
+            ast::Term::Con(path) if path.parts() == ["True"] || path.parts() == ["False"] => {
+                let value = path.parts() == ["True"];
+                Ok(Some((if value { yes } else { no }, dec_ty(PTerm::Lit(value)))))
+            }
             // `P && Q` and `P || Q` are the short-circuiting `if`
             // forms the surface reduces them to (primitive types
             // specification section 10): the components decide
@@ -4352,8 +4357,18 @@ impl Checker {
         }
         let scoped_prop = self.proof_values_in_scope(&frozen_prop, &HashMap::new(), env);
         let prop = &scoped_prop;
-        match self.static_obligation(prop)? {
-            ObligStatus::Disproved => {
+        let status = self.static_obligation(prop)?;
+        // A hypothetical proof parameter remains usable even when its
+        // proposition is closed and false (the domain is uninhabited).
+        // Static decision failure cannot erase an already checked lexical
+        // hypothesis. The actual proof term still checks below, including
+        // exact proposition identity and evidence-use invalidation.
+        let supplied = matches!(status, ObligStatus::Disproved | ObligStatus::Timeout)
+            && self.evidence_in(env).items.iter().any(|(_, premise, _, _)| {
+                self.reduce_prop(premise).eq(&self.reduce_prop(prop))
+            });
+        match status {
+            ObligStatus::Disproved if !supplied => {
                 return Err(Error::at(
                     term.span(),
                     format!(
@@ -4361,7 +4376,7 @@ impl Checker {
                     ),
                 ))
             }
-            ObligStatus::Timeout => {
+            ObligStatus::Timeout if !supplied => {
                 return Err(Error::at(
                     term.span(),
                     format!(
@@ -5076,6 +5091,8 @@ impl Checker {
     /// proof.
     fn static_obligation(&self, p: &PTerm) -> Result<ObligStatus> {
         Ok(match self.uni.resolve_prop(p).normalize() {
+            PTerm::Lit(true) => ObligStatus::Checked,
+            PTerm::Lit(false) => ObligStatus::Disproved,
             PTerm::Cmp(op, a, b) => {
                 let a = self.uni.resolve_idx(&a).normalize();
                 let b = self.uni.resolve_idx(&b).normalize();

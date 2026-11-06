@@ -67,3 +67,62 @@ fn quantified_evidence_constructors_execute_with_erased_fields() {
         assert_eq!(cinch::driver::run_source(source).expect("compile quantified erased evidence"), 0);
     }
 }
+
+
+#[test]
+fn logical_literals_keep_proof_and_boolean_carriers_distinct() {
+    let cases = [
+        ("original False-domain witness", "wrap :: (h :: False) -> Dec False\n  wrap h = Yes h", true),
+        ("False witness survives strict alias", "wrap :: (h :: False) -> Dec False\n  wrap h = let evidence = h in Yes evidence", true),
+        ("unrelated True evidence cannot prove False", "bad :: (h :: True) -> Dec False\n  bad h = Yes h", false),
+        ("True-domain witness", "wrap :: (h :: True) -> Dec True\n  wrap h = Yes h", true),
+        ("unnamed False-domain witness", "wrap :: False -> Dec False\n  wrap h = Yes h", true),
+        ("negative literal witness", "reject :: (h :: Not False) -> Dec False\n  reject h = No h", true),
+        ("compound literal witness", "wrap :: (h :: (True && False)) -> Dec (True && False)\n  wrap h = Yes h", true),
+        ("different literals are distinct", "bad :: True -> Dec False\n  bad h = Yes h", false),
+        ("integer cannot forge False", "bad :: Dec False\n  bad = Yes 1", false),
+        ("boolean cannot forge True", "bad :: Dec True\n  bad = Yes True", false),
+        ("boolean cannot forge False", "bad :: Dec False\n  bad = Yes False", false),
+        ("proof cannot become runtime data", "bad :: False -> Int\n  bad h = h", false),
+        ("False remains a Boolean value", "value :: Bool\n  value = False", true),
+        ("True remains a Boolean value", "value :: Bool\n  value = True", true),
+    ];
+    for (name, body, accepted) in cases {
+        let source = format!("module Main where\n  {body}\n  main :: Int\n  main = 0\n");
+        let result = cinch::driver::check_sources(&source, "logical-literal.cinch");
+        assert_eq!(result.is_ok(), accepted, "{name}: {result:?}\n{source}");
+    }
+}
+
+#[test]
+fn literal_decisions_execute_with_erased_evidence_and_compound_truth_tables() {
+    let cases = [
+        r#"module Main where
+  wrap :: (h :: True) -> Dec True
+  wrap h = Yes h
+  main :: Int
+  main = case decide True of
+    Yes h -> case wrap h of Yes _ -> 0; No _ -> 1
+    No _ -> 2
+"#,
+        r#"module Main where
+  reject :: (h :: Not False) -> Dec False
+  reject h = No h
+  main :: Int
+  main = case decide False of
+    Yes _ -> 2
+    No h -> case reject h of Yes _ -> 1; No _ -> 0
+"#,
+        r#"module Main where
+  main :: Int
+  main = case decide (True && False) of
+    Yes _ -> 1
+    No _ -> case decide (False || True) of
+      Yes _ -> case decide (Not False) of Yes _ -> 0; No _ -> 3
+      No _ -> 2
+"#,
+    ];
+    for source in cases {
+        assert_eq!(cinch::driver::run_source(source).expect("compile logical literal decisions"), 0);
+    }
+}
