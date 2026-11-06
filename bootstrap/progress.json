@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "231 of 235 complete groups passed; 1 running, 1 failed and 2 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "233 of 235 complete groups passed; 1 running, 1 failed and 0 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -370,8 +370,8 @@
       "state": "failed"
     },
     {
-      "title": "Private8fce: original API/default tests14/21",
-      "detail": "All9 original API groups plus all7 class_defaults tests execute without skips or filters. API13/14 passes; defaults1/7 passes. Every original source and assertion remains. Strict self-value initialization, exact class/instance diagnostics and source-file attribution, the refinement/container case and source-library replacement remain. The11 direct Rust annotation checks in the mixed seventh default test stay explicitly classified; actual default runtime42 uses Cinch. These failures block feature promotion.",
+      "title": "Private75fb: original API/default tests16/21",
+      "detail": "All9 original API groups plus all7 class_defaults tests execute without skips or filters. API13/14 passes; defaults3/7 pass. Both original strict-value runtime/build tests now pass. Three exact class/instance diagnostic and source-file assertions, the refinement/container case and source-library replacement remain failures. Every original source and assertion remains. The11 direct Rust annotation checks stay explicitly classified; actual inherited runtime42 uses Cinch. These remaining failures block feature promotion.",
       "state": "failed"
     },
     {
@@ -474,7 +474,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "231 of 235 complete groups passed; 1 running, 1 failed and 2 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "233 of 235 complete groups passed; 1 running, 1 failed and 0 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -653,8 +653,8 @@
       {
         "id": "gap:default-refinement",
         "title": "Preserve refinement carriers in the original default runtime program",
-        "state": "blocked",
-        "detail": "The unchanged original mconcat function/refinement client fails at NonZero Int elimination before reaching its full required runtime behavior.",
+        "state": "running",
+        "detail": "The unchanged original mconcat/refinement client still fails. A six-line let-bound list reproduces refinement loss: current Rust accepts it, actual Cinch75fb refuses. Private db9a preserves full refinements at unsolved generic arguments; six new cases and eight original groups are validating. The complete original runtime client remains required.",
         "doneWhen": "The original function carrier, refined product and unit cases compile and execute their expected results without guessing an underlying carrier.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-source-class-default-self-values-api-results.json"
       },
@@ -773,8 +773,8 @@
           "verified": 22,
           "blocked": 0,
           "running": 0,
-          "pending": 2,
-          "recheck": 211
+          "pending": 0,
+          "recheck": 213
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
         "items": [
@@ -3093,16 +3093,16 @@
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_typing.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "startedAt": "2026-11-06T23:34:03.419460+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-06T23:36:03.898236+00:00",
+              "exitCode": 0,
+              "logSha256": "9eec792191dcba1c0c44562ffe1ebceb8a5d19772057bbf3b7a1fbfb1daa7023",
               "cases": [
                 {
                   "name": "core_typing_rechecks_annotations_with_actual_declarations_and_scopes",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -3111,36 +3111,46 @@
           {
             "id": "native:bootstrap_value_indices",
             "title": "bootstrap_value_indices",
-            "state": "pending",
+            "state": "recheck",
             "detail": "Awaiting a complete run on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_value_indices.rs",
             "observed": {
-              "status": "pending",
+              "status": "passed",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": null,
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
-              "cases": []
+              "startedAt": "2026-11-06T23:36:03.908600+00:00",
+              "finishedAt": "2026-11-06T23:37:43.818174+00:00",
+              "exitCode": 0,
+              "logSha256": "d760e8791d1245a0eabdaa72957310d20c0f86407499e0093fa46a48946d6679",
+              "cases": [
+                {
+                  "name": "typed_indices_preserve_carriers_scope_and_runtime_witnesses",
+                  "status": "passed"
+                }
+              ]
             },
             "currentTests": null
           },
           {
             "id": "native:bootstrap_value_kinds",
             "title": "bootstrap_value_kinds",
-            "state": "pending",
+            "state": "recheck",
             "detail": "Awaiting a complete run on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_value_kinds.rs",
             "observed": {
-              "status": "pending",
+              "status": "running",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": null,
+              "startedAt": "2026-11-06T23:37:43.833194+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "value_kinds_retain_carriers_and_do_not_invent_runtime_witnesses",
+                  "status": "running"
+                }
+              ]
             },
             "currentTests": null
           },
@@ -11777,10 +11787,9 @@
           }
         ],
         "observedCounts": {
-          "passed": 231,
+          "passed": 233,
           "failed": 1,
-          "running": 1,
-          "pending": 2
+          "running": 1
         },
         "observedSource": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2"
       },
@@ -18312,6 +18321,17 @@
         "auditPending": false
       },
       {
+        "title": "Cinch refined containers: complete groups",
+        "status": "running",
+        "phase": "bootstrap_named_refinements",
+        "passed": 0,
+        "failed": 0,
+        "total": 8,
+        "source": "db9a6a54eac6badd12e2a6ca0f478a5ed01f0dd09d2f8a976c8600fe5ed30347",
+        "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+        "auditPending": false
+      },
+      {
         "title": "Cinch defaults: full compiler/object gate",
         "status": "passed",
         "phase": "bootstrap_library_object",
@@ -18352,10 +18372,20 @@
         "auditPending": false
       },
       {
+        "title": "Cinch constructor coverage: full compiler/object gate",
+        "status": "running",
+        "phase": "bootstrap_library_object",
+        "passed": 1,
+        "failed": 0,
+        "total": 2,
+        "source": "28d2abf7398291b1ecd4b905117858d454cabb8f5c217d7fc02a86993f51ad61",
+        "auditPending": false
+      },
+      {
         "title": "Earlier compiler: full Rust sweep",
         "status": "running",
-        "phase": "bootstrap_typing",
-        "passed": 231,
+        "phase": "bootstrap_value_kinds",
+        "passed": 233,
         "failed": 1,
         "total": 235,
         "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
@@ -18374,10 +18404,10 @@
     ],
     "counts": {
       "verified": 194,
-      "blocked": 5,
-      "running": 4,
-      "pending": 47,
-      "recheck": 417
+      "blocked": 4,
+      "running": 5,
+      "pending": 45,
+      "recheck": 419
     },
     "total": 667,
     "acceptanceVerified": 0,
@@ -18385,5 +18415,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-06T23:34:58.784491+00:00"
+  "updatedAt": "2026-11-06T23:37:48.754619+00:00"
 }
