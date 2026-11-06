@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "233 of 235 complete groups passed; 1 running, 1 failed and 0 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "234 of 235 complete groups passed; 0 running, 1 failed and 0 pending.Every group includes ignored tests. State: finished-with-failures. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -474,7 +474,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "233 of 235 complete groups passed; 1 running, 1 failed and 0 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "234 of 235 complete groups passed; 0 running, 1 failed and 0 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -3139,16 +3139,16 @@
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_value_kinds.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "startedAt": "2026-11-06T23:37:43.833194+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-06T23:39:20.454219+00:00",
+              "exitCode": 0,
+              "logSha256": "8a5077672634b18fa3802bd093852a5960d72930113e31f505f2fd82d314fdb3",
               "cases": [
                 {
                   "name": "value_kinds_retain_carriers_and_do_not_invent_runtime_witnesses",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -11787,9 +11787,8 @@
           }
         ],
         "observedCounts": {
-          "passed": 233,
-          "failed": 1,
-          "running": 1
+          "passed": 234,
+          "failed": 1
         },
         "observedSource": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2"
       },
@@ -18382,16 +18381,6 @@
         "auditPending": false
       },
       {
-        "title": "Earlier compiler: full Rust sweep",
-        "status": "running",
-        "phase": "bootstrap_value_kinds",
-        "passed": 233,
-        "failed": 1,
-        "total": 235,
-        "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-        "earlier": true
-      },
-      {
         "title": "Earlier Stage3: complete frontend sweep",
         "status": "running",
         "phase": "bootstrap_pipeline",
@@ -18415,5 +18404,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-06T23:37:48.754619+00:00"
+  "updatedAt": "2026-11-06T23:39:30.929985+00:00"
 }
