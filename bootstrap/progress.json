@@ -339,7 +339,7 @@
     {
       "title": "Private Cinch erased-proof interface correction",
       "detail": "0/2 complete exporter groups; phase waiting-native-proof-contracts. Preserve proof predicates, latent effects, results, nominal dependencies and every original assertion. Six new formatter/source controls include current Native readback and malformed/early-precondition refusals. Actual full CLI/API replay remains required; the correction is private.",
-      "state": "running"
+      "state": "failed"
     },
     {
       "title": "Earlier4f Stage3: all14 external checks independently audited",
@@ -441,5 +441,5 @@
   "fullGoalComplete": false,
   "summary": "All 44 compiler-source checks: passed. 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. Native all44 source modules: passed; Cinch-built all44 source modules: passed; five whole proof component groups: passed; actual compiler and object nine tests: passed; thirteen runtime clients and five refusals: passed.",
   "activity": "Earlier4f/NativeE5: complete235-group sweep: 159 of 235 complete groups passed; 1 running, 0 failed and 75 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. Native all44 source modules: passed; Cinch-built all44 source modules: passed; five whole proof component groups: passed; actual compiler and object nine tests: passed; thirteen runtime clients and five refusals: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 19 of 105 complete groups passed; 1 running, 2 failed and 83 pending.",
-  "updatedAt": "2026-11-06T16:23:29.614831+00:00"
+  "updatedAt": "2026-11-06T16:25:51.878828+00:00"
 }
