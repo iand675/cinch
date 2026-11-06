@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "estimate": 90,
-  "commit": "d9f8729707db97f31b2c44502a031df5dec818f7",
+  "commit": "1fce13c97bde43a48cdb1faba402f33210d922d6",
   "estimateNote": "Rough engineering estimate. Verified checks and remaining work are listed below.",
   "status": "Verification found a failure; correction required",
   "stages": [
@@ -342,6 +342,16 @@
       "state": "passed"
     },
     {
+      "title": "PrivateC1: both exact44-module source checks pass",
+      "detail": "Actual published Native91cf and actual Cinch-built1c76 each accept all44 privateC1 compiler modules. Cinch uses55 authenticated library-only contracts and empty PATH. Frozen inputs and both actual executables were independently audited. These source gates are separate from the new full compiler/object/API and matching final acceptance gates.",
+      "state": "passed"
+    },
+    {
+      "title": "PrivateC1: full44-module compiler/object validation",
+      "detail": "1/2 complete groups; phase bootstrap_library_object. All9 original Rust tests, runtime clients and checked contract comparisons remain required. The pinned Native22 library-only builder role stays distinct from the new development Rust proof-contract reader. API replay and final matching bootstrap/suites remain required.",
+      "state": "running"
+    },
+    {
       "title": "Earlier4f Stage3: all14 external checks independently audited",
       "detail": "Two exact original runner inputs/reports independently replay with32M poisoning and zero leaks. Real defining operator identity survives separate facade/renaming; identical and changed imported fixity declarations both refuse. Complete original class_identity group passes3 tests, with its one direct Native API negative explicitly classified. This is earlier4f Stage3 evidence; latest1c76 matching final acceptance remains required.",
       "state": "passed"
@@ -441,5 +451,5 @@
   "fullGoalComplete": false,
   "summary": "All 44 compiler-source checks: passed. 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. Native all44 source modules: passed; Cinch-built all44 source modules: passed; five whole proof component groups: passed; actual compiler and object nine tests: passed; thirteen runtime clients and five refusals: passed.",
   "activity": "Earlier4f/NativeE5: complete235-group sweep: 161 of 235 complete groups passed; 1 running, 0 failed and 73 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. Native all44 source modules: passed; Cinch-built all44 source modules: passed; five whole proof component groups: passed; actual compiler and object nine tests: passed; thirteen runtime clients and five refusals: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 21 of 105 complete groups passed; 1 running, 2 failed and 81 pending.",
-  "updatedAt": "2026-11-06T16:41:12.342339+00:00"
+  "updatedAt": "2026-11-06T16:44:51.597786+00:00"
 }
