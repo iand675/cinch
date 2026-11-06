@@ -17992,13 +17992,13 @@
       },
       {
         "title": "Cinch defaults: full compiler/object gate",
-        "status": "running",
+        "status": "passed",
         "phase": "bootstrap_library_object",
-        "passed": 1,
+        "passed": 2,
         "failed": 0,
         "total": 2,
         "source": "8fcedce1381fe2d1a14468b9cc10eff26cd7f07b64d3beb72fb121533dbb5095",
-        "auditPending": false
+        "auditPending": true
       },
       {
         "title": "Published Cinch: Rust reader/API replay",
@@ -18044,5 +18044,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-06T22:03:09.054080+00:00"
+  "updatedAt": "2026-11-06T22:05:11.544456+00:00"
 }
