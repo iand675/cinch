@@ -1,5 +1,21 @@
 # Next steps (as of 2026-11-06)
 
+## Matching runtime, tooling and Native editor checks pass (2026-11-06)
+
+Published5f2f/Native6b passes all171 runtime tests,43 tooling tests and39
+compiler/editor integration tests, with no skipped or filtered cases. An
+independent audit verifies the complete frozen source snapshot, every log,
+the freshly compiled matching Native6b CLI and its Cargo compilation record.
+The43 compiler input bytes match the independently verified5f2f bootstrap
+chain exactly. See `bootstrap/current-native-auxiliary-results.json`.
+
+The editor integration role here is the matching Native CLI. This evidence
+alone does not establish Cinch-built editor/frontend parity or Acceptance5.
+The separate complete235-group Native sweep and all105 original/current
+Stage3 target sweep continue; their incomplete or failed rows remain visible.
+Array ownership/staging, foreign contracts and source-prelude replacement
+still require repairs and matching final bootstrap/suite verification.
+
 ## Published5f2f reaches a verified bootstrap fixed point (2026-11-06)
 
 The current published compiler independently passes Acceptance1-4 on its exact
