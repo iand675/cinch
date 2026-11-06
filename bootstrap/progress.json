@@ -73,7 +73,7 @@
     },
     {
       "title": "Earlier API checkpoint: exact Stage3 behavior",
-      "detail": "39 of 105 complete groups passed; 1 running, 2 failed and 63 pending.All105 required targets:96 portable and9 original interface/API groups, preserving the original100 plus5 additions. Original explicit32M poisoned client limits remain; compiler/checker consumers use256M. Direct Native operations in mixed targets remain classified separately. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "40 of 105 complete groups passed; 1 running, 2 failed and 62 pending.All105 required targets:96 portable and9 original interface/API groups, preserving the original100 plus5 additions. Original explicit32M poisoned client limits remain; compiler/checker consumers use256M. Direct Native operations in mixed targets remain classified separately. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -373,7 +373,7 @@
     },
     {
       "title": "Private3268: public arity and qualified proof arrows",
-      "detail": "1/3 complete affected groups; phase bootstrap_export_interfaces. Public metadata counts source arrows, dictionaries and hidden value parameters; runtime proof erasure stays unchanged. Eight new Native provider/facade comparisons preserve every original exporter assertion. The first new IO/False source exposed contracted-arrow conversion bypassing erased domains; its correction adds12 Native-compared positive/negative source controls. Both44-module source checks pass, including genuine earlier4f Stage3. Full compiler/API replay and a fresh matching full chain remain required.",
+      "detail": "2/3 complete affected groups; phase bootstrap_function_preconditions. Public metadata counts source arrows, dictionaries and hidden value parameters; runtime proof erasure stays unchanged. Eight new Native provider/facade comparisons preserve every original exporter assertion. The first new IO/False source exposed contracted-arrow conversion bypassing erased domains; its correction adds12 Native-compared positive/negative source controls. Both44-module source checks pass, including genuine earlier4f Stage3. Full compiler/API replay and a fresh matching full chain remain required.",
       "state": "running"
     },
     {
@@ -445,7 +445,7 @@
     },
     {
       "title": "Finish the exact self-built compiler tests",
-      "detail": "39 of 105 complete groups passed; 1 running, 2 failed and 63 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "40 of 105 complete groups passed; 1 running, 2 failed and 62 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Pass all external language examples through Stage3",
@@ -490,6 +490,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "All 44 compiler-source checks: passed. 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. Native all44 source modules: passed; Cinch-built all44 source modules: passed; five whole proof component groups: passed; actual compiler and object nine tests: passed; thirteen runtime clients and five refusals: passed.",
-  "activity": "Earlier4f/NativeE5: complete235-group sweep: 187 of 235 complete groups passed; 1 running, 0 failed and 47 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. Native all44 source modules: passed; Cinch-built all44 source modules: passed; five whole proof component groups: passed; actual compiler and object nine tests: passed; thirteen runtime clients and five refusals: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 39 of 105 complete groups passed; 1 running, 2 failed and 63 pending. Proposed compiler repair (separate unpublished source): under-validation; 2 of 5 complete groups passed; 1 running, 0 failed and 2 pending.",
-  "updatedAt": "2026-11-06T19:18:37.235194+00:00"
+  "activity": "Earlier4f/NativeE5: complete235-group sweep: 187 of 235 complete groups passed; 1 running, 0 failed and 47 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. Native all44 source modules: passed; Cinch-built all44 source modules: passed; five whole proof component groups: passed; actual compiler and object nine tests: passed; thirteen runtime clients and five refusals: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 40 of 105 complete groups passed; 1 running, 2 failed and 62 pending. Proposed compiler repair (separate unpublished source): under-validation; 2 of 5 complete groups passed; 1 running, 0 failed and 2 pending.",
+  "updatedAt": "2026-11-06T19:19:39.428937+00:00"
 }
