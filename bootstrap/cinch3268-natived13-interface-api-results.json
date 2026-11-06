@@ -1,0 +1,105 @@
+{
+  "cinch_source_path_tests": 11,
+  "compiler_sha256": "a2efa8c3e00c714f32a0851c067258ffe0c98123ada3fbdd1f1f4aa7b910e707",
+  "compiler_source_sha256": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+  "direct_native_api_tests": [
+    "opaque_parameter_kinds_survive_checked_interfaces_and_facades",
+    "scope_and_task_contracts_preserve_kernel_and_source_type_owners",
+    "portable_proof_arrows_keep_kinds_effects_erasure_and_type_owners"
+  ],
+  "failed_cinch_source_path_tests": 1,
+  "failed_groups": [
+    "interface_prelude_overrides"
+  ],
+  "failed_tests": 1,
+  "filtered": 0,
+  "full_goal_complete": false,
+  "groups": [
+    {
+      "failed_tests": 0,
+      "host_sha256": "041cfc2fe63956af0fea2fc79abdbbfc1dcf47235bb4a7ed5bdcea205f5820d4",
+      "log_sha256": "39f8685d26e230237606b3009e3aaddfe283cdae70258b9a276d3ef792a4ecdf",
+      "name": "interface_anonymous_contracts",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "host_sha256": "8d28a26465d188428dc4d8f3f0efbf983d2a4b072303a1eba58bdb6ae43d114f",
+      "log_sha256": "0f35c3aaa6b510858cd6a209a34363b708c62000ee0d7ae8028dec7c4fa9738d",
+      "name": "interface_class_contracts",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "host_sha256": "333007887e24dc73433da967ec269f05d1b2590e5069f081ade5162cb3f4f5e5",
+      "log_sha256": "2a792b18eb31329d75b15bcda8d5d1bbcc4cd8659f75ba17a2f1cc4e36737079",
+      "name": "interface_kinds",
+      "passed_tests": 2,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "host_sha256": "92fc23740d5620627dd2f429c48f6cb92328da38fed49bce9fa1574f842a90c2",
+      "log_sha256": "47a41d0393a52d796335eb06422b6a68585ea267155762c8f00b794d42969430",
+      "name": "interface_nominals",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "host_sha256": "643bacd595096c3f5c5563198fca3827225aeb7cba2f067aefc003f95681cd18",
+      "log_sha256": "38e340602af174c9136a3d6573ae933fefa8b3495c9110efec35ad863e21cf00",
+      "name": "interface_preconditions",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 1,
+      "host_sha256": "4bdf5d924a00e327c2024717eecb6983229e88e4ac7c86e04f80dd223c54aa9a",
+      "log_sha256": "f51c39cd8c8302089c10617271e76b13fe31e98b96bd1ee54a5373b73df9ecb2",
+      "name": "interface_prelude_overrides",
+      "passed_tests": 0,
+      "status": "failed"
+    },
+    {
+      "failed_tests": 0,
+      "host_sha256": "4492a1c0844cfa9fdd0564914829b9215dcccfe5296bb8ddc8744ef3bc6b3910",
+      "log_sha256": "185c63552e428e4540221e92ad55ca2b2fd5eae112669ff156c3571211318124",
+      "name": "interface_refinement_closure",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "host_sha256": "c3cda5a128d1113c43daa557371751967206b2f6592010e6631c57994ef67693",
+      "log_sha256": "ae7b161ef64e0f49c8c506c8d17192b39debac8ad5f7b69b28c3edbbf1284c70",
+      "name": "interface_refinements",
+      "passed_tests": 4,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "host_sha256": "f2755e44f296d02a441c15fcd97551615445e31e8d5b243185a0b5835f323894",
+      "log_sha256": "cc2f17076bc8a07ded120411fea1bc151c6d724df2c43725c0765472cde1ce6f",
+      "name": "interface_region_effects",
+      "passed_tests": 2,
+      "status": "passed"
+    }
+  ],
+  "ignored": 0,
+  "native_source_sha256": "d13df76cf5295fa5d91e8c07fd56cf266558535702b417ce2fda7f8beba7ae62",
+  "new_literal_interface_test": true,
+  "new_native_portable_proof_contract_test": true,
+  "original_api_groups": 9,
+  "original_tests_and_assertions_retained": true,
+  "passed_cinch_source_path_tests": 10,
+  "passed_groups": 8,
+  "passed_tests": 13,
+  "scope": "All nine original API groups retain the original assertions. Actual Cinch3268 performs11 source-path tests:10 pass and source-Prelude replacement fails. Three passing direct Native API tests remain separately classified as reader/Core/API evidence. Complete8/9 groups and13/14 Rust tests, without skips or filters. The literal proof and nullary using provider/facade programs preserve actual resolved contracts; both added source tests pass. Native d13 is the public reader/mutation host. The actual Cinch CLI was built with pinned Native22 and is not a matching self-built Stage3. Imported authenticated library dependencies are not newly emitted source interfaces. Every original failure and full matching acceptance remain required.",
+  "source_sha256": "a4da420bce5e34ccc615f19e47e460c9bfd1015940c53a3654c80a9246f0c331",
+  "status": "audited-original-api-with-retained-failures",
+  "total_tests": 14,
+  "verified_at": "2026-11-06T20:13:18.902674+00:00"
+}

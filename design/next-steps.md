@@ -1,5 +1,27 @@
 # Next steps (as of 2026-11-06)
 
+## Source-Prelude replacement needs a checked cache transition (2026-11-06)
+
+The current actual Cinch3268 executable accepts the retained Data.Core source
+alone and with its original Main consumer when no library interfaces are loaded.
+The same source pair refuses with the authenticated55-interface library set:
+`source module conflicts with a loaded interface`. The original complete API6
+replacement test fails at this same first family and remains unchanged.
+
+The fresh Core contract and cached Native22 contract agree on resolved metadata
+and all other checked facts, but seven public constructor/field type spellings
+differ. Their actual contract identities therefore differ too:4364992559017108310
+versus3420315651835929958. This comparison covers Core only, not the Ordering,
+Category or Algebra families. See `bootstrap/current-source-prelude-counterexample.json`
+and `bootstrap/programs/SourcePrelude.Core.Counterexample.cinch`.
+
+Source precedence must preserve checked family dependencies, current provider
+hashes and the absence of facade back-edges. Ordinary unrelated source/interface
+collisions and importer fixity redeclarations must continue to refuse. Merely
+removing the collision check or replacing dependency hashes without compatibility
+checks/rechecking would not establish the required behavior. All four original
+replacement families and the complete chain verifier remain required.
+
 ## Quoted preconditions retain their argument telescope (2026-11-06)
 
 Native995f extends the numeric-index repair through quoted declarations.
@@ -17,8 +39,10 @@ both exact44-module source projects, original False-proof/forgery controls
 and five retained task-capture probes are independently audited. See
 `bootstrap/current-native-quoted-precondition-results.json`.
 
-Cinch remains3268. The existing3268 interface/API receipt uses Native d13;
-replay with this new995f reader is a separate required check. The two opaque
+Cinch remains3268. All nine original interface/API groups have now replayed
+with this published995f reader:8/9 groups and13/14 tests pass, with source-Prelude
+replacement still failing. All original assertions remain. The earlier Native d13
+receipt stays in `bootstrap/cinch3268-natived13-interface-api-results.json`. The two opaque
 task-capture bypasses still reproduce on995f and remain open. Source-Prelude
 replacement, every other original failure, matching latest self-built bootstrap,
 all full suites and Acceptance1-5 remain required. Native22 seed/library pins stay.
