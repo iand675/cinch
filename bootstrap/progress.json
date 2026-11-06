@@ -168,7 +168,7 @@
     },
     {
       "title": "Proposed compiler repair",
-      "detail": "Separate unpublished source: under-validation. All 43 compiler modules: passed. 4 of 5 complete groups passed; 1 running, 0 failed and 0 pending. This does not replace current-source or final Stage3 acceptance.",
+      "detail": "Separate unpublished source: recorded-failure. All 43 compiler modules: passed. 4 of 5 complete groups passed; 0 running, 1 failed and 0 pending. This does not replace current-source or final Stage3 acceptance.",
       "state": "running"
     },
     {
@@ -490,6 +490,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "All 44 compiler-source checks: passed. 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. Native all44 source modules: passed; Cinch-built all44 source modules: passed; five whole proof component groups: passed; actual compiler and object nine tests: passed; thirteen runtime clients and five refusals: passed.",
-  "activity": "Earlier4f/NativeE5: complete235-group sweep: 191 of 235 complete groups passed; 1 running, 0 failed and 43 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. Native all44 source modules: passed; Cinch-built all44 source modules: passed; five whole proof component groups: passed; actual compiler and object nine tests: passed; thirteen runtime clients and five refusals: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 41 of 105 complete groups passed; 1 running, 2 failed and 61 pending. Proposed compiler repair (separate unpublished source): under-validation; 4 of 5 complete groups passed; 1 running, 0 failed and 0 pending.",
-  "updatedAt": "2026-11-06T19:48:40.301200+00:00"
+  "activity": "Earlier4f/NativeE5: complete235-group sweep: 191 of 235 complete groups passed; 1 running, 0 failed and 43 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. Native all44 source modules: passed; Cinch-built all44 source modules: passed; five whole proof component groups: passed; actual compiler and object nine tests: passed; thirteen runtime clients and five refusals: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 41 of 105 complete groups passed; 1 running, 2 failed and 61 pending. Proposed compiler repair (separate unpublished source): recorded-failure; 4 of 5 complete groups passed; 0 running, 1 failed and 0 pending.",
+  "updatedAt": "2026-11-06T19:49:42.182906+00:00"
 }
