@@ -1,0 +1,24 @@
+{
+  "compiler_modules": 43,
+  "compiler_source_sha256": "1dd5b24b5f6208b375406bb02dfec795770ad9ff99c9aa8ae2b1661fb50bd163",
+  "debug_compiler_sha256": "82b7e74b888b9de9e164d8e47a12192364d07f87da31c923da7d88ab79eb909d",
+  "debug_runtime_sha256": "69fbc24c1b3cd5f054d36e1f5b67405c3fdcc6f49b0ae1cc46ee6b43054119c7",
+  "empty_path": true,
+  "full_goal_complete": false,
+  "heap_limit": "256M",
+  "llvm_sha256": "f239d4548bb3d363c62868824dd163fb9cfee4b07f9d0d43a751b1712b7697f7",
+  "observed_ratio": 6.784823874451521,
+  "rc_debug": false,
+  "release_compiler_sha256": "ac71a8f0bbc79114a94d8d0e0e69a7f501eec8f2213c0e58f45107a8ad6903b9",
+  "release_runtime_sha256": "2fab721751aa601f3ca72d7677f8520e5bdd37d93887275b5636fce478f959c6",
+  "schema": 1,
+  "scope": "One sequential observation on this machine under bounded concurrent load. The exact same43-module Native-produced LLVM is linked to debug versus release builds of the exact pinned85 runtime. Both frontends check all43 same source inputs with the same actual contracts, empty PATH and zero leaks. No general speedup or matching final Stage2/3/suite acceptance is inferred.",
+  "seconds": {
+    "debug": 4508.146970333,
+    "release": 664.4456884589999
+  },
+  "seed_native_source_sha256": "22c91cf6c1855b049207612e9d94630850e880d5a49ea3e2c57c92aff7fdbe88",
+  "status": "passed-same-ir-runtime-comparison",
+  "verified_at": "2026-11-06T02:06:10.253485+00:00",
+  "zero_leak_reports": 2
+}

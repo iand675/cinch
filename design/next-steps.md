@@ -1,5 +1,27 @@
 # Next steps (as of 2026-11-06)
 
+## Paired runtime measurement and earlier917f bootstrap complete (2026-11-06)
+
+One paired run checks the same43 compiler inputs with the exact same
+Native-produced LLVM, linked to release versus debug builds of the exact
+pinned85 runtime. Both checks pass with empty PATH and zero leaks. Release
+takes664.45s and debug4508.15s: an observed6.78x improvement for this input
+under bounded concurrent load. This is one observation, not a general timing
+promise. The Stage1 build-profile fix is already published in067446e. See
+`bootstrap/current-stage1-runtime-performance-results.json`.
+
+The frozen917f chain independently passes all four stages and twelve smokes.
+Stage2/3 LLVM, executable and all43 canonical interfaces match; actual compiler
+interface consumption and changed-source behavior pass. This proves
+Acceptance1-4 for that earlier source, with explicit85f00ca Native22 seed and
+library-only provider roles. See
+`bootstrap/current-byte-observation-bootstrap-results.json`.
+
+Published711103 remains at7/9 original API groups. The merged private5f2f
+checked-helper decision repair has passed the actual self-built43-source
+check; full compiler/object and reached32M runtime controls are validating.
+Matching latest-source bootstrap, all105 targets and Acceptance5 remain open.
+
 ## Original class contracts pass; API scope is7/9 (2026-11-06)
 
 Compiler `7111030f` exports contextual dictionary factories with one hygienic

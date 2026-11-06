@@ -80,6 +80,12 @@ it cannot quietly select the Native linker's debug fallback. This profile
 choice changes neither the pinned seed nor later stages' independent library
 provider. Fresh Stage0/1 builds and all six smoke outcomes are recorded in
 [current runtime profile results](current-stage1-runtime-profile-results.json).
+A same-LLVM paired measurement checks all43 source inputs6.78x faster with
+the optimized runtime, with both sides accepted and leak-free; see
+[measurement scope and identities](current-stage1-runtime-performance-results.json).
+The separate earlier917f chain has a verified four-stage fixed point and
+Acceptance1-4; see [that exact checkpoint](current-byte-observation-bootstrap-results.json).
+Neither receipt establishes final current-source suites or Acceptance5.
 The fixed-point check requires the actual compiler modules' canonical
 interfaces, so base-library interfaces cannot stand in for compiler output.
 The final check also rebuilds a changed checker diagnostic and requires
