@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "estimate": 90,
-  "commit": "067446e700c310dc5d9c4efbcf3afcd57787e2dc",
+  "commit": "3e20ef73f46b24a556260b0f51cc77e7ec1fa2b4",
   "estimateNote": "Rough engineering estimate. Verified checks and remaining work are listed below.",
   "status": "Verification found a failure; correction required",
   "stages": [
@@ -38,7 +38,7 @@
     },
     {
       "title": "Current repair gates",
-      "detail": "5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_source_constructors: passed; bootstrap_globals: passed; bootstrap_export_interfaces: passed; bootstrap_external_frontend: passed; bootstrap_library_object: passed. All 43 source-module check: passed.",
+      "detail": "4 of 4 complete groups passed; 0 running, 0 failed and 0 pending. type contracts: passed; interface contracts: passed; frontend adapter: passed; object round trip: passed. All 43 source-module check: passed.",
       "state": "passed"
     },
     {
@@ -58,7 +58,7 @@
     },
     {
       "title": "Current published Rust compiler: full suite",
-      "detail": "217 of 232 complete groups passed; 1 running, 3 failed and 11 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "219 of 232 complete groups passed; 1 running, 3 failed and 9 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -143,7 +143,7 @@
     },
     {
       "title": "Current Rust producer: sweep with frozen earlier Cinch fixtures",
-      "detail": "217 of 232 complete groups passed; 1 running, 3 failed and 11 pending. State: running. Native6b production matches the published Rust compiler; this sweep retains older5cea Cinch fixtures. All cases run, including ignored cases. The byte-group failure is preserved and its917f repair has a separate passing audit.",
+      "detail": "219 of 232 complete groups passed; 1 running, 3 failed and 9 pending. State: running. Native6b production matches the published Rust compiler; this sweep retains older5cea Cinch fixtures. All cases run, including ignored cases. The byte-group failure is preserved and its917f repair has a separate passing audit.",
       "state": "running"
     },
     {
@@ -182,8 +182,8 @@
       "state": "running"
     },
     {
-      "title": "Earlier917f compiler: nine original interface/API groups",
-      "detail": "6 of 9 complete groups passed; 0 running, 3 failed and 0 pending. State: completed-with-failures; phase: interface_region_effects. Actual Cinch frontend/writer; complete cases and original assertions retained. This compiler fixture is separate from finalStage3 acceptance.",
+      "title": "Current compiler: nine original interface/API groups",
+      "detail": "7 of 9 complete groups passed; 0 running, 2 failed and 0 pending. State: completed-with-failures; phase: interface_region_effects. Actual Cinch frontend/writer; complete cases and original assertions retained. This compiler fixture is separate from finalStage3 acceptance.",
       "state": "running"
     },
     {
@@ -202,8 +202,8 @@
       "state": "failed"
     },
     {
-      "title": "Earlier917f original interface/API groups:6/9",
-      "detail": "All9 original groups, every original assertion retained:6 groups pass,3 fail;8 of11 tests pass. Actual Cinch source writer and authenticated imported library-only contracts keep distinct roles. Remaining gaps: existential/indexed constructors, typed foreign declarations and source-prelude replacements.",
+      "title": "Published compiler: original interface/API groups:7/9",
+      "detail": "All9 original groups retain their original files/assertions: 7 groups pass, 2 fail; 9 of11 tests pass. The complete class-contract/factory/private-closure/coherence test passes. Failed tests stop at their first failing assertion. Remaining gaps are typed foreign declarations and source-prelude replacement with genuine dependency rechecking.",
       "state": "failed"
     },
     {
@@ -212,7 +212,7 @@
       "state": "passed"
     },
     {
-      "title": "Published1dd5 full compiler and library-object validation",
+      "title": "Published compiler and library-object validation",
       "detail": "Exact43-source actual compiler plus complete adapter/object groups pass9tests. Actual object reload and owned client pass32M with poisoning and zero leaks. Explicit Native22 seed role; full self-built acceptance remains separate.",
       "state": "passed"
     },
@@ -222,24 +222,24 @@
       "state": "passed"
     },
     {
-      "title": "Published constructor declarations and interfaces",
-      "detail": "Five complete affected groups pass13tests, plus10 new source controls. Actual Cinch-built reader checks all43 exact inputs with empty PATH. Hidden/indexed runtime layouts refuse with cleared IR/no executable; ordinary Box runs at32M with poisoning and zero leaks.",
+      "title": "Earlier1dd5 constructor declarations and interfaces",
+      "detail": "Five complete affected groups pass13tests, plus10 source controls. Actual Cinch-built reader checks all43 inputs. Hidden/indexed runtime layouts refuse with cleared IR/no executable; ordinary Box runs at32M with poisoning and zero leaks. This receipt retains its exact earlier source scope.",
       "state": "passed"
     },
     {
-      "title": "Published compiler: original interface/API groups",
-      "detail": "All9 original groups run:6 pass,3 fail. Constructor declarations now pass; remaining failures are contextual dictionary-factory export, typed foreign declarations and source-family replacements. Original source/assertions retained. Full matching self-built acceptance remains open.",
-      "state": "failed"
+      "title": "Published source interfaces: factories, private classes and parameter names",
+      "detail": "Four complete affected groups pass11tests. All43 exact compiler inputs build and check through a Cinch-built reader with empty PATH. Factories retain hygienic context; private method dependencies close transitively without exposing names. Source parameter names/kinds/implicitness match Native, canonical scheme alpha stability stays intact, and cross-module signature order matches exact canonical bytes/hashes. Original API is7/9; final self-built/full-scope acceptance remains open.",
+      "state": "passed"
     }
   ],
   "blockers": [
     {
-      "title": "Canonical metadata repair passes source checks; a source-decision Core gap is also in validation",
-      "detail": "Published067446e/1dd remains the last public compiler checkpoint, original API6/9. Private711103 canonical factory/class/name exporter passes both complete exporter groups and actual self-built43-module source checking; its8 adapter tests pass, object round trip runs, then all9 unchanged API groups replay. Earlierc1 class failure is diagnosed as signature row order only; compound name/identity comparator now matches Native serialization and cross-module regression. Frozen full Native sweep has a third failed group: a valid identity-helper decision is refused after inference. Current Rust accepts the exact source and actualc1 Cinch CLI reproduces phase4. Private decision-body repair requires exact checked body/purity/argument authority and has complete Core/source groups in validation. Higher-order opaque calls remain separate. Same-IR runtime comparison is running its debug control after optimized43-input zero-leak pass. Work is bounded to6; full matching bootstrap/all105/Acceptance5 remain open."
+      "title": "Class contracts published: original API7/9; source helper decisions are next",
+      "detail": "Published3e20ef7 compiler711103 passes all4 complete affected exporter/adapter/object groups11tests, actual43-module full compiler build and a separately checksum-verified Cinch-built43-module check with empty PATH. All9 unchanged original API groups run:7 whole groups and9/11tests pass; the complete class contract/factory/private-closure/hash/mutation test is green. Typed foreign declarations and genuine source-prelude/dependency replacement remain failed. The frozen Native sweep retains a third failed source-decision group: current Rust accepts the exact helper call and actual current Cinch refuses it. Private71b62 checked-body Core controls pass, but the complete source group exposes a fixture closure check that drops the actual body context; that context-aware validation is being corrected before publication. Runtime profile fix067446e remains tested43 tooling/six smokes; paired performance comparison is still running its debug control. Maximum6 heavy workers. Matching final bootstrap/all105/Acceptance5 remain open."
     },
     {
       "title": "Investigate the recorded failure",
-      "detail": "Native compiler tests: bootstrap_byte_observations; Native compiler tests: bootstrap_measure_contracts; Native compiler tests: bootstrap_source_decisions; self-built tests: bootstrap_total_semantics; self-built tests: bootstrap_type_syntax; self-built tests: arrays; Two original array cases remain open: ownership/copyOut and staging; Three original interface/API groups require language support"
+      "detail": "Native compiler tests: bootstrap_byte_observations; Native compiler tests: bootstrap_measure_contracts; Native compiler tests: bootstrap_source_decisions; self-built tests: bootstrap_total_semantics; self-built tests: bootstrap_type_syntax; self-built tests: arrays; Two original array cases remain open: ownership/copyOut and staging; 2 original interface/API groups remain open"
     },
     {
       "title": "Finish the fresh bootstrap",
@@ -247,7 +247,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "217 of 232 complete groups passed; 1 running, 3 failed and 11 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "219 of 232 complete groups passed; 1 running, 3 failed and 9 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -292,10 +292,10 @@
       "title": "Earlier source: Changed-source rebuilding verified"
     }
   ],
-  "candidateSource": "1dd5b24b5f6208b375406bb02dfec795770ad9ff99c9aa8ae2b1661fb50bd163",
+  "candidateSource": "7111030f9c0ded542854b714b727a3a3fced758ca7061490868c9aac19d8dfe7",
   "candidatePublished": true,
   "fullGoalComplete": false,
-  "summary": "All 43 compiler-source checks: passed. 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_source_constructors: passed; bootstrap_globals: passed; bootstrap_export_interfaces: passed; bootstrap_external_frontend: passed; bootstrap_library_object: passed.",
-  "activity": "Current published Rust compiler: full suite: 217 of 232 complete groups passed; 1 running, 3 failed and 11 pending. Stage builds and smoke checks: 2 of 4; chain state: building-stage2; earlier API source, not the published repair. Repair gates: 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_source_constructors: passed; bootstrap_globals: passed; bootstrap_export_interfaces: passed; bootstrap_external_frontend: passed; bootstrap_library_object: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
-  "updatedAt": "2026-11-06T01:29:51.272177+00:00"
+  "summary": "All 43 compiler-source checks: passed. 4 of 4 complete groups passed; 0 running, 0 failed and 0 pending. type contracts: passed; interface contracts: passed; frontend adapter: passed; object round trip: passed.",
+  "activity": "Current published Rust compiler: full suite: 219 of 232 complete groups passed; 1 running, 3 failed and 9 pending. Stage builds and smoke checks: 2 of 4; chain state: building-stage2; earlier API source, not the published repair. Repair gates: 4 of 4 complete groups passed; 0 running, 0 failed and 0 pending. type contracts: passed; interface contracts: passed; frontend adapter: passed; object round trip: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
+  "updatedAt": "2026-11-06T01:39:06.704022+00:00"
 }
