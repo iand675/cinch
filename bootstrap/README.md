@@ -36,6 +36,15 @@ The artifacts behind the P35 milestones in `design/stdlib-and-bootstrap.md`:
 a compiler written in Cinch, built rung by rung, each rung a runnable Cinch
 artifact with an acceptance command rather than a claim.
 
+## Current published bootstrap fixed point
+
+Compiler `5f2f8556` independently proves Acceptance1-4: four stages and twelve
+smokes, identical Stage2/3 LLVM/executables/all43 interfaces, actual compiler
+interface consumption and changed-source behavior. Stage1 uses the optimized
+exact pinned runtime. See [current bootstrap proof](current-checked-decision-bootstrap-results.json).
+All105 required targets are now replaying through the actual matching Stage3.
+The complete matching suites and Acceptance5 remain open.
+
 ## Current checked-decision checkpoint
 
 Compiler `5f2f8556` accepts fully applied pure total source helpers in numeric

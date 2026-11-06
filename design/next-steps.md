@@ -1,5 +1,32 @@
 # Next steps (as of 2026-11-06)
 
+## Published5f2f reaches a verified bootstrap fixed point (2026-11-06)
+
+The current published compiler independently passes Acceptance1-4 on its exact
+5f2f source: all four stages and twelve smokes, matching Stage2/3 LLVM and
+executable bytes, all43 canonical interfaces, actual compiler-interface
+consumption and changed-source rebuilding with observable changed behavior.
+Stage1 links the optimized exact pinned85 runtime. The Stage0 and library-only
+producer archives, all physical artifacts and Native interface decoding are
+independently verified. See
+`bootstrap/current-checked-decision-bootstrap-results.json`.
+
+All105 original/current targets now run through an immutable copy of this
+actual Stage3, with matching freshly built Native6b test hosts and authenticated
+library-only85 dependencies. The preceding development-compiler diagnostic is
+retained: type syntax and total semantics pass; the original array and two API
+gaps remain, and abstract nonzero methods exposed a missing output report.
+The final Stage3 run replays every complete original group. The diagnostic was
+retired with its completed failures preserved and its live partial group marked
+explicitly, once the audited Stage3 sweep started. A separate matching full
+Native suite remains running. These runs, runtime/tooling/editor/external
+checks, all105-target accounting and Acceptance5 must pass before completion.
+
+A private44-module foreign-call candidate passes the complete Native source
+check. It retains real effect/ABI/pointer contracts and no total-body authority;
+its pinned compiler build and actual C-call/interface tests remain separate
+validation, not published language support.
+
 ## Checked source helpers participate in runtime decisions (2026-11-06)
 
 Compiler `5f2f8556` accepts numeric decisions over fully applied pure total
