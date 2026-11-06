@@ -4,9 +4,10 @@
 -- runtime words throughout. Unsupported Core produces errors, never IR.
 module Bootstrap.RuntimeIr where
   import Bootstrap.Check (CheckedProgram, checked-elaboration)
-  import Bootstrap.Infer (elaboration-core, elaboration-data, elaboration-effects, elaboration-classes, elaboration-instances, elaboration-bindings, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-conditional-target)
+  import Bootstrap.Infer (elaboration-core, elaboration-data, elaboration-effects, elaboration-classes, elaboration-instances, elaboration-bindings, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-conditional-target, checked-foreign-plan)
   import Bootstrap.Object (RuntimeObject, RuntimeUnit, object-words, object-unit, object-variant, object-dictionary, object-family, object-conditional-unit, object-closed-method-unit, object-string-layout, unit-symbol, unit-closure, unit-params, unit-result, llvm-object-symbol, llvm-data-bytes)
   import Bootstrap.Core
+  import Bootstrap.Foreign
   import Bootstrap.Builtin (array-plan, array-type-name)
   import Bootstrap.Index
   import Bootstrap.ExportType (export-global)
@@ -46,6 +47,7 @@ module Bootstrap.RuntimeIr where
     ArrayDemand :: String -> List Nat -> Demand
     BuiltinDemand :: String -> Demand
     ExternalDemand :: RuntimeUnit -> Demand
+    ForeignDemand :: ForeignPlan -> Demand
   -- Bound scheme ids and opened rigid ids are separate namespaces.
   -- A worker is shared by all actual types with the same class vector.
   data MethodVersion where
@@ -215,9 +217,23 @@ module Bootstrap.RuntimeIr where
   decision-word-type ty = case base ty of
     UApp (UCon name kind) predicate -> same name "b.Dec" && kind-equal kind (KFun KProp KType) && kind-equal (type-kind predicate) KProp && valid-type predicate
     other -> False
+  program-info :: RuntimeContext -> ProgramInfo
+  program-info context = case context of RuntimeContext info bounds rigids pending done -> info
+  foreign-type-equal :: UType -> UType -> Bool
+  foreign-type-equal first second = valid-type first && valid-type second && (case store-errors (unify (Span 0 0 1 1) first second (empty-store "foreign ABI type")) of Nil -> True; other -> False)
+  foreign-parameter-matches :: UType -> ForeignParameter -> Bool
+  foreign-parameter-matches ty parameter = same (foreign-class parameter) "ptr" && foreign-type-equal ty (foreign-parameter-type parameter)
+  opaque-foreign-params :: UType -> List ForeignParameter -> Bool
+  opaque-foreign-params ty params = case params of Nil -> False; Cons first rest -> foreign-parameter-matches ty first || opaque-foreign-params ty rest
+  opaque-foreign-word :: UType -> List CheckedBinding -> Bool
+  opaque-foreign-word ty bindings = case bindings of
+    Nil -> False
+    Cons binding rest -> (case checked-foreign-plan binding of
+      Some plan -> opaque-foreign-params ty (foreign-parameters plan) || foreign-parameter-matches ty (foreign-result plan)
+      None -> False) || opaque-foreign-word ty rest
   word-class :: RuntimeContext -> UType -> Option Nat
   -- Sym is an immortal runtime handle, classified Raw by the object ABI.
-  word-class context ty = if decision-word-type ty then Some 1 else if number ty then Some 2 else if named ty "Bool" || named ty "Unit" || raw-integer ty || named ty "Char" || named ty "Sym" || named ty "F32" || named ty "F64" then Some 0 else case context of
+  word-class context ty = if foreign-pointer ty || opaque-foreign-word ty (program-bindings (program-info context)) then Some 0 else if decision-word-type ty then Some 1 else if number ty then Some 2 else if named ty "Bool" || named ty "Unit" || raw-integer ty || named ty "Char" || named ty "Sym" || named ty "F32" || named ty "F64" then Some 0 else case context of
     RuntimeContext datas bounds rigids pending done -> case base ty of
       UBound id name KType -> representation id bounds
       URigid id name level KType -> representation id rigids
@@ -306,6 +322,7 @@ module Bootstrap.RuntimeIr where
     ArrayDemand name classes -> array-symbol name classes
     BuiltinDemand name -> name
     ExternalDemand unit -> cat ["external:", unit-symbol unit]
+    ForeignDemand plan -> cat ["foreign:", foreign-symbol plan]
   request-demand :: Demand -> Writer -> Writer
   request-demand demand w = case w of
     Writer next globals code errors layouts (RuntimeContext datas bounds rigids pending done) ->
@@ -980,7 +997,7 @@ module Bootstrap.RuntimeIr where
   direct-call :: List CoreDefinition -> List Local -> Writer -> Span -> String -> List UType -> List CoreTerm -> (Writer, String)
   direct-call definitions locals w sp name actuals args = call-name definitions locals w sp name actuals Nil args
   call-name :: List CoreDefinition -> List Local -> Writer -> Span -> String -> List UType -> List String -> List CoreTerm -> (Writer, String)
-  call-name definitions locals w sp name actuals givens args = if (case array-plan name of Some plan -> True; None -> False) then array-call definitions locals w sp name actuals givens args else if builtin-known name then builtin-call definitions locals w sp name actuals givens args else
+  call-name definitions locals w sp name actuals givens args = if (case foreign-binding name (program-bindings (writer-program w)) of Some plan -> True; None -> False) then foreign-call definitions locals w sp name givens args else if (case array-plan name of Some plan -> True; None -> False) then array-call definitions locals w sp name actuals givens args else if builtin-known name then builtin-call definitions locals w sp name actuals givens args else
     case instance-named name (program-instances (writer-program w)) of
       Some factory -> case scheme-classes (writer-context w) (scheme-params (instance-scheme factory)) actuals of
         Some classes -> if (case args of Nil -> True; other -> False) && list-length givens == list-length (scheme-requirements (instance-scheme factory)) then
@@ -1008,6 +1025,81 @@ module Bootstrap.RuntimeIr where
             Some classes -> function-call definitions locals w sp d actuals classes givens args
             None -> unsupported w sp "function parameters need first-order or erased representation classes"
           None -> external-call definitions locals w sp name actuals givens args
+  foreign-binding :: String -> List CheckedBinding -> Option ForeignPlan
+  foreign-binding name bindings = case bindings of
+    Nil -> None
+    Cons binding rest -> if same name (checked-name binding) then checked-foreign-plan binding else foreign-binding name rest
+  foreign-llvm-type :: ForeignParameter -> String
+  foreign-llvm-type parameter = if same (foreign-class parameter) "unit" then "void"
+    else if same (foreign-class parameter) "ptr" then "ptr"
+    else if named (foreign-parameter-type parameter) "F32" then "float"
+    else if named (foreign-parameter-type parameter) "F64" then "double"
+    else cat ["i", nat-to-string (foreign-width parameter * 8)]
+  foreign-parameter-types :: List ForeignParameter -> List String
+  foreign-parameter-types params = case params of
+    Nil -> Nil
+    Cons first rest -> if same (foreign-class first) "unit" then foreign-parameter-types rest else Cons (foreign-llvm-type first) (foreign-parameter-types rest)
+  foreign-worker :: ForeignPlan -> Writer -> Writer
+  foreign-worker plan w = global w (cat ["declare ", foreign-llvm-type (foreign-result plan), " ", llvm-object-symbol (foreign-symbol plan), "(", join (foreign-parameter-types (foreign-parameters plan)), ")"])
+  foreign-abi-compatible :: ForeignPlan -> ForeignPlan -> Bool
+  foreign-abi-compatible first second = same (foreign-llvm-type (foreign-result first)) (foreign-llvm-type (foreign-result second))
+    && same (join (foreign-parameter-types (foreign-parameters first))) (join (foreign-parameter-types (foreign-parameters second)))
+  foreign-abi-coherent :: ForeignPlan -> List CheckedBinding -> Bool
+  foreign-abi-coherent plan bindings = case bindings of
+    Nil -> True
+    Cons first rest -> (case checked-foreign-plan first of
+      Some other -> not (same (foreign-symbol plan) (foreign-symbol other)) || foreign-abi-compatible plan other
+      None -> True) && foreign-abi-coherent plan rest
+  foreign-argument-types :: List ForeignParameter -> List CoreTerm -> Bool
+  foreign-argument-types params args = case (params, args) of
+    (Nil, Nil) -> True
+    (Cons first rest, Cons value more) -> foreign-type-equal (foreign-parameter-type first) (core-type value) && foreign-argument-types rest more
+    other -> False
+  foreign-marshal :: Writer -> List ForeignParameter -> List String -> (Writer, List String)
+  foreign-marshal w params values = case (params, values) of
+    (Nil, Nil) -> (w, Nil)
+    (Cons first rest, Cons value more) -> if same (foreign-class first) "unit" then foreign-marshal w rest more else
+      (case foreign-marshal-one w first value of
+        (converted, argument) -> case foreign-marshal converted rest more of
+          (done, tail) -> (done, Cons (cat [foreign-llvm-type first, " ", argument]) tail))
+    other -> (refuse w (Span 0 0 1 1) "foreign ABI argument vector differs from its checked plan", Nil)
+  foreign-marshal-one :: Writer -> ForeignParameter -> String -> (Writer, String)
+  foreign-marshal-one w parameter value = let ty = foreign-llvm-type parameter in
+    if same ty "i64" then (w, value)
+    else if same ty "ptr" then let (next, result) = fresh w "%foreign" in (line next (cat ["  ", result, " = inttoptr i64 ", value, " to ptr"]), result)
+    else if same ty "double" then let (next, result) = fresh w "%foreign" in (line next (cat ["  ", result, " = bitcast i64 ", value, " to double"]), result)
+    else if same ty "float" then
+      let (next, bits) = fresh w "%foreign" in let narrow = line next (cat ["  ", bits, " = trunc i64 ", value, " to i32"]) in
+      let (ready, result) = fresh narrow "%foreign" in (line ready (cat ["  ", result, " = bitcast i32 ", bits, " to float"]), result)
+    else let (next, result) = fresh w "%foreign" in (line next (cat ["  ", result, " = trunc i64 ", value, " to ", ty]), result)
+  foreign-pointer-check :: Writer -> ForeignParameter -> String -> Writer
+  foreign-pointer-check w parameter value = if foreign-nullable parameter then w else
+    let (next, condition) = fresh w "%foreign" in let tested = line next (cat ["  ", condition, " = icmp ne ptr ", value, ", null"]) in
+    let (a, yes) = fresh tested "foreign_nonnull" in let (b, no) = fresh a "foreign_null" in
+    emit-lines b [cat ["  br i1 ", condition, ", label %", yes, ", label %", no], cat [no, ":"], "  call void @llvm.trap()", "  unreachable", cat [yes, ":"]]
+  foreign-result-word :: Writer -> ForeignParameter -> String -> (Writer, String)
+  foreign-result-word w parameter value = let ty = foreign-llvm-type parameter in
+    if same ty "i64" then (w, value)
+    else if same ty "ptr" then
+      let guarded = foreign-pointer-check w parameter value in
+      let (next, result) = fresh guarded "%foreign" in (line next (cat ["  ", result, " = ptrtoint ptr ", value, " to i64"]), result)
+    else if same ty "double" then let (next, result) = fresh w "%foreign" in (line next (cat ["  ", result, " = bitcast double ", value, " to i64"]), result)
+    else if same ty "float" then
+      let (next, bits) = fresh w "%foreign" in let narrow = line next (cat ["  ", bits, " = bitcast float ", value, " to i32"]) in
+      let (ready, result) = fresh narrow "%foreign" in (line ready (cat ["  ", result, " = zext i32 ", bits, " to i64"]), result)
+    else let (next, result) = fresh w "%foreign" in
+      (line next (cat ["  ", result, " = ", if foreign-signed parameter then "sext " else "zext ", ty, " ", value, " to i64"]), result)
+  foreign-call :: List CoreDefinition -> List Local -> Writer -> Span -> String -> List String -> List CoreTerm -> (Writer, String)
+  foreign-call definitions locals w sp name givens args = case foreign-binding name (program-bindings (writer-program w)) of
+    None -> unsupported w sp "foreign call has no checked ABI plan"
+    Some plan -> if list-length givens /= 0 || not (foreign-argument-types (foreign-parameters plan) args) then unsupported w sp "foreign call must supply every checked ABI argument"
+      else if not (foreign-abi-coherent plan (program-bindings (writer-program w))) then unsupported w sp "foreign symbol has conflicting ABI contracts"
+      else case expressions definitions locals (request-demand (ForeignDemand plan) w) args of
+        (evaluated, values) -> case foreign-marshal evaluated (foreign-parameters plan) values of
+          (ready, arguments) -> let result = foreign-result plan in let ty = foreign-llvm-type result in
+            if same ty "void" then (line ready (cat ["  call void ", llvm-object-symbol (foreign-symbol plan), "(", join arguments, ")"]), "0")
+            else let (next, value) = fresh ready "%foreign" in
+              foreign-result-word (line next (cat ["  ", value, " = call ", ty, " ", llvm-object-symbol (foreign-symbol plan), "(", join arguments, ")"])) result value
   external-binding :: String -> List CheckedBinding -> Option CheckedBinding
   external-binding name bindings = case bindings of Nil -> None; Cons first rest -> if same name (checked-name first) && same (checked-role first) "external" then Some first else external-binding name rest
   external-shape :: Nat -> UType -> List UType -> Option (List UType, UType)
@@ -1969,9 +2061,10 @@ module Bootstrap.RuntimeIr where
           ArrayDemand name classes -> workers definitions (array-worker name classes claimed)
           BuiltinDemand name -> workers definitions (builtin-worker name claimed)
           ExternalDemand unit -> workers definitions (external-worker unit claimed)
+          ForeignDemand plan -> workers definitions (foreign-worker plan claimed)
   declarations :: String
   declarations = cat [
-    "declare ptr @cinch_alloc_ctor(i64, i64)\ndeclare ptr @cinch_alloc_shaped(i64, i64, i64)\ndeclare ptr @memcpy(ptr, ptr, i64)\ndeclare void @cinch_layouts_register(ptr, i64)\n",
+    "declare void @llvm.trap()\ndeclare ptr @cinch_alloc_ctor(i64, i64)\ndeclare ptr @cinch_alloc_shaped(i64, i64, i64)\ndeclare ptr @memcpy(ptr, ptr, i64)\ndeclare void @cinch_layouts_register(ptr, i64)\n",
     "declare void @cinch_dup(i64)\ndeclare void @cinch_drop(i64)\ndeclare void @cinch_reclaim_enable()\ndeclare i64 @cinch_exit_check(i64)\n",
     "declare i64 @cinch_nat_to_len(i64)\ndeclare i64 @cinch_nat_from_i64(i64)\ndeclare i64 @cinch_int_from_nat(i64)\ndeclare i64 @cinch_bytes_new(i64)\ndeclare i64 @cinch_bytes_len(i64)\ndeclare i64 @cinch_bytes_get(i64, i64)\ndeclare i64 @cinch_bytes_from_data(ptr, i64)\ndeclare i64 @cinch_bytes_compare(i64, i64)\ndeclare i64 @cinch_io_write(i64)\ndeclare i64 @cinch_io_sleep(i64)\ndeclare i64 @cinch_task_poll_cancel()\ndeclare i64 @cinch_scope_open()\ndeclare i64 @cinch_scope_close(i64)\ndeclare i64 @cinch_task_spawn(i64, i64)\ndeclare i64 @cinch_task_join_all_or_cancel(i64, i64, i64, i64)\n",
     "declare i64 @cinch_array_from_list(i64, i64)\ndeclare i64 @cinch_array_replicate(i64, i64, i64)\ndeclare i64 @cinch_array_len(i64)\ndeclare i64 @cinch_array_has(i64, i64)\ndeclare i64 @cinch_array_get(i64, i64)\ndeclare i64 @cinch_array_set(i64, i64, i64)\ndeclare i64 @cinch_array_slice(i64, i64, i64)\ndeclare i64 @cinch_array_append(i64, i64)\ndeclare i64 @cinch_tensor_reshape(i64, i64)\ndeclare i64 @cinch_tensor_shape(i64)\ndeclare i64 @cinch_tensor_data(i64)\ndeclare i64 @cinch_tensor_index(i64, i64)\ndeclare i64 @cinch_tensor_get(i64, i64)\ndeclare i64 @cinch_tensor_set(i64, i64, i64)\ndeclare i64 @cinch_columnar_column(i64)\ndeclare i64 @cinch_columnar_zip(i64, i64, i64)\ndeclare i64 @cinch_columnar_rows(i64)\ndeclare i64 @cinch_columnar_columns(i64)\ndeclare i64 @cinch_columnar_get(i64, i64)\ndeclare i64 @cinch_columnar_child(i64, i64)\ndeclare i64 @cinch_columnar_array(i64)\n",

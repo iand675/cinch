@@ -5,13 +5,14 @@ module Bootstrap.Export where
   import Algebra.Semigroup
   import Bootstrap.Check (CheckedProgram, checked-elaboration, checked-surface)
   import Bootstrap.Ast (Program, Module, Decl, module-decls, program-modules, DClass, DInstance, DForeign, DRefine, DRecord, DEffect)
-  import Bootstrap.Infer (Elaboration, elaboration-bindings, elaboration-core, elaboration-data, elaboration-contexts, elaboration-classes, elaboration-instances, elaboration-declarations, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-body-binding)
+  import Bootstrap.Infer (Elaboration, elaboration-bindings, elaboration-core, elaboration-data, elaboration-contexts, elaboration-classes, elaboration-instances, elaboration-declarations, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-body-binding, checked-foreign-plan)
   import Bootstrap.Core (CoreData, CoreConstructor, CoreDefinition, core-data-name, core-data-params, core-data-constructors, core-constructor-name, core-constructor-scheme, core-scheme, core-method-total-function)
   import Bootstrap.Instance
   import Bootstrap.Type
   import Bootstrap.Total (TotalFunction, total-identity, total-function-document, total-function-equal, total-parameters, total-result)
   import Bootstrap.BodyContract (BodyBinding, binding-function, binding-scheme)
   import Bootstrap.ExportType
+  import Bootstrap.Foreign (ForeignPlan, foreign-document, foreign-display-scheme)
   import Bootstrap.ExportNominal
   import Bootstrap.Load (LoadedInterface, loaded-module, loaded-hash, loaded-entry)
   import Bootstrap.Interface (fnv-source-hash)
@@ -159,6 +160,7 @@ module Bootstrap.Export where
   value-row :: Elaboration -> List LoadedInterface -> String -> String -> CheckedBinding -> Result String Json
   value-row typed interfaces name symbol binding =
     if imported-symbol symbol then imported-value-row interfaces name symbol
+    else if same (checked-role binding) "foreign" then foreign-value-row name symbol binding
     else if same (checked-role binding) "operation" then opaque-value-row name symbol binding
     else if same (checked-role binding) "function" || same (checked-role binding) "value" || same (checked-role binding) "intrinsic" || same (checked-role binding) "instance" || same (checked-role binding) "implicit-instance" then
       let scheme = checked-scheme binding in
@@ -177,6 +179,14 @@ module Bootstrap.Export where
   imported-symbol symbol = case unpack symbol of
     Cons prefix (Cons dot rest) -> char-code prefix == 105 && char-code dot == 46
     other -> False
+  foreign-value-row :: String -> String -> CheckedBinding -> Result String Json
+  foreign-value-row name symbol binding = case checked-foreign-plan binding of
+    None -> Err "foreign binding has no checked ABI plan"
+    Some plan -> case (export-global symbol, foreign-display-scheme plan) of
+      (Ok identity, Ok spelling) -> Ok (JObj "name" (JStr name) (JObj "symbol" (JStr identity)
+        (JObj "scheme" (JStr spelling) (JObj "resolved" JNull (JObj "arity" (JNum (nat-to-int (scheme-runtime-arity (checked-scheme binding)))) (JObj "total_body" JNull JObjEnd))))))
+      (Err error, other) -> Err error
+      (other, Err error) -> Err error
   imported-value :: String -> List LoadedInterface -> Option Json
   imported-value identity interfaces = case interfaces of
     Nil -> None
@@ -568,8 +578,24 @@ module Bootstrap.Export where
           Some local -> insert-row "symbol" (array-foreign-row (pack local) row) more
           None -> more)
         Err error -> more)
-  assumptions :: Json -> Json
-  assumptions primitives = JObj "primitives" primitives (JObj "foreign" JArrEnd (JObj "declared" JArrEnd JObjEnd))
+  source-foreign-rows :: String -> List CheckedBinding -> Json -> Result String Json
+  source-foreign-rows owner bindings rows = case bindings of
+    Nil -> Ok rows
+    Cons binding rest -> case checked-foreign-plan binding of
+      None -> source-foreign-rows owner rest rows
+      Some plan -> case export-global (checked-name binding) of
+        Err error -> Err error
+        Ok identity -> case foreign-drop-prefix (unpack (string-concat owner ".")) (unpack identity) of
+          None -> source-foreign-rows owner rest rows
+          Some local -> case foreign-document (pack local) plan of
+            Err error -> Err error
+            Ok row -> source-foreign-rows owner rest (insert-row "symbol" row rows)
+  foreign-assumptions :: Json -> Json
+  foreign-assumptions rows = case rows of
+    JArr row rest -> if same (text (field "kind" row)) "import" then insert-string (text (field "external" row)) (foreign-assumptions rest) else foreign-assumptions rest
+    other -> JArrEnd
+  assumptions :: Json -> Json -> Json
+  assumptions primitives rows = JObj "primitives" primitives (JObj "foreign" (foreign-assumptions rows) (JObj "declared" JArrEnd JObjEnd))
   document :: Json -> String -> Json -> Json -> Json -> Json -> Json -> Json -> Json -> Json
   document context source-hash dependencies values types signatures instances primitives foreign-rows =
     JObj "schema" (JNum 8) (JObj "runtime_abi" (JNum runtime-abi-int)
@@ -580,7 +606,7 @@ module Bootstrap.Export where
               (JObj "instances" instances (JObj "foreign" foreign-rows (JObj "fixities" (sort-rows "op" (public-fixities (field "exports" context) (field "fixities" context))) JObjEnd))))))
               (JObj "abi" (JObj "convention" (JStr "uniform-word, curried apply stub")
                 (JObj "symbols" (sorted-strings (symbols values)) (JObj "layouts" (layouts types) JObjEnd)))
-                (JObj "assumptions" (assumptions primitives) (JObj "assertions" JArrEnd
+                (JObj "assumptions" (assumptions primitives foreign-rows) (JObj "assertions" JArrEnd
                   (JObj "contracts" JArrEnd (JObj "must_use" JArrEnd (JObj "laws" JArrEnd
                     (JObj "upgrades" JArrEnd (JObj "units" JArrEnd JObjEnd))))))))))))))))
   source-hash :: Bytes -> Json -> Result String String
@@ -604,11 +630,12 @@ module Bootstrap.Export where
               Err error -> Err error
               Ok instances -> case signature-rows typed interfaces (field "exports" context) (JArr values (JArr instances JArrEnd)) types (elaboration-classes typed) of
                 Err error -> Err error
-                Ok signatures ->
-                  let doc = document context hash dependencies values types signatures instances (source-primitives context (elaboration-contexts typed)) (source-intrinsic-foreign context (elaboration-contexts typed)) in
-                  (case export-loop typed interfaces source (Cons (name, interface-hash doc) produced) rest of
-                    Err error -> Err error
-                    Ok more -> Ok (Cons (name, doc) more))
+                Ok signatures -> case source-foreign-rows name (elaboration-bindings typed) (source-intrinsic-foreign context (elaboration-contexts typed)) of
+                  Err error -> Err error
+                  Ok foreign-rows -> let doc = document context hash dependencies values types signatures instances (source-primitives context (elaboration-contexts typed)) foreign-rows in
+                    (case export-loop typed interfaces source (Cons (name, interface-hash doc) produced) rest of
+                      Err error -> Err error
+                      Ok more -> Ok (Cons (name, doc) more))
             )
           (Err error, other, more) -> Err (string-concat-all [name, ": ", error])
           (other, Err error, more) -> Err (string-concat-all [name, ": ", error])
@@ -616,7 +643,7 @@ module Bootstrap.Export where
       other -> export-loop typed interfaces source produced rest
   export-interfaces :: CheckedProgram -> List LoadedInterface -> Bytes -> Result String (List (String, Json))
   export-interfaces checked interfaces source = let typed = checked-elaboration checked in
-    case unsupported-modules (program-modules (checked-surface checked)) (elaboration-contexts typed) of
+    case unsupported-modules (program-modules (checked-surface checked)) (elaboration-contexts typed) (elaboration-bindings typed) of
       Some message -> Err message
       None -> export-loop typed interfaces source Nil (elaboration-contexts typed)
   retained-intrinsic :: String -> String -> List Json -> Bool
@@ -624,16 +651,16 @@ module Bootstrap.Export where
     Nil -> False
     Cons row rest -> (same (text (field "category" row)) "intrinsic" && same (text (field "binding" row)) name && same (text (field "identity" row)) identity)
       || retained-intrinsic name identity rest
-  unsupported-modules :: List Module -> List Json -> Option String
-  unsupported-modules modules contexts = case modules of
+  unsupported-modules :: List Module -> List Json -> List CheckedBinding -> Option String
+  unsupported-modules modules contexts bindings = case modules of
     Nil -> None
-    Cons first rest -> case unsupported-declarations (module-decls first) contexts of Some message -> Some message; None -> unsupported-modules rest contexts
-  unsupported-declarations :: List Decl -> List Json -> Option String
-  unsupported-declarations declarations contexts = case declarations of
+    Cons first rest -> case unsupported-declarations (module-decls first) contexts bindings of Some message -> Some message; None -> unsupported-modules rest contexts bindings
+  unsupported-declarations :: List Decl -> List Json -> List CheckedBinding -> Option String
+  unsupported-declarations declarations contexts bindings = case declarations of
     Nil -> None
     Cons declaration rest -> case declaration of
-      DForeign sp direction abi symbol name syntax -> if retained-intrinsic name symbol contexts then unsupported-declarations rest contexts else Some "foreign assumption interface production is incomplete"
+      DForeign sp direction abi symbol name syntax -> if retained-intrinsic name symbol contexts || (case find-binding name bindings of Some binding -> (case checked-foreign-plan binding of Some plan -> True; None -> False); None -> False) then unsupported-declarations rest contexts bindings else Some "foreign assumption interface production is incomplete"
       DRecord sp name parameters fields -> Some "record interface production is incomplete"
       -- A private effect grants no public type/operation names. If a public
       -- scheme mentions it, nominal export still refuses the absent contract.
-      other -> unsupported-declarations rest contexts
+      other -> unsupported-declarations rest contexts bindings

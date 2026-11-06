@@ -38,12 +38,183 @@ fn run(exe: &Path, args: &[&Path], mode: &str, manifest: &Path, objects: &Path) 
     // Quarantining every freed parser/metadata node turns a large compiler
     // run into a cumulative allocation budget. Keep normal reclamation and
     // leak checks here; the emitted client below still uses RC poisoning.
-    let output = Command::new(exe).args([mode, "--interfaces"]).arg(manifest).arg("--objects").arg(objects).args(args)
+    let mut command = Command::new(exe);
+    command.args([mode, "--interfaces"]).arg(manifest);
+    if matches!(mode, "--emit-object" | "--emit-ir") { command.arg("--objects").arg(objects); }
+    let output = command.args(args)
         .env("CINCH_HEAP_LIMIT", "256M").env("CINCH_RC_DEBUG", "0").env("CINCH_LEAK_CHECK", "1").output().unwrap();
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("live=0 immortal=0 leaked=0"), "CLI leak check: {stderr}");
     println!("object CLI {mode}: {:?}; {}", output.status.code(), stderr.trim());
     output
+}
+
+fn foreign_roundtrip(compiler: &Path, dir: &Path, provider: &Path, manifest: &Path, objects: &Path, runtime: &Path) {
+    let root = dir.join("foreign-clients"); std::fs::create_dir(&root).unwrap();
+    let fixture = root.join("fixture.c");
+    std::fs::write(&fixture, r#"#include <stdint.h>
+#include <stddef.h>
+static int64_t counter, value = 42;
+int64_t ffi_i64(int64_t x) { return x + 2; }
+int64_t ffi_f64(double x) { return x == 1.5 ? 42 : -1; }
+double ffi_make_f64(void) { return 1.5; }
+int64_t ffi_f32(float x) { return x == 1.5f ? 42 : -1; }
+float ffi_make_f32(void) { return 1.5f; }
+void ffi_increment(void) { counter++; }
+int64_t ffi_take(int64_t x) { return counter == 1 ? x : -1; }
+void *ffi_open(void) { return &value; }
+int64_t h_read(void *p) { return *(int64_t *)p; }
+void *ffi_null(void) { return NULL; }
+int64_t ffi_i8(int8_t x) { return x == -7 ? 42 : -1; }
+int8_t make_i8(void) { return -7; }
+int64_t ffi_u8(uint8_t x) { return x == 249 ? 42 : -1; }
+uint8_t make_u8(void) { return 249; }
+int64_t ffi_i16(int16_t x) { return x == -1234 ? 42 : -1; }
+int16_t make_i16(void) { return -1234; }
+int64_t ffi_u16(uint16_t x) { return x == 60000 ? 42 : -1; }
+uint16_t make_u16(void) { return 60000; }
+int64_t ffi_i32(int32_t x) { return x == -1234567 ? 42 : -1; }
+int32_t make_i32(void) { return -1234567; }
+int64_t ffi_u32(uint32_t x) { return x == UINT32_C(4000000000) ? 42 : -1; }
+uint32_t make_u32(void) { return UINT32_C(4000000000); }
+"#).unwrap();
+    let c_object = root.join("fixture.o");
+    let status = Command::new("clang").args(["-O2", "-c"]).arg(&fixture).arg("-o").arg(&c_object).status().unwrap();
+    assert!(status.success());
+    let object = cinch::lsp::parse_json(&std::fs::read_to_string(objects).unwrap()).unwrap();
+    let object = object.get("object").and_then(Json::as_str).unwrap();
+    let eq = "  foreign import ccall \"cinch.prim.eqI64\" eq :: I64 -> I64 -> Bool\n";
+    let check_and_run = |name: &str, source: &str, selected_manifest: &Path| {
+        let case = root.join(name); std::fs::create_dir(&case).unwrap();
+        let input = case.join("Main.cinch"); let ir = case.join("program.ll"); let exe = case.join("program");
+        std::fs::write(&input, source).unwrap();
+        let output = run(compiler, &[&input, &ir], "--emit-ir", selected_manifest, objects);
+        assert!(output.status.success(), "{name}: {}", std::fs::read_to_string(ir.with_extension("ll.diagnostics")).unwrap_or_default());
+        let linked = Command::new("clang").args([&ir, &c_object, Path::new(object), runtime]).arg("-o").arg(&exe).output().unwrap();
+        assert!(linked.status.success(), "{name}: {}", String::from_utf8_lossy(&linked.stderr));
+        let ran = Command::new(&exe).env("CINCH_HEAP_LIMIT", "32M").env("CINCH_RC_DEBUG", "1").env("CINCH_LEAK_CHECK", "1").output().unwrap();
+        assert_eq!(ran.status.code(), Some(0), "{name}: {}", String::from_utf8_lossy(&ran.stderr));
+        assert!(String::from_utf8_lossy(&ran.stderr).contains("live=0 immortal=0 leaked=0"), "{name}");
+        println!("foreign client {name}: {}", String::from_utf8_lossy(&ran.stderr).trim());
+    };
+    for (name, declarations, body) in [
+        ("scalar", "  foreign import ccall \"ffi_i64\" probe :: I64 ->{Foreign Test} I64\n", "if eq (probe 40) 42 then 0 else 1"),
+        ("alias", "  foreign import ccall \"ffi_i64\" a :: I64 ->{Foreign Test} I64\n  foreign import ccall \"ffi_i64\" b :: I64 ->{Foreign Test} I64\n", "if eq (a 40) (b 40) then 0 else 1"),
+        ("double", "  foreign import ccall \"ffi_f64\" probe :: F64 ->{Foreign Test} I64\n  foreign import ccall \"ffi_make_f64\" make :: Unit ->{Foreign Test} F64\n", "if eq (probe (make ())) 42 then 0 else 1"),
+        ("float", "  foreign import ccall \"ffi_f32\" probe :: F32 ->{Foreign Test} I64\n  foreign import ccall \"ffi_make_f32\" make :: Unit ->{Foreign Test} F32\n", "if eq (probe (make ())) 42 then 0 else 1"),
+        ("strict-unit", "  foreign import ccall \"ffi_increment\" tick :: Unit ->{Foreign Test} Unit\n  foreign import ccall \"ffi_take\" take :: Unit -> I64 ->{Foreign Test} I64\n", "if eq (take (tick ()) 42) 42 then 0 else 1"),
+        ("pointer", "  opaque type Handle :: Type\n  foreign import ccall \"ffi_open\" open :: Unit ->{Foreign Test} Borrowed Handle\n  foreign import ccall \"h_read\" read :: Borrowed Handle ->{Foreign Test} I64\n", "if eq (read (open ())) 42 then 0 else 1"),
+        ("pointer-branch", "  opaque type Handle :: Type\n  foreign import ccall \"ffi_open\" open :: Unit ->{Foreign Test} Borrowed Handle\n  foreign import ccall \"h_read\" read :: Borrowed Handle ->{Foreign Test} I64\n  pick :: Bool ->{Foreign Test} Borrowed Handle\n  pick flag = if flag then open () else open ()\n", "if eq (read (pick True)) 42 then 0 else 1"),
+        ("nullable", "  opaque type Handle :: Type\n  foreign import ccall \"ffi_null\" nothing :: Unit ->{Foreign Test} MaybeNull Handle\n", "let p = nothing () in 0"),
+    ] {
+        let source = format!("module Main where\n{eq}{declarations}  main :: Unit ->{{Foreign Test}} Int\n  main unit = {body}\n");
+        check_and_run(name, &source, manifest);
+    }
+    for (name, ty, value) in [
+        ("i8", "I8", "(-7)"), ("u8", "U8", "249"),
+        ("i16", "I16", "(-1234)"), ("u16", "U16", "60000"),
+        ("i32", "I32", "(-1234567)"), ("u32", "U32", "4000000000"),
+    ] {
+        // Direct literals independently test argument extension; a C
+        // return can already carry extended bits and mask caller errors.
+        let declarations = format!("  foreign import ccall \"ffi_{name}\" probe :: {ty} ->{{Foreign Test}} I64\n  foreign import ccall \"make_{name}\" make :: Unit ->{{Foreign Test}} {ty}\n");
+        let source = format!("module Main where\n{eq}{declarations}  main :: Unit ->{{Foreign Test}} Int\n  main unit = if eq (probe {value}) 42 then (if eq (probe (make ())) 42 then 0 else 2) else 1\n");
+        check_and_run(name, &source, manifest);
+    }
+
+    let host_dir = root.join("host"); std::fs::create_dir(&host_dir).unwrap();
+    let host = host_dir.join("Host.cinch"); let prefix = host_dir.join("host");
+    let source = "module Host where\n  export Handle, open, read-handle, probe\n  opaque type Handle :: Type\n  foreign import ccall \"ffi_open\" open :: Unit ->{Foreign Host, IO} Borrowed Handle\n  foreign import ccall \"h_read\" read-handle :: Borrowed Handle ->{Foreign Host, IO} I64\n  foreign import ccall \"ffi_i64\" probe :: I64 ->{Foreign Host, IO} I64\n";
+    std::fs::write(&host, source).unwrap();
+    assert!(run(compiler, &[&host, &prefix], "--emit-interfaces", manifest, objects).status.success(), "{}", std::fs::read_to_string(prefix.with_extension("diagnostics")).unwrap_or_default());
+    let iface_path = host_dir.join("host.Host.cinchif");
+    let actual = cinch::interface::Iface::from_json(&std::fs::read_to_string(&iface_path).unwrap()).unwrap();
+    // Native is an independent metadata oracle, never the client frontend.
+    let (_, oracle) = cinch::driver::check_sources_ifaces(source, "foreign-interface-oracle.cinch").unwrap();
+    // Compare actual file contracts. Native keeps source order internally,
+    // while its canonical serializer sorts the foreign table for hashing.
+    let expected = oracle.iter().find(|i| i.module == "Host").unwrap();
+    let expected = cinch::interface::Iface::from_json(&expected.to_json()).unwrap();
+    assert_eq!(actual.exports.foreign, expected.exports.foreign);
+    assert_eq!(actual.exports.values, expected.exports.values);
+    assert_eq!(actual.assumptions.foreign, expected.assumptions.foreign);
+    let host_manifest = root.join("host.interfaces.json");
+    interfaces(&host_manifest, &[&provider.join("build"), &host_dir]);
+    let direct = format!("module Main where\n  import Host\n{eq}  main :: Unit ->{{Foreign Boundary, IO}} Int\n  main unit = if eq (read-handle (open ())) 42 then 0 else 1\n");
+    check_and_run("interface-consumer", &direct, &host_manifest);
+    let facade_dir = root.join("facade"); std::fs::create_dir(&facade_dir).unwrap();
+    let facade = facade_dir.join("Facade.cinch");
+    std::fs::write(&facade, "module Facade where\n  import Host (Handle as H, open as acquire, read-handle as inspect)\n  export H, acquire, inspect\n").unwrap();
+    assert!(run(compiler, &[&facade, &facade_dir.join("facade")], "--emit-interfaces", &host_manifest, objects).status.success());
+    let facade_manifest = root.join("facade.interfaces.json");
+    interfaces(&facade_manifest, &[&provider.join("build"), &host_dir, &facade_dir]);
+    let facade_client = format!("module Main where\n  import Facade\n{eq}  main :: Unit ->{{Foreign Boundary, IO}} Int\n  main unit = if eq (inspect (acquire ())) 42 then 0 else 1\n");
+    check_and_run("facade-consumer", &facade_client, &facade_manifest);
+    let proof_client = format!("module Main where\n  import Host\n{eq}  main :: Unit ->{{Foreign Boundary, IO}} Int\n  main unit = if eq (probe 40) 42 then 0 else 1\n");
+    check_and_run("imported-scalar", &proof_client, &host_manifest);
+    // Admitting a C-only interface must not relax the hash of a module
+    // whose implementation actually comes from the provider object.
+    // Provider is a leaf: no other admitted module imports it. Mutating a
+    // base module instead would fail its dependents' import hashes first.
+    let represented_path = provider.join("build/Provider.cinchif");
+    let represented_bytes = std::fs::read_to_string(&represented_path).unwrap();
+    let mut represented = cinch::interface::Iface::from_json(&represented_bytes).unwrap();
+    let represented_hash = represented.iface_hash();
+    represented.assumptions.foreign.push("ffi_unrecorded".into());
+    assert_ne!(represented.iface_hash(), represented_hash);
+    std::fs::write(&represented_path, represented.to_json()).unwrap();
+    interfaces(&host_manifest, &[&provider.join("build"), &host_dir]);
+    let input = root.join("wrong-object.cinch"); let output = root.join("wrong-object.ll");
+    std::fs::write(&input, &direct).unwrap();
+    assert_eq!(run(compiler, &[&input, &output], "--emit-ir", &host_manifest, objects).status.code(), Some(7));
+    assert!(std::fs::read(&output).unwrap().is_empty());
+    assert!(std::fs::read_to_string(output.with_extension("ll.diagnostics")).unwrap().contains("checked interface identity mismatch"));
+    std::fs::write(&represented_path, represented_bytes).unwrap();
+    interfaces(&host_manifest, &[&provider.join("build"), &host_dir]);
+    for nullable in [false, true] {
+        let mut wrong = actual.clone();
+        if nullable { wrong.exports.foreign[0].result.nullable = true; }
+        else { wrong.exports.foreign[0].result.width = 4; }
+        std::fs::write(&iface_path, wrong.to_json()).unwrap();
+        interfaces(&host_manifest, &[&provider.join("build"), &host_dir]);
+        let input = root.join("wrong.cinch"); let output = root.join("wrong");
+        std::fs::write(&input, &direct).unwrap();
+        assert_eq!(run(compiler, &[&input, &output], "--check", &host_manifest, objects).status.code(), Some(4));
+        assert!(std::fs::read_to_string(output.with_extension("diagnostics")).unwrap().contains("ABI contract disagree"));
+    }
+    std::fs::write(&iface_path, actual.to_json()).unwrap();
+    // The forged graph is well typed, closed, and has this exact foreign
+    // identity and machine carrier types. It still grants no authority to
+    // replace a foreign operation with a pure body or use it in proofs.
+    let graph = cinch::total::CheckedGraph::check(vec![cinch::total::Definition {
+        identity: "Host.probe".into(), parameters: vec![cinch::total::Sort::I64],
+        result: cinch::total::Sort::I64, body: cinch::total::Expr::Local(0),
+    }]).unwrap();
+    let mut wrong = actual.clone();
+    let claimed = wrong.exports.values.iter_mut().find(|v| v.name == "probe").unwrap();
+    claimed.resolved = Some(cinch::interface::ResolvedScheme {
+        scheme: "(I64 -> I64)".into(), nominals: vec![], measures: vec![],
+    });
+    claimed.total_body = Some(graph);
+    let text = wrong.to_json();
+    assert_eq!(cinch::interface::Iface::from_json(&text).unwrap(), wrong);
+    std::fs::write(&iface_path, text).unwrap();
+    interfaces(&host_manifest, &[&provider.join("build"), &host_dir]);
+    let input = root.join("wrong-body.cinch"); let output = root.join("wrong-body");
+    std::fs::write(&input, &proof_client).unwrap();
+    assert_eq!(run(compiler, &[&input, &output], "--check", &host_manifest, objects).status.code(), Some(4));
+    assert!(std::fs::read_to_string(output.with_extension("diagnostics")).unwrap().contains("foreign value cannot grant resolved total-body authority"));
+    std::fs::write(&iface_path, actual.to_json()).unwrap();
+    for body in [
+        "foreign import ccall \"ffi_i64\" probe :: I64 -> I64",
+        "foreign import ccall \"ffi_i64\" probe :: Int ->{Foreign Test} Int",
+        "foreign import ccall \"ffi_i64\" probe :: (I64 -> I64) ->{Foreign Test} I64",
+    ] {
+        let input = root.join("refuse.cinch"); let output = root.join("refuse");
+        std::fs::write(&input, format!("module Main where\n  {body}\n  main :: Int\n  main = 0\n")).unwrap();
+        assert_eq!(run(compiler, &[&input, &output], "--check", manifest, objects).status.code(), Some(4));
+        assert!(!std::fs::read(output.with_extension("diagnostics")).unwrap().is_empty());
+    }
 }
 #[test]
 fn cinch_cli_emits_a_closed_object_that_another_cinch_invocation_can_consume() {
@@ -150,7 +321,7 @@ fn cinch_cli_emits_a_closed_object_that_another_cinch_invocation_can_consume() {
     std::fs::copy(&client_ir, dir.join("successful.client.ll")).unwrap();
     let runtime = Path::new(env!("CARGO_MANIFEST_DIR")).join("runtime/target/debug/libcinchruntime.a");
     let executable = dir.join("client");
-    let linked = Command::new(std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into())).arg(&client_ir).arg(&out).arg(runtime).args(["-lpthread", "-ldl", "-lm", "-o"]).arg(&executable).output().unwrap();
+    let linked = Command::new(std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into())).arg(&client_ir).arg(&out).arg(&runtime).args(["-lpthread", "-ldl", "-lm", "-o"]).arg(&executable).output().unwrap();
     assert!(linked.status.success(), "{}", String::from_utf8_lossy(&linked.stderr));
     let ran = Command::new(executable).env("CINCH_HEAP_LIMIT", "32M").env("CINCH_RC_DEBUG", "1").env("CINCH_LEAK_CHECK", "1").output().unwrap();
     assert_eq!(ran.status.code(), Some(0), "{}", String::from_utf8_lossy(&ran.stderr));
@@ -163,5 +334,6 @@ fn cinch_cli_emits_a_closed_object_that_another_cinch_invocation_can_consume() {
     std::fs::write(&library, "module Library where\n  broken = (\n").unwrap();
     assert!(!run(&compiler, &[&library, &ir, &out, &abi, Path::new(&prefix)], "--emit-object", &manifest, &objects).status.success());
     assert!(std::fs::read(&abi).unwrap().is_empty());
+    foreign_roundtrip(&compiler, &dir, &provider, &manifest, &objects, &runtime);
     if retained.is_none() { common::cleanup(&dir); common::cleanup(&provider); }
 }

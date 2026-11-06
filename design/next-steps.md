@@ -1,5 +1,37 @@
 # Next steps (as of 2026-11-06)
 
+## Typed C imports pass scoped gates; defining-owner gap remains (2026-11-06)
+
+Compiler93fc supports typed C scalar/float/unit and recorded opaque/pointer
+imports, with explicit effects, checked ABI plans, non-null guards and no
+foreign total-body authority. Canonical interfaces match Native serialized
+foreign/value rows. C-only interfaces may accompany a library object while
+all represented object module identities remain exact. Direct and facade
+opaque-pointer imports execute successfully.
+
+All10 affected groups pass18 Rust tests, with17 permanent real C clients
+against optimized C code,48 zero-leak reports, two rehashed ABI disagreements,
+a changed represented-object identity, a schema-valid matching identity/type
+pure-body forgery and three invalid source signatures. Six narrow signed and
+unsigned C cases independently check direct literals and C-returned values.
+All44 exact compiler inputs pass both Native checking and the audited
+Cinch-built5f2f Stage3 source checker. See
+`bootstrap/current-typed-foreign-results.json`.
+
+An added owner control exposes a remaining bug: Host can claim the opaque
+identity Host.Nested.Handle without admitting its defining Host.Nested
+module. This is a confirmed incorrectly accepted contract, retained in
+`bootstrap/current-foreign-owner-counterexample.json`; the scoped passing
+gates do not close it. Defining-owner validation is the next repair.
+
+All nine original API groups run unchanged: seven pass. Kinds now passes the
+C declaration and reaches public application formatting (`((Vec 0) a)`);
+source-prelude replacement remains refused. Aggregates, owned/deallocator
+protocols and higher-order foreign values are explicit boundaries. The earlier
+5f2f bootstrap proof is retained on its exact source. A matching new bootstrap,
+complete105-target and14-check acceptance, external language parity and every
+Acceptance1-5 requirement remain open.
+
 ## Actual Stage3 external language parity exposes further gaps (2026-11-06)
 
 The complete original external behavioral module now runs through the audited

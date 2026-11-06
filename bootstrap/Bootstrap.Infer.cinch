@@ -5,6 +5,7 @@ module Bootstrap.Infer where
 
   import Bootstrap.Ast
   import Bootstrap.Type
+  import Bootstrap.Foreign (ForeignPlan, foreign-plan, foreign-document)
   import Bootstrap.Index
   import Bootstrap.Total
   import Bootstrap.BodyContract
@@ -35,6 +36,7 @@ module Bootstrap.Infer where
   export Elaboration, elaboration-errors, elaboration-bindings, elaboration-contexts, elaboration-core
   export elaboration-core-contracts-closed
   export CheckedBinding, checked-name, checked-scheme, checked-role, checked-body-binding, checked-guarded-binding, checked-method-matches, checked-conditional-target
+  export checked-foreign-plan
   export elaboration-declarations, elaboration-data, elaboration-effects, elaboration-classes, elaboration-class-context, elaboration-instances
 
   -- Surface templates live only in this elaboration context. Checked
@@ -68,6 +70,7 @@ module Bootstrap.Infer where
   context-with-source-class description context = case context of MkTypeContext kinds aliases active observers effects source-classes -> MkTypeContext kinds aliases active observers effects (Cons description source-classes)
   data CheckedBinding where
     MkCheckedBinding :: String -> Scheme -> String -> CheckedBinding
+    MkForeignBinding :: String -> Scheme -> ForeignPlan -> CheckedBinding
     MkBodyBinding :: BodyBinding -> CheckedBinding
     MkBodyContext :: BodyBindings -> CheckedBinding
     MkMethodBinding :: String -> Scheme -> String -> Nat -> CheckedBinding
@@ -82,11 +85,11 @@ module Bootstrap.Infer where
     MkErasedBinding :: String -> UType -> Nat -> CheckedBinding
     MkSyntaxBinding :: String -> CheckedBinding
   checked-name :: CheckedBinding -> String
-  checked-name b = case b of MkBodyContext context -> ""; MkBodyBinding binding -> binding-name binding; MkCheckedBinding name sc role -> name; MkMethodBinding name sc owner slot -> name; MkConditionalBinding name owner slot dictionary head sc guarded -> name; MkGivenBinding name ty symbol -> name; MkLocalBinding name sc id level -> name; MkValueBinding name sc id level value -> name; MkIntrinsicBinding name sc symbol -> name; MkProofBinding fact -> ""; MkErasedBinding name predicate id -> name; MkSyntaxBinding name -> name
+  checked-name b = case b of MkBodyContext context -> ""; MkBodyBinding binding -> binding-name binding; MkCheckedBinding name sc role -> name; MkForeignBinding name sc plan -> name; MkMethodBinding name sc owner slot -> name; MkConditionalBinding name owner slot dictionary head sc guarded -> name; MkGivenBinding name ty symbol -> name; MkLocalBinding name sc id level -> name; MkValueBinding name sc id level value -> name; MkIntrinsicBinding name sc symbol -> name; MkProofBinding fact -> ""; MkErasedBinding name predicate id -> name; MkSyntaxBinding name -> name
   checked-scheme :: CheckedBinding -> Scheme
-  checked-scheme b = case b of MkBodyContext context -> mono UError; MkBodyBinding binding -> binding-scheme binding; MkCheckedBinding name sc role -> sc; MkMethodBinding name sc owner slot -> sc; MkConditionalBinding name owner slot dictionary head sc guarded -> sc; MkGivenBinding name ty symbol -> mono ty; MkLocalBinding name sc id level -> sc; MkValueBinding name sc id level value -> sc; MkIntrinsicBinding name sc symbol -> sc; MkProofBinding fact -> mono UError; MkErasedBinding name predicate id -> mono predicate; MkSyntaxBinding name -> mono UError
+  checked-scheme b = case b of MkBodyContext context -> mono UError; MkBodyBinding binding -> binding-scheme binding; MkCheckedBinding name sc role -> sc; MkForeignBinding name sc plan -> sc; MkMethodBinding name sc owner slot -> sc; MkConditionalBinding name owner slot dictionary head sc guarded -> sc; MkGivenBinding name ty symbol -> mono ty; MkLocalBinding name sc id level -> sc; MkValueBinding name sc id level value -> sc; MkIntrinsicBinding name sc symbol -> sc; MkProofBinding fact -> mono UError; MkErasedBinding name predicate id -> mono predicate; MkSyntaxBinding name -> mono UError
   checked-role :: CheckedBinding -> String
-  checked-role b = case b of MkBodyContext context -> "body-context"; MkBodyBinding binding -> binding-role binding; MkCheckedBinding name sc role -> role; MkMethodBinding name sc owner slot -> "method"; MkConditionalBinding name owner slot dictionary head sc guarded -> "external"; MkGivenBinding name ty symbol -> "dictionary"; MkLocalBinding name sc id level -> "local"; MkValueBinding name sc id level value -> "local"; MkIntrinsicBinding name sc symbol -> "intrinsic"; MkProofBinding fact -> "proof"; MkErasedBinding name predicate id -> "erased-proof"; MkSyntaxBinding name -> "builtin-syntax"
+  checked-role b = case b of MkBodyContext context -> "body-context"; MkBodyBinding binding -> binding-role binding; MkCheckedBinding name sc role -> role; MkForeignBinding name sc plan -> "foreign"; MkMethodBinding name sc owner slot -> "method"; MkConditionalBinding name owner slot dictionary head sc guarded -> "external"; MkGivenBinding name ty symbol -> "dictionary"; MkLocalBinding name sc id level -> "local"; MkValueBinding name sc id level value -> "local"; MkIntrinsicBinding name sc symbol -> "intrinsic"; MkProofBinding fact -> "proof"; MkErasedBinding name predicate id -> "erased-proof"; MkSyntaxBinding name -> "builtin-syntax"
   -- Retain the declaring instance/slot for backend authorization. This
   -- does not introduce a source binding for the private implementation.
   checked-conditional-target :: CheckedBinding -> Option (String, String, Nat)
@@ -97,6 +100,8 @@ module Bootstrap.Infer where
   checked-method-matches binding name owner slot = case binding of
     MkMethodBinding actual sc declaring index -> same name actual && same owner declaring && slot == index
     other -> False
+  checked-foreign-plan :: CheckedBinding -> Option ForeignPlan
+  checked-foreign-plan binding = case binding of MkForeignBinding name scheme plan -> Some plan; other -> None
   checked-body-binding :: CheckedBinding -> Option BodyBinding
   checked-body-binding binding = case binding of MkBodyBinding body -> Some body; other -> None
   data Elaboration where
@@ -257,7 +262,9 @@ module Bootstrap.Infer where
       other -> primitive-type name)
     else primitive-type name
   primitive-kinds :: TypeContext
-  primitive-kinds = MkTypeContext (array-kinds <> Cons ("b.Scope", scope-kind) (Cons ("b.Task", task-kind) (Cons ("b.Io", KFun KRegion KType) (Cons ("b.Dec", KFun KProp KType) (map-primitive ["Int", "Nat", "Bool", "Unit", "()", "String", "Char", "Bytes", "Sym", "Isize", "Usize", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "F32", "F64"])) ))) Nil Nil [ByteObservation "#kernel.bytes-length" None] Nil Nil
+  primitive-kinds = MkTypeContext (foreign-pointer-kinds <> array-kinds <> Cons ("b.Scope", scope-kind) (Cons ("b.Task", task-kind) (Cons ("b.Io", KFun KRegion KType) (Cons ("b.Dec", KFun KProp KType) (map-primitive ["Int", "Nat", "Bool", "Unit", "()", "String", "Char", "Bytes", "Sym", "Isize", "Usize", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "F32", "F64"])) ))) Nil Nil [ByteObservation "#kernel.bytes-length" None] Nil Nil
+  foreign-pointer-kinds :: List (String, Kind)
+  foreign-pointer-kinds = [("RawPtr", KFun KType KType), ("Borrowed", KFun KType KType), ("MaybeNull", KFun KType KType)]
   array-kinds :: List (String, Kind)
   array-kinds = if array-type-name "Array" then [("Array", KFun KType KType), ("Tensor", KFun KType KType), ("Columnar", KFun KType KType)] else Nil
   map-primitive :: List String -> List (String, Kind)
@@ -860,10 +867,10 @@ module Bootstrap.Infer where
     other -> bad (type-expr-span labels) "malformed effect label spine" st
   convert-effect :: TypeContext -> List (String, UType) -> TypeExpr -> Store -> (UType, Store)
   convert-effect kinds locals label st = case label of
-    TName s name -> if has name ["Diverge", "Blocking", "Global", "Fail", "Reentrant", "ThreadAffine"] then (UCon name KEffect, st)
+    TName s name -> if same name "IO" then (UCon "#kernel.ForeignIO" KEffect, st) else if has name ["Diverge", "Blocking", "Global", "Fail", "Reentrant", "ThreadAffine"] then (UCon name KEffect, st)
       else convert-declared-effect kinds locals label st
     TApp s (TName h name) (TArg a (TName r region) (TArgsEnd end)) ->
-      if has name ["IO", "Async", "Cancel", "Eval"] then (case lookup-local region locals of
+      if has name ["IO", "Async", "Cancel", "Eval", "Foreign"] then (case lookup-local region locals of
         Some ty -> if kind-equal (type-kind ty) KRegion then (UApp (UCon name (KFun KRegion KEffect)) ty, st)
           else bad r "effect argument must have kind Region" st
         None -> bad r "unbound effect region" st)
@@ -1010,7 +1017,7 @@ module Bootstrap.Infer where
   region-names ty = case ty of
     TApp s (TName h name) (TArg a (TName r owner) (TArg b (TName t region) (TArgsEnd end))) -> if has name ["Scope", "b.Scope"] then [owner, region] else Nil
     TApp s (TName h name) (TArg a (TName r region) (TArg b error (TArg c value (TArgsEnd end)))) -> if has name ["Task", "b.Task"] then [region] else region-names error <> region-names value
-    TApp s (TName h name) (TArg a (TName r region) (TArgsEnd end)) -> if has name ["Io", "b.Io", "IO", "Async", "Cancel", "Eval"] then [region] else Nil
+    TApp s (TName h name) (TArg a (TName r region) (TArgsEnd end)) -> if has name ["Io", "b.Io", "IO", "Async", "Cancel", "Eval", "Foreign"] then [region] else Nil
     TApp s f xs -> region-names f <> region-names xs
     TFun s a b -> region-names a <> region-names b
     TFunEff s a row b -> region-names a <> region-names row <> region-names b
@@ -1126,13 +1133,14 @@ module Bootstrap.Infer where
     Nil -> (kinds, st)
     Cons (DInterface sp owner hash metadata) rest -> case imported-byte-observers sp owner (field "foreign" (field "exports" metadata)) kinds st of
       (more, checked) -> case imported-array-observers sp owner (field "foreign" (field "exports" metadata)) more checked of
-        (complete, ready) -> collect-kinds rest complete ready
+        (complete, ready) -> case foreign-opaque-kinds sp owner (field "types" (field "exports" metadata)) complete ready of
+          (with-opaque, checked-opaque) -> collect-kinds rest (context-add-alias (DInterface sp owner hash metadata) with-opaque) checked-opaque
     Cons d rest -> case d of
       -- An abstract carrier supplies a checked kind, never a constructor
       -- family. In particular it cannot justify an empty-case proof.
       DOpaque s name ps result -> case parameters False kinds Nil ps 0 Nil st of
         (qs, sq) -> case add-kind s name (kind-arrow qs) kinds (opaque-result-kind s result (declaration-kind-errors s qs sq)) of
-          (ks, sk) -> collect-kinds rest ks sk
+          (ks, sk) -> collect-kinds rest (context-add-alias d ks) sk
       DRefine s name ps binder predicate -> case parameters False kinds Nil ps 0 Nil st of
         (qs, sq) -> case add-kind s name (kind-arrow qs) kinds (declaration-kind-errors s qs sq) of
           (ks, sk) -> collect-kinds rest (context-add-alias d ks) sk
@@ -1165,8 +1173,8 @@ module Bootstrap.Infer where
               else if same variety "data" || same variety "opaque" || same variety "signature" then
                 case imported-kinds kinds (field "parameters" metadata) st of
                   (qs, sq) -> case context-kind name kinds of
-                    Some old -> collect-kinds rest kinds sq
-                    None -> collect-kinds rest (context-add-kind name (kind-arrow qs) kinds) sq
+                    Some old -> collect-kinds rest (context-add-alias d kinds) sq
+                    None -> collect-kinds rest (context-add-alias d (context-add-kind name (kind-arrow qs) kinds)) sq
               else collect-kinds rest kinds (add-error s "imported class/refinement type needs kind and proof elaboration" st)
             other -> collect-kinds rest kinds (add-error s "imported type has no declaration kind" st)
         else collect-kinds rest kinds st
@@ -1522,6 +1530,7 @@ module Bootstrap.Infer where
     if same category "builtin" then register-kernel sp name metadata classes kinds env st
     else if same category "builtin-syntax" then register-decision-syntax sp name metadata env (check-kernel-cache sp name category ty classes kinds st)
     else if same category "builtin-constructor" then register-decision-constructor sp name metadata env (check-kernel-cache sp name category ty classes kinds st)
+    else if same category "value" && (case imported-foreign-row (case field "symbol" metadata of JStr identity -> identity; other -> "") (context-aliases kinds) of Some row -> True; None -> False) then register-imported-foreign sp name ty metadata classes kinds env st
     else if same category "method" then
       case (field "class" metadata, field "slot" metadata, resolved-text metadata) of
         (JStr identity, JNum slot, Some text) -> if slot < 0 then (env, add-error sp "negative method dictionary slot" st)
@@ -1742,7 +1751,7 @@ module Bootstrap.Infer where
       None -> register-monomorphic-intrinsic sp symbol name syntax classes kinds env st
   register-monomorphic-intrinsic :: Span -> String -> String -> TypeExpr -> List (String, Kind) -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   register-monomorphic-intrinsic sp symbol name syntax classes kinds env st = case intrinsic-contract symbol of
-      None -> (env, add-error sp "foreign declarations are not supported without a checked runtime intrinsic contract" st)
+      None -> register-foreign sp symbol name syntax classes kinds env st
       Some (text, external) -> case make-scheme False classes kinds Nil syntax st of
         (sc, checked) -> case (scheme-params sc, scheme-requirements sc) of
           (Nil, Nil) -> case parse-scheme symbol (string-to-bytes text) of
@@ -1755,6 +1764,89 @@ module Bootstrap.Infer where
                   else unify sp (scheme-body sc) ty prepared)
             other -> (env, add-error sp "invalid kernel intrinsic contract" checked)
           other -> (env, add-error sp "runtime intrinsic cannot be polymorphic or constrained" checked)
+  foreign-opaque-names :: List Decl -> List String
+  foreign-opaque-names declarations = case declarations of
+    Nil -> Nil
+    Cons (DOpaque sp name params result) rest -> Cons name (foreign-opaque-names rest)
+    Cons (DExternal sp name category syntax metadata) rest -> if same category "type" && (case field "kind" metadata of JStr variety -> same variety "opaque"; other -> False) then Cons name (foreign-opaque-names rest) else foreign-opaque-names rest
+    Cons other rest -> foreign-opaque-names rest
+  foreign-owner-prefix :: List Char -> List Char -> Bool
+  foreign-owner-prefix wanted actual = case wanted of
+    Nil -> True
+    Cons first rest -> case actual of Cons next more -> char-code first == char-code next && foreign-owner-prefix rest more; Nil -> False
+  -- Foreign display schemes deliberately carry no portable body authority.
+  -- Their nominal arguments still need the actual defining opaque header,
+  -- even when a client mentions only the imported function, not the type.
+  -- Register its canonical identity without creating a source-visible alias,
+  -- constructor, family or empty-case witness. Facades cannot redefine it.
+  foreign-opaque-kinds :: Span -> String -> Json -> TypeContext -> Store -> (TypeContext, Store)
+  foreign-opaque-kinds sp owner rows kinds st = case rows of
+    JArr row rest -> case (field "kind" row, field "identity" row) of
+      (JStr variety, JStr identity) -> if not (same variety "opaque" && foreign-owner-prefix (unpack (string-concat owner ".")) (unpack identity)) then foreign-opaque-kinds sp owner rest kinds st else
+        (case (field "ctors" row, field "fields" row) of
+          (JArrEnd, JArrEnd) -> case imported-kinds kinds (field "parameters" row) st of
+            (params, prepared) -> let name = interface-global identity in let expected = kind-arrow params in
+              let declaration = DExternal sp name "type" None row in
+              case context-kind name kinds of
+                Some prior -> foreign-opaque-kinds sp owner rest (context-add-alias declaration kinds)
+                  (if kind-equal prior expected then prepared else add-error sp "foreign opaque header conflicts with its defining kind" prepared)
+                None -> foreign-opaque-kinds sp owner rest (context-add-alias declaration (context-add-kind name expected kinds)) prepared
+          other -> foreign-opaque-kinds sp owner rest kinds (add-error sp "foreign opaque header cannot grant constructors or fields" st))
+      other -> foreign-opaque-kinds sp owner rest kinds st
+    JArrEnd -> (kinds, st)
+    other -> (kinds, add-error sp "foreign nominal headers need an actual type table" st)
+  imported-foreign-entry :: String -> String -> Json -> Option Json
+  imported-foreign-entry identity owner rows = case rows of
+    JArr row rest -> if (case (field "symbol" row, field "kind" row) of
+      (JStr local, JStr direction) -> same direction "import" && same identity (string-concat-all [owner, ".", local])
+      other -> False) then Some row else imported-foreign-entry identity owner rest
+    other -> None
+  imported-foreign-row :: String -> List Decl -> Option Json
+  imported-foreign-row identity declarations = case declarations of
+    Nil -> None
+    Cons (DInterface sp owner hash metadata) rest -> (case imported-foreign-entry identity owner (field "foreign" (field "exports" metadata)) of Some row -> Some row; None -> imported-foreign-row identity rest)
+    Cons other rest -> imported-foreign-row identity rest
+  foreign-import-nominal :: String -> List Decl -> Option String
+  foreign-import-nominal identity declarations = case declarations of
+    Nil -> None
+    Cons (DExternal sp name category syntax metadata) rest -> if same category "type" && (case field "identity" metadata of JStr actual -> same actual identity; other -> False) then Some name else foreign-import-nominal identity rest
+    Cons other rest -> foreign-import-nominal identity rest
+  qualify-foreign-type :: List Decl -> TypeExpr -> TypeExpr
+  qualify-foreign-type declarations syntax = case syntax of
+    TName sp name -> (case foreign-import-nominal name declarations of Some actual -> TName sp actual; None -> syntax)
+    TApp sp head args -> TApp sp (qualify-foreign-type declarations head) (qualify-foreign-type declarations args)
+    TArg sp first rest -> TArg sp (qualify-foreign-type declarations first) (qualify-foreign-type declarations rest)
+    TFun sp domain result -> TFun sp (qualify-foreign-type declarations domain) (qualify-foreign-type declarations result)
+    TFunEff sp domain row result -> TFunEff sp (qualify-foreign-type declarations domain) (qualify-foreign-type declarations row) (qualify-foreign-type declarations result)
+    TForall sp params body -> TForall sp params (qualify-foreign-type declarations body)
+    TRow sp labels tail -> TRow sp (qualify-foreign-type declarations labels) tail
+    other -> syntax
+  register-imported-foreign :: Span -> String -> TypeExpr -> Json -> List (String, Kind) -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-imported-foreign sp name syntax metadata classes kinds env st = case field "symbol" metadata of
+    JStr identity -> case imported-foreign-row identity (context-aliases kinds) of
+      None -> (env, add-error sp "imported foreign value has no defining ABI contract" st)
+      Some row -> case (field "external" row, field "abi" row, field "resolved" metadata, field "total_body" metadata) of
+        (JStr symbol, JStr abi, JNull, JNull) -> if not (same abi "ccall") then (env, add-error sp "imported foreign ABI is unsupported" st) else
+          (case make-scheme False classes kinds Nil (qualify-foreign-type (context-aliases kinds) syntax) st of
+            (scheme, checked) -> let actual = map-scheme-types (normalize checked) scheme in
+              case foreign-plan 64 (foreign-opaque-names (context-aliases kinds)) symbol actual of
+                Err error -> (env, add-error sp error checked)
+                Ok plan -> case (field "symbol" row, foreign-document (case field "symbol" row of JStr local -> local; other -> "") plan) of
+                  (JStr local, Ok expected) -> if bytes-compare (canonical-bytes row) (canonical-bytes expected) /= 0 then (env, add-error sp "imported foreign type and ABI contract disagree" checked) else
+                    (case lookup-binding name env of
+                      Some prior -> (env, add-error sp "duplicate imported foreign binding" checked)
+                      None -> (Cons (MkForeignBinding name actual plan) env, check-imported-value sp actual metadata checked))
+                  other -> (env, add-error sp "imported foreign contract is not representable" checked))
+        other -> (env, add-error sp "foreign value cannot grant resolved total-body authority or an unchecked ABI" st)
+    other -> (env, add-error sp "foreign value is missing its defining identity" st)
+  register-foreign :: Span -> String -> String -> TypeExpr -> List (String, Kind) -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-foreign sp symbol name syntax classes kinds env st = case make-scheme False classes kinds Nil syntax st of
+    (scheme, checked) -> let actual = map-scheme-types (normalize checked) scheme in
+      case foreign-plan 64 (foreign-opaque-names (context-aliases kinds)) symbol actual of
+        Err error -> (env, add-error sp error checked)
+        Ok plan -> (case lookup-binding name env of
+          Some prior -> (env, add-error sp "duplicate foreign binding" checked)
+          None -> (Cons (MkForeignBinding name actual plan) env, checked))
   array-canonical-type :: TypeExpr -> TypeExpr
   array-canonical-type syntax = case syntax of
     TName sp name -> if same name "List" || same name "Option" then TName sp (interface-global (string-concat "Data.Core." name)) else syntax
@@ -3146,6 +3238,7 @@ module Bootstrap.Infer where
     MkBodyBinding binding -> b
     MkBodyContext context -> b
     MkCheckedBinding n sc role -> MkCheckedBinding n (map-scheme-types (normalize st) sc) role
+    MkForeignBinding n sc plan -> MkForeignBinding n sc plan
     MkMethodBinding n sc owner slot -> MkMethodBinding n (map-scheme-types (normalize st) sc) owner slot
     MkConditionalBinding n owner slot dictionary head sc guarded -> MkConditionalBinding n owner slot dictionary (normalize st head) (map-scheme-types (normalize st) sc) guarded
     MkGivenBinding n ty symbol -> MkGivenBinding n (normalize st ty) symbol
@@ -3163,6 +3256,7 @@ module Bootstrap.Infer where
     Cons binding rest -> global-bindings rest (case binding of
       MkBodyBinding binding -> add-global (GlobalBody (GlobalValue (binding-name binding) (binding-role binding) (binding-scheme binding)) binding) globals
       MkCheckedBinding name sc role -> add-global (GlobalValue name role sc) globals
+      MkForeignBinding name sc plan -> add-global (GlobalValue name "foreign" sc) globals
       MkMethodBinding name sc owner slot -> add-global (GlobalMethod name owner slot sc) globals
       MkConditionalBinding name owner slot dictionary head sc guarded -> add-global (case guarded of Some binding -> GlobalGuardedBody (GlobalValue name "external" sc) binding; None -> GlobalValue name "external" sc) globals
       MkIntrinsicBinding name sc symbol -> add-global (GlobalValue symbol "intrinsic" sc) globals

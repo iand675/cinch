@@ -107,6 +107,7 @@ pub fn project(tag: &str, files: &[(&str, &str)]) -> PathBuf {
     if files.iter().any(|(name, _)| matches!(*name, "Bootstrap.Core.cinch" | "Bootstrap.Dictionary.cinch" | "Bootstrap.Infer.cinch" | "Bootstrap.Check.cinch" | "Bootstrap.Load.cinch" | "Bootstrap.Contracts.cinch" | "Bootstrap.Nominal.cinch")) {
         for (name, source) in [
             ("Bootstrap.Nominal.cinch", include_str!("../../../bootstrap/Bootstrap.Nominal.cinch")),
+            ("Bootstrap.Foreign.cinch", include_str!("../../../bootstrap/Bootstrap.Foreign.cinch")),
             ("Bootstrap.Builtin.cinch", include_str!("../../../bootstrap/Bootstrap.Builtin.cinch")),
             ("Bootstrap.Ast.cinch", include_str!("../../../bootstrap/Bootstrap.Ast.cinch")),
             ("Bootstrap.Report.cinch", include_str!("../../../bootstrap/Bootstrap.Report.cinch")),

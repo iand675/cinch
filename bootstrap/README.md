@@ -1,5 +1,13 @@
 # The bootstrap ladder
 
+Current compiler93fc adds typed C imports. Its10 affected groups pass18 tests
+and17 real C clients, but an additional nested-module opaque ownership
+control is incorrectly accepted and remains open. See
+[current evidence](current-typed-foreign-results.json) and the
+[owner counterexample](current-foreign-owner-counterexample.json). The earlier
+5f2f four-stage proof remains scoped to its own source; matching final suites,
+external language parity and Acceptance1-5 remain required.
+
 ABI facts checkpoint (2026-11-05, source ad6733):
 `emit-runtime-library-artifact-with-object` adds real named public calls and
 owned closure accessors to checked library emission. Roots contain a checked

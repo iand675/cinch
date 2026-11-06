@@ -1,0 +1,11 @@
+{
+  "compiler": "/private/var/folders/8w/44rf3zr512nd0pd0bwb70vfm0000gn/T/cinch_boot_library_object_cli_70379_1/object-compiler",
+  "compiler_sha256": "d22f7001261b2074e7d173d7e4431a8e1a0be9aa51f2ed0db92fe0460e818787",
+  "compiler_source_sha256": "93fc828b40e7780ab253d4d257815b292bee501c351f9a0dc77fce9fad796838",
+  "diagnostics": "",
+  "exit_code": 0,
+  "full_goal_complete": false,
+  "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+  "scope": "Rehashed foreign type contract claims Host.Nested.Handle from Host despite no defining Host.Nested module being admitted; no source ABI/body semantics otherwise change.",
+  "status": "confirmed-owner-scope-gap"
+}

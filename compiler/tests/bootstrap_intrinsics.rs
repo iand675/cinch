@@ -53,7 +53,7 @@ fn runtime_intrinsics_check_their_contract_and_retain_canonical_symbols() {
         ("polymorphic", "foreign import ccall \"cinch.runtime.textSha256\" native :: forall a. a -> a", Some("cannot be polymorphic")),
         ("wrong effects", "foreign import ccall \"cinch.runtime.textSha256\" native :: forall r. Bytes ->{IO r} Bytes", Some("cannot be polymorphic")),
         ("unknown intrinsic", "foreign import ccall \"cinch.runtime.textImaginary\" native :: Bytes -> Bytes", Some("checked runtime intrinsic contract")),
-        ("unknown C symbol", "foreign import ccall \"untrusted_hash\" native :: Bytes -> Bytes", Some("checked runtime intrinsic contract")),
+        ("unknown C symbol", "foreign import ccall \"untrusted_hash\" native :: Bytes -> Bytes", Some("accounted result effects")),
         ("wrong ABI", "foreign import component \"cinch.runtime.textSha256\" native :: Bytes -> Bytes", Some("requires foreign import ccall")),
         ("export", "foreign export ccall \"cinch.runtime.textSha256\" native :: Bytes -> Bytes", Some("requires foreign import ccall")),
         ("duplicate", "foreign import ccall \"cinch.runtime.textSha256\" native :: Bytes -> Bytes\n  foreign import ccall \"cinch.runtime.textMd5\" native :: Bytes -> Bytes", Some("duplicate intrinsic binding")),

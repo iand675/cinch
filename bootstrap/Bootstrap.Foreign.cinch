@@ -1,0 +1,199 @@
+-- C boundary plans are built from checked types. A source name or a display
+-- string never supplies a calling convention, ownership fact or total body.
+module Bootstrap.Foreign where
+  import Bootstrap.Type
+  import Bootstrap.Core (contract-scheme-closed)
+  import Bootstrap.ExportType (export-type)
+  import Data.Json
+  import Data.Nat (nat-to-int)
+  import Text.Show (nat-to-string)
+  import Algebra.Semigroup
+
+  export ForeignPlan, ForeignParameter, foreign-plan, foreign-parameters, foreign-result
+  export foreign-symbol, foreign-scheme, foreign-parameter-type, foreign-class
+  export foreign-width, foreign-signed, foreign-nullable, foreign-role
+  export foreign-pointer, foreign-document, foreign-display-scheme
+
+  data ForeignParameter where
+    Parameter :: UType -> String -> String -> Nat -> Nat -> Bool -> Bool -> ForeignParameter
+  data ForeignPlan where
+    Plan :: String -> Scheme -> List ForeignParameter -> ForeignParameter -> ForeignPlan
+  foreign-symbol :: ForeignPlan -> String
+  foreign-symbol plan = case plan of Plan symbol scheme params result -> symbol
+  foreign-scheme :: ForeignPlan -> Scheme
+  foreign-scheme plan = case plan of Plan symbol scheme params result -> scheme
+  foreign-parameters :: ForeignPlan -> List ForeignParameter
+  foreign-parameters plan = case plan of Plan symbol scheme params result -> params
+  foreign-result :: ForeignPlan -> ForeignParameter
+  foreign-result plan = case plan of Plan symbol scheme params result -> result
+  foreign-parameter-type :: ForeignParameter -> UType
+  foreign-parameter-type parameter = case parameter of Parameter ty category role width align signed nullable -> ty
+  foreign-class :: ForeignParameter -> String
+  foreign-class parameter = case parameter of Parameter ty category role width align signed nullable -> category
+  foreign-width :: ForeignParameter -> Nat
+  foreign-width parameter = case parameter of Parameter ty category role width align signed nullable -> width
+  foreign-signed :: ForeignParameter -> Bool
+  foreign-signed parameter = case parameter of Parameter ty category role width align signed nullable -> signed
+  foreign-nullable :: ForeignParameter -> Bool
+  foreign-nullable parameter = case parameter of Parameter ty category role width align signed nullable -> nullable
+  foreign-role :: ForeignParameter -> String
+  foreign-role parameter = case parameter of Parameter ty category role width align signed nullable -> role
+  same :: String -> String -> Bool
+  same first second = string-compare first second == 0
+  has :: String -> List String -> Bool
+  has name names = case names of Nil -> False; Cons first rest -> same name first || has name rest
+  -- Pointer and scalar sizes here are the compiler's existing 64-bit target
+  -- ABI, not the generator host's sizeof. Other target word sizes refuse.
+  scalar :: String -> Option (Nat, Bool)
+  scalar name = if has name ["I8", "U8"] then Some (1, same name "I8")
+    else if has name ["I16", "U16"] then Some (2, same name "I16")
+    else if has name ["I32", "U32", "F32"] then Some (4, same name "I32")
+    else if has name ["I64", "U64", "Isize", "Usize", "F64"] then Some (8, same name "I64" || same name "Isize")
+    else None
+  foreign-pointer :: UType -> Bool
+  foreign-pointer ty = case ty of
+    UApp (UCon name kind) pointee -> has name ["RawPtr", "Borrowed", "MaybeNull"]
+      && kind-equal kind (KFun KType KType) && valid-type pointee && kind-equal (type-kind pointee) KType
+    other -> False
+  head-name :: UType -> Option String
+  head-name ty = case ty of UCon name kind -> Some name; UApp head argument -> head-name head; other -> None
+  parameter :: List String -> UType -> Result String ForeignParameter
+  parameter abstracts ty = if not (valid-type ty && kind-equal (type-kind ty) KType) then Err "foreign boundary needs a closed proper carrier" else case ty of
+    UCon name KType -> if same name "Unit" then Ok (Parameter ty "unit" "value" 0 1 False False)
+      else (case scalar name of
+        Some (width, signed) -> Ok (Parameter ty "scalar" "value" width width signed False)
+        None -> if not (has name ["Int", "Nat", "Bool", "Bytes", "String", "Char", "Sym"]) && has name abstracts then Ok (Parameter ty "ptr" "opaque-handle" 8 8 False False) else Err "type has no supported C representation at the foreign boundary")
+    UApp (UCon name kind) pointee -> if foreign-pointer ty then
+        Ok (Parameter ty "ptr" (if same name "RawPtr" then "raw" else if same name "Borrowed" then "borrowed" else "maybe-null") 8 8 False (same name "MaybeNull"))
+      else if has name ["Owned", "Retained", "Out"] then Err "foreign ownership, retention and out-cell protocols require their checked resource plans"
+      else (case head-name ty of Some owner -> if has owner abstracts then Ok (Parameter ty "ptr" "opaque-handle" 8 8 False False) else Err "aggregate or higher-order type has no supported C representation"; None -> Err "foreign carrier is not a recorded C representation")
+    other -> Err "refined, polymorphic, proof and function values cannot be assumed to have a C representation"
+  region-quantifiers :: List Quant -> Bool
+  region-quantifiers qs = case qs of Nil -> True; Cons q rest -> kind-equal (quant-kind q) KRegion && region-quantifiers rest
+  closed-labels :: UType -> Bool
+  closed-labels labels = case labels of UEnd -> True; UArg label rest -> kind-equal (type-kind label) KEffect && valid-type label && closed-labels rest; other -> False
+  closed-row :: UType -> Bool
+  closed-row row = case row of URow labels -> closed-labels labels; other -> False
+  accounted-labels :: UType -> Bool
+  accounted-labels labels = case labels of
+    UArg label rest -> (case head-name label of Some name -> has name ["Foreign", "IO", "#kernel.ForeignIO", "Global", "Blocking", "Diverge", "Fail", "Reentrant", "ThreadAffine"]; None -> False) || accounted-labels rest
+    other -> False
+  envelope :: UType -> Bool
+  envelope ty = case ty of
+    UFun domain result -> envelope-next (URow UEnd) result
+    UFunEff domain row result -> closed-row row && envelope-next row result
+    UPi id name domain row result -> closed-row row && envelope-next row result
+    other -> False
+  envelope-next :: UType -> UType -> Bool
+  envelope-next row result = case result of
+    UFun domain more -> envelope result
+    UFunEff domain effects more -> envelope result
+    UPi id name domain effects more -> envelope result
+    other -> case row of URow labels -> accounted-labels labels; other -> False
+  parameters :: List String -> UType -> List ForeignParameter -> Result String (List ForeignParameter, ForeignParameter)
+  parameters abstracts ty backwards = case ty of
+    UFun domain result -> add-parameter abstracts domain result backwards
+    UFunEff domain row result -> add-parameter abstracts domain result backwards
+    UPi id name domain row result -> add-parameter abstracts domain result backwards
+    other -> case parameter abstracts ty of Err error -> Err error; Ok result -> Ok (reverse backwards, result)
+  add-parameter :: List String -> UType -> UType -> List ForeignParameter -> Result String (List ForeignParameter, ForeignParameter)
+  add-parameter abstracts domain result backwards = case parameter abstracts domain of
+    Err error -> Err error
+    Ok argument -> parameters abstracts result (Cons argument backwards)
+  identifier-rest :: List Char -> Bool
+  identifier-rest chars = case chars of
+    Nil -> True
+    Cons char rest -> let n = char-code char in
+      ((n >= 65 && n <= 90) || (n >= 97 && n <= 122) || (n >= 48 && n <= 57) || n == 95) && identifier-rest rest
+  identifier :: String -> Bool
+  identifier name = case unpack name of
+    Nil -> False
+    Cons char rest -> let n = char-code char in ((n >= 65 && n <= 90) || (n >= 97 && n <= 122) || n == 95) && identifier-rest rest
+  foreign-plan :: Nat -> List String -> String -> Scheme -> Result String ForeignPlan
+  foreign-plan word-bits abstracts symbol scheme = if word-bits /= 64 then Err "foreign boundary target ABI is not supported"
+    else if not (identifier symbol) then Err "foreign symbol has no checked runtime intrinsic contract or valid C identifier"
+    else if not (contract-scheme-closed scheme) then Err "foreign scheme has an unbound or unresolved contract"
+    else if not (region-quantifiers (scheme-params scheme)) || list-length (scheme-requirements scheme) /= 0 then Err "foreign binding cannot be polymorphic or constrained"
+    else if not (envelope (scheme-body scheme)) then Err "foreign import needs a function type, closed explicit rows and accounted result effects"
+    else case parameters abstracts (scheme-body scheme) Nil of
+      Err error -> Err error
+      Ok (arguments, result) -> Ok (Plan symbol scheme arguments result)
+  strings :: String -> List String -> String
+  strings delimiter values = case values of Nil -> ""; Cons first Nil -> first; Cons first rest -> string-concat-all [first, delimiter, strings delimiter rest]
+  visible-regions :: List Quant -> List (Nat, UType)
+  visible-regions qs = case qs of Nil -> Nil; Cons q rest -> Cons (quant-id q, UCon (quant-name q) KRegion) (visible-regions rest)
+  append :: Result String String -> String -> Result String String -> Result String String
+  append first delimiter second = case (first, second) of
+    (Ok a, Ok b) -> Ok (string-concat-all [a, delimiter, b])
+    (Err error, other) -> Err error
+    (other, Err error) -> Err error
+  surround :: Result String String -> Result String String
+  surround result = case result of Ok value -> Ok (string-concat-all ["(", value, ")"]); Err error -> Err error
+  boundary-type-text :: UType -> Result String String
+  boundary-type-text ty = case ty of
+    UApp head arg -> if foreign-pointer ty then append (boundary-type-text head) " " (if foreign-pointer arg then surround (boundary-type-text arg) else boundary-type-text arg)
+      else append (boundary-type-text head) " " (case arg of UApp f x -> surround (boundary-type-text arg); other -> boundary-type-text arg)
+    UFun domain result -> surround (append (boundary-type-text domain) " -> " (boundary-type-text result))
+    UFunEff domain row result -> case labels-text row of
+      Err error -> Err error
+      Ok labels -> let effects = case labels of Nil -> ""; other -> string-concat-all ["{", strings ", " labels, "}"] in
+        surround (append (boundary-type-text domain) (string-concat-all [" ->", effects, " "]) (boundary-type-text result))
+    other -> export-type ty
+  display-body :: ForeignPlan -> Result String String
+  display-body plan = let scheme = foreign-scheme plan in boundary-type-text (substitute-bound (visible-regions (scheme-params scheme)) (scheme-body scheme))
+  region-names :: List Quant -> List String
+  region-names qs = case qs of Nil -> Nil; Cons q rest -> Cons (quant-name q) (region-names rest)
+  foreign-display-scheme :: ForeignPlan -> Result String String
+  foreign-display-scheme plan = case display-body plan of
+    Err error -> Err error
+    Ok body -> let qs = scheme-params (foreign-scheme plan) in Ok (string-concat (case qs of Nil -> ""; other -> string-concat-all ["forall ", strings " " (region-names qs), " . "]) body)
+  parameter-document :: ForeignParameter -> Result String Json
+  parameter-document item = case item of
+    Parameter ty category role width align signed nullable -> case boundary-type-text ty of
+      Err error -> Err error
+      Ok spelling -> Ok (JObj "type" (JStr spelling) (JObj "class" (JStr category) (JObj "role" (JStr role)
+        (JObj "allocator" (JStr "") (JObj "nullable" (JBool nullable) (JObj "width" (JNum (nat-to-int width))
+          (JObj "align" (JNum (nat-to-int align)) (JObj "signed" (JBool signed) (JObj "offsets" JArrEnd JObjEnd)))))))))
+  parameter-documents :: List ForeignParameter -> Result String Json
+  parameter-documents params = case params of
+    Nil -> Ok JArrEnd
+    Cons first rest -> case (parameter-document first, parameter-documents rest) of
+      (Ok row, Ok more) -> Ok (JArr row more)
+      (Err error, other) -> Err error
+      (other, Err error) -> Err error
+  label-text :: UType -> Result String String
+  label-text ty = case ty of
+    UApp (UCon name kind) arg -> case export-type arg of Ok value -> Ok (string-concat-all [name, " ", value]); Err error -> Err error
+    UCon name KEffect -> Ok (if same name "#kernel.ForeignIO" then "IO" else name)
+    other -> Err "invalid checked foreign effect label"
+  effect-text :: UType -> Result String (List String)
+  effect-text ty = case ty of
+    UFun domain result -> effect-text result
+    UFunEff domain row result -> case (labels-text row, effect-text result) of
+      (Ok first, Ok rest) -> Ok (first <> rest)
+      (Err error, other) -> Err error
+      (other, Err error) -> Err error
+    UPi id name domain row result -> case (labels-text row, effect-text result) of
+      (Ok first, Ok rest) -> Ok (first <> rest)
+      (Err error, other) -> Err error
+      (other, Err error) -> Err error
+    other -> Ok Nil
+  labels-text :: UType -> Result String (List String)
+  labels-text row = case row of
+    URow labels -> labels-text labels
+    UEnd -> Ok Nil
+    UArg label rest -> case (label-text label, labels-text rest) of
+      (Ok value, Ok more) -> Ok (Cons value more)
+      (Err error, other) -> Err error
+      (other, Err error) -> Err error
+    other -> Err "foreign effect row must be closed"
+  foreign-document :: String -> ForeignPlan -> Result String Json
+  foreign-document local plan = let scheme = foreign-scheme plan in
+    case (display-body plan, parameter-documents (foreign-parameters plan), parameter-document (foreign-result plan), effect-text (substitute-bound (visible-regions (scheme-params scheme)) (scheme-body scheme))) of
+      (Ok spelling, Ok params, Ok result, Ok effects) -> Ok (JObj "symbol" (JStr local) (JObj "abi" (JStr "ccall")
+        (JObj "external" (JStr (foreign-symbol plan)) (JObj "type" (JStr spelling) (JObj "effects" (JStr (strings ", " effects))
+          (JObj "notes" (JStr "foreign import") (JObj "kind" (JStr "import") (JObj "params" params (JObj "result" result (JObj "deallocator" (JStr "") JObjEnd))))))))))
+      (Err error, other, more, end) -> Err error
+      (other, Err error, more, end) -> Err error
+      (other, more, Err error, end) -> Err error
+      (other, more, end, Err error) -> Err error

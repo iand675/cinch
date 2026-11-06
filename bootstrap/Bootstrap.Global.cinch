@@ -125,7 +125,7 @@ module Bootstrap.Global where
   has-name :: String -> List String -> Bool
   has-name name names = case names of Nil -> False; Cons key rest -> same key name || has-name name rest
   role-valid :: String -> Bool
-  role-valid role = has-name role ["value", "external", "constructor", "builtin", "intrinsic", "instance", "implicit-instance", "instance-method", "operation"]
+  role-valid role = has-name role ["value", "external", "foreign", "constructor", "builtin", "intrinsic", "instance", "implicit-instance", "instance-method", "operation"]
   root-name :: UType -> Option String
   root-name ty = case ty of UCon name kind -> Some name; UApp f x -> root-name f; other -> None
   method-self :: String -> Scheme -> Bool

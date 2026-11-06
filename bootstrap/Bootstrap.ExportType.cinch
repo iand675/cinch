@@ -41,7 +41,7 @@ module Bootstrap.ExportType where
   export-global :: String -> Result String String
   -- Resolve reserves the unencoded runtime entry spelling for Main.main.
   -- Interfaces still record its defining source identity, like every value.
-  export-global name = if same name "main" then Ok "Main.main" else case unpack name of
+  export-global name = if same name "#kernel.ForeignIO" then Ok "IO" else if same name "main" then Ok "Main.main" else case unpack name of
     Cons prefix (Cons dot rest) -> if char-code dot == 46 && char-code prefix == 105 then
       (case decode rest 0 False Nil of Ok value -> if string-length value > 0 then Ok value else Err "empty imported defining identity"; Err error -> Err error)
       else if char-code dot == 46 && char-code prefix == 109 then

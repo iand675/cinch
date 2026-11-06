@@ -1,0 +1,251 @@
+{
+  "affected_rust_tests": 18,
+  "compiler_gate": {
+    "adapter_tests": 8,
+    "binary_sha256": "b79cb59be788513db2ac12a8d542129821c07d162ca64e47667dfb0834979967",
+    "client_heap_limit": "32M",
+    "client_rc_debug": true,
+    "compiler_heap_limit": "256M",
+    "compiler_input_cases": 4,
+    "compiler_modules_checked": 44,
+    "compiler_rc_debug": false,
+    "compiler_sha256": "d22f7001261b2074e7d173d7e4431a8e1a0be9aa51f2ed0db92fe0460e818787",
+    "compiler_source_sha256": "93fc828b40e7780ab253d4d257815b292bee501c351f9a0dc77fce9fad796838",
+    "foreign_abi_mutations_refused": 2,
+    "foreign_positive_clients": 17,
+    "foreign_source_refusals": 3,
+    "foreign_well_formed_body_authority_refusals": 1,
+    "full_goal_complete": false,
+    "interface_closure": 60,
+    "layout_words": 4224,
+    "library_units": 1842,
+    "log_sha256": "928885402ea857dd2596d372e5f1dfad4540ff8006ae9809a2e6a2b6464b8d1e",
+    "metadata_sha256": "8f7591e674843091907e684c3c9e14ec71afc1b9db19ad1c7785ec3890c503c9",
+    "method_families": 26,
+    "native_rlib_sha256": "c2e3b862e212fe0d8557461ea9160e97ab23aa7d44d37113f1e2f855eec5c394",
+    "new_units": 7,
+    "object_round_trip_tests": 1,
+    "object_sha256": "e2bddac9f26372ba5c2bf361087650fbec89860df066f38520510f0b6463db64",
+    "real_new_public_and_closure_symbols": 14,
+    "represented_object_contract_refusals": 1,
+    "scope": "Actual44-module typed foreign compiler, all8 adapter tests and the complete original object test with14 real C ABI clients against an optimized C fixture plus direct and facade imported opaque-pointer clients plus an imported scalar client. Exact Native metadata oracle,2 rehashed ABI disagreements, a changed represented provider contract,3 source refusals and a well-formed total-body graph with the exact foreign symbol and I64 carrier types are checked. The matching identity/type graph still grants no pure authority to the effectful foreign operation. All48 observed compiler/client leak reports are zero. Original object IR, code, physical symbol/layout/interface inventories and failure invalidation retain independent checks. SeedNative22 is an explicit builder/provider role, not client frontend fallback. Exact44 staged-driver inputs are checked. This is not a finalStage3 compiler, complete original API/all105 suite or matching final bootstrap acceptance.",
+    "seed_native_source_sha256": "22c91cf6c1855b049207612e9d94630850e880d5a49ea3e2c57c92aff7fdbe88",
+    "source_sha256": "3f7ad05f7f4e0f904e895d00d40b916dbe02645628040d3f8fea2bd44a12f5a1",
+    "status": "passed-actual-cinch-library-object-round-trip",
+    "tests": 9,
+    "verified_at": "2026-11-06T05:36:38.577956+00:00",
+    "whole_groups": 2,
+    "zero_leak_reports": 48
+  },
+  "compiler_source_sha256": "93fc828b40e7780ab253d4d257815b292bee501c351f9a0dc77fce9fad796838",
+  "filtered": 0,
+  "full_goal_complete": false,
+  "ignored": 0,
+  "independent_facade": {
+    "abi_mutations_refused": 2,
+    "child_pid": 48579,
+    "compiler_sha256": "d22f7001261b2074e7d173d7e4431a8e1a0be9aa51f2ed0db92fe0460e818787",
+    "compiler_source_sha256": "93fc828b40e7780ab253d4d257815b292bee501c351f9a0dc77fce9fad796838",
+    "full_goal_complete": false,
+    "malformed_body_metadata_refused": 1,
+    "native_oracle_exact_foreign_row": true,
+    "native_oracle_exact_value_row": true,
+    "phase": "body-authority-refusal",
+    "pid": 28548,
+    "positive_clients": 1,
+    "rows": [
+      {
+        "exit_code": 0,
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "host-export"
+      },
+      {
+        "exit_code": 0,
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "facade-export"
+      },
+      {
+        "exit_code": 0,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "name": "fixture"
+      },
+      {
+        "exit_code": 0,
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "client-check"
+      },
+      {
+        "exit_code": 0,
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "client-emit"
+      },
+      {
+        "exit_code": 0,
+        "log_sha256": "6021f33487b85f8a9c5f9471588485ff4234e50e83be3e5c4c6e23dd0c32b455",
+        "name": "client-link"
+      },
+      {
+        "exit_code": 0,
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "client-run"
+      },
+      {
+        "exit_code": 4,
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "width-refusal"
+      },
+      {
+        "exit_code": 4,
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "nullability-refusal"
+      },
+      {
+        "exit_code": 7,
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "body-authority-refusal"
+      }
+    ],
+    "status": "passed-real-foreign-interface-facade-roundtrip",
+    "worker_slot": 0,
+    "zero_leak_reports": 1
+  },
+  "native_source_check": {
+    "bundle_sha256": "557de4ec053cd2b50c0bbf5a124577bb2312da1fb916a2e283a785b65604b9b0",
+    "checker_sha256": "f8ade79d18c37b237bdb6d8217be6a6764048bcc4ab4c449a9ba3e463e9c2f07",
+    "child_pid": 63275,
+    "compiler_modules": 44,
+    "compiler_source_sha256": "93fc828b40e7780ab253d4d257815b292bee501c351f9a0dc77fce9fad796838",
+    "exit_code": 0,
+    "full_goal_complete": false,
+    "log_sha256": "4825c38ba9e071bc3e19961e7c1bd0c1a2fcc575a5cff7e416d7f7c772597271",
+    "pid": 63268,
+    "rlib_sha256": "b9008bb6113767a9c027553cba3dc70ca05938cc2a1652c28de4670277d435ba",
+    "status": "passed",
+    "worker_slot": 3
+  },
+  "native_source_sha256": "6b567529032465cde863607185da47aa7d5f9e5ecd99a596158174fd7efa6aa7",
+  "optimized_narrow_abi": [
+    {
+      "evidence": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/typed-foreign-narrow-abi-validation-1",
+      "positive_cases": 6,
+      "status": "passed-optimized-narrow-c-abi-clients"
+    },
+    {
+      "evidence": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/typed-foreign-narrow-abi-validation-2",
+      "positive_cases": 6,
+      "status": "passed-optimized-narrow-c-abi-clients"
+    }
+  ],
+  "original_api_failed_groups": [
+    "interface_kinds",
+    "interface_prelude_overrides"
+  ],
+  "original_api_groups": 9,
+  "original_api_passed_groups": 7,
+  "remaining_owner_counterexample": {
+    "compiler": "/private/var/folders/8w/44rf3zr512nd0pd0bwb70vfm0000gn/T/cinch_boot_library_object_cli_70379_1/object-compiler",
+    "compiler_sha256": "d22f7001261b2074e7d173d7e4431a8e1a0be9aa51f2ed0db92fe0460e818787",
+    "compiler_source_sha256": "93fc828b40e7780ab253d4d257815b292bee501c351f9a0dc77fce9fad796838",
+    "diagnostics": "",
+    "exit_code": 0,
+    "full_goal_complete": false,
+    "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+    "scope": "Rehashed foreign type contract claims Host.Nested.Handle from Host despite no defining Host.Nested module being admitted; no source ABI/body semantics otherwise change.",
+    "status": "confirmed-owner-scope-gap"
+  },
+  "rows": [
+    {
+      "log": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/typed-foreign-regressions-validation-2/bootstrap_intrinsics.log",
+      "log_sha256": "c1c929a59a1df8af3ef348273fc2fa3538e5a37816e9f1453cc2c6a9871190d4",
+      "name": "bootstrap_intrinsics",
+      "status": "passed",
+      "tests": 1
+    },
+    {
+      "log": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/typed-foreign-regressions-validation-2/bootstrap_export_types.log",
+      "log_sha256": "82d9a1f6aa634181199a7ec2a17f8db9c5b7618209a657d9aca9ef30d8608896",
+      "name": "bootstrap_export_types",
+      "status": "passed",
+      "tests": 1
+    },
+    {
+      "log": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/typed-foreign-regressions-validation-2/bootstrap_export_interfaces.log",
+      "log_sha256": "3b94afd8678b81dbb22145b2b141393da626187f930521918204309755d532a4",
+      "name": "bootstrap_export_interfaces",
+      "status": "passed",
+      "tests": 1
+    },
+    {
+      "log": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/typed-foreign-regressions-validation-2/bootstrap_globals.log",
+      "log_sha256": "22f29edd432a04980aeffc268d4c9d3a9e1491464cc98a1a4e5c841d4e380f21",
+      "name": "bootstrap_globals",
+      "status": "passed",
+      "tests": 2
+    },
+    {
+      "log": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/typed-foreign-regressions-validation-2/bootstrap_effects.log",
+      "log_sha256": "55e1c57df434c23dd1e1f1ed33f5daca14ed0905f6667f0c62eab016304aa971",
+      "name": "bootstrap_effects",
+      "status": "passed",
+      "tests": 1
+    },
+    {
+      "log": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/typed-foreign-regressions-validation-2/bootstrap_runtime_ir.log",
+      "log_sha256": "379e7a1d32f28951d43d4695259acaaac8f83135c9deceb0b6997aa91d14abc8",
+      "name": "bootstrap_runtime_ir",
+      "status": "passed",
+      "tests": 1
+    },
+    {
+      "log": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/typed-foreign-regressions-validation-2/bootstrap_runtime_objects.log",
+      "log_sha256": "8c79892d61764113a3a3e0fe6535237b4b9ffc03cdce9a7c8e6bc5a4f3e53711",
+      "name": "bootstrap_runtime_objects",
+      "status": "passed",
+      "tests": 1
+    },
+    {
+      "log": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/typed-foreign-parser-validation-1/bootstrap_parse.log",
+      "log_sha256": "5feae672ad8a2745c1abb12326aa375fc7a60688daaf8d941b7de76acba7c1e1",
+      "name": "bootstrap_parse",
+      "status": "passed",
+      "tests": 1
+    },
+    {
+      "log": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/typed-foreign-full-compiler-validation-10/bootstrap_external_frontend.log",
+      "log_sha256": "16d1900989781b1df9a5c014ab16a5d00366a0323637bb6db18e59f59d001709",
+      "name": "bootstrap_external_frontend",
+      "status": "passed",
+      "tests": 8
+    },
+    {
+      "log": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/typed-foreign-full-compiler-validation-10/bootstrap_library_object.log",
+      "log_sha256": "928885402ea857dd2596d372e5f1dfad4540ff8006ae9809a2e6a2b6464b8d1e",
+      "name": "bootstrap_library_object",
+      "status": "passed",
+      "tests": 1
+    }
+  ],
+  "schema": 1,
+  "scope": "Typed C imports use actual checked ABI/effect/opaque-pointer plans, truthful Native-compatible canonical metadata, independently checked defining opaque headers and C-only dependencies without weakening represented object interface hashes. Actual44-module compiler passes10 whole affected groups and18 Rust tests;17 permanent real C clients against optimized C code and48 compiler/client zero-leak reports,2 rehashed ABI controls,1 exact represented-object identity control,1 schema-valid matching identity/type pure-body forgery and3 invalid source signatures. Six optimized narrow ABI clients independently replay both C return values and direct literal arguments. Exact44 compiler inputs are checked by the independently audited Cinch-built5f2f Stage3 with empty PATH and authenticated85 library-only contracts. Independent Host/facade/C round trip passes. All9 original API groups execute unchanged:7 pass, kinds now reaches an application-formatting failure after C metadata succeeds, and source-prelude replacement still refuses. This is not a matching final bootstrap, complete105-target or external language/Acceptance5 pass. Aggregates, owned/deallocator protocols, higher-order foreign values and source-prelude replacement remain explicit boundaries; no foreign operation gains total-body authority. A subsequently added ownership counterexample is incorrectly accepted: Host claims Host.Nested.Handle without its defining module. This known gap is retained separately and must be repaired; the scoped passing gates do not close it.",
+  "self_built_source_check": {
+    "builder_sha256": "96d695d34c9b03346d7c374d8c871c99c7ca533fb8cc20d82cff9a62fd3ca41c",
+    "builder_source_sha256": "5f2f855665956b76117ea128547ecbdf841f988a487b64ff38b983b24dd38ec4",
+    "child_pid": 70210,
+    "compiler_modules": 44,
+    "compiler_source_sha256": "93fc828b40e7780ab253d4d257815b292bee501c351f9a0dc77fce9fad796838",
+    "diagnostics": "",
+    "exit_code": 0,
+    "full_goal_complete": false,
+    "interfaces_sha256": "067ab7c76c130a53b952b9d8fa0a0cfd7702bddf64e3dae51724c0275ae98163",
+    "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+    "pid": 63318,
+    "scope": "Actual independently audited self-built5f2f Stage3 checks the exact44 staged-driver inputs of private typed-foreign compiler using55 authenticated85 library-only interfaces and an empty executable PATH. This proves actual Cinch parser/typechecker acceptance, with no client Native fallback. It does not establish matching current staged fixedpoint or full suites.",
+    "source": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/typed-foreign-self-built-check-2/source",
+    "source_sha256": "6c6aa027702901d52ad8dd07557db3e13c5553f9efc2af0df8d8eaa4ef6031db",
+    "status": "passed",
+    "worker_slot": 4
+  },
+  "status": "passed-typed-foreign-repair-gates",
+  "verified_at": "2026-11-06T05:36:39.750003+00:00",
+  "whole_affected_groups": 10
+}

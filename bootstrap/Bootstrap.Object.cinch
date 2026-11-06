@@ -218,12 +218,49 @@ module Bootstrap.Object where
       other -> Err "malformed object interface closure")
     JArrEnd -> Ok Nil
     other -> Err "missing object interface closure"
-  matching-interface :: LoadedInterface -> List LoadedInterface -> Bool
-  matching-interface wanted actual = case actual of
+  -- A C import has no implementation in the Cinch provider object. Permit
+  -- separately admitted foreign-only contracts, including facade aliases,
+  -- while retaining exact object identities for every represented module.
+  -- This only classifies physical dependencies: Infer independently checks
+  -- the defining foreign scheme, effects and complete ABI before any call.
+  foreign-symbol-row :: String -> String -> Json -> Bool
+  foreign-symbol-row symbol owner rows = case rows of
+    JArr row rest -> (case (field "symbol" row, field "kind" row, field "abi" row, field "external" row) of
+      (JStr name, JStr direction, JStr abi, JStr external) ->
+        (same symbol (owner <> "." <> name) && same direction "import" && same abi "ccall" && string-length external > 0) || foreign-symbol-row symbol owner rest
+      other -> foreign-symbol-row symbol owner rest)
+    other -> False
+  foreign-symbol :: String -> List LoadedInterface -> Bool
+  foreign-symbol symbol interfaces = case interfaces of
     Nil -> False
-    Cons first rest -> if same (loaded-module wanted) (loaded-module first) then same (loaded-hash wanted) (loaded-hash first) else matching-interface wanted rest
+    Cons first rest -> foreign-symbol-row symbol (loaded-module first) (field "foreign" (field "exports" (loaded-contract first))) || foreign-symbol symbol rest
+  foreign-values-only :: Json -> List LoadedInterface -> Bool
+  foreign-values-only rows interfaces = case rows of
+    JArr row rest -> (case (field "symbol" row, field "resolved" row, field "total_body" row) of
+      (JStr symbol, JNull, JNull) -> foreign-symbol symbol interfaces && foreign-values-only rest interfaces
+      other -> False)
+    JArrEnd -> True
+    other -> False
+  opaque-types-only :: Json -> Bool
+  opaque-types-only rows = case rows of
+    JArr row rest -> (case (field "kind" row, field "ctors" row, field "fields" row, field "refinement" row) of
+      (JStr kind, JArrEnd, JArrEnd, JNull) -> same kind "opaque" && opaque-types-only rest
+      other -> False)
+    JArrEnd -> True
+    other -> False
+  foreign-interface-only :: LoadedInterface -> List LoadedInterface -> Bool
+  foreign-interface-only wanted interfaces = let exports = field "exports" (loaded-contract wanted) in
+    case (field "instances" exports, field "signatures" exports) of
+      (JArrEnd, JArrEnd) -> opaque-types-only (field "types" exports) && foreign-values-only (field "values" exports) interfaces
+      other -> False
+  matching-interface :: LoadedInterface -> List LoadedInterface -> List LoadedInterface -> Bool
+  matching-interface wanted actual interfaces = case actual of
+    Nil -> foreign-interface-only wanted interfaces
+    Cons first rest -> if same (loaded-module wanted) (loaded-module first) then same (loaded-hash wanted) (loaded-hash first) else matching-interface wanted rest interfaces
   matching-interfaces :: List LoadedInterface -> List LoadedInterface -> Bool
-  matching-interfaces wanted actual = case wanted of Nil -> True; Cons first rest -> matching-interface first actual && matching-interfaces rest actual
+  matching-interfaces wanted actual = matching-interface-list wanted actual wanted
+  matching-interface-list :: List LoadedInterface -> List LoadedInterface -> List LoadedInterface -> Bool
+  matching-interface-list wanted actual interfaces = case wanted of Nil -> True; Cons first rest -> matching-interface first actual interfaces && matching-interface-list rest actual interfaces
   exported-symbols :: List LoadedInterface -> List String
   exported-symbols interfaces = case interfaces of
     Nil -> Nil
