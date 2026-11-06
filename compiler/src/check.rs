@@ -6498,7 +6498,16 @@ impl Checker {
                 let (n, app) = self.conv_class(c, vars)?;
                 ConvOblig::Class(n, app)
             }
-            ast::Oblig::Pred(t) => ConvOblig::Prop(PropOblig::Pred(self.conv_pred_former(t, vars)?)),
+            ast::Oblig::Pred(t) => {
+                // A using item is a proposition. Closed logical literals
+                // must not go through the refinement-former's implicit
+                // value-binder shorthand (which has a different grammar).
+                let literal = matches!(t, ast::Type::Con(path, _)
+                    if matches!(path.parts().as_slice(), ["True"] | ["False"]));
+                let predicate = if literal { self.conv_prop(t, vars)? }
+                    else { self.conv_pred_former(t, vars)? };
+                ConvOblig::Prop(PropOblig::Pred(predicate))
+            },
             ast::Oblig::Preserves { method, pred, .. } => ConvOblig::Prop(PropOblig::Preserves {
                 method: method.text.clone(),
                 pred: self.conv_pred_former(pred, vars)?,

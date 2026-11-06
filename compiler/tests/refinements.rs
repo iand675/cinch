@@ -938,3 +938,27 @@ fn numeric_literals_use_actual_scoped_refinement_facts() {
     expect_err("scoped-negative-natural", "module Main where\n  bad :: (limit :: Nat) -> refined (out <= limit) Nat\n  bad limit = -1\n", &["out of range", "Nat"]);
     expect_err("scoped-machine-overflow", "module Main where\n  bad :: (limit :: U8) -> refined (out >= limit) U8\n  bad limit = 256\n", &["out of range", "U8"]);
 }
+
+#[test]
+fn logical_literal_preconditions_are_propositions_without_runtime_boolean_coercions() {
+    for (name, body, accepted) in [
+        ("closed truth", "value :: using (True) => Int\n  value = 7\n  use :: Int\n  use = value", true),
+        ("unused false precondition", "never :: using (False) => Int\n  never = 7", true),
+        ("false precondition cannot be discharged", "never :: using (False) => Int\n  never = 7\n  bad :: Int\n  bad = never", false),
+        ("actual false hypothesis discharges a nullary premise", "never :: using (False) => Int\n  never = 7\n  from-false :: False -> Int\n  from-false h = never", true),
+        ("unrelated true hypothesis cannot discharge false", "never :: using (False) => Int\n  never = 7\n  forge :: True -> Int\n  forge h = never", false),
+        ("quantified nullary declaration is valid", "unknown :: forall (limit :: Nat). using (limit > 0) => Nat\n  unknown = limit", true),
+        ("unresolved quantified index is not assumed", "unknown :: forall (limit :: Nat). using (limit > 0) => Nat\n  unknown = limit\n  bad :: Nat\n  bad = unknown", false),
+        ("obligation-bearing functions retain direct-call rule", "identity :: using (True) => Int -> Int\n  identity x = x\n  alias :: Int -> Int\n  alias = identity", false),
+        ("logical context and erased proof", "wrap :: using (True) => True -> Dec True\n  wrap h = Yes h", true),
+        ("compound truth", "value :: using (True && Not False) => Int\n  value = 7\n  use :: Int\n  use = value", true),
+        ("effect context and truth", "wrap :: forall r. using (io :: Io r, True) => True ->{IO r} Int\n  wrap h = 7", true),
+        ("runtime Boolean parameter is not a proposition", "bad :: forall (flag :: Bool). using (flag) => Int\n  bad = 0", false),
+        ("runtime Boolean binding is not a proposition", "flag :: Bool\n  flag = True\n  bad :: using (flag) => Int\n  bad = 0", false),
+        ("refinement-former shorthand is unchanged", "bad :: refined True Nat\n  bad = 0", false),
+    ] {
+        let source = format!("module Main where\n  {body}\n  main :: Int\n  main = 0\n");
+        let result = check_sources(&source, "literal-precondition.cinch");
+        assert_eq!(result.is_ok(), accepted, "{name}: {result:?}\n{source}");
+    }
+}

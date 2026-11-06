@@ -138,3 +138,31 @@ module Main where
     assert!(keep.scheme.contains("Shadow.Dec"));
     assert_eq!(keep.nominals.iter().map(|n| n.identity.as_str()).collect::<Vec<_>>(), ["Shadow.Dec"]);
 }
+
+#[test]
+fn literal_preconditions_keep_checked_truth_and_facade_contract_identity() {
+    let dir = common::project("literal_precondition_contracts", &[
+        ("Conditions.cinch", "module Conditions where\n  export always, never\n  always :: using (True) => Int\n  always = 7\n  never :: using (False) => Int\n  never = 7\n"),
+        ("Facade.cinch", "module Facade where\n  import Conditions (always as answer, never as blocked)\n  export answer, blocked\n"),
+        ("Main.cinch", "module Main where\n  import Facade\n  main :: Int\n  main = answer\n"),
+    ]);
+    let exe = common::build(&dir, "Main.cinch", "literal-precondition-program").expect("build literal context project");
+    let result = std::process::Command::new(exe).current_dir(&dir).output().unwrap();
+    assert_eq!(result.status.code(), Some(7), "{}", String::from_utf8_lossy(&result.stderr));
+    let read = |name| Iface::from_json(&std::fs::read_to_string(dir.join(format!("build/{name}.cinchif"))).unwrap()).unwrap();
+    let provider = read("Conditions"); let facade = read("Facade");
+    for (name, alias, predicate) in [("always", "answer", "True"), ("never", "blocked", "False")] {
+        let original = provider.exports.values.iter().find(|v| v.name==name).unwrap();
+        let renamed = facade.exports.values.iter().find(|v| v.name==alias).unwrap();
+        let resolved = original.resolved.as_ref().expect("literal precondition metadata");
+        assert!(resolved.scheme.contains("using (") && resolved.scheme.contains(predicate), "{}", resolved.scheme);
+        assert_eq!(renamed.resolved.as_ref(), Some(resolved));
+        assert_eq!(Iface::from_json(&facade.to_json()).unwrap(), facade);
+        let mut changed = provider.clone();
+        changed.exports.values.iter_mut().find(|v| v.name==name).unwrap().resolved.as_mut().unwrap().scheme.push_str(" changed");
+        assert_ne!(provider.iface_hash(), changed.iface_hash());
+    }
+    std::fs::write(dir.join("Main.cinch"), "module Main where\n  import Facade\n  main :: Int\n  main = blocked\n").unwrap();
+    assert!(common::check(&dir, "Main.cinch").is_err(), "an imported False precondition must not disappear");
+    common::cleanup(&dir);
+}

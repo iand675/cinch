@@ -6389,14 +6389,30 @@ impl Checker {
         // A function whose `using` context states refinement
         // obligations constrains its callers: it must be applied
         // directly (the obligations discharge at its call's arguments).
+        // A nullary value has no call arguments: discharge its instantiated
+        // predicates at the reference instead. Scoped evidence is checked
+        // first, including an actual hypothesis of an uninhabited domain;
+        // otherwise only a checked static proposition suffices. Unknown
+        // instantiations are never solved by assuming the obligation.
         if !v.scheme.obligs.is_empty() && self.app_callee_depth == 0 {
-            return Err(Error::at(
-                span,
-                format!(
-                    "{} must be applied directly: its `using` context states refinement obligations, which discharge at its call's arguments",
-                    v.name
-                ),
-            ));
+            if v.scheme.ty.arity() != 0 || obligations.iter().any(|o| !matches!(o, PropOblig::Pred(_))) {
+                return Err(Error::at(
+                    span,
+                    format!(
+                        "{} must be applied directly: its `using` context states refinement obligations, which discharge at its call's arguments",
+                        v.name
+                    ),
+                ));
+            }
+            let evidence = self.evidence_in(env);
+            for obligation in &obligations {
+                let PropOblig::Pred(predicate) = obligation else { unreachable!() };
+                let scoped = self.discharge_oblig(&evidence, predicate, span);
+                if scoped.is_ok() || self.decide_closed_oblig(predicate, span)? {
+                    continue;
+                }
+                scoped?;
+            }
         }
         // A `spec`/`proof` definition is erased ghost code: another
         // logical definition may reference it (the termination and cycle

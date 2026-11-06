@@ -1,0 +1,38 @@
+{
+  "compiler_sha256": "82b0d0ca28cf8e286e835b2f73e1c44130b60c71f633832864ea63643355ab32",
+  "full_goal_complete": false,
+  "native_source_sha256": "f6e8319d1eeba4b694f00909f0ae1957ab24867b265c28fc5744dec456af99e9",
+  "rows": [
+    {
+      "exit_code": 1,
+      "log_sha256": "9560f8b154f78bb58b0631fbe16ca5943687548f3933b780491ac990c99f4f9d",
+      "name": "direct-mutable-capture",
+      "source_sha256": "ae3941b0b92b4cb6d485515846ba3f2b91c285be76f25550629cdee8da858f2d"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "literal-safe",
+      "source_sha256": "d970ac71bb4c9f187e17d27b3fb442419ec6d3a303c9a60fd0b56485db00d1f2"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "opaque-mutable-capture",
+      "source_sha256": "c542ff3263b3e7427ddbfa64626d92968344e70baedce1c2be84f7e83b54bfe0"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "wrapped-mutable-capture",
+      "source_sha256": "a4833dab9adae08967971d6d9854f0397157bbccfdbaf24cc34c2c6d65618a67"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "wrapper-safe",
+      "source_sha256": "e3826799080011e177bb3f76da71600cd34ca06b9a3ebd362fb7129b655363c5"
+    }
+  ],
+  "status": "confirmed-native-opaque-task-capture-gap"
+}

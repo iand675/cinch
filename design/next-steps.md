@@ -1,5 +1,35 @@
 # Next steps (as of 2026-11-06)
 
+## Native literal preconditions corrected; final affected group still running (2026-11-06)
+
+Native301 treats `using (True)` and `using (False)` as propositions. A constant
+with preconditions checks its instantiated predicates at its reference, using
+actual scoped proof evidence or checked static truth. False and unresolved
+obligations cannot be assumed. Functions retain their direct-application rule;
+runtime Booleans and the anonymous refinement-former grammar stay distinct.
+The identical retained source refuses on published NativeF6e and checks on
+Native301. A real provider/facade program executes7 and preserves checked
+True/False metadata through aliases, serialization and contract hashing.
+
+Fourteen of15 complete affected groups pass267 Rust tests, including all186
+unit tests. The final complete machine-consumer group remains running; its
+two Rust tests and all13 original cases are still required. The strengthened
+26-test refinement group replaces an added early signature refusal with a
+valid quantified declaration plus its actual unresolved-index-use refusal.
+All original assertions remain. This is an incremental publication, not an
+all15-green receipt. See `bootstrap/current-native-literal-context-validation.json`
+and `bootstrap/current-native-literal-precondition-comparison.json`.
+
+All five task-capture probes rerun on exact Native301: both opaque callback/
+helper bypasses remain required fixes. Native22/85f00ca seed and library pins
+stay unchanged. Cinch3268 remains private: both exporter groups pass; its
+complete precondition group runs against Native301, followed by the actual
+compiler/object and all nine original API groups. The genuine earlier4f
+Stage3 already accepts all44 current Cinch modules. Source-Prelude replacement,
+record interfaces, remaining language/staging/copyOut and hidden-type gaps,
+latest matching full suites/bootstrap and every Acceptance1-5 requirement
+remain open.
+
 ## Native portable proof contracts pass267 tests; Cinch public arity needs correction (2026-11-06)
 
 NativeF6e8319 publishes checked literal/generic/compound proposition schemes,

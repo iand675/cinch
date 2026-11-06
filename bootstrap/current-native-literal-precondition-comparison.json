@@ -1,0 +1,29 @@
+{
+  "status": "confirmed-native-literal-precondition-repair",
+  "source": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-literal-context-actual-cli-comparison-1/Main.cinch",
+  "source_sha256": "c77ef13f67d97b53128b25f11a614a939b4447d843c4b3662078a745749c5aa5",
+  "worker_slot": 0,
+  "rows": [
+    {
+      "name": "published-f6e",
+      "cli": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-proof-contracts-validation-4/cargo/debug/cinch",
+      "cli_sha256": "82b0d0ca28cf8e286e835b2f73e1c44130b60c71f633832864ea63643355ab32",
+      "expected": 1,
+      "exit_code": 1,
+      "log_sha256": "af9cf18e20b4a313c83bbd58191448a6169a88bb899b40b0cad89603eb15075c",
+      "diagnostic": "cinch: 2:19: `True` is not a predicate of the `refined` former (use the closed vocabulary `NotNull`, `NonZero`, `Ascii`, `Ordered`, a named refinement, or a predicate over the binder) (in /Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-literal-context-actual-cli-comparison-1/Main.cinch)\n"
+    },
+    {
+      "name": "corrected-301",
+      "cli": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-literal-context-validation-2/cargo/debug/cinch",
+      "cli_sha256": "cec0e5142e771f1d5d56651bc927c1fea8b96452bdc3f57c2659317e5a691938",
+      "expected": 0,
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "diagnostic": ""
+    }
+  ],
+  "verified_at": "2026-11-06T18:39:50.415198+00:00",
+  "full_goal_complete": false,
+  "published_program": "bootstrap/programs/LiteralPrecondition.Native.Counterexample.cinch"
+}

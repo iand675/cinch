@@ -1,0 +1,7 @@
+module Main where
+  value :: using (True) => Int
+  value = 7
+  use :: Int
+  use = value
+  main :: Int
+  main = 0
