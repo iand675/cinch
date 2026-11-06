@@ -17,6 +17,28 @@ fn decision_constructors_check_erasure_metadata_and_source_evidence() {
     let exe = common::build(&dir, "Main.cinch", "source-constructors").expect("build source constructor checker");
     let yes = "wrap :: forall (p :: Prop). (h :: p) -> Dec p\n  wrap h = Yes h";
     let cases = [
+        ("projection scope infers a unique visible declaring record", "record User where\n    age :: Nat\n  apply :: forall a b. (a -> b) -> a -> b\n  apply f value = f value\n  user :: User\n  user = User { age = 36 }\n  age :: Nat\n  age = apply (\\value -> value.age) user", true),
+        ("projection scope retains the original ambiguous lambda refusal", "record Number where\n    value :: Nat\n  record Flag where\n    value :: Bool\n  apply :: forall a b. (a -> b) -> a -> b\n  apply f value = f value\n  flag :: Flag\n  flag = Flag { value = True }\n  read :: Bool\n  read = apply (\\item -> item.value) flag", false),
+        ("projection scope accepts an annotated receiver among identical labels", "record Number where\n    value :: Nat\n  record Flag where\n    value :: Bool\n  apply :: forall a b. (a -> b) -> a -> b\n  apply f value = f value\n  flag :: Flag\n  flag = Flag { value = True }\n  read :: Bool\n  read = apply (\\item -> (item :: Flag).value) flag", true),
+        ("projection scope does not invent a record for a rigid generic receiver", "record User where\n    age :: Nat\n  bad :: forall a. a -> Nat\n  bad value = value.age", false),
+        ("projection scope ignores a private unselected record with the same label", "module Secret where\n  export marker\n  record Hidden where\n    age :: Nat\n  marker :: Int\n  marker = 0\nmodule Main where\n  import Secret (marker)\n  record User where\n    age :: Nat\n  apply :: forall a b. (a -> b) -> a -> b\n  apply f value = f value\n  user :: User\n  user = User { age = 36 }\n  age :: Nat\n  age = apply (\\value -> value.age) user\n  main :: Int\n  main = 0\n", true),
+        ("projection scope admits an explicitly selected record alias", "module A where\n  export Person, sample\n  record Person where\n    age :: Nat\n  sample :: Person\n  sample = Person { age = 36 }\nmodule Main where\n  import A (Person as User, sample as user)\n  apply :: forall a b. (a -> b) -> a -> b\n  apply f value = f value\n  age :: Nat\n  age = apply (\\value -> value.age) user\n  main :: Int\n  main = 0\n", true),
+        ("projection scope cannot infer a record omitted by selective import", "module A where\n  export Person, sample\n  record Person where\n    age :: Nat\n  sample :: Person\n  sample = Person { age = 36 }\nmodule Main where\n  import A (sample)\n  apply :: forall a b. (a -> b) -> a -> b\n  apply f value = f value\n  age :: Nat\n  age = apply (\\value -> value.age) sample\n  main :: Int\n  main = 0\n", false),
+        ("projection scope preserves a known receiver without importing its type", "module A where\n  export sample\n  record Person where\n    age :: Nat\n  sample :: Person\n  sample = Person { age = 36 }\nmodule Main where\n  import A (sample)\n  age :: Nat\n  age = sample.age\n  main :: Int\n  main = 0\n", true),
+        ("indexed coverage eliminates the different closed index", "data Signal (channels :: Nat) where\n    Mono :: Int -> Signal 1\n    Stereo :: Int -> Int -> Signal 2\n  observe :: Signal 1 -> Int\n  observe signal = case signal of Mono x -> x", true),
+        ("indexed coverage selects the second closed index", "data Signal (channels :: Nat) where\n    Mono :: Int -> Signal 1\n    Stereo :: Int -> Int -> Signal 2\n  observe :: Signal 2 -> Int\n  observe signal = case signal of Stereo x y -> x + y", true),
+        ("indexed coverage proves an empty closed index", "data Signal (channels :: Nat) where\n    Mono :: Int -> Signal 1\n    Stereo :: Int -> Int -> Signal 2\n  absurd :: Signal 0 -> Int\n  absurd signal = case signal of {}", true),
+        ("indexed coverage does not drop a feasible alternative", "data Signal (channels :: Nat) where\n    Mono :: Int -> Signal 1\n    Other :: Int -> Signal 1\n  observe :: Signal 1 -> Int\n  observe signal = case signal of Mono x -> x", false),
+        ("indexed coverage does not treat a symbolic mismatch as impossible", "data Signal (channels :: Nat) where\n    Mono :: Int -> Signal 1\n    Stereo :: Int -> Int -> Signal 2\n  observe :: forall (n :: Nat). Signal n -> Int\n  observe signal = case signal of {}", false),
+        ("indexed coverage respects normalized closed arithmetic", "data Signal (channels :: Nat) where\n    Mono :: Int -> Signal (1 + 0)\n    Stereo :: Int -> Int -> Signal (1 + 1)\n  observe :: Signal 1 -> Int\n  observe signal = case signal of Mono x -> x", true),
+
+        ("record declared Nat field controls literal carrier", "record User where\n    age :: Nat\n    name :: String\n  user :: User\n  user = User { name = \"Ada\", age = 36 }", true),
+        ("record expected generic result controls literal carrier", "record Box a where\n    value :: a\n  box :: Box Nat\n  box = Box { value = 36 }", true),
+        ("record unsigned narrow field permits its upper bound", "record Octet where\n    value :: U8\n  octet :: Octet\n  octet = Octet { value = 255 }", true),
+        ("record unsigned narrow field rejects overflow", "record Octet where\n    value :: U8\n  octet :: Octet\n  octet = Octet { value = 256 }", false),
+        ("record Nat field rejects a negative literal", "record Box where\n    value :: Nat\n  box :: Box\n  box = Box { value = -1 }", false),
+        ("record nested Nat initializer retains field type", "record Inner where\n    value :: Nat\n  record Outer where\n    inner :: Inner\n  outer :: Outer\n  outer = Outer { inner = Inner { value = 42 } }", true),
+        ("record function initializer receives its declared domain and result", "record Callback where\n    run :: Nat -> Nat\n  callback :: Callback\n  callback = Callback { run = \\value -> 1 }", true),
         ("constructor result keeps ordinary type parameters", "data Box a where\n    Box :: a -> Box a", true),
         ("constructor result cannot fix a type parameter", "data Box a where\n    Box :: a -> Box Bool", false),
         ("constructor result cannot permute type parameters", "data Pair a b where\n    Pair :: a -> b -> Pair b a", false),
@@ -69,8 +91,8 @@ fn decision_constructors_check_erasure_metadata_and_source_evidence() {
         ("proof binder is not a runtime result", "bad :: forall (p :: Prop). Dec p -> Int\n  bad value = case value of Yes h -> h; No _ -> 0", false),
     ];
     for (name, body, accepted) in cases {
-        let source = format!("module Main where\n  {body}\n  main :: Int\n  main = 0\n");
-        if name.starts_with("record ") || name.starts_with("constructor result ") {
+        let source = if body.starts_with("module ") { body.to_string() } else { format!("module Main where\n  {body}\n  main :: Int\n  main = 0\n") };
+        if name.starts_with("record ") || name.starts_with("constructor result ") || name.starts_with("indexed coverage ") || name.starts_with("projection scope ") {
             let oracle = cinch::driver::check_sources(&source, "native-record-source-oracle.cinch");
             assert_eq!(oracle.is_ok(), accepted, "Native record oracle: {name}\n{oracle:?}");
         }

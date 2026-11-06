@@ -131,6 +131,38 @@ fn typed_runtime_numbers_preserve_exact_values_and_reclaim_owned_words() {
     Token n -> if recover False (C64 True) && recover 0 (C69 9223372036854775808) == 9223372036854775808 && n == 18446744073709551616 then 143 else 1
 "#, (0..70).map(|i| format!("    C{i} :: a -> Wide a\n")).collect::<String>());
     let cases = [
+        ("fixed-index-signal-constructors", r#"  data Signal (n :: Nat) where
+    Mono :: Nat -> Signal 1
+    Stereo :: Nat -> Nat -> Signal 2
+  readMono :: Signal 1 -> Nat
+  readMono value = case value of Mono sample -> sample
+  readStereo :: Signal 2 -> Nat
+  readStereo value = case value of Stereo left right -> left + right
+  main :: Int
+  main = if readMono (Mono 41) == 41 && readStereo (Stereo 20 22) == 42 then 0 else 1
+"#, 0),
+        ("fixed-index-keeps-payload-representations", r#"  data Mark (n :: Nat) a where
+    Mark :: a -> Mark 1 a
+  data Box where
+    Box :: Int -> Box
+  payload :: forall a. Mark 1 a -> a
+  payload value = case value of Mark item -> item
+  main :: Int
+  main = case payload (Mark (Box 18446744073709551616)) of
+    Box number -> if payload (Mark True) && payload (Mark 18446744073709551616) == 18446744073709551616 && number == 18446744073709551616 then 0 else 1
+"#, 0),
+        ("fixed-index-first-class-constructor", r#"  data Signal (n :: Nat) where
+    Mono :: Nat -> Signal 1
+    Stereo :: Nat -> Nat -> Signal 2
+  make :: Nat -> Signal 1
+  make = Mono
+  apply :: forall a b. (a -> b) -> a -> b
+  apply function value = function value
+  readMono :: Signal 1 -> Nat
+  readMono value = case value of Mono sample -> sample
+  main :: Int
+  main = if readMono (apply make 42) == 42 then 0 else 1
+"#, 0),
         ("named-polymorphic-proof", "  take :: forall (p :: Prop). (h :: p) -> Int\n  take h = 42\n  main :: Int\n  main = case decide True of Yes h -> take h; No _ -> 1\n", 42),
         ("named-owned-prefix", "  take :: (n :: Int) -> (h :: n > 0) -> Int\n  take n h = n\n  main :: Int\n  main = let large = 18446744073709551616 in case decide (large > 0) of Yes h -> if take large h == large then 42 else 1; No _ -> 1\n", 42),
         ("named-runtime-after-proof", "  take :: (h :: True) -> Int -> Int\n  take h n = n\n  main :: Int\n  main = case decide True of Yes h -> take h 42; No _ -> 1\n", 42),

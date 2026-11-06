@@ -1,5 +1,40 @@
 # Next steps (as of 2026-11-06)
 
+## Typed record fields and indexed constructor layouts (2026-11-06)
+
+Compiler4f now propagates declared and instantiated field types into record
+initializers, including Nat/U8 literals, nested fields and callback bodies. It
+preserves written strict evaluation order. Projection of an unknown receiver
+uses exactly one declaring record visible in its module; ambiguous, private and
+unselected owners remain refused. Checked unequal closed numeric indices can
+prove constructor alternatives impossible; symbolic uncertainty cannot.
+
+The runtime backend now erases checked value indices with compatible carriers
+while retaining ordinary parameter identities and field representations. The
+complete runtime-IR group passes137 clients plus2 C ABI executions,139 zero-leak
+reports. The actual44-module compiler/object gate passes9 tests,17 optimized C
+clients,50 zero-leak reports and3 real resolved-contract comparisons. All13
+record/indexed runtime clients and5 source-refusal controls pass; independent
+poisoned reruns of all13 clients report zero leaks. All44 sources pass both
+Native and the audited Cinch-built reader. Earlier D13 frontend/export gates
+retain their explicit source scope:5 groups,70 constructor cases and9 metadata
+mutations. See `bootstrap/current-record-indexed-runtime-results.json`.
+
+The unchanged original34 language cases now execute7/13 positives, including
+Audio and Query. All21 negatives refuse, but only2 satisfy their original
+diagnostic assertions;25 assertions remain failed. All seven successful
+programs also pass independent32M poisoned reruns. See
+`bootstrap/current-development-external-behavior-results.json`.
+
+All9 original API groups remain8/9, with source-Prelude replacement failing.
+Record interface transport and the remaining six language positives stay open.
+The old Nat-field refusal is retained as historical counterexample evidence;
+the exact positive source passes D13 and the4f field/runtime controls pass.
+NativeE5 stays current and Native22/85f00ca remains the immutable seed/library
+producer. A matching4f chain and all complete suites,105 frontend targets,14
+external acceptance checks,34 language cases and Acceptance1-5 remain required.
+
+
 
 ## Native constructor patterns infer their input shape (2026-11-06)
 

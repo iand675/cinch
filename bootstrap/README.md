@@ -1,5 +1,21 @@
 # The bootstrap ladder
 
+Current compiler4f fixes declared record field carriers, module-visible
+projection inference, closed numeric indexed coverage and fixed-index runtime
+constructor layouts. Its complete runtime-IR group passes139 zero-leak reports;
+the actual compiler/object gate passes9 tests,17 C clients and50 zero-leak
+reports. All13 focused runtime clients and5 source refusals pass. See
+[current record/indexed runtime evidence](current-record-indexed-runtime-results.json).
+
+The unchanged34-case language suite now executes7/13 positives; all21 negatives
+refuse, but19 fail their original diagnostic assertions. Source-Prelude
+replacement remains the only failing one of9 original API groups. Record
+interface transport, a matching4f bootstrap, all complete suites and
+Acceptance1-5 remain required. Seed and library roles stay Native22/85f00ca.
+
+The entries below preserve their earlier checkpoint scope.
+
+
 Native58e independently fixes empty pattern rows for checked data families:
 no constructors, or all constructors actually refuted, permits elimination.
 Opaque/primitive/dictionary carriers and unknown equations remain refused.
@@ -8,7 +24,7 @@ The complete pattern-field group passes4 tests with8 new source controls and
 [Native coverage evidence](current-native-empty-data-coverage-results.json).
 The pinned Native22 seed/library roles remain unchanged.
 
-Current compiler dd8d supports named source record construction, complete
+Earlier compiler dd8d supports named source record construction, complete
 patterns and projection, with generic/nested fields, written initializer order
 and strict discarded-field evaluation. Ordinary constructor parameters retain
 identity; fixed/computed value indices remain supported. Eight complete groups

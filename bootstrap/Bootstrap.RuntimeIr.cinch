@@ -428,7 +428,10 @@ module Bootstrap.RuntimeIr where
   regular-parameters :: List Quant -> List Quant -> Bool
   regular-parameters expected actual = case (expected, actual) of
     (Nil, Nil) -> True
-    (Cons q rest, Cons p more) -> quant-id q == quant-id p && kind-equal (quant-kind q) (quant-kind p) && (kind-equal (quant-kind q) KType || (case value-carrier (quant-kind q) of Some carrier -> True; None -> False)) && regular-parameters rest more
+    (Cons q rest, Cons p more) -> if quant-id q == quant-id p then
+      kind-equal (quant-kind q) (quant-kind p) && (kind-equal (quant-kind q) KType || (case value-carrier (quant-kind q) of Some carrier -> True; None -> False)) && regular-parameters rest more
+      else (case value-carrier (quant-kind q) of Some carrier -> regular-parameters rest actual; None -> False)
+    (Cons q rest, Nil) -> (case value-carrier (quant-kind q) of Some carrier -> regular-parameters rest Nil; None -> False)
     other -> False
   data-result :: CoreData -> UType
   data-result d = data-result-args (UCon (core-data-name d) (core-data-kind d)) (core-data-params d)
@@ -448,7 +451,16 @@ module Bootstrap.RuntimeIr where
     (UBound a an ka, UIndex carrier (IBound b bn)) -> a == b && (case value-carrier ka of Some expected -> runtime-type-equal expected carrier; None -> False)
     (UIndex carrier (IBound a an), UBound b bn kb) -> a == b && (case value-carrier kb of Some expected -> runtime-type-equal carrier expected; None -> False)
     (UIndex carrier (IBound a an), UIndex input (IBound b bn)) -> a == b && runtime-type-equal carrier input
-    (UApp f x, UApp g y) -> same-data-result f g && same-data-result x y
+    (UApp f x, UApp g y) -> same-data-result f g && (same-data-result x y || erased-layout-index x y)
+    other -> False
+  -- A checked value index does not choose a runtime representation.
+  -- Ordinary type parameters still retain their exact declared identity;
+  -- family/constructor quantifier identity and every field representation
+  -- are checked separately below. This permits Signal 1/Signal 2 to share
+  -- one tagged family layout without reifying their phantom Nat index.
+  erased-layout-index :: UType -> UType -> Bool
+  erased-layout-index actual parameter = case (value-carrier (type-kind actual), value-carrier (type-kind parameter)) of
+    (Some carrier, Some expected) -> typed-index-admissible actual && runtime-type-equal carrier expected
     other -> False
   constructor-supported :: RuntimeContext -> CoreData -> CoreConstructor -> Bool
   constructor-supported context d c = let sc = core-constructor-scheme c in
