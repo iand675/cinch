@@ -58,7 +58,7 @@
     },
     {
       "title": "Current matching Rust and Cinch-source full suite",
-      "detail": "4 of 235 complete groups passed; 1 running, 0 failed and 230 pending.Every group includes ignored tests. State: running.",
+      "detail": "8 of 235 complete groups passed; 1 running, 0 failed and 226 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -237,6 +237,11 @@
       "state": "passed"
     },
     {
+      "title": "Latest development compiler: all105 required targets",
+      "detail": "1 of 105 complete groups passed; 1 running, 0 failed and 103 pending. State: running; current target: bootstrap_type_syntax. Actual43-module Cinch compiler fixture and matching freshly built Rust hosts; all100 original targets plus5 additions, including all9 API groups. Every original case runs. This diagnostic compiler is separate from finalStage3 acceptance.",
+      "state": "running"
+    },
+    {
       "title": "Measured optimized Stage1 runtime",
       "detail": "Same compiler LLVM and43 exact inputs, exact pinned85 runtime source, empty PATH and zero leaks on both sides. One paired observation:664.45s release versus4508.15s debug,6.78x faster for this input. This is a measured checkpoint, not a general timing promise.",
       "state": "passed"
@@ -250,7 +255,7 @@
   "blockers": [
     {
       "title": "Checked-helper decision repair pushed; matching full suite and fresh bootstrap running",
-      "detail": "Published0903872 compiler5f2f accepts valid pure fully-applied source helpers in numeric decisions. Four complete affected groups pass11tests;50 new Core control runs, actual43module compiler/self-built check and three real32M poisoned zero-leak clients plus three refusals pass. Fresh Native6b/Cinch5f2f full suite and four-stage bootstrap are now running on frozen matching inputs under six workers, with one build thread and optimized pinned Stage1 runtime. Earlier711 API7/9 and917f array13/15 are retained as earlier-source evidence. Typed foreign declarations, source-prelude dependency rechecking, array ownership/staging, opaque higher-order decisions, matching all105/Acceptance1-5 remain open. Earlier450 and917 chains prove scoped Acceptance1-4; olderNative58 retains229/232 groups and1620/1624tests, with no skips."
+      "detail": "Published0903872 compiler5f2f accepts valid pure fully-applied source helpers in numeric decisions. Four complete affected groups pass11tests;50 new Core control runs, actual43module compiler/self-built check and three real32M poisoned zero-leak clients plus three refusals pass. Fresh Native6b/Cinch5f2f full suite, all105-target actual-Cinch development diagnostic and four-stage bootstrap are now running on frozen matching inputs under six workers, with one build thread and optimized pinned Stage1 runtime. Earlier711 API7/9 and917f array13/15 are retained as earlier-source evidence. Typed foreign declarations, source-prelude dependency rechecking, array ownership/staging, opaque higher-order decisions, matching all105/Acceptance1-5 remain open. Earlier450 and917 chains prove scoped Acceptance1-4; olderNative58 retains229/232 groups and1620/1624tests, with no skips."
     },
     {
       "title": "Investigate the recorded failure",
@@ -262,7 +267,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "4 of 235 complete groups passed; 1 running, 0 failed and 230 pending."
+      "detail": "8 of 235 complete groups passed; 1 running, 0 failed and 226 pending."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -311,6 +316,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "All 43 compiler-source checks: passed. 4 of 4 complete groups passed; 0 running, 0 failed and 0 pending. Core decision contracts: passed; source decision behavior: passed; frontend adapter: passed; object round trip: passed.",
-  "activity": "Current matching Rust and Cinch-source full suite: 4 of 235 complete groups passed; 1 running, 0 failed and 230 pending. Stage builds and smoke checks: 2 of 4; chain state: building-stage2. Repair gates: 4 of 4 complete groups passed; 0 running, 0 failed and 0 pending. Core decision contracts: passed; source decision behavior: passed; frontend adapter: passed; object round trip: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
-  "updatedAt": "2026-11-06T02:34:07.985716+00:00"
+  "activity": "Current matching Rust and Cinch-source full suite: 8 of 235 complete groups passed; 1 running, 0 failed and 226 pending. Stage builds and smoke checks: 2 of 4; chain state: building-stage2. Repair gates: 4 of 4 complete groups passed; 0 running, 0 failed and 0 pending. Core decision contracts: passed; source decision behavior: passed; frontend adapter: passed; object round trip: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
+  "updatedAt": "2026-11-06T02:35:35.445572+00:00"
 }
