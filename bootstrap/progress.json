@@ -306,6 +306,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "All 43 compiler-source checks: passed. 4 of 4 complete groups passed; 0 running, 0 failed and 0 pending. type contracts: passed; interface contracts: passed; frontend adapter: passed; object round trip: passed.",
-  "activity": "Current published Rust compiler: full suite: 229 of 232 complete groups passed; 0 running, 3 failed and 0 pending. Stage builds and smoke checks: 4 of 4; chain state: building-stage3; earlier API source, not the published repair. Repair gates: 4 of 4 complete groups passed; 0 running, 0 failed and 0 pending. type contracts: passed; interface contracts: passed; frontend adapter: passed; object round trip: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
-  "updatedAt": "2026-11-06T02:08:25.294434+00:00"
+  "activity": "Current published Rust compiler: full suite: 229 of 232 complete groups passed; 0 running, 3 failed and 0 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 4 of 4 complete groups passed; 0 running, 0 failed and 0 pending. type contracts: passed; interface contracts: passed; frontend adapter: passed; object round trip: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
+  "updatedAt": "2026-11-06T02:16:47.502719+00:00"
 }
