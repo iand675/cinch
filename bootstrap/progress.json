@@ -288,8 +288,8 @@
     },
     {
       "title": "Private indexed-constructor backend repair",
-      "detail": "Exact44-module source check: running. Ordinary type identities and field representations stay checked; only phantom value indices may share layout. Complete runtime-IR group preserves every original case and adds3 real constructor clients. No passing runtime claim before those execute.",
-      "state": "running"
+      "detail": "Exact44-module source check: passed. Ordinary type identities and field representations stay checked; only phantom value indices may share layout. Complete runtime-IR group preserves every original case and adds3 real constructor clients. No passing runtime claim before those execute.",
+      "state": "passed"
     },
     {
       "title": "Native empty-data coverage correction",
@@ -386,5 +386,5 @@
   "fullGoalComplete": false,
   "summary": "All 44 compiler-source checks: passed. 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. constructor contracts: passed; module resolution: passed; type inference: passed; type contracts: passed; interface contracts: passed; parser: passed; frontend adapter: passed; object round trip: passed.",
   "activity": "Earlier checkpoint: complete235-group Native sweep: 234 of 235 complete groups passed; 0 running, 1 failed and 0 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. constructor contracts: passed; module resolution: passed; type inference: passed; type contracts: passed; interface contracts: passed; parser: passed; frontend adapter: passed; object round trip: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 65 of 105 complete groups passed; 1 running, 4 failed and 35 pending.",
-  "updatedAt": "2026-11-06T12:06:25.211058+00:00"
+  "updatedAt": "2026-11-06T12:09:07.596272+00:00"
 }
