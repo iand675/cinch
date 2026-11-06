@@ -323,8 +323,8 @@
     },
     {
       "title": "Private Rust logical literals: complete affected groups",
-      "detail": "7/7 complete unit/proof/dependent/refinement/interface/pattern groups; phase pattern_field_names. Fourteen new source/carrier controls, three actual decision programs and a provider/facade interface round trip retain the original tests. Followup evidence-invalidation and exact44-source checks: running. Private correction; source acceptance and remaining task-capture gap are separate requirements.",
-      "state": "running"
+      "detail": "7/7 complete unit/proof/dependent/refinement/interface/pattern groups; phase pattern_field_names. Fourteen new source/carrier controls, three actual decision programs and a provider/facade interface round trip retain the original tests. Followup evidence-invalidation and exact44-source checks: passed-native-literal-input-and-evidence-gates. Private correction; source acceptance and remaining task-capture gap are separate requirements.",
+      "state": "passed"
     },
     {
       "title": "Published1c76: bounded proof search and Format repair",
@@ -421,5 +421,5 @@
   "fullGoalComplete": false,
   "summary": "All 44 compiler-source checks: passed. 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. Native all44 source modules: passed; Cinch-built all44 source modules: passed; five whole proof component groups: passed; actual compiler and object nine tests: passed; thirteen runtime clients and five refusals: passed.",
   "activity": "Earlier4f/NativeE5: complete235-group sweep: 152 of 235 complete groups passed; 1 running, 0 failed and 82 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. Native all44 source modules: passed; Cinch-built all44 source modules: passed; five whole proof component groups: passed; actual compiler and object nine tests: passed; thirteen runtime clients and five refusals: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 15 of 105 complete groups passed; 1 running, 2 failed and 87 pending.",
-  "updatedAt": "2026-11-06T15:19:06.873333+00:00"
+  "updatedAt": "2026-11-06T15:23:29.226985+00:00"
 }
