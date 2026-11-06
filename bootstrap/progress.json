@@ -58,7 +58,7 @@
     },
     {
       "title": "Earlier checkpoint: complete235-group Native sweep",
-      "detail": "221 of 235 complete groups passed; 1 running, 1 failed and 12 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "222 of 235 complete groups passed; 1 running, 1 failed and 11 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -312,7 +312,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "221 of 235 complete groups passed; 1 running, 1 failed and 12 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "222 of 235 complete groups passed; 1 running, 1 failed and 11 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -365,6 +365,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "All 44 compiler-source checks: passed. 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. constructor contracts: passed; module resolution: passed; type inference: passed; type contracts: passed; interface contracts: passed; parser: passed; frontend adapter: passed; object round trip: passed.",
-  "activity": "Earlier checkpoint: complete235-group Native sweep: 221 of 235 complete groups passed; 1 running, 1 failed and 12 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. constructor contracts: passed; module resolution: passed; type inference: passed; type contracts: passed; interface contracts: passed; parser: passed; frontend adapter: passed; object round trip: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 55 of 105 complete groups passed; 1 running, 4 failed and 45 pending.",
-  "updatedAt": "2026-11-06T10:49:11.195086+00:00"
+  "activity": "Earlier checkpoint: complete235-group Native sweep: 222 of 235 complete groups passed; 1 running, 1 failed and 11 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. constructor contracts: passed; module resolution: passed; type inference: passed; type contracts: passed; interface contracts: passed; parser: passed; frontend adapter: passed; object round trip: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 55 of 105 complete groups passed; 1 running, 4 failed and 45 pending.",
+  "updatedAt": "2026-11-06T10:53:33.129026+00:00"
 }
