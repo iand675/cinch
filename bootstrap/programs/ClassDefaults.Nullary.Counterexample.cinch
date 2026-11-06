@@ -1,0 +1,11 @@
+module Defaults where
+  signature Value a where
+    value :: a
+    duplicate :: a
+    duplicate = value
+module Main where
+  import Defaults
+  implicit instance ValueInt :: Value Int where
+    value = 7
+  main :: Int
+  main = duplicate

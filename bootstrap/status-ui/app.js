@@ -124,7 +124,9 @@ function render(data) {
   $('method-note').textContent = c.explanation;
   $('active').replaceChildren(...c.active.map(a=>{
     const card=element('article',undefined,'active-card');
-    card.append(element('span',a.earlier?'Earlier compiler · running':a.passed===a.total?'Execution finished':'Validation running','eyebrow'),element('h3',a.title),element('strong',a.passed+' / '+a.total),element('p','complete groups passed. '+(a.failed ? a.failed+' failed. ' : '')+(a.auditPending?'Independent audit and publication pending.':'Current phase: '+(a.phase || 'queued')))); return card;
+    const terminal=/^(passed|failed|completed)/.test(a.status || '');
+    const label=a.earlier?'Earlier compiler · running':terminal&&a.failed?'Failures recorded':terminal?'Execution finished':a.status?.startsWith('waiting')?'Queued':'Validation running';
+    card.append(element('span',label,'eyebrow'),element('h3',a.title),element('strong',a.passed+' / '+a.total),element('p','complete groups passed. '+(a.failed ? a.failed+' failed. ' : '')+(a.auditPending?'Independent audit and publication pending.':'Current phase: '+(a.phase || 'queued')))); return card;
   }));
   if (!c.active.length) $('active').append(element('p','No active validation reported.'));
   renderChecklist();

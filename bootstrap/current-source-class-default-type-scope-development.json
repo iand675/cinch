@@ -1,0 +1,26 @@
+{
+  "status": "reviewable-private-type-namespace-repair-not-yet-validated",
+  "verified_at": "2026-11-06T22:18:39.267300+00:00",
+  "baseline_cinch_source_sha256": "8fcedce1381fe2d1a14468b9cc10eff26cd7f07b64d3beb72fb121533dbb5095",
+  "private_cinch_source_sha256": "00b549e3f334cff05ead4f6b0771d9e9dcccc96a5268bf82d3836e8efdccd32d",
+  "native_source_sha256": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+  "patch": "bootstrap/source-class-default-type-scope-development.patch",
+  "patch_sha256": "c9853d46129c1f45a8e7ce1189fb2c387bfbd796923f1a19fc31cf0ce2e6cf59",
+  "patch_application_independently_verified": true,
+  "files": [
+    {
+      "path": "bootstrap/Bootstrap.Infer.cinch",
+      "before_sha256": "4d73a3a9f5c2fc6d6843a5f7e57fbc3ec2461406c226d0a7e3afdf9953426bc4",
+      "after_sha256": "55d6b7dc1b736b4b71907eeb0d4d19a4ad21da782f0c59135478e79ae3c4c847"
+    },
+    {
+      "path": "compiler/tests/bootstrap_source_instances.rs",
+      "before_sha256": "e1368842114b38e2277ec5ff34cd511e4bd9be0a1521f79fba71e65eed3442aa",
+      "after_sha256": "981aacdf877e70f27c96648c2fc14452efcc8cf70743d87b3dfc6752ad3a4abb"
+    }
+  ],
+  "complete_component_groups": 7,
+  "source_default_controls": 16,
+  "full_goal_complete": false,
+  "scope": "Development patch on top of the earlier unapplied8fce source-default patch. It distinguishes proper type-head lookup from dependent value-index lookup and adds the real failing same-spelled term/type annotation case. A disposable mechanical apply exactly reproduces the two changed files; this proves patch applicability only. All original source controls and complete dependent-index/precondition groups are validating. Strict nullary self-evidence initialization, diagnostic/source attribution, refinement/container and imported-default/library-family gaps remain. Neither private Cinch compiler is applied to production."
+}

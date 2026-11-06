@@ -1,0 +1,96 @@
+{
+  "compiler_sha256": "61900679faa5e90c2a52dba1f0ea9f1ee6f726c481929bceb850efa24fae66cb",
+  "compiler_source_sha256": "8fcedce1381fe2d1a14468b9cc10eff26cd7f07b64d3beb72fb121533dbb5095",
+  "default_adapter_only_changes_outcome_dispatch": true,
+  "default_tests_failed": 6,
+  "default_tests_passed": 1,
+  "direct_native_annotation_controls": 11,
+  "failed_tests": 7,
+  "filtered": 0,
+  "full_goal_complete": false,
+  "groups": [
+    {
+      "failed_tests": 0,
+      "log_sha256": "94c8061611b505bf7f2e30df86c57e3d3be326b9d40cd9d03890ff58980ba5bf",
+      "name": "interface_anonymous_contracts",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "416033b5d48c7231bafde50c31cce013e696875cd9b28bbba0926ebb6d2fa778",
+      "name": "interface_class_contracts",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "778573d075afff4eeb379776a6b610080dfaeb06cf53179f2abe5800eca8753d",
+      "name": "interface_kinds",
+      "passed_tests": 2,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "cfe97f4141b91500421ff73bf2ab053178e5aa86f910bb1acff320a2c638a134",
+      "name": "interface_nominals",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "8f97574fd1ceaee380ab7b1af27c090cd48095585894a806145e075ebaf83ea7",
+      "name": "interface_preconditions",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 1,
+      "log_sha256": "667bbead9a15708b6e96b60eb4f5792af2a9d9b542c9b9f9d44ffffbb52b5ef0",
+      "name": "interface_prelude_overrides",
+      "passed_tests": 0,
+      "status": "failed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "d9eaffa1a3148051bb2d5dfc2408cdeda15583c309ba13a3a2f7dceea4ef40f6",
+      "name": "interface_refinement_closure",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "a56bfa5404355fa3c6db14f5d363ea5a2427f509d30f83b7e15f16d0520853d9",
+      "name": "interface_refinements",
+      "passed_tests": 4,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "b8b24d2716bc18f3fb32b741eedc1684a7f41d1034e2ed9c7edaee8e5a959661",
+      "name": "interface_region_effects",
+      "passed_tests": 2,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 6,
+      "log_sha256": "0e2beaab6a22fdc7cc560e4a023e96f11317c0a007b4ab784676ae41bd5905fa",
+      "name": "class_defaults",
+      "passed_tests": 1,
+      "status": "failed"
+    }
+  ],
+  "ignored": 0,
+  "native_source_sha256": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+  "original_default_tests": 6,
+  "original_tests_and_assertions_retained": true,
+  "passed_groups": 8,
+  "passed_tests": 14,
+  "scope": "All9 original interface/API groups plus all7 class_defaults Rust tests execute with every original source and assertion. Class-default outcome dispatch explicitly requires the actual Cinch8fce frontend, with no Native fallback. The11 direct Native annotation checks in the seventh test remain classified as Native source/API evidence; its final inherited runtime42 uses actual Cinch. Original API is8/9 groups13/14 tests; original defaults are1/7 tests. The6 default failures retain strict self-value initialization, exact class/instance diagnostic and source-file attribution, and refinement/container elimination gaps. Correct semantic rejection alone does not pass an original diagnostic/path assertion. Current-source library collision still fails. These are development compiler checks, not final matching Stage3.",
+  "source": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/source-class-default-interface-api-1/source",
+  "source_sha256": "462002bb2574073f8ccb12afb2f50829875dd52b2c459a6a80d4a8e447977bc5",
+  "status": "audited-original-api-and-defaults-with-failures",
+  "total_tests": 21,
+  "verified_at": "2026-11-06T22:15:14.936451+00:00",
+  "whole_groups": 10
+}

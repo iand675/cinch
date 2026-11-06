@@ -1,5 +1,41 @@
 # Next steps (as of 2026-11-06)
 
+## Actual source-default runtime and original tests retain new failures (2026-11-06)
+
+Private Cinch8fce passes the complete actual44-module compiler/object gate:
+all9 tests,17 real C clients and50 observed zero-leak reports, with unchanged
+Native22 builder/library pins. See `bootstrap/current-source-class-default-compiler-results.json`.
+Thirteen dedicated actual-Cinch runtime/refusal controls then pass11/13 after
+correcting and separately preserving one malformed new missing-method fixture.
+Six positive clients run32M with poisoning and zero leaks, including method/class
+annotations, author-private helper scope, overrides and a function carrier.
+
+Two valid programs still fail: `identity a = (a :: a)` confuses the term and type
+namespaces; and a nullary default `duplicate = value` reaches an explicit runtime
+refusal while materializing self evidence with strict dictionary fields. Their
+unchanged sources are `bootstrap/programs/ClassDefaults.SameName.Counterexample.cinch`
+and `bootstrap/programs/ClassDefaults.Nullary.Counterexample.cinch`. See
+`bootstrap/current-source-class-default-runtime-results.json`.
+
+All9 original API groups plus all7 class_defaults tests also run:14/21 tests pass,
+7 fail, with no skipped or filtered cases. The original default test bodies and
+assertions are preserved; only outcome dispatch changes to require actual Cinch.
+Its11 direct Rust annotation checks stay explicitly classified as Rust evidence.
+The six original default failures retain strict field initialization, exact
+class/instance diagnostics and defining source-file attribution, and the original
+NonZero refinement/container runtime program. Correct semantic rejection alone
+does not pass the diagnostic/path assertions. Source-library replacement also
+continues to fail. See `bootstrap/current-source-class-default-api-results.json`.
+
+Candidate00b5 separates proper type-head lookup from dependent value-index
+lookup. It preserves the original15 default controls and adds the same-spelled
+annotation case as16; all original four components plus three complete index,
+value-alias and precondition groups are validating. This candidate is unproven.
+The strict nullary-field dependency, diagnostics, refinement case, imported
+default transport and library-family work remain. Neither private compiler is
+promoted; published Cinch stays3268 and Native stays8ba8. Latest matching full
+bootstrap, every original suite and Acceptance1-5 remain open.
+
 ## Native annotation binders fixed; source defaults pass component audit (2026-11-06)
 
 Native8ba8 preserves definition-owned annotation binders and the actual class and

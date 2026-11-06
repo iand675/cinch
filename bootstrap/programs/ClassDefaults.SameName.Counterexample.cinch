@@ -1,0 +1,12 @@
+module Defaults where
+  export Identity, seed, identity
+  signature Identity a where
+    seed :: a -> a
+    identity :: a -> a
+    identity a = (a :: a)
+module Main where
+  import Defaults
+  implicit instance IdentityInt :: Identity Int where
+    seed x = x
+  main :: Int
+  main = identity 42

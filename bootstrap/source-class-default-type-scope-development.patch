@@ -1,0 +1,59 @@
+diff --git a/bootstrap/Bootstrap.Infer.cinch b/bootstrap/Bootstrap.Infer.cinch
+index 8bec79b..46e026e 100644
+--- a/bootstrap/Bootstrap.Infer.cinch
++++ b/bootstrap/Bootstrap.Infer.cinch
+@@ -276,6 +276,15 @@ module Bootstrap.Infer where
+   lookup-local :: String -> List (String, UType) -> Option UType
+   lookup-local name locals = case locals of Nil -> None; Cons (n, ty) rest -> if same name n then Some ty else lookup-local name rest
+ 
++  -- Term locals are available to dependent index conversion, but they do
++  -- not shadow a separately bound type constructor in an annotation.
++  -- Keep the full context for index arguments; filter only type-head uses.
++  lookup-type-local :: String -> List (String, UType) -> Option UType
++  lookup-type-local name locals = case locals of
++    Nil -> None
++    Cons (actual, value) rest -> if not (same name actual) then lookup-type-local name rest else
++      (case value-carrier (type-kind value) of Some carrier -> lookup-type-local name rest; None -> Some value)
++
+   -- A universe annotation denotes a kind. Every other annotation must
+   -- elaborate to a proper carrier type in the preceding binder context.
+   -- In particular, Nat -> Int is a function-valued index carrier, whereas
+@@ -340,7 +349,7 @@ module Bootstrap.Infer where
+     other -> (head, args)
+   convert-type-head :: Bool -> TypeContext -> List (String, UType) -> TypeExpr -> Store -> (UType, Store)
+   convert-type-head external kinds locals syntax st = case syntax of
+-    TName sp name -> case lookup-local name locals of
++    TName sp name -> case lookup-type-local name locals of
+       Some value -> (value, st)
+       None -> case (find-refinement name (context-aliases kinds), context-kind name kinds) of
+         (Some definition, Some kind) -> (UCon name kind, st)
+@@ -457,7 +466,7 @@ module Bootstrap.Infer where
+     Cons declaration rest -> validate-refinements kinds rest (validate-refinement kinds declaration st)
+   convert :: Bool -> TypeContext -> List (String, UType) -> TypeExpr -> Store -> (UType, Store)
+   convert external kinds locals ty st = case ty of
+-    TName s name -> case lookup-local name locals of
++    TName s name -> case lookup-type-local name locals of
+       Some found -> (found, st)
+       None -> if same name "Io" || same name "b.Io" then (UCon "b.Io" (KFun KRegion KType), st)
+         else if same name "Dec" || same name "b.Dec" then (case context-kind name kinds of Some kind -> (UCon name kind, st); None -> (UCon "b.Dec" (KFun KProp KType), st))
+diff --git a/compiler/tests/bootstrap_source_instances.rs b/compiler/tests/bootstrap_source_instances.rs
+index a296df5..a926b09 100644
+--- a/compiler/tests/bootstrap_source_instances.rs
++++ b/compiler/tests/bootstrap_source_instances.rs
+@@ -151,6 +151,7 @@ fn source_class_defaults_are_checked_at_the_owner_and_inherited_with_closed_cont
+         ("default helper stays private", format!("{owner}{}", inherited.replace("  answer = twice 21", "  answer = helper 21")), 4),
+         ("class parameter annotation in inherited default", "module Defaults where\n  signature Identity a where\n    seed :: a -> a\n    identity :: a -> a\n    identity x = (x :: a)\nmodule Main where\n  import Defaults\n  implicit instance IdentityInt :: Identity Int where\n    seed x = x\n  main :: Int\n  main = identity 42\n".into(), 0),
+         ("method local parameter annotation in inherited default", "module Defaults where\n  signature Pick a where\n    seed :: a -> a\n    pick :: forall b. b -> a -> b\n    pick x ignored = (x :: b)\nmodule Main where\n  import Defaults\n  implicit instance PickInt :: Pick Int where\n    seed x = x\n  main :: Int\n  main = pick 42 0\n".into(), 0),
++        ("term and type names stay separate in inherited annotations", "module Defaults where\n  signature Identity a where\n    seed :: a -> a\n    identity :: a -> a\n    identity a = (a :: a)\nmodule Main where\n  import Defaults\n  implicit instance IdentityInt :: Identity Int where\n    seed x = x\n  main :: Int\n  main = identity 42\n".into(), 0),
+         ("nullary default field", "module Defaults where\n  signature Value a where\n    value :: a\n    duplicate :: a\n    duplicate = value\nmodule Main where\n  import Defaults\n  implicit instance ValueInt :: Value Int where\n    value = 7\n  main :: Int\n  main = duplicate\n".into(), 0),
+     ] {
+         let native = cinch::driver::check_sources_ifaces(&source, "class-default-oracle.cinch");
+@@ -164,7 +165,7 @@ fn source_class_defaults_are_checked_at_the_owner_and_inherited_with_closed_cont
+             let interfaces: Vec<_> = text.lines().map(|line| Iface::from_json(line).expect("independent public interface reader")).collect();
+             cinch::interface::verify_chain(&interfaces).expect("source dependency hashes refer to the emitted owner");
+             assert!(interfaces.iter().all(|i| i.exports.values.iter().all(|v| !v.name.contains("#class-default:"))), "a default acquired a source-visible name");
+-            if !matches!(name, "nullary default field" | "class parameter annotation in inherited default" | "method local parameter annotation in inherited default") {
++            if !matches!(name, "term and type names stay separate in inherited annotations" | "nullary default field" | "class parameter annotation in inherited default" | "method local parameter annotation in inherited default") {
+                 let defining = interfaces.iter().find(|i| i.module == "Defaults").unwrap();
+                 let describe = defining.exports.signatures.iter().find(|s| s.identity == "Defaults.Describe").unwrap();
+                 assert_eq!(describe.methods[0].name, "size");
