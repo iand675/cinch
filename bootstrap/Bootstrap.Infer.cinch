@@ -1770,10 +1770,10 @@ module Bootstrap.Infer where
     Cons (DOpaque sp name params result) rest -> Cons name (foreign-opaque-names rest)
     Cons (DExternal sp name category syntax metadata) rest -> if same category "type" && (case field "kind" metadata of JStr variety -> same variety "opaque"; other -> False) then Cons name (foreign-opaque-names rest) else foreign-opaque-names rest
     Cons other rest -> foreign-opaque-names rest
-  foreign-owner-prefix :: List Char -> List Char -> Bool
-  foreign-owner-prefix wanted actual = case wanted of
-    Nil -> True
-    Cons first rest -> case actual of Cons next more -> char-code first == char-code next && foreign-owner-prefix rest more; Nil -> False
+  foreign-defining-owner :: List Char -> String
+  foreign-defining-owner reversed = case reversed of
+    Nil -> ""
+    Cons first rest -> if char-code first == 46 then pack (reverse rest) else foreign-defining-owner rest
   -- Foreign display schemes deliberately carry no portable body authority.
   -- Their nominal arguments still need the actual defining opaque header,
   -- even when a client mentions only the imported function, not the type.
@@ -1782,7 +1782,7 @@ module Bootstrap.Infer where
   foreign-opaque-kinds :: Span -> String -> Json -> TypeContext -> Store -> (TypeContext, Store)
   foreign-opaque-kinds sp owner rows kinds st = case rows of
     JArr row rest -> case (field "kind" row, field "identity" row) of
-      (JStr variety, JStr identity) -> if not (same variety "opaque" && foreign-owner-prefix (unpack (string-concat owner ".")) (unpack identity)) then foreign-opaque-kinds sp owner rest kinds st else
+      (JStr variety, JStr identity) -> if not (same variety "opaque" && same owner (foreign-defining-owner (reverse (unpack identity)))) then foreign-opaque-kinds sp owner rest kinds st else
         (case (field "ctors" row, field "fields" row) of
           (JArrEnd, JArrEnd) -> case imported-kinds kinds (field "parameters" row) st of
             (params, prepared) -> let name = interface-global identity in let expected = kind-arrow params in

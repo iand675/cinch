@@ -125,10 +125,12 @@ module Bootstrap.ExportType where
     IMultiply a b -> join [Ok "(", index-in scope a, Ok " * ", index-in scope b, Ok ")"]
     other -> Err "interface index has no portable checked representation"
   separated :: List (Nat, String) -> String -> UType -> Result String String
-  separated scope delimiter spine = case spine of
+  separated scope delimiter spine = separated-style False scope delimiter spine
+  separated-style :: Bool -> List (Nat, String) -> String -> UType -> Result String String
+  separated-style display scope delimiter spine = case spine of
     UEnd -> Ok ""
-    UArg first UEnd -> type-in scope first
-    UArg first rest -> join [type-in scope first, Ok delimiter, separated scope delimiter rest]
+    UArg first UEnd -> type-in-style display scope first
+    UArg first rest -> join [type-in-style display scope first, Ok delimiter, separated-style display scope delimiter rest]
     other -> Err "malformed checked interface spine"
   row-parts :: List (Nat, String) -> UType -> Result String (List String, List String)
   row-parts scope row = case row of
@@ -141,9 +143,11 @@ module Bootstrap.ExportType where
     URigid id name level KRow -> (case local id scope of Ok value -> Ok (Nil, [value]); Err error -> Err error)
     other -> Err "unresolved or malformed exported effect row"
   application-in :: List (Nat, String) -> UType -> Result String String
-  application-in scope ty = case ty of
-    UApp f x -> join [application-in scope f, Ok " ", type-in scope x]
-    other -> type-in scope ty
+  application-in scope ty = application-style False scope ty
+  application-style :: Bool -> List (Nat, String) -> UType -> Result String String
+  application-style display scope ty = case ty of
+    UApp f x -> join [application-style display scope f, Ok " ", type-in-style display scope x]
+    other -> type-in-style display scope ty
   row-labels :: List (Nat, String) -> UType -> Result String (List String, List String)
   row-labels scope labels = case labels of
     UEnd -> Ok (Nil, Nil)
@@ -166,31 +170,36 @@ module Bootstrap.ExportType where
         Nil -> Ok (if string-length body == 0 then "" else string-concat-all ["{", body, "}"])
         Cons tail Nil -> Ok (string-concat-all ["{", body, " | ", tail, "}"])
         other -> Err "exported effect row has independent unresolved tails"
+  -- Resolved contracts keep Native canonical binary applications. Public
+  -- source schemes flatten application spines without changing binder scope.
   type-in :: List (Nat, String) -> UType -> Result String String
-  type-in scope ty = case ty of
+  type-in scope ty = type-in-style False scope ty
+  type-in-style :: Bool -> List (Nat, String) -> UType -> Result String String
+  type-in-style display scope ty = case ty of
     UCon name kind -> export-global name
     UBound id name kind -> local id scope
     URigid id name level kind -> local id scope
     UIndex carrier index -> index-in scope index
-    UIndexForget value -> type-in scope value
-    UIndexPromote value -> type-in scope value
-    UIndexByteLength value -> join [Ok "(b.bytesLen ", type-in scope value, Ok ")"]
-    UIndexCall function args -> join [Ok "(", export-global (total-identity function), Ok " ", separated scope " " args, Ok ")"]
-    UIndexMath op a b -> join [Ok "(", type-in scope a, Ok (string-concat-all [" ", op, " "]), type-in scope b, Ok ")"]
+    UIndexForget value -> type-in-style display scope value
+    UIndexPromote value -> type-in-style display scope value
+    UIndexByteLength value -> join [Ok "(b.bytesLen ", type-in-style display scope value, Ok ")"]
+    UIndexCall function args -> join [Ok "(", export-global (total-identity function), Ok " ", separated-style display scope " " args, Ok ")"]
+    UIndexMath op a b -> join [Ok "(", type-in-style display scope a, Ok (string-concat-all [" ", op, " "]), type-in-style display scope b, Ok ")"]
     UPropLit value -> Ok (if value then "True" else "False")
-    UCompare relation a b -> join [Ok "(", type-in scope a, Ok (string-concat-all [" ", relation, " "]), type-in scope b, Ok ")"]
-    UPropAnd a b -> join [Ok "(", type-in scope a, Ok " && ", type-in scope b, Ok ")"]
-    UPropOr a b -> join [Ok "(", type-in scope a, Ok " || ", type-in scope b, Ok ")"]
-    UPropNot value -> join [Ok "(Not ", type-in scope value, Ok ")"]
-    UPropNonZero value -> join [Ok "(NonZero ", type-in scope value, Ok ")"]
+    UCompare relation a b -> join [Ok "(", type-in-style display scope a, Ok (string-concat-all [" ", relation, " "]), type-in-style display scope b, Ok ")"]
+    UPropAnd a b -> join [Ok "(", type-in-style display scope a, Ok " && ", type-in-style display scope b, Ok ")"]
+    UPropOr a b -> join [Ok "(", type-in-style display scope a, Ok " || ", type-in-style display scope b, Ok ")"]
+    UPropNot value -> join [Ok "(Not ", type-in-style display scope value, Ok ")"]
+    UPropNonZero value -> join [Ok "(NonZero ", type-in-style display scope value, Ok ")"]
     URequire predicates body -> Err "nested function preconditions have no portable interface syntax"
-    URefine id name carrier predicate -> let binder = fresh-scoped-name "cinch-result" scope in join [Ok "(refined (", type-in (Cons (id, binder) scope) predicate, Ok ") ", type-in scope carrier, Ok ")"]
+    URefine id name carrier predicate -> let binder = fresh-scoped-name "cinch-result" scope in join [Ok "(refined (", type-in-style display (Cons (id, binder) scope) predicate, Ok ") ", type-in-style display scope carrier, Ok ")"]
     UPi id name domain row result -> let binder = argument-name name scope in let bound = Cons (id, binder) scope in
-      join [Ok "((", Ok binder, Ok " :: ", type-in scope domain, Ok ") ->", row-in bound row, Ok " ", type-in bound result, Ok ")"]
-    UApp f x -> join [Ok "(", type-in scope f, Ok " ", type-in scope x, Ok ")"]
-    UFun a b -> join [Ok "(", type-in scope a, Ok " -> ", type-in scope b, Ok ")"]
-    UFunEff a row b -> join [Ok "(", type-in scope a, Ok " ->", row-in scope row, Ok " ", type-in scope b, Ok ")"]
-    UTuple fields -> join [Ok "(", separated scope ", " fields, Ok ")"]
+      join [Ok "((", Ok binder, Ok " :: ", type-in-style display scope domain, Ok ") ->", row-in bound row, Ok " ", type-in-style display bound result, Ok ")"]
+    UApp f x -> if display then join [Ok "(", application-style True scope ty, Ok ")"] else
+      join [Ok "(", type-in-style False scope f, Ok " ", type-in-style False scope x, Ok ")"]
+    UFun a b -> join [Ok "(", type-in-style display scope a, Ok " -> ", type-in-style display scope b, Ok ")"]
+    UFunEff a row b -> join [Ok "(", type-in-style display scope a, Ok " ->", row-in scope row, Ok " ", type-in-style display scope b, Ok ")"]
+    UTuple fields -> join [Ok "(", separated-style display scope ", " fields, Ok ")"]
     other -> Err "checked type has no portable interface representation"
   export-type :: UType -> Result String String
   export-type ty = type-in Nil ty
@@ -215,25 +224,25 @@ module Bootstrap.ExportType where
   -- Portable syntax places it at signature scope, where the named Pi
   -- arguments still identify the exact variables used by each obligation.
   scheme-result :: List (Nat, String) -> UType -> Result String (String, List String)
-  scheme-result scope ty = result-in False scope 0 ty
+  scheme-result scope ty = result-in False False scope 0 ty
   -- Display argument positions follow checked identities. The same scope is
   -- used for domains, effects and obligations, so renaming cannot capture a
   -- quantified parameter or change which argument a predicate describes.
-  result-in :: Bool -> List (Nat, String) -> Nat -> UType -> Result String (String, List String)
-  result-in positions scope position ty = case ty of
+  result-in :: Bool -> Bool -> List (Nat, String) -> Nat -> UType -> Result String (String, List String)
+  result-in display positions scope position ty = case ty of
     UPi id name domain row result -> let binder = if positions then fresh-scoped-name (fresh-name "arg" position) scope else argument-name name scope in let bound = Cons (id, binder) scope in
-      with-result [Ok "((", Ok binder, Ok " :: ", type-in scope domain, Ok ") ->", row-in bound row, Ok " "] (result-in positions bound (position + 1) result)
-    UFun domain result -> with-result [Ok "(", type-in scope domain, Ok " -> "] (result-in positions scope (position + 1) result)
-    UFunEff domain row result -> with-result [Ok "(", type-in scope domain, Ok " ->", row-in scope row, Ok " "] (result-in positions scope (position + 1) result)
+      with-result [Ok "((", Ok binder, Ok " :: ", type-in-style display scope domain, Ok ") ->", row-in bound row, Ok " "] (result-in display positions bound (position + 1) result)
+    UFun domain result -> with-result [Ok "(", type-in-style display scope domain, Ok " -> "] (result-in display positions scope (position + 1) result)
+    UFunEff domain row result -> with-result [Ok "(", type-in-style display scope domain, Ok " ->", row-in scope row, Ok " "] (result-in display positions scope (position + 1) result)
     URequire predicates body -> case body of
       UPi id name a row b -> Err "early dependent precondition cannot be moved across an argument"
       UFun a b -> Err "early precondition cannot be moved across an argument"
       UFunEff a row b -> Err "early effectful precondition cannot be moved across an argument"
-      other -> (case (separated scope ", " predicates, result-in positions scope position body) of
+      other -> (case (separated-style display scope ", " predicates, result-in display positions scope position body) of
         (Ok conditions, Ok (value, rest)) -> Ok (value, Cons conditions rest)
         (Err error, other) -> Err error
         (other, Err error) -> Err error)
-    other -> case type-in scope ty of Err error -> Err error; Ok value -> Ok (value, Nil)
+    other -> case type-in-style display scope ty of Err error -> Err error; Ok value -> Ok (value, Nil)
   export-scheme :: Scheme -> Result String String
   export-scheme scheme = case quantifiers Nil (scheme-params scheme) of
     Err error -> Err error
@@ -296,7 +305,7 @@ module Bootstrap.ExportType where
   value-scheme-in :: Bool -> Scheme -> Result String String
   value-scheme-in positions scheme = case value-quantifiers Nil (scheme-params scheme) of
     Err error -> Err error
-    Ok (prefix, scope) -> case (value-requirements scope scope 0 (scheme-requirements scheme), result-in positions scope 0 (scheme-body scheme)) of
+    Ok (prefix, scope) -> case (value-requirements scope scope 0 (scheme-requirements scheme), result-in True positions scope 0 (scheme-body scheme)) of
       (Err error, other) -> Err error
       (other, Err error) -> Err error
       (Ok dictionaries, Ok (body, predicates)) ->

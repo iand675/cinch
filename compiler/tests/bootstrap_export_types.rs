@@ -18,6 +18,8 @@ fn checked_schemes_have_portable_definition_owned_syntax() {
         let (name, scheme) = line.split_once('\t').expect("named type export");
         let body = match name {
             "source-quantifier" => { assert!(scheme.starts_with("forall (a :: Type)."), "{scheme}"); "probe x = x" }
+            "source-application" => { assert!(scheme.contains("A.Vec 0 a"), "{scheme}"); "probe x = x" }
+            "nested-source-application" => { assert!(scheme.contains("A.Wrap (A.Vec 0 a)"), "{scheme}"); "probe x = x" }
             "argument-positions" => { assert!(scheme.contains("0 <= arg0") && scheme.contains("arg0 < arg1"), "{scheme}"); "probe x y = x" }
             "display-binder-collision" => { assert!(scheme.contains("arg0-r <= arg0"), "{scheme}"); "probe x = x" }
             "result-collision" => { assert!(scheme.contains("cinch-result-r == cinch-result"), "{scheme}"); "probe x = x" }
@@ -54,10 +56,10 @@ fn checked_schemes_have_portable_definition_owned_syntax() {
             assert_eq!(compact(scheme), compact(&reference.scheme), "region interface contract");
             continue;
         }
-        let source = format!("module A where\n  data Token where\n    Token :: Token\nmodule Main where\n  import A\n  probe :: {scheme}\n  {body}\n  main :: Int\n  main = 0\n");
+        let source = format!("module A where\n  data Token where\n    Token :: Token\n  data Vec (n :: Nat) a where\n    VNil :: Vec 0 a\n  data Wrap a where\n    Wrapped :: a -> Wrap a\nmodule Main where\n  import A\n  import Data.Core\n  probe :: {scheme}\n  {body}\n  main :: Int\n  main = 0\n");
         let checked = cinch::driver::check_sources(&source, "cinch-exported-type.cinch");
         assert!(checked.is_ok(), "Native readback {name}: {scheme}\n{checked:?}\nProject: {}", dir.display());
     }
-    assert_eq!(report.lines().count(), 19, "{report}");
+    assert_eq!(report.lines().count(), 21, "{report}");
     common::cleanup(&dir);
 }

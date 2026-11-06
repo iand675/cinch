@@ -1,0 +1,161 @@
+{
+  "affected_rust_tests": 18,
+  "compiler_gate": {
+    "adapter_tests": 8,
+    "binary_sha256": "7c7d596a355f63d6fea793626f2ef4c2316218665a79e35feaf35457fec0c993",
+    "client_heap_limit": "32M",
+    "client_rc_debug": true,
+    "compiler_heap_limit": "256M",
+    "compiler_input_cases": 4,
+    "compiler_modules_checked": 44,
+    "compiler_rc_debug": false,
+    "compiler_sha256": "ef9583ede397d8c14e770f465e7a2e570d0189f4660419f0c6661f2b42a87f81",
+    "compiler_source_sha256": "29e6a77bfe4b90c12f8f9dc5c63632b574b49fe4296abb7878483feb74b3a125",
+    "foreign_abi_mutations_refused": 2,
+    "foreign_missing_owner_refusals": 1,
+    "foreign_positive_clients": 17,
+    "foreign_source_refusals": 3,
+    "foreign_well_formed_body_authority_refusals": 1,
+    "full_goal_complete": false,
+    "interface_closure": 60,
+    "layout_words": 4224,
+    "library_units": 1842,
+    "log_sha256": "f4cf45d2af1072851241ea704d2e4dbbcb53cab6efa9639d0616dd9de1d0d77b",
+    "metadata_sha256": "8f7591e674843091907e684c3c9e14ec71afc1b9db19ad1c7785ec3890c503c9",
+    "method_families": 26,
+    "native_rlib_sha256": "c2e3b862e212fe0d8557461ea9160e97ab23aa7d44d37113f1e2f855eec5c394",
+    "new_units": 7,
+    "object_round_trip_tests": 1,
+    "object_sha256": "e2bddac9f26372ba5c2bf361087650fbec89860df066f38520510f0b6463db64",
+    "real_new_public_and_closure_symbols": 14,
+    "represented_object_contract_refusals": 1,
+    "scope": "Actual44-module typed foreign compiler, all8 adapter tests and the complete original object test with14 real C ABI clients against an optimized C fixture plus direct and facade imported opaque-pointer clients plus an imported scalar client. Exact Native metadata oracle,2 rehashed ABI disagreements, a changed represented provider contract,3 source refusals and a well-formed total-body graph with the exact foreign symbol and I64 carrier types are checked. The matching identity/type graph still grants no pure authority to the effectful foreign operation. All49 observed compiler/client leak reports are zero. Original object IR, code, physical symbol/layout/interface inventories and failure invalidation retain independent checks. SeedNative22 is an explicit builder/provider role, not client frontend fallback. Exact44 staged-driver inputs are checked. This is not a finalStage3 compiler, complete original API/all105 suite or matching final bootstrap acceptance.",
+    "seed_native_source_sha256": "22c91cf6c1855b049207612e9d94630850e880d5a49ea3e2c57c92aff7fdbe88",
+    "source_sha256": "dd14e04fd880222270e7ffcd7e69d89956eadcf221032ddd939dc0c675645332",
+    "status": "passed-actual-cinch-library-object-round-trip",
+    "tests": 9,
+    "verified_at": "2026-11-06T06:53:24.912847+00:00",
+    "whole_groups": 2,
+    "zero_leak_reports": 49
+  },
+  "compiler_source_sha256": "29e6a77bfe4b90c12f8f9dc5c63632b574b49fe4296abb7878483feb74b3a125",
+  "exporter_controls": 21,
+  "filtered": 0,
+  "full_goal_complete": false,
+  "ignored": 0,
+  "native_source_check": {
+    "bundle_sha256": "f318f43888d83434286833b4eaf135381702ceffa3fdf06b9b9cf609c0d23244",
+    "checker_sha256": "f8ade79d18c37b237bdb6d8217be6a6764048bcc4ab4c449a9ba3e463e9c2f07",
+    "child_pid": 19064,
+    "compiler_modules": 44,
+    "compiler_source_sha256": "29e6a77bfe4b90c12f8f9dc5c63632b574b49fe4296abb7878483feb74b3a125",
+    "exit_code": 0,
+    "full_goal_complete": false,
+    "log_sha256": "4825c38ba9e071bc3e19961e7c1bd0c1a2fcc575a5cff7e416d7f7c772597271",
+    "pid": 19060,
+    "rlib_sha256": "b9008bb6113767a9c027553cba3dc70ca05938cc2a1652c28de4670277d435ba",
+    "status": "passed",
+    "worker_slot": 3
+  },
+  "native_source_sha256": "6b567529032465cde863607185da47aa7d5f9e5ecd99a596158174fd7efa6aa7",
+  "original_api_failed_groups": [
+    "interface_prelude_overrides"
+  ],
+  "original_api_groups": 9,
+  "original_api_passed_groups": 8,
+  "rows": [
+    {
+      "log": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/type-application-regressions-validation-1/bootstrap_intrinsics.log",
+      "log_sha256": "8baf8d67731da61003e6150b8e5dd226fc8c9823973a8cd57b10633a4bd7d77f",
+      "name": "bootstrap_intrinsics",
+      "status": "passed",
+      "tests": 1
+    },
+    {
+      "log": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/type-application-regressions-validation-1/bootstrap_export_types.log",
+      "log_sha256": "f3e2798cccdd59754aaf29cdd6ae9c3c62de1272b876224819dca8a5c97dbfa2",
+      "name": "bootstrap_export_types",
+      "status": "passed",
+      "tests": 1
+    },
+    {
+      "log": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/type-application-regressions-validation-1/bootstrap_export_interfaces.log",
+      "log_sha256": "96fb5c5754ad9ce8c093169057a7d6c90a36792a3778bddfe764d55e9a0d43f3",
+      "name": "bootstrap_export_interfaces",
+      "status": "passed",
+      "tests": 1
+    },
+    {
+      "log": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/type-application-regressions-validation-1/bootstrap_globals.log",
+      "log_sha256": "46edeb017a79780794e640e60464cea3daffacefa50caa2dca1e7fb2a886d3f5",
+      "name": "bootstrap_globals",
+      "status": "passed",
+      "tests": 2
+    },
+    {
+      "log": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/type-application-regressions-validation-1/bootstrap_effects.log",
+      "log_sha256": "c95259666a6c4b93da56f937953863bb9f591c6a3328790ff74f4000ac48d2a9",
+      "name": "bootstrap_effects",
+      "status": "passed",
+      "tests": 1
+    },
+    {
+      "log": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/type-application-regressions-validation-1/bootstrap_runtime_ir.log",
+      "log_sha256": "2a95b8ee127067de13a5e2a4f48b67e72cd31f7e7f5621c2cdbc90150d227951",
+      "name": "bootstrap_runtime_ir",
+      "status": "passed",
+      "tests": 1
+    },
+    {
+      "log": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/type-application-regressions-validation-1/bootstrap_runtime_objects.log",
+      "log_sha256": "7627b4a4a99819b1dc59beba1727979586f442433b92edf9ae14694a05199cb8",
+      "name": "bootstrap_runtime_objects",
+      "status": "passed",
+      "tests": 1
+    },
+    {
+      "log": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/type-application-export-regressions-validation-3/bootstrap_parse.log",
+      "log_sha256": "85bfed4b75fbc52a4dc92686fe4bb3d0bd445abf22db1c59c79af8b7a1054df5",
+      "name": "bootstrap_parse",
+      "status": "passed",
+      "tests": 1
+    },
+    {
+      "log": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/type-application-full-compiler-validation-2/bootstrap_external_frontend.log",
+      "log_sha256": "a2e587164b34083a25fb998bbe8dfcda7e1c63cd2644c9486652e28f07ada501",
+      "name": "bootstrap_external_frontend",
+      "status": "passed",
+      "tests": 8
+    },
+    {
+      "log": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/type-application-full-compiler-validation-2/bootstrap_library_object.log",
+      "log_sha256": "f4cf45d2af1072851241ea704d2e4dbbcb53cab6efa9639d0616dd9de1d0d77b",
+      "name": "bootstrap_library_object",
+      "status": "passed",
+      "tests": 1
+    }
+  ],
+  "schema": 1,
+  "scope": "Exact defining-owner checks reject Host.Nested.Handle when only Host is admitted, while preserving direct/facade opaque C clients. Public type applications flatten through nested types; canonical binary resolved contracts remain distinct and unchanged. All original19 exporter controls plus2 Native readback controls pass. The exact44-module candidate passes10 complete affected groups/18 Rust tests, 17 optimized real C clients and49 zero-leak reports. The independently audited Cinch-built5f2f Stage3 checks all44 exact inputs with empty PATH. All9 original API groups execute unchanged:8 pass, source-Prelude replacement still refuses. A matching final staged fixed point, all105 required frontend groups, complete Native suite,14 external acceptance checks, external language behavior and Acceptance1-5 remain required; this scoped receipt does not close the goal.",
+  "self_built_source_check": {
+    "builder_sha256": "96d695d34c9b03346d7c374d8c871c99c7ca533fb8cc20d82cff9a62fd3ca41c",
+    "builder_source_sha256": "5f2f855665956b76117ea128547ecbdf841f988a487b64ff38b983b24dd38ec4",
+    "child_pid": 28483,
+    "compiler_modules": 44,
+    "compiler_source_sha256": "29e6a77bfe4b90c12f8f9dc5c63632b574b49fe4296abb7878483feb74b3a125",
+    "diagnostics": "",
+    "exit_code": 0,
+    "full_goal_complete": false,
+    "interfaces_sha256": "067ab7c76c130a53b952b9d8fa0a0cfd7702bddf64e3dae51724c0275ae98163",
+    "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+    "pid": 19103,
+    "scope": "Actual independently audited self-built5f2f Stage3 checks the exact44 staged-driver inputs of private typed-foreign compiler using55 authenticated85 library-only interfaces and an empty executable PATH. This proves actual Cinch parser/typechecker acceptance, with no client Native fallback. It does not establish matching current staged fixedpoint or full suites.",
+    "source": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/type-application-self-built-check-3/source",
+    "source_sha256": "c5eab91c16bcf891fdbf20f500d1943d0c4d1244df1753accee65ea1605be625",
+    "status": "passed",
+    "worker_slot": 3
+  },
+  "status": "passed-owner-and-application-display-gates",
+  "verified_at": "2026-11-06T06:53:25.472538+00:00",
+  "whole_affected_groups": 10
+}

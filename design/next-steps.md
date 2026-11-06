@@ -1,6 +1,35 @@
 # Next steps (as of 2026-11-06)
 
-## Typed C imports pass scoped gates; defining-owner gap remains (2026-11-06)
+
+## Defining owners and public type applications pass scoped gates (2026-11-06)
+
+Compiler29e6 requires an opaque foreign header's exact defining module.
+An admitted Host interface cannot claim Host.Nested.Handle without that
+module's defining header. The original fresh-hash forgery is retained as a
+negative control; legitimate direct and facade pointer clients still pass.
+
+Public value schemes flatten type applications, including nested applications,
+while resolved canonical contracts keep their original binary form. Every
+original19 exporter control remains, plus2 Native readback cases. The complete
+unchanged indexed-type API group now passes.
+
+All10 complete affected groups pass18 Rust tests. The actual44-module compiler
+passes17 permanent optimized C clients and49 zero-leak reports, ABI and object
+identity mutations, source refusals and the schema-valid pure-body forgery.
+All44 exact staged inputs pass Native checking and the independently audited
+Cinch-built5f2f checker with an empty executable PATH. All9 original API groups
+and11 Rust tests run unchanged:8 groups/10 tests pass; source-Prelude replacement
+still fails. See `bootstrap/current-owner-and-display-results.json` and
+`bootstrap/current-original-interface-api-results.json`.
+
+A fresh matching44-module four-stage chain is running. Its Stage0 smokes and
+library-only provider pass; later stages and independent fixed-point/interface/
+changed-source checks remain open. The earlier5f2f full Native and105-target
+Stage3 sweeps keep their own frozen scope. Matching full suites, the separate14
+external acceptance checks, all34 external language cases and every Acceptance1-5
+requirement remain required. Record syntax/type/runtime work remains private.
+
+## Earlier93fc typed C imports passed scoped gates; owner gap recorded (2026-11-06)
 
 Compiler93fc supports typed C scalar/float/unit and recorded opaque/pointer
 imports, with explicit effects, checked ABI plans, non-null guards and no

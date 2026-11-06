@@ -16,6 +16,10 @@ module Main where
   empty = URow UEnd
   variable :: Nat -> String -> UType
   variable id name = UIndex nat (IBound id name)
+  indexed :: UType
+  indexed = UApp (UApp (UCon (interface-global "A.Vec") (KFun (value-kind nat) (KFun KType KType))) (UIndex nat (IInteger 0))) (UBound 7 "a" KType)
+  nested-indexed :: UType
+  nested-indexed = UApp (UCon (interface-global "A.Wrap") (KFun KType KType)) indexed
   row :: String -> Result String String -> String
   row name value = let message = (case value of Ok text -> text; Err error -> string-concat "ERROR:" error) in string-concat-all [name, "\t", message, "\n"]
   report :: String
@@ -23,6 +27,8 @@ module Main where
     row "nat" (export-scheme (mono (UFun nat nat))) <>
     row "polymorphic" (export-scheme (MkScheme [MkQuant 7 "a" KType False] (UFun (UBound 7 "a" KType) (UBound 7 "a" KType)))) <>
     row "source-quantifier" (export-value-scheme (MkScheme [MkQuant 7 "a" KType False] (UFun (UBound 7 "a" KType) (UBound 7 "a" KType)))) <>
+    row "source-application" (export-value-scheme (MkScheme [MkQuant 7 "a" KType False] (UFun indexed indexed))) <>
+    row "nested-source-application" (export-value-scheme (MkScheme [MkQuant 7 "a" KType False] (UFun nested-indexed nested-indexed))) <>
     row "argument-positions" (export-display-scheme (mono (let scalar = UCon "I64" KType in UPi 4 "x" scalar empty (UPi 5 "y" scalar empty (URequire (UArg (UCompare "<=" (UIndex scalar (IInteger 0)) (UIndex scalar (IBound 4 "x"))) (UArg (UCompare "<" (UIndex scalar (IBound 4 "x")) (UIndex scalar (IBound 5 "y"))) UEnd)) scalar))))) <>
     row "display-binder-collision" (export-display-scheme (MkScheme [MkQuant 7 "arg0" (value-kind nat) False] (UPi 4 "x" nat empty (URequire (UArg (UCompare "<=" (variable 4 "x") (variable 7 "arg0")) UEnd) nat)))) <>
     row "region" (export-scheme (MkQualifiedScheme [MkQuant 8 "r" KRegion True] [MkRequirement "io" (UApp (UCon "b.Io" (KFun KRegion KType)) (UBound 8 "r" KRegion))] (UFunEff unit (URow (UArg (UApp (UCon "IO" (KFun KRegion KEffect)) (UBound 8 "r" KRegion)) UEnd)) (UCon "Int" KType)))) <>

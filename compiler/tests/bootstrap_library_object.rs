@@ -171,6 +171,31 @@ uint32_t make_u32(void) { return UINT32_C(4000000000); }
     assert!(std::fs::read_to_string(output.with_extension("ll.diagnostics")).unwrap().contains("checked interface identity mismatch"));
     std::fs::write(&represented_path, represented_bytes).unwrap();
     interfaces(&host_manifest, &[&provider.join("build"), &host_dir]);
+    // A parent module cannot manufacture an opaque header belonging to
+    // an unadmitted nested module, even with fresh, consistent ABI hashes.
+    let mut wrong_owner = actual.clone();
+    for ty in &mut wrong_owner.exports.types {
+        ty.identity = ty.identity.replace("Host.Handle", "Host.Nested.Handle");
+    }
+    for value in &mut wrong_owner.exports.values {
+        value.scheme = value.scheme.replace("Host.Handle", "Host.Nested.Handle");
+    }
+    for foreign in &mut wrong_owner.exports.foreign {
+        foreign.ty = foreign.ty.replace("Host.Handle", "Host.Nested.Handle");
+        foreign.result.ty = foreign.result.ty.replace("Host.Handle", "Host.Nested.Handle");
+        for parameter in &mut foreign.params {
+            parameter.ty = parameter.ty.replace("Host.Handle", "Host.Nested.Handle");
+        }
+    }
+    let text = wrong_owner.to_json();
+    assert_eq!(cinch::interface::Iface::from_json(&text).unwrap(), wrong_owner);
+    std::fs::write(&iface_path, text).unwrap();
+    interfaces(&host_manifest, &[&provider.join("build"), &host_dir]);
+    let input = root.join("wrong-owner.cinch"); let output = root.join("wrong-owner");
+    std::fs::write(&input, &direct).unwrap();
+    assert_eq!(run(compiler, &[&input, &output], "--check", &host_manifest, objects).status.code(), Some(4));
+    assert!(std::fs::read_to_string(output.with_extension("diagnostics")).unwrap().contains("Host.Nested.Handle"));
+    std::fs::write(&iface_path, actual.to_json()).unwrap();
     for nullable in [false, true] {
         let mut wrong = actual.clone();
         if nullable { wrong.exports.foreign[0].result.nullable = true; }
