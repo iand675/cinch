@@ -58,7 +58,7 @@
     },
     {
       "title": "Current published Rust compiler: full suite",
-      "detail": "206 of 232 complete groups passed; 1 running, 2 failed and 23 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "207 of 232 complete groups passed; 1 running, 2 failed and 22 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -143,7 +143,7 @@
     },
     {
       "title": "Current Rust producer: sweep with frozen earlier Cinch fixtures",
-      "detail": "206 of 232 complete groups passed; 1 running, 2 failed and 23 pending. State: running. Native6b production matches the published Rust compiler; this sweep retains older5cea Cinch fixtures. All cases run, including ignored cases. The byte-group failure is preserved and its917f repair has a separate passing audit.",
+      "detail": "207 of 232 complete groups passed; 1 running, 2 failed and 22 pending. State: running. Native6b production matches the published Rust compiler; this sweep retains older5cea Cinch fixtures. All cases run, including ignored cases. The byte-group failure is preserved and its917f repair has a separate passing audit.",
       "state": "running"
     },
     {
@@ -247,7 +247,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "206 of 232 complete groups passed; 1 running, 2 failed and 23 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "207 of 232 complete groups passed; 1 running, 2 failed and 22 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -296,6 +296,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "All 43 compiler-source checks: passed. 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_source_constructors: passed; bootstrap_globals: passed; bootstrap_export_interfaces: passed; bootstrap_external_frontend: passed; bootstrap_library_object: passed.",
-  "activity": "Current published Rust compiler: full suite: 206 of 232 complete groups passed; 1 running, 2 failed and 23 pending. Stage builds and smoke checks: 2 of 4; chain state: building-stage2; earlier API source, not the published repair. Repair gates: 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_source_constructors: passed; bootstrap_globals: passed; bootstrap_export_interfaces: passed; bootstrap_external_frontend: passed; bootstrap_library_object: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
-  "updatedAt": "2026-11-06T00:10:13.154107+00:00"
+  "activity": "Current published Rust compiler: full suite: 207 of 232 complete groups passed; 1 running, 2 failed and 22 pending. Stage builds and smoke checks: 2 of 4; chain state: building-stage2; earlier API source, not the published repair. Repair gates: 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_source_constructors: passed; bootstrap_globals: passed; bootstrap_export_interfaces: passed; bootstrap_external_frontend: passed; bootstrap_library_object: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
+  "updatedAt": "2026-11-06T00:11:15.383488+00:00"
 }
