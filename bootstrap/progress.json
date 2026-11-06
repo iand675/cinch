@@ -19,8 +19,8 @@
     },
     {
       "name": "Prior API Stage 2",
-      "state": "pending",
-      "label": "Pending",
+      "state": "passed",
+      "label": "Verified",
       "description": "Every compiler module is being freshly rebuilt by Stage1; all repair gates passed. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
@@ -63,7 +63,7 @@
     },
     {
       "title": "Earlier API compiler bootstrap",
-      "detail": "2 of 4 stages built and smoke-tested. Fixed point, 43 interfaces, API consumption and changed-source behavior are required. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "3 of 4 stages built and smoke-tested. Fixed point, 43 interfaces, API consumption and changed-source behavior are required. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -296,6 +296,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "All 43 compiler-source checks: passed. 4 of 4 complete groups passed; 0 running, 0 failed and 0 pending. type contracts: passed; interface contracts: passed; frontend adapter: passed; object round trip: passed.",
-  "activity": "Current published Rust compiler: full suite: 224 of 232 complete groups passed; 1 running, 3 failed and 4 pending. Stage builds and smoke checks: 2 of 4; chain state: building-stage2; earlier API source, not the published repair. Repair gates: 4 of 4 complete groups passed; 0 running, 0 failed and 0 pending. type contracts: passed; interface contracts: passed; frontend adapter: passed; object round trip: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
-  "updatedAt": "2026-11-06T01:46:15.077737+00:00"
+  "activity": "Current published Rust compiler: full suite: 224 of 232 complete groups passed; 1 running, 3 failed and 4 pending. Stage builds and smoke checks: 3 of 4; chain state: building-stage3; earlier API source, not the published repair. Repair gates: 4 of 4 complete groups passed; 0 running, 0 failed and 0 pending. type contracts: passed; interface contracts: passed; frontend adapter: passed; object round trip: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
+  "updatedAt": "2026-11-06T01:47:17.262167+00:00"
 }
