@@ -7987,6 +7987,7 @@ impl Checker {
                 ))
             }
             ast::Type::Var(n, _) if args.is_empty() && vars.contains(&n.text) => {
+                self.note_kind(&n.text, ParamKind::Prop);
                 Ok(PTerm::Var(n.text.clone()))
             }
             other => Err(Error::at(
@@ -9060,6 +9061,13 @@ impl Checker {
                         // spelling (kind binders for signature
                         // parameters).
                         if vars.contains(&name.to_string()) {
+                            if self.index_carriers.borrow().iter().rev()
+                                .find(|(binder, _)| binder == name)
+                                .is_some_and(|(_, carrier)| *carrier == Ty::Sort(Sort::Prop))
+                            {
+                                self.note_kind(name, ParamKind::Prop);
+                                return Ok(Ty::Prp(Box::new(PTerm::Var(name.to_string()))));
+                            }
                             if let Some(k) = expect {
                                 self.note_kind(name, k.clone());
                             }
@@ -9093,6 +9101,13 @@ impl Checker {
                     return Err(Error::at(n.span, "a captured lexical value is not a type variable"));
                 }
                 if vars.contains(&n.text) {
+                    if self.index_carriers.borrow().iter().rev()
+                        .find(|(binder, _)| binder == &n.text)
+                        .is_some_and(|(_, carrier)| *carrier == Ty::Sort(Sort::Prop))
+                    {
+                        self.note_kind(&n.text, ParamKind::Prop);
+                        return Ok(Ty::Prp(Box::new(PTerm::Var(n.text.clone()))));
+                    }
                     if let Some(k) = expect {
                         self.note_kind(&n.text, k.clone());
                     }
@@ -9421,7 +9436,11 @@ impl Checker {
                 other => {
                     let carriers_start = self.index_carriers.borrow().len();
                     self.index_carriers.borrow_mut().extend(binders.iter().filter_map(|(name, kind, _)| {
-                        match kind { Some(ParamKind::Val(carrier)) => Some((name.clone(), carrier.clone())), _ => None }
+                        match kind {
+                            Some(ParamKind::Val(carrier)) => Some((name.clone(), carrier.clone())),
+                            Some(ParamKind::Prop) => Some((name.clone(), Ty::Sort(Sort::Prop))),
+                            _ => None,
+                        }
                     }));
                     self.index_header_context.borrow_mut().push(ctx.clone());
                     let t: Result<Ty> = (|| {

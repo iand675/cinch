@@ -1,6 +1,44 @@
 # Next steps (as of 2026-11-06)
 
 
+## Native proposition binders retain proof carriers (2026-11-06)
+
+Native a2b9 fixes the original positive-proof constructor failure. An explicitly
+quantified proposition used as a proof domain keeps its declared Prop carrier;
+it no longer acquires a contradictory ordinary-type use. Actual proposition
+argument uses also constrain binder kinds, so Type parameters cannot silently
+become propositions. Scoped carrier hints are removed after each signature.
+
+Four complete groups pass28 Rust tests with no skipped or filtered cases and16
+zero-leak reports. The original eight proof-identity controls remain, alongside
+11 new kind/scope/erasure controls and two programs that compile and execute
+with erased evidence. Both exact44-module compiler projects, published dd8d
+and private d13f, pass the real Native project loader. The unchanged original
+positive proof source now passes the actual Native CLI; its6b/58e refusals stay
+retained. See `bootstrap/current-native-proposition-carrier-results.json`.
+
+An independent optimized build of the identical Native source also passes all
+four groups, preserving debug assertions. Full matching suites remain required;
+these results do not replace them. Seed/library roles remain Native22/85f00ca.
+
+Private d13f now passes the complete constructor/inference/resolver groups,
+all70 constructor source cases and nine metadata mutations, both44-source
+checks, and the independently audited actual compiler/object gate. The latter
+passes nine Rust tests,17 optimized C clients and50 zero-leak reports. Its nine
+original API groups remain8/9, with source-Prelude replacement still failing.
+Twelve of13 runtime clients pass. The indexed Signal client checks successfully
+but emission refuses its fixed-index constructors; that real backend gap is
+retained. Earlier source-string escaping mistakes in two added fixtures are
+separately retained and corrected, without changing any compiler source or
+original assertions. The complete external-language replay awaits successful
+runtime checks. d13f remains private while the backend repair proceeds.
+
+The earlier frozen5f2f/Native6b full sweep finished:234/235 groups and1630/1631
+tests pass, none skipped or filtered. Its original bootstrap_infer failure stays
+failed; current targeted results do not rewrite historical evidence. A matching
+latest-source full sweep, bootstrap,105 frontend targets,14 external acceptance
+checks, all34 language cases and every Acceptance1-5 requirement remain open.
+
 ## Bootstrap and external-language evidence refreshed (2026-11-06)
 
 The preceding aa4e compiler now independently proves Acceptance1-4: all four
