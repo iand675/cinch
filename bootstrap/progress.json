@@ -346,8 +346,8 @@
     },
     {
       "title": "Private class defaults: source gates and complete components",
-      "detail": "3/4 complete groups; phase bootstrap_export_interfaces. Native995f all44 source inputs: passed. Genuine earlier4f Stage3 all44 source inputs with empty PATH: passed. The reviewable development patch is pushed to main but is not applied to the published compiler. Fifteen source controls cover defining scope, unused/overridden errors, generic annotations, value fields and identity stability. Imported default implementations, actual full runtime/object/API and matching latest full bootstrap remain required.",
-      "state": "running"
+      "detail": "4/4 complete groups; phase bootstrap_export_interfaces. Native995f all44 source inputs: passed. Genuine earlier4f Stage3 all44 source inputs with empty PATH: passed. The reviewable development patch is pushed to main but is not applied to the published compiler. Fifteen source controls cover defining scope, unused/overridden errors, generic annotations, value fields and identity stability. Imported default implementations, actual full runtime/object/API and matching latest full bootstrap remain required.",
+      "state": "passed"
     },
     {
       "title": "Published Native995f: quotation hygiene and index kinds",
@@ -17948,13 +17948,13 @@
       },
       {
         "title": "Cinch default implementation: complete component groups",
-        "status": "running",
+        "status": "passed-source-class-default-components",
         "phase": "bootstrap_export_interfaces",
-        "passed": 3,
+        "passed": 4,
         "total": 4,
         "source": "8fcedce1381fe2d1a14468b9cc10eff26cd7f07b64d3beb72fb121533dbb5095",
         "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
-        "auditPending": false
+        "auditPending": true
       },
       {
         "title": "Earlier compiler: full Rust sweep",
@@ -17990,5 +17990,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-06T21:43:22.711019+00:00"
+  "updatedAt": "2026-11-06T21:44:24.887343+00:00"
 }
