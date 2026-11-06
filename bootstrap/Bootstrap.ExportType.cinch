@@ -200,6 +200,9 @@ module Bootstrap.ExportType where
       join [Ok "(", type-in-style False scope f, Ok " ", type-in-style False scope x, Ok ")"]
     UFun a b -> join [Ok "(", type-in-style display scope a, Ok " -> ", type-in-style display scope b, Ok ")"]
     UFunEff a row b -> join [Ok "(", type-in-style display scope a, Ok " ->", row-in scope row, Ok " ", type-in-style display scope b, Ok ")"]
+    UProofFun predicate row result -> if valid-type ty then
+      join [Ok "(", type-in-style display scope predicate, Ok " ->", row-in scope row, Ok " ", type-in-style display scope result, Ok ")"]
+      else Err "malformed erased proof arrow in interface"
     UTuple fields -> join [Ok "(", separated-style display scope ", " fields, Ok ")"]
     other -> Err "checked type has no portable interface representation"
   export-type :: UType -> Result String String
@@ -235,10 +238,14 @@ module Bootstrap.ExportType where
       with-result [Ok "((", Ok binder, Ok " :: ", type-in-style display scope domain, Ok ") ->", row-in bound row, Ok " "] (result-in display positions bound (position + 1) result)
     UFun domain result -> with-result [Ok "(", type-in-style display scope domain, Ok " -> "] (result-in display positions scope (position + 1) result)
     UFunEff domain row result -> with-result [Ok "(", type-in-style display scope domain, Ok " ->", row-in scope row, Ok " "] (result-in display positions scope (position + 1) result)
+    UProofFun predicate row result -> if valid-type ty then
+      with-result [Ok "(", type-in-style display scope predicate, Ok " ->", row-in scope row, Ok " "] (result-in display positions scope (position + 1) result)
+      else Err "malformed erased proof arrow in interface"
     URequire predicates body -> case body of
       UPi id name a row b -> Err "early dependent precondition cannot be moved across an argument"
       UFun a b -> Err "early precondition cannot be moved across an argument"
       UFunEff a row b -> Err "early effectful precondition cannot be moved across an argument"
+      UProofFun predicate row result -> Err "early erased-proof precondition cannot be moved across an argument"
       other -> (case (separated-style display scope ", " predicates, result-in display positions scope position body) of
         (Ok conditions, Ok (value, rest)) -> Ok (value, Cons conditions rest)
         (Err error, other) -> Err error
@@ -303,6 +310,7 @@ module Bootstrap.ExportType where
     UPi id name domain row result -> has-preconditions result
     UFun domain result -> has-preconditions result
     UFunEff domain row result -> has-preconditions result
+    UProofFun predicate row result -> has-preconditions result
     URequire predicates body -> True
     other -> False
   export-display-scheme :: Scheme -> Result String String

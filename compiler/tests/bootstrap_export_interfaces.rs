@@ -82,6 +82,21 @@ fn source_interfaces_preserve_private_nominals_and_defining_fixities() {
             assert!(resolved.scheme.contains(if name == "inspect-scope" { "Scope" } else { "Task" }));
         }
     }
+    for (name, arity) in [
+        ("proof-wrap", 1), ("proof-mixed", 2), ("value-hidden", 2),
+        ("proof-generic", 1), ("type-only", 1), ("region-proof", 2),
+        ("mixed-hidden", 3), ("row-hidden", 2),
+    ] {
+        let reference = native_a.exports.values.iter().find(|v| v.name == name).unwrap();
+        assert_eq!(reference.arity, arity, "Native definition-site contract for {name}");
+        for iface in [a, b] {
+            let actual = iface.exports.values.iter().find(|v| v.name == name).unwrap();
+            assert_eq!(actual.arity, reference.arity, "{}.{name}: source arrows, dictionaries and hidden value parameters", iface.module);
+            assert_eq!(actual.symbol, reference.symbol, "renaming must retain the defining value");
+            assert_eq!(actual.resolved.is_none(), reference.resolved.is_none(), "{name}: opaque contract admission");
+            assert!(actual.total_body.is_none(), "{name}: rich signatures must not gain plain executable authority");
+        }
+    }
     let give = a.exports.signatures.iter().find(|s| s.identity == "A.Give").unwrap();
     let method = give.methods.iter().find(|m| m.name == "give").unwrap().resolved.as_ref().unwrap();
     assert!(method.scheme.contains("dict :: A.Give a"), "{}", method.scheme);

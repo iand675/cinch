@@ -25,6 +25,12 @@ module Main where
   report :: String
   report =
     row "nat" (export-scheme (mono (UFun nat nat))) <>
+    row "literal-proof" (export-scheme (mono (UProofFun (UPropLit False) empty (UApp (UCon "b.Dec" (KFun KProp KType)) (UPropLit False))))) <>
+    row "generic-proof" (export-scheme (MkScheme [MkQuant 7 "p" KProp False] (UProofFun (UBound 7 "p" KProp) empty (UApp (UCon "b.Dec" (KFun KProp KType)) (UBound 7 "p" KProp))))) <>
+    row "proof-effects" (export-scheme (MkQualifiedScheme [MkQuant 8 "r" KRegion True] [MkRequirement "io" (UApp (UCon "b.Io" (KFun KRegion KType)) (UBound 8 "r" KRegion))] (UProofFun (UPropLit False) (URow (UArg (UApp (UCon "IO" (KFun KRegion KEffect)) (UBound 8 "r" KRegion)) UEnd)) (UCon "Int" KType)))) <>
+    row "proof-domain-not-proposition" (export-scheme (mono (UProofFun nat empty nat))) <>
+    row "proof-row-not-effects" (export-scheme (mono (UProofFun (UPropLit False) nat nat))) <>
+    row "early-proof-precondition" (export-scheme (mono (URequire (UArg (UPropLit True) UEnd) (UProofFun (UPropLit False) empty nat)))) <>
     row "polymorphic" (export-scheme (MkScheme [MkQuant 7 "a" KType False] (UFun (UBound 7 "a" KType) (UBound 7 "a" KType)))) <>
     row "source-quantifier" (export-value-scheme (MkScheme [MkQuant 7 "a" KType False] (UFun (UBound 7 "a" KType) (UBound 7 "a" KType)))) <>
     row "source-application" (export-value-scheme (MkScheme [MkQuant 7 "a" KType False] (UFun indexed indexed))) <>

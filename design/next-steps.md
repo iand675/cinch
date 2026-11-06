@@ -1,5 +1,31 @@
 # Next steps (as of 2026-11-06)
 
+## Cinch preserves erased-proof interfaces and source value arities (2026-11-06)
+
+Cinch3268 now transports proof-arrow propositions, effects, results and nominal
+references through checked interfaces. Qualified proof arrows use proof domains
+while retaining their effect rows and preconditions. Public metadata counts
+source arrows, dictionaries and hidden value arguments, matching Native schema8;
+runtime proof erasure remains unchanged. Only the defining module declares an
+operator fixity, and all existing privacy, nominal, hash and fixity assertions stay.
+
+All three complete compiled component groups pass, including27 formatter cases,
+16 new provider/facade arity comparisons and all25 original plus12 new qualified
+proof source cases. The source harness resolves names before checking them.
+The actual44-module Cinch compiler passes all9 compiler/object tests,17 C clients
+and canonical contract comparisons. All nine original interface/API groups run:
+8/9 groups and13/14 tests pass; source-Prelude replacement remains the one failure.
+Three passing direct Native API tests are classified separately from the11 actual
+Cinch source-path tests (10 pass,1 fails). See the three
+`bootstrap/current-value-interface-*-results.json` receipts.
+
+The full compiler was built by immutable Native22 and runs Cinch's implementation;
+it is not a fresh self-built Stage3. Native d13 provides the public reader and
+comparison oracle. The exact44 sources also pass the earlier genuine4f Stage3
+input check. Matching latest full bootstrap, all original suites, remaining
+source-Prelude/record/staging/copyOut/language/Native gaps and Acceptance1-5 remain
+required. No original failed case has been skipped or weakened.
+
 ## Native signature arguments constrain numeric indices (2026-11-06)
 
 Actual argument domains now constrain numeric signature indices independently

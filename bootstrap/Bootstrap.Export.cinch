@@ -157,6 +157,15 @@ module Bootstrap.Export where
     (JObj "identity" (field "identity" nominal) (JObj "kind" (field "kind" nominal)
       (JObj "params" (field "params" nominal) (JObj "parameters" (field "parameters" nominal)
         (JObj "ctors" JArrEnd (JObj "fields" JArrEnd (JObj "refinement" (field "refinement" nominal) JObjEnd)))))))
+  -- Schema8 value arity counts source arrows, dictionaries and hidden
+  -- value parameters. Proof arrows remain in this contract even though
+  -- executable Core erases their runtime slots.
+  quantified-value-arity :: List Quant -> Nat
+  quantified-value-arity parameters = case parameters of
+    Nil -> 0
+    Cons first rest -> (case value-carrier (quant-kind first) of Some carrier -> 1; None -> 0) + quantified-value-arity rest
+  interface-value-arity :: Scheme -> Nat
+  interface-value-arity scheme = scheme-arity scheme + list-length (scheme-requirements scheme) + quantified-value-arity (scheme-params scheme)
   value-row :: Elaboration -> List LoadedInterface -> String -> String -> CheckedBinding -> Result String Json
   value-row typed interfaces name symbol binding =
     if imported-symbol symbol then imported-value-row interfaces name symbol
@@ -164,7 +173,7 @@ module Bootstrap.Export where
     else if same (checked-role binding) "operation" then opaque-value-row name symbol binding
     else if same (checked-role binding) "function" || same (checked-role binding) "value" || same (checked-role binding) "intrinsic" || same (checked-role binding) "instance" || same (checked-role binding) "implicit-instance" then
       let scheme = checked-scheme binding in
-      let arity = scheme-runtime-arity scheme + list-length (scheme-requirements scheme) in
+      let arity = interface-value-arity scheme in
       if row-quantified (scheme-params scheme) then opaque-value-row name symbol binding else
       case (export-global symbol, resolved-value-scheme typed interfaces symbol scheme, export-display-scheme scheme) of
         (Ok identity, Ok resolved, Ok spelling) -> Ok (JObj "name" (JStr name)
@@ -184,7 +193,7 @@ module Bootstrap.Export where
     None -> Err "foreign binding has no checked ABI plan"
     Some plan -> case (export-global symbol, foreign-display-scheme plan) of
       (Ok identity, Ok spelling) -> Ok (JObj "name" (JStr name) (JObj "symbol" (JStr identity)
-        (JObj "scheme" (JStr spelling) (JObj "resolved" JNull (JObj "arity" (JNum (nat-to-int (scheme-runtime-arity (checked-scheme binding)))) (JObj "total_body" JNull JObjEnd))))))
+        (JObj "scheme" (JStr spelling) (JObj "resolved" JNull (JObj "arity" (JNum (nat-to-int (interface-value-arity (checked-scheme binding)))) (JObj "total_body" JNull JObjEnd))))))
       (Err error, other) -> Err error
       (other, Err error) -> Err error
   imported-value :: String -> List LoadedInterface -> Option Json
@@ -209,7 +218,7 @@ module Bootstrap.Export where
   row-quantified parameters = case parameters of Nil -> False; Cons first rest -> row-kind (quant-kind first) || row-quantified rest
   opaque-value-row :: String -> String -> CheckedBinding -> Result String Json
   opaque-value-row name symbol binding = let scheme = checked-scheme binding in
-    let arity = scheme-runtime-arity scheme + list-length (scheme-requirements scheme) in
+    let arity = interface-value-arity scheme in
     case (export-global symbol, export-display-scheme scheme) of
       (Ok identity, Ok spelling) -> Ok (JObj "name" (JStr name)
         (JObj "symbol" (JStr identity) (JObj "scheme" (JStr spelling)

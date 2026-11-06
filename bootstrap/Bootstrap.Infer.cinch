@@ -4040,18 +4040,28 @@ module Bootstrap.Infer where
       (body, sb) -> case convert-proof-bounds external kinds locals bounds sb of
         (UEnd, done) -> (body, done)
         (predicates, done) -> let out = URequire predicates body in (out, if valid-type out then done else add-error (type-expr-span syntax) "ill-formed function proof contract" done)
+  -- Class/proof contexts retain erased domains just like ordinary
+  -- source arrows. A proof binder supplies no computational index local.
+  convert-contracted-proof-arrow :: Bool -> TypeContext -> List (String, UType) -> TypeExpr -> Span -> UType -> Option TypeExpr -> TypeExpr -> Store -> (UType, Store)
+  convert-contracted-proof-arrow external kinds locals bounds sp predicate row result st =
+    case (case row of None -> (URow UEnd, st); Some effects -> convert-row kinds locals effects st) of
+      (effects, sr) -> case convert-contracted external kinds locals bounds result sr of
+        (body, done) -> let ty = UProofFun predicate effects body in
+          (ty, if valid-type ty then done else add-error sp "ill-formed contracted erased arrow" done)
   convert-contracted-arrow :: Bool -> TypeContext -> List (String, UType) -> TypeExpr -> Span -> TypeExpr -> Option TypeExpr -> TypeExpr -> Store -> (UType, Store)
   convert-contracted-arrow external kinds locals bounds sp argument row result st = case argument of
-    TBound s name carrier (TBoundsEnd end) -> case convert external kinds locals carrier st of
-      (domain, checked) -> case fresh-for-types (Cons domain (local-types locals)) (expect-type s domain checked) of
-        (id, fresh) -> let bound = Cons (name, UBound id name (value-kind domain)) locals in
-          case (case row of None -> (URow UEnd, fresh); Some effects -> convert-row kinds bound effects fresh) of
-            (effects, sr) -> case convert-contracted external kinds bound bounds result sr of
-              (body, done) -> (UPi id name domain effects body, done)
-    other -> case convert external kinds locals argument st of
-      (domain, checked) -> case (case row of None -> (URow UEnd, checked); Some effects -> convert-row kinds locals effects checked) of
-        (effects, sr) -> case convert-contracted external kinds locals bounds result sr of
-          (body, done) -> (function-type domain effects body, done)
+    TBound s name carrier (TBoundsEnd end) -> case convert-domain external kinds locals carrier st of
+      (domain, checked) -> if kind-equal (type-kind domain) KProp then convert-contracted-proof-arrow external kinds locals bounds sp domain row result checked else
+        (case fresh-for-types (Cons domain (local-types locals)) (expect-type s domain checked) of
+          (id, fresh) -> let bound = Cons (name, UBound id name (value-kind domain)) locals in
+            case (case row of None -> (URow UEnd, fresh); Some effects -> convert-row kinds bound effects fresh) of
+              (effects, sr) -> case convert-contracted external kinds bound bounds result sr of
+                (body, done) -> (UPi id name domain effects body, done))
+    other -> case convert-domain external kinds locals argument st of
+      (domain, checked) -> if kind-equal (type-kind domain) KProp then convert-contracted-proof-arrow external kinds locals bounds sp domain row result checked else
+        (case (case row of None -> (URow UEnd, checked); Some effects -> convert-row kinds locals effects checked) of
+          (effects, sr) -> case convert-contracted external kinds locals bounds result sr of
+            (body, done) -> (function-type domain effects body, done))
   introduce-facts :: List Proposition -> List CheckedBinding -> List CheckedBinding
   introduce-facts facts env = case facts of Nil -> env; Cons p rest -> Cons (MkProofBinding p) (introduce-facts rest env)
   check-required :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> UType -> Store -> (CoreTerm, Store)

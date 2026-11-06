@@ -7,6 +7,7 @@ fn function_preconditions_use_actual_arguments_and_cannot_be_ignored() {
         ("Bootstrap.Ast.cinch", include_str!("../../bootstrap/Bootstrap.Ast.cinch")),
         ("Bootstrap.Report.cinch", include_str!("../../bootstrap/Bootstrap.Report.cinch")),
         ("Bootstrap.Check.cinch", include_str!("../../bootstrap/Bootstrap.Check.cinch")),
+        ("Bootstrap.Resolve.cinch", include_str!("../../bootstrap/Bootstrap.Resolve.cinch")),
         ("Main.cinch", include_str!("../../bootstrap/programs/Run.FunctionPreconditions.cinch")),
     ]);
     let exe = common::build(&dir, "Main.cinch", "function-preconditions").expect("build the Cinch function precondition checker");
@@ -47,6 +48,32 @@ fn function_preconditions_use_actual_arguments_and_cannot_be_ignored() {
             let expected = if name == "missing precondition" { "ordering evidence" } else { "precondition is not established" };
             assert!(report.contains(expected), "{name}: {report}");
         }
+    }
+    // These source forms are independently accepted/refused by Native;
+    // qualified contexts must not turn erased evidence into runtime data.
+    for (name, body, wanted, diagnostic) in [
+        ("unnamed effectful False domain", "use :: forall r. using (io :: Io r) => False ->{IO r} Int\n  use h = 0", 0, None),
+        ("named effectful False domain", "use :: forall r. using (io :: Io r) => (h :: False) ->{IO r} Int\n  use h = 0", 0, None),
+        ("generic effectful proof domain", "use :: forall r (p :: Prop). using (io :: Io r) => p ->{IO r} Dec p\n  use h = Yes h", 0, None),
+        ("logical context retains proof", "use :: using (True) => True -> Dec True\n  use h = Yes h", 0, None),
+        ("numeric context across erased argument", "use :: using (n > 0) => (n :: Nat) -> True -> Nat\n  use n h = n - 1", 0, None),
+        ("erased argument cannot discharge numeric context", "use :: using (n > 0) => (n :: Nat) -> True -> Nat\n  use n h = n - 1\n  bad :: True -> Nat\n  bad h = use 0 h", 4, Some("precondition")),
+        ("erased call retains IO", "use :: forall r. using (io :: Io r) => True ->{IO r} Int\n  use h = 0\n  bad :: forall r. using (io :: Io r) => True -> Int\n  bad h = use h", 4, Some("effect")),
+        ("runtime integer cannot become qualified proof", "use :: forall r. using (io :: Io r) => True ->{IO r} Int\n  use h = 0\n  bad :: forall r. using (io :: Io r) => Int ->{IO r} Int\n  bad value = use value", 4, None),
+        ("unrelated qualified proof cannot prove False", "use :: forall r. using (io :: Io r) => False ->{IO r} Int\n  use h = 0\n  bad :: forall r. using (io :: Io r) => True ->{IO r} Int\n  bad h = use h", 4, None),
+        ("erased binder cannot become numeric index", "bad :: using (h > 0) => (h :: True) -> Nat\n  bad h = 0", 4, None),
+        ("ordinary Boolean stays runtime data", "use :: forall r. using (io :: Io r) => True ->{IO r} Bool\n  use h = True", 0, None),
+        ("ordinary Boolean cannot become qualified proof", "use :: forall r. using (io :: Io r) => True ->{IO r} Int\n  use h = 0\n  bad :: forall r. using (io :: Io r) => Bool ->{IO r} Int\n  bad value = use value", 4, None),
+    ] {
+        let source = format!("module Main where\n  {body}\n  main :: Int\n  main = 0\n");
+        let oracle = cinch::driver::check_sources(&source, "qualified-proof-arrow-oracle.cinch");
+        assert_eq!(oracle.is_ok(), wanted == 0, "Native oracle {name}: {oracle:?}");
+        std::fs::write(dir.join("source.cinch"), &source).unwrap();
+        let output = std::process::Command::new(&exe).current_dir(&dir).output().unwrap();
+        let report = common::read_output(&dir, "signature-type-report.txt");
+        assert_eq!(output.status.code(), Some(wanted), "{name}; {source}\n{report}\n{}", String::from_utf8_lossy(&output.stderr));
+        if let Some(message) = diagnostic { assert!(report.contains(message), "{name}: {report}"); }
+        println!("qualified proof source case passed: {name}");
     }
     common::cleanup(&dir);
 }

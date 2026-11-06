@@ -2,6 +2,7 @@
 module Main where
   import Bootstrap.Ast
   import Bootstrap.Parse (parse-program)
+  import Bootstrap.Resolve (resolve-program)
   import Bootstrap.Infer
   import Bootstrap.Core
   import Bootstrap.Type
@@ -80,10 +81,12 @@ module Main where
   closed definitions = case definitions of Nil -> True; Cons d rest -> core-definition-closed d && closed rest
   run :: Bytes -> (Int, String)
   run source = if not (invariants (bytes-len source)) then (95, "signature-type certificate escaped its actual goal or declaration") else case parse-program "signature-type-source" source of
-    Parsed program Nil -> let result = elaborate-program "signature-type-source" program in
-      case elaboration-errors result of
-        Nil -> if closed (elaboration-core result) then (0, "") else (94, "precondition Core is not closed")
-        errors -> (4, render-diagnostics errors)
+    Parsed parsed Nil -> case resolve-program parsed of
+      (program, Nil) -> let result = elaborate-program "signature-type-source" program in
+        case elaboration-errors result of
+          Nil -> if closed (elaboration-core result) then (0, "") else (94, "precondition Core is not closed")
+          errors -> (4, render-diagnostics errors)
+      (program, errors) -> (4, render-diagnostics errors)
     other -> (2, "source parse failed")
   main :: Unit ->{IO r} Int
   main unit = with (io = newIO ()) in case fs-read (path-from-string "source.cinch") of

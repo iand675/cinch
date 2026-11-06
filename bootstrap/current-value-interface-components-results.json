@@ -1,0 +1,62 @@
+{
+  "compiler_source_sha256": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+  "filtered": 0,
+  "formatter_controls": 27,
+  "full_goal_complete": false,
+  "ignored": 0,
+  "native_source_sha256": "d13df76cf5295fa5d91e8c07fd56cf266558535702b417ce2fda7f8beba7ae62",
+  "new_formatter_controls": 6,
+  "new_interface_source_forms": 8,
+  "new_native_compared_precondition_cases": 12,
+  "original_formatter_controls": 21,
+  "original_precondition_cases": 25,
+  "original_tests_and_assertions_retained": true,
+  "provider_and_facade_comparisons": 16,
+  "resolved_source_reaches_checker": true,
+  "rlib_sha256": "74d9efe0261eb1af284d8ce2423bc912f625d9f188b5f3cf341e9895b13e8c48",
+  "rows": [
+    {
+      "exit_code": 0,
+      "log_sha256": "8159cb08e0cfa9ab7e48b8445c78d2d9017c8b97da9b937db9a295f8f527ad85",
+      "name": "compile-bootstrap_export_types",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "35213019317b154179d5df350fbcfc989b70adb3efca30b73b586e6d1dcba38a",
+      "name": "bootstrap_export_types",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "8159cb08e0cfa9ab7e48b8445c78d2d9017c8b97da9b937db9a295f8f527ad85",
+      "name": "compile-bootstrap_export_interfaces",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "32ab59aa20c0d613e8fdfddace4dcfdef062a6c1a893ff7f66a87eac2a2a2528",
+      "name": "bootstrap_export_interfaces",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "8159cb08e0cfa9ab7e48b8445c78d2d9017c8b97da9b937db9a295f8f527ad85",
+      "name": "compile-bootstrap_function_preconditions",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "4c0a8cdb3c8bf60e1e9fcf8be719c4101fa7c8f70c08b142e48a5f24f240ff0f",
+      "name": "bootstrap_function_preconditions",
+      "status": "passed"
+    }
+  ],
+  "rust_tests": 3,
+  "scope": "Three complete compiled Cinch component groups. Native d13 provides the comparison oracle; these components are built by Native. The separate actual full compiler/object and API results retain their own provenance. This does not prove a matching self-built Stage3 or full acceptance.",
+  "source": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/interface-value-arity-validation-5/source",
+  "source_sha256": "a4da420bce5e34ccc615f19e47e460c9bfd1015940c53a3654c80a9246f0c331",
+  "status": "passed-interface-value-arity-components",
+  "verified_at": "2026-11-06T20:13:18.491320+00:00",
+  "whole_groups": 3
+}
