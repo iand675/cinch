@@ -235,7 +235,7 @@
   "blockers": [
     {
       "title": "Dictionary-context source checks pass; object and original API replay running",
-      "detail": "Publishede9acd35 retains constructor-local Type/Nat binders and fixed/computed result indices. Five complete affected groups13tests, actual43-module compiler/object validation, actual self-built917f empty-PATH source check, and3 runtime boundary controls pass. Published original API stays6/9. Privatee1a0 dictionary-context exporter passes both complete type/interface groups and actual43-module self-built source check. Its complete8-test frontend adapter also passes; library-object round trip is running, then all9 unchanged original API groups replay. Fresh pinned Stage0 with optimized runtime passed all3 smoke outcomes; Stage1 build is running in an isolated directory. No speedup or final bootstrap parity is claimed. Latest-source full bootstrap/all105 targets and Acceptance5 remain open; older frozen chains continue without restart."
+      "detail": "Published constructor contracts remain fully validated in five affected groups13tests. Privatee1a0 dictionary-context exporter now passes both complete exporter groups, the actual43-module self-built source check, all8 adapter tests and the real library-object round trip. Independent object audit confirms all43 input bytes,1842 units,14 new public/accessor symbols,4224 layout words,60 interfaces,26 method families and5 zero-leak clients. All9 unchanged original API groups are now replaying with the actual new compiler; anonymous contracts pass and class contracts are running. Published original API remains6/9 until the new replay completes. Fresh pinned Stage0 with optimized runtime passed its3 smokes; Stage1 build continues. Older chains and full Native sweep remain live; latest-source full bootstrap/all105 targets and Acceptance5 remain open."
     },
     {
       "title": "Investigate the recorded failure",
@@ -297,5 +297,5 @@
   "fullGoalComplete": false,
   "summary": "All 43 compiler-source checks: passed. 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_source_constructors: passed; bootstrap_globals: passed; bootstrap_export_interfaces: passed; bootstrap_external_frontend: passed; bootstrap_library_object: passed.",
   "activity": "Current published Rust compiler: full suite: 209 of 232 complete groups passed; 1 running, 2 failed and 20 pending. Stage builds and smoke checks: 2 of 4; chain state: building-stage2; earlier API source, not the published repair. Repair gates: 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_source_constructors: passed; bootstrap_globals: passed; bootstrap_export_interfaces: passed; bootstrap_external_frontend: passed; bootstrap_library_object: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
-  "updatedAt": "2026-11-06T00:25:24.464302+00:00"
+  "updatedAt": "2026-11-06T00:27:26.630715+00:00"
 }
