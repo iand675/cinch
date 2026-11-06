@@ -1,5 +1,48 @@
 # Next steps (as of 2026-11-06)
 
+## Native portable proof contracts pass267 tests; Cinch public arity needs correction (2026-11-06)
+
+NativeF6e8319 publishes checked literal/generic/compound proposition schemes,
+explicit Prop binders and owner-checked kernel Dec. Ordinary application
+formatting remains canonical. The strengthened provider/facade test requires
+real resolved metadata; additional controls check source readback, actual Core
+proof erasure, effect rows and a source-defined Dec. All15 complete affected
+groups pass267 Rust tests, with none ignored or filtered. Both exact44-module
+projects and unchanged original positive/forgery CLI controls pass. The actual
+machine consumer retains all13 original cases at the established full-suite
+256M RC_DEBUG0 settings; small runtime groups retain32M poisoning. The two
+opaque task-capture bypasses are reproduced on this exact Native build and
+remain required. Seed/library pins stay unchanged. See
+`bootstrap/current-native-portable-proof-contract-results.json`.
+
+Private CinchC1aeb passes its complete44-module compiler/object gate:9 tests,
+17 actual runtime clients,50 zero-leak reports and3 checked canonical contract
+comparisons. Its original nine interface/API groups now pass8/9 groups and
+12/13 tests; source-Prelude replacement is the remaining failed group. Three
+of those passing tests use direct Native APIs and are explicitly classified
+separately from the10 actual Cinch source-path tests (9 pass,1 fails). The added
+literal proof provider/facade source test now passes with resolved metadata.
+See `bootstrap/private-erased-proof-arrow-full-compiler-results.json` and
+`bootstrap/private-erased-proof-arrow-interface-api-results.json`.
+
+An independent actual compiler comparison found another mismatch: Cinch uses
+runtime argument counts in public value metadata. Native schema8 counts source
+arrows plus dictionaries and hidden value parameters. Proof-only, mixed proof/
+runtime and hidden-Nat signatures publish0vs1,1vs2 and1vs2 respectively. All
+three sources check and emit interfaces in both implementations. The original
+programs and exact interface/binary identities remain in
+`bootstrap/current-cinch-value-arity-counterexample.json`. Private7dde corrects
+metadata counts only, with eight new Native comparisons through provider and
+facade; runtime proof erasure remains unchanged. Its complete gates are queued
+or running, including an actual earlier4f Stage3 source check with empty PATH.
+Neither Cinch private correction is published yet.
+
+The new component/object executables above were built by pinned Native22 and
+run the Cinch implementation; they are not a fresh self-built Stage3. This
+clarifies earlier checkpoint wording. The independently audited complete
+four-stage chain remains earlier4f. Matching latest bootstrap, all original
+235/105+14+34/171+43+39 suites and every Acceptance1-5 requirement remain open.
+
 ## Private erased-proof interface transport passes both source and exporter gates (2026-11-06)
 
 PrivateC1aeb changes only the Cinch type printer and nominal-dependency
@@ -8,7 +51,7 @@ controls remain, with six added proof-arrow controls; all27 pass, including
 literal/generic/effectful proof domains, malformed-arrow refusals and the
 original canonical Scope/Task comparisons. The proof constructor-field erasure
 guard remains. Both exact44-module input projects pass the actual published
-Native91cf CLI and actual Cinch-built1c76 compiler, whose check uses55
+Native91cf CLI and actual Native22-built1c76 Cinch implementation, whose check uses55
 authenticated library-only interfaces and an empty executable PATH. See
 `bootstrap/private-erased-proof-arrow-input-results.json` and
 `bootstrap/private-erased-proof-arrow-export-results.json`.

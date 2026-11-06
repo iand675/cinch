@@ -1,0 +1,91 @@
+{
+  "child_pid": 92291,
+  "compiler_sha256": "66467d9062b4fe169a91a6af8f2ff9f8c8a4cc9e2aeb1ff82e4ae99dacb3b482",
+  "compiler_source_sha256": "c1aeb52ef33c7b6bf906569dba0cadc8003df69d0d148d7ec8bc417eb87d6573",
+  "full_goal_complete": false,
+  "native_cli_sha256": "82b0d0ca28cf8e286e835b2f73e1c44130b60c71f633832864ea63643355ab32",
+  "native_source_sha256": "f6e8319d1eeba4b694f00909f0ae1957ab24867b265c28fc5744dec456af99e9",
+  "phase": "quantified-cinch",
+  "pid": 88955,
+  "rows": [
+    {
+      "arity_agrees": false,
+      "cinch_arity": 0,
+      "cinch_exit": 0,
+      "cinch_interface_sha256": "aed9756c9ff428f384ee94561c532c1892424ba3d2006ecf7f6f4e699311e6c2",
+      "cinch_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "cinch_resolved": {
+        "measures": [],
+        "nominals": [],
+        "scheme": "(True -> (Dec True))"
+      },
+      "cinch_scheme": "(True -> (Dec True))",
+      "name": "literal",
+      "native_arity": 1,
+      "native_exit": 0,
+      "native_interface_sha256": "3269629623825c45de90195481c021d69a42a21a5515966b8cd0a59d6c019c2b",
+      "native_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "native_resolved": {
+        "measures": [],
+        "nominals": [],
+        "scheme": "((h :: True) -> (Dec True))"
+      },
+      "native_scheme": "(True -> Dec True)",
+      "source_sha256": "cdd2cfcced625c94fce9fc90e98e5c9c9e446ab4b0a7ef6c5cc1782dc407521a"
+    },
+    {
+      "arity_agrees": false,
+      "cinch_arity": 1,
+      "cinch_exit": 0,
+      "cinch_interface_sha256": "87fba099966b2c7194a4d1b9f76abd3774ee5a99a6e6fe7d2526a3e4cff09501",
+      "cinch_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "cinch_resolved": {
+        "measures": [],
+        "nominals": [],
+        "scheme": "(True -> (Int -> Int))"
+      },
+      "cinch_scheme": "(True -> (Int -> Int))",
+      "name": "mixed",
+      "native_arity": 2,
+      "native_exit": 0,
+      "native_interface_sha256": "5f0a5a07490195b0b78bb78eb2034141860ca5b18af94f4da500ba389abdcec3",
+      "native_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "native_resolved": {
+        "measures": [],
+        "nominals": [],
+        "scheme": "((h :: True) -> (Int -> Int))"
+      },
+      "native_scheme": "(True -> (Int -> Int))",
+      "source_sha256": "28f398da181ce6814a95317499fa07328b65582887c8c305c63f747837f1d8be"
+    },
+    {
+      "arity_agrees": false,
+      "cinch_arity": 1,
+      "cinch_exit": 0,
+      "cinch_interface_sha256": "43d6637289e45df426415c5ada8dd3b6c456a089f442c317e15cbc3be47b5d36",
+      "cinch_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "cinch_resolved": {
+        "measures": [],
+        "nominals": [],
+        "scheme": "forall (n :: Nat). (Unit -> Nat)"
+      },
+      "cinch_scheme": "forall (n :: Nat). (Unit -> Nat)",
+      "name": "quantified",
+      "native_arity": 2,
+      "native_exit": 0,
+      "native_interface_sha256": "78c1658171dc239965fc2e042e7fe9c848f514d46857965adcaeb99dc2b50ded",
+      "native_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "native_resolved": {
+        "measures": [],
+        "nominals": [],
+        "scheme": "forall (n :: Nat). (Unit -> Nat)"
+      },
+      "native_scheme": "forall (n :: Nat) . (Unit -> Nat)",
+      "source_sha256": "9a4fad395cb0da72c8a9d3e528664f03a06542ee78fb2be4077dafa3d378a538"
+    }
+  ],
+  "scope": "Three unchanged valid sources pass both actual NativeF6e and actual privateC1aeb Cinch checking/emission. Native schema8 value arity counts source arrows plus dictionary/hidden value parameters; Cinch publishes0vs1 for a proof-only function,1vs2 for proof+runtime arguments, and1vs2 for a hidden Nat parameter. This is an observed interface-contract mismatch, not a demonstrated runtime failure. A separate private correction updates only metadata counts; actual runtime proof erasure remains unchanged. Complete matching source/component/compiler/API gates remain required.",
+  "status": "confirmed-cinch-public-value-arity-mismatch",
+  "verified_at": "2026-11-06T17:09:08.890010+00:00",
+  "worker_slot": 5
+}
