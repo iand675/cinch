@@ -278,7 +278,7 @@
     },
     {
       "title": "Private repair: typed fields, indexed coverage and visible projection",
-      "detail": "0/3 complete groups passed; phase bootstrap_source_constructors; state running. Both44-source checks pass. All70 constructor component cases and9 original mutations remain required. This source is not yet published or proved by an actual compiler/runtime gate.",
+      "detail": "1/3 complete groups passed; phase bootstrap_infer; state running. Both44-source checks pass. All70 constructor component cases and9 original mutations remain required. This source is not yet published or proved by an actual compiler/runtime gate.",
       "state": "running"
     },
     {
@@ -366,5 +366,5 @@
   "fullGoalComplete": false,
   "summary": "All 44 compiler-source checks: passed. 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. constructor contracts: passed; module resolution: passed; type inference: passed; type contracts: passed; interface contracts: passed; parser: passed; frontend adapter: passed; object round trip: passed.",
   "activity": "Earlier checkpoint: complete235-group Native sweep: 223 of 235 complete groups passed; 1 running, 1 failed and 10 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. constructor contracts: passed; module resolution: passed; type inference: passed; type contracts: passed; interface contracts: passed; parser: passed; frontend adapter: passed; object round trip: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 56 of 105 complete groups passed; 1 running, 4 failed and 44 pending.",
-  "updatedAt": "2026-11-06T10:57:57.041282+00:00"
+  "updatedAt": "2026-11-06T11:01:39.247496+00:00"
 }
