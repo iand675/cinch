@@ -325,7 +325,10 @@ def build_checklist(root, cfg, previous=None):
         state=read(cfg.get(key))
         if state:
             rows=[r for r in state.get('rows',[]) if not r['name'].startswith(('compile-','build-'))]
-            active.append(dict(title=title,status=state.get('status'),phase=state.get('phase'),passed=sum(r['status']=='passed'for r in rows),failed=sum(r['status']=='failed'for r in rows),total=total,source=state.get('compiler_source_sha256'),auditPending=state.get('status')=='passed'))
+            proof_key={'sourceClassDefaultFullCompiler':'sourceClassDefaultCompilerReceipt','nativeDefaultAnnotationApi':'interfaceApiReceipt','pipelineInterfaceDiagnosticValidation':'nativePipelineReceipt','sourceClassDefaultApi':'sourceClassDefaultApiReceipt'}[key]
+            proof=read(cfg.get(proof_key))
+            audited=bool(proof) and proof.get('source_sha256')==state.get('source_sha256')
+            active.append(dict(title=title,status=state.get('status'),phase=state.get('phase'),passed=sum(r['status']=='passed'for r in rows),failed=sum(r['status']=='failed'for r in rows),total=total,source=state.get('compiler_source_sha256'),auditPending=state.get('status')=='passed' and not audited))
 
     for title, state, total in [('Earlier compiler: full Rust sweep', full, len(native_names)),
                                 ('Earlier Stage3: complete frontend sweep', front, len(front_names))]:
