@@ -58,7 +58,7 @@
     },
     {
       "title": "Current matching Rust and Cinch-source full suite",
-      "detail": "110 of 235 complete groups passed; 1 running, 0 failed and 124 pending.Every group includes ignored tests. State: running.",
+      "detail": "111 of 235 complete groups passed; 1 running, 0 failed and 123 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -263,7 +263,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "110 of 235 complete groups passed; 1 running, 0 failed and 124 pending."
+      "detail": "111 of 235 complete groups passed; 1 running, 0 failed and 123 pending."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -312,6 +312,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "The fresh current-source compiler chain passes its smoke tests, matching Stage2/Stage3 IR, executable and all 43 canonical interfaces, actual API consumption and changed-source behavior. Complete tests and the final acceptance audit remain separate requirements.",
-  "activity": "Current matching Rust and Cinch-source full suite: 110 of 235 complete groups passed; 1 running, 0 failed and 124 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit. Repair gates: 4 of 4 complete groups passed; 0 running, 0 failed and 0 pending. Core decision contracts: passed; source decision behavior: passed; frontend adapter: passed; object round trip: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
-  "updatedAt": "2026-11-06T03:20:24.396957+00:00"
+  "activity": "Current matching Rust and Cinch-source full suite: 111 of 235 complete groups passed; 1 running, 0 failed and 123 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit. Repair gates: 4 of 4 complete groups passed; 0 running, 0 failed and 0 pending. Core decision contracts: passed; source decision behavior: passed; frontend adapter: passed; object round trip: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
+  "updatedAt": "2026-11-06T03:21:26.397549+00:00"
 }
