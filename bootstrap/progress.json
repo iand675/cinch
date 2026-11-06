@@ -71,7 +71,7 @@
     },
     {
       "title": "Earlier API checkpoint: exact Stage3 behavior",
-      "detail": "58 of 105 complete groups passed; 1 running, 2 failed and 44 pending.All105 required targets:96 portable and9 original interface/API groups, preserving the original100 plus5 additions. Original explicit32M poisoned client limits remain; compiler/checker consumers use256M. Direct Native operations in mixed targets remain classified separately. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "59 of 105 complete groups passed; 1 running, 2 failed and 43 pending.All105 required targets:96 portable and9 original interface/API groups, preserving the original100 plus5 additions. Original explicit32M poisoned client limits remain; compiler/checker consumers use256M. Direct Native operations in mixed targets remain classified separately. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -477,7 +477,7 @@
     },
     {
       "title": "Finish the exact self-built compiler tests",
-      "detail": "58 of 105 complete groups passed; 1 running, 2 failed and 44 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "59 of 105 complete groups passed; 1 running, 2 failed and 43 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Pass all external language examples through Stage3",
@@ -11700,8 +11700,8 @@
           "verified": 0,
           "blocked": 0,
           "running": 0,
-          "pending": 44,
-          "recheck": 61
+          "pending": 43,
+          "recheck": 62
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
         "items": [
@@ -12957,16 +12957,16 @@
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_named_refinements.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "startedAt": "2026-11-06T22:40:52.319506+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-06T22:52:41.618918+00:00",
+              "exitCode": 0,
+              "logSha256": "6dfbbfd41c9d8b77bfaeef858555e2a5621bf0a9c5227661e7a62fc6c5540a32",
               "cases": [
                 {
                   "name": "named_refinements_preserve_scope_bounds_and_proof_obligations",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -12975,18 +12975,23 @@
           {
             "id": "stage3:bootstrap_nominals",
             "title": "bootstrap_nominals",
-            "state": "pending",
+            "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_nominals.rs",
             "observed": {
-              "status": "pending",
+              "status": "running",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": null,
+              "startedAt": "2026-11-06T22:52:41.634809+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "imported_nominals_are_checked_with_defining_identities_in_cinch",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -14058,10 +14063,10 @@
           }
         ],
         "observedCounts": {
-          "passed": 58,
+          "passed": 59,
           "failed": 2,
           "running": 1,
-          "pending": 44
+          "pending": 43
         },
         "observedSource": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2"
       },
@@ -18123,6 +18128,7 @@
         "status": "passed-native-default-annotation-primary-gates",
         "phase": "interface_machine_contracts",
         "passed": 14,
+        "failed": 0,
         "total": 14,
         "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
         "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
@@ -18133,6 +18139,7 @@
         "status": "passed-native-default-annotation-input-and-evidence-gates",
         "phase": "actual-cli-original-False-forgery",
         "passed": 7,
+        "failed": 0,
         "total": 7,
         "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
         "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
@@ -18143,6 +18150,7 @@
         "status": "passed-source-class-default-components",
         "phase": "bootstrap_export_interfaces",
         "passed": 4,
+        "failed": 0,
         "total": 4,
         "source": "8fcedce1381fe2d1a14468b9cc10eff26cd7f07b64d3beb72fb121533dbb5095",
         "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
@@ -18150,11 +18158,23 @@
       },
       {
         "title": "Cinch annotation namespace repair: complete groups",
-        "status": "failed",
-        "phase": "compile-bootstrap_source_value_aliases",
+        "status": "running",
+        "phase": "Runner target-name error preserved; remaining real groups: bootstrap_buffer_aliases",
         "passed": 5,
+        "failed": 0,
         "total": 7,
         "source": "00b549e3f334cff05ead4f6b0771d9e9dcccc96a5268bf82d3836e8efdccd32d",
+        "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+        "auditPending": false
+      },
+      {
+        "title": "Cinch strict-default repair: complete groups",
+        "status": "running",
+        "phase": "bootstrap_source_instances",
+        "passed": 0,
+        "failed": 0,
+        "total": 7,
+        "source": "75fbd2f9a8596fa48c2ded66efa15834412b9bc478247b7c94ab048fa84774c0",
         "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
         "auditPending": false
       },
@@ -18211,8 +18231,8 @@
       {
         "title": "Earlier Stage3: complete frontend sweep",
         "status": "running",
-        "phase": "bootstrap_named_refinements",
-        "passed": 58,
+        "phase": "bootstrap_nominals",
+        "passed": 59,
         "failed": 2,
         "total": 105,
         "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
@@ -18223,8 +18243,8 @@
       "verified": 194,
       "blocked": 6,
       "running": 2,
-      "pending": 65,
-      "recheck": 399
+      "pending": 64,
+      "recheck": 400
     },
     "total": 666,
     "acceptanceVerified": 0,
@@ -18232,5 +18252,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-06T22:44:30.199689+00:00"
+  "updatedAt": "2026-11-06T22:56:47.245609+00:00"
 }
