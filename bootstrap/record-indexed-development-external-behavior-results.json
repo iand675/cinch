@@ -1,0 +1,92 @@
+{
+  "assertion_failures": 25,
+  "compiler_sha256": "b02d06cd6a1c219f0b707fe26d6b2ff83126df67cd56d3a9cc233d6e4d24c713",
+  "compiler_source_sha256": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+  "complete_behavioral_cases": 34,
+  "evidence": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/indexed-runtime-external-behavior-1",
+  "filtered": 0,
+  "full_goal_complete": false,
+  "ignored": 0,
+  "independently_rerun_clients": [
+    {
+      "binary_sha256": "aca9c7284127d9f50b49e8bf1b5478e0ae956e425f407ad57adf2e1fcd031c47",
+      "example": "Audio",
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+    },
+    {
+      "binary_sha256": "54a12b6ad54def67e790ad27567e2f36f8529da5bbd32402e3ea12d4af8d9370",
+      "example": "Circuit",
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+    },
+    {
+      "binary_sha256": "f623415a2d7efa2bcab64094ca9644d9425cbfe026a7957ec79b661ebdd339cc",
+      "example": "Differentiate",
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+    },
+    {
+      "binary_sha256": "3289a537f2037f4df1c1ed01fd10cceba2138c8d2feb25c7066153c6dd3277ca",
+      "example": "Html",
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+    },
+    {
+      "binary_sha256": "a9807508e89d3978535f92aad704959d9ba967580bdf84caa92cb3a9c63fadba",
+      "example": "Query",
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+    },
+    {
+      "binary_sha256": "81c07bf594d80a35ae48469d463e7840bfe389dea3d90de1cf4840ec818118b8",
+      "example": "Reactive",
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+    },
+    {
+      "binary_sha256": "589c43bad435a498e7c474f0f5ed5ef5b075fd835486d76abf8540966dbe3ccf",
+      "example": "TensorAD",
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+    }
+  ],
+  "invocations_sha256": "2444c325f9d6a5fb9cbe701cc1f785d6c1fb7dce1dd83bbcc593724a6de48906",
+  "log_sha256": "a4a46024d55549389855fe7c7abbaaf3c4a3c0ff0f9b6f8775ca1d1b99a3da8f",
+  "negative_cases": 21,
+  "negative_intended_reason_passed": 2,
+  "negative_reason_failures": [
+    "Html",
+    "Once",
+    "Query",
+    "Tasks",
+    "Proof",
+    "Format",
+    "Protocol",
+    "Audio",
+    "Circuit",
+    "ChoreographyState",
+    "ChoreographyBranch",
+    "ChoreographyWire",
+    "ChoreographyReplay",
+    "ChoreographyForge",
+    "TensorADShape",
+    "TensorPrivate",
+    "TacticsMissing",
+    "TacticsShadow",
+    "TacticsStale"
+  ],
+  "negative_refused": 21,
+  "original_behavioral_tests": 2,
+  "positive_cases": 13,
+  "positive_failures": [
+    "Choreography",
+    "Format",
+    "Proof",
+    "Protocol",
+    "Tactics",
+    "Tasks"
+  ],
+  "positive_passed": 7,
+  "positive_refused": 6,
+  "provider_result_sha256": "98f1ad037f7f464774c4ef3d86920401d52be8a83e182b107288f1a366f758e1",
+  "scope": "All13 original positives and21 original negatives retain every original assertion through the actual Native22-built4f development Cinch compiler; it is not finalStage3. No Native source frontend fallback. Every expanded section independently reconstructed from unchanged Engine/libraries/syntax/examples, with exact snapshot and invocation hashes. Audio, Circuit, Differentiate, Html, Query, Reactive and TensorAD execute and independently rerun at32M poisoning with zero leaks. All21 negatives refuse, but only2 meet original reason/path assertions;25 total assertion failures remain. The actual library-only extension retains55 interface hashes and old physical units while adding the accumulated real variants, factory and Functor method variant. All previous declaring-class slots and physical units are retained. Audio and Query now execute; Choreography, Format, Proof, Protocol, Tactics and Tasks remain original positive failures. All original105+14external acceptance and34language cases remain required.",
+  "source_sha256": "e4494857d532decf9fd2e530a8d9f61efbe1a42dcf4a9905d1c955c1886b4bbf",
+  "status": "audited-record-development-external-behavior-with-failures",
+  "test_exit_code": 1,
+  "whole_test_status": "failed",
+  "wrapper_sha256": "cb649b6913f57a95114b852f026158add3618d67b3b4f0813dc65d5c96db4b74"
+}

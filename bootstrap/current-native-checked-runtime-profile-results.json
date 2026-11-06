@@ -1,0 +1,33 @@
+{
+  "archive": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/full-native-60/source/compiler/runtime/target/release/libcinchruntime.a",
+  "archive_sha256": "c7377fc2bd67ff1026065e7d88c8d4707da6f377b6df02a8e15dfa7445e52f1e",
+  "child_pid": 40851,
+  "compile_record_sha256": "bea2d0e00c8a7310151f7d970adf09eeb4952d2013d343081a7e5e043d487fde",
+  "compiler_rlib": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/full-native-60/cargo/debug/deps/libcinch-2311f26e82e13825.rlib",
+  "compiler_rlib_sha256": "38ee04881e8d43a74e97d784671eb7a0495bb27bacaa71d3617798f7130f080c",
+  "filtered": 0,
+  "finished": "2026-11-06T13:47:59.168695+00:00",
+  "full_goal_complete": false,
+  "ignored": 0,
+  "native_source_sha256": "e5a981ac7ba7545c618fb368458a0917c07bac3d1746c7f4aa612cf7c22e459b",
+  "pid": 25216,
+  "pinned_runtime_sha256": "2fab721751aa601f3ca72d7677f8520e5bdd37d93887275b5636fce478f959c6",
+  "pinned_runtime_unchanged": true,
+  "profile": {
+    "debug_assertions": true,
+    "debuginfo": 0,
+    "opt_level": "3",
+    "overflow_checks": true,
+    "test": false
+  },
+  "rows": [],
+  "runtime_lock_inode": 239238689,
+  "runtime_tests": 171,
+  "scope": "Development NativeE5 test-host runtime only. Native Rlib uses its compiled CARGO_MANIFEST_DIR under full-native-60, regardless of caller test source. Build optimized runtime there, keeping debug assertions and overflow checks enabled; run all171 runtime tests. Source/checker/tests remain unchanged. Immutable Native22/85 seed and library-only runtime archives remain untouched. Existing linked programs keep their own original runtime. Independent audit confirms actual Cargo optimization/check flags, all171 results, unchanged Native Rlib/source, runtime freshness selection and lock inode, and the still-exact pinned Native22 runtime2fab. No timing claim; already-linked programs retain their original debug runtime. This is not a bootstrap seed replacement or final full-suite acceptance.",
+  "source": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/full-native-60/source",
+  "source_sha256": "27a125018a923db1aa20f358fc4a43a5273abcbea48f8b1efdd806926fd969fe",
+  "status": "passed-checked-release-development-runtime-audit",
+  "tests_log_sha256": "1353249c9d126f59895ed29e9abb31f88e22de24cea5247143ef01f1f56e27d7",
+  "verified_at": "2026-11-06T14:00:18.694057+00:00",
+  "worker_slot": 1
+}

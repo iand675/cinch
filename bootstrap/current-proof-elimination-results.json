@@ -1,0 +1,579 @@
+{
+  "schema": 1,
+  "status": "passed-scoped-proof-elimination-and-format-gates",
+  "verified_at": "2026-11-06T14:40:37.794280+00:00",
+  "compiler_source_sha256": "1c76230c164fd47296646125bb0b911b387c9ffda5f18465ec3ca9d1b883ff27",
+  "development_native_source_sha256": "e5a981ac7ba7545c618fb368458a0917c07bac3d1746c7f4aa612cf7c22e459b",
+  "changed_paths": [
+    "bootstrap/Bootstrap.Proof.cinch",
+    "compiler/tests/bootstrap_proof.rs",
+    "compiler/tests/bootstrap_guarded_calls.rs"
+  ],
+  "full_goal_complete": false,
+  "evidence": {
+    "components": {
+      "path": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/proof-elimination-order-validation-2/independent-component-verification.json",
+      "sha256": "b695dfb3fd6cae267c8cf85e896f7c568c8c001ed4dc14e35c50e51b1d0f8ebb"
+    },
+    "native_source_check": {
+      "path": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/proof-elimination-source-check-1/state.json",
+      "sha256": "ff13e4b61c4254b262f4987af1b4bee5a89e6fa0936a16b2ab11bdd130492e52"
+    },
+    "cinch_built_source_check": {
+      "path": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/proof-elimination-self-built-check-1/result.json",
+      "sha256": "4b2175f42fae223809fefd77a568e442bc0d15e8dea004ccc4d074300aa9d97f"
+    },
+    "compiler_gate": {
+      "path": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/proof-elimination-full-compiler-validation-2/independent-verification.json",
+      "sha256": "9016788020d6387cc5d2d9dbf2782154cf53a4c368750bfc58aeeb493de986d6"
+    },
+    "runtime_clients": {
+      "path": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/proof-elimination-runtime-validation-1/independent-verification.json",
+      "sha256": "6685f55c9de874aa083fe8e9ab77e979fb97fde1cbb07e63d8e2f7aa60938dc5"
+    },
+    "format_replay": {
+      "path": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/proof-elimination-format-replay-1/independent-verification.json",
+      "sha256": "99724b90c245bbca3d63599f79b8de0aa3f74a38d5f955293a2da600b6f024a5"
+    },
+    "external_language_outcomes": {
+      "path": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/proof-elimination-external-behavior-1/independent-verification.json",
+      "sha256": "af84285ba9c0c5c9bad1336aee2fdc3f539c6977ad35e66af32ad2606da96981"
+    },
+    "original_api_outcomes": {
+      "path": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/proof-elimination-interface-api-1/independent-verification.json",
+      "sha256": "c5f170f5d416a1ebbeb478c08acb6b7bd4646a5389b8e8137a181119d33d8dd9"
+    }
+  },
+  "components": {
+    "all_original_tests_and_expectations_retained": true,
+    "changed_production_modules": [
+      "Bootstrap.Proof.cinch"
+    ],
+    "compiler_source_sha256": "1c76230c164fd47296646125bb0b911b387c9ffda5f18465ec3ca9d1b883ff27",
+    "distinct_rust_tests": 7,
+    "distinct_whole_groups": 5,
+    "filtered": 0,
+    "full_goal_complete": false,
+    "ignored": 0,
+    "native_source_sha256": "e5a981ac7ba7545c618fb368458a0917c07bac3d1746c7f4aa612cf7c22e459b",
+    "new_native_compared_source_cases": 6,
+    "new_post_compilation_context_packets": 10,
+    "row_limit": 256,
+    "runs": [
+      {
+        "evidence": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/proof-elimination-order-validation-1",
+        "log_sha256": "db8807acecc34c2825e846f68f5b0014664644b7fb7ee31d19a6c332e55d4a85",
+        "status": "passed",
+        "target": "bootstrap_proof",
+        "test_host_sha256": "2589768314e1e4ccc9e7bd303e83745a3681ead3306e846c646c2e2555b61eeb",
+        "tests": 1
+      },
+      {
+        "evidence": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/proof-elimination-order-validation-1",
+        "log_sha256": "d0a077ac0ce99bddcce4119ce6434bacc2054620ba258c5f499fabc86e41b9ff",
+        "status": "passed",
+        "target": "bootstrap_guarded_calls",
+        "test_host_sha256": "9572c6bb7a8bf0e12bec15a4a6f2f485fb8cc8c1dab8b455797ee5e8025d954e",
+        "tests": 1
+      },
+      {
+        "evidence": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/proof-elimination-order-validation-1",
+        "log_sha256": "f2486707954cffc178cbb49bddf1bf85b4af17e012722acda6cae949bb40bfe9",
+        "status": "passed",
+        "target": "bootstrap_refinement_core",
+        "test_host_sha256": "e48e1357a52ed15457ca812b4303f77bac69e468dd840719672496d34e49499c",
+        "tests": 1
+      },
+      {
+        "evidence": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/proof-elimination-order-validation-1",
+        "log_sha256": "9f2b2f694e1ac5a5dd67780ad6aec3d4b52bbb4ea3785e089bfa914993efffe9",
+        "status": "passed",
+        "target": "bootstrap_argument_scopes",
+        "test_host_sha256": "6542348f8a729742f882f93fb494e800025286e70f8a730a2bc69951a86d4dd9",
+        "tests": 1
+      },
+      {
+        "evidence": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/proof-elimination-order-validation-2",
+        "log_sha256": "6e19f98182980b6caaaeaf4dc98869fb90e501824ed08c18ba015873f2446538",
+        "status": "passed",
+        "target": "bootstrap_guarded_calls",
+        "test_host_sha256": "3d01e43bb8712d68d7a14abe0642f0d80427d2a543d7de1d816d00bceef55f49",
+        "tests": 1
+      },
+      {
+        "evidence": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/proof-elimination-order-validation-2",
+        "log_sha256": "6c57f823c6ded0fe33b35269fba08a94354423ef90a52b06eb339553e2192cc1",
+        "status": "passed",
+        "target": "bootstrap_byte_observations",
+        "test_host_sha256": "780974558d134a9b682651ea4b7538e11702a79ce1761398cb9d3a1f67eb1643",
+        "tests": 3
+      }
+    ],
+    "rust_test_executions": 8,
+    "scope": "Only untrusted elimination-column order changes. Exact original source recovered by replacing the new search-column helper block with its original helper; every other production byte, including trusted citation checks and existing budgets, is unchanged. Five unique full groups pass across six executions: the first guarded run preserves old inputs; the second adds six source controls. NativeE5 production/Rlib identity verified. All44 exact compiler inputs pass Native and the independently audited Cinch-built reader. Successful component temporary programs were cleaned by the original helper, so this report claims retained host/log/source evidence, not independently retained component client binaries or extra leak counts. Actual full compiler, runtime clients, original Format/language/API replays and matching bootstrap/full suites remain separate required gates.",
+    "search_fuel": 64,
+    "split_fuel": 8,
+    "status": "passed-proof-elimination-component-and-source-gates",
+    "trusted_certificate_checker_unchanged": true,
+    "verified_at": "2026-11-06T14:07:41.386432+00:00",
+    "whole_group_executions": 6
+  },
+  "native_source_check": {
+    "child_pid": 78729,
+    "compiler_modules": 44,
+    "compiler_sha256": "aea1200c10c14b43525feb08742d515e0d3cc016c5d29a6489ada8f3d9fd1438",
+    "compiler_source_sha256": "1c76230c164fd47296646125bb0b911b387c9ffda5f18465ec3ca9d1b883ff27",
+    "exit_code": 0,
+    "full_goal_complete": false,
+    "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "native_source_sha256": "e5a981ac7ba7545c618fb368458a0917c07bac3d1746c7f4aa612cf7c22e459b",
+    "pid": 78704,
+    "source": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/proof-elimination-source-check-1/source",
+    "source_sha256": "75f54f71e41010e4e7cf2b20f87ffa223cb0dc9a6350732ad3f66fbb1f058251",
+    "status": "passed",
+    "worker_slot": 5
+  },
+  "cinch_built_source_check": {
+    "builder_sha256": "96d695d34c9b03346d7c374d8c871c99c7ca533fb8cc20d82cff9a62fd3ca41c",
+    "builder_source_sha256": "5f2f855665956b76117ea128547ecbdf841f988a487b64ff38b983b24dd38ec4",
+    "child_pid": 94460,
+    "compiler_modules": 44,
+    "compiler_source_sha256": "1c76230c164fd47296646125bb0b911b387c9ffda5f18465ec3ca9d1b883ff27",
+    "diagnostics": "",
+    "exit_code": 0,
+    "full_goal_complete": false,
+    "interfaces_sha256": "067ab7c76c130a53b952b9d8fa0a0cfd7702bddf64e3dae51724c0275ae98163",
+    "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+    "pid": 79724,
+    "scope": "Actual independently audited self-built5f2f Stage3 checks the exact44 staged-driver inputs of private source-record compiler using55 authenticated85 library-only interfaces and an empty executable PATH. This proves actual Cinch parser/typechecker acceptance, with no client Native fallback. It does not establish matching current staged fixedpoint or full suites.",
+    "source": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/proof-elimination-self-built-check-1/source",
+    "source_sha256": "75f54f71e41010e4e7cf2b20f87ffa223cb0dc9a6350732ad3f66fbb1f058251",
+    "status": "passed",
+    "worker_slot": 5
+  },
+  "compiler_gate": {
+    "adapter_tests": 8,
+    "binary_sha256": "c9606ed7f71f833e1809c940febd02479323ea3d2c28090f02d14c3004c005ad",
+    "client_heap_limit": "32M",
+    "client_rc_debug": true,
+    "compiler_heap_limit": "256M",
+    "compiler_input_cases": 4,
+    "compiler_modules_checked": 44,
+    "compiler_rc_debug": false,
+    "compiler_sha256": "39013c769055ebd3091d2fd39ee055b9ea9d36dead8ba6b0f74a378c98f04b80",
+    "compiler_source_sha256": "1c76230c164fd47296646125bb0b911b387c9ffda5f18465ec3ca9d1b883ff27",
+    "foreign_abi_mutations_refused": 2,
+    "foreign_missing_owner_refusals": 1,
+    "foreign_positive_clients": 17,
+    "foreign_source_refusals": 3,
+    "foreign_well_formed_body_authority_refusals": 1,
+    "full_goal_complete": false,
+    "interface_closure": 60,
+    "layout_words": 4224,
+    "library_units": 1842,
+    "log_sha256": "eb929f9a5fddb10d4e9a6d378aa02d5b3186f4730a4d8f6d51c8e7eae1172ac6",
+    "metadata_sha256": "8f7591e674843091907e684c3c9e14ec71afc1b9db19ad1c7785ec3890c503c9",
+    "method_families": 26,
+    "native_rlib_evidence": {
+      "archive": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/canonical-contract-bootstrap-chain-1/source/build/bootstrap/seed-sources/70de4ac932dbfdfd6c105a66dd388e65c904035ce7aca5764e91abb56dc9a83e",
+      "archive_seed_files_sha256": "22c91cf6c1855b049207612e9d94630850e880d5a49ea3e2c57c92aff7fdbe88",
+      "cargo_profile": "release",
+      "dependencies": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/canonical-contract-bootstrap-chain-1/source/build/bootstrap/cargo/70de4ac932dbfdfd6c105a66dd388e65c904035ce7aca5764e91abb56dc9a83e/release/deps",
+      "revision": "85f00ca880f0d9882c03c65031424a05c81b11bc",
+      "rlib": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/canonical-contract-bootstrap-chain-1/source/build/bootstrap/cargo/70de4ac932dbfdfd6c105a66dd388e65c904035ce7aca5764e91abb56dc9a83e/release/deps/libcinch-afd26aac31c438b3.rlib",
+      "rlib_sha256": "925965115fdae2dc57e3f9e89ff9022cc3a891e774e5dd9c82f0f9b2b9099ed7",
+      "scope": "Existing optimized Native22 Rust library from the independently audited AA4e Stage0 cache. Actual archived production bytes match immutable Native22; no seed/library pin changes. The new actual compiler/object tests independently exercise this test-host role.",
+      "source_sha256": "22c91cf6c1855b049207612e9d94630850e880d5a49ea3e2c57c92aff7fdbe88",
+      "stage0_compiler_sha256": "0f87739014d1ae286f2a95473985d98d3a2fe756e120326c68b890d5aa4ee1fb",
+      "stage0_evidence": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/canonical-contract-bootstrap-chain-1/source/build/bootstrap/stage0/stage.json",
+      "status": "verified-existing-release-native22-test-host"
+    },
+    "native_rlib_profile": "release",
+    "native_rlib_sha256": "925965115fdae2dc57e3f9e89ff9022cc3a891e774e5dd9c82f0f9b2b9099ed7",
+    "new_units": 7,
+    "object_round_trip_tests": 1,
+    "object_sha256": "e2bddac9f26372ba5c2bf361087650fbec89860df066f38520510f0b6463db64",
+    "real_new_public_and_closure_symbols": 14,
+    "represented_object_contract_refusals": 1,
+    "resolved_application_contracts_compared": 3,
+    "scope": "Actual44-module typed foreign compiler, all8 adapter tests and the complete original object test with14 real C ABI clients against an optimized C fixture plus direct and facade imported opaque-pointer clients plus an imported scalar client. Exact Native metadata oracle,2 rehashed ABI disagreements, a changed represented provider contract,3 source refusals and a well-formed total-body graph with the exact foreign symbol and I64 carrier types are checked. The matching identity/type graph still grants no pure authority to the effectful foreign operation. All50 observed compiler/client leak reports are zero. Original object IR, code, physical symbol/layout/interface inventories and failure invalidation retain independent checks. SeedNative22 is an explicit builder/provider role, not client frontend fallback. Exact44 staged-driver inputs are checked. This is not a finalStage3 compiler, complete original API/all105 suite or matching final bootstrap acceptance. Actual emitted Pair, Scope and Task resolved value structures agree exactly with Native; public Pair application stays flat while its resolved contract retains canonical binary application.",
+    "seed_native_source_sha256": "22c91cf6c1855b049207612e9d94630850e880d5a49ea3e2c57c92aff7fdbe88",
+    "source_sha256": "5a8402be9d9551162ba6b155d0205fcc1cd7b3bb2f59b88cc7e622d393f793eb",
+    "status": "passed-actual-cinch-library-object-round-trip",
+    "tests": 9,
+    "verified_at": "2026-11-06T14:00:44.778265+00:00",
+    "whole_groups": 2,
+    "zero_leak_reports": 50
+  },
+  "runtime_clients": {
+    "compiler_sha256": "39013c769055ebd3091d2fd39ee055b9ea9d36dead8ba6b0f74a378c98f04b80",
+    "compiler_source_sha256": "1c76230c164fd47296646125bb0b911b387c9ffda5f18465ec3ca9d1b883ff27",
+    "full_goal_complete": false,
+    "independent_client_zero_leaks": 13,
+    "independently_rerun": [
+      {
+        "binary_sha256": "ab4836dd6384655b89e08517de2ee7f8be0d2ed0a3784d96c9b5a80051faf419",
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "generic-owned-field",
+        "source_sha256": "6ba1af765d1c057b4e87a2c45b82093a822f12a6ebcb141d351f48acd794e170"
+      },
+      {
+        "binary_sha256": "9a2436fdb0bbfa4bdac44466b87012b13afff8bfe9bcea71c13de46d550bdc31",
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "nested-pattern",
+        "source_sha256": "b4b3047ad26e7279771186eba8ddffc7abf85e24535059bb55fb7cad78975b77"
+      },
+      {
+        "binary_sha256": "fac0b1a183f9c121044f7f0e5d4b702dab5c88c5d19d302b94c972ad048e998b",
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "receiver-type",
+        "source_sha256": "ce71851e7d984c7333706f239e1669a9802516c557ca8e00f01c0487a88a1b04"
+      },
+      {
+        "binary_sha256": "bb0cfdda32ff9ec0a1b68b51a2d7afa61657b64872d020043c8c3c3b78e001e7",
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "function-field",
+        "source_sha256": "60ccf383e56f705457eca7a73e5f478109e9d16682f30518eabaff267d3f517f"
+      },
+      {
+        "binary_sha256": "3873713519296af4c3c49e3f64a57040429cade30710201d40eb0bbdfa148a23",
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "written-order",
+        "source_sha256": "ce0ca6aba0dad4012cf3e690ffa59fd45783cdeced580b9acaab563361d17225"
+      },
+      {
+        "binary_sha256": "56bcc3bf48b6285eb57bae3956aafa96a54f27ed200f8551610a2ebac3d9a249",
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "strict-discarded-field",
+        "source_sha256": "0fc8bb04c68c28cbbc52d7fa4cb665ed71658c8e31026af2d01eff0b4935ea83"
+      },
+      {
+        "binary_sha256": "98aed5e7dd287ab9dad94ce94bfaba4158b1df864b563b19aff301404bfea3a6",
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "declared-nat-field",
+        "source_sha256": "d0b9889d629d84bafc64a74af656057ec497d91de177c0159c84025011431516"
+      },
+      {
+        "binary_sha256": "3df8a835c5db313b02f63fa41a4dbb4285286356e48a1d90767d3cdb50bed43e",
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "expected-generic-nat-field",
+        "source_sha256": "84338ac764cb0ce4daa0fb78d70e7ca3e5b9a0773ad30f0a76276ec4f96df902"
+      },
+      {
+        "binary_sha256": "91a2d92073dc411699b2f02af5b27ea5856664888d66ef7710fbb5b6f6f9620d",
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "unsigned-narrow-upper-bound",
+        "source_sha256": "e7b8a5968297413740e3970195ad11245a585cea3a91cb2fd0c88cb3321ec546"
+      },
+      {
+        "binary_sha256": "e6336465f7479ed7c6c430c450ac0c7ade48b75dd7c0f534f668f108ec09f4fa",
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "nested-declared-nat-field",
+        "source_sha256": "ff9fb33c2e370864c10a25f1a47af459424fbc3f8febabdde140e99759f4c902"
+      },
+      {
+        "binary_sha256": "8c0d741a2b7ce3a7c307023e6a0e8433ad0578d0424edd7fb61b58942643915a",
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "declared-nat-callback",
+        "source_sha256": "36375412fb8e50dca98d41b7543d361cff3f54724f082661beaf16d6815c467c"
+      },
+      {
+        "binary_sha256": "5460b4a1abdec74bfda0800a4cb893cbc5581251ba53f08c1710a5a4398193f9",
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "unique-visible-projection-lambda",
+        "source_sha256": "3bbf5b5d889ef1312665f91fe566f8bfcbddd9d258d49c288a042226d4fbf957"
+      },
+      {
+        "binary_sha256": "20358465a8c7872f5f6cf41b9d37d0cb9756ddbd4292e75d7a806cf2837f17c9",
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "closed-index-constructor-coverage",
+        "source_sha256": "0318113b32e02862d842a0ced6827caf9d1736f2d801b1dcebffda816259386c"
+      }
+    ],
+    "negative_cases": [
+      {
+        "accepted": false,
+        "name": "projection scope retains the original ambiguous lambda refusal",
+        "source": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/projection-corpus-native-preflight-1/001.cinch",
+        "source_sha256": "9821f355eed7489d7d96039659cf5addcf2d8c071773c53792f999958f12c10d"
+      },
+      {
+        "accepted": false,
+        "name": "projection scope does not invent a record for a rigid generic receiver",
+        "source": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/projection-corpus-native-preflight-1/003.cinch",
+        "source_sha256": "d027e4014247a436b06fd615a021bdbc7031681a85ab0906b363896264fa6afc"
+      },
+      {
+        "accepted": false,
+        "name": "projection scope cannot infer a record omitted by selective import",
+        "source": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/projection-corpus-native-preflight-1/006.cinch",
+        "source_sha256": "25aad54b85f511c70a4614935460ffc5113033b6652cbe8bcaee0b877dc4b4cf"
+      },
+      {
+        "accepted": false,
+        "name": "record unsigned narrow field rejects overflow",
+        "source": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/projection-corpus-native-preflight-1/017.cinch",
+        "source_sha256": "2411f2afc07c73d48eea36a1d6e6d4478d34c43fdb4200f5daabe3029fd155e6"
+      },
+      {
+        "accepted": false,
+        "name": "record Nat field rejects a negative literal",
+        "source": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/projection-corpus-native-preflight-1/018.cinch",
+        "source_sha256": "eccca51a48d65621c0b81830ebe0ed681433754af41e4c9764fae795c43024f1"
+      }
+    ],
+    "negative_compiler_zero_leaks": 5,
+    "negative_source_refusals": 5,
+    "original_six_clients_unchanged": true,
+    "positive_clients": 13,
+    "positive_compiler_and_client_zero_leaks": 26,
+    "scope": "Actual Native22-built1c76 CLI is the sole source frontend. Every original6 record client retained,7 numeric/callback/projection/indexed clients added,5 unchanged typed/scope refusals checked. All13 compiled programs independently rerun32M with poisoning and zero leaks. Original D13 fixed-index failure retained; its unchanged Signal program now compiles and executes. This is a development compiler; final matching bootstrap,105 frontend targets,14 acceptance checks,34 language cases and full suites remain required.",
+    "status": "passed-actual-indexed-and-record-runtime-clients"
+  },
+  "format_replay": {
+    "compiler_sha256": "39013c769055ebd3091d2fd39ee055b9ea9d36dead8ba6b0f74a378c98f04b80",
+    "compiler_source_sha256": "1c76230c164fd47296646125bb0b911b387c9ffda5f18465ec3ca9d1b883ff27",
+    "end_index_refusal_retained": true,
+    "full_goal_complete": false,
+    "independent_format_binary_sha256": "321f4370efe24a6724d130f32655554846d05ae2c99652caa1428e5006c769da",
+    "independent_format_client_zero_leaks": 1,
+    "independent_format_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+    "invocations_sha256": "17709cbdf521795230aeaeba313e58dd21599ed57e0a6c3ea32752ff33755d01",
+    "original_format_negative_reason_and_path_passed": true,
+    "original_format_negative_refused": true,
+    "original_format_positive_executed": true,
+    "positive_observed_size_counterexamples_repaired": 3,
+    "reconstructed_original_sources": [
+      {
+        "mode": "run",
+        "sections": [
+          {
+            "end": 38,
+            "path": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/proof-elimination-format-replay-1/work/experiments/malleable-syntax/.generated/Format/Binary.cinch",
+            "sha256": "b0302b459a1cd9a3046cbbc8a37fe7d9584cab2fb9b8c1a850b1830815784638",
+            "start": 1
+          },
+          {
+            "end": 59,
+            "path": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/proof-elimination-format-replay-1/work/experiments/malleable-syntax/.generated/Format/Main.cinch",
+            "sha256": "d02f84f28c8fe9c76563a83a4b86dbb64d073d04922e191cc8017e035a0c9ee1",
+            "start": 39
+          }
+        ],
+        "source_sha256": "63119dc8ebfb1228ed8e890ea5f1616450f896eb276afc4783935def5b0032e9"
+      },
+      {
+        "mode": "check",
+        "sections": [
+          {
+            "end": 38,
+            "path": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/proof-elimination-format-replay-1/work/experiments/malleable-syntax/.generated/Format/Binary.cinch",
+            "sha256": "b0302b459a1cd9a3046cbbc8a37fe7d9584cab2fb9b8c1a850b1830815784638",
+            "start": 1
+          },
+          {
+            "end": 59,
+            "path": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/proof-elimination-format-replay-1/work/experiments/malleable-syntax/.generated/Format/Main.cinch",
+            "sha256": "faa174ca7843dde06aa45c183e0dd2eec34929460026d48e6be6caa219f32ae4",
+            "start": 39
+          }
+        ],
+        "source_sha256": "74447baa6c7e8be12edbde378f4de2e94691b2dfbda1c0dc4e6af91187dfc57d"
+      }
+    ],
+    "scope": "Actual Native22-built1c76 CLI repairs the exact3 retained public4f positive failures and retains the original end-index refusal. Unchanged original Format positive executes and its negative meets the original predicate/path assertions without diagnostic rewriting. Source expansion independently reconstructed from unchanged originals and all section hashes matched. The original preparation overwrites its generated source for the next same-stem case; each original bundle is reconstructed separately, while the successful positive binary remains and independently reruns32M with poisoning and zero leaks. Full actual compiler9-test audit is a prerequisite. All34 language examples, original9 API groups, matching full suites/bootstrap and Acceptance1-5 remain separate required gates.",
+    "status": "passed-original-observed-size-and-format-gates",
+    "verified_at": "2026-11-06T14:15:26.844324+00:00",
+    "wrapper_sha256": "dbb89631c05757dc9a59922720251d480b09ccabddc1354f344f4af729b3102a"
+  },
+  "external_language_outcomes": {
+    "assertion_failures": 23,
+    "compiler_sha256": "39013c769055ebd3091d2fd39ee055b9ea9d36dead8ba6b0f74a378c98f04b80",
+    "compiler_source_sha256": "1c76230c164fd47296646125bb0b911b387c9ffda5f18465ec3ca9d1b883ff27",
+    "complete_behavioral_cases": 34,
+    "evidence": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/proof-elimination-external-behavior-1",
+    "filtered": 0,
+    "full_goal_complete": false,
+    "ignored": 0,
+    "independently_rerun_clients": [
+      {
+        "binary_sha256": "aca9c7284127d9f50b49e8bf1b5478e0ae956e425f407ad57adf2e1fcd031c47",
+        "example": "Audio",
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+      },
+      {
+        "binary_sha256": "54a12b6ad54def67e790ad27567e2f36f8529da5bbd32402e3ea12d4af8d9370",
+        "example": "Circuit",
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+      },
+      {
+        "binary_sha256": "f623415a2d7efa2bcab64094ca9644d9425cbfe026a7957ec79b661ebdd339cc",
+        "example": "Differentiate",
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+      },
+      {
+        "binary_sha256": "321f4370efe24a6724d130f32655554846d05ae2c99652caa1428e5006c769da",
+        "example": "Format",
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+      },
+      {
+        "binary_sha256": "3289a537f2037f4df1c1ed01fd10cceba2138c8d2feb25c7066153c6dd3277ca",
+        "example": "Html",
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+      },
+      {
+        "binary_sha256": "a9807508e89d3978535f92aad704959d9ba967580bdf84caa92cb3a9c63fadba",
+        "example": "Query",
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+      },
+      {
+        "binary_sha256": "81c07bf594d80a35ae48469d463e7840bfe389dea3d90de1cf4840ec818118b8",
+        "example": "Reactive",
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+      },
+      {
+        "binary_sha256": "589c43bad435a498e7c474f0f5ed5ef5b075fd835486d76abf8540966dbe3ccf",
+        "example": "TensorAD",
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+      }
+    ],
+    "invocations_sha256": "a77245f68bd2b29b9b11128364ca67d731ffd30b1fc6d3f04864d3b582848440",
+    "log_sha256": "369235bee54cedc8714b56ad1a0f03c271a18194b06e7b187e2dafaa8286284e",
+    "negative_cases": 21,
+    "negative_intended_reason_passed": 3,
+    "negative_reason_failures": [
+      "Html",
+      "Once",
+      "Query",
+      "Tasks",
+      "Proof",
+      "Protocol",
+      "Audio",
+      "Circuit",
+      "ChoreographyState",
+      "ChoreographyBranch",
+      "ChoreographyWire",
+      "ChoreographyReplay",
+      "ChoreographyForge",
+      "TensorADShape",
+      "TensorPrivate",
+      "TacticsMissing",
+      "TacticsShadow",
+      "TacticsStale"
+    ],
+    "negative_refused": 21,
+    "original_behavioral_tests": 2,
+    "positive_cases": 13,
+    "positive_failures": [
+      "Choreography",
+      "Proof",
+      "Protocol",
+      "Tactics",
+      "Tasks"
+    ],
+    "positive_passed": 8,
+    "positive_refused": 5,
+    "provider_result_sha256": "98f1ad037f7f464774c4ef3d86920401d52be8a83e182b107288f1a366f758e1",
+    "scope": "All13 original positives and21 original negatives retain every original assertion through the actual Native22-built1c76 development Cinch compiler; it is not finalStage3. No Native source frontend fallback. Every expanded section independently reconstructed from unchanged Engine/libraries/syntax/examples, with exact snapshot and invocation hashes. Audio, Circuit, Differentiate, Format, Html, Query, Reactive and TensorAD execute and independently rerun at32M poisoning with zero leaks. All21 negatives refuse, but only3 meet original reason/path assertions;23 total assertion failures remain. The actual library-only extension retains55 interface hashes and old physical units while adding the accumulated real variants, factory and Functor method variant. All previous declaring-class slots and physical units are retained. Format now executes and its original negative meets its intended predicate/path assertions. Choreography, Proof, Protocol, Tactics and Tasks remain original positive failures. All original105+14external acceptance and34language cases remain required.",
+    "source_sha256": "5a8402be9d9551162ba6b155d0205fcc1cd7b3bb2f59b88cc7e622d393f793eb",
+    "status": "audited-record-development-external-behavior-with-failures",
+    "test_exit_code": 1,
+    "whole_test_status": "failed",
+    "wrapper_sha256": "1ce55971a3b5551b07074e020e49b4ee1b15b57f6985d2d6dfc5e18ba3226c02"
+  },
+  "original_api_outcomes": {
+    "compiler_sha256": "39013c769055ebd3091d2fd39ee055b9ea9d36dead8ba6b0f74a378c98f04b80",
+    "compiler_source_sha256": "1c76230c164fd47296646125bb0b911b387c9ffda5f18465ec3ca9d1b883ff27",
+    "failed_groups": [
+      "interface_prelude_overrides"
+    ],
+    "failed_tests": 1,
+    "filtered": 0,
+    "full_goal_complete": false,
+    "groups": [
+      {
+        "failed_tests": 0,
+        "host_sha256": "89ae0e2dbfa8ff66602ba507ae10a8bbfc2b7274d1cf740089a4a4c69d508488",
+        "log_sha256": "5aab9d7a9bf6ed25e488d6cfcae329309f018db53c6cf9023c983fb42633bb8a",
+        "name": "interface_anonymous_contracts",
+        "passed_tests": 1,
+        "status": "passed"
+      },
+      {
+        "failed_tests": 0,
+        "host_sha256": "31d229324e34e9b2ab128f1d15ae7fdc5b6a0ba2ea13b577f7a2cc2e799cfb81",
+        "log_sha256": "d4af0e08999594ec25ad3b134431c39b0e092ebfacedf098426ca44eddf116ea",
+        "name": "interface_class_contracts",
+        "passed_tests": 1,
+        "status": "passed"
+      },
+      {
+        "failed_tests": 0,
+        "host_sha256": "12bb83d93b0fd81d6c6b21bc8783b18d8a7cb3c85dba012f4b901e56192d5531",
+        "log_sha256": "7bb96ed51eab3f5a6a56704423948aa5ec138d081aab1e74513db9f8490b3907",
+        "name": "interface_kinds",
+        "passed_tests": 2,
+        "status": "passed"
+      },
+      {
+        "failed_tests": 0,
+        "host_sha256": "4318ee68fadd9ff53524c76e55872df3e507e143b2bcaef7641f142ad0ce9905",
+        "log_sha256": "899f38cec299f5d41e010e66d6ae5da8ab1770393b6cf7c7da668bfb7b3a65b7",
+        "name": "interface_nominals",
+        "passed_tests": 1,
+        "status": "passed"
+      },
+      {
+        "failed_tests": 0,
+        "host_sha256": "dedb88c823fc7a9b47cd26f90b8aa932fadc72b4c6ceb33db4110dea0d8efb1d",
+        "log_sha256": "48e55310ba99c2e81c36ad129bc169c759fbd0edd7b34690b97b3e16b3ace5d0",
+        "name": "interface_preconditions",
+        "passed_tests": 1,
+        "status": "passed"
+      },
+      {
+        "failed_tests": 1,
+        "host_sha256": "6cbc155abb11fd4ac37260e89505339b86ae6b968bfeae8f8bd0b1b918a25159",
+        "log_sha256": "67e220ac40ebe61d3371c2381190d01d85518a648793359e61650beecf9f00db",
+        "name": "interface_prelude_overrides",
+        "passed_tests": 0,
+        "status": "failed"
+      },
+      {
+        "failed_tests": 0,
+        "host_sha256": "277435572526dfc7a51f87eeb9383705e968b30f9abde266d73c54610d3af752",
+        "log_sha256": "3b6415e25c9c26c92df5a91a8c6f8aa6c4a1b55294572f94a02e28a43ce223aa",
+        "name": "interface_refinement_closure",
+        "passed_tests": 1,
+        "status": "passed"
+      },
+      {
+        "failed_tests": 0,
+        "host_sha256": "daac669df1822157d891584b1db843335f04401b0dfba068563b7790e2a70a22",
+        "log_sha256": "f9922b3a984582b31a5242ed6117a2b4d2e4e6198d70cb7bde7ce0034a5c4649",
+        "name": "interface_refinements",
+        "passed_tests": 1,
+        "status": "passed"
+      },
+      {
+        "failed_tests": 0,
+        "host_sha256": "85ca560801a2ff771771e982bb84d8d979c65dab6c9b3db11a27d8962c100fa0",
+        "log_sha256": "6954322a36a70d19731eaf9cbe458fbc2b53d36dcd7ec74beff7d97cb4e688aa",
+        "name": "interface_region_effects",
+        "passed_tests": 2,
+        "status": "passed"
+      }
+    ],
+    "ignored": 0,
+    "native_source_sha256": "e5a981ac7ba7545c618fb368458a0917c07bac3d1746c7f4aa612cf7c22e459b",
+    "original_api_groups": 9,
+    "passed_groups": 8,
+    "passed_tests": 10,
+    "scope": "All nine original API groups and unchanged assertions run with actual1c76 source parser/checker/interface writer and exact NativeE5 public reader/mutation operations. Imported contracts are byte-identical authenticated library dependencies copied into the original build convention; they are not claimed as newly produced Cinch interfaces. No Native source frontend fallback. Source-Prelude replacement remains an actual failed group, not filtered or ignored. This is development-compiler evidence, not final Stage3 or complete Acceptance5.",
+    "source_sha256": "75f54f71e41010e4e7cf2b20f87ffa223cb0dc9a6350732ad3f66fbb1f058251",
+    "status": "audited-original-api-with-retained-prelude-failure",
+    "verified_at": "2026-11-06T14:17:21.339439+00:00",
+    "wrapper_sha256": "7c1367c27b834bd090ede1fb7ebeda6b4887f08163f1ad485e7d06a5b7947900"
+  },
+  "scope": "Only untrusted arithmetic elimination-column order changes in production. Trusted citation/certificate checking, search64/row256/split8 budgets and every original test/assertion remain. Five complete component groups, both exact44-source checkers, actual Native22-built44-module compiler/object9 tests,17 C clients,50 zero-leak reports and3 resolved-writer comparisons pass. All13 record/indexed clients and5 refusals pass with13 independent poisoned reruns. Three unchanged observed-byte-size counterexamples now pass, the end-index refusal remains and original Format positive/negative assertions pass. All34 original language cases run:8/13 positives and3/21 intended negative diagnostics pass;23 assertion failures remain. Original9 API groups remain8/9. Native22/85f00ca remains pinned seed/library-only producer; NativeE5 development production unchanged. The completed earlier4f chain proves its own Acceptance1-4, not the new1c76 source. Matching latest-source full suites/bootstrap,105 frontend targets,14 acceptance checks,34 language examples and all Acceptance1-5 remain required."
+}

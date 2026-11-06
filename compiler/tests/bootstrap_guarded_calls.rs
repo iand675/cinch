@@ -33,6 +33,12 @@ fn compiled_cinch_uses_actual_guarded_bodies_for_dependent_bounds() {
     rows.sort();
     std::fs::write(dir.join("interfaces.json"), format!("{{\"schema\":1,\"interfaces\":[{}]}}", rows.join(","))).unwrap();
     let cases = vec![
+        ("observed byte size retains allocation proof", "import Data.Bytes\n  write :: InRange 0 255 Nat -> InRange 0 255 Nat -> Bytes -> Unit\n  write magic version payload = let n = bytes-len payload in if n >= 256 then () else let bytes = bytes-new (n + 4) in bytes-set bytes 2 n".to_string(), true),
+        ("observed byte size keeps proof after preceding writes", "import Data.Bytes\n  write :: InRange 0 255 Nat -> InRange 0 255 Nat -> Bytes -> Unit\n  write magic version payload = let n = bytes-len payload in if n >= 256 then () else let bytes = bytes-new (n + 4) in let a = bytes-set bytes 0 magic in let b = bytes-set bytes 1 version in bytes-set bytes 2 n".to_string(), true),
+        ("observed byte size cannot justify the end index", "import Data.Bytes\n  write :: Bytes -> Unit\n  write payload = let n = bytes-len payload in if n >= 256 then () else let bytes = bytes-new n in bytes-set bytes n 0".to_string(), false),
+        ("observed byte size cannot justify another buffer", "import Data.Bytes\n  write :: Bytes -> Unit\n  write payload = let n = bytes-len payload in if n >= 256 then () else let bytes = bytes-new (n + 4) in let other = bytes-new 0 in bytes-set other 2 n".to_string(), false),
+        ("observed byte size cannot use the wrong range branch", "import Data.Bytes\n  write :: Bytes -> Unit\n  write payload = let n = bytes-len payload in if n >= 256 then let bytes = bytes-new (n + 4) in bytes-set bytes 2 n else ()".to_string(), false),
+        ("observed byte size cannot invent allocation slack", "import Data.Bytes\n  write :: Bytes -> Unit\n  write payload = let n = bytes-len payload in if n >= 256 then () else let bytes = bytes-new n in bytes-set bytes 2 n".to_string(), false),
         ("computed-natural-conversion", "import Data.Nat\n  computed :: Nat -> Nat -> Nat -> Nat\n  computed x y z = x + y + z\n  value :: Int\n  value = nat-to-int (computed 40 50 60)".to_string(), true),
         ("opaque-dependent-argument", "keep :: (n :: Nat) -> refined (out == n) Nat\n  keep n = n\n  value :: (Nat -> Nat) -> Nat -> Nat\n  value compute n = keep (compute n)".to_string(), true),
         ("opaque-argument-has-no-positive-equation", "keep :: using (n > 0) => (n :: Nat) -> Nat\n  keep n = n\n  bad :: (Nat -> Nat) -> Nat -> Nat\n  bad compute n = keep (compute n)".to_string(), false),

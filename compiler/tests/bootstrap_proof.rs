@@ -130,6 +130,44 @@ fn arithmetic_search_requires_independently_rechecked_evidence() {
             4,
         ),
     ];
+    // Captured from a valid source byte write where n = bytes-len payload.
+    // Input order, redundant ranges and aliases used to exhaust search even
+    // though 2 < allocated follows from allocated = n + 4 and n >= 0.
+    let v = |name: &str| format!(r#"["var","{name}"]"#);
+    let integer = |n: i64| format!(r#"["int",{n}]"#);
+    let compare = |op: &str, a: &str, b: &str| format!(r#"["{op}",{a},{b}]"#);
+    let equal = |a: &str, b: &str| compare("eq", a, b);
+    let both = |a: &str, b: &str| format!(r#"["and",{a},{b}]"#);
+    for prefix in ["captured", "different-binder-ids"] {
+        let a = v(&format!("{prefix}:13"));
+        let b = v(&format!("{prefix}:14"));
+        let n = v(&format!("{prefix}:16"));
+        let alias = v(&format!("{prefix}:30"));
+        let input = v(&format!("{prefix}:bytes-length:15"));
+        let output = v(&format!("{prefix}:bytes-length:23"));
+        let zero = integer(0);
+        let max = integer(i64::MAX);
+        let range = |value: &str, upper: &str| both(&bound(&zero, value), &bound(value, upper));
+        let size = format!(r#"["+",{n},["int",4]]"#);
+        let allocation = equal(&output, &size);
+        let facts = vec![
+            bound(&zero, &a), bound(&zero, &b), bound(&zero, &n), bound(&zero, &alias),
+            bound(&zero, &input), bound(&input, &max), bound(&zero, &output), bound(&output, &max),
+            range(&alias, &max), allocation.clone(), range(&n, &max), range(&b, &integer(255)),
+            range(&a, &integer(255)), equal(&alias, &n),
+            format!(r#"["not",["ge",{n},["int",256]]]"#), equal(&n, &input),
+        ];
+        let search = |facts: &[String], goal: &str| format!(r#"{{"mode":"search","facts":[{}],"goal":{goal}}}"#, facts.join(","));
+        packets.push(("byte-length aliases retain allocation bound", search(&facts, &compare("lt", &integer(2), &output)), 0));
+        packets.push(("last allocated byte remains in range", search(&facts, &compare("lt", &integer(3), &output)), 0));
+        packets.push(("allocation does not justify its end index", search(&facts, &compare("lt", &integer(4), &output)), 4));
+        let without_allocation: Vec<_> = facts.iter().filter(|fact| **fact != allocation).cloned().collect();
+        packets.push(("missing allocation equation remains refused", search(&without_allocation, &compare("lt", &integer(2), &output)), 4));
+        let mut short = facts.clone();
+        short[9] = equal(&output, &n);
+        packets.push(("short allocation remains refused", search(&short, &compare("lt", &integer(2), &output)), 4));
+    }
+
     // An exact lexical hypothesis must remain usable when unrelated facts
     // exceed the bounded arithmetic elimination budget. Citations still
     // refer to the original context, including a conjunct at a large index.

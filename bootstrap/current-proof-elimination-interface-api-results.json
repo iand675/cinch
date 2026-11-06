@@ -1,0 +1,94 @@
+{
+  "compiler_sha256": "39013c769055ebd3091d2fd39ee055b9ea9d36dead8ba6b0f74a378c98f04b80",
+  "compiler_source_sha256": "1c76230c164fd47296646125bb0b911b387c9ffda5f18465ec3ca9d1b883ff27",
+  "failed_groups": [
+    "interface_prelude_overrides"
+  ],
+  "failed_tests": 1,
+  "filtered": 0,
+  "full_goal_complete": false,
+  "groups": [
+    {
+      "failed_tests": 0,
+      "host_sha256": "89ae0e2dbfa8ff66602ba507ae10a8bbfc2b7274d1cf740089a4a4c69d508488",
+      "log_sha256": "5aab9d7a9bf6ed25e488d6cfcae329309f018db53c6cf9023c983fb42633bb8a",
+      "name": "interface_anonymous_contracts",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "host_sha256": "31d229324e34e9b2ab128f1d15ae7fdc5b6a0ba2ea13b577f7a2cc2e799cfb81",
+      "log_sha256": "d4af0e08999594ec25ad3b134431c39b0e092ebfacedf098426ca44eddf116ea",
+      "name": "interface_class_contracts",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "host_sha256": "12bb83d93b0fd81d6c6b21bc8783b18d8a7cb3c85dba012f4b901e56192d5531",
+      "log_sha256": "7bb96ed51eab3f5a6a56704423948aa5ec138d081aab1e74513db9f8490b3907",
+      "name": "interface_kinds",
+      "passed_tests": 2,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "host_sha256": "4318ee68fadd9ff53524c76e55872df3e507e143b2bcaef7641f142ad0ce9905",
+      "log_sha256": "899f38cec299f5d41e010e66d6ae5da8ab1770393b6cf7c7da668bfb7b3a65b7",
+      "name": "interface_nominals",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "host_sha256": "dedb88c823fc7a9b47cd26f90b8aa932fadc72b4c6ceb33db4110dea0d8efb1d",
+      "log_sha256": "48e55310ba99c2e81c36ad129bc169c759fbd0edd7b34690b97b3e16b3ace5d0",
+      "name": "interface_preconditions",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 1,
+      "host_sha256": "6cbc155abb11fd4ac37260e89505339b86ae6b968bfeae8f8bd0b1b918a25159",
+      "log_sha256": "67e220ac40ebe61d3371c2381190d01d85518a648793359e61650beecf9f00db",
+      "name": "interface_prelude_overrides",
+      "passed_tests": 0,
+      "status": "failed"
+    },
+    {
+      "failed_tests": 0,
+      "host_sha256": "277435572526dfc7a51f87eeb9383705e968b30f9abde266d73c54610d3af752",
+      "log_sha256": "3b6415e25c9c26c92df5a91a8c6f8aa6c4a1b55294572f94a02e28a43ce223aa",
+      "name": "interface_refinement_closure",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "host_sha256": "daac669df1822157d891584b1db843335f04401b0dfba068563b7790e2a70a22",
+      "log_sha256": "f9922b3a984582b31a5242ed6117a2b4d2e4e6198d70cb7bde7ce0034a5c4649",
+      "name": "interface_refinements",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "host_sha256": "85ca560801a2ff771771e982bb84d8d979c65dab6c9b3db11a27d8962c100fa0",
+      "log_sha256": "6954322a36a70d19731eaf9cbe458fbc2b53d36dcd7ec74beff7d97cb4e688aa",
+      "name": "interface_region_effects",
+      "passed_tests": 2,
+      "status": "passed"
+    }
+  ],
+  "ignored": 0,
+  "native_source_sha256": "e5a981ac7ba7545c618fb368458a0917c07bac3d1746c7f4aa612cf7c22e459b",
+  "original_api_groups": 9,
+  "passed_groups": 8,
+  "passed_tests": 10,
+  "scope": "All nine original API groups and unchanged assertions run with actual1c76 source parser/checker/interface writer and exact NativeE5 public reader/mutation operations. Imported contracts are byte-identical authenticated library dependencies copied into the original build convention; they are not claimed as newly produced Cinch interfaces. No Native source frontend fallback. Source-Prelude replacement remains an actual failed group, not filtered or ignored. This is development-compiler evidence, not final Stage3 or complete Acceptance5.",
+  "source_sha256": "75f54f71e41010e4e7cf2b20f87ffa223cb0dc9a6350732ad3f66fbb1f058251",
+  "status": "audited-original-api-with-retained-prelude-failure",
+  "verified_at": "2026-11-06T14:17:21.339439+00:00",
+  "wrapper_sha256": "7c1367c27b834bd090ede1fb7ebeda6b4887f08163f1ad485e7d06a5b7947900"
+}

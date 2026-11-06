@@ -1,5 +1,42 @@
 # Next steps (as of 2026-11-06)
 
+## Proof elimination order repairs Format; four-stage4f bootstrap verified (2026-11-06)
+
+Compiler1c76 chooses the arithmetic elimination column producing the fewest
+rows. This repairs valid byte writes following an observed payload length,
+without changing the trusted certificate checker or the64-step/256-row/split8
+budgets. All original tests and assertions remain; ten captured-context packets
+and six Native-compared source cases cover the repair and invalid controls.
+Five complete component groups and both exact44-source checks pass. The actual
+44-module compiler/object gate passes9 tests,17 optimized C clients,50 zero-leak
+reports and3 real resolved-contract comparisons. All13 record/indexed runtime
+clients and5 source refusals pass, with13 independently poisoned reruns.
+See `bootstrap/current-proof-elimination-results.json`.
+
+All three exact retained byte-size positives now pass. The original Format
+positive executes and its negative satisfies its original predicate/path
+assertions. The complete original34-case language replay executes8/13 positives;
+all21 negatives refuse,3 meet their intended diagnostic assertions, and23 failed
+subcases remain. Choreography, Proof, Protocol, Tactics and Tasks remain positive
+failures. Original API coverage remains8/9, with source-Prelude replacement
+failing. Record interface transport and Native existential/False-domain parity
+gaps remain open. No example, assertion or required suite is removed.
+
+The earlier4f compiler now independently proves Acceptance1-4: all four actual
+stages,12 smokes, matching Stage2/3 LLVM/executables/all44 interfaces, actual API
+consumption and changed-source behavior. Its14 original external acceptance
+checks pass. See `bootstrap/current-record-indexed-bootstrap-results.json`.
+Its235-group Native sweep and105-target Stage3 suite continue with their exact
+earlier source; they do not establish matching1c76 completion. Full matching
+latest-source suites, bootstrap,105 frontend targets,14 acceptance checks,
+all34 language cases and every Acceptance1-5 requirement remain required.
+
+NativeE5 production and the pinned Native22/85f00ca seed/library roles remain
+unchanged. A separately audited optimized development runtime keeps debug
+assertions and overflow checks enabled and passes all171 runtime tests;
+`bootstrap/current-native-checked-runtime-profile-results.json` records its
+exact profile and unchanged pinned runtime. It is not a new bootstrap seed.
+
 ## Matching auxiliary suites pass; observed byte-size proof gap isolated (2026-11-06)
 
 Published4f/NativeE5 passes all171 runtime tests,43 tooling tests and39 Native

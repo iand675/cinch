@@ -202,5 +202,12 @@
   },
   "scope": "Original unchanged Format example refuses its third byte write. Three smaller valid programs deriving size from payload bytes-len are accepted by NativeE5 and refused by actual published4f. All seven ordinary Nat-size controls agree, including the end-index refusal; the derived end-index refusal agrees too. The private diagnostic compiler changes only failure text, exposing the actual goal and scoped hypotheses; it is not a repair or published compiler. Private1c76 changes untrusted elimination order only; trusted citation checking and existing budgets stay unchanged. Ten new captured-context proof packets pass, and six new actual source controls are validating. Full current-CLI and matching suites remain required.",
   "status": "confirmed-observed-byte-size-proof-search-gap",
-  "verified_at": "2026-11-06T13:24:11.251484+00:00"
+  "verified_at": "2026-11-06T13:24:11.251484+00:00",
+  "resolution": {
+    "compiler_source_sha256": "1c76230c164fd47296646125bb0b911b387c9ffda5f18465ec3ca9d1b883ff27",
+    "status": "repaired-by-verified-proof-elimination-order",
+    "receipt": "bootstrap/current-proof-elimination-results.json",
+    "original_format_replay": "bootstrap/current-format-replay-results.json",
+    "note": "Original4f failure evidence and unchanged positive source retained. Actual1c76 accepts all3 exact positives and executes original Format; original invalid end index remains refused."
+  }
 }

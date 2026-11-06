@@ -1,0 +1,56 @@
+{
+  "compiler_sha256": "39013c769055ebd3091d2fd39ee055b9ea9d36dead8ba6b0f74a378c98f04b80",
+  "compiler_source_sha256": "1c76230c164fd47296646125bb0b911b387c9ffda5f18465ec3ca9d1b883ff27",
+  "end_index_refusal_retained": true,
+  "full_goal_complete": false,
+  "independent_format_binary_sha256": "321f4370efe24a6724d130f32655554846d05ae2c99652caa1428e5006c769da",
+  "independent_format_client_zero_leaks": 1,
+  "independent_format_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+  "invocations_sha256": "17709cbdf521795230aeaeba313e58dd21599ed57e0a6c3ea32752ff33755d01",
+  "original_format_negative_reason_and_path_passed": true,
+  "original_format_negative_refused": true,
+  "original_format_positive_executed": true,
+  "positive_observed_size_counterexamples_repaired": 3,
+  "reconstructed_original_sources": [
+    {
+      "mode": "run",
+      "sections": [
+        {
+          "end": 38,
+          "path": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/proof-elimination-format-replay-1/work/experiments/malleable-syntax/.generated/Format/Binary.cinch",
+          "sha256": "b0302b459a1cd9a3046cbbc8a37fe7d9584cab2fb9b8c1a850b1830815784638",
+          "start": 1
+        },
+        {
+          "end": 59,
+          "path": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/proof-elimination-format-replay-1/work/experiments/malleable-syntax/.generated/Format/Main.cinch",
+          "sha256": "d02f84f28c8fe9c76563a83a4b86dbb64d073d04922e191cc8017e035a0c9ee1",
+          "start": 39
+        }
+      ],
+      "source_sha256": "63119dc8ebfb1228ed8e890ea5f1616450f896eb276afc4783935def5b0032e9"
+    },
+    {
+      "mode": "check",
+      "sections": [
+        {
+          "end": 38,
+          "path": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/proof-elimination-format-replay-1/work/experiments/malleable-syntax/.generated/Format/Binary.cinch",
+          "sha256": "b0302b459a1cd9a3046cbbc8a37fe7d9584cab2fb9b8c1a850b1830815784638",
+          "start": 1
+        },
+        {
+          "end": 59,
+          "path": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/proof-elimination-format-replay-1/work/experiments/malleable-syntax/.generated/Format/Main.cinch",
+          "sha256": "faa174ca7843dde06aa45c183e0dd2eec34929460026d48e6be6caa219f32ae4",
+          "start": 39
+        }
+      ],
+      "source_sha256": "74447baa6c7e8be12edbde378f4de2e94691b2dfbda1c0dc4e6af91187dfc57d"
+    }
+  ],
+  "scope": "Actual Native22-built1c76 CLI repairs the exact3 retained public4f positive failures and retains the original end-index refusal. Unchanged original Format positive executes and its negative meets the original predicate/path assertions without diagnostic rewriting. Source expansion independently reconstructed from unchanged originals and all section hashes matched. The original preparation overwrites its generated source for the next same-stem case; each original bundle is reconstructed separately, while the successful positive binary remains and independently reruns32M with poisoning and zero leaks. Full actual compiler9-test audit is a prerequisite. All34 language examples, original9 API groups, matching full suites/bootstrap and Acceptance1-5 remain separate required gates.",
+  "status": "passed-original-observed-size-and-format-gates",
+  "verified_at": "2026-11-06T14:15:26.844324+00:00",
+  "wrapper_sha256": "dbb89631c05757dc9a59922720251d480b09ccabddc1354f344f4af729b3102a"
+}

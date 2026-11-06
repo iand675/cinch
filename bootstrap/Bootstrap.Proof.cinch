@@ -270,11 +270,36 @@ module Bootstrap.Proof where
     Cons row rest -> Cons (combine (0 - row-coefficient key row) positive (row-coefficient key positive) row) (eliminate-one key positive rest)
   eliminate-pairs :: Arithmetic -> List SearchRow -> List SearchRow -> List SearchRow
   eliminate-pairs key positive negative = case positive of Nil -> Nil; Cons row rest -> eliminate-one key row negative <> eliminate-pairs key rest negative
+  -- Variable order is an untrusted search choice. Eliminate the column
+  -- producing the fewest rows, so aliases and repeated range bounds do
+  -- not exhaust the fixed budget before the relevant contradiction.
+  -- Every resulting certificate still cites the original full context.
+  search-has-variable :: Arithmetic -> List Arithmetic -> Bool
+  search-has-variable key variables = case variables of Nil -> False; Cons other rest -> arithmetic-equal key other || search-has-variable key rest
+  remember-variables :: List (Arithmetic, Int) -> List Arithmetic -> List Arithmetic
+  remember-variables terms seen = case terms of
+    Nil -> seen
+    Cons (key, amount) rest -> remember-variables rest (if search-has-variable key seen then seen else Cons key seen)
+  search-variables :: List SearchRow -> List Arithmetic -> List Arithmetic
+  search-variables rows seen = case rows of
+    Nil -> reverse seen
+    Cons (MkSearchRow (MkRow terms constant) weights) rest -> search-variables rest (remember-variables terms seen)
+  elimination-cost :: Arithmetic -> List SearchRow -> Nat -> Nat -> Nat -> Nat
+  elimination-cost key rows positive negative zero = case rows of
+    Nil -> positive * negative + zero
+    Cons row rest -> let amount = row-coefficient key row in
+      if amount > 0 then elimination-cost key rest (positive + 1) negative zero
+      else if amount < 0 then elimination-cost key rest positive (negative + 1) zero
+      else elimination-cost key rest positive negative (zero + 1)
+  cheapest-variable :: List Arithmetic -> List SearchRow -> Arithmetic -> Nat -> Arithmetic
+  cheapest-variable variables rows best cost = case variables of
+    Nil -> best
+    Cons key rest -> let next = elimination-cost key rows 0 0 0 in
+      if next < cost then cheapest-variable rest rows key next else cheapest-variable rest rows best cost
   first-variable :: List SearchRow -> Option Arithmetic
-  first-variable rows = case rows of
+  first-variable rows = case search-variables rows Nil of
     Nil -> None
-    Cons (MkSearchRow (MkRow (Cons (key, amount) rest) constant) weights) more -> Some key
-    Cons row more -> first-variable more
+    Cons first rest -> Some (cheapest-variable rest rows first (elimination-cost first rows 0 0 0))
   find-contradiction :: List SearchRow -> Option Certificate
   find-contradiction rows = case rows of
     Nil -> None

@@ -1,9 +1,9 @@
 {
-  "assertion_failures": 25,
-  "compiler_sha256": "b02d06cd6a1c219f0b707fe26d6b2ff83126df67cd56d3a9cc233d6e4d24c713",
-  "compiler_source_sha256": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+  "assertion_failures": 23,
+  "compiler_sha256": "39013c769055ebd3091d2fd39ee055b9ea9d36dead8ba6b0f74a378c98f04b80",
+  "compiler_source_sha256": "1c76230c164fd47296646125bb0b911b387c9ffda5f18465ec3ca9d1b883ff27",
   "complete_behavioral_cases": 34,
-  "evidence": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/indexed-runtime-external-behavior-1",
+  "evidence": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/proof-elimination-external-behavior-1",
   "filtered": 0,
   "full_goal_complete": false,
   "ignored": 0,
@@ -21,6 +21,11 @@
     {
       "binary_sha256": "f623415a2d7efa2bcab64094ca9644d9425cbfe026a7957ec79b661ebdd339cc",
       "example": "Differentiate",
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+    },
+    {
+      "binary_sha256": "321f4370efe24a6724d130f32655554846d05ae2c99652caa1428e5006c769da",
+      "example": "Format",
       "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
     },
     {
@@ -44,17 +49,16 @@
       "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
     }
   ],
-  "invocations_sha256": "2444c325f9d6a5fb9cbe701cc1f785d6c1fb7dce1dd83bbcc593724a6de48906",
-  "log_sha256": "a4a46024d55549389855fe7c7abbaaf3c4a3c0ff0f9b6f8775ca1d1b99a3da8f",
+  "invocations_sha256": "a77245f68bd2b29b9b11128364ca67d731ffd30b1fc6d3f04864d3b582848440",
+  "log_sha256": "369235bee54cedc8714b56ad1a0f03c271a18194b06e7b187e2dafaa8286284e",
   "negative_cases": 21,
-  "negative_intended_reason_passed": 2,
+  "negative_intended_reason_passed": 3,
   "negative_reason_failures": [
     "Html",
     "Once",
     "Query",
     "Tasks",
     "Proof",
-    "Format",
     "Protocol",
     "Audio",
     "Circuit",
@@ -74,19 +78,18 @@
   "positive_cases": 13,
   "positive_failures": [
     "Choreography",
-    "Format",
     "Proof",
     "Protocol",
     "Tactics",
     "Tasks"
   ],
-  "positive_passed": 7,
-  "positive_refused": 6,
+  "positive_passed": 8,
+  "positive_refused": 5,
   "provider_result_sha256": "98f1ad037f7f464774c4ef3d86920401d52be8a83e182b107288f1a366f758e1",
-  "scope": "All13 original positives and21 original negatives retain every original assertion through the actual Native22-built4f development Cinch compiler; it is not finalStage3. No Native source frontend fallback. Every expanded section independently reconstructed from unchanged Engine/libraries/syntax/examples, with exact snapshot and invocation hashes. Audio, Circuit, Differentiate, Html, Query, Reactive and TensorAD execute and independently rerun at32M poisoning with zero leaks. All21 negatives refuse, but only2 meet original reason/path assertions;25 total assertion failures remain. The actual library-only extension retains55 interface hashes and old physical units while adding the accumulated real variants, factory and Functor method variant. All previous declaring-class slots and physical units are retained. Audio and Query now execute; Choreography, Format, Proof, Protocol, Tactics and Tasks remain original positive failures. All original105+14external acceptance and34language cases remain required.",
-  "source_sha256": "e4494857d532decf9fd2e530a8d9f61efbe1a42dcf4a9905d1c955c1886b4bbf",
+  "scope": "All13 original positives and21 original negatives retain every original assertion through the actual Native22-built1c76 development Cinch compiler; it is not finalStage3. No Native source frontend fallback. Every expanded section independently reconstructed from unchanged Engine/libraries/syntax/examples, with exact snapshot and invocation hashes. Audio, Circuit, Differentiate, Format, Html, Query, Reactive and TensorAD execute and independently rerun at32M poisoning with zero leaks. All21 negatives refuse, but only3 meet original reason/path assertions;23 total assertion failures remain. The actual library-only extension retains55 interface hashes and old physical units while adding the accumulated real variants, factory and Functor method variant. All previous declaring-class slots and physical units are retained. Format now executes and its original negative meets its intended predicate/path assertions. Choreography, Proof, Protocol, Tactics and Tasks remain original positive failures. All original105+14external acceptance and34language cases remain required.",
+  "source_sha256": "5a8402be9d9551162ba6b155d0205fcc1cd7b3bb2f59b88cc7e622d393f793eb",
   "status": "audited-record-development-external-behavior-with-failures",
   "test_exit_code": 1,
   "whole_test_status": "failed",
-  "wrapper_sha256": "cb649b6913f57a95114b852f026158add3618d67b3b4f0813dc65d5c96db4b74"
+  "wrapper_sha256": "1ce55971a3b5551b07074e020e49b4ee1b15b57f6985d2d6dfc5e18ba3226c02"
 }
