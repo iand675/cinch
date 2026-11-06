@@ -1,33 +1,33 @@
 {
   "schema": 1,
   "estimate": 90,
-  "commit": "3e20ef73f46b24a556260b0f51cc77e7ec1fa2b4",
+  "commit": "0903872f9eca0665ce7cae3aebb75694424f8d5b",
   "estimateNote": "Rough engineering estimate. Verified checks and remaining work are listed below.",
   "status": "Verification found a failure; correction required",
   "stages": [
     {
-      "name": "Prior API Stage 0",
+      "name": "Stage 0",
       "state": "passed",
       "label": "Verified",
-      "description": "Pinned Rust seed, independently revalidated and smoke-tested. Separate compiler snapshot; a matching published-source run remains required."
+      "description": "Pinned Rust seed, independently revalidated and smoke-tested."
     },
     {
-      "name": "Prior API Stage 1",
-      "state": "passed",
-      "label": "Verified",
-      "description": "Fresh Cinch compiler built from the seed; all three smoke checks. Separate compiler snapshot; a matching published-source run remains required."
+      "name": "Stage 1",
+      "state": "pending",
+      "label": "Pending",
+      "description": "Fresh Cinch compiler built from the seed; all three smoke checks."
     },
     {
-      "name": "Prior API Stage 2",
-      "state": "passed",
-      "label": "Verified",
-      "description": "Every compiler module is being freshly rebuilt by Stage1; all repair gates passed. Separate compiler snapshot; a matching published-source run remains required."
+      "name": "Stage 2",
+      "state": "pending",
+      "label": "Pending",
+      "description": "Every compiler module is being freshly rebuilt by Stage1; all repair gates passed."
     },
     {
-      "name": "Prior API Stage 3",
-      "state": "passed",
-      "label": "Smokes passed; final checks remain",
-      "description": "Fresh rebuild by Stage2, followed by code/interface matching and changed-source checks. Separate compiler snapshot; a matching published-source run remains required."
+      "name": "Stage 3",
+      "state": "pending",
+      "label": "Pending",
+      "description": "Fresh rebuild by Stage2, followed by code/interface matching and changed-source checks."
     }
   ],
   "checks": [
@@ -38,7 +38,7 @@
     },
     {
       "title": "Current repair gates",
-      "detail": "4 of 4 complete groups passed; 0 running, 0 failed and 0 pending. type contracts: passed; interface contracts: passed; frontend adapter: passed; object round trip: passed. All 43 source-module check: passed.",
+      "detail": "4 of 4 complete groups passed; 0 running, 0 failed and 0 pending. Core decision contracts: passed; source decision behavior: passed; frontend adapter: passed; object round trip: passed. All 43 source-module check: passed.",
       "state": "passed"
     },
     {
@@ -57,13 +57,13 @@
       "state": "passed"
     },
     {
-      "title": "Current published Rust compiler: full suite",
-      "detail": "229 of 232 complete groups passed; 0 running, 3 failed and 0 pending.Every group includes ignored tests. State: finished-with-failures. Separate compiler snapshot; a matching published-source run remains required.",
+      "title": "Current matching Rust and Cinch-source full suite",
+      "detail": "0 of 232 complete groups passed; 0 running, 0 failed and 232 pending.Every group includes ignored tests. State: compiling-all-native-runners.",
       "state": "running"
     },
     {
-      "title": "Earlier API compiler bootstrap",
-      "detail": "4 of 4 stages built and smoke-tested. Fixed point, 43 interfaces, API consumption and changed-source behavior are required. Separate compiler snapshot; a matching published-source run remains required.",
+      "title": "Fresh compiler bootstrap",
+      "detail": "1 of 4 stages built and smoke-tested. Fixed point, 43 interfaces, API consumption and changed-source behavior are required.",
       "state": "running"
     },
     {
@@ -182,7 +182,7 @@
       "state": "running"
     },
     {
-      "title": "Current compiler: nine original interface/API groups",
+      "title": "Earlier711 compiler: nine original interface/API groups",
       "detail": "7 of 9 complete groups passed; 0 running, 2 failed and 0 pending. State: completed-with-failures; phase: interface_region_effects. Actual Cinch frontend/writer; complete cases and original assertions retained. This compiler fixture is separate from finalStage3 acceptance.",
       "state": "running"
     },
@@ -202,7 +202,7 @@
       "state": "failed"
     },
     {
-      "title": "Published compiler: original interface/API groups:7/9",
+      "title": "Earlier711 compiler: original interface/API groups:7/9",
       "detail": "All9 original groups retain their original files/assertions: 7 groups pass, 2 fail; 9 of11 tests pass. The complete class-contract/factory/private-closure/coherence test passes. Failed tests stop at their first failing assertion. Remaining gaps are typed foreign declarations and source-prelude replacement with genuine dependency rechecking.",
       "state": "failed"
     },
@@ -227,8 +227,13 @@
       "state": "passed"
     },
     {
-      "title": "Published source interfaces: factories, private classes and parameter names",
+      "title": "Earlier711 source interfaces: factories, private classes and parameter names",
       "detail": "Four complete affected groups pass11tests. All43 exact compiler inputs build and check through a Cinch-built reader with empty PATH. Factories retain hygienic context; private method dependencies close transitively without exposing names. Source parameter names/kinds/implicitness match Native, canonical scheme alpha stability stays intact, and cross-module signature order matches exact canonical bytes/hashes. Original API is7/9; final self-built/full-scope acceptance remains open.",
+      "state": "passed"
+    },
+    {
+      "title": "Published checked source-helper decisions",
+      "detail": "Four complete groups pass11 tests, plus50 new Core controls in five scopes. All43 exact compiler inputs build and check through an actual Cinch-built reader with empty PATH. Three real Int/Nat clients execute both branches at32M with poisoning and zero leaks; effectful, wrong-predicate and partial cases refuse. Full matching bootstrap, all105 targets and Acceptance5 remain open.",
       "state": "passed"
     },
     {
@@ -244,20 +249,20 @@
   ],
   "blockers": [
     {
-      "title": "API7/9 published; earlier917f fixed point and measured6.78x runtime gain verified",
-      "detail": "Published3e20ef7 compiler711103 retains7/9 original API groups(9/11tests), four affected groups11tests, actual43 module compiler/object and actual self-built source checking. New49dd09e publishes scoped evidence: earlier917f all4 stages/12 smokes, exactStage2/3 code/executable/43interfaces, API-only entry and changed-source behavior prove Acceptance1-4 for917f; latest-source Acceptance5 remains open. Paired sameLLVM/43-input runtime comparison passes both sides with zero leaks: release664.45s/debug4508.15s, observed6.78x for this input. Private merged5f2f decision fix passed the actual self-built43-source check after complete Core/source groups; full compiler/object runs and3 real32M poisoned runtime clients plus3 refusals wait on it. Typed foreign declarations/source-prelude replacement, higher-order opaque reification, final matching suites/all105/Acceptance5 remain open. Frozen older-source Native sweep remains229/232 with3 recorded failures. All workers remain bounded to6."
+      "title": "Checked-helper decision repair pushed; matching full suite and fresh bootstrap running",
+      "detail": "Published0903872 compiler5f2f accepts valid pure fully-applied source helpers in numeric decisions. Four complete affected groups pass11tests;50 new Core control runs, actual43module compiler/self-built check and three real32M poisoned zero-leak clients plus three refusals pass. Fresh Native6b/Cinch5f2f full suite and four-stage bootstrap are now running on frozen matching inputs under six workers, with one build thread and optimized pinned Stage1 runtime. Earlier711 API7/9 and917f array13/15 are retained as earlier-source evidence. Typed foreign declarations, source-prelude dependency rechecking, array ownership/staging, opaque higher-order decisions, matching all105/Acceptance1-5 remain open. Earlier450 and917 chains prove scoped Acceptance1-4; olderNative58 retains229/232 groups and1620/1624tests, with no skips."
     },
     {
       "title": "Investigate the recorded failure",
-      "detail": "Native compiler tests: bootstrap_byte_observations; Native compiler tests: bootstrap_measure_contracts; Native compiler tests: bootstrap_source_decisions; self-built tests: bootstrap_total_semantics; self-built tests: bootstrap_type_syntax; self-built tests: arrays; Two original array cases remain open: ownership/copyOut and staging; 2 original interface/API groups remain open"
+      "detail": "self-built tests: bootstrap_total_semantics; self-built tests: bootstrap_type_syntax; self-built tests: arrays; Two original array cases remain open: ownership/copyOut and staging; 2 original interface/API groups remain open"
     },
     {
       "title": "Finish the fresh bootstrap",
-      "detail": " Separate compiler snapshot; a matching published-source run remains required. A matching final chain is not yet verified."
+      "detail": "All repair gates passed. Current phase: building-library-only-provider; Stage0/1/2/3, matching code/interfaces, actual API consumption and changed-source checks remain."
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "229 of 232 complete groups passed; 0 running, 3 failed and 0 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "0 of 232 complete groups passed; 0 running, 0 failed and 232 pending."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -302,10 +307,10 @@
       "title": "Earlier source: Changed-source rebuilding verified"
     }
   ],
-  "candidateSource": "7111030f9c0ded542854b714b727a3a3fced758ca7061490868c9aac19d8dfe7",
+  "candidateSource": "5f2f855665956b76117ea128547ecbdf841f988a487b64ff38b983b24dd38ec4",
   "candidatePublished": true,
   "fullGoalComplete": false,
-  "summary": "All 43 compiler-source checks: passed. 4 of 4 complete groups passed; 0 running, 0 failed and 0 pending. type contracts: passed; interface contracts: passed; frontend adapter: passed; object round trip: passed.",
-  "activity": "Current published Rust compiler: full suite: 229 of 232 complete groups passed; 0 running, 3 failed and 0 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 4 of 4 complete groups passed; 0 running, 0 failed and 0 pending. type contracts: passed; interface contracts: passed; frontend adapter: passed; object round trip: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
-  "updatedAt": "2026-11-06T02:16:47.502719+00:00"
+  "summary": "All 43 compiler-source checks: passed. 4 of 4 complete groups passed; 0 running, 0 failed and 0 pending. Core decision contracts: passed; source decision behavior: passed; frontend adapter: passed; object round trip: passed.",
+  "activity": "Current matching Rust and Cinch-source full suite: 0 of 232 complete groups passed; 0 running, 0 failed and 232 pending. Stage builds and smoke checks: 1 of 4; chain state: building-library-only-provider. Repair gates: 4 of 4 complete groups passed; 0 running, 0 failed and 0 pending. Core decision contracts: passed; source decision behavior: passed; frontend adapter: passed; object round trip: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
+  "updatedAt": "2026-11-06T02:25:17.659406+00:00"
 }
