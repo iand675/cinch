@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "estimate": 90,
-  "commit": "38338c5b970790f8dfd111704325b876d2c687d2",
+  "commit": "807fccdc43b1413a6c163e43b5ae5c9822b1dd73",
   "estimateNote": "Rough engineering estimate. Verified checks and remaining work are listed below.",
   "status": "Verification found a failure; correction required",
   "stages": [
@@ -58,7 +58,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "201 of 235 complete groups passed; 1 running, 0 failed and 33 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "202 of 235 complete groups passed; 1 running, 1 failed and 31 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -347,6 +347,11 @@
       "state": "passed"
     },
     {
+      "title": "Private class defaults: source gates and complete components",
+      "detail": "0/4 complete groups; phase bootstrap_source_instances. Native995f all44 source inputs: passed. Genuine earlier4f Stage3 all44 source inputs with empty PATH: running. The reviewable development patch is pushed to main but is not applied to the published compiler. Fifteen source controls cover defining scope, unused/overridden errors, generic annotations, value fields and identity stability. Imported default implementations, actual full runtime/object/API and matching latest full bootstrap remain required.",
+      "state": "running"
+    },
+    {
       "title": "Published Native995f: quotation hygiene and index kinds",
       "detail": "All20 complete groups pass325 Rust tests without skips/filters, including all13 machine cases. Nine quoted source controls and an actual run returning42 preserve following argument scope, nested scope and same-named global hygiene. Both exact44-module projects, original proof/forgery controls and four actual quoted CLI probes pass independent audit. Task-capture gaps remain reproduced; matching full bootstrap/suites remain required.",
       "state": "passed"
@@ -430,11 +435,11 @@
   "blockers": [
     {
       "title": "Source-Prelude replacement, task captures and matching final bootstrap remain",
-      "detail": "Published Cinch3268 passes all3 complete component groups,27 formatter controls,16 provider/facade arity comparisons,37 precondition source cases and all9 actual compiler/object tests. API6 with published Native995f passes13/14 tests after complete replay and independent audit; source-Prelude replacement is the retained failure. Data.Core source passes without conflicting cached interfaces; its fresh contract differs in public spellings. Dependency-closed subset probes retain every cached byte/hash: Ordering then exposes inherited mconcat defaults, Category source laws/declarations and Algebra implicit base names. Cache invalidation alone is insufficient; all four original families and their checked dependency graph remain required. Native995f passes20 whole groups325 Rust tests, all13 machine cases, both exact44-input projects and quote-scope controls; the two opaque task-capture bypasses remain reproduced. Native22 seed/library pins stay fixed. Original source-Prelude/record/copyOut/staging/language/hidden-type requirements, full matching235/105+14+34/171+43+39 suites and every Acceptance1-5 requirement remain open. A private class-default implementation now checks the owner body even when unused/overridden, retains checked Core and exported body identities, and inherits via the checked generic default. Fifteen source controls include class/method type annotations; component and current44-module checks are running. The first44-module prototype passed; a later syntax failure is retained and corrected in a new frozen attempt. This work is not yet published."
+      "detail": "Published Cinch3268 passes all3 complete component groups,27 formatter controls,16 provider/facade arity comparisons,37 precondition source cases and all9 actual compiler/object tests. API6 with published Native995f passes13/14 tests after complete replay and independent audit; source-Prelude replacement is the retained failure. Data.Core source passes without conflicting cached interfaces; its fresh contract differs in public spellings. Dependency-closed subset probes retain every cached byte/hash: Ordering then exposes inherited mconcat defaults, Category source laws/declarations and Algebra implicit base names. Cache invalidation alone is insufficient; all four original families and their checked dependency graph remain required. Native995f passes20 whole groups325 Rust tests, all13 machine cases, both exact44-input projects and quote-scope controls; the two opaque task-capture bypasses remain reproduced. Native22 seed/library pins stay fixed. Original source-Prelude/record/copyOut/staging/language/hidden-type requirements, full matching235/105+14+34/171+43+39 suites and every Acceptance1-5 requirement remain open. A private class-default implementation now checks the owner body even when unused/overridden, retains checked Core and exported body identities, and inherits via the checked generic default. Fifteen source controls include class/method type annotations. The current8fce revision passes all44 Native source checks under independent audit; actual compiled-Cinch component and genuine earlier4f Stage3 source checks are running. The development patch and source-gate receipt are pushed to main; the published compiler remains3268 until behavior/runtime validation is complete. Earlier interrupted/parser-failed attempts remain retained."
     },
     {
       "title": "Investigate the recorded failure",
-      "detail": "repair checks: original interface/API13of14; self-built tests: arrays; self-built tests: interface_prelude_overrides; Two original array cases remain open: ownership/copyOut and staging; 1 interface/API groups remain open: source-Prelude replacement; Rust accepts mutable task captures hidden by callbacks and helpers"
+      "detail": "repair checks: original interface/API13of14; Native compiler tests: bootstrap_pipeline; self-built tests: arrays; self-built tests: interface_prelude_overrides; Two original array cases remain open: ownership/copyOut and staging; 1 interface/API groups remain open: source-Prelude replacement; Rust accepts mutable task captures hidden by callbacks and helpers"
     },
     {
       "title": "Finish the repair gates",
@@ -446,7 +451,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "201 of 235 complete groups passed; 1 running, 0 failed and 33 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "202 of 235 complete groups passed; 1 running, 1 failed and 31 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -499,6 +504,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "All 44 compiler-source checks: passed. 4 of 5 complete groups passed; 0 running, 1 failed and 0 pending. Native995f all44 source modules: passed; Earlier4f Stage3 all44 source modules: passed; all3 complete interface components: passed; actual compiler and object9tests: passed; original interface/API13of14: failed.",
-  "activity": "Earlier4f/NativeE5: complete235-group sweep: 201 of 235 complete groups passed; 1 running, 0 failed and 33 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 4 of 5 complete groups passed; 0 running, 1 failed and 0 pending. Native995f all44 source modules: passed; Earlier4f Stage3 all44 source modules: passed; all3 complete interface components: passed; actual compiler and object9tests: passed; original interface/API13of14: failed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 48 of 105 complete groups passed; 1 running, 2 failed and 54 pending. Published-source verification gates: recorded-failure; 4 of 5 complete groups passed; 0 running, 1 failed and 0 pending.",
-  "updatedAt": "2026-11-06T20:49:56.201833+00:00"
+  "activity": "Earlier4f/NativeE5: complete235-group sweep: 202 of 235 complete groups passed; 1 running, 1 failed and 31 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 4 of 5 complete groups passed; 0 running, 1 failed and 0 pending. Native995f all44 source modules: passed; Earlier4f Stage3 all44 source modules: passed; all3 complete interface components: passed; actual compiler and object9tests: passed; original interface/API13of14: failed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 48 of 105 complete groups passed; 1 running, 2 failed and 54 pending. Published-source verification gates: recorded-failure; 4 of 5 complete groups passed; 0 running, 1 failed and 0 pending.",
+  "updatedAt": "2026-11-06T20:57:03.278290+00:00"
 }
