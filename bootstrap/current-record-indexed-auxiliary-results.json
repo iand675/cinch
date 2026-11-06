@@ -1,0 +1,58 @@
+{
+  "child_pid": 65139,
+  "compile_record_sha256": "46586c201b8a032f8d0d592eba850e66f47dba58ab867dfe7cfdd9f49c8f070c",
+  "compiler_sha256": "aea1200c10c14b43525feb08742d515e0d3cc016c5d29a6489ada8f3d9fd1438",
+  "compiler_source_sha256": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+  "editor_integration_frontend": "fresh NativeE5 CLI; Cinch-built editor/frontend parity remains separate",
+  "editor_tests": 39,
+  "evidence": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/current4f-auxiliary-1",
+  "filtered": 0,
+  "full_goal_complete": false,
+  "ignored": 0,
+  "independent_input_equivalence": {
+    "actual_compiler_audit": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/indexed-runtime-full-compiler-validation-1/independent-verification.json",
+    "actual_compiler_audit_sha256": "17806e8145c2dd9691eac35387d0bf4f116c3ec1bab9ee98539707c49049942d",
+    "compiler_modules": 44,
+    "compiler_source_sha256": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+    "full_goal_complete": false,
+    "scope": "The exact44 compiler input bytes match the independently audited actual4f compiler/object gate. This is an input-equivalence audit, not a newly executed source check or Stage3 editor parity claim.",
+    "source_sha256": "27a125018a923db1aa20f358fc4a43a5273abcbea48f8b1efdd806926fd969fe",
+    "status": "passed-identical-compiler-input-equivalence"
+  },
+  "logs": {
+    "runtime": "03ab6e3eaaf9f77c8aeace969887340099ff9308132b4e798d5f2d7325652514",
+    "syntax-editor": "2531258ee788e4567404e03ca2b1581e1260293d605145397e3e382e780f2856",
+    "tooling": "5819f9bbff8b7d6964adf22060530ea9ee4b311fcc72a008877801de9cd99071"
+  },
+  "native_source_sha256": "e5a981ac7ba7545c618fb368458a0917c07bac3d1746c7f4aa612cf7c22e459b",
+  "phase": "syntax-editor",
+  "pid": 64775,
+  "rows": [
+    {
+      "exit_code": 0,
+      "log_sha256": "03ab6e3eaaf9f77c8aeace969887340099ff9308132b4e798d5f2d7325652514",
+      "name": "runtime",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "5819f9bbff8b7d6964adf22060530ea9ee4b311fcc72a008877801de9cd99071",
+      "name": "tooling",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "2531258ee788e4567404e03ca2b1581e1260293d605145397e3e382e780f2856",
+      "name": "syntax-editor",
+      "status": "passed"
+    }
+  ],
+  "runtime_tests": 171,
+  "scope": "Complete runtime, tooling and compiler/editor syntax checks on immutable published4f/NativeE5 sources. Editor/compiler integration uses the freshly compiled matching NativeE5 CLI from the exhaustive full-native60 compilation, not a substituted seed compiler; the compile record, source snapshot and CLI bytes are independently hashed. This is the Native editor integration role, not an assertion of Cinch-built frontend parity or Acceptance5 completion.",
+  "slot": 4,
+  "source": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/current4f-auxiliary-1/source",
+  "source_sha256": "27a125018a923db1aa20f358fc4a43a5273abcbea48f8b1efdd806926fd969fe",
+  "status": "passed",
+  "tooling_tests": 43,
+  "verification": "passed-matching-auxiliary-audit"
+}

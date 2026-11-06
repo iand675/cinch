@@ -1,5 +1,35 @@
 # Next steps (as of 2026-11-06)
 
+## Matching auxiliary suites pass; observed byte-size proof gap isolated (2026-11-06)
+
+Published4f/NativeE5 passes all171 runtime tests,43 tooling tests and39 Native
+editor integration tests, with zero skipped or filtered cases. Frozen source,
+all500 expected Rust inputs, CLI provenance, logs and counts are independently
+verified in `bootstrap/current-record-indexed-auxiliary-results.json`. Native
+editor integration is separate from Cinch-built frontend parity.
+
+The matching four-stage4f chain has passed Stage0 and Stage1 with all their
+smokes; Stage2 is building. Seed and library-only provider audits pass. A fresh
+235-group NativeE5/4f sweep is running. All105 frontend targets, the original14
+external acceptance checks and all34 original language cases are queued behind
+the exact independently audited matching Stage3. These runs do not close any
+incomplete acceptance requirement in advance.
+
+The unchanged Format source now has a smaller retained counterexample: a byte
+write following `n = bytes-len payload` and allocation of `n + 4` bytes. Native
+accepts three reduced positives; actual4f refuses each. All seven controls with
+an ordinary Nat size agree between implementations, and end-index refusals
+remain correct. Private diagnostic instrumentation shows the actual scoped
+bounds and unsolved write obligation. See
+`bootstrap/current-observed-byte-size-counterexample.json` and its unchanged
+positive program. A private correction chooses a cheaper arithmetic elimination
+order while retaining the same trusted certificate checker,64-step/256-row
+limits and original tests. Its complete proof test and ten new captured-context
+packets pass. Actual source controls, full compiler checks and replays remain
+pending. Source-Prelude replacement, record interface transport, the remaining
+language examples, complete matching suites and every Acceptance1-5 stay open.
+
+
 ## Typed record fields and indexed constructor layouts (2026-11-06)
 
 Compiler4f now propagates declared and instantiated field types into record

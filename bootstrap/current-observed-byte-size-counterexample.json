@@ -1,0 +1,206 @@
+{
+  "compiler_sha256": "b02d06cd6a1c219f0b707fe26d6b2ff83126df67cd56d3a9cc233d6e4d24c713",
+  "compiler_source_sha256": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+  "derived_size_rows": [
+    {
+      "cinch": {
+        "exit_code": 4,
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+      },
+      "diagnostics": "bootstrap.check:4:138: function precondition is not established at this call\n",
+      "diagnostics_sha256": "0e36bf48550a55dec8990a5a82830fb5ef6a451ee756fd084229942fe4d1b983",
+      "name": "plain-write-2",
+      "native": {
+        "exit_code": 0,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "source": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/format-byte-write-probe-2/plain-write-2.cinch",
+      "source_sha256": "2d5b6573fa19f862f80e113fd03835db2c05ed746cdba6070a740b5671f3a316",
+      "wanted": true
+    },
+    {
+      "cinch": {
+        "exit_code": 4,
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+      },
+      "diagnostics": "bootstrap.check:4:202: function precondition is not established at this call\n",
+      "diagnostics_sha256": "cffcdf359287ee7ec6874b4d2d49537ce20694b5247f37e02a76afde3f141a16",
+      "name": "two-prior-writes",
+      "native": {
+        "exit_code": 0,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "source": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/format-byte-write-probe-2/two-prior-writes.cinch",
+      "source_sha256": "4173efce06f014145a2d181afe6cb013c81f1e94df526bf56facc94e4a64a530",
+      "wanted": true
+    },
+    {
+      "cinch": {
+        "exit_code": 4,
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+      },
+      "diagnostics": "bootstrap.check:4:210: function precondition is not established at this call\n",
+      "diagnostics_sha256": "d973d6d64e07598897094e5d6859c2b18d6c4aa7348fb83d5345e3d9431cca0d",
+      "name": "prior-refined-writes",
+      "native": {
+        "exit_code": 0,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "source": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/format-byte-write-probe-2/prior-refined-writes.cinch",
+      "source_sha256": "d66ada54b6826f6b00864c138679308663287491b047371cf2b6465898f20dd2",
+      "wanted": true
+    },
+    {
+      "cinch": {
+        "exit_code": 4,
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+      },
+      "diagnostics": "bootstrap.check:4:132: function precondition is not established at this call\n",
+      "diagnostics_sha256": "a287c1dd1701b99fd017aa29b7e5a37ec7e8464389f47b7580d255fe8047c61c",
+      "name": "end-index-refusal",
+      "native": {
+        "exit_code": 1,
+        "log_sha256": "bb7c10472d2078f4c7d3659834398f401c7af22fb86b5e0ca4cf6d26ad08306f"
+      },
+      "source": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/format-byte-write-probe-2/end-index-refusal.cinch",
+      "source_sha256": "847ab0dad3e00e0f4ccb2fd8a8f2441f3ebdc84c7a1aa68f8390a13d738cc041",
+      "wanted": false
+    }
+  ],
+  "diagnostic_context": {
+    "report": "actual-byte-length-size: wanted 4, actual 4\nguarded-calls:4:138: function precondition is not established at this call; goals: 2<#bytes-length:23;  hypotheses: #value:13>=0; #value:14>=0; #value:16>=0; #value:30>=0; #bytes-length:15>=0; #bytes-length:15<=9223372036854775807; #bytes-length:23>=0; #bytes-length:23<=9223372036854775807; (0<=#value:30 && #value:30<=9223372036854775807); #bytes-length:23==(#value:16+4); (0<=#value:16 && #value:16<=9223372036854775807); (0<=#value:14 && #value:14<=255); (0<=#value:13 && #value:13<=255); #value:30==#value:16; Not(#value:16>=256); #value:16==#bytes-length:15; \n\n",
+    "report_sha256": "30898e6780760115984221ed29277ff3245247e4cc041bb8dd5a07093f4db524",
+    "state": {
+      "child_pid": 64057,
+      "compiler_sha256": "aea1200c10c14b43525feb08742d515e0d3cc016c5d29a6489ada8f3d9fd1438",
+      "diagnostic_compiler_source_sha256": "8d81d23e1ba69396cc42a21018735c5068ab5725b48f3a131ac6bff74655705c",
+      "exit_code": 0,
+      "full_goal_complete": false,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "native_source_sha256": "e5a981ac7ba7545c618fb368458a0917c07bac3d1746c7f4aa612cf7c22e459b",
+      "phase": "build-and-execute-diagnostic-component",
+      "pid": 64043,
+      "scope": "Private diagnostic instrumentation only: original4f behavior/obligation checker unchanged, failure text includes actual proof goals and hypotheses. No diagnostic source will be published as a repair.",
+      "source": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/format-observation-debug-1/source",
+      "status": "passed-diagnostic-component",
+      "worker_slot": 1
+    }
+  },
+  "full_goal_complete": false,
+  "native_cli_sha256": "901d5ba72c40dfab78bc816fbf425147c3fa285c3b44f487870e218346f795d5",
+  "ordinary_size_control": {
+    "child_pid": 61278,
+    "compiler_sha256": "b02d06cd6a1c219f0b707fe26d6b2ff83126df67cd56d3a9cc233d6e4d24c713",
+    "compiler_source_sha256": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+    "full_goal_complete": false,
+    "native_cli_sha256": "901d5ba72c40dfab78bc816fbf425147c3fa285c3b44f487870e218346f795d5",
+    "phase": "end-index-refusal-cinch",
+    "pid": 58605,
+    "rows": [
+      {
+        "cinch": {
+          "exit_code": 0,
+          "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+        },
+        "name": "plain-write-0",
+        "native": {
+          "exit_code": 0,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "source_sha256": "96240e23ca359e94674eace0fd196f774b912bd184f4ccd885434d71796335a3",
+        "wanted": true
+      },
+      {
+        "cinch": {
+          "exit_code": 0,
+          "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+        },
+        "name": "plain-write-1",
+        "native": {
+          "exit_code": 0,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "source_sha256": "cbc2a84ef92f8a47babe543f97823ef791617c2bdc29dfa13ae105fc0002855b",
+        "wanted": true
+      },
+      {
+        "cinch": {
+          "exit_code": 0,
+          "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+        },
+        "name": "plain-write-2",
+        "native": {
+          "exit_code": 0,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "source_sha256": "546286d0b856d22d3c17541015e5c58fed06bd11fbdc43e0f9611543d9762525",
+        "wanted": true
+      },
+      {
+        "cinch": {
+          "exit_code": 0,
+          "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+        },
+        "name": "plain-write-3",
+        "native": {
+          "exit_code": 0,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "source_sha256": "458a902d7423ba13186beccacffae1fa03503e86e2a55fde73ac0d6cafd0a07c",
+        "wanted": true
+      },
+      {
+        "cinch": {
+          "exit_code": 0,
+          "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+        },
+        "name": "two-prior-writes",
+        "native": {
+          "exit_code": 0,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "source_sha256": "ceba4d958dbc13e361596f294f6aa20103d825f4941836f1ae01ba68ed1ca97c",
+        "wanted": true
+      },
+      {
+        "cinch": {
+          "exit_code": 0,
+          "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+        },
+        "name": "prior-refined-writes",
+        "native": {
+          "exit_code": 0,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "source_sha256": "04cb213a93b3040dd4a3b0df7670edfc2af864fb83157cef894e39df8a5a214a",
+        "wanted": true
+      },
+      {
+        "cinch": {
+          "exit_code": 4,
+          "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+        },
+        "name": "end-index-refusal",
+        "native": {
+          "exit_code": 1,
+          "log_sha256": "ccb169d2db2d3279cdeccc75372602ad3de40c2d3f019f5687b44ef490ffe3ab"
+        },
+        "source_sha256": "be44254883bfede9ecbbd28eb95cc21f3cb9e342ad89bc6484b62019949ba08e",
+        "wanted": false
+      }
+    ],
+    "status": "completed"
+  },
+  "positive_cinch_refusal": 4,
+  "positive_native_acceptance": 0,
+  "positive_source": "bootstrap/programs/ByteLength.Alias.Counterexample.cinch",
+  "positive_source_sha256": "2d5b6573fa19f862f80e113fd03835db2c05ed746cdba6070a740b5671f3a316",
+  "private_correction": {
+    "compiler_source_sha256": "1c76230c164fd47296646125bb0b911b387c9ffda5f18465ec3ca9d1b883ff27",
+    "evidence": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/proof-elimination-order-validation-1/state.json",
+    "status": "proof-certificate-group-passed-source-and-full-compiler-validation-pending"
+  },
+  "scope": "Original unchanged Format example refuses its third byte write. Three smaller valid programs deriving size from payload bytes-len are accepted by NativeE5 and refused by actual published4f. All seven ordinary Nat-size controls agree, including the end-index refusal; the derived end-index refusal agrees too. The private diagnostic compiler changes only failure text, exposing the actual goal and scoped hypotheses; it is not a repair or published compiler. Private1c76 changes untrusted elimination order only; trusted citation checking and existing budgets stay unchanged. Ten new captured-context proof packets pass, and six new actual source controls are validating. Full current-CLI and matching suites remain required.",
+  "status": "confirmed-observed-byte-size-proof-search-gap",
+  "verified_at": "2026-11-06T13:24:11.251484+00:00"
+}

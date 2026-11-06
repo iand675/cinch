@@ -1,0 +1,6 @@
+module Main where
+  import Data.Bytes
+  probe :: InRange 0 255 Nat -> InRange 0 255 Nat -> Bytes -> Unit
+  probe magic version payload = let n = bytes-len payload in if n >= 256 then () else let bytes = bytes-new (n + 4) in bytes-set bytes 2 n
+  main :: Int
+  main = 0

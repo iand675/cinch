@@ -1,5 +1,14 @@
 # The bootstrap ladder
 
+Matching4f/NativeE5 auxiliary suites pass171 runtime,43 tooling and39 Native
+editor tests, independently audited with zero skipped or filtered cases. See
+[current auxiliary evidence](current-record-indexed-auxiliary-results.json).
+A reduced valid byte-size proof counterexample remains in
+[current observed-size evidence](current-observed-byte-size-counterexample.json).
+Its private proof-search correction has passed the certificate test and is
+still validating; it is not part of the published4f compiler. Matching full
+bootstrap/frontend/external suites and Acceptance1-5 remain open.
+
 Current compiler4f fixes declared record field carriers, module-visible
 projection inference, closed numeric indexed coverage and fixed-index runtime
 constructor layouts. Its complete runtime-IR group passes139 zero-leak reports;
