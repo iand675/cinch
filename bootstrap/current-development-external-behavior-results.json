@@ -1,0 +1,84 @@
+{
+  "assertion_failures": 27,
+  "compiler_sha256": "e7beb15a1347eed81f5ef679e07093a092019b6354f99f5bea12c84afca1f8bd",
+  "compiler_source_sha256": "dd8dd439a99818dcdd2d5e9b27222d3497865202bf124deb23015bfe84bee3ab",
+  "complete_behavioral_cases": 34,
+  "evidence": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/constructor-result-parameters-external-behavior-1",
+  "filtered": 0,
+  "full_goal_complete": false,
+  "ignored": 0,
+  "independently_rerun_clients": [
+    {
+      "binary_sha256": "54a12b6ad54def67e790ad27567e2f36f8529da5bbd32402e3ea12d4af8d9370",
+      "example": "Circuit",
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+    },
+    {
+      "binary_sha256": "f623415a2d7efa2bcab64094ca9644d9425cbfe026a7957ec79b661ebdd339cc",
+      "example": "Differentiate",
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+    },
+    {
+      "binary_sha256": "3289a537f2037f4df1c1ed01fd10cceba2138c8d2feb25c7066153c6dd3277ca",
+      "example": "Html",
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+    },
+    {
+      "binary_sha256": "81c07bf594d80a35ae48469d463e7840bfe389dea3d90de1cf4840ec818118b8",
+      "example": "Reactive",
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+    },
+    {
+      "binary_sha256": "015dfe14f09a8e3edff4ea996e447a0f2d5f95b77cc1bf09ef703d758a92f543",
+      "example": "TensorAD",
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+    }
+  ],
+  "invocations_sha256": "75289668f9f6b68748e575c5bbfe5d1b2e777b21ffcb9455b0796e4db204385d",
+  "log_sha256": "d6e874ace07b8415125393ac6710b815b72778e6e62435b80a40029a4b7b0cb6",
+  "negative_cases": 21,
+  "negative_intended_reason_passed": 2,
+  "negative_reason_failures": [
+    "Html",
+    "Once",
+    "Query",
+    "Tasks",
+    "Proof",
+    "Format",
+    "Protocol",
+    "Audio",
+    "Circuit",
+    "ChoreographyState",
+    "ChoreographyBranch",
+    "ChoreographyWire",
+    "ChoreographyReplay",
+    "ChoreographyForge",
+    "TensorADShape",
+    "TensorPrivate",
+    "TacticsMissing",
+    "TacticsShadow",
+    "TacticsStale"
+  ],
+  "negative_refused": 21,
+  "original_behavioral_tests": 2,
+  "positive_cases": 13,
+  "positive_failures": [
+    "Audio",
+    "Choreography",
+    "Format",
+    "Proof",
+    "Protocol",
+    "Query",
+    "Tactics",
+    "Tasks"
+  ],
+  "positive_passed": 5,
+  "positive_refused": 8,
+  "provider_result_sha256": "98f1ad037f7f464774c4ef3d86920401d52be8a83e182b107288f1a366f758e1",
+  "scope": "All13 original positives and21 original negatives retain every original assertion through the actual Native22-builtDD8d development Cinch compiler; it is not finalStage3. No Native source frontend fallback. Every expanded section independently reconstructed from unchanged Engine/libraries/syntax/examples, with exact snapshot and invocation hashes. Circuit, Differentiate, Html, Reactive and TensorAD execute and independently rerun at32M poisoning with zero leaks. All21 negatives refuse, but only2 meet original reason/path assertions;27 total assertion failures remain. The actual library-only extension retains55 interface hashes and old physical units while adding the accumulated real variants, factory and Functor method variant. All previous declaring-class slots and physical units are retained; all3 prior backend refusals now execute successfully. All original105+14external acceptance and34language cases remain required.",
+  "source_sha256": "0fb9a6ac1b02ba02086fba92ccf93b637b3772c1866a4e67483e67ea3016ab2d",
+  "status": "audited-record-development-external-behavior-with-failures",
+  "test_exit_code": 1,
+  "whole_test_status": "failed",
+  "wrapper_sha256": "2dedf9a20456d034ed74d400f13ac5d9206c1a7f2d9c10d0f3364c61833b10f4"
+}

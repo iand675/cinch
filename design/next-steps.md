@@ -1,6 +1,35 @@
 # Next steps (as of 2026-11-06)
 
 
+## Bootstrap and external-language evidence refreshed (2026-11-06)
+
+The preceding aa4e compiler now independently proves Acceptance1-4: all four
+stages, twelve smokes, identical Stage2/3 LLVM and executables, all44 canonical
+interfaces, actual compiler-interface consumption and changed-source behavior.
+See `bootstrap/current-canonical-contract-bootstrap-results.json`. This is
+source-specific evidence; dd8d and later repairs still need a matching chain.
+
+The exact published dd8d compiler now has an independently audited replay of
+all34 original external language cases. Five of13 positives execute: Circuit,
+Differentiate, Html, Reactive and TensorAD. Each also passes an independent32M
+poisoned rerun with zero leaks. All21 negatives refuse; only2 satisfy their
+original reason/path assertions. Both whole tests still fail, with27 failed
+subcases. No examples or assertions were removed. See
+`bootstrap/current-development-external-behavior-results.json`.
+
+The private typed-field, closed-index coverage and visible-record projection
+repair passes all44 compiler-source inputs through both Native and an audited
+Cinch-built checker. Its complete constructor, inference and resolver groups
+are running against Native58e. A newly added annotation fixture was corrected
+to the supported operand syntax; the failed earlier fixture is retained.
+All70 component source cases and their original expectations remain required.
+A separate Native preflight found four older component positives rejected by
+both Native6b and58e. These are retained parity gaps, not passing Native tests.
+
+The original105 frontend targets, separate14 external acceptance checks,
+all34 language cases, complete Native/runtime/tooling suites and every
+Acceptance1-5 requirement remain required. The goal is not complete.
+
 ## Native empty matches use checked data-family provenance (2026-11-06)
 
 Native58e fixes a coverage fast-path bug: empty rows previously failed before
@@ -61,8 +90,8 @@ typed-initializer correction passes its complete constructor and inference
 groups. Combined application-inference and indexed-coverage repairs continue;
 these later sources are not claimed as part of this checkpoint.
 
-The preceding aa4e four-stage chain continues its exact-source independent
-audit. The29e6 Acceptance1-4 proof stays scoped to29e6. A matching latest chain,
+The preceding aa4e four-stage chain passes its exact-source independent
+audit; the receipt above preserves that source scope. The29e6 Acceptance1-4 proof stays scoped to29e6. A matching latest chain,
 full105 targets, complete Native suite, separate14 external acceptance checks,
 all34 original external language cases and every Acceptance1-5 remain required.
 
