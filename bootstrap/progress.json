@@ -349,7 +349,7 @@
     {
       "title": "Native301: affected tests and compiler input gates",
       "detail": "13/13 primary groups and 2/2 evidence groups; phase interface_machine_contracts. Earlier NativeF6e rejects using(True); the correction preserves logical literals and checks instantiated constant obligations at the reference. Real False hypotheses stay scoped; unproven False, unrelated proofs, unknown propositions and indirect obligation-bearing functions refuse. Full current source projects, original proof/forgery controls and retained capture counterexamples rerun. Native301 is published. Its two44-module checks and original CLI controls are completing; task-capture contracts and matching final suites remain required.",
-      "state": "running"
+      "state": "passed"
     },
     {
       "title": "Temporary outputs cleaned and preserved",
@@ -481,5 +481,5 @@
   "fullGoalComplete": false,
   "summary": "All 44 compiler-source checks: passed. 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. Native all44 source modules: passed; Cinch-built all44 source modules: passed; five whole proof component groups: passed; actual compiler and object nine tests: passed; thirteen runtime clients and five refusals: passed.",
   "activity": "Earlier4f/NativeE5: complete235-group sweep: 186 of 235 complete groups passed; 1 running, 0 failed and 48 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. Native all44 source modules: passed; Cinch-built all44 source modules: passed; five whole proof component groups: passed; actual compiler and object nine tests: passed; thirteen runtime clients and five refusals: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 36 of 105 complete groups passed; 1 running, 2 failed and 66 pending. Proposed compiler repair (separate unpublished source): recorded-failure; 2 of 5 complete groups passed; 0 running, 2 failed and 1 pending.",
-  "updatedAt": "2026-11-06T19:00:26.684843+00:00"
+  "updatedAt": "2026-11-06T19:01:29.346633+00:00"
 }
