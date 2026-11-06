@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "estimate": 90,
-  "commit": "fbc67ebdea067b862ee48e3fd147c6d2597e7fc4",
+  "commit": "b09d499b42f27d27b0d60d26149204b82fead4a2",
   "estimateNote": "Rough engineering estimate. Verified checks and remaining work are listed below.",
   "status": "Verification found a failure; correction required",
   "stages": [
@@ -73,7 +73,7 @@
     },
     {
       "title": "Earlier API checkpoint: exact Stage3 behavior",
-      "detail": "37 of 105 complete groups passed; 1 running, 2 failed and 65 pending.All105 required targets:96 portable and9 original interface/API groups, preserving the original100 plus5 additions. Original explicit32M poisoned client limits remain; compiler/checker consumers use256M. Direct Native operations in mixed targets remain classified separately. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "38 of 105 complete groups passed; 1 running, 2 failed and 64 pending.All105 required targets:96 portable and9 original interface/API groups, preserving the original100 plus5 additions. Original explicit32M poisoned client limits remain; compiler/checker consumers use256M. Direct Native operations in mixed targets remain classified separately. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -168,7 +168,7 @@
     },
     {
       "title": "Proposed compiler repair",
-      "detail": "Separate unpublished source: recorded-failure. All 43 compiler modules: passed. 2 of 5 complete groups passed; 0 running, 2 failed and 1 pending. This does not replace current-source or final Stage3 acceptance.",
+      "detail": "Separate unpublished source: under-validation. All 43 compiler modules: passed. 2 of 5 complete groups passed; 1 running, 0 failed and 2 pending. This does not replace current-source or final Stage3 acceptance.",
       "state": "running"
     },
     {
@@ -343,12 +343,22 @@
     },
     {
       "title": "Published Native301: all15 affected groups,269 tests",
-      "detail": "All15 whole Rust groups pass269 tests with no skips/filters, including all186 units and all13 original machine-consumer cases. The full strengthened26-test refinement group checks declaration validity before rejecting an actual unsolved index at its use. A real provider/facade program runs7 and retains True/False contract identity. Source-input completion and the final matching bootstrap remain separate gates.",
+      "detail": "All15 whole Rust groups pass269 tests with no skips/filters, including all186 units and all13 original machine-consumer cases. The full strengthened26-test refinement group checks declaration validity before rejecting an actual unsolved index at its use. A real provider/facade program runs7 and retains True/False contract identity. Both exact44-module source projects and original CLI controls now pass; the final matching bootstrap remains required.",
       "state": "passed"
     },
     {
+      "title": "Published Rust admits nonnumeric precondition indices",
+      "detail": "Exact Native301 and earlierF6e accept proof, function and Boolean arguments as numeric precondition indices. Numeric and actual-proof controls pass. The new12-control regression passes6 valid binder-position/byte-measure/mutable-place controls before exposing the erased-proof acceptance. No bad runtime call was executed. Current Cinch comparison stops at this Native oracle; original expectations remain.",
+      "state": "failed"
+    },
+    {
+      "title": "Private Native d13df: checked numeric index kinds",
+      "detail": "12/13 primary groups and 7/7 evidence/index/syntax/staging groups; phase interface_machine_contracts. The full27-test refinement group retains every original assertion plus12 positive/negative carrier controls. Actual header types are checked without treating source arguments as forall variables or capturing names by spelling. Numeric order, arithmetic and literals preserve numeric places and structural measures. Both44-input projects, original CLI proof controls and retained task-capture probes also rerun. This remains private pending complete gates.",
+      "state": "running"
+    },
+    {
       "title": "Native301: affected tests and compiler input gates",
-      "detail": "13/13 primary groups and 2/2 evidence groups; phase interface_machine_contracts. Earlier NativeF6e rejects using(True); the correction preserves logical literals and checks instantiated constant obligations at the reference. Real False hypotheses stay scoped; unproven False, unrelated proofs, unknown propositions and indirect obligation-bearing functions refuse. Full current source projects, original proof/forgery controls and retained capture counterexamples rerun. Native301 is published. Its two44-module checks and original CLI controls are completing; task-capture contracts and matching final suites remain required.",
+      "detail": "13/13 primary groups and 2/2 evidence groups; phase interface_machine_contracts. Earlier NativeF6e rejects using(True); the correction preserves logical literals and checks instantiated constant obligations at the reference. Real False hypotheses stay scoped; unproven False, unrelated proofs, unknown propositions and indirect obligation-bearing functions refuse. Full current source projects, original proof/forgery controls and retained capture counterexamples rerun. Native301 is published. Its two44-module checks and original CLI controls now pass; task-capture contracts and matching final suites remain required.",
       "state": "passed"
     },
     {
@@ -363,8 +373,8 @@
     },
     {
       "title": "Private3268: public arity and qualified proof arrows",
-      "detail": "2/3 complete affected groups; phase bootstrap_function_preconditions. Public metadata counts source arrows, dictionaries and hidden value parameters; runtime proof erasure stays unchanged. Eight new Native provider/facade comparisons preserve every original exporter assertion. The first new IO/False source exposed contracted-arrow conversion bypassing erased domains; its correction adds12 Native-compared positive/negative source controls. Both44-module source checks pass, including genuine earlier4f Stage3. Full compiler/API replay and a fresh matching full chain remain required.",
-      "state": "failed"
+      "detail": "1/3 complete affected groups; phase bootstrap_export_interfaces. Public metadata counts source arrows, dictionaries and hidden value parameters; runtime proof erasure stays unchanged. Eight new Native provider/facade comparisons preserve every original exporter assertion. The first new IO/False source exposed contracted-arrow conversion bypassing erased domains; its correction adds12 Native-compared positive/negative source controls. Both44-module source checks pass, including genuine earlier4f Stage3. Full compiler/API replay and a fresh matching full chain remain required.",
+      "state": "running"
     },
     {
       "title": "Private Cinch erased-proof interface correction",
@@ -415,11 +425,11 @@
   "blockers": [
     {
       "title": "Rust index kinds, source-Prelude replacement and task capture remain",
-      "detail": "The next original comparison exposes a Rust signature-kind gap: erased True proofs, functions and Booleans are admitted as numeric precondition indices. ExactF6e andpublished301 both reproduce it; valid numeric/proofcontrols pass. A new12-control regression passes6valid binder-position/byte-measure/mutable-place controls before exposing the erased-proof acceptance. No bad runtime call is claimed. Native301 literal/nullary correction ispublished ba88f82; its15affectedwholegroups269tests pass. Current1c76 all44inputs pass newNative301; exactprivate3268 44inputcheckcontinues. Cinch3268 both exporter groups pass; all25original+first9newpreconditioncases pass before the Nativeoracle failure. Remaining cases, actualcompiler/object andall9API are required after Rustrepair. Source-Prelude replacement, task-capture contracts, recordinterfaces, copyOut/staging/languagegaps, hidden-typeintroduction, latestmatching235/105+14+34/171+43+39 suites and everyAcceptance1-5 requirement remain open."
+      "detail": "Published Native301 passes all15 affected groups269tests, both exact44-module input projects, original CLI proof/forgery controls and independent artifact audit. Native22 seed/library roles remain fixed. Exact301 and earlierF6e also admit erased proof/function/Bool parameters as numeric preconditions: the next required kind fix is private d13df. Its full27-test refinement group passes all12 new controls, plus all186 units and affected dependency/interface groups; remaining20-group/index/syntax/staging/input gates continue. Cinch3268 production stays unchanged. Both prior exporter groups pass; complete3components rerun against corrected oracle with all25original/new12cases preserved, followed by actual compiler/object andall9API. Source-Prelude replacement, task-capture contracts, recordinterfaces, copyOut/staging/languagegaps, hidden-typeintroduction, latestmatching235/105+14+34/171+43+39 suites and everyAcceptance1-5 requirement remain open."
     },
     {
       "title": "Investigate the recorded failure",
-      "detail": "self-built tests: arrays; self-built tests: interface_prelude_overrides; Two original array cases remain open: ownership/copyOut and staging; 2 interface/API groups remain open, including the added literal-contract test; Rust accepts mutable task captures hidden by callbacks and helpers"
+      "detail": "self-built tests: arrays; self-built tests: interface_prelude_overrides; Two original array cases remain open: ownership/copyOut and staging; 2 interface/API groups remain open, including the added literal-contract test; Rust accepts mutable task captures hidden by callbacks and helpers; Rust signature predicates need checked argument index kinds"
     },
     {
       "title": "Finish the fresh bootstrap",
@@ -435,7 +445,7 @@
     },
     {
       "title": "Finish the exact self-built compiler tests",
-      "detail": "37 of 105 complete groups passed; 1 running, 2 failed and 65 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "38 of 105 complete groups passed; 1 running, 2 failed and 64 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Pass all external language examples through Stage3",
@@ -480,6 +490,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "All 44 compiler-source checks: passed. 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. Native all44 source modules: passed; Cinch-built all44 source modules: passed; five whole proof component groups: passed; actual compiler and object nine tests: passed; thirteen runtime clients and five refusals: passed.",
-  "activity": "Earlier4f/NativeE5: complete235-group sweep: 186 of 235 complete groups passed; 1 running, 0 failed and 48 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. Native all44 source modules: passed; Cinch-built all44 source modules: passed; five whole proof component groups: passed; actual compiler and object nine tests: passed; thirteen runtime clients and five refusals: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 37 of 105 complete groups passed; 1 running, 2 failed and 65 pending. Proposed compiler repair (separate unpublished source): recorded-failure; 2 of 5 complete groups passed; 0 running, 2 failed and 1 pending.",
-  "updatedAt": "2026-11-06T19:02:31.464157+00:00"
+  "activity": "Earlier4f/NativeE5: complete235-group sweep: 186 of 235 complete groups passed; 1 running, 0 failed and 48 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit; earlier API source, not the published repair. Repair gates: 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. Native all44 source modules: passed; Cinch-built all44 source modules: passed; five whole proof component groups: passed; actual compiler and object nine tests: passed; thirteen runtime clients and five refusals: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 38 of 105 complete groups passed; 1 running, 2 failed and 64 pending. Proposed compiler repair (separate unpublished source): under-validation; 2 of 5 complete groups passed; 1 running, 0 failed and 2 pending.",
+  "updatedAt": "2026-11-06T19:12:32.748279+00:00"
 }
