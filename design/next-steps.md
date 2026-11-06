@@ -13,6 +13,10 @@ False-proof/forgery controls and three actual old/new CLI examples pass independ
 audit. See `bootstrap/current-native-default-annotation-results.json`.
 The callback/helper task-capture gaps still reproduce and remain required fixes.
 Immutable Native22 seed/library pins remain unchanged.
+All nine original interface/API groups also replay with the published8ba8 reader:
+8/9 groups and13/14 tests pass, with the unchanged source-Prelude collision still
+failing. The actual Cinch3268 executable is unchanged. The earlier995f reader
+receipt remains in `bootstrap/cinch3268-native995-interface-api-results.json`.
 
 The private Cinch8fce source-default patch separately passes all four complete
 component groups: six Rust tests, all15 new default controls, all30 original

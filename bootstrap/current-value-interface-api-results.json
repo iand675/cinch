@@ -17,79 +17,79 @@
   "groups": [
     {
       "failed_tests": 0,
-      "host_sha256": "c998ca95ba8adfc1263e82464a1a51a475697a1f7c4ed34423a4c48bb80667e7",
-      "log_sha256": "aad723d230c6b1868b0670d4dba9a9d44789b14c7b05cfa7fdb962cb92ea8c3d",
+      "host_sha256": "3c64c370134e402928725bde323187ca57c6b96438428e9a3b8c469459bd04ab",
+      "log_sha256": "21c39f07135c46f0b48ad9e3d12c103bb1782b5471c87265d5491d50835e4b09",
       "name": "interface_anonymous_contracts",
       "passed_tests": 1,
       "status": "passed"
     },
     {
       "failed_tests": 0,
-      "host_sha256": "39fd7ad0a22c37b444e6038fca039711dcc365800ccc815aeb6ee181ebcf0071",
-      "log_sha256": "44c620d25cd44475089998ae42e26a4409f036ae456fb03968a6a0ea77e86287",
+      "host_sha256": "daf7b8c66b1df6d88ab8c0ecb363c062c82471fd0e693c8846e60fc96a4fe854",
+      "log_sha256": "f7e774ab27d78e29cc925d97f809fdbdf997a3488beab2e5e3ad0b9b35d9cc72",
       "name": "interface_class_contracts",
       "passed_tests": 1,
       "status": "passed"
     },
     {
       "failed_tests": 0,
-      "host_sha256": "785aa00ac960e9c6ddec6de8353fad2e6a40569dee4f73e0fc66ff685bcb2e92",
-      "log_sha256": "4b59a49fdadb0ca900f3dcb994fc33be828c1b7fe7dd42370a0da8a82a724e6a",
+      "host_sha256": "33d65608e3f1f2b62e72d326c56ad19ada3f505d3c6363025823a160f1a0cffb",
+      "log_sha256": "b138943754a5cbfe38f3d54aef96d9bed92e734c0ca560268af93a0ea118a4f1",
       "name": "interface_kinds",
       "passed_tests": 2,
       "status": "passed"
     },
     {
       "failed_tests": 0,
-      "host_sha256": "f41e907b99f53570614126f5c5ee9286cea809c2c6b02da88ceefefea0d4979c",
-      "log_sha256": "f5596d6345d7dd193abc3c10845625d16308f110585c232b3072b91a8ec8d0f8",
+      "host_sha256": "cf24452b645042321229f8531cbbfd9027fe66e7b4ef4e72a76a2673b9e11848",
+      "log_sha256": "c45980b38f7f3fbea2bcf881ad9bfb6f3166c4a59bafbeedf7a859f06c86eb83",
       "name": "interface_nominals",
       "passed_tests": 1,
       "status": "passed"
     },
     {
       "failed_tests": 0,
-      "host_sha256": "e440c8d52223b06aa9ce710fea9736af49c0fa2a10d6c0725683e80d9ff3f4d8",
-      "log_sha256": "e1de9ac97deef288f886c30c59890f583d4763480354e96ecb40adb6b517f1d8",
+      "host_sha256": "e16f1fd6b0467477eb70efa12a62cbbede107604f780144c46ac83fe0f45ef5c",
+      "log_sha256": "0323ba5fb84ccff67e84afe6a6919ee604f834388efd344799d01ae6bb9dfc05",
       "name": "interface_preconditions",
       "passed_tests": 1,
       "status": "passed"
     },
     {
       "failed_tests": 1,
-      "host_sha256": "ff24fa69373c445e8f18633607260303e2b495d95c8b63dca18b4d9f6873f2bf",
-      "log_sha256": "c01d2870a10de5d699efcf928f933225ba2faf563723705e22592678218c0d27",
+      "host_sha256": "7108f6418d6c63985f8999ac12c724ed578d2cbea77218ad5b9145de4fba8f7b",
+      "log_sha256": "83e359f57c00576cfb1ec064a80e80419fdc4cbb5ca096fdc494a6688a299e38",
       "name": "interface_prelude_overrides",
       "passed_tests": 0,
       "status": "failed"
     },
     {
       "failed_tests": 0,
-      "host_sha256": "bcd29a6e2aff341e8e33fe9a40cac14b54bc379251ab610e6c8a68b457702135",
-      "log_sha256": "25bdb6a45969bb195da19948edabe64ae13b78af0f7b0bd1688cbf9e7f9cdfee",
+      "host_sha256": "67ea9575328e2ee215437d118a74f3f5e72e58ae48371944211b46c03ca99170",
+      "log_sha256": "7593f0bbb95f15cec8f245e833588300f1d72697e0dc02d504556883df736b48",
       "name": "interface_refinement_closure",
       "passed_tests": 1,
       "status": "passed"
     },
     {
       "failed_tests": 0,
-      "host_sha256": "ce812d08918fb3f79954b7ff90b2c5997ebf31630756adb925eb507056f76db7",
-      "log_sha256": "197e86577956b84c012576d17f0b54ebb91dc50d9af354e6e3842dd07d8efa1e",
+      "host_sha256": "7dc2d699eb19a2654557be5d89357344c4c51c8503d2fc9fdb1db2c73d93f4ad",
+      "log_sha256": "c2eff8ad0441bc8f24c724c45894f0e026afe7cbfb0a54078a8f239d458d9929",
       "name": "interface_refinements",
       "passed_tests": 4,
       "status": "passed"
     },
     {
       "failed_tests": 0,
-      "host_sha256": "3be54d18a83000eeeb4542aedd01aceb625e3e455774fad63b4b58d775ff4107",
-      "log_sha256": "15e451c40897443db1187dce7fcfe60460c4d7f4bfd0a2201b3bddd38112f883",
+      "host_sha256": "512a717833e07ff2b850b04fcbcf3959936a0e7659e631b970717a368646b33b",
+      "log_sha256": "6afb4b6c21da6dd7e34d185ae4b524b9bc92969d698993ebf95c58b8f10b7e61",
       "name": "interface_region_effects",
       "passed_tests": 2,
       "status": "passed"
     }
   ],
   "ignored": 0,
-  "native_source_sha256": "995f5d5954f3d556ff940b6d002e7e1e19a970b5ff34bf5cd15669de7f0d30a4",
+  "native_source_sha256": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
   "new_literal_interface_test": true,
   "new_native_portable_proof_contract_test": true,
   "original_api_groups": 9,
@@ -97,9 +97,9 @@
   "passed_cinch_source_path_tests": 10,
   "passed_groups": 8,
   "passed_tests": 13,
-  "scope": "All nine original API groups retain the original assertions. Actual Cinch3268 performs11 source-path tests:10 pass and source-Prelude replacement fails. Three passing direct Native API tests remain separately classified as reader/Core/API evidence. Complete8/9 groups and13/14 Rust tests, without skips or filters. The literal proof and nullary using provider/facade programs preserve actual resolved contracts; both added source tests pass. Published Native995f is the public reader/mutation host. Cinch3268 executable/source bytes are unchanged from API5; only the current Native reader/API host changes. The actual Cinch CLI was built with pinned Native22 and is not a matching self-built Stage3. Imported authenticated library dependencies are not newly emitted source interfaces. Every original failure and full matching acceptance remain required.",
-  "source_sha256": "7c2290a6ea4858b376c36e0fe9b3da15b8bcf471ded47dcbac986b07aef7754b",
+  "scope": "All nine original API groups retain the original assertions. Actual Cinch3268 performs11 source-path tests:10 pass and source-Prelude replacement fails. Three passing direct Native API tests remain separately classified as reader/Core/API evidence. Complete8/9 groups and13/14 Rust tests, without skips or filters. The literal proof and nullary using provider/facade programs preserve actual resolved contracts; both added source tests pass. Audited Native8ba8 is the public reader/mutation host. Cinch3268 executable/source bytes are unchanged from API6; only the current Native reader/API host changes. The actual Cinch CLI was built with pinned Native22 and is not a matching self-built Stage3. Imported authenticated library dependencies are not newly emitted source interfaces. Every original failure and full matching acceptance remain required.",
+  "source_sha256": "19e8001bda1a2c3a52c86a4b29c5e83ed692421973ab06f20d75c7852585ac52",
   "status": "audited-original-api-with-retained-failures",
   "total_tests": 14,
-  "verified_at": "2026-11-06T20:21:35.937567+00:00"
+  "verified_at": "2026-11-06T21:56:34.047356+00:00"
 }
