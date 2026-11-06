@@ -58,7 +58,7 @@
     },
     {
       "title": "Current matching Rust and Cinch-source full suite",
-      "detail": "28 of 235 complete groups passed; 1 running, 0 failed and 206 pending.Every group includes ignored tests. State: running.",
+      "detail": "30 of 235 complete groups passed; 1 running, 0 failed and 204 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -267,7 +267,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "28 of 235 complete groups passed; 1 running, 0 failed and 206 pending."
+      "detail": "30 of 235 complete groups passed; 1 running, 0 failed and 204 pending."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -316,6 +316,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "All 43 compiler-source checks: passed. 4 of 4 complete groups passed; 0 running, 0 failed and 0 pending. Core decision contracts: passed; source decision behavior: passed; frontend adapter: passed; object round trip: passed.",
-  "activity": "Current matching Rust and Cinch-source full suite: 28 of 235 complete groups passed; 1 running, 0 failed and 206 pending. Stage builds and smoke checks: 3 of 4; chain state: building-stage3. Repair gates: 4 of 4 complete groups passed; 0 running, 0 failed and 0 pending. Core decision contracts: passed; source decision behavior: passed; frontend adapter: passed; object round trip: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
-  "updatedAt": "2026-11-06T02:46:34.722804+00:00"
+  "activity": "Current matching Rust and Cinch-source full suite: 30 of 235 complete groups passed; 1 running, 0 failed and 204 pending. Stage builds and smoke checks: 3 of 4; chain state: building-stage3. Repair gates: 4 of 4 complete groups passed; 0 running, 0 failed and 0 pending. Core decision contracts: passed; source decision behavior: passed; frontend adapter: passed; object round trip: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
+  "updatedAt": "2026-11-06T02:49:16.761904+00:00"
 }
