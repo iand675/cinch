@@ -73,7 +73,7 @@
     },
     {
       "title": "Complete behavior through exact final Stage3",
-      "detail": "1 of 105 complete groups passed; 1 running, 0 failed and 103 pending.All105 required targets:96 portable and9 original interface/API groups, preserving the original100 plus5 additions. Original explicit32M poisoned client limits remain; compiler/checker consumers use256M. Direct Native operations in mixed targets remain classified separately.",
+      "detail": "2 of 105 complete groups passed; 1 running, 0 failed and 102 pending.All105 required targets:96 portable and9 original interface/API groups, preserving the original100 plus5 additions. Original explicit32M poisoned client limits remain; compiler/checker consumers use256M. Direct Native operations in mixed targets remain classified separately.",
       "state": "running"
     },
     {
@@ -271,7 +271,7 @@
     },
     {
       "title": "Finish the exact self-built compiler tests",
-      "detail": "1 of 105 complete groups passed; 1 running, 0 failed and 103 pending."
+      "detail": "2 of 105 complete groups passed; 1 running, 0 failed and 102 pending."
     },
     {
       "title": "Finish final external acceptance",
@@ -312,6 +312,6 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "The fresh current-source compiler chain passes its smoke tests, matching Stage2/Stage3 IR, executable and all 43 canonical interfaces, actual API consumption and changed-source behavior. Complete tests and the final acceptance audit remain separate requirements.",
-  "activity": "Current matching Rust and Cinch-source full suite: 149 of 235 complete groups passed; 1 running, 0 failed and 85 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit. Repair gates: 4 of 4 complete groups passed; 0 running, 0 failed and 0 pending. Core decision contracts: passed; source decision behavior: passed; frontend adapter: passed; object round trip: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 1 of 105 complete groups passed; 1 running, 0 failed and 103 pending.",
-  "updatedAt": "2026-11-06T03:39:59.875147+00:00"
+  "activity": "Current matching Rust and Cinch-source full suite: 149 of 235 complete groups passed; 1 running, 0 failed and 85 pending. Stage builds and smoke checks: 4 of 4; chain state: passed-chain-awaiting-independent-audit. Repair gates: 4 of 4 complete groups passed; 0 running, 0 failed and 0 pending. Core decision contracts: passed; source decision behavior: passed; frontend adapter: passed; object round trip: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 2 of 105 complete groups passed; 1 running, 0 failed and 102 pending.",
+  "updatedAt": "2026-11-06T03:43:22.223488+00:00"
 }
