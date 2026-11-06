@@ -5,7 +5,7 @@
   "private_cinch_source_sha256": "00b549e3f334cff05ead4f6b0771d9e9dcccc96a5268bf82d3836e8efdccd32d",
   "native_source_sha256": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
   "patch": "bootstrap/source-class-default-type-scope-development.patch",
-  "patch_sha256": "c9853d46129c1f45a8e7ce1189fb2c387bfbd796923f1a19fc31cf0ce2e6cf59",
+  "patch_sha256": "fe5ce3770c4784743d08338ac9382e38a2446950a9f972cc3bce871950d1ffc8",
   "patch_application_independently_verified": true,
   "files": [
     {

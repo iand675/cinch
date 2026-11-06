@@ -5,7 +5,7 @@ index 8bec79b..46e026e 100644
 @@ -276,6 +276,15 @@ module Bootstrap.Infer where
    lookup-local :: String -> List (String, UType) -> Option UType
    lookup-local name locals = case locals of Nil -> None; Cons (n, ty) rest -> if same name n then Some ty else lookup-local name rest
- 
+
 +  -- Term locals are available to dependent index conversion, but they do
 +  -- not shadow a separately bound type constructor in an annotation.
 +  -- Keep the full context for index arguments; filter only type-head uses.
