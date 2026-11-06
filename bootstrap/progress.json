@@ -235,7 +235,7 @@
   "blockers": [
     {
       "title": "Constructor contracts published; dictionary contexts are the next API blocker",
-      "detail": "Published1dd5 compiler retains local Type/Nat constructor binders and computed/fixed indices with closed checked source/Core contracts. All5 complete affected groups13tests, actual43-module Native22 compiler/object gate, actual Cinch-built917f empty-PATH source check and all3 CLI runtime boundary controls pass. Original9 API groups remain6passed3failed: class contracts now reach generic dictionary-factory context export; kinds reaches typed foreign declarations; source-family replacements still refuse. Private contextual factory implementation also preserves imported class headers/methods exactly and avoids receiver/type-kind name capture. Its complete exporter and self-built source checks are running after a missing private JSON helper was replaced by explicit numeric-slot validation. Earlier450711/917f chains continue; path-based cache invalidation after storage protection requires an extra stage refresh. No matching1dd5 full bootstrap/105-target acceptance yet."
+      "detail": "Publishede9acd35 retains constructor-local Type/Nat binders and fixed/computed result indices. Five complete affected groups13tests, actual43-module compiler/object validation, actual self-built917f empty-PATH source check, and3 runtime boundary controls pass. Original API stays6/9; the constructor declaration failures now advance to factory contexts and typed foreign declarations. Privatee1a0 factory exporter passes both complete type/interface groups, including private context closure, binder collision, original fixity/privacy and actual Native readback assertions. Its current43-module self-built check is live; full compiler/object and all9 original API replays wait for it. Latest-source full bootstrap/all105 targets and Acceptance5 remain open. Older frozen chains continue their path-cache refresh without restart."
     },
     {
       "title": "Investigate the recorded failure",
@@ -297,5 +297,5 @@
   "fullGoalComplete": false,
   "summary": "All 43 compiler-source checks: passed. 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_source_constructors: passed; bootstrap_globals: passed; bootstrap_export_interfaces: passed; bootstrap_external_frontend: passed; bootstrap_library_object: passed.",
   "activity": "Current published Rust compiler: full suite: 207 of 232 complete groups passed; 1 running, 2 failed and 22 pending. Stage builds and smoke checks: 2 of 4; chain state: building-stage2; earlier API source, not the published repair. Repair gates: 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_source_constructors: passed; bootstrap_globals: passed; bootstrap_export_interfaces: passed; bootstrap_external_frontend: passed; bootstrap_library_object: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
-  "updatedAt": "2026-11-06T00:11:15.383488+00:00"
+  "updatedAt": "2026-11-06T00:14:17.491702+00:00"
 }
