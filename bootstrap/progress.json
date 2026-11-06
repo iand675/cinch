@@ -18188,8 +18188,8 @@
       {
         "title": "Cinch strict-default repair: complete groups",
         "status": "running",
-        "phase": "bootstrap_instance_resolution",
-        "passed": 2,
+        "phase": "bootstrap_export_types",
+        "passed": 3,
         "failed": 0,
         "total": 7,
         "source": "75fbd2f9a8596fa48c2ded66efa15834412b9bc478247b7c94ab048fa84774c0",
@@ -18270,5 +18270,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-06T23:03:54.563899+00:00"
+  "updatedAt": "2026-11-06T23:05:37.266012+00:00"
 }
