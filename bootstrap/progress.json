@@ -234,8 +234,8 @@
   ],
   "blockers": [
     {
-      "title": "Private-class repair passes self-built source check; original API replay waits for object gate",
-      "detail": "Published067446e optimized seed runtime passes43 tooling tests and fresh Stage0/1 with6 smokes. Published Cinch1dd API remains6/9. Privatec1f37 transitive class/factory exporter now passes both complete exporter groups and actual self-built43-module check; its8 adapter tests pass and the complete object round trip is running, followed by the unchanged9 API groups. Earlier e1a class failure is retained. Separate private36cd source-parameter correction keeps declaration/field names, with exact Native parameter-kind/implicitness comparisons for Vec/Parcel/Phantom and original canonical alpha-stability assertions unchanged; exporter validation is queued. Same-IR runtime comparison remains live. Latest-source full bootstrap/all105/Acceptance5 remain open."
+      "title": "Canonical class ordering repair is validating; original API remains6/9",
+      "detail": "Published067446e optimized seed runtime passes43 tooling tests and fresh Stage0/1 with6 smokes; published Cinch1dd API remains6/9. Privatec1f37 passes both exporter groups, actual43-module self-built check and complete compiler/adapter/object gates. Its original class API advances to a real coherence failure: the new closure sorted signatures by identity, but Native canonical serialization sorts by name then identity. Exact raw/Native document comparison proves that order is the only difference for the failing Facade. New private711103 fixes the canonical comparator and adds a cross-module private Alpha class regression. It also includes private36cd parameter names, already verified by2 complete exporter groups against Native Vec/Parcel/Phantom kinds/implicitness, with canonical alpha-stability retained. New711 exporter/self-built/complete-compiler/originalAPI/audit gates are running or waiting on prerequisites, within6 heavy workers. Same-IR runtime comparison is running its debug control; optimized side checked all43 with zero leaks. Full matching bootstrap/all105/Acceptance5 remain open."
     },
     {
       "title": "Investigate the recorded failure",
@@ -297,5 +297,5 @@
   "fullGoalComplete": false,
   "summary": "All 43 compiler-source checks: passed. 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_source_constructors: passed; bootstrap_globals: passed; bootstrap_export_interfaces: passed; bootstrap_external_frontend: passed; bootstrap_library_object: passed.",
   "activity": "Current published Rust compiler: full suite: 213 of 232 complete groups passed; 1 running, 3 failed and 15 pending. Stage builds and smoke checks: 2 of 4; chain state: building-stage2; earlier API source, not the published repair. Repair gates: 5 of 5 complete groups passed; 0 running, 0 failed and 0 pending. bootstrap_source_constructors: passed; bootstrap_globals: passed; bootstrap_export_interfaces: passed; bootstrap_external_frontend: passed; bootstrap_library_object: passed. Early Stage1 behavior: 8 of 8 complete groups passed; 0 running, 0 failed and 0 pending. Exact final Stage3 suite: 90 of 93 complete groups passed; 0 running, 3 failed and 0 pending.",
-  "updatedAt": "2026-11-06T01:02:19.610279+00:00"
+  "updatedAt": "2026-11-06T01:03:41.658391+00:00"
 }
