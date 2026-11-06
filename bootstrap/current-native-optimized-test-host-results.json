@@ -1,0 +1,33 @@
+{
+  "debug_assertions": true,
+  "filtered": 0,
+  "full_goal_complete": false,
+  "ignored": 0,
+  "native_cli_sha256": "82707997b842e13810dbce82b58233796ac09b5965946003ea2053fe9a3b85fb",
+  "native_source_sha256": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+  "overflow_checks": true,
+  "profile": "release",
+  "rlib": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native8ba-release-host-1/cargo/release/deps/libcinch-a7bd557e1e7fd092.rlib",
+  "rlib_sha256": "28fc6a79877135149049c3ac8ab2519f22d509a4fe3ecf6c82c992fe5f751709",
+  "runs": [
+    {
+      "log_sha256": "83aa067880cb8573eff267285bb95f0c754778744a0afd43684cde6bfb41a1ca",
+      "name": "all-native-unit-tests",
+      "observed_zero_leak_reports": 45,
+      "tests": 186
+    },
+    {
+      "log_sha256": "e60d20009c9184326ffb88267231d246be16531d8397779cc381fccf3280eaa1",
+      "name": "class_defaults",
+      "observed_zero_leak_reports": 3,
+      "tests": 7
+    }
+  ],
+  "scope": "Optimized current8ba8 test-builder/reader host built with release debug assertions and overflow checks enabled. Exact production source matches the independently audited21-group repair. All186 original units and all7 original/new class-default tests pass without skips/filters; observed runtime leak reports are zero. It is a performance/tooling role, not a substitute for the pinned Native22 seed/library, source-specific Cinch validations, all235 matching targets or final self-built bootstrap acceptance.",
+  "source": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native8ba-release-host-1/source",
+  "source_sha256": "19e8001bda1a2c3a52c86a4b29c5e83ed692421973ab06f20d75c7852585ac52",
+  "status": "passed-optimized-native8ba-test-host-audit",
+  "tests": 193,
+  "unchanged_pinned_native22_roles": true,
+  "verified_at": "2026-11-06T22:53:56.955455+00:00"
+}

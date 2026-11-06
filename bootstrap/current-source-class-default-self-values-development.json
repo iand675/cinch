@@ -1,0 +1,25 @@
+{
+  "status": "reviewable-private-strict-default-repair-under-validation",
+  "verified_at": "2026-11-06T22:55:27.441548+00:00",
+  "baseline_cinch_source_sha256": "00b549e3f334cff05ead4f6b0771d9e9dcccc96a5268bf82d3836e8efdccd32d",
+  "private_cinch_source_sha256": "75fbd2f9a8596fa48c2ded66efa15834412b9bc478247b7c94ab048fa84774c0",
+  "patch": "bootstrap/source-class-default-self-values-development.patch",
+  "patch_sha256": "3cca42c8572af454bd816cff0ee6e83d99e9067f34646a5c51f4ba333b696a01",
+  "patch_application_independently_verified": true,
+  "files": [
+    {
+      "path": "bootstrap/Bootstrap.Infer.cinch",
+      "before_sha256": "55d6b7dc1b736b4b71907eeb0d4d19a4ad21da782f0c59135478e79ae3c4c847",
+      "after_sha256": "6ea42e7f11cedc20588e0af80ae52b468407277d7760b6d36521c122ac80ff92"
+    },
+    {
+      "path": "bootstrap/Bootstrap.Instance.cinch",
+      "before_sha256": "f15e8149f76dcdcaf4cecb02a837af3e586dfe2d861aa1eee9f6b220581ec3ac",
+      "after_sha256": "380b8c4a3471747dd9d58dbe4249c005a09fc7916f8ef18fd671ff8a1315e8dd"
+    }
+  ],
+  "native44_source_check": "passed",
+  "earlier_stage3_source_check": "passed-both-exact44-source-input-gates",
+  "full_goal_complete": false,
+  "scope": "Development patch on top of unapplied00b5/8fce patches. Generic defaults remain checked independently at the author. Inherited clauses recheck at exact checked class/method substitutions and alpha-aligned annotation aliases, retaining every actual arrow through eta expansion. Direct self-method dependencies remain visible to the existing topological strict dictionary initializer instead of materializing incomplete self evidence. The Native44 source gate passes. Seven complete components, the full44-module compiler/object,17 actual runtime/ownership/order/cycle controls and original/default/API assertions remain independent validation requirements. Unknown scope, cyclic strict values, source attribution/refinement and imported-default/library-family gaps remain required. This mechanical apply/source input result does not prove the runtime repair and is not applied to published Cinch3268."
+}

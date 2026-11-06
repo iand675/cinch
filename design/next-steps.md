@@ -1,5 +1,34 @@
 # Next steps (as of 2026-11-06)
 
+## Namespace controls pass; strict-default dependencies are under validation (2026-11-06)
+
+Candidate00b5 passes all16 original/new source-default controls and five complete
+component groups, including typed value-index behavior. Its complete44 sources
+also pass Native8ba8 and genuine earlier4f Stage3 input checks. The coordinator
+then attempted two nonexistent target paths; that runner error is retained and
+is not a compiler failure. The two real remaining targets are
+`bootstrap_buffer_aliases` and `bootstrap_function_preconditions`; both complete
+original groups are queued separately, retaining every case and assertion.
+
+Candidate75fb additionally specializes and rechecks author-resolved default
+clauses at checked class/method binder aliases. This keeps direct self-method
+dependencies visible to the existing strict dictionary initializer; unknown
+bindings and strict cycles must continue to refuse. Its44 Native source check
+passes. Seven complete components, full9 compiler/object tests and17 actual
+runtime controls (including reversed field order, transitive dependencies,
+owned constructor values and a cycle refusal) are validating independently.
+The unapplied review patch is `bootstrap/source-class-default-self-values-development.patch`,
+with exact applicability and limited source-gate evidence in
+`bootstrap/current-source-class-default-self-values-development.json`.
+Neither private compiler is applied to published Cinch3268.
+
+An optimized current Native8ba8 test host now passes all186 units and all7
+class-default tests, with assertions and overflow checks retained. It speeds
+remaining large checker builds; it does not replace immutable Native22 bootstrap
+seed/library roles or the21-group semantic audit. See
+`bootstrap/current-native-optimized-test-host-results.json`.
+All remaining actual compiler/default failures and complete Acceptance1-5 remain.
+
 ## The complete pipeline target passes with current typed-FFI diagnostics (2026-11-06)
 
 The full original bootstrap_pipeline test now freshly builds and passes all its

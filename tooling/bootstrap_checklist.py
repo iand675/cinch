@@ -312,14 +312,29 @@ def build_checklist(root, cfg, previous=None):
         ('nativeDefaultAnnotationValidation','Rust annotation repair: primary groups',14,'build-'),
         ('nativeDefaultAnnotationFollowup','Rust annotation repair: proof/syntax groups',7,'compile-'),
         ('sourceClassDefaultValidation','Cinch default implementation: complete component groups',4,'compile-'),
-        ('sourceClassDefaultScopeValidation','Cinch annotation namespace repair: complete groups',7,'compile-')]:
+        ('sourceClassDefaultScopeValidation','Cinch annotation namespace repair: complete groups',7,'compile-'),
+        ('sourceClassDefaultSelfValuesValidation','Cinch strict-default repair: complete groups',7,'compile-')]:
         state=read(cfg.get(key))
         if state:
             wanted={'proof_guarded_lets','evidence_invalidation','index_local_carriers','syntax_index_evidence','syntax_index_lambdas','syntax_signature_scope','staging'} if 'Followup'in key else None
             rows=[r for r in state.get('rows',[])if not r['name'].startswith(skip)and(wanted is None or r['name']in wanted)]
+            display_status=state.get('status')
+            display_phase=state.get('phase')
+            follow_key={'sourceClassDefaultScopeValidation':'sourceClassDefaultScopeFollowup','sourceClassDefaultSelfValuesValidation':'sourceClassDefaultSelfValuesFollowup'}.get(key)
+            if follow_key:
+                follow_state=read(cfg.get(follow_key))
+                if follow_state:
+                    assert follow_state.get('compiler_source_sha256')==state.get('compiler_source_sha256'), 'Followup compiler inputs differ'
+                    real_follow=[r for r in follow_state.get('rows',[]) if not r['name'].startswith('compile-')]
+                    rows=rows+real_follow
+                    runner_error=any(r['name']in ('compile-bootstrap_source_value_aliases','compile-bootstrap_precondition_schemes') and r['status']=='failed' for r in state.get('rows',[]))
+                    semantic_failure=any(r['status']=='failed' for r in rows)
+                    if runner_error and not semantic_failure:
+                        display_status='passed-execution-awaiting-audit' if len(rows)==total and all(r['status']=='passed' for r in rows) else 'running'
+                        display_phase='Runner target-name error preserved; remaining real groups: '+follow_state.get('phase',follow_state.get('status','queued'))
             receipt=annotation_receipt if key.startswith('nativeDefaultAnnotation') else default_receipt
             audited=bool(receipt) and receipt.get('source')==state.get('source')
-            active.append(dict(title=title,status=state.get('status'),phase=state.get('phase'),passed=sum(r['status']=='passed'for r in rows),total=total,source=state.get('compiler_source_sha256'),nativeSource=state.get('native_source_sha256'), auditPending=state.get('status','').startswith('passed-') and not audited))
+            active.append(dict(title=title,status=display_status,phase=display_phase,passed=sum(r['status']=='passed'for r in rows),failed=sum(r['status']=='failed'for r in rows),total=total,source=state.get('compiler_source_sha256'),nativeSource=state.get('native_source_sha256'), auditPending=state.get('status','').startswith('passed-') and not audited))
 
     for key,title,total in [('sourceClassDefaultFullCompiler','Cinch defaults: full compiler/object gate',2), ('nativeDefaultAnnotationApi','Published Cinch: Rust reader/API replay',9), ('pipelineInterfaceDiagnosticValidation','Pipeline: complete FFI and mode checks',1), ('sourceClassDefaultApi','Cinch defaults: original API and default groups',10)]:
         state=read(cfg.get(key))

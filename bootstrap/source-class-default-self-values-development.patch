@@ -1,0 +1,151 @@
+diff --git a/bootstrap/Bootstrap.Infer.cinch b/bootstrap/Bootstrap.Infer.cinch
+index 46e026e..f3263ae 100644
+--- a/bootstrap/Bootstrap.Infer.cinch
++++ b/bootstrap/Bootstrap.Infer.cinch
+@@ -1752,10 +1752,10 @@ module Bootstrap.Infer where
+       Some description -> let all = decls-of members in source-class-default-members description all all Nil
+       None -> Nil) <> source-default-definitions rest descriptions
+     Cons other rest -> source-default-definitions rest descriptions
+-  -- An inherited method calls the already checked generic default. Reusing
+-  -- its surface clauses at the instance would lose class/method binder
+-  -- identities in annotations. Eta application retains every source arrow,
+-  -- including erased proofs and dependent arguments, at the instance type.
++  -- The generic default is checked independently before every instance.
++  -- Recheck its already owner-resolved clauses at the specialized method
++  -- contract with explicit source-binder aliases. This keeps direct self
++  -- method dependencies visible to strict dictionary initialization.
+   source-default-call :: String -> UType -> Nat -> Expr -> (List Pat, Expr)
+   source-default-call symbol ty next call = case ty of
+     URequire predicates body -> source-default-call symbol body next call
+@@ -1769,10 +1769,25 @@ module Bootstrap.Infer where
+     let name = string-concat "#instance-default-argument-" (int-to-string (nat-to-int next)) in
+     case source-default-call symbol result (next + 1) (EApp zero call (EVar zero name)) of
+       (more, body) -> (Cons (PVar zero name) more, body)
++  default-arrow-result :: Nat -> UType -> UType
++  default-arrow-result count ty = if count == 0 then ty else case ty of
++    URequire predicate body -> default-arrow-result count body
++    UFun domain result -> default-arrow-result (count - 1) result
++    UFunEff domain row result -> default-arrow-result (count - 1) result
++    UProofFun predicate row result -> default-arrow-result (count - 1) result
++    UPi id name domain row result -> default-arrow-result (count - 1) result
++    other -> ty
++  expand-default-clauses :: List (List Pat, Expr) -> UType -> List (List Pat, Expr)
++  expand-default-clauses clauses actual = case clauses of
++    Nil -> Nil
++    Cons (patterns, body) rest ->
++      let count = list-length patterns in
++      let (more, expanded) = source-default-call "" (default-arrow-result count actual) count body in
++      Cons (patterns <> more, expanded) (expand-default-clauses rest actual)
+   inherited-default-clauses :: CoreClass -> CoreClassMethod -> List Decl -> Scheme -> Option (List (List Pat, Expr))
+   inherited-default-clauses description member defaults actual = case source-class-default-clauses description member defaults of
+     None -> None
+-    Some original -> Some [source-default-call (source-class-default-symbol description member) (scheme-body actual) 0 (EVar zero (source-class-default-symbol description member))]
++    Some original -> Some (expand-default-clauses original (scheme-body actual))
+   source-instance-scheme :: Span -> List (String, Kind) -> TypeContext -> List TypeParam -> TypeExpr -> Store -> (Scheme, Store)
+   source-instance-scheme sp classes kinds ps head-type st = case parameters False kinds Nil ps 0 Nil st of
+     (qs, prepared) -> case make-scheme False classes kinds qs head-type prepared of
+@@ -3230,15 +3245,28 @@ module Bootstrap.Infer where
+         other -> bind-value-parameters rest pairs env st)
+       None -> (env, add-error zero "quantified value is missing its checked opening" st)
+   check-definition :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> Span -> String -> List (List Pat, Expr) -> Store -> (Option CoreDefinition, Store)
+-  check-definition classes kinds families env sp name cs st = case lookup-binding name env of
++  check-definition classes kinds families env sp name cs st = check-definition-with-annotations classes kinds families env sp name cs Nil st
++  open-annotation-locals :: List (String, UType) -> List (Nat, UType) -> List (String, UType)
++  open-annotation-locals annotations pairs = case annotations of
++    Nil -> Nil
++    Cons (name, ty) rest -> Cons (name, substitute-bound pairs ty) (open-annotation-locals rest pairs)
++  bind-annotation-values :: List (String, UType) -> List CheckedBinding -> List CheckedBinding
++  bind-annotation-values annotations env = case annotations of
++    Nil -> env
++    Cons (name, value) rest -> case (value-carrier (type-kind value), index-of-type value) of
++      (Some carrier, Some (IRigid id display level)) -> Cons (MkValueBinding name (mono carrier) id level value) (bind-annotation-values rest env)
++      other -> bind-annotation-values rest env
++  check-definition-with-annotations :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> Span -> String -> List (List Pat, Expr) -> List (String, UType) -> Store -> (Option CoreDefinition, Store)
++  check-definition-with-annotations classes kinds families env sp name cs annotations st = case lookup-binding name env of
+     None -> (None, add-error sp (string-concat "no signature for " name) st)
+     Some (MkIntrinsicBinding source sc symbol) -> (None, add-error sp "runtime intrinsic cannot also have a source definition" st)
+     Some b -> if same (checked-role b) "operation" then (None, add-error sp "effect operation cannot also have a source definition" st) else if same (checked-role b) "instance" || same (checked-role b) "implicit-instance" then (None, add-error sp "instance dictionary cannot also have an ordinary source definition" st) else
+       let level = store-level st in
+       case open-qualified True (checked-scheme b) (enter-level st) of
+         (ty, requirements, pairs, ss) ->
+-          let locals = opened-locals (scheme-params (checked-scheme b)) pairs in
+-          let (value-env, value-store) = bind-value-parameters (scheme-params (checked-scheme b)) pairs env ss in
++          let annotation-locals = open-annotation-locals annotations pairs in
++          let locals = annotation-locals <> opened-locals (scheme-params (checked-scheme b)) pairs in
++          let (value-env, value-store) = bind-value-parameters (scheme-params (checked-scheme b)) pairs (bind-annotation-values annotation-locals env) ss in
+           let (bound, givens, sg) = bind-requirements sp requirements value-env value-store in
+           let (clauses, checked) = check-clauses classes kinds families bound locals ty cs sg in
+           let count = case cs of Nil -> 0; Cons (ps, body) rest -> list-length ps in
+@@ -3559,9 +3587,11 @@ module Bootstrap.Infer where
+           let implementation = implementation-scheme factory actual in
+           let bound = Cons (MkCheckedBinding private-name implementation "instance-method") env in
+           let clauses = if has-definition name declarations then Some (function-clauses name declarations) else inherited-default-clauses description member defaults actual in
+-          case clauses of
+-            None -> (Nil, add-error zero (string-concat "instance is missing class method: " name) prepared)
+-            Some body -> (case check-definition classes kinds families bound zero private-name body prepared of
++          let annotations = if has-definition name declarations then Some Nil else default-annotation-bindings description factory member actual in
++          case (clauses, annotations) of
++            (None, other) -> (Nil, add-error zero (string-concat "instance is missing class method: " name) prepared)
++            (Some body, None) -> (Nil, add-error zero "inherited default has no checked annotation-binder specialization" prepared)
++            (Some body, Some aliases) -> (case check-definition-with-annotations classes kinds families bound zero private-name body aliases prepared of
+               (None, failed) -> (Nil, failed)
+               (Some definition, checked) -> case resolve-dictionary-definition-with classes (env-instances env) definition checked of
+                 (resolved, final) -> case source-instance-fields classes kinds families env defaults description symbol factory declarations rest final of
+diff --git a/bootstrap/Bootstrap.Instance.cinch b/bootstrap/Bootstrap.Instance.cinch
+index 5bb2d4f..4f8fc6f 100644
+--- a/bootstrap/Bootstrap.Instance.cinch
++++ b/bootstrap/Bootstrap.Instance.cinch
+@@ -17,7 +17,7 @@ module Bootstrap.Instance where
+   export CoreInstance, MkCoreInstance, CoreDictionaryField, MkCoreDictionaryField
+   export instance-name, instance-implicit, instance-scheme, instance-fields
+   export dictionary-field-slot, dictionary-field-definition, instance-closed
+-  export find-class, class-target, specialize-method, implementation-scheme
++  export find-class, class-target, specialize-method, implementation-scheme, default-annotation-bindings
+   export dictionary-method-symbol, scheme-equivalent
+
+   data CoreClassMethod where
+@@ -211,17 +211,41 @@ module Bootstrap.Instance where
+   declared-member member methods = case methods of
+     Nil -> False
+     Cons actual rest -> (class-method-slot member == class-method-slot actual && same (class-method-name member) (class-method-name actual) && scheme-equivalent (class-method-scheme member) (class-method-scheme actual)) || declared-member member rest
+-  specialize-method :: CoreClass -> Scheme -> CoreClassMethod -> Option Scheme
+-  specialize-method description factory member = if not (class-closed description && declared-member member (class-methods description) && contract-scheme-closed factory && class-target description (scheme-body factory)) then None else
++  specialized-method-bindings :: CoreClass -> Scheme -> CoreClassMethod -> Option (Scheme, List (Nat, UType))
++  specialized-method-bindings description factory member = if not (class-closed description && declared-member member (class-methods description) && contract-scheme-closed factory && class-target description (scheme-body factory)) then None else
+     case application (class-name description) (class-kind description) (scheme-body factory) of
+       Some actual -> case member-bindings description member actual of
+         Some pairs -> let sc = class-method-scheme member in
+           case fresh-members (scheme-params sc) pairs (highest (scheme-ids factory <> scheme-ids sc) + 1) (quant-names (scheme-params factory)) of
+             (local, substitutions) -> case scheme-requirements sc of
+-              Cons self rest -> Some (qualified (scheme-params factory <> local) (map-requirements (substitute-bound substitutions) rest) (substitute-bound substitutions (scheme-body sc)))
++              Cons self rest -> Some (qualified (scheme-params factory <> local) (map-requirements (substitute-bound substitutions) rest) (substitute-bound substitutions (scheme-body sc)), substitutions)
+               Nil -> None
+         None -> None
+       None -> None
++  specialize-method :: CoreClass -> Scheme -> CoreClassMethod -> Option Scheme
++  specialize-method description factory member = case specialized-method-bindings description factory member of
++    Some (sc, bindings) -> Some sc
++    None -> None
++  annotation-actual :: Nat -> List (Nat, UType) -> Option UType
++  annotation-actual id bindings = case bindings of
++    Nil -> None
++    Cons (key, value) rest -> if id == key then Some value else annotation-actual id rest
++  annotation-locals :: List Quant -> List (Nat, UType) -> List (Nat, UType) -> Option (List (String, UType))
++  annotation-locals parameters specialized aligned = case parameters of
++    Nil -> Some Nil
++    Cons parameter rest -> case (annotation-actual (quant-id parameter) specialized, annotation-locals rest specialized aligned) of
++      (Some value, Some more) -> Some (Cons (quant-name parameter, substitute-bound aligned value) more)
++      other -> None
++  -- Surface binders retain their declaring class/method identities even
++  -- when specialization freshens method variables or an instance has an
++  -- alpha-equivalent local annotation. No unknown name supplies a binder.
++  default-annotation-bindings :: CoreClass -> Scheme -> CoreClassMethod -> Scheme -> Option (List (String, UType))
++  default-annotation-bindings description factory member actual = case specialized-method-bindings description factory member of
++    Some (expected, specialized) -> if not (scheme-equivalent expected actual) then None else
++      (case quant-pairs (scheme-params expected) (scheme-params actual) Nil of
++        Some aligned -> annotation-locals (scheme-params (class-method-scheme member)) specialized aligned
++        None -> None)
++    None -> None
+   requirement-names :: List Requirement -> List String
+   requirement-names rs = case rs of Nil -> Nil; Cons r rest -> Cons (requirement-name r) (requirement-names rest)
+   captured-requirements :: Nat -> List String -> List Requirement -> List Requirement
