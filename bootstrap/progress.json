@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "222 of 235 complete groups passed; 1 running, 1 failed and 11 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "223 of 235 complete groups passed; 1 running, 1 failed and 10 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -360,6 +360,11 @@
       "state": "passed"
     },
     {
+      "title": "Private75fb: full compiler9 passed;15 runtime controls pass",
+      "detail": "The full44-module candidate passes all9 compiler/object tests,17 real C clients and50 zero-leak reports. All13 prior intended default controls now pass, plus reversed strict-field order and transitive self-method dependencies. Ten positive clients execute32M poisoned with zero leaks. The owned constructor case is accepted by Native but rejected during Cinch coverage checking. Strict cycles reject with empty IR; the new no-interface-after-backend-refusal assertion remains under contract review. No17/17 success or feature promotion is claimed.",
+      "state": "failed"
+    },
+    {
       "title": "Private8fce: actual default runtime11/13 controls",
       "detail": "The actual44-module compiler passes all9 compiler/object tests. Six new positive programs execute at32M with poisoning and zero leaks; five valid semantic refusal controls pass. Same-spelled term/type annotation and nullary strict default initialization remain two real failures. A malformed new missing-method fixture is preserved and separately corrected; it is not a compiler defect. Candidate00b5 addresses type-head lookup and is still validating.",
       "state": "failed"
@@ -469,7 +474,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "222 of 235 complete groups passed; 1 running, 1 failed and 11 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "223 of 235 complete groups passed; 1 running, 1 failed and 10 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -624,8 +629,8 @@
       {
         "id": "gap:strict-defaults",
         "title": "Initialize nullary default fields from checked dependencies",
-        "state": "blocked",
-        "detail": "Private8fce checks duplicate = value, then cannot lower its strict self-evidence dependency. Two original default runtime/build assertions also stop here.",
+        "state": "running",
+        "detail": "Candidate75fb now executes nullary fields, reversed declaration order and transitive self-method dependencies. Its extended run passes15 controls; the owned constructor case and the cycle output-contract review remain before closure.",
         "doneWhen": "Initialize acyclic strict fields in dependency order while preserving checked self evidence, closure ownership and cycle refusals; execute all original default runtime cases with zero leaks.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-source-class-default-runtime-results.json"
       },
@@ -636,6 +641,14 @@
         "detail": "Three original default refusal tests reject correctly but still fail their exact message, class/instance name or source-file assertions. These remain failures.",
         "doneWhen": "Every original diagnostic and filename assertion passes with accurate attribution to the defining source; semantic rejection alone grants no pass.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-source-class-default-api-results.json"
+      },
+      {
+        "id": "gap:inferred-case-coverage",
+        "title": "Infer a constructor case before deciding coverage",
+        "state": "blocked",
+        "detail": "Candidate75fb rejects case duplicate of Box result -> result as non-exhaustive. The exact unchanged program is accepted by current Native8ba8. Strict default values themselves now execute in the other tested cases.",
+        "doneWhen": "Infer the checked constructor family without borrowing branch-local index equalities as global coverage proof; retain every existing indexed/GADT refusal and run the owned constructor client with zero leaks.",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-source-class-default-self-values-runtime-results.json"
       },
       {
         "id": "gap:default-refinement",
@@ -760,8 +773,8 @@
           "verified": 22,
           "blocked": 0,
           "running": 0,
-          "pending": 11,
-          "recheck": 202
+          "pending": 10,
+          "recheck": 203
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
         "items": [
@@ -2861,16 +2874,16 @@
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_source_projection.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "startedAt": "2026-11-06T23:06:16.879692+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-06T23:12:02.872904+00:00",
+              "exitCode": 0,
+              "logSha256": "f5d53b3f6bd3e7fd92800910de445f1cbf6efd7ef87a6e834f8e911203ee3313",
               "cases": [
                 {
                   "name": "source_projection_preserves_carriers_and_kernel_authority",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -2879,18 +2892,23 @@
           {
             "id": "native:bootstrap_source_proofs",
             "title": "bootstrap_source_proofs",
-            "state": "pending",
+            "state": "recheck",
             "detail": "Awaiting a complete run on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_source_proofs.rs",
             "observed": {
-              "status": "pending",
+              "status": "running",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": null,
+              "startedAt": "2026-11-06T23:12:02.884700+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "source_proofs_stay_erased_scoped_and_distinct_from_runtime_values",
+                  "status": "running"
+                }
+              ]
             },
             "currentTests": null
           },
@@ -11707,10 +11725,10 @@
           }
         ],
         "observedCounts": {
-          "passed": 222,
+          "passed": 223,
           "failed": 1,
           "running": 1,
-          "pending": 11
+          "pending": 10
         },
         "observedSource": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2"
       },
@@ -18198,8 +18216,8 @@
       {
         "title": "Cinch strict-default repair: complete groups",
         "status": "running",
-        "phase": "bootstrap_export_interfaces",
-        "passed": 5,
+        "phase": "bootstrap_value_indices",
+        "passed": 6,
         "failed": 0,
         "total": 7,
         "source": "75fbd2f9a8596fa48c2ded66efa15834412b9bc478247b7c94ab048fa84774c0",
@@ -18249,8 +18267,8 @@
       {
         "title": "Earlier compiler: full Rust sweep",
         "status": "running",
-        "phase": "bootstrap_source_projection",
-        "passed": 222,
+        "phase": "bootstrap_source_proofs",
+        "passed": 223,
         "failed": 1,
         "total": 235,
         "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
@@ -18270,15 +18288,15 @@
     "counts": {
       "verified": 194,
       "blocked": 6,
-      "running": 2,
-      "pending": 60,
-      "recheck": 404
+      "running": 3,
+      "pending": 59,
+      "recheck": 405
     },
-    "total": 666,
+    "total": 667,
     "acceptanceVerified": 0,
     "acceptanceTotal": 5,
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-06T23:09:44.067103+00:00"
+  "updatedAt": "2026-11-06T23:12:21.007971+00:00"
 }
