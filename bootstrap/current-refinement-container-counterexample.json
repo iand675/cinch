@@ -1,0 +1,25 @@
+{
+  "compiler_sha256": "a891799a0e5145b0f9d38ce7f0a34225fac6e35ae9108868f33a1c357350e16d",
+  "compiler_source_sha256": "75fbd2f9a8596fa48c2ded66efa15834412b9bc478247b7c94ab048fa84774c0",
+  "diagnostic": "bootstrap.check:4:52: type mismatch: expected refine (n :: Int) with NonZero n, found Int\n",
+  "full_goal_complete": false,
+  "native_compiler_sha256": "82707997b842e13810dbce82b58233796ac09b5965946003ea2053fe9a3b85fb",
+  "native_source_sha256": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+  "rows": [
+    {
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "native"
+    },
+    {
+      "exit_code": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "cinch75"
+    }
+  ],
+  "scope": "The exact unchanged six-line source checks with current Native8ba8 and refuses with actual complete44-module Cinch75fb. A generic Cons application inside an inferred let loses the NonZero Int refinement and produces List Int. This is a source checking defect, independent of runtime lowering. The original mconcat/refinement runtime test remains a separate integration requirement.",
+  "source": "bootstrap/programs/Refinement.Container.Counterexample.cinch",
+  "source_sha256": "869557b38f8a1e1760680d8021ead8d1eefe4491cd1091dc3886636a6ce5f41b",
+  "status": "confirmed-refinement-loss-in-generic-let-container",
+  "verified_at": "2026-11-06T23:36:01.461306+00:00"
+}

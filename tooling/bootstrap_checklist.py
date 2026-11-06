@@ -281,8 +281,8 @@ def build_checklist(root, cfg, previous=None):
         item('gap:inferred-case-coverage','Infer a constructor case before deciding coverage','running' if coverage_state else 'blocked',
              'Candidate75fb rejects case duplicate of Box result -> result as non-exhaustive. The exact unchanged program is accepted by current Native8ba8. Private28d2 learns a fresh nominal/tuple shape only in the coverage store. Eight added source cases and eight complete original component groups are validating; the owned runtime client and full compiler remain required.',
              'Infer the checked constructor family without borrowing branch-local index equalities as global coverage proof; retain every existing indexed/GADT refusal and run the owned constructor client with zero leaks.',link('bootstrap/current-source-class-default-self-values-runtime-results.json')),
-        item('gap:default-refinement','Preserve refinement carriers in the original default runtime program','blocked',
-             'The unchanged original mconcat function/refinement client fails at NonZero Int elimination before reaching its full required runtime behavior.',
+        item('gap:default-refinement','Preserve refinement carriers in the original default runtime program','running' if read(cfg.get('refinementContainerValidation')) else 'blocked',
+             'The unchanged original mconcat/refinement client still fails. A six-line let-bound list reproduces refinement loss: current Rust accepts it, actual Cinch75fb refuses. Private db9a preserves full refinements at unsolved generic arguments; six new cases and eight original groups are validating. The complete original runtime client remains required.',
              'The original function carrier, refined product and unit cases compile and execute their expected results without guessing an underlying carrier.',link('bootstrap/current-source-class-default-self-values-api-results.json')),
         item('gap:imported-defaults','Transport checked imported default implementations','pending','A default hash alone does not provide the checked implementation required by an inheriting source instance.',
              'Inherited imported defaults retain owner scope, private closure, actual method contracts and compiled behavior; missing or stale contracts refuse.',link('design/compiled-interface-metadata.md')),
@@ -319,7 +319,8 @@ def build_checklist(root, cfg, previous=None):
         ('sourceClassDefaultValidation','Cinch default implementation: complete component groups',4,'compile-'),
         ('sourceClassDefaultScopeValidation','Cinch annotation namespace repair: complete groups',7,'compile-'),
         ('sourceClassDefaultSelfValuesValidation','Cinch strict-default repair: complete groups',7,'compile-'),
-        ('inferredCaseCoverageValidation','Cinch constructor coverage: complete groups',8,'compile-')]:
+        ('inferredCaseCoverageValidation','Cinch constructor coverage: complete groups',8,'compile-'),
+        ('refinementContainerValidation','Cinch refined containers: complete groups',8,'compile-')]:
         state=read(cfg.get(key))
         if state:
             wanted={'proof_guarded_lets','evidence_invalidation','index_local_carriers','syntax_index_evidence','syntax_index_lambdas','syntax_signature_scope','staging'} if 'Followup'in key else None
@@ -344,11 +345,11 @@ def build_checklist(root, cfg, previous=None):
             audited=bool(receipt) and receipt.get('source')==state.get('source')
             active.append(dict(title=title,status=display_status,phase=display_phase,passed=sum(r['status']=='passed'for r in rows),failed=sum(r['status']=='failed'for r in rows),total=total,source=state.get('compiler_source_sha256'),nativeSource=state.get('native_source_sha256'), auditPending=state.get('status','').startswith('passed-') and not audited))
 
-    for key,title,total in [('sourceClassDefaultFullCompiler','Cinch defaults: full compiler/object gate',2), ('nativeDefaultAnnotationApi','Published Cinch: Rust reader/API replay',9), ('pipelineInterfaceDiagnosticValidation','Pipeline: complete FFI and mode checks',1), ('sourceClassDefaultApi','Cinch defaults: original API and default groups',10)]:
+    for key,title,total in [('sourceClassDefaultFullCompiler','Cinch defaults: full compiler/object gate',2), ('nativeDefaultAnnotationApi','Published Cinch: Rust reader/API replay',9), ('pipelineInterfaceDiagnosticValidation','Pipeline: complete FFI and mode checks',1), ('sourceClassDefaultApi','Cinch defaults: original API and default groups',10), ('inferredCaseCoverageFullCompiler','Cinch constructor coverage: full compiler/object gate',2)]:
         state=read(cfg.get(key))
         if state:
             rows=[r for r in state.get('rows',[]) if not r['name'].startswith(('compile-','build-'))]
-            proof_key={'sourceClassDefaultFullCompiler':'sourceClassDefaultCompilerReceipt','nativeDefaultAnnotationApi':'interfaceApiReceipt','pipelineInterfaceDiagnosticValidation':'nativePipelineReceipt','sourceClassDefaultApi':'sourceClassDefaultApiReceipt'}[key]
+            proof_key={'sourceClassDefaultFullCompiler':'sourceClassDefaultCompilerReceipt','nativeDefaultAnnotationApi':'interfaceApiReceipt','pipelineInterfaceDiagnosticValidation':'nativePipelineReceipt','sourceClassDefaultApi':'sourceClassDefaultApiReceipt','inferredCaseCoverageFullCompiler':'inferredCaseCoverageCompilerReceipt'}[key]
             proof=read(cfg.get(proof_key))
             audited=bool(proof) and proof.get('source_sha256')==state.get('source_sha256')
             active.append(dict(title=title,status=state.get('status'),phase=state.get('phase'),passed=sum(r['status']=='passed'for r in rows),failed=sum(r['status']=='failed'for r in rows),total=total,source=state.get('compiler_source_sha256'),auditPending=state.get('status')=='passed' and not audited))

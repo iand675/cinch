@@ -1,0 +1,25 @@
+{
+  "baseline_cinch_source_sha256": "28d2abf7398291b1ecd4b905117858d454cabb8f5c217d7fc02a86993f51ad61",
+  "files": [
+    {
+      "after_sha256": "065da3b55e3999f156700c8660a47607c299ee5fcc367732094928e70d300268",
+      "before_sha256": "303ebdd22d59164a70abec82ab4678a44032d5005a1c56f18724c4c027867cf4",
+      "path": "bootstrap/Bootstrap.Infer.cinch"
+    },
+    {
+      "after_sha256": "ac7fa1adc3e580c8ea67cbf61116e793bbe7c7c57e7dfa2088259b4b86885f56",
+      "before_sha256": "f16e5b6dc7829341f27b060f14c84a991d1861d8a9ba1883c96f80973a368324",
+      "path": "compiler/tests/bootstrap_named_refinements.rs"
+    }
+  ],
+  "full_goal_complete": false,
+  "new_source_controls": 6,
+  "patch": "bootstrap/refinement-container-development.patch",
+  "patch_application_independently_verified": true,
+  "patch_sha256": "6392d689570dd50e4294fb096d207a1480c5b152940d55d49fed0254faa7eb91",
+  "private_cinch_source_sha256": "db9a6a54eac6badd12e2a6ca0f478a5ed01f0dd09d2f8a976c8600fe5ed30347",
+  "required_complete_component_groups": 8,
+  "scope": "Unapplied development patch above private28d2. An unsolved proper-type argument learns the full inferred type instead of eagerly forgetting a numeric refinement. Concrete carrier projection remains checked, and unknown values cannot gain a refinement without evidence. Six new Native-compared source controls retain every original named-refinement test. Eight complete refinement/inference/default/value-index/precondition groups validate this candidate. Actual full compiler, original mconcat refinement runtime test, source gates, latest matching bootstrap and complete original suites remain separate requirements. Published Cinch3268 and immutable seed/library pins are unchanged.",
+  "status": "reviewable-private-generic-refinement-repair-under-validation",
+  "verified_at": "2026-11-06T23:36:01.486051+00:00"
+}

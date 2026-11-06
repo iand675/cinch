@@ -1,0 +1,40 @@
+diff --git a/bootstrap/Bootstrap.Infer.cinch b/bootstrap/Bootstrap.Infer.cinch
+--- a/bootstrap/Bootstrap.Infer.cinch
++++ b/bootstrap/Bootstrap.Infer.cinch
+@@ -2520,6 +2520,9 @@
+       other -> term
+   subsume-term :: Span -> CoreTerm -> UType -> Store -> (CoreTerm, Store)
+   subsume-term sp term expected st = case normalize st expected of
++    -- An unsolved argument learns the complete refinement, so generic
++    -- constructors and lets cannot silently select its underlying carrier.
++    UMeta id KType -> (term, unify sp (core-type term) expected st)
+     URefine id name carrier predicate -> (term, unify sp (core-type term) expected st)
+     other -> let value = project-comparison sp term st in (value, unify sp (core-type value) expected st)
+   check-refined :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> UType -> UType -> Store -> (CoreTerm, Store)
+diff --git a/compiler/tests/bootstrap_named_refinements.rs b/compiler/tests/bootstrap_named_refinements.rs
+--- a/compiler/tests/bootstrap_named_refinements.rs
++++ b/compiler/tests/bootstrap_named_refinements.rs
+@@ -24,6 +24,12 @@
+     let exe = common::build(&dir, "Main.cinch", "named-refinements").expect("build the named refinement checker");
+     std::fs::write(dir.join("interfaces.json"), "{\"schema\":1,\"interfaces\":[]}").unwrap();
+     let cases = [
++        ("generic container retains refined carrier", "type Positive = refine (x :: Int) with x > 0\n  singleton :: Positive -> List Positive\n  singleton value = let values = Cons value Nil in values", 0, ""),
++        ("generic identity retains refined carrier", "type Positive = refine (x :: Int) with x > 0\n  identity :: forall a. a -> a\n  identity value = value\n  copy :: Positive -> Positive\n  copy value = let result = identity value in result", 0, ""),
++        ("generic container keeps an explicit carrier request", "type Positive = refine (x :: Int) with x > 0\n  plain :: Positive -> List Int\n  plain value = Cons value Nil", 0, ""),
++        ("generic preserved refinement still projects at a concrete use", "type Positive = refine (x :: Int) with x > 0\n  identity :: forall a. a -> a\n  identity value = value\n  plain :: Positive -> Int\n  plain value = let copy = identity value in copy", 0, ""),
++        ("generic container cannot forge a refinement", "type Positive = refine (x :: Int) with x > 0\n  bad :: Int -> List Positive\n  bad value = let values = Cons value Nil in values", 4, ""),
++        ("generic identity cannot forge a refinement", "type Positive = refine (x :: Int) with x > 0\n  identity :: forall a. a -> a\n  identity value = value\n  bad :: Int -> Positive\n  bad value = let copy = identity value in copy", 4, "refinement predicate is not established"),
+         ("zero parameter alias", "type Positive = refine (x :: Nat) with x > 0\n  one :: Positive\n  one = 1", 0, ""),
+         ("alias rejects zero", "type Positive = refine (x :: Nat) with x > 0\n  bad :: Positive\n  bad = 0", 4, "refinement predicate is not established"),
+         ("generic range over Nat", "type Window (lo :: Int) (hi :: Int) a = refine (x :: a) with lo <= x && x <= hi\n  one :: Window 0 10 Nat\n  one = 1", 0, ""),
+@@ -51,6 +57,10 @@
+     ];
+     for (name, body, wanted, diagnostic) in cases {
+         let source = format!("module Main where\n  {body}\n  main :: Int\n  main = 0\n");
++        if name.starts_with("generic ") {
++            let oracle = cinch::driver::check_sources(&source, "generic-refinement-oracle.cinch");
++            assert_eq!(oracle.is_ok(), wanted == 0, "Native generic refinement oracle: {name}\n{oracle:?}");
++        }
+         std::fs::write(dir.join("source.cinch"), &source).unwrap();
+         let output = std::process::Command::new(&exe).current_dir(&dir).output().unwrap();
+         let report = common::read_output(&dir, "refinement-report.txt");
