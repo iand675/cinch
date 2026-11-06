@@ -19,6 +19,7 @@ enum InterfaceIndexSort { Mathematical, Machine, Bytes }
 #[derive(Default)]
 struct InterfaceIndexScope {
     locals: std::collections::BTreeMap<String, InterfaceIndexSort>,
+    propositions: std::collections::BTreeSet<String>,
     allow_measures: bool,
     measure_calls: std::cell::RefCell<std::collections::BTreeSet<String>>,
 }
@@ -108,6 +109,8 @@ impl Checker {
 
     fn portable_predicate(&self, term: &PTerm, scope: &InterfaceIndexScope, negation: bool) -> Option<PTerm> {
         Some(match term {
+            PTerm::Lit(_) => term.clone(),
+            PTerm::Var(name) if scope.propositions.contains(name) => term.clone(),
             PTerm::Cmp(op, a, b) => PTerm::Cmp(*op,
                 Box::new(self.portable_index(a, scope)?.0),
                 Box::new(self.portable_index(b, scope)?.0)),
@@ -209,7 +212,7 @@ impl Checker {
     ) {
         if !scheme.evidence_params.is_empty() || !scheme.idx_params.is_empty()
             || scheme.val_params.iter().any(|(_, ty)| !matches!(ty, Ty::Nat | Ty::Int | Ty::Bytes))
-            || !scheme.prop_params.is_empty() || !scheme.row_params.is_empty() { return }
+            || !scheme.row_params.is_empty() { return }
         let mut references = std::collections::BTreeSet::new();
         let mut vars = Vec::new();
         let Some(mut prefix) = self.resolved_binders(inherited, scheme, &mut vars) else { return };
@@ -332,6 +335,7 @@ impl Checker {
             // Explicit annotations were checked by the source checker;
             // inferred kinds come from its resulting scheme.
             let kind = if scheme.region_params.contains(name) { "Region".to_string() }
+                else if scheme.prop_params.contains(name) { "Prop".to_string() }
                 else if let Some((_, carrier)) = scheme.val_params.iter().find(|(n, _)| n == name) {
                     match carrier { Ty::Nat | Ty::Int | Ty::Bytes => carrier.to_string(), _ => return None }
                 } else if scheme.params.contains(name) {
@@ -363,7 +367,7 @@ impl Checker {
                     // the actual declaration before recognizing them, so a
                     // source type with the same spelling retains its owner.
                     if info.module == "<builtin>" {
-                        if matches!(info.name.as_str(), "Scope" | "Task") { info.name.clone() }
+                        if matches!(info.name.as_str(), "Scope" | "Task" | "Dec") { info.name.clone() }
                         else { return None }
                     } else {
                         references.insert((info.module.clone(), info.name.clone()));
@@ -418,19 +422,40 @@ impl Checker {
         references: &mut std::collections::BTreeSet<(String, String)>,
         arguments: &[(Option<String>, Ty)],
     ) -> Option<String> {
-        fn contains_refined(source: &ast::Type) -> bool {
-            match source {
-                ast::Type::Con(path, _) => path.parts().as_slice() == ["refined"],
-                ast::Type::Var(name, _) => name.text == "refined",
-                ast::Type::App(f, x, _) => contains_refined(f) || contains_refined(x),
-                ast::Type::Fun { arg, res, .. } => contains_refined(arg) || contains_refined(res),
-                ast::Type::DepFun(_, a, _, _, b, _) => contains_refined(a) || contains_refined(b),
-                ast::Type::Tuple(items, _) => items.iter().any(contains_refined),
+        fn carries_predicates(ty: &Ty) -> bool {
+            match ty {
+                Ty::Prp(_) => true,
+                Ty::Fun(domain, _, _, result) | Ty::Pi { dom: domain, cod: result, .. } =>
+                    carries_predicates(domain) || carries_predicates(result),
+                Ty::Adt(_, arguments) | Ty::App(_, arguments) | Ty::Tuple(arguments) =>
+                    arguments.iter().any(carries_predicates),
                 _ => false,
             }
         }
-        if !contains_refined(source) {
+        // Keep existing canonical application parentheses for contracts
+        // without predicates. Only logical structure needs checked printing.
+        if !carries_predicates(checked) {
             return self.resolved_source_type(source, scheme, vars, references);
+        }
+        // Print propositions from their checked structure. Operator source
+        // syntax has already been resolved into application spines, whose
+        // generic prefix display is not portable proposition syntax.
+        if let Ty::Prp(original) = checked {
+            let mut scope = InterfaceIndexScope::default();
+            for name in &scheme.prop_params {
+                if vars.contains(name) { scope.propositions.insert(name.clone()); }
+            }
+            for (name, carrier) in &scheme.val_params {
+                if vars.contains(name) { self.bind_interface_index(&mut scope, name, carrier); }
+            }
+            let mut predicate = (**original).clone();
+            for (position, (name, carrier)) in arguments.iter().enumerate() {
+                if let Some(name) = name {
+                    predicate = predicate.subst(&format!("$a{position}"), &ITerm::Var(name.clone()));
+                    self.bind_interface_index(&mut scope, name, carrier);
+                }
+            }
+            return Some(self.portable_predicate(&predicate, &scope, true)?.to_string());
         }
         let mut head = source;
         let mut source_args = Vec::new();
@@ -495,7 +520,7 @@ impl Checker {
                 let args = source_args.iter().zip(types).map(|(s, t)| self.resolved_checked_source_type(s, t, scheme, vars, references, arguments)).collect::<Option<Vec<_>>>()?;
                 Some(format!("({head} {})", args.join(" ")))
             }
-            _ => None,
+            _ => self.resolved_source_type(source, scheme, vars, references),
         }
     }
 

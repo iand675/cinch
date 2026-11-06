@@ -67,9 +67,74 @@ fn logical_literal_proof_contracts_round_trip_without_becoming_boolean_values() 
     }
     let original = provider.exports.values.iter().find(|value| value.name == "wrap").unwrap();
     let renamed = facade.exports.values.iter().find(|value| value.name == "evidence").unwrap();
-    assert_eq!(original.resolved, renamed.resolved);
+    let contract = original.resolved.as_ref().expect("provider proof contract must be portable");
+    assert!(contract.scheme.contains("False") && contract.scheme.contains("Dec"));
+    assert!(contract.nominals.is_empty(), "kernel Dec must not invent a module owner");
+    assert_eq!(Some(contract), renamed.resolved.as_ref());
+    for iface in [&provider, &facade] {
+        assert!(iface.exports.values.iter().all(|value| value.resolved.is_some()),
+            "every published literal proof contract must have resolved metadata");
+    }
     let mut changed = provider.clone();
     changed.exports.values.iter_mut().find(|value| value.name == "wrap").unwrap().scheme = original.scheme.replace("False", "True");
     assert_ne!(provider.iface_hash(), changed.iface_hash());
     common::cleanup(&dir);
+}
+
+#[test]
+fn portable_proof_arrows_keep_kinds_effects_erasure_and_type_owners() {
+    let source = r#"module Evidence where
+  generic :: forall (p :: Prop). (h :: p) -> Dec p
+  generic h = Yes h
+  refute :: forall (p :: Prop). (h :: Not p) -> Dec p
+  refute h = No h
+  literal :: False -> Int
+  literal h = 0
+  compound :: (True && Not False) -> Int
+  compound h = 0
+  effectful :: forall {r}. using (io :: Io r) => False ->{IO r} Int
+  effectful h = 0
+module Shadow where
+  data Dec where
+    ShadowDec :: Dec
+  keep :: Shadow.Dec -> Shadow.Dec
+  keep value = value
+module Main where
+  main :: Int
+  main = 0
+"#;
+    let (program, interfaces) = cinch::driver::check_sources_ifaces(source, "portable-proof-contracts.cinch").unwrap();
+    cinch::interface::verify_chain(&interfaces).expect("checked proof contract dependency chain");
+    let evidence = interfaces.iter().find(|iface| iface.module == "Evidence").unwrap();
+    assert_eq!(Iface::from_json(&evidence.to_json()).unwrap(), *evidence);
+    for name in ["generic", "refute", "literal", "compound", "effectful"] {
+        let value = evidence.exports.values.iter().find(|v| v.name == name).unwrap();
+        let resolved = value.resolved.as_ref().unwrap_or_else(|| panic!("missing {name}: {}", value.scheme));
+        assert!(resolved.nominals.is_empty(), "kernel proof syntax must not invent module owners");
+        assert!(value.total_body.is_none(), "an erased proof arrow is not a plain numeric function");
+        if name == "generic" || name == "refute" {
+            assert!(resolved.scheme.contains("p :: Prop") && resolved.scheme.contains("Dec"), "{}", resolved.scheme);
+        }
+        if name != "effectful" {
+            let body = if name == "generic" { "Yes h" } else if name == "refute" { "No h" } else { "0" };
+            let readback = format!("module Main where\n  probe :: {}\n  probe h = {body}\n  main :: Int\n  main = 0\n", resolved.scheme);
+            cinch::driver::check_sources(&readback, "proof-contract-readback.cinch")
+                .unwrap_or_else(|error| panic!("unreadable {name}: {}: {error:?}", resolved.scheme));
+        }
+        if name == "effectful" {
+            assert!(resolved.scheme.contains("r :: Region") && resolved.scheme.contains("io :: Io r")
+                && resolved.scheme.contains("->{IO r}"), "{}", resolved.scheme);
+        }
+        // Interface arity counts source arrows and dictionaries. Actual
+        // checked Core omits the erased proof argument's runtime slot.
+        let runtime = program.fns.iter().find(|f| f.id.0 == value.symbol).unwrap();
+        let dictionaries = if name == "effectful" { 1 } else { 0 };
+        assert_eq!(value.arity, 1 + dictionaries);
+        assert_eq!(runtime.params.len(), dictionaries as usize,
+            "erased proof arguments must not become runtime parameters");
+    }
+    let shadow = interfaces.iter().find(|iface| iface.module == "Shadow").unwrap();
+    let keep = shadow.exports.values.iter().find(|v| v.name == "keep").unwrap().resolved.as_ref().unwrap();
+    assert!(keep.scheme.contains("Shadow.Dec"));
+    assert_eq!(keep.nominals.iter().map(|n| n.identity.as_str()).collect::<Vec<_>>(), ["Shadow.Dec"]);
 }
