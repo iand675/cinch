@@ -1,0 +1,31 @@
+{
+  "status": "passed-single-retained-consumer-profile-replay",
+  "verified_at": "2026-11-06T16:43:18.158782+00:00",
+  "compiler_source_sha256": "1c76230c164fd47296646125bb0b911b387c9ffda5f18465ec3ca9d1b883ff27",
+  "native_builder_source_sha256": "f6ec6b9bc7d6e426b4f0c4507f6d90e08d78bbb320763fdfb5729d1eb0ad39a8",
+  "consumer_binary_sha256": "2e650e30c8f2d8cce64ea0c2ced9455532bd391211364821380f881249ea6427",
+  "source_sha256": "cc64a92a9bf53d5f50f87c625dbe7d2617c15d4890c6b131dea0af6ab9c2dbb5",
+  "interfaces_manifest_sha256": "4255e0883f6a3a26a58f24d6841d8d6d415aca34df2f3fadcdc8cc533b42667e",
+  "cases": [
+    {
+      "heap": "32M",
+      "rc_debug": "1",
+      "exit_code": 73,
+      "log_sha256": "dad9eea7897e224eb909b98fe33a78ab879e93d699f1266818a9d4c0f05b76bb"
+    },
+    {
+      "heap": "256M",
+      "rc_debug": "1",
+      "exit_code": 73,
+      "log_sha256": "49cca2e3c8f7ccc09d30a4308489a1aa2e76894e06c9f91f5a6318f037b3bd43"
+    },
+    {
+      "heap": "256M",
+      "rc_debug": "0",
+      "exit_code": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+    }
+  ],
+  "scope": "One exact retained compiled Cinch1c76 consumer and unchanged original first machine-contract source reproduce OOM exit73 with32M/256M poisoning. The exact same executable/input exits0 with a zero-leak report under the full Native suite256M RC_DEBUG0 profile. This identifies a test-profile requirement; it is one case, not the complete13-case machine-consumer group, not a Native or Cinch full-suite pass. Corrected canonical Nativef6e8319 code still requires its whole unfiltered last group.",
+  "full_goal_complete": false
+}

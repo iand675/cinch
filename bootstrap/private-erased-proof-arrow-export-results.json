@@ -1,0 +1,36 @@
+{
+  "bootstrap_seed_and_library_pins_unchanged": true,
+  "changed_cinch_production_paths": [
+    "Bootstrap.ExportNominal.cinch",
+    "Bootstrap.ExportType.cinch"
+  ],
+  "compiler_source_sha256": "c1aeb52ef33c7b6bf906569dba0cadc8003df69d0d148d7ec8bc417eb87d6573",
+  "filtered": 0,
+  "formatter_cases": 27,
+  "full_goal_complete": false,
+  "ignored": 0,
+  "native_source_sha256": "f6e8319d1eeba4b694f00909f0ae1957ab24867b265c28fc5744dec456af99e9",
+  "new_formatter_cases": 6,
+  "original_formatter_cases": 21,
+  "rlib_sha256": "519dafd9782c424b0e028f8c1a02b74cbf2960db9fd63cbff1f8c147e2ff3ddc",
+  "runs": [
+    {
+      "exit_code": 0,
+      "log_sha256": "0b661e2bd9641194ad89507f639b91fedfa92d4b63e5ee3251b6c61047ee6cae",
+      "name": "bootstrap_export_types",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "14abaa661ac1919bbfc899ced55756c36068d60430d4e11b35efe376c50f5f39",
+      "name": "bootstrap_export_interfaces",
+      "status": "passed"
+    }
+  ],
+  "rust_tests": 2,
+  "scope": "Both complete compiled-Cinch type and nominal/interface exporter groups pass. All21 original formatter controls and assertions remain; six new controls include literal/generic/effectful proof arrows and malformed/early-precondition refusals. Current Native checked metadata supplies canonical region/scope/task/effectful-proof comparisons. Actual proof constructor field erasure guard remains intact. Both44-source acceptance gates have a separate audited receipt. This is private component evidence; actual full44-module compiler/object, complete originalAPI replay and final matching full suites/Acceptance1-5 remain required.",
+  "source_sha256": "c668c7c886a53cfecdc759b030d7584c6254fa107ffec9fd7325e102942ee23e",
+  "status": "passed-private-erased-arrow-export-components",
+  "verified_at": "2026-11-06T16:42:30.739180+00:00",
+  "whole_groups": 2
+}

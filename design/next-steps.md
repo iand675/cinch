@@ -1,5 +1,38 @@
 # Next steps (as of 2026-11-06)
 
+## Private erased-proof interface transport passes both source and exporter gates (2026-11-06)
+
+PrivateC1aeb changes only the Cinch type printer and nominal-dependency
+visitor. Both complete compiled exporter groups pass. All21 original formatter
+controls remain, with six added proof-arrow controls; all27 pass, including
+literal/generic/effectful proof domains, malformed-arrow refusals and the
+original canonical Scope/Task comparisons. The proof constructor-field erasure
+guard remains. Both exact44-module input projects pass the actual published
+Native91cf CLI and actual Cinch-built1c76 compiler, whose check uses55
+authenticated library-only interfaces and an empty executable PATH. See
+`bootstrap/private-erased-proof-arrow-input-results.json` and
+`bootstrap/private-erased-proof-arrow-export-results.json`.
+
+The added canonical comparison exposed a missing Rust portable proof-contract
+tier. A private writer correction uses checked proposition structure, keeps
+Prop binders and owner-checked kernel Dec, and preserves existing formatting
+for predicate-free types. The literal provider/facade test now requires actual
+resolved metadata rather than allowing None==None. New controls check parser
+readback, compound predicates, effect rows, actual Core proof erasure and a
+source-defined Dec. All12 complete groups outside the last machine-consumer
+group pass246 Rust tests; that complete last group remains running.
+
+The retained consumer's missing report was reproduced as heap exhaustion with
+32M and256M poisoning. Its identical executable/input passes with zero leaks
+under the full Native suite's established256M RC_DEBUG0 settings. This is one
+case only; the complete original13-case group remains required. See
+`bootstrap/private-proof-contract-memory-replay.json`. Smaller runtime groups
+keep32M poisoning. Actual full44-module compiler/object and all nine original
+API groups are queued/running; source-Prelude replacement and all other
+original failures remain required. Neither private compiler change is yet
+published. Published Cinch1c76, Native91cf, Native22/85f00ca seed/library roles,
+all original235/105+14+34/171+43+39 coverage and Acceptance1-5 remain intact.
+
 ## Cinch erased-proof arrows need portable interface transport (2026-11-06)
 
 The current1c76 Cinch producer and Native91cf reader run all nine original

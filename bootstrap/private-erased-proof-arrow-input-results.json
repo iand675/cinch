@@ -1,0 +1,14 @@
+{
+  "cinch_builder_sha256": "39013c769055ebd3091d2fd39ee055b9ea9d36dead8ba6b0f74a378c98f04b80",
+  "cinch_builder_source_sha256": "1c76230c164fd47296646125bb0b911b387c9ffda5f18465ec3ca9d1b883ff27",
+  "cinch_input": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/erased-arrow-export-self-built-check-1/result.json",
+  "compiler_modules": 44,
+  "compiler_source_sha256": "c1aeb52ef33c7b6bf906569dba0cadc8003df69d0d148d7ec8bc417eb87d6573",
+  "full_goal_complete": false,
+  "native_cli_sha256": "1db8e3095edb2b4014115afd224f8a2d8f97fb77c18197098bd943ad14f194d8",
+  "native_input": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/erased-arrow-export-source-check-1/state.json",
+  "native_source_sha256": "91cfd75fd4cb5811c5f7e6c34eb5c9db99f8b038d95d049a6fd6183e3a9765bd",
+  "scope": "Both exact44-module projects pass actual published Native91cf CLI and actual Cinch-built1c76 compiler/object CLI. The Cinch check uses55 authenticated library-only contracts and empty PATH. These are source acceptance gates, not matching latest bootstrap or complete suites. Native proof-contract metadata candidate and Cinch exporter/full compiler/API gates remain separate and required.",
+  "status": "passed-exact44-input-gates-only",
+  "verified_at": "2026-11-06T16:39:33.114064+00:00"
+}
