@@ -1,0 +1,5 @@
+module Main where
+  bad :: using (h > 0) => (h :: True) -> Nat
+  bad h = 0
+  main :: Int
+  main = 0

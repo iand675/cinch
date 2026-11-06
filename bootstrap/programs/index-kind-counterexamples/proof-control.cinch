@@ -1,0 +1,5 @@
+module Main where
+  good :: (h :: True) -> Dec True
+  good h = Yes h
+  main :: Int
+  main = 0

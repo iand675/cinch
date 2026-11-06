@@ -1,5 +1,30 @@
 # Next steps (as of 2026-11-06)
 
+## Numeric preconditions need actual argument-kind checks (2026-11-06)
+
+The complete Cinch precondition comparison passes all25 original cases and
+the first9 added qualified-proof cases, then its Native oracle accepts a
+signature using an erased `True` witness as a number. The unchanged source
+`bad :: using (h > 0) => (h :: True) -> Nat` must refuse. Both earlierF6e and
+publishedNative301 accept it; two broader probes also admit function and
+Boolean parameters as numeric indices. Numeric and actual-proof controls
+pass in both compilers. This is ill-kinded declaration admission, not a
+demonstrated bad runtime call. Exact sources and CLI/log hashes are retained
+in `bootstrap/current-native-index-kind-counterexample.json` and
+`bootstrap/programs/index-kind-counterexamples/`.
+
+A new12-control regression passes six valid numeric/proof/binder-position/
+byte-measure/mutable-place controls before exposing the erased-proof
+acceptance. Every original refinement test remains. PrivateNative d13df
+checks actual header argument carriers independently of forall classification,
+keeps captured lexical identities, and checks numeric order, arithmetic and
+literals. It is validating all13 original primary groups plus seven complete
+evidence/index/syntax/staging groups and both44-module projects. This private
+correction is unproven until those gates finish. Cinch3268 production is
+unchanged; its complete three component groups rerun against the corrected
+oracle before actual compiler/object and all nine original API groups.
+No expected refusal, original assertion, seed or library pin is weakened.
+
 ## Native literal preconditions corrected; all15 affected groups pass (2026-11-06)
 
 Native301 treats `using (True)` and `using (False)` as propositions. A constant
@@ -16,11 +41,12 @@ tests, without ignored or filtered cases. The full13-case machine consumer
 passes with the established256M normal profile; smaller runtime groups keep
 32M poisoning. The strengthened26-test refinement group replaces an added
 early signature refusal with a valid quantified declaration plus its actual
-unresolved-index-use refusal. Every original assertion remains. Both exact
-44-module input projects and original actual CLI proof/forgery controls are
-still completing. This is an affected-test-group receipt, not a final source
-or bootstrap acceptance. See `bootstrap/current-native-literal-context-validation.json`
-and `bootstrap/current-native-literal-precondition-comparison.json`.
+unresolved-index-use refusal. Every original assertion remains. Both exact44-module input projects pass, including private3268; unchanged
+actual CLI proof/forgery controls and all five capture probes are also
+verified. All15 groups and the complete input/evidence replay now have an
+independent audit. See `bootstrap/current-native-literal-context-results.json`
+and `bootstrap/current-native-literal-precondition-comparison.json`. These
+scoped results do not complete the matching final bootstrap or full suites.
 
 All five task-capture probes rerun on exact Native301: both opaque callback/
 helper bypasses remain required fixes. Native22/85f00ca seed and library pins

@@ -1,0 +1,5 @@
+module Main where
+  bad :: using (flag > 0) => (flag :: Bool) -> Nat
+  bad flag = 0
+  main :: Int
+  main = 0

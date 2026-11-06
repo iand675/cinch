@@ -123,5 +123,7 @@
   "scope": "All15 complete affected Rust groups pass269 tests without skips/filters. Full13-case machine consumer passes at the established256M normal profile; smaller runtime clients retain32M poisoning. Entire strengthened26-test refinement group checks a valid quantified nullary declaration and rejection of its actual unresolved index obligation. Both exact44-module input projects and original CLI controls continue; no input-gate or final-goal completion is claimed by this group-only receipt. Immutable Native22 seed/library roles, every original test/assertion and known task-capture counterexamples remain.",
   "full_goal_complete": false,
   "actual_machine_consumer_cases": 13,
-  "remaining_required_input_checks": "Both exact44-module projects and original actual CLI proof/forgery controls are still completing in followup3. Matching full bootstrap/suites/Acceptance1-5 remain required."
+  "remaining_required_input_checks": "Both exact44-module projects and original actual CLI proof/forgery controls are still completing in followup3. Matching full bootstrap/suites/Acceptance1-5 remain required.",
+  "superseded_by": "bootstrap/current-native-literal-context-results.json",
+  "note": "Historical group-only checkpoint. Both44-module inputs, actual unchanged proof/forgery CLI controls and all15 groups are now independently verified in superseding receipt; finalgoal stillopen."
 }
