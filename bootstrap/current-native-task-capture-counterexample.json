@@ -1,40 +1,38 @@
 {
-  "status": "confirmed-native-opaque-task-capture-gap",
-  "native_source_sha256": "30139479f5243a8ac14825502e57d52e9c6258005d0c59ff660c0d2ce8eb418a",
-  "compiler_sha256": "cec0e5142e771f1d5d56651bc927c1fea8b96452bdc3f57c2659317e5a691938",
+  "compiler_sha256": "52917e3ebe845dc75d4372bde9aed04f2569c7817d526ac583f31575f65ea621",
+  "full_goal_complete": false,
+  "native_source_sha256": "995f5d5954f3d556ff940b6d002e7e1e19a970b5ff34bf5cd15669de7f0d30a4",
   "rows": [
     {
-      "name": "direct-mutable-capture",
       "exit_code": 1,
-      "source_sha256": "ae3941b0b92b4cb6d485515846ba3f2b91c285be76f25550629cdee8da858f2d",
-      "log_sha256": "9560f8b154f78bb58b0631fbe16ca5943687548f3933b780491ac990c99f4f9d"
+      "log_sha256": "9560f8b154f78bb58b0631fbe16ca5943687548f3933b780491ac990c99f4f9d",
+      "name": "direct-mutable-capture",
+      "source_sha256": "ae3941b0b92b4cb6d485515846ba3f2b91c285be76f25550629cdee8da858f2d"
     },
     {
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "name": "literal-safe",
-      "exit_code": 0,
-      "source_sha256": "d970ac71bb4c9f187e17d27b3fb442419ec6d3a303c9a60fd0b56485db00d1f2",
-      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      "source_sha256": "d970ac71bb4c9f187e17d27b3fb442419ec6d3a303c9a60fd0b56485db00d1f2"
     },
     {
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "name": "opaque-mutable-capture",
-      "exit_code": 0,
-      "source_sha256": "c542ff3263b3e7427ddbfa64626d92968344e70baedce1c2be84f7e83b54bfe0",
-      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      "source_sha256": "c542ff3263b3e7427ddbfa64626d92968344e70baedce1c2be84f7e83b54bfe0"
     },
     {
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "name": "wrapped-mutable-capture",
-      "exit_code": 0,
-      "source_sha256": "a4833dab9adae08967971d6d9854f0397157bbccfdbaf24cc34c2c6d65618a67",
-      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      "source_sha256": "a4833dab9adae08967971d6d9854f0397157bbccfdbaf24cc34c2c6d65618a67"
     },
     {
-      "name": "wrapper-safe",
       "exit_code": 0,
-      "source_sha256": "e3826799080011e177bb3f76da71600cd34ca06b9a3ebd362fb7129b655363c5",
-      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "wrapper-safe",
+      "source_sha256": "e3826799080011e177bb3f76da71600cd34ca06b9a3ebd362fb7129b655363c5"
     }
   ],
-  "verified_at": "2026-11-06T18:43:01.071638+00:00",
-  "scope": "Compiler checks only; no race execution. Direct mutable Bytes capture refuses, two opaque callback/helper bypasses accept, two safe controls accept. Required capture/transfer/lifetime contract fix remains.",
-  "full_goal_complete": false
+  "status": "confirmed-native-opaque-task-capture-gap"
 }

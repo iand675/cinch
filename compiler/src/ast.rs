@@ -2200,6 +2200,28 @@ fn hyg_type(t: &Type, cx: &mut HygCx, sc: &mut HygScope) -> Result<Type> {
     sc.scoped(|sc| hyg_type_scoped(t, cx, sc))
 }
 
+/// A leading using context may name the argument telescope that follows
+/// it. Reuse the body's actual alpha-renamed binders for those references;
+/// binders inside an argument type do not enter the surrounding context.
+fn using_telescope_scope(original: &Type, renamed: &Type, scope: &mut HygScope) {
+    match (original, renamed) {
+        (Type::DepFun(old, _, _, _, body, _), Type::DepFun(new, _, _, _, result, _)) => {
+            scope.types.push((old.text.clone(), new.text.clone()));
+            using_telescope_scope(body, result, scope);
+        }
+        (Type::Fun { res: body, .. }, Type::Fun { res: result, .. })
+        | (Type::Using(_, body, _), Type::Using(_, result, _)) => {
+            using_telescope_scope(body, result, scope);
+        }
+        (Type::Forall(old, body, _), Type::Forall(new, result, _)) => {
+            scope.types.extend(old.iter().zip(new).map(|(old, new)|
+                (old.name.text.clone(), new.name.text.clone())));
+            using_telescope_scope(body, result, scope);
+        }
+        _ => {}
+    }
+}
+
 fn hyg_effect_path(path: &ConPath, cx: &HygCx, sc: &HygScope) -> Result<ConPath> {
     let Some(name) = path.segments.last() else { return Ok(path.clone()) };
     if name.declaration_binding().is_some() || name.resolved_binding().is_some()
@@ -2322,6 +2344,9 @@ fn hyg_type_scoped(t: &Type, cx: &mut HygCx, sc: &mut HygScope) -> Result<Type> 
             Type::Forall(binders, Box::new(body), *s)
         }
         Type::Using(cs, body, s) => {
+            let renamed_body = hyg_type(body, cx, sc)?;
+            let mut predicates = sc.clone();
+            using_telescope_scope(body, &renamed_body, &mut predicates);
             let mut out = Vec::new();
             for c in cs {
                 out.push(match c.clone() {
@@ -2332,19 +2357,19 @@ fn hyg_type_scoped(t: &Type, cx: &mut HygCx, sc: &mut HygScope) -> Result<Type> 
                             qualify_type_con(cx, &c.class, c.span)?
                         };
                         for a in &mut c.args {
-                            *a = hyg_type(a, cx, sc)?;
+                            *a = hyg_type(a, cx, &mut predicates)?;
                         }
                         Oblig::Class(c)
                     }
-                    Oblig::Pred(t) => Oblig::Pred(hyg_type(&t, cx, sc)?),
+                    Oblig::Pred(t) => Oblig::Pred(hyg_type(&t, cx, &mut predicates)?),
                     Oblig::Preserves { method, pred, span } => Oblig::Preserves {
                         method,
-                        pred: hyg_type(&pred, cx, sc)?,
+                        pred: hyg_type(&pred, cx, &mut predicates)?,
                         span,
                     },
                 });
             }
-            Type::Using(out, Box::new(hyg_type(body, cx, sc)?), *s)
+            Type::Using(out, Box::new(renamed_body), *s)
         }
         Type::DepFun(n, a, mult, eff, b, s) => {
             let a = hyg_type(a, cx, sc)?;

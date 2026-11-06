@@ -1,5 +1,28 @@
 # Next steps (as of 2026-11-06)
 
+## Quoted preconditions retain their argument telescope (2026-11-06)
+
+Native995f extends the numeric-index repair through quoted declarations.
+Using contexts see their actual following formal arguments after hygiene,
+while binders nested inside an argument domain stay local to that domain.
+Kernel True/False retain their logical type identities during template capture
+and header readiness. No unknown-name fallback or guessed numeric kind is used.
+
+All20 complete affected groups pass325 Rust tests without skips/filters.
+Every original staging24 and refinement27 test remains; nine new source cases
+and an actual program returning42 check argument scope, ordinary globals,
+numeric-kind refusals, proof domains and effect contexts. Four retained actual
+CLI probes and quoted Prop/Nat/Type controls also pass. All13 machine cases,
+both exact44-module source projects, original False-proof/forgery controls
+and five retained task-capture probes are independently audited. See
+`bootstrap/current-native-quoted-precondition-results.json`.
+
+Cinch remains3268. The existing3268 interface/API receipt uses Native d13;
+replay with this new995f reader is a separate required check. The two opaque
+task-capture bypasses still reproduce on995f and remain open. Source-Prelude
+replacement, every other original failure, matching latest self-built bootstrap,
+all full suites and Acceptance1-5 remain required. Native22 seed/library pins stay.
+
 ## Cinch preserves erased-proof interfaces and source value arities (2026-11-06)
 
 Cinch3268 now transports proof-arrow propositions, effects, results and nominal

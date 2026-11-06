@@ -630,3 +630,46 @@ fn schema_build_identity_records_the_tool_not_the_credential() {
     assert!(manifest.contains("env:CINCH_TEST_A6_DSN"), "{manifest}");
     assert!(!manifest.contains("supersecret"), "the credential leaked: {manifest}");
 }
+
+
+#[test]
+fn quoted_using_contexts_keep_their_following_argument_binders() {
+    let cases = [
+        ("numeric telescope", "good :: using (n > 0) => (n :: Nat) -> Nat; good value = 0", true, ""),
+        ("logical proof telescope", "good :: (h :: True) -> Dec True; good h = Yes h", true, ""),
+        ("false proof telescope", "good :: (h :: False) -> Dec False; good h = Yes h", true, ""),
+        ("literal nullary truth", "good :: using (True) => Nat; good = 42", true, ""),
+        ("interleaved erased argument", "good :: using (n > 0) => True -> (n :: Nat) -> Nat; good h value = value", true, ""),
+        ("effect and numeric context", "good :: forall r. using (io :: Io r, n > 0) => (n :: Nat) -> True ->{IO r} Int; good value h = 0", true, ""),
+        ("proof cannot be numeric", "bad :: using (h > 0) => (h :: True) -> Nat; bad h = 0", false, "numeric index"),
+        ("function cannot be numeric", "bad :: using (f > 0) => (f :: Unit -> Nat) -> Nat; bad f = 0", false, "numeric index"),
+        ("nested argument binder stays local", "bad :: using (inner > 0) => (f :: (inner :: Nat) -> Nat) -> Nat; bad f = 0", false, "does not resolve"),
+    ];
+    for (name, declarations, accepted, diagnostic) in cases {
+        let source = format!("module Main where\n  stage family :: Declarations\n  stage family = quoteDecls where {{ {declarations} }}\n  generate do\n    emit family\n  main :: Int\n  main = 0\n");
+        match cinch::driver::check_sources(&source, "quoted-precondition-telescope.cinch") {
+            Ok(_) => assert!(accepted, "{name} unexpectedly accepted\n{source}"),
+            Err(error) => {
+                assert!(!accepted, "{name}: {error}\n{source}");
+                assert!(error.to_string().contains(diagnostic), "{name}: {error}");
+            }
+        }
+    }
+}
+
+#[test]
+fn quoted_preconditions_do_not_capture_a_same_named_global() {
+    let source = r#"module Main where
+  n :: Nat
+  n = 0
+  stage family :: Declarations
+  stage family = quoteDecls where {
+    good :: using (n > 0) => (n :: Nat) -> Int;
+    good actual = 42 }
+  generate do
+    emit family
+  main :: Int
+  main = good 1
+"#;
+    assert_eq!(run_source_with(source, &mut StagingCx::default()).unwrap(), 42);
+}

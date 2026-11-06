@@ -190,7 +190,7 @@ fn builtin_type_name(name: &str) -> bool {
     }
     matches!(
         name,
-        "Nat" | "Int" | "Bool" | "Unit" | "Bytes" | "Sym" | "Array" | "Tensor" | "Columnar" | "Type" | "Prop"
+        "Nat" | "Int" | "Bool" | "Unit" | "Bytes" | "Sym" | "Array" | "Tensor" | "Columnar" | "Type" | "Prop" | "True" | "False"
             | "Code" | "Syntax" | "SyntaxBinding" | "TypeSyntax" | "PackedCode" | "Declarations" | "Name" | "Secret"
             | "IoCap" | "FileReadCap" | "FileWriteCap" | "ProcCap"
             | "Scope" | "Task"
@@ -2617,7 +2617,12 @@ impl Checker {
         let mut ty = ty.clone();
         ty.visit_mut(&mut |node| {
             if let ast::Type::Con(path, _) = node {
-                let builtin = path.segments.len() == 1 && builtin_type_name(&path.segments[0].text)
+                // These are kernel proposition literals, not nominal type
+                // declarations waiting to be registered. Quotation may have
+                // already recorded their builtin definition-site authority.
+                let logical_literal = path.segments.len() == 1
+                    && matches!(path.segments[0].text.as_str(), "True" | "False");
+                let builtin = logical_literal || path.segments.len() == 1 && builtin_type_name(&path.segments[0].text)
                     && path.segments[0].resolved_binding().is_none()
                     && path.segments[0].scoped_reference().is_none();
                 if !builtin && self.lookup_type_path(path).is_err() {
@@ -17821,7 +17826,7 @@ impl Checker {
 
     fn syntax_global_scope(&self, module: &str) -> std::sync::Arc<ast::GlobalScope> {
         let mut scope = ast::GlobalScope::new(module);
-        for name in ["Copy", "Share", "Io"] {
+        for name in ["Copy", "Share", "Io", "True", "False"] {
             scope.insert(ast::RefKind::Type, vec![name.into()], "<builtin>", name);
         }
         let defined = |kind, owner: &str, name: &str| match kind {
