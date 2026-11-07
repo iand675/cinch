@@ -19316,7 +19316,7 @@
       },
       {
         "title": "Replay the dependent constructor and diagnostic repairs",
-        "status": "waiting-worker",
+        "status": "waiting-disk-space",
         "phase": "Waiting for a compiler rebuild and the original tactics, Html and Tensor cases",
         "passed": 0,
         "failed": 0,
@@ -19325,7 +19325,7 @@
       },
       {
         "title": "Recheck copied library source before executable linking",
-        "status": "waiting-worker",
+        "status": "waiting-disk-space",
         "phase": "build all 46 compiler modules and smoke-test Stage1",
         "passed": 0,
         "failed": 0,
@@ -19334,7 +19334,7 @@
       },
       {
         "title": "Replay the five original library targets with the expanded object",
-        "status": "waiting-worker",
+        "status": "waiting-disk-space",
         "phase": "Waiting for the complete library object",
         "passed": 0,
         "failed": 0,
@@ -19412,7 +19412,7 @@
       },
       {
         "title": "Run every Rust compiler target on the combined fixes",
-        "status": "waiting-worker",
+        "status": "waiting-disk-space",
         "phase": "bootstrap_checked_program",
         "passed": 17,
         "failed": 0,
@@ -19662,5 +19662,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T18:05:24.683679+00:00"
+  "updatedAt": "2026-11-07T18:09:47.194852+00:00"
 }
