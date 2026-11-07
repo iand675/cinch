@@ -183,7 +183,8 @@ module Bootstrap.Infer where
     TFun s a b -> needs-type a || needs-type b
     TFunEff s a row b -> True
     TBound s name carrier rest -> True
-    TApp s f xs -> needs-type f || needs-type xs
+    TInfix s op a b -> True
+    TApp s f xs -> predicate-syntax ty || needs-type f || needs-type xs
     TTuple s xs -> needs-type xs
     TArg s x rest -> needs-type x || needs-type rest
     TUsing s bounds body -> True
@@ -204,6 +205,7 @@ module Bootstrap.Infer where
       DData s name (Cons p ps) ctors -> True
       DData s name Nil ctors -> ctor-needs ctors
       DForeign s direction abi symbol name ty -> True
+      DProof s body -> True
       DExternal s name kind (Some ty) metadata -> needs-type ty || (case resolved-text metadata of Some text -> True; other -> False)
       DFun s name clauses -> clauses-need clauses
       other -> False) || needs-decls rest
@@ -481,6 +483,8 @@ module Bootstrap.Infer where
         else if external then bad s (string-concat "imported nominal scheme needs defining-module type identities: " name) st
         else case context-kind name kinds of Some k -> unfold-refinement s kinds (UCon name k) st; None -> bad s (string-concat "unknown type constructor or unbound type variable: " name) st
     TFun s a b -> convert-arrow external kinds locals s a None b st
+    TApp s (TName at name) (TArg first a (TArg second b (TArgsEnd end))) | same name "Eq" ->
+      convert-predicate external kinds locals ty st
     TApp s head args -> case source-type-application head args of
       (function, actuals) -> case convert-type-head external kinds locals function st of
         (h, sh) -> convert-args external kinds locals s h actuals sh
@@ -1902,6 +1906,7 @@ module Bootstrap.Infer where
       DSource s name metadata -> register rows classes kinds rest env st
       DInterface s name hash metadata -> register rows classes kinds rest env st
       DFun s name clauses -> register rows classes kinds rest env st
+      DProof s body -> register rows classes kinds rest env st
       -- Its kind was checked above. An opaque type introduces no value
       -- binding, constructor, field or closed data family.
       DOpaque s name params kind -> register rows classes kinds rest env st
@@ -2191,6 +2196,8 @@ module Bootstrap.Infer where
         let actuals = actual-types pairs in
         case b of
           MkErasedBinding name predicate id -> (CProofRef sp predicate id name, ss)
+          MkCheckedBinding name sc role | same role "closed-proof" ->
+            term-error sp "a proof definition can only be used as erased evidence" ss
           MkSyntaxBinding symbol -> term-error sp "kernel syntax is not a first-class function" ss
           MkMethodBinding method sc owner slot -> (CMethod sp ty name owner slot actuals evidence, ss)
           MkGivenBinding source dict symbol -> (CUse sp ty symbol "dictionary" actuals, ss)
@@ -2831,9 +2838,16 @@ module Bootstrap.Infer where
                   (call, done) -> (CLet sp (core-type call) id name scheme rhs call, done)
   erased-argument :: Span -> List CheckedBinding -> Expr -> UType -> Store -> (CoreTerm, Store)
   erased-argument sp env syntax expected st = case syntax of
-    EVar at name -> (case lookup-binding name env of
-      Some (MkErasedBinding display predicate id) -> (CProofRef at predicate id name, unify sp predicate expected st)
-      other -> term-error sp "erased argument needs a scoped proof reference" st)
+    EVar at name -> if same name "b.refl" then
+      let predicate = normalize st expected in
+      if reflexive-equality predicate then (CProofRefl at predicate, st)
+      else term-error at "refl requires definitionally equal operands" st
+      else (case lookup-binding name env of
+        Some (MkErasedBinding display predicate id) -> (CProofRef at predicate id name, unify sp predicate expected st)
+        Some (MkCheckedBinding symbol sc role) | same role "closed-proof" ->
+          let predicate = scheme-body sc in
+          (CProofRefl at predicate, unify sp predicate expected st)
+        other -> term-error sp "erased argument needs a scoped proof reference" st)
     other -> term-error sp "erased argument needs a scoped total proof term" st
   applied-core :: Span -> UType -> UType -> CoreTerm -> CoreTerm -> CoreTerm
   applied-core sp result row fun arg = case row of URow UEnd -> CApply sp result fun arg; other -> CApplyEff sp result row fun arg
@@ -3513,7 +3527,7 @@ module Bootstrap.Infer where
     Nil -> globals
     Cons binding rest -> global-bindings rest (case binding of
       MkBodyBinding binding -> add-global (GlobalBody (GlobalValue (binding-name binding) (binding-role binding) (binding-scheme binding)) binding) globals
-      MkCheckedBinding name sc role -> add-global (GlobalValue name role sc) globals
+      MkCheckedBinding name sc role -> if same role "closed-proof" then globals else add-global (GlobalValue name role sc) globals
       MkForeignBinding name sc plan -> add-global (GlobalValue name "foreign" sc) globals
       MkMethodBinding name sc owner slot -> add-global (GlobalMethod name owner slot sc) globals
       MkConditionalBinding name owner slot dictionary head sc guarded -> add-global (case guarded of Some binding -> GlobalGuardedBody (GlobalValue name "external" sc) binding; None -> GlobalValue name "external" sc) globals
@@ -4043,6 +4057,49 @@ module Bootstrap.Infer where
             (more, done) -> (Cons (instance-name dictionary, owner, name, status) more, done))
       else check-law-subjects classes kinds families env description sp name syntax all rest st
 
+  proof-clauses :: String -> List Decl -> List (List Pat, Expr)
+  proof-clauses name declarations = case declarations of
+    Nil -> Nil
+    Cons (DProof sp (DFun at symbol clauses)) rest ->
+      if same name symbol then clauses <> proof-clauses name rest else proof-clauses name rest
+    Cons other rest -> proof-clauses name rest
+  proof-signature-present :: String -> List Decl -> Bool
+  proof-signature-present name declarations = case declarations of
+    Nil -> False
+    Cons (DProof sp (DSig at symbol syntax)) rest -> same name symbol || proof-signature-present name rest
+    Cons other rest -> proof-signature-present name rest
+  closed-proof-failure :: UType -> String
+  closed-proof-failure predicate = case predicate of
+    UCompare relation (UIndex first (IInteger left)) (UIndex second (IInteger right))
+      | same relation "Eq" && valid-type predicate && left /= right ->
+        "obligation disproved: " <> type-text predicate
+    other -> "kernel refl requires definitionally equal operands"
+  -- Closed named evidence is checked at its declaration. Its uses carry
+  -- the same independently checked Core witness as an inline refl.
+  register-source-proofs :: TypeContext -> List Decl -> List Decl -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-source-proofs kinds declarations remaining env st = case remaining of
+    Nil -> (env, st)
+    Cons (DProof sp (DSig at name syntax)) rest ->
+      case (proof-clauses name declarations, convert-predicate False kinds Nil syntax st) of
+        ([(Nil, EVar location witness)], (predicate, checked)) ->
+          let closed = normalize checked predicate in
+          if not (same witness "b.refl") then
+            register-source-proofs kinds declarations rest env
+              (add-error location "a closed proof requires kernel refl" checked)
+          else if reflexive-equality closed then
+            (case add-binding sp name (mono closed) "closed-proof" env checked of
+              (more, ready) -> register-source-proofs kinds declarations rest more ready)
+          else register-source-proofs kinds declarations rest env
+            (add-error location (closed-proof-failure closed) checked)
+        (clauses, (predicate, checked)) -> register-source-proofs kinds declarations rest env
+          (add-error sp "a closed proof needs exactly one argument-free proof equation" checked)
+    Cons (DProof sp (DFun at name clauses)) rest ->
+      register-source-proofs kinds declarations rest env
+        (if proof-signature-present name declarations then st else add-error sp "proof equation has no proof signature" st)
+    Cons (DProof sp other) rest ->
+      register-source-proofs kinds declarations rest env (add-error sp "invalid proof declaration" st)
+    Cons other rest -> register-source-proofs kinds declarations rest env st
+
   elaborate-module :: String -> Module -> Elaboration
   elaborate-module label m = elaborate-module-with-source-bodies True label m
   elaborate-module-with-source-bodies :: Bool -> String -> Module -> Elaboration
@@ -4064,7 +4121,8 @@ module Bootstrap.Infer where
     let (method-kinds, method-store) = collect-imported-total-methods ds rows classes import-kinds import-body-store in
     let (kinds, body-store) = if enable then add-source-bodies (source-total-bodies label m classes method-kinds) method-kinds method-store else (method-kinds, method-store) in
     let (values, sv) = register rows classes kinds ds (context-body-bindings kinds <> builtins) body-store in
-    let (ordinary-env, si) = register-implicit-instances classes kinds ds values sv in
+    let (proofs, proof-store) = register-source-proofs kinds ds ds values sv in
+    let (ordinary-env, si) = register-implicit-instances classes kinds ds proofs proof-store in
     let (uncached-env, registration-store) = register-conditional-instances rows classes kinds ds ordinary-env si in
     let (env, conditional-store) = cache-body-context uncached-env registration-store in
     let se = check-instance-coherence (env-instances env <> conditional-heads env Nil) conditional-store in
@@ -4366,6 +4424,7 @@ module Bootstrap.Infer where
         DExternal sp name category syntax metadata -> Cons declaration more
         DInterface sp name hash metadata -> Cons declaration more
         DSource sp name metadata -> Cons declaration more
+        DProof sp body -> Cons declaration more
         DRefine sp name parameters binder predicate -> if has name aliases then Cons declaration more else more
         DForeign sp direction abi symbol name syntax -> (case intrinsic-contract symbol of Some specification -> Cons declaration more; None -> more)
         other -> more
@@ -4452,6 +4511,7 @@ module Bootstrap.Infer where
   predicate-syntax syntax = case syntax of
     TInfix s op a b -> has op ["<", "<=", "==", "/=", ">=", ">", "&&", "||"]
     TName s name -> same name "True" || same name "False"
+    TApp s (TName at name) (TArg first a (TArg second b (TArgsEnd end))) -> same name "Eq"
     TApp sp (TName at name) (TArg arg input (TArgsEnd end)) -> same name "NonZero"
     other -> False
   predicate-carrier :: List (String, UType) -> TypeExpr -> Option UType
@@ -4528,6 +4588,8 @@ module Bootstrap.Infer where
   convert-predicate external kinds locals syntax st = case syntax of
     TName s name -> if same name "True" || same name "False" then (UPropLit (same name "True"), st) else
       (case lookup-local name locals of Some predicate -> if kind-equal (type-kind predicate) KProp && valid-type predicate then (predicate, st) else bad s "predicate variable must have kind Prop" st; None -> bad s "unsupported proof predicate" st)
+    TApp sp (TName at name) (TArg first a (TArg second b (TArgsEnd end))) | same name "Eq" ->
+      convert-predicate external kinds locals (TInfix sp "Eq" a b) st
     TApp sp (TName at name) (TArg arg input (TArgsEnd end)) ->
       if same name "Not" then (case convert-predicate external kinds locals input st of (predicate, checked) -> (UPropNot predicate, checked))
       else if not (same name "NonZero") then bad sp "unsupported proof predicate former" st
@@ -4544,7 +4606,7 @@ module Bootstrap.Infer where
       (case convert-predicate external kinds locals a st of
         (left, sa) -> case convert-predicate external kinds locals b sa of
           (right, sb) -> (if same op "&&" then UPropAnd left right else UPropOr left right, sb))
-      else if has op ["<", "<=", "==", "/=", ">=", ">"] then
+      else if has op ["Eq", "<", "<=", "==", "/=", ">=", ">"] then
         (let carrier = predicate-comparison-carrier locals a b in
          if math-carrier carrier then (case convert-predicate-index external kinds locals carrier a st of
            (left, sa) -> case convert-predicate-index external kinds locals carrier b sa of

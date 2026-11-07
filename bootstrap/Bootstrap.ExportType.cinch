@@ -269,7 +269,9 @@ module Bootstrap.ExportType where
     UIndexCall function args -> join [Ok "(", export-global (total-identity function), Ok " ", separated-style display scope " " args, Ok ")"]
     UIndexMath op a b -> join [Ok "(", type-in-style display scope a, Ok (string-concat-all [" ", op, " "]), type-in-style display scope b, Ok ")"]
     UPropLit value -> Ok (if value then "True" else "False")
-    UCompare relation a b -> join [Ok "(", type-in-style display scope a, Ok (string-concat-all [" ", relation, " "]), type-in-style display scope b, Ok ")"]
+    UCompare relation a b -> if same relation "Eq" then
+      join [Ok "(Eq ", type-in-style display scope a, Ok " ", type-in-style display scope b, Ok ")"]
+      else join [Ok "(", type-in-style display scope a, Ok (string-concat-all [" ", relation, " "]), type-in-style display scope b, Ok ")"]
     UPropAnd a b -> join [Ok "(", type-in-style display scope a, Ok " && ", type-in-style display scope b, Ok ")"]
     UPropOr a b -> join [Ok "(", type-in-style display scope a, Ok " || ", type-in-style display scope b, Ok ")"]
     UPropNot value -> join [Ok "(Not ", type-in-style display scope value, Ok ")"]

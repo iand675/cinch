@@ -362,6 +362,8 @@ module Bootstrap.Resolve where
     TNegate s x -> TNegate s (rename-type visible locals x)
     TInfix s op a b -> TInfix s op (rename-type visible locals a) (rename-type visible locals b)
     TRefined s predicate carrier -> TRefined s (rename-predicate visible locals predicate) (rename-type visible locals carrier)
+    TApp s (TName at name) (TArg first a (TArg second b (TArgsEnd end))) | same name "Eq" ->
+      TApp s (TName at name) (TArg first (rename-predicate visible locals a) (TArg second (rename-predicate visible locals b) (TArgsEnd end)))
     TApp s head args -> TApp s (rename-type visible locals head) (rename-type visible locals args)
     TFun s a b -> TFun s (rename-type visible locals a) (rename-type visible (bound-names a <> locals) b)
     TFunEff s a row b -> TFunEff s (rename-type visible locals a) (rename-type visible (bound-names a <> locals) row) (rename-type visible (bound-names a <> locals) b)
@@ -673,6 +675,9 @@ module Bootstrap.Resolve where
     DImport s path mods alias members args -> (Nil, Nil)
     DExport s text items -> (Nil, Nil)
     DFixity s assoc prec ops -> (Nil, Nil)
+    DProof s body -> case rename-decl home visible declarations body of
+      ([checked], errors) -> ([DProof s checked], errors)
+      (other, errors) -> (Nil, errors <> fail s "a proof requires one signature or equation")
     DStage s body -> (Nil, fail s "a stage declaration requires compile-time checking")
     DGenerate s actions -> (Nil, fail s "a generate block requires compile-time expansion")
     other -> (Cons d Nil, fail (decl-span d) "this declaration requires further namespace elaboration")

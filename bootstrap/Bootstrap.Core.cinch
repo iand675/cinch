@@ -29,7 +29,7 @@ module Bootstrap.Core where
   export ownership-type-kinds, borrowed-carrier, copy-out-type
   export CHandler, CHandle, CHandlerOperation, CHandlerEnd
   export handler-kind, handler-type, handler-parts, handler-residual, handler-operation-scheme, handler-clause-type, handler-resumption-safe, handler-body-direct
-  export CProofRef, CErasedApply, scope-erased, scoped-proof-reference
+  export CProofRef, CProofRefl, CErasedApply, scope-erased, scoped-proof-reference, reflexive-equality
   export CDecision, decision-type, decision-constructor-scheme, scoped-decision-valid, stable-index-source
   export CRefineProof, scoped-refinement-proof, byte-allocation-contract, byte-read-contract
   export CRefine, CForget, prove-refinement, CRequire, CDischarge, core-predicates, prove-predicates, required-body, CProved, core-condition, core-let-fact, prove-subtraction, numeric-method-operation
@@ -268,6 +268,7 @@ module Bootstrap.Core where
     CUse :: Span -> UType -> String -> String -> List UType -> CoreTerm
     CLocal :: Span -> UType -> Nat -> String -> List UType -> CoreTerm
     CProofRef :: Span -> UType -> Nat -> String -> CoreTerm
+    CProofRefl :: Span -> UType -> CoreTerm
     CQualifiedUse :: Span -> UType -> String -> String -> List UType -> List CoreEvidence -> CoreTerm
     CMethod :: Span -> UType -> String -> String -> Nat -> List UType -> List CoreEvidence -> CoreTerm
     CInt :: Span -> UType -> String -> CoreTerm
@@ -640,6 +641,7 @@ module Bootstrap.Core where
     CUse s ty name role actuals -> ty
     CLocal s ty id name actuals -> ty
     CProofRef s ty id name -> ty
+    CProofRefl s predicate -> predicate
     CQualifiedUse s ty name role actuals evidence -> ty
     CMethod s ty name owner slot actuals evidence -> ty
     CInt s ty text -> ty
@@ -726,6 +728,7 @@ module Bootstrap.Core where
     CUse s ty name role actuals -> CUse s (f ty) name role (map-types f actuals)
     CLocal s ty id name actuals -> CLocal s (f ty) id name (map-types f actuals)
     CProofRef s ty id name -> CProofRef s (f ty) id name
+    CProofRefl s predicate -> CProofRefl s (f predicate)
     CDecision s ty predicate condition -> CDecision s (f ty) (f predicate) (map-term-types f condition)
     CQualifiedUse s ty name role actuals evidence -> CQualifiedUse s (f ty) name role (map-types f actuals) (map-evidences f evidence)
     CMethod s ty name owner slot actuals evidence -> CMethod s (f ty) name owner slot (map-types f actuals) (map-evidences f evidence)
@@ -879,6 +882,7 @@ module Bootstrap.Core where
     CUse s ty name role actuals -> type-metas st ty <> types-metas st actuals
     CLocal s ty id name actuals -> type-metas st ty <> types-metas st actuals
     CProofRef s ty id name -> type-metas st ty
+    CProofRefl s predicate -> type-metas st predicate
     CQualifiedUse s ty name role actuals evidence -> type-metas st ty <> types-metas st actuals <> evidences-metas st evidence
     CMethod s ty name owner slot actuals evidence -> type-metas st ty <> types-metas st actuals <> evidences-metas st evidence
     CInt s ty text -> type-metas st ty
@@ -1019,14 +1023,24 @@ module Bootstrap.Core where
     CPTuple s ty fields -> closed-runtime-type ty && valid-pattern fields
     CPField s x rest -> valid-pattern x && valid-pattern rest
     CPDone s -> True
-  -- A proof reference is legal only in an erased operand position.
+  -- Reflexivity checks the actual equality by conversion. An equality
+  -- inferred with unsolved index metas cannot supply a witness.
+  reflexive-equality :: UType -> Bool
+  reflexive-equality predicate = closed-type predicate && valid-type predicate && (case predicate of
+    UCompare relation left right -> string-compare relation "Eq" == 0 && contract-equal left right
+    other -> False)
+  -- Evidence is legal only in an erased operand position.
   valid-proof-reference :: CoreTerm -> Bool
-  valid-proof-reference term = case term of CProofRef s predicate id name -> closed-type predicate && valid-type predicate && kind-equal (type-kind predicate) KProp; other -> False
+  valid-proof-reference term = case term of
+    CProofRef s predicate id name -> closed-type predicate && valid-type predicate && kind-equal (type-kind predicate) KProp
+    CProofRefl s predicate -> reflexive-equality predicate
+    other -> False
   valid-term :: CoreTerm -> Bool
   valid-term term = case term of
     CUse s ty name role actuals -> closed-runtime-type ty && closed-types actuals
     CLocal s ty id name actuals -> closed-runtime-type ty && closed-types actuals
     CProofRef s ty id name -> False
+    CProofRefl s predicate -> False
     CDecision s ty predicate condition -> closed-runtime-type ty && closed-type predicate && valid-type predicate && kind-equal (type-kind predicate) KProp && valid-term condition
     CQualifiedUse s ty name role actuals evidence -> closed-runtime-type ty && closed-types actuals && evidences-closed evidence
     CMethod s ty name owner slot actuals evidence -> closed-runtime-type ty && closed-types actuals && evidences-closed evidence && (case evidence of Cons first rest -> True; Nil -> False)
@@ -1333,6 +1347,7 @@ module Bootstrap.Core where
   scoped-proof-reference gamma expected term = valid-type expected && kind-equal (type-kind expected) KProp && (case (gamma, term) of
     (MkProofScope types values proofs bodies guards, CProofRef s predicate id name) -> valid-proof-reference term && contract-equal expected predicate
       && (case scope-entry id proofs of Some declared -> valid-type declared && kind-equal (type-kind declared) KProp && contract-equal predicate declared; None -> False)
+    (scope, CProofRefl s predicate) -> reflexive-equality predicate && contract-equal expected predicate
     other -> False)
   -- These identities and schemes belong to the kernel. In particular a
   -- constructor's source proof slot is absent from its runtime payload.
@@ -1667,6 +1682,7 @@ module Bootstrap.Core where
   proof-ordinary-term gamma facts term = case term of
     CDecision sp ty predicate condition -> scoped-decision-valid gamma facts ty predicate condition
     CProofRef s ty id name -> False
+    CProofRefl s predicate -> False
     CRefine s ty evidence body -> certified-refinement gamma facts ty evidence body
     CRefineProof s ty witness body -> scoped-refinement-proof gamma facts ty witness body
     CForget s ty body -> forgotten gamma facts ty body
@@ -1931,7 +1947,8 @@ module Bootstrap.Core where
   core-predicate :: ProofScope -> UType -> Option Proposition
   core-predicate gamma predicate = if not (valid-type predicate && kind-equal (type-kind predicate) KProp) then None else case predicate of
     UPropLit value -> Some (if value then PTruth else PFalsehood)
-    UCompare relation left right -> case (comparison-name relation, typed-index-arithmetic gamma left, typed-index-arithmetic gamma right) of
+    UCompare relation left right -> case (if string-compare relation "Eq" == 0 then Some Equal else comparison-name relation,
+      typed-index-arithmetic gamma left, typed-index-arithmetic gamma right) of
       (Some op, Some x, Some y) -> Some (PCompare op x y)
       other -> None
     UPropAnd a b -> case (core-predicate gamma a, core-predicate gamma b) of (Some x, Some y) -> Some (PBoth x y); other -> None

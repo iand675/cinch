@@ -290,6 +290,7 @@ module Bootstrap.Global where
     CMethod sp ty name owner slot actuals evidence -> method-reference globals givens ty name owner slot actuals evidence
     CLocal sp ty id name actuals -> local-reference locals ty id actuals
     CProofRef sp predicate id name -> kind-equal (type-kind predicate) KProp && local-reference locals predicate id Nil
+    CProofRefl sp predicate -> reflexive-equality predicate
     CDecision sp ty predicate condition -> term-references globals locals givens condition
     CApply sp ty f x -> term-references globals locals givens f && term-references globals locals givens x
     CApplyEff sp ty row f x -> term-references globals locals givens f && term-references globals locals givens x

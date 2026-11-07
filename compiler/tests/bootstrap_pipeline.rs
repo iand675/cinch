@@ -143,11 +143,69 @@ fn the_ladder_compiles_the_fib_example_with_itself() {
     assert_eq!(std::process::Command::new(dir.join("modules.bin")).status().unwrap().code(), Some(0));
 
     frontend_modes(&dir, &exe);
+    erased_reflexivity(&dir, &exe);
     staged_sources(&dir, &exe);
     interface_output(&dir, &exe);
     refused_source(&dir, &exe);
     checked_interfaces(&dir, &exe);
     common::cleanup(&dir);
+}
+
+fn erased_reflexivity(dir: &Path, exe: &Path) {
+    let input = dir.join("refl.cinch");
+    let ir = dir.join("refl.ll");
+    let args = |mode: &str| vec![mode.into(), input.display().to_string(), ir.display().to_string()];
+    let source = |goal: &str, body: &str| format!(
+        "module Main where\n  consume :: {goal} -> Int\n  consume evidence = 0\n  main :: Int\n  main = {body}\n"
+    );
+    std::fs::write(&input, source("Eq (2 + 3) 5", "consume refl")).unwrap();
+    let (code, stderr) = run_built(exe, dir, &args("--emit-ir"));
+    assert_eq!(code, Some(0), "{stderr}\n{}", common::read_output(dir, "refl.ll.diagnostics"));
+    assert!(!std::fs::read_to_string(&ir).unwrap().is_empty());
+
+    let compare = "module Main where\n  consume :: (5 == 5) -> Int\n  consume evidence = 0\n  forward :: (5 == 5) -> Int\n  forward evidence = consume evidence\n  main :: Int\n  main = 0\n";
+    std::fs::write(&input, compare).unwrap();
+    let (code, stderr) = run_built(exe, dir, &args("--check"));
+    assert_eq!(code, Some(0), "{stderr}\n{}", common::read_output(dir, "refl.ll.diagnostics"));
+
+    for (goal, body, reason) in [
+        ("Eq (2 + 3) 6", "consume refl", "refl requires definitionally equal operands"),
+        ("(5 == 5)", "consume refl", "refl requires definitionally equal operands"),
+        ("Eq 5 5", "let refl = 7 in consume refl", "erased argument needs"),
+    ] {
+        std::fs::write(&input, source(goal, body)).unwrap();
+        assert_eq!(run_built(exe, dir, &args("--check")).0, Some(4));
+        let diagnostic = common::read_output(dir, "refl.ll.diagnostics");
+        assert!(diagnostic.contains(reason), "{diagnostic}");
+    }
+
+    let named = "module Main where\n  proof arithmetic :: Eq (2 + 3) 5\n  proof arithmetic = (refl)\n  consume :: Eq (2 + 3) 5 -> Int\n  consume evidence = 42\n  main :: Int\n  main = if consume arithmetic == 42 then 0 else 1\n";
+    std::fs::write(&input, named).unwrap();
+    let (code, stderr) = run_built(exe, dir, &args("--emit-ir"));
+    assert_eq!(code, Some(0), "{stderr}\n{}", common::read_output(dir, "refl.ll.diagnostics"));
+    let artifact = dir.join("refl.bin");
+    let runtime = Path::new(env!("CARGO_MANIFEST_DIR")).join("runtime/target/debug/libcinchruntime.a");
+    let mut clang = std::process::Command::new(std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into()));
+    clang.arg(&ir).arg(runtime).arg("-o").arg(&artifact);
+    if cfg!(target_os = "linux") { clang.args(["-ldl", "-lpthread", "-lm"]); }
+    let linked = clang.output().expect("link the program with erased evidence");
+    assert!(linked.status.success(), "{}", String::from_utf8_lossy(&linked.stderr));
+    let output = std::process::Command::new(&artifact).env("CINCH_HEAP_LIMIT", "32M")
+        .env("CINCH_RC_DEBUG", "1").env("CINCH_LEAK_CHECK", "1").output().unwrap();
+    assert_eq!(output.status.code(), Some(0));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("live=0 immortal=0 leaked=0"));
+
+    for (invalid, reason) in [
+        (named.replacen("Eq (2 + 3) 5", "Eq (2 + 3) 6", 1), "obligation disproved"),
+        (named.replace("proof arithmetic = (refl)", "proof arithmetic = arithmetic"), "requires kernel refl"),
+        (named.replace("  proof arithmetic :: Eq (2 + 3) 5\n", ""), "no proof signature"),
+        (named.replace("proof arithmetic = (refl)", "proof arithmetic = refl\n  proof arithmetic = refl"), "exactly one argument-free proof equation"),
+    ] {
+        std::fs::write(&input, invalid).unwrap();
+        assert_eq!(run_built(exe, dir, &args("--check")).0, Some(4));
+        let diagnostic = common::read_output(dir, "refl.ll.diagnostics");
+        assert!(diagnostic.contains(reason), "{diagnostic}");
+    }
 }
 
 fn staged_sources(dir: &Path, exe: &Path) {

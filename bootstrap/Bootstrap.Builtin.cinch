@@ -45,6 +45,7 @@ module Bootstrap.Builtin where
     , ("ioSleep", "b.ioSleep"), ("pollCancel", "b.pollCancel")
     , ("unrefine", "b.unrefine"), ("copyOut", "b.copyOut")
     , ("decide", "b.decide"), ("Yes", "b.Yes"), ("No", "b.No"), ("Dec", "b.Dec")
+    , ("refl", "b.refl")
     ]
 
   entry :: String -> String -> String -> Bool -> Decl
