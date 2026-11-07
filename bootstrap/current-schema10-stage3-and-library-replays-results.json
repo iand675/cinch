@@ -1,0 +1,99 @@
+{
+  "checked_at": "2026-11-07T13:28:24.810102+00:00",
+  "full_goal_complete": false,
+  "schema10_stage_agreement": {
+    "changed_source_status_at_audit": "checking-fixed-point-and-source-change",
+    "compiler_source_sha256": "b59c4893c4214d1c94c624bf9ba3f9e99ee7eb9b9568c1f092b20e5080967b38",
+    "identical_compiler_interfaces": 46,
+    "identical_ir_sha256": "30434e31d6d9be1a3cb6a2d3791e65d31f42867591ce5c1cd3f35f374a26f035",
+    "interface_consumer": {
+      "compiler_sha256": "db3ba254048bcf7e4d88d2e07053cb0528280886aa7fac8b4e774034d7f71395",
+      "manifest_sha256": "f6e410fad863721f62861769838a5786293d5e7ab91207359df017ea8af4acbc",
+      "source_sha256": "b55c2bdeba1fe1edcbaa7796b42d555e1be5ae54778fef2f553c30847dfe9f46",
+      "status": "passed"
+    },
+    "revision": "201d8d8ff68149ecfc3845569850e9078a96c419",
+    "stages": [
+      {
+        "compiler_sha256": "746ceb2b78f8ea3343b02a6020813f22b4fe7146425cf47c737c5cffd5ca6265",
+        "receipt_sha256": "07b0173c9ee3cfdcf4f752edc267474a3e8c1efbc2b04e61cda14496f4c00cef",
+        "stage": 0,
+        "status": "passed"
+      },
+      {
+        "compiler_sha256": "1bc54080788c570c00ea06191112cef27853ada28499f686807a4d0b2b3bcc22",
+        "receipt_sha256": "2bb24600f6db09e95ee64d090a02810fedfdfad8184cc423d258328193877ef5",
+        "stage": 1,
+        "status": "passed"
+      },
+      {
+        "compiler_sha256": "db3ba254048bcf7e4d88d2e07053cb0528280886aa7fac8b4e774034d7f71395",
+        "receipt_sha256": "89f3628e4e55ff442aa9399a458a979eef6cffe238b7eab5d11dcbfde83a0114",
+        "stage": 2,
+        "status": "passed"
+      },
+      {
+        "compiler_sha256": "db3ba254048bcf7e4d88d2e07053cb0528280886aa7fac8b4e774034d7f71395",
+        "receipt_sha256": "de90365bddaa13705ca2648bdff0dcbac4f49a0cdc893311915b61a6cb36e5cd",
+        "stage": 3,
+        "status": "passed"
+      }
+    ]
+  },
+  "schema10_successor_provider": {
+    "applicative_spellings": {
+      "ap": "forall (f :: Type -> Type) (a :: Type) (b :: Type). using (app :: Category.Applicative.Applicative f) => ((f (a -> b)) -> ((f a) -> (f b)))",
+      "replicate-m": "forall (f :: Type -> Type) (a :: Type). using (app :: Category.Applicative.Applicative f) => (Nat -> ((f a) -> (f (Data.Core.List a))))",
+      "unless": "forall (f :: Type -> Type). using (app :: Category.Applicative.Applicative f) => (Bool -> ((f Unit) -> (f Unit)))",
+      "void": "forall (f :: Type -> Type) (a :: Type). using (fun :: Category.Functor.Functor f) => ((f a) -> (f Unit))",
+      "when": "forall (f :: Type -> Type). using (app :: Category.Applicative.Applicative f) => (Bool -> ((f Unit) -> (f Unit)))"
+    },
+    "compiler_source_sha256": "309a4f696ed5072050009e59562deabb2fc205731e47655662d1d8d69cd2d020",
+    "interfaces": 55,
+    "library_sha256": "13817354cc3fc1f09c3808c78009e94a64d32e3d986e9604e87c9cdb1f99d8fa",
+    "native_source_sha256": "9022a54f85312db671f7ee14a89a7aa9b6dfcfa7c54010b6f304016ff3401f57",
+    "producer": {
+      "description": "ABI 6 Rust library producer for checked schema 10 interfaces.",
+      "revision": "f997f90cf6424e94465ddf951211afd3482e758f",
+      "runtime_abi": 6,
+      "schema": 1,
+      "source_sha256": "9022a54f85312db671f7ee14a89a7aa9b6dfcfa7c54010b6f304016ff3401f57"
+    },
+    "recovery": "Category.Functor and Algebra.Monoid export signatures. Both have empty ordinary value tables.",
+    "recovery_of_sha256": "ab9f043531a001163c86cbd4d60247fa646b70f732455392b1c7e051b26fee84",
+    "revision": "39caed14652aa336d29584ba98177d56e836472f",
+    "runtime_sha256": "2fab721751aa601f3ca72d7677f8520e5bdd37d93887275b5636fce478f959c6",
+    "status": "passed-production-schema10-provider"
+  },
+  "schema9_stage3_body_bindings": {
+    "compiler_sha256": "169251cf16109c0571b38ed96271c7f5df9e7b6b7af4b688fbed903f66073f92",
+    "compiler_source_sha256": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
+    "matching_interface_identities": 55,
+    "native_source_sha256": "dc2dd19280f2e51d07e7b2995d40ddc230a8265eeb1e6e75446249cd51e1e0f0",
+    "original_log_sha256": "b85c65e6d65644990e36939ce98db6dd50463a6216030ea3defc16b607ee5c80",
+    "original_manifest_sha256": "23301d8f36ab8b600e04881af38c8bd29cb757a91608c6f9b71758b7f8b8ca4d",
+    "original_object_sha256": "c00554f3d47aac3088b3f70a1ccd7ad3cc01637af5c568f3d5c17f1c65e155d8",
+    "passed": 2,
+    "provided_variant": "Data.List.FromList_List@R.mk",
+    "replacement_manifest_sha256": "07aef422031247bd11418aac228bfc3cd6c8b5cbb172a7927773c5d8a38a599e",
+    "replacement_object_sha256": "7adc36dd53729405c187e9af1ca1788473f23d950fabd104aa644fa4384749d0",
+    "replay_log_sha256": "025a655739a5a6a60b881cf8b02cffc3480f907f0bf35bac9957602c8cf99e39",
+    "rows": [
+      {
+        "name": "compiled_cinch_rechecks_body_bindings_refinements_and_changed_callees",
+        "status": "passed"
+      },
+      {
+        "name": "compiled_cinch_source_bodies_require_the_actual_root_and_dependency_definitions",
+        "status": "passed"
+      }
+    ],
+    "runtime_sha256": "2fab721751aa601f3ca72d7677f8520e5bdd37d93887275b5636fce478f959c6",
+    "source_test_sha256": "2da0828ad91538795808abc02f34bb996c909428b5f1c85d83cdc37d51db58f3",
+    "status": "passed-original-stage3-body-bindings",
+    "test_binary_sha256": "9afb02b83c1669f67ba5d97fd79ce65ec2eb8a44441a675f2a578ddeaa16cf34",
+    "total": 2,
+    "wrapper_sha256": "3d38499d52abff221ffa3ee78b86b669fb21211f53ecc9ea2e809665f6910982"
+  },
+  "status": "audited-schema10-stage-agreement-provider-and-schema9-body-bindings"
+}

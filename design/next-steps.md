@@ -21,7 +21,7 @@ the new finite-constructor laws. It checked 27 associativity samples and
 three identity samples, then rejected the wrong identity without emitting an
 interface. It also passed the original inherited-default and library
 replacement assertions in that target. The separate source-instance group
-and matching Stage3 run remain open.
+also passed, and the matching Stage3 replay remains open.
 See [the pipeline receipt](../bootstrap/current-schema9-finite-law-pipeline-results.json).
 
 The schema 10 candidate carries the checked law equations in the same
@@ -52,15 +52,21 @@ reproduced all 55 interfaces and the development object byte for byte.
 Stage1 compiled all 46 modules into Stage2. Stage2 ran Fibonacci and the
 precedence program and rejected the unknown-name control. The audit checked
 the dependency identities across the 46 compiler and 55 library interfaces.
-Stage3 is building on the same snapshot ahead of the fixed-point check.
+Stage3 passed its smoke tests. Stage2 and Stage3 agree on the executable,
+LLVM IR and all 46 compiler interfaces. Stage3 checked a separate client
+using its own emitted interfaces. The changed-source build is running.
 See [the audited inputs and Stage1 results](../bootstrap/current-schema10-stage1-and-integrated-input-results.json).
 See [the Stage2 and source-law audit](../bootstrap/current-schema10-stage2-and-source-laws-results.json).
+See [the Stage3 and library audit](../bootstrap/current-schema10-stage3-and-library-replays-results.json).
 
 The separate schema 9 finite-law candidate also passed all three
 source-instance tests. The newer schema 10 work preserves positional
 proof names and flattened type applications in public value signatures.
 The checked contract still retains its scoped binders and canonical
 applications. The updated readers and writers are under regression tests.
+The matching pinned library passed its 55-interface audit. All five Rust
+Applicative display signatures match the earlier Cinch output. The complete
+original library-family replay is queued for the matching Stage1.
 
 The staged declaration pipeline checked and emitted a generated `Nat` value
 through typed IR. The linked program returned 0 with zero leaks. The unchanged
@@ -76,6 +82,9 @@ The original run passed five and refused three builds at that missing
 variant. The replay used the same compiler, test binary, manifest and
 runtime, with the same 55 interface identities.
 See [the allocation replay](../bootstrap/current-stage3-allocation-object-replay-results.json).
+With the same replacement object, the published Stage3 also passes both
+original body-binding tests and the structural NonZero test. The three
+tests previously stopped at the missing `Data.List.FromList_List@R` factory.
 
 The normal Git-pinned schema 9 provider rebuilt and verified all 55 library
 interfaces. It includes the raw `list-length` variant requested when the

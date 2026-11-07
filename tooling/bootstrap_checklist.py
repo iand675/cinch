@@ -708,11 +708,16 @@ def build_checklist(root, cfg, previous=None):
             passed=2, failed=0, total=2, source=proven['compiler_source_sha256'],
             evidence=link('bootstrap/current-schema10-stage1-and-integrated-input-results.json')))
     schema10_production = read(cfg.get('schema10ProductionChain'))
+    stage3_audit_path = 'bootstrap/current-schema10-stage3-and-library-replays-results.json'
+    stage3_audit = read(root/stage3_audit_path)
     if schema10_production:
         status = schema10_production['status']
         stage2_audit_path = 'bootstrap/current-schema10-stage2-and-source-laws-results.json'
         stage2_audit = read(root/stage2_audit_path)
         audited_source = stage2_audit.get('schema10_stage2', {}).get('compiler_source_sha256')
+        if stage3_audit.get('schema10_stage_agreement', {}).get('compiler_source_sha256') == schema10_production['compiler_source_sha256']:
+            stage2_audit_path = stage3_audit_path
+            audited_source = schema10_production['compiler_source_sha256']
         active.append(dict(title='Schema 10: combined self-host chain', status=status, phase=status.replace('-', ' '),
             passed=sum(row.get('status') == 'passed' for row in schema10_production.get('stages', [])),
             failed=int(status.startswith('failed')), total=4, source=schema10_production['compiler_source_sha256'],
@@ -773,6 +778,23 @@ def build_checklist(root, cfg, previous=None):
             phase=(families.get('phase') or status).replace('-', ' '),
             passed=int(status == 'passed-original-schema10-family-overlays'), failed=int(status.startswith('failed')),
             total=1, source=families['compiler_source_sha256']))
+    provider_replay = stage3_audit.get('schema10_successor_provider', {})
+    if provider_replay.get('status') == 'passed-production-schema10-provider':
+        active.append(dict(title='Rebuild the stricter schema 10 library', status='passed',
+            phase='Verified 55 library interfaces and matched all five Applicative display spellings.',
+            passed=55, failed=0, total=55, source=provider_replay['compiler_source_sha256'], evidence=link(stage3_audit_path)))
+    body_replay = stage3_audit.get('schema9_stage3_body_bindings', {})
+    if body_replay.get('status') == 'passed-original-stage3-body-bindings':
+        active.append(dict(title='Stage3 body binding with the missing library factory', status='passed',
+            phase='Both original assertions passed with the same compiler, runtime and 55 interface identities.',
+            passed=body_replay['passed'], failed=0, total=body_replay['total'],
+            source=body_replay['compiler_source_sha256'], evidence=link(stage3_audit_path)))
+    language = read(cfg.get('schema10Stage3Language'))
+    if language:
+        status = language['status']
+        active.append(dict(title='Run all 34 original language examples with schema 10 Stage3', status=status,
+            phase=status.replace('-', ' '), passed=34 if status == 'passed' else None,
+            failed=0 if status == 'passed' else None, total=34, source=language['compiler_source_sha256']))
     if combined_arrays:
         active.append(dict(title='Schema 9 Stage1: original arrays with staging and CopyOut', status='passed',
             phase='Fourteen tests passed in the full run and the remaining test passed with the matching runtime archive',
