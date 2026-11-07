@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "152 of 235 complete groups passed; 2 running, 0 failed and 81 pending.Every group includes ignored tests. State: running.",
+      "detail": "153 of 235 complete groups passed; 2 running, 0 failed and 80 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -499,7 +499,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "152 of 235 complete groups passed; 2 running, 0 failed and 81 pending."
+      "detail": "153 of 235 complete groups passed; 2 running, 0 failed and 80 pending."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -663,7 +663,7 @@
         "id": "gap:default-diagnostics",
         "title": "Preserve original class/default diagnostic details and source files",
         "state": "blocked",
-        "detail": "Three original refusal tests still need their exact names and source-file assertions proved. Private7ccd now retains the instance name and declaration span and the undeclared method owner; privatedc46 appends actual file/local-line labels already supplied by project bundles. The7ccd complete source-instance and resolver groups now pass independent audit (four Rust tests, all16 default controls, exact name and declaration-line assertions). The file/local-line renderer and original API filename assertions remain unproved.",
+        "detail": "Three original refusal tests still need their exact names and source-file assertions proved. Private7ccd now retains the instance name and declaration span and the undeclared method owner; The first renderer candidate failed on a reserved parameter name; corrected14a8 appends actual file/local-line labels already supplied by project bundles and passes all seven renderer controls. The failed run is preserved. The7ccd complete source-instance and resolver groups now pass independent audit (four Rust tests, all16 default controls, exact name and declaration-line assertions). The file/local-line renderer and original API filename assertions remain unproved.",
         "doneWhen": "Every original diagnostic and filename assertion passes with accurate attribution to the defining source; semantic rejection alone grants no pass.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-source-class-default-self-values-api-results.json"
       },
@@ -671,7 +671,7 @@
         "id": "gap:inferred-case-coverage",
         "title": "Infer a constructor case before deciding coverage",
         "state": "running",
-        "detail": "Private28d2 now compiles the exact unchanged Box counterexample and executes7 at32M with poisoning and zero leaks. All9 full compiler/object tests and both exact44 source gates pass independent audit. The constructor, inference and typed-index whole groups pass; the remaining complete component groups are running. Published3268 still awaits validated promotion and a matching bootstrap.",
+        "detail": "Private28d2 now compiles the exact unchanged Box counterexample and executes7 at32M with poisoning and zero leaks. All9 full compiler/object tests and both exact44 source gates pass independent audit. All eight complete component groups (ten Rust tests) pass independent audit; all original tests and assertions are retained alongside eight Native-compared controls. Published3268 still awaits validated promotion and a matching bootstrap.",
         "doneWhen": "Infer the checked constructor family without borrowing branch-local index equalities as global coverage proof; retain every existing indexed/GADT refusal and run the owned constructor client with zero leaks.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-inferred-case-coverage-runtime-results.json"
       },
@@ -679,7 +679,7 @@
         "id": "gap:default-refinement",
         "title": "Preserve refinement carriers in the original default runtime program",
         "state": "running",
-        "detail": "The unchanged original mconcat/refinement client still needs repair. Narrowed a029 preserves structural NonZero while retaining intentional numeric-range widening. All11 corrected self-contained controls pass actual Cinch and Native; eight complete original groups are validating. The superseded broad range-preservation assumption and subsequent fixture/cache-guard errors remain recorded. The original full runtime program remains required.",
+        "detail": "The unchanged original mconcat/refinement client still needs repair. Narrowed a029 preserves structural NonZero while retaining intentional numeric-range widening. All11 corrected self-contained controls pass actual Cinch and Native; all eight complete original groups (ten Rust tests) pass independent audit. The superseded broad range-preservation assumption and subsequent fixture/cache-guard errors remain recorded. The original full runtime program remains required.",
         "doneWhen": "The original function carrier, refined product and unit cases compile and execute their expected results without guessing an underlying carrier.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-source-class-default-self-values-api-results.json"
       },
@@ -795,10 +795,10 @@
         "unit": "targets",
         "total": 235,
         "counts": {
-          "verified": 153,
+          "verified": 154,
           "blocked": 0,
           "running": 2,
-          "pending": 80,
+          "pending": 79,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -1169,21 +1169,21 @@
           {
             "id": "native:bootstrap_argument_scopes",
             "title": "bootstrap_argument_scopes",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_argument_scopes.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "startedAt": "2026-11-07T00:59:41.937306+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T01:10:34.503920+00:00",
+              "exitCode": 0,
+              "logSha256": "17c8f1f589f7ec22047ec6c3ab449d141e781ff2d71ccc7e542c33cb9fbc01f9",
               "cases": [
                 {
                   "name": "compiled_cinch_keeps_argument_witness_scopes_and_effects",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -1229,6 +1229,10 @@
               "cases": [
                 {
                   "name": "compiled_cinch_rechecks_body_bindings_refinements_and_changed_callees",
+                  "status": "passed"
+                },
+                {
+                  "name": "compiled_cinch_source_bodies_require_the_actual_root_and_dependency_definitions",
                   "status": "running"
                 }
               ]
@@ -1238,21 +1242,21 @@
           {
             "id": "native:bootstrap_boolean_branches",
             "title": "bootstrap_boolean_branches",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_boolean_branches.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T15:35:17.705283+00:00",
-              "finishedAt": "2026-11-06T15:48:44.884449+00:00",
-              "exitCode": 0,
-              "logSha256": "1bc8fa8d7dd0a91739846ddb89704e33b85fc78e2868b329d2885356bee89290",
+              "status": "running",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T01:10:34.506715+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "compiled_cinch_retains_only_valid_one_way_boolean_facts",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -18437,7 +18441,7 @@
         "total": 8,
         "source": "28d2abf7398291b1ecd4b905117858d454cabb8f5c217d7fc02a86993f51ad61",
         "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
-        "auditPending": true
+        "auditPending": false
       },
       {
         "title": "Cinch refined containers: complete groups",
@@ -18448,7 +18452,7 @@
         "total": 8,
         "source": "a02936ace8ad72c00dcc957d92c3954422a5d2223d8e86c42a9d159061426756",
         "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
-        "auditPending": true
+        "auditPending": false
       },
       {
         "title": "Cinch class/instance diagnostics: complete groups",
@@ -18535,8 +18539,8 @@
       {
         "title": "Cinch structural refinements: original API/default groups",
         "status": "running",
-        "phase": "interface_region_effects",
-        "passed": 7,
+        "phase": "class_defaults",
+        "passed": 8,
         "failed": 1,
         "total": 10,
         "source": "a02936ace8ad72c00dcc957d92c3954422a5d2223d8e86c42a9d159061426756",
@@ -18545,8 +18549,8 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "bootstrap_body_bindings",
-        "passed": 152,
+        "phase": "bootstrap_boolean_branches",
+        "passed": 153,
         "failed": 0,
         "total": 235,
         "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
@@ -18564,10 +18568,10 @@
       }
     ],
     "counts": {
-      "verified": 325,
+      "verified": 326,
       "blocked": 4,
       "running": 7,
-      "pending": 114,
+      "pending": 113,
       "recheck": 217
     },
     "total": 667,
@@ -18576,5 +18580,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T01:09:48.240894+00:00"
+  "updatedAt": "2026-11-07T01:10:56.567407+00:00"
 }
