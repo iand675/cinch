@@ -19838,7 +19838,7 @@
       {
         "title": "Bootstrap the candidate with the pinned NonEmpty library",
         "status": "running",
-        "phase": "Rebuilding the compiled library from the exact Native commit.",
+        "phase": "building stage0",
         "passed": 0,
         "failed": 0,
         "total": 4,
@@ -19935,5 +19935,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T23:54:34.236582+00:00"
+  "updatedAt": "2026-11-07T23:55:56.546778+00:00"
 }
