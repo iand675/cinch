@@ -12196,6 +12196,10 @@
               "cases": [
                 {
                   "name": "compiled_cinch_rechecks_body_bindings_refinements_and_changed_callees",
+                  "status": "passed"
+                },
+                {
+                  "name": "compiled_cinch_source_bodies_require_the_actual_root_and_dependency_definitions",
                   "status": "running"
                 }
               ]
@@ -18935,5 +18939,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T09:39:52.275614+00:00"
+  "updatedAt": "2026-11-07T09:41:34.612556+00:00"
 }
