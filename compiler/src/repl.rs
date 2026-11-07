@@ -12,6 +12,7 @@
 use crate::analysis::{self, Analysis, ProbeOutcome, SESSION_FILE, SESSION_MODULE};
 use crate::ast;
 use crate::lexer::{self, Span, Tok};
+use std::io::{self, BufRead, IsTerminal, Write};
 
 /// The outcome of feeding one input line to the REPL.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -79,6 +80,12 @@ impl Repl {
     /// The session source the analysis sees (for tests and debugging).
     pub fn session_source(&self) -> String {
         session_source(&self.entries)
+    }
+
+    /// Discard the lines of an unfinished block. The accepted session is
+    /// untouched; the next input starts at a fresh prompt.
+    pub fn abort_pending(&mut self) {
+        self.pending.clear();
     }
 
     /// Feed one input line. Lines of a multi-line block are fed one at a
@@ -744,4 +751,57 @@ fn render_error(message: &str, block: &str, at: (u32, u32)) -> String {
         out.push('^');
     }
     out
+}
+
+/// Start the REPL. A terminal gets the full-screen TUI; a pipe gets the
+/// same session loop without prompts, which keeps scripted transcripts
+/// usable and testable.
+pub fn run() -> io::Result<()> {
+    let stdin = io::stdin();
+    let stdout = io::stdout();
+    if stdin.is_terminal() && stdout.is_terminal() {
+        return crate::repl_tui::run();
+    }
+    run_with_root(
+        std::env::current_dir().unwrap_or_default(),
+        &mut stdin.lock(),
+        &mut stdout.lock(),
+        false,
+    )
+}
+
+/// Drive a plain REPL from an arbitrary reader and writer.
+pub fn run_with_root(
+    root: impl AsRef<std::path::Path>,
+    reader: &mut impl BufRead,
+    writer: &mut impl Write,
+    interactive: bool,
+) -> io::Result<()> {
+    let mut repl = Repl::with_root(root);
+    if interactive {
+        writeln!(writer, "Cinch REPL. :help for commands, :quit to exit.")?;
+    }
+    let mut continuation = false;
+    loop {
+        if interactive {
+            writer.write_all(if continuation { b"...> " } else { b"cinch> " })?;
+            writer.flush()?;
+        }
+        let mut line = String::new();
+        if reader.read_line(&mut line)? == 0 {
+            break;
+        }
+        match repl.eval(line.trim_end_matches(['\n', '\r'])) {
+            ReplOutcome::Output(text) => {
+                if !text.is_empty() {
+                    writeln!(writer, "{text}")?;
+                }
+                continuation = false;
+            }
+            ReplOutcome::Incomplete => continuation = true,
+            ReplOutcome::Quit => break,
+        }
+        writer.flush()?;
+    }
+    Ok(())
 }

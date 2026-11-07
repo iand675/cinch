@@ -1,12 +1,12 @@
 # Interactive programming with the REPL
 
-<span class="support-tag support-tag--planned">Coming soon</span> **This chapter describes the intended terminal REPL.** The commands, prompts, editing behaviour, and project workflow below form the target user experience. They are not a claim that `cinch repl` works in today's executable. The Rust implementation already has a stateful REPL API; [current implementation](#current-implementation) records that boundary.
+<span class="support-tag support-tag--current">Available</span> **`cinch repl` starts a full-screen terminal session.** It uses the compiler's shared analysis layer, keeps declarations across inputs, and runs expressions through the D92 evaluator. Runtime-backed effects and a few project-reload edges remain limited; [current implementation](#current-implementation) records the exact boundary.
 
 The REPL is an interactive Cinch session. Enter an expression to inspect its value and type, add declarations to use in later inputs, or load a project and explore its exported functions. It uses the compiler's analysis layer, so signatures, instances, effects, refinements, and ownership follow the same rules as source files.
 
 # Start a session
 
-The intended invocation, from the directory containing your project, is:
+Start from the directory containing your project:
 
 ```sh
 cinch repl
@@ -68,11 +68,25 @@ cinch> total
 9 :: Int
 ```
 
-The intended terminal frontend accepts a pasted declaration block as one submission, including signatures, equations, and local `where` declarations. A data declaration with several constructors must be checked as a complete block, rather than committing after the first constructor and treating the rest as unrelated input. Explicit block delimiters and indentation retain their normal language meanings.
+The terminal frontend accepts a pasted declaration block as one submission, including signatures, equations, and local `where` declarations. A data declaration with several constructors must be checked as a complete block, rather than committing after the first constructor and treating the rest as unrelated input. Explicit block delimiters and indentation retain their normal language meanings.
 
-Terminal integration should provide line editing, history navigation, and Tab completion. At a fresh prompt, completion includes visible session, imported, and prelude names; after `:`, it offers session commands. Completion helps enter a name and does not make an otherwise out-of-scope name available.
+At a fresh prompt, completion includes visible session, imported, and prelude names; after `:`, it offers session commands. Completion helps enter a name and does not make an otherwise out-of-scope name available.
 
-**Coming soon: interruption and input control.** Ctrl-C should discard an unfinished submission or interrupt evaluation and return to a usable prompt. End-of-input at an empty prompt should close the session cleanly. Interruption must respect resource cleanup and structured task lifetimes; it must not fabricate an ordinary return value or proof of completion. These terminal behaviours are frontend requirements, not controls supplied by the current Rust API.
+The full-screen frontend provides line editing, history, paste, Tab completion, and syntax highlighting. Its key bindings are:
+
+| Key | Action |
+| --- | --- |
+| `Enter` | Submit the input, or accept the highlighted completion |
+| `Ctrl+J`, `Alt+Enter` | Insert a newline |
+| `Tab`, `Shift+Tab` | Complete; cycle completion candidates |
+| `Up`, `Down` | History, or cycle completion candidates |
+| `Left`, `Right`, `Home`, `End` | Move the input cursor |
+| `PageUp`, `PageDown` | Scroll the transcript |
+| `Ctrl+L` | Clear the transcript |
+| `Ctrl+C` | Discard pending input and any unfinished block; at an empty prompt, quit |
+| `Ctrl+D` | Quit |
+
+Evaluation is synchronous. `Ctrl+C` cancels pending input, not a check or evaluation already running.
 
 # Command reference
 
@@ -90,7 +104,7 @@ Commands start with `:` at a fresh prompt. Their arguments are not shell command
 | `:help` | `:h` | Display command help. |
 | `:quit` | `:q` | End the session. |
 
-An omitted required argument should produce usage information. An unknown command should produce a diagnostic and leave the session usable. Command aliases in this table already exist in the Rust API; the terminal interface is still coming soon.
+An omitted required argument should produce usage information. An unknown command produces a diagnostic and leaves the session usable. These commands and aliases are available in the terminal frontend.
 
 ## Inspect types and kinds
 
@@ -163,13 +177,13 @@ Include the compiler revision, minimal sequence of inputs, required source files
 
 | Surface | Present boundary |
 | --- | --- |
-| `cinch repl` and terminal UI | **Coming soon.** The executable does not currently dispatch a REPL command. Prompts, line editing, paste handling, and interruption above describe the intended frontend. |
-| Stateful session | **API only.** `cinch::repl::Repl` retains declarations, pending input, imports, and in-memory history. |
-| Commands | The Rust API implements the command table above. They are API inputs, not currently available terminal commands. |
+| `cinch repl` and terminal UI | **Available.** Full-screen ratatui frontend with transcript, session sidebar, input editor, completion popup, history, and tree-sitter token colours. Piped stdin uses a plain line loop. |
+| Stateful session | **Available.** `cinch::repl::Repl` retains declarations, pending input, imports, and in-memory history. |
+| Commands | The command table above is available in the terminal frontend. |
 | Checking and pure expression evaluation | Implemented through shared analysis and the D92 evaluator, within that evaluator's admitted subset. |
-| Completion | The API exposes command and visible-name completion; terminal completion UI is coming soon. |
-| Complete project/runtime session | **Coming soon.** Coherent reload recovery and full runtime-backed evaluation must be completed before the idealized workflow is advertised as available. |
+| Completion | `Tab` cycles session, imported, prelude, and `:` command names. |
+| Complete project/runtime session | **Partial.** Coherent reload recovery and full runtime-backed evaluation remain ahead; use `cinch run` for runtime I/O, foreign calls, and concurrency. |
 
-Frontend authors can create `Repl::with_root(path)` and feed submissions to `eval(&str)`. Its result is `ReplOutcome::Output(String)`, `Incomplete`, or `Quit`. `Incomplete` requests more input; it is not a successful declaration. The API also exposes `complete`, `history`, `session_source`, and `analysis`. A terminal adapter must handle input grouping and interruption itself.
+`cinch repl` is the terminal adapter. Frontend authors can also create `Repl::with_root(path)` and feed submissions to `eval(&str)`. Its result is `ReplOutcome::Output(String)`, `Incomplete`, or `Quit`. `Incomplete` requests more input; it is not a successful declaration. The API also exposes `complete`, `history`, `session_source`, `abort_pending`, and `analysis`.
 
 Implementation: `compiler/src/repl.rs`, `compiler/src/analysis.rs`; behaviour suite: `compiler/tests/repl.rs`. The [language server guide](27-language-server.md) describes the other frontend sharing this analysis layer.

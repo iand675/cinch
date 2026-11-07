@@ -4,7 +4,8 @@
 //! multi-line continuation, spanned errors, and completion over the
 //! session's and the prelude's names.
 
-use cinch::repl::{Repl, ReplOutcome};
+use cinch::repl::{run_with_root, Repl, ReplOutcome};
+use std::io::Cursor;
 
 fn out(r: ReplOutcome) -> String {
     match r {
@@ -147,6 +148,18 @@ fn completion_covers_session_and_prelude_names() {
     // And the session commands complete after `:`.
     let cmds = repl.complete(":re");
     assert!(cmds.contains(&":reload".to_string()), "{cmds:?}");
+}
+
+#[test]
+fn plain_loop_handles_a_pipe() {
+    let mut input = Cursor::new("x :: Int\nx = 5\nx\n:type x\n:quit\n");
+    let mut output = Vec::new();
+    run_with_root(std::env::temp_dir(), &mut input, &mut output, false).unwrap();
+    let text = String::from_utf8(output).unwrap();
+    assert!(text.contains("noted x"), "{text}");
+    assert!(text.contains("defined x :: Int"), "{text}");
+    assert!(text.contains("5 :: Int"), "{text}");
+    assert!(text.contains("Int"), "{text}");
 }
 
 #[test]

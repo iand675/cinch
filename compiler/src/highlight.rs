@@ -127,6 +127,14 @@ fn comment_spans(source: &str) -> Vec<CharSpan> {
     spans
 }
 
+/// Token spans with class names, for front ends that paint their own cells.
+pub fn token_spans(source: &str) -> Vec<(usize, usize, &'static str)> {
+    spans(source)
+        .into_iter()
+        .map(|span| (span.start, span.end, span.class))
+        .collect()
+}
+
 fn spans(source: &str) -> Vec<Span> {
     let mut parser = Parser::new();
     parser.set_language(language()).expect("cinch grammar ABI");

@@ -12,11 +12,11 @@ Editor integrations are in `tooling/editors/` for VS Code/Cursor, Vim, Emacs, Su
 
 # REPL API
 
-The [REPL guide](26-repl.md) describes the **Coming soon** terminal experience, with worked sessions, the complete command table, loading/reloading, multiline input, error recovery, and evaluation boundaries.
+The [REPL guide](26-repl.md) describes the terminal experience, with worked sessions, the complete command table, loading/reloading, multiline input, error recovery, and evaluation boundaries.
 
 `cinch::repl::Repl` maintains definitions across inputs. `eval` returns output, an incomplete-input indication, or quit. Supported session commands include `:type`, `:kind`, `:browse`, `:load`, `:reload`, `:history`, `:help`, and `:quit`. Definitions, multi-line continuation, expression evaluation, and completion are tested through the Rust API.
 
-<span class="support-tag support-tag--planned">Coming soon</span> **a CLI REPL command.** `cinch repl` is not dispatched by the current executable. The API exists and is useful to frontend authors; a terminal program integrating it is a separate missing user-facing surface. This distinction also applies to persistent/watch compilation sessions.
+`cinch repl` opens the full-screen terminal frontend: transcript, session sidebar, input editor, completion popup, history, and tree-sitter token colours. Piped stdin gets a plain line loop. Evaluation is synchronous, so `Ctrl+C` cancels pending input rather than a running check. Complete runtime-backed execution and some project-reload recovery remain ahead; use `cinch run` for runtime effects.
 
 # Read diagnostics by phase
 
@@ -38,4 +38,4 @@ A diagnostic's span is attached to the failing source or generated expansion pro
 
 Report the Rust compiler checkout, exact command, minimal source and required sibling files, target/profile when using APIs, and the complete diagnostic. Avoid including secrets from staging input or process environments. The [support page](16-support-and-roadmap.md) identifies known current boundaries and planned features, so a named refusal can be distinguished from a regression.
 
-Implementation: `lsp.rs`, `analysis.rs`, `repl.rs`; suites: `lsp.rs`, `repl.rs`, `incremental.rs`; parser/editor grammar checks: `tooling/check-grammar-drift.sh`, `tooling/check-real-files-parse.sh`.
+Implementation: `lsp.rs`, `analysis.rs`, `repl.rs`, `repl_tui.rs`; suites: `lsp.rs`, `repl.rs`, `incremental.rs`; parser/editor grammar checks: `tooling/check-grammar-drift.sh`, `tooling/check-real-files-parse.sh`.

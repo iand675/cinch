@@ -24,13 +24,14 @@ The checked-in `devenv.nix` still contains older `safelang` script and environme
 | `cinch emit-ir file.cinch -o file.ll` | Check and emit LLVM IR text. |
 | `cinch build file.cinch -o program` | Check, emit IR, invoke clang, and link the native runtime. |
 | `cinch run file.cinch [args...]` | Compile and execute; return the program's exit status. |
+| `cinch repl` | Start the interactive [REPL](26-repl.md) in the current project. |
 | `cinch lsp` | Run the [language server](27-language-server.md) over standard input/output. |
 
 `-o` takes one path and is meaningful for `emit-ir` and `build`. For reproducible scripts, pass it explicitly. `--rebuild` recomputes a package-store entry that fails verification instead of stopping on the verification error. It is not an optimizer flag or a command to disable all incremental work.
 
 For `run`, `--` ends compiler argument interpretation. Use `cinch run Main.cinch -- --rebuild` to pass the literal argument `--rebuild` to the program. Program arguments are available through `process-args` in `Effect.Process`; they exclude the executable name. Do not assume shell tokenization is performed again inside the program.
 
-There is currently no `--target`, `-O2`, `--watch`, `repl`, package-install, or arbitrary foreign-object option. Unsupported command names print usage and exit 2. Omitting `-o`'s path is also a usage error. `--help` is not a distinct successful command; invoking an unknown command takes the usage path.
+There is currently no `--target`, `-O2`, `--watch`, package-install, or arbitrary foreign-object option. Unsupported command names print usage and exit 2. Omitting `-o`'s path is also a usage error. `--help` is not a distinct successful command; invoking an unknown command takes the usage path.
 
 # Entry points and outcomes
 

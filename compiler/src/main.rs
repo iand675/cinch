@@ -18,6 +18,7 @@ usage:
   cinch doc test <root...> [--compiler <cinch>] [--legacy] [--match <text>]
   cinch doc markdown [<file.md>] [--out <html>]  highlight cinch fences on stdin or a file
   cinch doc highlight <file.cinch> [--out <html>]
+  cinch repl                       interactive session in the current project
 
 flags:
   -o <path>   the output path (emit-ir, emit-object and build)
@@ -41,6 +42,13 @@ fn main() {
         Some("build") => (Mode::Build, &args[1..]),
         Some("run") => (Mode::Run, &args[1..]),
         Some("doc") => exit(cinch::cinchdoc::cli(&args[1..])),
+        Some("repl") => {
+            if let Err(error) = cinch::repl::run() {
+                eprintln!("cinch repl: {error}");
+                exit(1);
+            }
+            exit(0);
+        }
         Some("lsp") => {
             // The language server over stdio (LSP's standard transport):
             // the same `LspServer` the REPL analysis layer and the

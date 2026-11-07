@@ -21,6 +21,7 @@ pub mod lsp;
 pub mod parser;
 pub mod rc;
 pub mod repl;
+pub mod repl_tui;
 pub mod repr;
 pub mod specialize;
 pub mod store;

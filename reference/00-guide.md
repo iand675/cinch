@@ -37,7 +37,7 @@ The Rust implementation is the present authority. This guide does not use the se
 | [Attributes and pragmas: the complete reference](23-attributes-and-pragmas.md) |
 | [Type layout and runtime representation](24-type-layout.md) |
 | [Allocators and heap customization](25-allocators.md) |
-| [Interactive programming with the REPL — Coming soon](26-repl.md) |
+| [Interactive programming with the REPL](26-repl.md) |
 | [Language server and editor integration — intended complete experience](27-language-server.md) |
 
 # Find a specific operation

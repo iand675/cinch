@@ -31,6 +31,7 @@ cinch build examples/compiler/fib.cinch -o fib
 cinch-test       # cargo test
 cinch doc extract compiler/prelude/Data/Option.cinch --legacy -o /tmp/option.cinchdoc
 cinch doc render compiler/prelude/Data/Option.cinch --legacy
+cinch repl
 ```
 
 `CINCH_CLANG` selects the clang used for codegen and linking (devenv sets
