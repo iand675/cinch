@@ -14353,6 +14353,10 @@
                 },
                 {
                   "name": "length_indices_reject_non_byte_carriers",
+                  "status": "passed"
+                },
+                {
+                  "name": "named_observation_refinements_check_the_defining_carrier_even_when_unused",
                   "status": "running"
                 }
               ]
@@ -19233,5 +19237,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T04:30:32.927147+00:00"
+  "updatedAt": "2026-11-07T04:31:34.851596+00:00"
 }
