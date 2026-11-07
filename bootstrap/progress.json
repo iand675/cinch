@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "227 of 235 complete groups passed; 1 running, 0 failed and 7 pending.Every group includes ignored tests. State: running.",
+      "detail": "229 of 235 complete groups passed; 1 running, 0 failed and 5 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -499,7 +499,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "227 of 235 complete groups passed; 1 running, 0 failed and 7 pending."
+      "detail": "229 of 235 complete groups passed; 1 running, 0 failed and 5 pending."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -702,10 +702,10 @@
       {
         "id": "gap:laws",
         "title": "Elaborate source class laws and declarations",
-        "state": "pending",
-        "detail": "The full type-syntax test passes and preserves the original law binders and equation structure. Checked carriers and instance evidence remain required. Category also needs the structural Functor_Function instance.",
+        "state": "running",
+        "detail": "The full syntax and pipeline tests pass. The checker verifies one carrier for both law operands and refuses incompatible types. Well-typed laws still need checked instance evidence. Category also needs the structural Functor_Function instance.",
         "doneWhen": "Retain and check the original class laws and namespace declarations; pass all original family and law assertions.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-source-class-law-syntax-results.json"
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-source-class-law-carrier-results.json"
       },
       {
         "id": "gap:base-names",
@@ -803,10 +803,10 @@
         "unit": "targets",
         "total": 235,
         "counts": {
-          "verified": 227,
+          "verified": 229,
           "blocked": 0,
           "running": 1,
-          "pending": 7,
+          "pending": 5,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -2948,21 +2948,21 @@
           {
             "id": "native:bootstrap_source_refinements",
             "title": "bootstrap_source_refinements",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_source_refinements.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "startedAt": "2026-11-07T05:05:11.715061+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T05:09:40.004955+00:00",
+              "exitCode": 0,
+              "logSha256": "22ad096c2d29db6c27627262dfba2fbbc3ec720fb416a3177cda2d876167e3df",
               "cases": [
                 {
                   "name": "source_refinements_check_actual_values_and_preserve_effects",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -3044,17 +3044,17 @@
           {
             "id": "native:bootstrap_total_semantics",
             "title": "bootstrap_total_semantics",
-            "state": "pending",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_total_semantics.rs",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T23:24:17.810571+00:00",
-              "finishedAt": "2026-11-06T23:26:01.404425+00:00",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T05:09:40.010942+00:00",
+              "finishedAt": "2026-11-07T05:11:04.393237+00:00",
               "exitCode": 0,
-              "logSha256": "01dadc20252081444970b8bf35cbb65c183df7b14b145d61abbaf5bd0df34ce8",
+              "logSha256": "d2716b9f2c3f49d986892d8638737f828fed0cb3fb6b438e6f07f12996896b70",
               "cases": [
                 {
                   "name": "compiled_cinch_method_facts_require_the_actual_selected_implementation",
@@ -3075,21 +3075,21 @@
           {
             "id": "native:bootstrap_type_syntax",
             "title": "bootstrap_type_syntax",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_type_syntax.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T23:26:01.416439+00:00",
-              "finishedAt": "2026-11-06T23:32:29.774474+00:00",
-              "exitCode": 0,
-              "logSha256": "dea238f469ff3bc8402ae96959e7f7b1c11e69859123aa91c2f070d2ae13d827",
+              "status": "running",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T05:11:04.399243+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "predicates_indices_and_refined_results_keep_their_structure",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -19248,8 +19248,8 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "bootstrap_source_refinements",
-        "passed": 227,
+        "phase": "bootstrap_type_syntax",
+        "passed": 229,
         "failed": 0,
         "total": 235,
         "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
@@ -19266,10 +19266,10 @@
       }
     ],
     "counts": {
-      "verified": 481,
+      "verified": 483,
       "blocked": 4,
-      "running": 9,
-      "pending": 15,
+      "running": 10,
+      "pending": 12,
       "recheck": 162
     },
     "total": 671,
@@ -19278,5 +19278,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T05:09:30.607465+00:00"
+  "updatedAt": "2026-11-07T05:11:20.993561+00:00"
 }
