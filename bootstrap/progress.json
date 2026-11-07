@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "214 of 235 complete groups passed; 2 running, 0 failed and 19 pending.Every group includes ignored tests. State: running.",
+      "detail": "215 of 235 complete groups passed; 2 running, 0 failed and 18 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -71,7 +71,7 @@
     },
     {
       "title": "Earlier API checkpoint: exact Stage3 behavior",
-      "detail": "99 of 105 complete groups passed; 1 running, 3 failed and 2 pending.All105 required targets:96 portable and9 original interface/API groups, preserving the original100 plus5 additions. Original explicit32M poisoned client limits remain; compiler/checker consumers use256M. Direct Native operations in mixed targets remain classified separately. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "100 of 105 complete groups passed; 1 running, 3 failed and 1 pending.All105 required targets:96 portable and9 original interface/API groups, preserving the original100 plus5 additions. Original explicit32M poisoned client limits remain; compiler/checker consumers use256M. Direct Native operations in mixed targets remain classified separately. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -499,7 +499,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "214 of 235 complete groups passed; 2 running, 0 failed and 19 pending."
+      "detail": "215 of 235 complete groups passed; 2 running, 0 failed and 18 pending."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -507,7 +507,7 @@
     },
     {
       "title": "Finish the exact self-built compiler tests",
-      "detail": "99 of 105 complete groups passed; 1 running, 3 failed and 2 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "100 of 105 complete groups passed; 1 running, 3 failed and 1 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Pass all external language examples through Stage3",
@@ -803,10 +803,10 @@
         "unit": "targets",
         "total": 235,
         "counts": {
-          "verified": 214,
+          "verified": 215,
           "blocked": 0,
           "running": 2,
-          "pending": 19,
+          "pending": 18,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -2729,21 +2729,21 @@
           {
             "id": "native:bootstrap_source_constructors",
             "title": "bootstrap_source_constructors",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_source_constructors.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "startedAt": "2026-11-07T04:22:17.998632+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T04:28:00.868813+00:00",
+              "exitCode": 0,
+              "logSha256": "4cfcfd0704f3ad675ec5410b32e9afae7f9f0a82d6e20689ad5041b588205b10",
               "cases": [
                 {
                   "name": "decision_constructors_check_erasure_metadata_and_source_evidence",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -2752,21 +2752,21 @@
           {
             "id": "native:bootstrap_source_decisions",
             "title": "bootstrap_source_decisions",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_source_decisions.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T22:24:36.870778+00:00",
-              "finishedAt": "2026-11-06T22:30:20.726931+00:00",
-              "exitCode": 0,
-              "logSha256": "df458efd1fb347efd0f83ea48c7adcfd7a9db358ffaa1aa7d15b77c2eaeefeaf",
+              "status": "running",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T04:28:00.873813+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "source_decisions_preserve_predicates_and_check_authority",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -11878,8 +11878,8 @@
           "verified": 0,
           "blocked": 0,
           "running": 0,
-          "pending": 2,
-          "recheck": 103
+          "pending": 1,
+          "recheck": 104
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
         "items": [
@@ -14278,12 +14278,12 @@
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_machine_contracts.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "startedAt": "2026-11-07T04:16:41.348982+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T04:28:19.858645+00:00",
+              "exitCode": 0,
+              "logSha256": "235f2769aa06e3adaec77f67a96eaaa3ef2fdb4008a7d1d80b9baf85d15a9484",
               "cases": [
                 {
                   "name": "checked_machine_comparisons_export_but_machine_arithmetic_stays_opaque",
@@ -14291,7 +14291,7 @@
                 },
                 {
                   "name": "compiled_cinch_consumer_rechecks_conversion_bounds_and_result_carriers",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -14300,18 +14300,23 @@
           {
             "id": "stage3:lib_hashmap_real",
             "title": "lib_hashmap_real",
-            "state": "pending",
+            "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/lib_hashmap_real.rs",
             "observed": {
-              "status": "pending",
+              "status": "running",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": null,
+              "startedAt": "2026-11-07T04:28:19.873128+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "measured_spans_bound_growth_and_report_collision_costs",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -14550,10 +14555,10 @@
           }
         ],
         "observedCounts": {
-          "passed": 99,
+          "passed": 100,
           "failed": 3,
           "running": 1,
-          "pending": 2
+          "pending": 1
         },
         "observedSource": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2"
       },
@@ -19177,8 +19182,8 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "bootstrap_source_constructors",
-        "passed": 214,
+        "phase": "bootstrap_source_decisions",
+        "passed": 215,
         "failed": 0,
         "total": 235,
         "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
@@ -19187,8 +19192,8 @@
       {
         "title": "Earlier Stage3: complete frontend sweep",
         "status": "running",
-        "phase": "interface_machine_contracts",
-        "passed": 99,
+        "phase": "lib_hashmap_real",
+        "passed": 100,
         "failed": 3,
         "total": 105,
         "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
@@ -19196,11 +19201,11 @@
       }
     ],
     "counts": {
-      "verified": 468,
+      "verified": 469,
       "blocked": 4,
       "running": 9,
-      "pending": 28,
-      "recheck": 160
+      "pending": 26,
+      "recheck": 161
     },
     "total": 669,
     "acceptanceVerified": 0,
@@ -19208,5 +19213,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T04:27:26.566817+00:00"
+  "updatedAt": "2026-11-07T04:28:28.531155+00:00"
 }
