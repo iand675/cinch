@@ -19306,8 +19306,8 @@
       },
       {
         "title": "Check finite-index tactics on the original programs",
-        "status": "waiting-worker",
-        "phase": "Stage1 built all 46 compiler modules and passed its smoke checks. Waiting to replay the original examples.",
+        "status": "running",
+        "phase": "Tactics",
         "passed": 0,
         "failed": 0,
         "total": 4,
@@ -19532,7 +19532,7 @@
         "title": "Run the full original 105-target Stage3 frontend matrix",
         "status": "running",
         "phase": "3 disjoint runs share the same audited compiler and provider.",
-        "passed": 20,
+        "passed": 21,
         "failed": 0,
         "total": 105,
         "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a"
@@ -19652,5 +19652,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T17:49:17.397672+00:00"
+  "updatedAt": "2026-11-07T17:54:00.255884+00:00"
 }
