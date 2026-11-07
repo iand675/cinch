@@ -18905,9 +18905,9 @@
       },
       {
         "title": "Schema 9 development bootstrap",
-        "status": "building-stage1",
+        "status": "building-stage2",
         "phase": "Fresh Stage1, Stage2 and Stage3 with the checked development provider",
-        "passed": 1,
+        "passed": 2,
         "failed": 0,
         "total": 4,
         "source": "8959030d54643c5c4c2898e4e1b389930f084753b1d7424c23d02f8c228dd918"
@@ -18935,5 +18935,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T09:37:09.771363+00:00"
+  "updatedAt": "2026-11-07T09:39:52.275614+00:00"
 }
