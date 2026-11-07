@@ -108,13 +108,16 @@ Native admission. The pinned Native builder produced the candidate Cinch CLI,
 which passed all nine compiler and object tests. The independent artifact audit
 confirmed 17 foreign ABI clients and 50 zero-leak reports. The candidate also
 checked every one of its own 44 exact source modules with an empty executable
-search path, the 55 verified library interfaces, and zero leaks. Its component
-tests precede the queued Stage1/2/3 rebuild. See
+search path, the 55 verified library interfaces, and zero leaks. All nine
+complete component groups pass, with 11 Rust tests exercising the Cinch
+components. The fresh rebuild has passed Stage0 smoke checks and is building
+Stage1. See
 `bootstrap/current-partial-boolean-precondition-results.json` and
 `bootstrap/current-partial-boolean-input-results.json`. See also
 `bootstrap/current-partial-boolean-native-controls.json`,
 `bootstrap/current-partial-boolean-compiler-results.json`,
-`bootstrap/current-partial-boolean-own-source-results.json` and
+`bootstrap/current-partial-boolean-own-source-results.json`,
+`bootstrap/current-partial-boolean-component-results.json` and
 `bootstrap/current-partial-boolean-branch-development-2.json`.
 
 All9 development patches apply in order to a fresh published-source snapshot,

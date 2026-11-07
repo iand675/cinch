@@ -383,6 +383,7 @@ def build_checklist(root, cfg, previous=None):
         ('nativeTaskLocalCapture','Rust callback capture: focused, concurrency and unit tests',3,'compile-'),
         ('taskEffectDiagnostic','Cinch source effects: retain the Blocking label',1,'compile-'),
         ('taskTraceDiagnostics','Cinch task refusals: runtime-IR suite',1,'compile-'),
+        ('taskTraceRuntimeReplay','Cinch task refusals: retained emitter, runtime setup and whole suite',3,'compile-'),
         ('functionDefaultProvider','Function defaults: fresh pinned library object',1,'compile-'),
         ('additionalFixityValidation','Additional original fixity tests: actual Cinch frontend',1,'compile-')]:
         state=read(cfg.get(key))

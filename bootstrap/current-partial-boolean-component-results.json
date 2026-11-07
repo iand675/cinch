@@ -1,0 +1,136 @@
+{
+  "compiler_source_sha256": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+  "filtered": 0,
+  "full_goal_complete": false,
+  "ignored": 0,
+  "native_rlib_sha256": "28fc6a79877135149049c3ac8ab2519f22d509a4fe3ecf6c82c992fe5f751709",
+  "native_source_sha256": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+  "rows": [
+    {
+      "exit_code": 0,
+      "log_sha256": "a0c0330a31501dc4fd38a7e796fc0e8d0adfb13635b2674b9b72c4e0348e01cc",
+      "name": "compile-bootstrap_function_preconditions",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "39a1871a1a18c7eb9ecca9659cc03ecaa6b4e1e801706c878fec8866372971aa",
+      "name": "bootstrap_function_preconditions",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "a0c0330a31501dc4fd38a7e796fc0e8d0adfb13635b2674b9b72c4e0348e01cc",
+      "name": "compile-bootstrap_boolean_branches",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "2f3133adf82d7d468205d9f1278f1dc37315cd50dc421e6e45a8d0ef75bf17aa",
+      "name": "bootstrap_boolean_branches",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "a0c0330a31501dc4fd38a7e796fc0e8d0adfb13635b2674b9b72c4e0348e01cc",
+      "name": "compile-bootstrap_core",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "96a665e3ec8e84d521c90360650e4a0038390727d51463acbd90772af881f45b",
+      "name": "bootstrap_core",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "a0c0330a31501dc4fd38a7e796fc0e8d0adfb13635b2674b9b72c4e0348e01cc",
+      "name": "compile-bootstrap_proof",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "d2ed9b6879b5a84abede09aff16896f1496c332e3424e09f4773744253b2c7f2",
+      "name": "bootstrap_proof",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "0a8a77f5b0c26f086b8bd3f10098c43f0b0d10f85408dd78be2c40c2c4e0abcf",
+      "name": "compile-bootstrap_refinement_core",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "7466021cbc97bdc55dff10cb9f38696248606641c6dfc32f1d3b2af9413454fb",
+      "name": "bootstrap_refinement_core",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "a0c0330a31501dc4fd38a7e796fc0e8d0adfb13635b2674b9b72c4e0348e01cc",
+      "name": "compile-bootstrap_refinement_constructors",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "22579c9d47893e9ee89e29df086bf040cdbd27fe3307b0939f388ffe96de750e",
+      "name": "bootstrap_refinement_constructors",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "a0c0330a31501dc4fd38a7e796fc0e8d0adfb13635b2674b9b72c4e0348e01cc",
+      "name": "compile-bootstrap_value_indices",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "304a9d52bdc6998080699fea30fc47fa2755e6c4d1730b00a0932a5a5d00718b",
+      "name": "bootstrap_value_indices",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "701ee732e2adfcc6bb08d716428fd6077d400ba8ac9c22731b006e22c0f9f443",
+      "name": "compile-bootstrap_source_instances",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "1bef9c8395d407b371da42c19677f0c9757dfec59fd6a062ce29cbe851c227b7",
+      "name": "bootstrap_source_instances",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "701ee732e2adfcc6bb08d716428fd6077d400ba8ac9c22731b006e22c0f9f443",
+      "name": "compile-bootstrap_named_refinements",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "b364cbcd7906a09b7e19cf5d4067146e96c64e882f651fa9731234e34666a0a0",
+      "name": "bootstrap_named_refinements",
+      "status": "passed"
+    }
+  ],
+  "rust_tests": 11,
+  "scope": "The complete original precondition, Boolean, Core, proof, refinement, value-index and source-instance groups all pass with the nine retained branch controls. Exact source inputs match the independently reapplied development chain. Separate receipts prove the full compiler/object tests and own-source admission on these same 44 Cinch modules. Fresh Stage1 through Stage3 and full acceptance remain separate.",
+  "source": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/partial-boolean-branch-validation-2/source",
+  "source_sha256": "bcdef01e9e81352fa9c382da746c82acd0fd13b9ffbe1810bbfb9eecc0dbd27a",
+  "status": "audited-nine-complete-core-branch-component-groups",
+  "verified_at": "2026-11-07T03:41:49.672072+00:00",
+  "whole_group_cases": {
+    "bootstrap_boolean_branches": 1,
+    "bootstrap_core": 1,
+    "bootstrap_function_preconditions": 1,
+    "bootstrap_named_refinements": 1,
+    "bootstrap_proof": 1,
+    "bootstrap_refinement_constructors": 1,
+    "bootstrap_refinement_core": 1,
+    "bootstrap_source_instances": 3,
+    "bootstrap_value_indices": 1
+  },
+  "whole_groups": 9
+}
