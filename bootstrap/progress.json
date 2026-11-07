@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "157 of 235 complete groups passed; 2 running, 0 failed and 76 pending.Every group includes ignored tests. State: running.",
+      "detail": "158 of 235 complete groups passed; 1 running, 0 failed and 76 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -499,7 +499,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "157 of 235 complete groups passed; 2 running, 0 failed and 76 pending."
+      "detail": "158 of 235 complete groups passed; 1 running, 0 failed and 76 pending."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -795,9 +795,9 @@
         "unit": "targets",
         "total": 235,
         "counts": {
-          "verified": 158,
+          "verified": 159,
           "blocked": 0,
-          "running": 2,
+          "running": 1,
           "pending": 75,
           "recheck": 0
         },
@@ -1288,17 +1288,17 @@
           {
             "id": "native:bootstrap_byte_observations",
             "title": "bootstrap_byte_observations",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_byte_observations.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "startedAt": "2026-11-07T01:18:34.373349+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T01:35:14.827370+00:00",
+              "exitCode": 0,
+              "logSha256": "e39d5975da74cf7c5de5573a64d260ce533adde5ba6fbf0e058e48a5dbe0b358",
               "cases": [
                 {
                   "name": "byte_observations_recheck_typed_input_scope_and_runtime_identity",
@@ -1310,7 +1310,7 @@
                 },
                 {
                   "name": "source_observations_use_declared_primitive_identity_and_actual_buffer",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -18499,9 +18499,9 @@
       },
       {
         "title": "Current Rust tooling and editor suites",
-        "status": "running",
+        "status": "passed",
         "phase": "syntax-editor",
-        "passed": 1,
+        "passed": 2,
         "failed": 0,
         "total": 2,
         "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
@@ -18604,7 +18604,7 @@
         "title": "Current compiler: full Rust sweep",
         "status": "running",
         "phase": "bootstrap_checked_program",
-        "passed": 157,
+        "passed": 158,
         "failed": 0,
         "total": 235,
         "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
@@ -18622,9 +18622,9 @@
       }
     ],
     "counts": {
-      "verified": 330,
+      "verified": 331,
       "blocked": 4,
-      "running": 7,
+      "running": 6,
       "pending": 107,
       "recheck": 219
     },
@@ -18634,5 +18634,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T01:35:11.959168+00:00"
+  "updatedAt": "2026-11-07T01:36:13.934523+00:00"
 }
