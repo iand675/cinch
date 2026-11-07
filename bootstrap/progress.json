@@ -18923,8 +18923,8 @@
       },
       {
         "title": "Cinch: staged generation through the full pipeline",
-        "status": "waiting-worker",
-        "phase": "waiting worker",
+        "status": "running",
+        "phase": "bootstrap_pipeline",
         "passed": 0,
         "failed": 0,
         "total": 1,
@@ -18932,9 +18932,9 @@
       },
       {
         "title": "Cinch: retain defining nominal dependencies",
-        "status": "running",
+        "status": "passed-schema9-nominal-dependencies-validation",
         "phase": "bootstrap_export_interfaces",
-        "passed": 1,
+        "passed": 2,
         "failed": 0,
         "total": 2,
         "source": "1f4c587652e2e94e5ee97f54fa103c572a82f8096fdd228e286e74be945f72c1"
@@ -19051,5 +19051,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T10:29:44.150761+00:00"
+  "updatedAt": "2026-11-07T10:30:46.085538+00:00"
 }
