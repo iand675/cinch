@@ -663,7 +663,7 @@
         "id": "gap:default-diagnostics",
         "title": "Preserve original class/default diagnostic details and source files",
         "state": "blocked",
-        "detail": "Three original refusal tests still need their exact names and source-file assertions proved. Private7ccd now retains the instance name and declaration span and the undeclared method owner; The first renderer candidate failed on a reserved parameter name; corrected14a8 appends actual file/local-line labels already supplied by project bundles and passes all seven renderer controls. The failed run is preserved. The7ccd complete source-instance and resolver groups now pass independent audit (four Rust tests, all16 default controls, exact name and declaration-line assertions). The file/local-line renderer and original API filename assertions remain unproved.",
+        "detail": "Three original refusal tests still need their exact names and source-file assertions proved. Private7ccd now retains the instance name and declaration span and the undeclared method owner; The first renderer candidate failed on a reserved parameter name; corrected14a8 appends actual file/local-line labels already supplied by project bundles and passes all seven renderer controls. The failed run is preserved. The7ccd complete source-instance and resolver groups now pass independent audit (four Rust tests, all16 default controls, exact name and declaration-line assertions). Seven renderer controls pass. The first whole pipeline rerun inherited two obsolete FFI diagnostic assertions already corrected in publishedfa405; the third run retains that published correction, the positive ABI control and every refusal source. Whole renderer groups and original API filename assertions remain unproved.",
         "doneWhen": "Every original diagnostic and filename assertion passes with accurate attribution to the defining source; semantic rejection alone grants no pass.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-source-class-default-self-values-api-results.json"
       },
@@ -679,7 +679,7 @@
         "id": "gap:default-refinement",
         "title": "Preserve refinement carriers in the original default runtime program",
         "state": "running",
-        "detail": "The unchanged original mconcat/refinement client still needs repair. Narrowed a029 preserves structural NonZero while retaining intentional numeric-range widening. All11 corrected self-contained controls pass actual Cinch and Native; all eight complete original groups (ten Rust tests) pass independent audit. The superseded broad range-preservation assumption and subsequent fixture/cache-guard errors remain recorded. The original full runtime program remains required.",
+        "detail": "The unchanged original mconcat runtime still fails: a029 now preserves inferred containers, but generic calls expected to return a structural refinement are hinted as plain Int too early. Its full original API/default replay remains16/21. Candidate2866 hints the full structural result; all17 Native controls pass and eight whole Cinch groups are validating. The a029 eleven controls and eight original groups (ten Rust tests) remain audited. The superseded broad range-preservation assumption and subsequent fixture/cache-guard errors remain recorded. The original full runtime program remains required.",
         "doneWhen": "The original function carrier, refined product and unit cases compile and execute their expected results without guessing an underlying carrier.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-source-class-default-self-values-api-results.json"
       },
@@ -18467,12 +18467,23 @@
       },
       {
         "title": "Cinch source-file diagnostics: complete groups",
-        "status": "failed",
-        "phase": "bootstrap_pipeline",
+        "status": "waiting-optimized-host",
+        "phase": null,
         "passed": 0,
-        "failed": 1,
+        "failed": 0,
         "total": 3,
         "source": "14a889472c7bf47867414410bba2b91bc059a77df5b20e7105eb7274e3cff134",
+        "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+        "auditPending": false
+      },
+      {
+        "title": "Cinch structural result inference: complete groups",
+        "status": "running",
+        "phase": "bootstrap_named_refinements",
+        "passed": 0,
+        "failed": 0,
+        "total": 8,
+        "source": "286613ea3571aebd6747def34f7a8f9d8af0c84c78e5fee82f9ca65ff90fe7e1",
         "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
         "auditPending": false
       },
@@ -18580,5 +18591,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T01:15:42.577385+00:00"
+  "updatedAt": "2026-11-07T01:18:23.030646+00:00"
 }
