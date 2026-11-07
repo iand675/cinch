@@ -19060,7 +19060,18 @@
         "passed": 3,
         "failed": 0,
         "total": 4,
-        "source": "b59c4893c4214d1c94c624bf9ba3f9e99ee7eb9b9568c1f092b20e5080967b38"
+        "source": "b59c4893c4214d1c94c624bf9ba3f9e99ee7eb9b9568c1f092b20e5080967b38",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-stage2-and-source-laws-results.json"
+      },
+      {
+        "title": "Finite laws and source-instance regression tests",
+        "status": "passed",
+        "phase": "Both pipeline tests and all three source-instance tests passed on the audited schema 9 candidate.",
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "source": "c272860233cd944125805f27f3fb2521cd48f4c12f74fbc07b55f21f5a9ebb7f",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-stage2-and-source-laws-results.json"
       },
       {
         "title": "Schema 10: division and canonical value schemes",
@@ -19080,6 +19091,15 @@
         "total": 5,
         "source": "9df59053b3dc0df7c8af55f7903bd252728427448ae03345b95a6b120efc584a",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-law-identity-gap.json"
+      },
+      {
+        "title": "Require complete schema 10 interfaces and preserve public type spelling",
+        "status": "waiting-worker",
+        "phase": "rust interface unit",
+        "passed": 0,
+        "failed": 0,
+        "total": 9,
+        "source": "309a4f696ed5072050009e59562deabb2fc205731e47655662d1d8d69cd2d020"
       },
       {
         "title": "Schema 9 Stage1: original arrays with staging and CopyOut",
@@ -19196,5 +19216,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T13:07:42.565647+00:00"
+  "updatedAt": "2026-11-07T13:10:08.660396+00:00"
 }
