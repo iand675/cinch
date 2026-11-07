@@ -3,8 +3,10 @@
 Schema 9 is on `main` with the matching library pin. Stage0 through Stage3
 passed their smoke tests. Stage2 and Stage3 agree on the executable, LLVM IR,
 and all 44 compiler interfaces. The separate consumer accepted the Stage3
-interfaces. The changed-source check and the full 105-target frontend sweep
-are running. See [the format switch](../bootstrap/current-interface-format-switch-results.json).
+interfaces. The changed-source compiler produced the expected changed
+diagnostic. The independent audit verified the stage receipts and read
+back the two compiler-and-library interface sets in Rust. The full
+105-target frontend sweep is running. See [the bootstrap audit](../bootstrap/current-schema9-bootstrap-results.json).
 
 The 105-target Stage3 run reproduced the unchanged Ordering replacement
 failure. `Relation.Ord` rejects the stale dependency on `Data.Ordering` after

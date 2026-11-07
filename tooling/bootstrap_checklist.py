@@ -101,6 +101,9 @@ def build_checklist(root, cfg, previous=None):
     integrated_proof = read(cfg.get('integratedTaskLawChainReceipt'))
     if chain.get('compiler_source_sha256') != compiler and integrated_proof.get('status') == 'passed-bootstrap-chain-only':
         chain = integrated_proof
+    pinned_audit = read(root/'bootstrap/current-schema9-bootstrap-results.json')
+    if pinned_audit.get('status') == 'passed-production-schema9-bootstrap-chain':
+        chain = pinned_audit
     earlier_full = read(cfg.get('previousNative')) or full
     earlier_native = {r['name']: r for r in earlier_full.get('rows', [])}
     old_native = {r['name']: r for r in full.get('rows', [])}
@@ -286,11 +289,17 @@ def build_checklist(root, cfg, previous=None):
     chain_matches = chain.get('compiler_source_sha256')==compiler
     acceptance=[]
     for i,(title,requirement)in enumerate(acceptance_text,1):
-        old_proven=i<5 and chain.get('status')=='passed-bootstrap-chain-only'
-        state='verified'if chain_matches and old_proven else'recheck'if old_proven else'pending'
-        acceptance.append(item('acceptance:'+str(i),str(i)+'. '+title,state,
-            'Proven for earlier '+chain.get('compiler_source_sha256','unknown')[:8]+'; must be repeated for the latest compiler.' if old_proven and not chain_matches else'No complete matching final acceptance receipt yet.',
-            requirement,link('design/self-hosting.md#acceptance'), observed=dict(status='passed'if old_proven else'pending',source=chain.get('compiler_source_sha256'),cases=[])))
+        proven = i < 5 and chain.get('status') in ('passed-bootstrap-chain-only', 'passed-production-schema9-bootstrap-chain')
+        state = 'verified' if chain_matches and proven else 'recheck' if proven else 'pending'
+        if state == 'verified':
+            detail = 'The independent audit passed for the published compiler.'
+        elif state == 'recheck':
+            detail = 'The audit passed for earlier compiler ' + chain.get('compiler_source_sha256','unknown')[:8] + '.'
+        else:
+            detail = 'Complete matching verification is pending.'
+        receipt = 'bootstrap/current-schema9-bootstrap-results.json' if proven and chain is pinned_audit else 'design/self-hosting.md#acceptance'
+        acceptance.append(item('acceptance:'+str(i),str(i)+'. '+title,state,detail,
+            requirement,link(receipt), observed=dict(status='passed'if proven else'pending',source=chain.get('compiler_source_sha256'),cases=[])))
 
     api=read(cfg.get('interfaceApiReceipt'))
     # A preserved failure from the unchanged actual Cinch frontend remains a
@@ -677,8 +686,10 @@ def build_checklist(root, cfg, previous=None):
             failed=int(status.startswith('failed')), total=4, source=schema9_chain.get('compiler_source_sha256')))
     if schema9_pinned_chain:
         status = schema9_pinned_chain['status']
-        active.append(dict(title='Schema 9 bootstrap with the production pin', status=status,
-            phase=status.replace('-', ' '), passed=sum(row.get('status') == 'passed' for row in schema9_pinned_chain.get('stages', [])),
+        audited = (pinned_audit.get('status') == 'passed-production-schema9-bootstrap-chain'
+                   and pinned_audit.get('compiler_source_sha256') == schema9_pinned_chain.get('compiler_source_sha256'))
+        active.append(dict(title='Schema 9 bootstrap with the production pin', status='passed' if audited else status,
+            phase='Fixed point, separate interface consumer and changed-source control verified' if audited else status.replace('-', ' '), passed=sum(row.get('status') == 'passed' for row in schema9_pinned_chain.get('stages', [])),
             failed=int(status.startswith('failed')), total=4, source=schema9_pinned_chain.get('compiler_source_sha256')))
     if schema9_ordering_contracts:
         rows = schema9_ordering_contracts.get('rows', [])
