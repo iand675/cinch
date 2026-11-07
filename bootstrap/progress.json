@@ -547,7 +547,7 @@
   "candidateSource": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
   "candidatePublished": true,
   "fullGoalComplete": false,
-  "summary": "Cinch 5bf127d9 rebuilt itself to matching Stage2 and Stage3 and passed the changed-source check. Its original frontend sweep has 10 of 105 targets passing, 3 failed and 92 still running or queued.",
+  "summary": "Cinch 5bf127d9 rebuilt itself to matching Stage2 and Stage3 and passed the changed-source check. Its original frontend sweep has 11 of 105 targets passing, 3 failed and 91 still running or queued.",
   "activity": "The independently audited integrated build is running all 105 frontend targets. Open the test inventory for live failures and the repairs being replayed.",
   "checklist": {
     "version": 1,
@@ -11898,26 +11898,39 @@
           "verified": 0,
           "blocked": 0,
           "running": 0,
-          "pending": 91,
-          "recheck": 14
+          "pending": 90,
+          "recheck": 15
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
         "items": [
           {
             "id": "stage3:alloc_accounting",
             "title": "alloc_accounting",
-            "state": "pending",
+            "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/alloc_accounting.rs",
             "observed": {
-              "status": "pending",
+              "status": "running",
               "source": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185",
-              "startedAt": null,
+              "startedAt": "2026-11-07T08:49:22.180461+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "a_compiled_structure_drops_back_to_the_immortal_baseline",
+                  "status": "passed"
+                },
+                {
+                  "name": "escaped_constructors_match_and_carry_one_descriptor_word",
+                  "status": "passed"
+                },
+                {
+                  "name": "header_blocks_count_constructor_cells_with_their_header",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -13928,16 +13941,20 @@
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_region_effects.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185",
               "startedAt": "2026-11-07T08:49:02.251733+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T08:49:20.884170+00:00",
+              "exitCode": 0,
+              "logSha256": "ab5b3ab309775801c68dc4dbf71487833380830398ad53cae2eb80c342c578cd",
               "cases": [
                 {
                   "name": "resolved_contracts_keep_region_binders_and_closed_kernel_effects",
-                  "status": "running"
+                  "status": "passed"
+                },
+                {
+                  "name": "scope_and_task_contracts_preserve_kernel_and_source_type_owners",
+                  "status": "passed"
                 }
               ]
             },
@@ -13946,9 +13963,9 @@
         ],
         "observedCounts": {
           "failed": 3,
-          "passed": 10,
+          "passed": 11,
           "running": 1,
-          "pending": 91
+          "pending": 90
         },
         "observedSource": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185"
       },
@@ -18116,8 +18133,8 @@
       {
         "title": "Integrated self-built Stage3: complete frontend sweep",
         "status": "running",
-        "phase": "interface_region_effects",
-        "passed": 10,
+        "phase": "alloc_accounting",
+        "passed": 11,
         "failed": 3,
         "total": 105,
         "source": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185"
@@ -18704,8 +18721,8 @@
       {
         "title": "Earlier Stage3: complete frontend sweep",
         "status": "running",
-        "phase": "interface_region_effects",
-        "passed": 10,
+        "phase": "alloc_accounting",
+        "passed": 11,
         "failed": 3,
         "total": 105,
         "source": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185",
@@ -18788,8 +18805,8 @@
       "verified": 489,
       "blocked": 6,
       "running": 10,
-      "pending": 97,
-      "recheck": 72
+      "pending": 96,
+      "recheck": 73
     },
     "total": 674,
     "acceptanceVerified": 0,
@@ -18797,5 +18814,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T08:49:06.735000+00:00"
+  "updatedAt": "2026-11-07T08:50:09.024744+00:00"
 }
