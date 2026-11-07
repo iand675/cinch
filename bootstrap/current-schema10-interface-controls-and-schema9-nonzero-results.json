@@ -1,0 +1,50 @@
+{
+  "checked_at": "2026-11-07T13:17:46.870199+00:00",
+  "full_goal_complete": false,
+  "schema10": {
+    "compiler_source_sha256": "309a4f696ed5072050009e59562deabb2fc205731e47655662d1d8d69cd2d020",
+    "local_producer_pin": "f997f90cf6424e94465ddf951211afd3482e758f",
+    "native_source_sha256": "9022a54f85312db671f7ee14a89a7aa9b6dfcfa7c54010b6f304016ff3401f57",
+    "native_unit_filter": "interface::tests",
+    "passed": 26,
+    "tests": {
+      "interface_kinds": {
+        "log_sha256": "ec5d8bad82b78e3a87a12292067b7797da1e29d29ac733f00ef6373d9d77d2d9",
+        "tests": 4
+      },
+      "interface_nominals": {
+        "log_sha256": "5d67e3fe7a48661f097d5df762e69b7c41a2ea827fcac5b7e87c5f8c9d85ae61",
+        "tests": 1
+      },
+      "interface_refinements": {
+        "log_sha256": "341542f88dbb0c9e70b55be16863e777b831ddc7d2cddb237d9c6d5cbdb7735a",
+        "tests": 4
+      },
+      "rust-interface-unit": {
+        "log_sha256": "7aecf1d2516117c50373ff7380b3b118fa0d563c9bdc82f2a6e409c911bdcb7b",
+        "tests": 17
+      }
+    }
+  },
+  "schema9_stage3_nonzero": {
+    "compiler_sha256": "169251cf16109c0571b38ed96271c7f5df9e7b6b7af4b688fbed903f66073f92",
+    "compiler_source_sha256": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
+    "matching_interface_identities": 55,
+    "native_source_sha256": "dc2dd19280f2e51d07e7b2995d40ddc230a8265eeb1e6e75446249cd51e1e0f0",
+    "original_log_sha256": "c8863fdbf23423300e1981dfeb79e7432f9e0c8ee2bc1296ba4df0bb8d819db7",
+    "original_manifest_sha256": "23301d8f36ab8b600e04881af38c8bd29cb757a91608c6f9b71758b7f8b8ca4d",
+    "original_object_sha256": "c00554f3d47aac3088b3f70a1ccd7ad3cc01637af5c568f3d5c17f1c65e155d8",
+    "passed": 1,
+    "provided_variant": "Data.List.FromList_List@R.mk",
+    "replacement_manifest_sha256": "07aef422031247bd11418aac228bfc3cd6c8b5cbb172a7927773c5d8a38a599e",
+    "replacement_object_sha256": "7adc36dd53729405c187e9af1ca1788473f23d950fabd104aa644fa4384749d0",
+    "replay_log_sha256": "2ce8d04ba3fd980e7ced24560d7fe6653d247260cbea4880be04b83551f18a7a",
+    "runtime_sha256": "2fab721751aa601f3ca72d7677f8520e5bdd37d93887275b5636fce478f959c6",
+    "source_test_sha256": "465680137b7b3d25e9de191380c9beeac2a74ae68e02b6685214b6085a855d6a",
+    "status": "passed-original-stage3-structural-nonzero",
+    "test_binary_sha256": "adb1558821bea06de54d559fd19005250733a9a1d1db301ad6c9acea7997816a",
+    "total": 1,
+    "wrapper_sha256": "3d38499d52abff221ffa3ee78b86b669fb21211f53ecc9ea2e809665f6910982"
+  },
+  "status": "audited-schema10-interface-controls-and-schema9-nonzero-replay"
+}

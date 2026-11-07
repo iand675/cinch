@@ -744,13 +744,35 @@ def build_checklist(root, cfg, previous=None):
             source=canonical_laws.get('compiler_source_sha256'),
             evidence=link('bootstrap/current-schema10-law-identity-gap.json')))
     envelope = read(cfg.get('schema10InterfaceEnvelopeValidation'))
+    interface_audit_path = 'bootstrap/current-schema10-interface-controls-and-schema9-nonzero-results.json'
+    interface_audit = read(root/interface_audit_path)
     if envelope:
         rows = envelope.get('rows', [])
         active.append(dict(title='Require complete schema 10 interfaces and preserve public type spelling',
             status=envelope['status'], phase=(envelope.get('phase') or envelope['status']).replace('-', ' '),
             passed=sum(row.get('status') == 'passed' for row in rows),
             failed=sum(row.get('status') == 'failed' for row in rows), total=9,
-            source=envelope['compiler_source_sha256']))
+            source=envelope['compiler_source_sha256'],
+            evidence=link(interface_audit_path) if interface_audit.get('schema10', {}).get('compiler_source_sha256') == envelope['compiler_source_sha256'] else None))
+    nonzero_replay = interface_audit.get('schema9_stage3_nonzero', {})
+    if nonzero_replay.get('status') == 'passed-original-stage3-structural-nonzero':
+        active.append(dict(title='Stage3 structural NonZero with the missing library factory', status='passed',
+            phase='The unchanged test passed using the same compiler, runtime and 55 interface identities.',
+            passed=nonzero_replay['passed'], failed=0, total=nonzero_replay['total'],
+            source=nonzero_replay['compiler_source_sha256'], evidence=link(interface_audit_path)))
+    successor = read(cfg.get('schema10SuccessorChain'))
+    if successor:
+        status = successor['status']
+        active.append(dict(title='Bootstrap the stricter schema 10 candidate', status=status, phase=status.replace('-', ' '),
+            passed=sum(row.get('status') == 'passed' for row in successor.get('stages', [])),
+            failed=int(status.startswith('failed')), total=4, source=successor['compiler_source_sha256']))
+    families = read(cfg.get('schema10SuccessorStage1Families'))
+    if families:
+        status = families['status']
+        active.append(dict(title='Replay the original library families with the rebuilt provider', status=status,
+            phase=(families.get('phase') or status).replace('-', ' '),
+            passed=int(status == 'passed-original-schema10-family-overlays'), failed=int(status.startswith('failed')),
+            total=1, source=families['compiler_source_sha256']))
     if combined_arrays:
         active.append(dict(title='Schema 9 Stage1: original arrays with staging and CopyOut', status='passed',
             phase='Fourteen tests passed in the full run and the remaining test passed with the matching runtime archive',
