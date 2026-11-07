@@ -795,10 +795,15 @@ def build_checklist(root, cfg, previous=None):
     successor = read(cfg.get('schema10SuccessorChain'))
     if successor:
         status = successor['status']
-        active.append(dict(title='Bootstrap the schema 10 compiler on main' if successor.get('compiler_source_sha256') == compiler else 'Bootstrap the stricter schema 10 candidate',
-            status=status, phase=status.replace('-', ' '),
+        published = successor.get('compiler_source_sha256') == compiler
+        audited = chain is strict_audit and strict_audit.get('native_source_sha256') == successor.get('native_source_sha256')
+        active.insert(0, dict(title='Bootstrap the schema 10 compiler on main' if published else 'Bootstrap the stricter schema 10 candidate',
+            status='passed' if audited else 'running' if status.startswith(('building-', 'checking-')) else status,
+            phase='The independent fixed-point and changed-source audit passed.' if audited else status.replace('-', ' '),
             passed=sum(row.get('status') == 'passed' for row in successor.get('stages', [])),
-            failed=int(status.startswith('failed')), total=4, source=successor['compiler_source_sha256']))
+            failed=int(status.startswith('failed')), total=4, unit='stages', source=successor['compiler_source_sha256'],
+            auditPending=status == 'passed-production-schema10-chain-awaiting-independent-audit' and not audited,
+            evidence=link(strict_audit_path) if audited else None))
     families = read(cfg.get('schema10SuccessorStage1Families'))
     if families:
         status = families['status']
@@ -841,6 +846,19 @@ def build_checklist(root, cfg, previous=None):
         active.append(dict(title='First schema 10 Stage3: all 34 original language examples', status=status,
             phase=phase, passed=passed_cases, failed=34-passed_cases if passed_cases is not None else None,
             total=34, source=language['compiler_source_sha256'], evidence=link(language_audit_path) if audited else None))
+    for key, title, total in (
+        ('schema10ExternalLibraryVariants', 'Rebuild the libraries with five requested runtime variants', 2),
+        ('schema10ExternalVariantReplay', 'First library replay of Html, Reactive and TensorAD', 3),
+        ('schema10ExternalVariantReplay2', 'Replay the same three programs with the additional method and zip variants', 3),
+    ):
+        run = read(cfg.get(key))
+        if run:
+            rows = run.get('rows', [])
+            active.append(dict(title=title, status=run['status'],
+                phase=(run.get('phase') or run['status']).replace('-', ' '),
+                passed=sum(row.get('status') == 'passed' for row in rows),
+                failed=sum(row.get('status') == 'failed' for row in rows), total=total,
+                source=run.get('compiler_source_sha256')))
     external_acceptance = read(cfg.get('schema10Stage3ExternalAcceptance'))
     external_audit_path = 'bootstrap/current-schema10-external-acceptance-results.json'
     external_audit = read(root/external_audit_path)
