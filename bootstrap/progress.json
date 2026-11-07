@@ -1,30 +1,30 @@
 {
   "schema": 2,
-  "commit": "0b518fbd5f25c85924df34a6c4148e9344941ab2",
+  "commit": "45bbfe9460a5028dd580c359ea9080baca43d26b",
   "status": "Full bootstrap verification remains open",
   "stages": [
     {
       "name": "Stage 0",
-      "state": "passed",
-      "label": "Smoke tests passed",
+      "state": "pending",
+      "label": "Recheck required",
       "description": "Verify the pinned Rust seed."
     },
     {
       "name": "Stage 1",
-      "state": "passed",
-      "label": "Smoke tests passed",
-      "description": "Build all 46 compiler modules with the Rust seed."
+      "state": "pending",
+      "label": "Recheck required",
+      "description": "Build the current compiler from source."
     },
     {
       "name": "Stage 2",
-      "state": "running",
-      "label": "Building",
-      "description": "Rebuild the compiler with Stage1."
+      "state": "pending",
+      "label": "Recheck required",
+      "description": "Rebuild the current compiler with Stage1."
     },
     {
       "name": "Stage 3",
       "state": "pending",
-      "label": "Pending",
+      "label": "Recheck required",
       "description": "Rebuild with Stage2 and audit the fixed point."
     }
   ],
@@ -543,15 +543,15 @@
       "title": "Earlier source: Changed-source rebuilding verified"
     }
   ],
-  "candidateSource": "c94c7578197341f7522754b233277945f6b476f2b913826b674831e450dd54e1",
+  "candidateSource": "d7a456f87570d877f3698b3d09a44bb85dc1ad7928ffb11c4dd493f3f7825a2e",
   "candidatePublished": true,
   "fullGoalComplete": false,
-  "summary": "Main combines the quantified-law sampler with the corrected compiled library provider.",
-  "activity": "Building stage2. The full suite remains open.",
+  "summary": "Main includes the higher-kinded runtime, pure arrow inference and checked String layout.",
+  "activity": "The original function-family and Foldable list cases ran on the development snapshots. The published combination needs its matching ladder and full suite.",
   "checklist": {
     "version": 1,
     "target": {
-      "compiler": "c94c7578197341f7522754b233277945f6b476f2b913826b674831e450dd54e1",
+      "compiler": "d7a456f87570d877f3698b3d09a44bb85dc1ad7928ffb11c4dd493f3f7825a2e",
       "native": "ca7a6231fa497ca0c6b016fed5aaefc0d9ecb32fa3c41b10617e944ed8af1009"
     },
     "acceptance": [
@@ -18229,18 +18229,6 @@
     ],
     "active": [
       {
-        "title": "Bootstrap the exact published compiler and corrected library",
-        "status": "running",
-        "phase": "Building stage2",
-        "passed": 2,
-        "failed": 0,
-        "total": 4,
-        "unit": "stages",
-        "source": "c94c7578197341f7522754b233277945f6b476f2b913826b674831e450dd54e1",
-        "auditPending": false,
-        "evidence": null
-      },
-      {
         "title": "Bootstrap the stricter schema 10 candidate",
         "status": "failed",
         "phase": "failed",
@@ -19376,9 +19364,9 @@
       {
         "title": "Replay original Foldable and Category with the compiled library",
         "status": "running",
-        "phase": "round 2 lib_foldable. Round one requested 31 functions, 18 factories and 4 method variants.",
+        "phase": "round 2 lib_category. Round one requested 31 functions, 18 factories and 4 method variants.",
         "passed": 0,
-        "failed": 0,
+        "failed": 1,
         "total": 2,
         "unit": "original test targets",
         "source": "12ad4294369122399c47d9c40ada62259b507ff23e1c34dcb4aacc7ba812dc73"
@@ -19773,6 +19761,27 @@
         "source": "b655a0a0d31a67be39ff71bc36b4434c4ca0bb9b6b991928f64329efc133bd63"
       },
       {
+        "title": "Finish the preceding published compiler ladder",
+        "status": "building-stage3",
+        "phase": "building stage3",
+        "passed": 3,
+        "failed": 0,
+        "total": 4,
+        "unit": "stages",
+        "source": "c94c7578197341f7522754b233277945f6b476f2b913826b674831e450dd54e1",
+        "auditPending": false
+      },
+      {
+        "title": "Run original function-family and String clients with compiled objects",
+        "status": "passed",
+        "phase": "The original Category function-family and Foldable list programs ran with zero leaks.",
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "unit": "focused client cases",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-function-and-string-object-results.json"
+      },
+      {
         "title": "Check original NonEmpty clients against compiled contracts",
         "status": "completed-with-structural-refinement-failures",
         "phase": "reject-empty-forgery",
@@ -19812,8 +19821,8 @@
       {
         "title": "Rerun the full Native suite after the clean-build fix",
         "status": "running",
-        "phase": "bootstrap_argument_scopes",
-        "passed": 14,
+        "phase": "bootstrap_array_float_bits",
+        "passed": 15,
         "failed": 0,
         "total": 236,
         "source": "f1bfdca8c79e4299effd20057114ed2e17072108b4fbe6940847c4b208b6eeb1"
@@ -19832,5 +19841,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T23:11:02.450347+00:00"
+  "updatedAt": "2026-11-07T23:14:16.051112+00:00"
 }
