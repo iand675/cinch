@@ -982,6 +982,22 @@ def build_checklist(root, cfg, previous=None):
         roots = first_round.get('added', {})
         if roots:
             phase += f". Round one requested {len(roots['units'])} functions, {len(roots['dictionaries'])} factories and {len(roots['methods'])} method variants."
+        completed = next((entry for entry in reversed(integrated['rounds']) if len(entry['rows']) == 2), None)
+        if completed:
+            run = Path(cfg['schema10IntegratedLibraryConsumers']).parent / f"round-{completed['round']}"
+            results = []
+            for row in completed['rows']:
+                log = run / row['name'] / 'run.log'
+                if row['selected_cases'] != row['cases'] or not log.is_file() or digest(log) != row['log_sha256']:
+                    continue
+                summary = re.search(r'^test result: .*?\. (\d+) passed; (\d+) failed; 0 ignored; 0 measured; 0 filtered out;',
+                                    log.read_text(), re.MULTILINE)
+                if summary:
+                    passed, failed = map(int, summary.groups())
+                    if passed + failed == row['cases']:
+                        results.append(f"{passed}/{row['cases']} {row['name'].removeprefix('lib_').title()}")
+            if len(results) == 2:
+                phase += f" Round {completed['round']} passed {' and '.join(results)} cases."
         active.append(dict(title='Replay original Foldable and Category with the compiled library',
             status=integrated['status'], phase=phase,
             passed=sum(row['status']=='passed' for row in rows),
@@ -989,10 +1005,13 @@ def build_checklist(root, cfg, previous=None):
             source=integrated['compiler_source_sha256']))
     for key, title, total in (
             ('schema10CombinedArrowRefinement', 'Replay the original higher-kinded and NonEmpty clients', 6),
-            ('schema10CheckedStringWord', 'Run String equality and Foldable against the expanded object', 5)):
+            ('schema10CheckedStringWord', 'Run String equality and Foldable against the expanded object', 5),
+            ('schema10RefinementFormers', 'Replay original clients with checked refinement formers', 6),
+            ('schema10NativeObjectConsumerFixtures', 'Verify both library targets with source-free fixtures on Rust', 2)):
         probe = read(cfg.get(key))
         if probe:
-            rows = [row for row in probe['rows'] if row['name'] != 'build-runtime-object-emitter']
+            rows = [row for row in probe['rows'] if not row['name'].startswith(('build-', 'refinement-type-tests-'))
+                    and row['name'] != 'emit-refinement-object']
             active.append(dict(title=title, status=probe['status'],
                 phase=probe.get('phase') or 'Waiting for the compiler build',
                 passed=sum(row['status']=='passed' for row in rows),
