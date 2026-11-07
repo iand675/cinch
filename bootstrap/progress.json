@@ -11894,9 +11894,9 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 0,
+          "verified": 1,
           "blocked": 2,
-          "running": 1,
+          "running": 0,
           "pending": 102,
           "recheck": 0
         },
@@ -12056,21 +12056,21 @@
           {
             "id": "stage3:bootstrap_anonymous_contracts",
             "title": "bootstrap_anonymous_contracts",
-            "state": "running",
+            "state": "verified",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_anonymous_contracts.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
               "startedAt": "2026-11-07T11:13:06.069920+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T11:28:20.766957+00:00",
+              "exitCode": 0,
+              "logSha256": "d327517f3ec8f437e4f21339e4289188da139ca7977489b6c12c73948681153e",
               "cases": [
                 {
                   "name": "imported_anonymous_results_and_arguments_keep_their_meaning",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -13866,7 +13866,7 @@
         ],
         "observedCounts": {
           "failed": 2,
-          "running": 1,
+          "passed": 1,
           "pending": 102
         },
         "observedSource": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854"
@@ -18034,9 +18034,9 @@
       },
       {
         "title": "Published schema 9 Stage3: all 105 frontend targets",
-        "status": "running",
+        "status": "waiting-disk-space",
         "phase": "bootstrap_anonymous_contracts",
-        "passed": 0,
+        "passed": 1,
         "failed": 2,
         "total": 105,
         "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854"
@@ -18630,16 +18630,6 @@
         "auditPending": false
       },
       {
-        "title": "Earlier Stage3: complete frontend sweep",
-        "status": "running",
-        "phase": "bootstrap_anonymous_contracts",
-        "passed": 0,
-        "failed": 2,
-        "total": 105,
-        "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-        "earlier": true
-      },
-      {
         "title": "Cinch task forwarding: six-case source replay",
         "status": "passed",
         "phase": "Unchanged Tasks program and refusal, unsafe capture, and interface boundary",
@@ -18902,9 +18892,9 @@
       }
     ],
     "counts": {
-      "verified": 176,
+      "verified": 177,
       "blocked": 7,
-      "running": 11,
+      "running": 10,
       "pending": 108,
       "recheck": 372
     },
@@ -18914,5 +18904,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T11:26:23.722171+00:00"
+  "updatedAt": "2026-11-07T11:28:25.732960+00:00"
 }
