@@ -548,7 +548,7 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "Cinch 32abdfb8 rebuilt itself to matching Stage2 and Stage3 and passed the changed-source check. Its original frontend sweep has 19 of 105 targets passing, 3 failed and 83 still running or queued.",
-  "activity": "The newer integrated compiler has completed 3 of four build stages. Its matching fixed-point audit and full test replay are separate checklist requirements.",
+  "activity": "The newer integrated compiler has completed 4 of four build stages. Its matching fixed-point audit and full test replay are separate checklist requirements.",
   "checklist": {
     "version": 1,
     "target": {
@@ -18195,8 +18195,8 @@
       {
         "title": "Integrated compiler: fresh bootstrap",
         "status": "running",
-        "phase": "building stage3",
-        "passed": 3,
+        "phase": "checking fixed point and source change",
+        "passed": 4,
         "failed": 0,
         "total": 4,
         "source": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185",
@@ -18877,5 +18877,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T07:21:26.596520+00:00"
+  "updatedAt": "2026-11-07T07:22:28.629187+00:00"
 }
