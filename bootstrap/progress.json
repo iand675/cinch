@@ -18928,10 +18928,10 @@
       },
       {
         "title": "Cinch: staged generation through the full pipeline",
-        "status": "running",
+        "status": "failed",
         "phase": "bootstrap_pipeline",
         "passed": 0,
-        "failed": 0,
+        "failed": 1,
         "total": 1,
         "source": "4ab4a3dd3dc5018c01125756b25d6431ea746d445ae7510073d7b5d5c0075ff9"
       },
@@ -18946,8 +18946,8 @@
       },
       {
         "title": "Rust: emit definition-owned instance headers",
-        "status": "waiting-worker",
-        "phase": "waiting worker",
+        "status": "failed-baseline",
+        "phase": "reproduce short instance header",
         "passed": 0,
         "failed": 0,
         "total": 2,
@@ -18955,8 +18955,8 @@
       },
       {
         "title": "Cinch: sample class laws over finite constructors",
-        "status": "waiting-worker",
-        "phase": "waiting worker",
+        "status": "running",
+        "phase": "bootstrap_pipeline",
         "passed": 0,
         "failed": 0,
         "total": 1,
@@ -19056,5 +19056,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T10:34:08.355176+00:00"
+  "updatedAt": "2026-11-07T10:37:30.957333+00:00"
 }
