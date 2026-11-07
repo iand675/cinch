@@ -19375,8 +19375,8 @@
       {
         "title": "Current candidate: complete Stage3 frontend sweep",
         "status": "running",
-        "phase": "bootstrap_argument_scopes",
-        "passed": 15,
+        "phase": "bootstrap_array_float_bits",
+        "passed": 16,
         "failed": 3,
         "total": 105,
         "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157"
@@ -19395,5 +19395,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T06:40:01.397161+00:00"
+  "updatedAt": "2026-11-07T06:42:23.748969+00:00"
 }
