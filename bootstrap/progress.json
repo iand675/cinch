@@ -19068,8 +19068,8 @@
       },
       {
         "title": "Match defining names in schema 10 law observations",
-        "status": "waiting-worker",
-        "phase": "Rust and Cinch emitted different law names in the same schema. waiting worker",
+        "status": "waiting-disk-space",
+        "phase": "Rust and Cinch emitted different law names in the same schema. waiting disk space",
         "passed": 0,
         "failed": 0,
         "total": 5,
@@ -19191,5 +19191,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T12:54:27.525282+00:00"
+  "updatedAt": "2026-11-07T12:56:29.804855+00:00"
 }
