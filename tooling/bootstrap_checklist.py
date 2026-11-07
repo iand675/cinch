@@ -985,10 +985,20 @@ def build_checklist(root, cfg, previous=None):
         rows = numeric_audit['rows'] if audited else local_number_scope['rows']
         active.append(dict(title='Preserve numeric inference through local bindings',
             status='passed' if audited else local_number_scope['status'],
-            phase=('The original map-key fixture and both literal checks passed. The complete runtime group remains open.'
+            phase=('The original map-key fixture and both literal checks passed. All six original small_nats runtime tests passed.'
+                   if audited and numeric_audit.get('original_runtime_group', {}).get('status') == 'passed' else
+                   'The original map-key fixture and both literal checks passed. The complete runtime group remains open.'
                    if audited else local_number_scope.get('phase', 'Waiting to rebuild and recheck the original map-key fixture')),
             passed=sum(row['passed'] for row in rows), failed=sum(not row['passed'] for row in rows),
             total=3, source=local_number_scope['compiler_source_sha256'], evidence=link(numeric_path) if audited else None))
+    higher_law = read(cfg.get('schema10HigherKindedLaw'))
+    if higher_law:
+        rows = higher_law['rows']
+        active.append(dict(title='Evaluate the original Const law and two controls',
+            status=higher_law['status'],
+            phase=higher_law.get('phase', 'Waiting to build the Stage1 law sampler and compare the pinned interface'),
+            passed=sum(row['passed'] for row in rows), failed=sum(not row['passed'] for row in rows),
+            total=3, source=higher_law['compiler_source_sha256']))
     byte_repair = read(cfg.get('schema10ByteObservationRepair'))
     if byte_repair:
         status = byte_repair['status']
