@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "196 of 235 complete groups passed; 2 running, 0 failed and 37 pending.Every group includes ignored tests. State: running.",
+      "detail": "197 of 235 complete groups passed; 2 running, 0 failed and 36 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -499,7 +499,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "196 of 235 complete groups passed; 2 running, 0 failed and 37 pending."
+      "detail": "197 of 235 complete groups passed; 2 running, 0 failed and 36 pending."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -803,10 +803,10 @@
         "unit": "targets",
         "total": 235,
         "counts": {
-          "verified": 197,
+          "verified": 198,
           "blocked": 0,
           "running": 2,
-          "pending": 36,
+          "pending": 35,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -2311,21 +2311,21 @@
           {
             "id": "native:bootstrap_nonzero_types",
             "title": "bootstrap_nonzero_types",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_nonzero_types.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "startedAt": "2026-11-07T03:43:54.560322+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T03:46:00.434338+00:00",
+              "exitCode": 0,
+              "logSha256": "03f2a8765dbe41f3d7dc944e780f38e81dd50e40dc2b1b117440b1af2aa40201",
               "cases": [
                 {
                   "name": "structural_nonzero_types_and_core_preserve_scope_and_evidence",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -2334,17 +2334,17 @@
           {
             "id": "native:bootstrap_parse",
             "title": "bootstrap_parse",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_parse.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T20:44:53.764455+00:00",
-              "finishedAt": "2026-11-06T20:45:15.942889+00:00",
-              "exitCode": 0,
-              "logSha256": "74c8cca1206499ac5d3596d5584e11c15a81dbaef94678c3d878d4bbd2041543",
+              "status": "running",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T03:46:00.437139+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "record_syntax_keeps_labels_order_patterns_and_nested_values",
@@ -2352,7 +2352,7 @@
                 },
                 {
                   "name": "the_parser_reads_the_examples_and_agrees_on_the_corpus",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -18821,14 +18821,14 @@
       },
       {
         "title": "Cinch source effects: retain the Blocking label",
-        "status": "running",
+        "status": "passed-task-effect-diagnostic",
         "phase": "bootstrap_source_effects",
-        "passed": 0,
+        "passed": 1,
         "failed": 0,
         "total": 1,
         "source": "18b6c612b00f0cce16e50d645868efd31dcf627d13be8ae7ac7f18b5a947ddf7",
         "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
-        "auditPending": false
+        "auditPending": true
       },
       {
         "title": "Cinch task refusals: runtime-IR suite",
@@ -18843,9 +18843,9 @@
       },
       {
         "title": "Cinch task refusals: retained emitter, runtime setup and whole suite",
-        "status": "waiting-worker",
+        "status": "running",
         "phase": "bootstrap_runtime_ir",
-        "passed": 0,
+        "passed": 2,
         "failed": 0,
         "total": 3,
         "source": "11076882ef69d26134bedbd894c3619d14e1ba6eb082c1d93c314c8e52589b86",
@@ -19007,8 +19007,8 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "bootstrap_nonzero_types",
-        "passed": 196,
+        "phase": "bootstrap_parse",
+        "passed": 197,
         "failed": 0,
         "total": 235,
         "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
@@ -19026,10 +19026,10 @@
       }
     ],
     "counts": {
-      "verified": 451,
+      "verified": 452,
       "blocked": 4,
       "running": 9,
-      "pending": 54,
+      "pending": 53,
       "recheck": 151
     },
     "total": 669,
@@ -19038,5 +19038,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T03:45:11.740152+00:00"
+  "updatedAt": "2026-11-07T03:46:13.525126+00:00"
 }
