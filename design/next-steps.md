@@ -67,6 +67,9 @@ applications. The updated readers and writers are under regression tests.
 The matching pinned library passed its 55-interface audit. All five Rust
 Applicative display signatures match the earlier Cinch output. The complete
 original library-family replay is queued for the matching Stage1.
+The full 105-target Stage3 matrix is split into three groups of 35. Each
+group waits for the same audited Stage3, then takes a shared worker slot
+for one target at a time.
 
 The staged declaration pipeline checked and emitted a generated `Nat` value
 through typed IR. The linked program returned 0 with zero leaks. The unchanged
@@ -75,6 +78,11 @@ All 15 original array cases passed on the Stage1 candidate with staging and
 CopyOut. Fourteen passed in the complete run. The remaining case passed
 on an exact retry after supplying the matching runtime archive. The
 matching Stage3 replay remains open. See [the arrays receipt](../bootstrap/current-stage1-combined-arrays-results.json).
+All 15 original Rust array tests now also pass with a custom Cargo output
+directory. The driver builds the runtime archive in the directory its linker
+reads. The earlier ten archive-lookup failures are preserved in the audit.
+The newer Cinch source-instance run passed the comparison of qualified law
+names and its recursive sampling control. See [the replay results](../bootstrap/current-schema10-arrays-and-law-identity-results.json).
 
 The published Stage3 passed all eight allocation-accounting tests when
 linked with the library object that provides `Data.List.length@T`.

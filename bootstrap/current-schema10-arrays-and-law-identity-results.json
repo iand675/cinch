@@ -1,0 +1,35 @@
+{
+  "checked_at": "2026-11-07T13:36:46.875705+00:00",
+  "full_goal_complete": false,
+  "law_identity_regression": {
+    "compiler_source_sha256": "9df59053b3dc0df7c8af55f7903bd252728427448ae03345b95a6b120efc584a",
+    "earlier_interruption_log_sha256": "59daee84adfecdb3c1212b00e12afe77d942458cc26b45345b970ab1a8bf52ab",
+    "native_source_sha256": "196c5940e068a268870140ac2cb482421dcf0d8c00a5272d87774720b9781268",
+    "only_one_completed_test_in_this_receipt": true,
+    "status": "passed",
+    "target": "bootstrap_source_instances",
+    "test": "source_class_defaults_are_checked_at_the_owner_and_inherited_with_closed_contracts",
+    "test_log_excerpt_sha256": "85516300f52629f62f018efeea47a9faf0436cc638558215195dba5fa2fc9b2e",
+    "test_source_sha256": "83fc3f08176a127fc42daaf9a025bff7e96658f821430e736a99153500685e5b"
+  },
+  "original_arrays": {
+    "compiler_source_sha256": "309a4f696ed5072050009e59562deabb2fc205731e47655662d1d8d69cd2d020",
+    "failed": 0,
+    "filtered": 0,
+    "ignored": 0,
+    "log_sha256": "541ed6c080d8722fe934f361ee20f9bf4089ec7f4c5119520f351a81da93598f",
+    "native_source_sha256": "9022a54f85312db671f7ee14a89a7aa9b6dfcfa7c54010b6f304016ff3401f57",
+    "passed": 15,
+    "prior_candidate": {
+      "all_failures": "runtime archive lookup",
+      "compiler_source_sha256": "fd96d8d21894bdb3d578caeddcbff3f48b5bd54867f541634f5121e92efc0f00",
+      "failed": 10,
+      "log_sha256": "de894401100fa164a1ec36c8ef7d8c299ebabc555ed9778ec1efab1b660e2b4f",
+      "native_source_sha256": "819f8f2da5159c1f653494475c0ba629609b255c15679d4b562d068411f8df04",
+      "passed": 5
+    },
+    "runtime_debug_archive_sha256": "febe9afad1a8258ac0c859b49a073220a85575dc436f7942fd58e31370c2c7fb",
+    "used_custom_cargo_target": true
+  },
+  "status": "audited-schema10-original-arrays-and-law-identity-case"
+}

@@ -795,6 +795,33 @@ def build_checklist(root, cfg, previous=None):
         active.append(dict(title='Run all 34 original language examples with schema 10 Stage3', status=status,
             phase=status.replace('-', ' '), passed=34 if status == 'passed' else None,
             failed=0 if status == 'passed' else None, total=34, source=language['compiler_source_sha256']))
+    arrays_audit_path = 'bootstrap/current-schema10-arrays-and-law-identity-results.json'
+    arrays_audit = read(root/arrays_audit_path).get('original_arrays', {})
+    if arrays_audit.get('passed') == 15:
+        active.append(dict(title='Replay the original arrays with a custom Cargo output directory', status='passed',
+            phase='All 15 original tests passed with the runtime archive placed where the linker reads it.',
+            passed=15, failed=0, total=15, source=arrays_audit['compiler_source_sha256'], evidence=link(arrays_audit_path)))
+    strict_shards = [read(path) for path in cfg.get('schema10StrictFrontendShards', [])]
+    if strict_shards and all(shard.get('assigned_targets') for shard in strict_shards):
+        assignments = [name for shard in strict_shards for name in shard['assigned_targets']]
+        sources = {shard['compiler_source_sha256'] for shard in strict_shards}
+        scope = read(root/'bootstrap/current-frontend-acceptance-scope.json')
+        required = set(scope.get('original_targets', [])) | set(scope.get('new_targets_beyond_original', []))
+        if len(sources) == 1 and len(assignments) == len(required) == 105 and set(assignments) == required:
+            rows = [row for shard in strict_shards for row in shard.get('rows', [])]
+            passed = sum(row.get('status') == 'passed' for row in rows)
+            failed = sum(row.get('status') == 'failed' for row in rows)
+            if passed == 105:
+                status = 'passed'
+            elif any(shard['status'].startswith('failed') for shard in strict_shards):
+                status = 'failed-prerequisite'
+            elif passed + failed == 105:
+                status = 'completed-with-failures'
+            else:
+                status = 'running' if rows else 'waiting-stage3-audit'
+            active.append(dict(title='Run the full original 105-target Stage3 frontend matrix', status=status,
+                phase=f'{len(strict_shards)} disjoint runs share the same audited compiler and provider.',
+                passed=passed, failed=failed, total=105, source=next(iter(sources))))
     if combined_arrays:
         active.append(dict(title='Schema 9 Stage1: original arrays with staging and CopyOut', status='passed',
             phase='Fourteen tests passed in the full run and the remaining test passed with the matching runtime archive',
