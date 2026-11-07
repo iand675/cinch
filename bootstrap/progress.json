@@ -19334,7 +19334,7 @@
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-executable-source-copy-results.json"
       },
       {
-        "title": "Check source rebuilds that depend on facade exports",
+        "title": "Check explicit source rebuilds that depend on facade exports",
         "status": "completed-overlays-with-failures",
         "phase": "original-algebra",
         "passed": 4,
@@ -19349,6 +19349,27 @@
         "passed": 1,
         "failed": 0,
         "total": 1
+      },
+      {
+        "title": "Verify the pinned library with corrected higher-kinded contracts",
+        "status": "passed",
+        "phase": "The original List-to-Option probe now resolves the declaring class. The earlier Stage3 still refuses its runtime representation.",
+        "passed": 55,
+        "failed": 0,
+        "total": 55,
+        "unit": "interfaces",
+        "source": "ca7a6231fa497ca0c6b016fed5aaefc0d9ecb32fa3c41b10617e944ed8af1009",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-scoped-member-kind-provider-results.json"
+      },
+      {
+        "title": "Replay original Foldable and Category with the compiled library",
+        "status": "running",
+        "phase": "build all 46 integrated compiler modules and smoke-test Stage1",
+        "passed": 0,
+        "failed": 0,
+        "total": 2,
+        "unit": "original test targets",
+        "source": "12ad4294369122399c47d9c40ada62259b507ff23e1c34dcb4aacc7ba812dc73"
       },
       {
         "title": "Run the original library clients with concrete representations",
@@ -19730,8 +19751,8 @@
       },
       {
         "title": "Bootstrap the quantified-law compiler with the expanded library",
-        "status": "checking-fixed-point-and-source-change",
-        "phase": "checking fixed point and source change",
+        "status": "passed-chain-awaiting-independent-audit",
+        "phase": "passed chain awaiting independent audit",
         "passed": 4,
         "failed": 0,
         "total": 4,
@@ -19749,8 +19770,8 @@
       {
         "title": "Rerun the full Native suite after the clean-build fix",
         "status": "running",
-        "phase": "bootstrap_pipeline",
-        "passed": 4,
+        "phase": "arrays",
+        "passed": 9,
         "failed": 0,
         "total": 236,
         "source": "f1bfdca8c79e4299effd20057114ed2e17072108b4fbe6940847c4b208b6eeb1"
@@ -19769,5 +19790,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T22:22:30.247611+00:00"
+  "updatedAt": "2026-11-07T22:31:57.422358+00:00"
 }
