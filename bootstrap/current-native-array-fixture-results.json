@@ -1,0 +1,27 @@
+{
+  "binary_sha256": "2a45322d7710621c423632233b77c8d76d37aef8094bdc7e70c4a42349db3bae",
+  "compiler_source_sha256": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+  "full_goal_complete": false,
+  "initial_missing_runtime_fixture_failure_preserved": true,
+  "native_source_sha256": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+  "original_tests_and_assertions_retained": true,
+  "runs": [
+    {
+      "log_sha256": "f1e37c65d46d6b9b792ed5edcfdc6ac4ba283f4070f95c6e28f51f851d93630e",
+      "name": "arrays",
+      "tests": 15
+    }
+  ],
+  "runtime_archive_hashes_at_followup_finish": {
+    "debug": "3da205a94e7c07fd96e0fa4179598e2370656e2eea1608ab4e04884560a91a83",
+    "release": "c7377fc2bd67ff1026065e7d88c8d4707da6f377b6df02a8e15dfa7445e52f1e"
+  },
+  "runtime_archives_are_shared_mutable_build_cache": true,
+  "rust_tests": 15,
+  "scope": "All15 unchanged original array tests pass with the same exact test binary after building the missing same-source debug/release runtime fixtures under this snapshot. The initial14/15 result failed its archive-exists setup assertion because the optimized Native library has another compiled manifest root. No language/compiler source, expected outcome or original assertion changed; both raw runs remain retained. Runtime target archives are shared rebuildable caches, not frozen acceptance artifacts; source inputs and the executed test binary remain byte-verified. This is current Native8ba8/Cinch3268 test-host evidence, not final self-built Stage3 ownership/copyOut/staging acceptance.",
+  "source": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/full-native-61/source",
+  "source_sha256": "daa0a68d31c5227fe8206af89deb9b71c22be202ee7233714d232e9794edafb4",
+  "status": "audited-complete-original-array-target-after-runtime-fixture-repair",
+  "verified_at": "2026-11-07T00:18:17.051471+00:00",
+  "whole_groups": 1
+}
