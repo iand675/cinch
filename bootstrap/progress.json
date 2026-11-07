@@ -18726,14 +18726,14 @@
       },
       {
         "title": "Diagnostic byte scan: large-bundle control and full pipeline",
-        "status": "running",
+        "status": "passed-source-origin-byte-scan",
         "phase": "bootstrap_pipeline",
-        "passed": 1,
+        "passed": 2,
         "failed": 0,
         "total": 2,
         "source": "03d1790a4b4d9e1d1bcd0b702ff3cab7c04b9da865de2d84f696886d6da38d18",
         "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
-        "auditPending": false
+        "auditPending": true
       },
       {
         "title": "Diagnostic byte scan: earlier run with stale FFI expectation",
@@ -18965,5 +18965,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T03:29:16.559656+00:00"
+  "updatedAt": "2026-11-07T03:30:38.810013+00:00"
 }
