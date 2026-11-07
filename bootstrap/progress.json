@@ -18683,8 +18683,8 @@
       {
         "title": "Cinch partial Boolean implications: complete groups",
         "status": "running",
-        "phase": "bootstrap_source_instances",
-        "passed": 7,
+        "phase": "bootstrap_named_refinements",
+        "passed": 8,
         "failed": 0,
         "total": 9,
         "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
@@ -18965,5 +18965,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T03:23:11.743533+00:00"
+  "updatedAt": "2026-11-07T03:28:14.351450+00:00"
 }
