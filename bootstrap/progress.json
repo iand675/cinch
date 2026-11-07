@@ -19334,16 +19334,16 @@
       },
       {
         "title": "Run Foldable as a client of the compiled library",
-        "status": "running",
+        "status": "passed-stage3",
         "phase": "The fixture writes only Main.cinch and retains all 16 cases. The replay uses the audited Stage3 and pinned library interfaces and object.",
-        "passed": 0,
+        "passed": 1,
         "failed": 0,
         "total": 1
       },
       {
         "title": "Build and test the missing library specializations",
-        "status": "waiting-consumer-demands",
-        "phase": "Waiting for checked Foldable and Function.Combinators requests",
+        "status": "running",
+        "phase": "lib_function_ord",
         "passed": 0,
         "failed": 0,
         "total": 2
@@ -19709,5 +19709,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T19:13:45.032995+00:00"
+  "updatedAt": "2026-11-07T19:14:46.953070+00:00"
 }
