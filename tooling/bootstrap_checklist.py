@@ -86,10 +86,17 @@ def build_checklist(root, cfg, previous=None):
     compiler = read(cfg.get('publishedRustInputs')).get('compiler_source_sha256')
     native = cfg.get('publishedNativeSource')
     full = read(cfg['native'])
-    front = read(cfg['selected'])
+    front_path = cfg['selected']
+    current_front = read(cfg.get('currentStage3FrontendValidation'))
+    if current_front.get('compiler_source_sha256') and current_front.get('rows'):
+        front_path = cfg['currentStage3FrontendValidation']
+    front = read(front_path)
     scope = read(cfg['coverage'])
     outside_review = read(root/'bootstrap/current-outside-frontend-target-review.json')
     chain = read(Path(cfg['chain'])/'independent-verification.json')
+    newer_chain = read(root/'bootstrap/current-partial-boolean-chain-results.json')
+    if chain.get('compiler_source_sha256') != compiler and newer_chain.get('status') == 'passed-bootstrap-chain-only':
+        chain = newer_chain
     earlier_full = read(cfg.get('previousNative')) or full
     earlier_native = {r['name']: r for r in earlier_full.get('rows', [])}
     old_native = {r['name']: r for r in full.get('rows', [])}
@@ -145,12 +152,13 @@ def build_checklist(root, cfg, previous=None):
     front_rows = []
     for name in front_names:
         old = old_front.get(name)
-        same = front.get('compiler_source_sha256') == compiler
+        same = (front.get('compiler_source_sha256') == compiler
+                and front.get('native_source_sha256') == native)
         state = {'passed':'verified', 'failed':'blocked', 'running':'running'}.get(old.get('status'), 'pending') if same and old else 'recheck' if old and old.get('status') != 'pending' else 'pending'
         front_rows.append(item('stage3:'+name, name, state,
             'Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.',
             'Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.',
-            link('compiler/tests/'+name+'.rs'), observed=observed(old, front.get('compiler_source_sha256'), Path(cfg['selected']).parent),
+            link('compiler/tests/'+name+'.rs'), observed=observed(old, front.get('compiler_source_sha256'), Path(front_path).parent),
             category='interface / API' if name in scope['interface_api_targets'] else 'portable behavior'))
 
     suites = [suite('native', 'Rust compiler suite', 'targets', native_rows,
@@ -305,6 +313,9 @@ def build_checklist(root, cfg, previous=None):
     latest_chain=read(cfg.get('partialBooleanBootstrapChain'))
     stage3_failures_current=bool(stage3_failures) and stage3_failures.get('compiler_source_sha256') == latest_chain.get('compiler_source_sha256')
     default_detail='Latest75fb passes all seven complete default/dependent component groups (nine tests), all nine full compiler/object tests and both original strict-value runtime/build tests. Original API/default replay:16/21 tests pass; source-Prelude, three diagnostic assertions and the refinement runtime client remain failures. Imported checked default transport and matching final bootstrap remain required.'
+    projection = read(cfg.get('structuralProjectionCases'))
+    copyout = read(cfg.get('copyoutValidation'))
+    laws = read(cfg.get('classLawObservationValidation'))
     gaps=[
         item('gap:prelude','Replace source copies of library modules safely','blocked' if stage3_failures_current or 'interface_prelude_overrides' in failed_api else 'pending',
              'Exact candidate Stage3 refuses the original Data.Core source as a conflicting loaded interface. Development Data.Core emits the matching contract. Ordering, Category and Algebra still need their original replacement checks.' if stage3_failures_current else 'Data.Core emits the matching contract. Data.Ordering stops at the imported mconcat default. Category rejects the class laws and structural function instance. Algebra now resolves Nil, None, Cons and Some and stops at the class law.' if early_base else 'The development pipeline checks each original source family separately. Data.Core emits the matching contract. Data.Ordering stops at the imported mconcat default. Category rejects the class laws and structural function instance. Algebra rejects the class law and cannot resolve Nil, None, Cons or Some.' if source_overlay else 'The current interface/API run fails when source Data.Core is supplied alongside its cached interface. All four original families remain required.',
@@ -329,7 +340,8 @@ def build_checklist(root, cfg, previous=None):
         item('gap:default-refinement','Preserve refinement carriers in the original default runtime program','running' if read(cfg.get('refinementContainerValidation')) else 'blocked',
              'With the two test-provider factories, the development compiler passes all seven original class-default tests. The original mconcat program also passes at 32 MiB with poisoning and zero leaks. Replay through final Stage3 remains.' if function_defaults.get('default_tests_passed') == 7 else 'The development compiler checks the original mconcat program. The replay needs a test library object with both checked function dictionary factories.',
              'The original function carrier, refined product and unit cases compile and execute their expected results through final Stage3.',link('bootstrap/current-function-default-api-results.json' if function_defaults else 'bootstrap/current-source-class-default-self-values-api-results.json')),
-        item('gap:imported-defaults','Transport checked imported default implementations','pending','A default hash alone does not provide the checked implementation required by an inheriting source instance.',
+        item('gap:imported-defaults','Transport checked imported default implementations','running' if cfg.get('portableDefaultWork') else 'pending',
+             'The original Ordering bundle cannot inherit mconcat from the pinned Monoid interface. Its default hash authenticates a body but carries no implementation. Owner-scoped body transport and fresh typechecking are in development.',
              'Inherited imported defaults retain owner scope, private closure, actual method contracts and compiled behavior; missing or stale contracts refuse.',link('design/compiled-interface-metadata.md')),
         item('gap:laws','Elaborate source class laws and declarations','running','The full syntax and pipeline tests pass. The checker verifies one carrier for both law operands and refuses incompatible types. The Boolean sampler follows the actual checked instance fields. A lawful instance passes both assignments, and a faulty implementation is rejected by name. Other carriers and checked law transport remain open. Category also needs the structural Functor_Function instance.',
              'Retain and check the original class laws and namespace declarations; pass all original family and law assertions.',link('bootstrap/current-source-class-law-instance-samples-results.json')),
@@ -361,6 +373,9 @@ def build_checklist(root, cfg, previous=None):
              f"{outside_review.get('target_level_reviews', 0)} have a target-level review and "
              f"{len(outside_review.get('unreviewed_targets', []))} still need one. The original law, prim and concurrency source checks remain required.",
              'Review all remaining targets and assertions, retain direct Rust API roles explicitly, and add every missing portable behavior case to final Stage3 execution.',link('bootstrap/current-outside-frontend-target-review.json')),
+        item('gap:structural-projection','Replay anonymous refinement contracts','running' if projection.get('status') == 'running' else 'recheck',
+             'The original sweep stops on an implicit projection from a structural refinement. Both compilers refuse that expression and accept explicit unrefine. The full replay includes both controls and retains the stronger-predicate refusal.',
+             'The complete anonymous-contract target passes through matching Stage3, including explicit projection and the exact refusal reasons.',link('compiler/tests/bootstrap_anonymous_contracts.rs')),
         item('gap:final-audit','Complete the requirement-by-requirement final audit','pending','A green subset, source check or earlier fixed point cannot close the full goal.',
              'Every acceptance item, named artifact, invariant and complete matching suite has direct current evidence; all failures and unclassified coverage are closed.',link('design/self-hosting.md#acceptance'))]
 
@@ -505,8 +520,8 @@ def build_checklist(root, cfg, previous=None):
         state=integrated_chain.get('status','')
         completed=sum(row['status']=='passed' for row in integrated_chain.get('stages',[]))
         finished=state.startswith('passed')
-        active.append(dict(title='Integrated compiler: fresh bootstrap', status='running' if state.startswith(('building-', 'checking-')) else state,
-            phase=f"{completed}/4 stages. "+state.replace('-', ' '), passed=int(finished), failed=int(state.startswith('failed')), total=1,
+        active.insert(0, dict(title='Integrated compiler: fresh bootstrap', status='running' if state.startswith(('building-', 'checking-')) else state,
+            phase=state.replace('-', ' '), passed=completed, failed=int(state.startswith('failed')), total=4,
             source=integrated_chain.get('compiler_source_sha256'), auditPending=finished))
 
     if cinch_forwarder.get('status') == 'verified-task-forwarder-six-case-development-replay':
@@ -535,11 +550,21 @@ def build_checklist(root, cfg, previous=None):
     if candidate_frontend:
         rows = candidate_frontend.get('rows', [])
         status = candidate_frontend.get('status')
-        active.append(dict(title='Current candidate: complete Stage3 frontend sweep', status=status,
+        active.insert(1, dict(title='Earlier self-built Stage3: complete frontend sweep', status=status,
             phase=candidate_frontend.get('phase') or ('Waiting for independent Stage3 audit' if status == 'waiting-matching-stage3-audit' else None),
             passed=sum(r.get('status') == 'passed' for r in rows),
             failed=sum(r.get('status') == 'failed' for r in rows),
             total=candidate_frontend['total_groups'], source=candidate_frontend.get('compiler_source_sha256')))
+
+    for title, run, total in (
+        ('Cinch copyOut: pipeline and runtime IR', copyout, 2),
+        ('Cinch class-law samples and counterexamples', laws, 2),
+    ):
+        if run:
+            rows = [r for r in run.get('rows', []) if not r['name'].startswith('compile-')]
+            active.append(dict(title=title, status=run['status'], phase=run.get('phase') or run['status'].replace('-', ' '),
+                passed=sum(r['status'] == 'passed' for r in rows), failed=sum(r['status'] == 'failed' for r in rows),
+                total=total, source=run.get('compiler_source_sha256')))
 
     all_rows=acceptance+gaps+[r for s in suites for r in s['items']]
     assert len({r['id']for r in all_rows})==len(all_rows)
