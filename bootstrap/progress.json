@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "126 of 235 complete groups passed; 2 running, 0 failed and 107 pending.Every group includes ignored tests. State: running.",
+      "detail": "129 of 235 complete groups passed; 2 running, 0 failed and 104 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -494,7 +494,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "126 of 235 complete groups passed; 2 running, 0 failed and 107 pending."
+      "detail": "129 of 235 complete groups passed; 2 running, 0 failed and 104 pending."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -790,10 +790,10 @@
         "unit": "targets",
         "total": 235,
         "counts": {
-          "verified": 130,
+          "verified": 133,
           "blocked": 0,
           "running": 2,
-          "pending": 103,
+          "pending": 100,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -10210,17 +10210,17 @@
           {
             "id": "native:surface",
             "title": "surface",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/surface.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "startedAt": "2026-11-07T00:38:02.956639+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T00:39:00.168572+00:00",
+              "exitCode": 0,
+              "logSha256": "f82f668d737b1943dbae59f561022b7d2847a248bdd2424d57330ff52c0f653c",
               "cases": [
                 {
                   "name": "bytes_literal_folding_preserves_unsigned_byte_boundaries",
@@ -10248,7 +10248,55 @@
                 },
                 {
                   "name": "generalized_empty_collection_dictionaries_keep_each_uses_element_type",
-                  "status": "running"
+                  "status": "passed"
+                },
+                {
+                  "name": "import_alias_hides_bare_names_and_renames_the_qualifier",
+                  "status": "passed"
+                },
+                {
+                  "name": "json_decodes_a_declared_record_type",
+                  "status": "passed"
+                },
+                {
+                  "name": "json_txt_and_bytes_converters_bind_and_record_provenance",
+                  "status": "passed"
+                },
+                {
+                  "name": "list_literal_folds_to_a_constant_and_a_runtime_call_stays",
+                  "status": "passed"
+                },
+                {
+                  "name": "map_literal_defaults_and_wrong_instance_are_reported",
+                  "status": "passed"
+                },
+                {
+                  "name": "map_literal_keys_and_values_resolve_infix_chains",
+                  "status": "passed"
+                },
+                {
+                  "name": "member_selection_renames_and_hides_the_unselected",
+                  "status": "passed"
+                },
+                {
+                  "name": "named_re_export_is_reachable_by_its_exported_name",
+                  "status": "passed"
+                },
+                {
+                  "name": "range_literal_folds_when_stage_known",
+                  "status": "passed"
+                },
+                {
+                  "name": "range_literals_desugar_through_the_enum_class",
+                  "status": "passed"
+                },
+                {
+                  "name": "range_without_an_enum_instance_is_reported",
+                  "status": "passed"
+                },
+                {
+                  "name": "typed_json_f32_rounds_once_at_the_target_precision",
+                  "status": "passed"
                 }
               ]
             },
@@ -10257,17 +10305,17 @@
           {
             "id": "native:sym",
             "title": "sym",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/sym.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "startedAt": "2026-11-07T00:38:11.778777+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T00:38:29.067731+00:00",
+              "exitCode": 0,
+              "logSha256": "2f1a5ac417b8832cf14e260ae88dff780972d1d5c895fc0f1e1723ff88fcbfc6",
               "cases": [
                 {
                   "name": "a_symbol_literal_is_emitted_as_a_constant",
@@ -10287,7 +10335,27 @@
                 },
                 {
                   "name": "literal_patterns_dispatch_by_identity",
-                  "status": "running"
+                  "status": "passed"
+                },
+                {
+                  "name": "name_quotes_outside_their_positions_are_refused",
+                  "status": "passed"
+                },
+                {
+                  "name": "ord_is_lexicographic_by_name_and_deterministic_across_runs",
+                  "status": "passed"
+                },
+                {
+                  "name": "sym_has_no_c_counterpart",
+                  "status": "passed"
+                },
+                {
+                  "name": "sym_literals_are_constants_with_identity_eq",
+                  "status": "passed"
+                },
+                {
+                  "name": "tick_name_quotes_reify_in_macro_positions",
+                  "status": "passed"
                 }
               ]
             },
@@ -10296,17 +10364,17 @@
           {
             "id": "native:syntax_choreography",
             "title": "syntax_choreography",
-            "state": "pending",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/syntax_choreography.rs",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:34:09.738701+00:00",
-              "finishedAt": "2026-11-06T14:34:36.899053+00:00",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T00:38:29.070213+00:00",
+              "finishedAt": "2026-11-07T00:38:58.236296+00:00",
               "exitCode": 0,
-              "logSha256": "f01decf5be90d234cec1e6cd8ca5725bff620ecbd50ffb03135dd0f6ba0c5aa0",
+              "logSha256": "4f6a937b3302fa463514376fd8a97a9d17727213ca2f13fdb0c259b66c2c3e91",
               "cases": [
                 {
                   "name": "definition_site_wire_helpers_survive_a_caller_alias_decoy",
@@ -10347,17 +10415,17 @@
           {
             "id": "native:syntax_declaration_composition",
             "title": "syntax_declaration_composition",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/syntax_declaration_composition.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:34:36.907788+00:00",
-              "finishedAt": "2026-11-06T14:34:59.842013+00:00",
-              "exitCode": 0,
-              "logSha256": "ae214411261a76fbe0834b211209b987a86ac06fa5e756bc611a099fd778ad79",
+              "status": "running",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T00:38:58.238690+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "captured_type_constructors_specialize_higher_kinded_slots_under_forall",
@@ -10405,7 +10473,7 @@
                 },
                 {
                   "name": "syntax_sequence_readers_preserve_lexical_captures_and_nested_delimiters",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -10414,17 +10482,17 @@
           {
             "id": "native:syntax_declaration_groups",
             "title": "syntax_declaration_groups",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/syntax_declaration_groups.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:34:59.852240+00:00",
-              "finishedAt": "2026-11-06T14:35:26.065163+00:00",
-              "exitCode": 0,
-              "logSha256": "aa576eb1424f611a1cef35e28e9790800bb1221a5ddb80088ede7951b7819e9d",
+              "status": "running",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T00:39:00.170904+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "binary_format_is_a_native_group_with_definition_helpers_and_source_operands",
@@ -10464,11 +10532,7 @@
                 },
                 {
                   "name": "one_native_group_can_be_instantiated_twice_without_retargeting_the_first",
-                  "status": "passed"
-                },
-                {
-                  "name": "stage_body_macro_calls_share_nullary_and_unary_empty_argument_rules",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -18419,8 +18483,8 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "sym",
-        "passed": 126,
+        "phase": "syntax_declaration_groups",
+        "passed": 129,
         "failed": 0,
         "total": 235,
         "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
@@ -18438,10 +18502,10 @@
       }
     ],
     "counts": {
-      "verified": 302,
+      "verified": 305,
       "blocked": 4,
       "running": 7,
-      "pending": 140,
+      "pending": 137,
       "recheck": 214
     },
     "total": 667,
@@ -18450,5 +18514,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T00:38:18.551356+00:00"
+  "updatedAt": "2026-11-07T00:39:20.790199+00:00"
 }
