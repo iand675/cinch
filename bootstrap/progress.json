@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "87 of 235 complete groups passed; 1 running, 0 failed and 147 pending.Every group includes ignored tests. State: running.",
+      "detail": "89 of 235 complete groups passed; 1 running, 0 failed and 145 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -494,7 +494,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "87 of 235 complete groups passed; 1 running, 0 failed and 147 pending."
+      "detail": "89 of 235 complete groups passed; 1 running, 0 failed and 145 pending."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -790,10 +790,10 @@
         "unit": "targets",
         "total": 235,
         "counts": {
-          "verified": 96,
+          "verified": 98,
           "blocked": 0,
           "running": 1,
-          "pending": 138,
+          "pending": 136,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -7856,17 +7856,17 @@
           {
             "id": "native:modules",
             "title": "modules",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/modules.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "startedAt": "2026-11-07T00:21:23.017266+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T00:21:41.958300+00:00",
+              "exitCode": 0,
+              "logSha256": "2fbe9c7e52a7232b229b58a26b1e054b8f7bd70d270c387b37a8441f77c56bfb",
               "cases": [
                 {
                   "name": "a_failure_in_a_sibling_module_names_its_file",
@@ -7914,7 +7914,7 @@
                 },
                 {
                   "name": "multi_module_file_links_and_runs",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -7923,17 +7923,17 @@
           {
             "id": "native:native_closure_checks",
             "title": "native_closure_checks",
-            "state": "pending",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/native_closure_checks.rs",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:15:20.514339+00:00",
-              "finishedAt": "2026-11-06T14:16:02.355452+00:00",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T00:21:41.960380+00:00",
+              "finishedAt": "2026-11-07T00:22:19.186321+00:00",
               "exitCode": 0,
-              "logSha256": "1f6ae12359b2b9ce6292916c70dc06c929f5504937e7a7ae285ea6a2e416b194",
+              "logSha256": "a954a18c78b02491483eca32469407c5a3b4967d325ff36a2063f4565ece4440",
               "cases": [
                 {
                   "name": "returned_functions_and_lambda_patterns_check_execute_and_reclaim",
@@ -7946,29 +7946,21 @@
           {
             "id": "native:native_dictionary_checks",
             "title": "native_dictionary_checks",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/native_dictionary_checks.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:16:02.366718+00:00",
-              "finishedAt": "2026-11-06T14:17:10.100985+00:00",
-              "exitCode": 0,
-              "logSha256": "ff57a2249670a70ada6a09d0e00a57e505fc86707bade84a95f1c20b92460833",
+              "status": "running",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T00:22:19.188486+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "dictionaries_use_actual_factories_and_reclaim_value_slots",
-                  "status": "passed"
-                },
-                {
-                  "name": "incremental_sessions_keep_captured_dictionary_values_current",
-                  "status": "passed"
-                },
-                {
-                  "name": "self_values_initialize_once_and_survive_escaping_methods",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -18453,8 +18445,8 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "modules",
-        "passed": 87,
+        "phase": "native_dictionary_checks",
+        "passed": 89,
         "failed": 0,
         "total": 235,
         "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
@@ -18472,10 +18464,10 @@
       }
     ],
     "counts": {
-      "verified": 268,
+      "verified": 270,
       "blocked": 4,
       "running": 6,
-      "pending": 177,
+      "pending": 175,
       "recheck": 212
     },
     "total": 667,
@@ -18484,5 +18476,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T00:21:41.425810+00:00"
+  "updatedAt": "2026-11-07T00:22:44.153201+00:00"
 }
