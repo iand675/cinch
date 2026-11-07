@@ -662,18 +662,18 @@
       {
         "id": "gap:default-diagnostics",
         "title": "Preserve original class/default diagnostic details and source files",
-        "state": "blocked",
-        "detail": "Three original refusal tests still need their exact names and source-file assertions proved. Private7ccd now retains the instance name and declaration span and the undeclared method owner; The first renderer candidate failed on a reserved parameter name; corrected14a8 appends actual file/local-line labels already supplied by project bundles and passes all seven renderer controls. The failed run is preserved. The7ccd complete source-instance and resolver groups now pass independent audit (four Rust tests, all16 default controls, exact name and declaration-line assertions). Seven renderer controls pass. The first whole pipeline rerun inherited two obsolete FFI diagnostic assertions already corrected in publishedfa405; the third run retains that published correction, the positive ABI control and every refusal source. Native accepts all44 source modules. Earlier self-built4f refuses the new helper with one subtraction-precondition and two coverage diagnostics; cut-down probes are queued. The latest compiler still needs its own source check, whole renderer groups and original API filename assertions.",
+        "state": "running",
+        "detail": "All three original name/source-file assertions now pass in the audited14a8 replay: defaults6/7 and combined API/default19/21. The unchanged source-library replacement and mconcat refinement program still fail. Complete matching self-built verification and promotion remain; the earlier4f source-admission failures are retained separately.",
         "doneWhen": "Every original diagnostic and filename assertion passes with accurate attribution to the defining source; semantic rejection alone grants no pass.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-source-class-default-self-values-api-results.json"
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-source-origin-api-results.json"
       },
       {
         "id": "gap:boolean-implications",
         "title": "Retain valid facts from either short-circuit operand",
         "state": "running",
-        "detail": "A true opaque && ordered condition must retain ordered; a false opaque || unordered condition must retain not unordered. Core currently retains only a readable test operand when the entire condition is opaque. Candidate32ab combines sound selected-branch implications without changing exact condition readings. Nine positive/negative controls and nine complete groups are queued; the wrong branch and scope escape must still refuse.",
+        "detail": "A true opaque && ordered condition must retain ordered; a false opaque || unordered condition must retain not unordered. Core currently retains only a readable test operand when the entire condition is opaque. Candidate32ab combines sound selected-branch implications without changing exact condition readings. The first new fixtures used reserved opaque as a parameter; their parser failures are preserved and grant no semantic rejection credit. Corrected flag fixtures and nine complete groups are queued; the wrong branch and scope escape must still refuse.",
         "doneWhen": "Run the original precondition, Boolean, Core and refinement groups, preserve all negative controls, and prove the repaired compiler reads its own44 source modules and freshly bootstraps.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-partial-boolean-branch-development.json"
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-partial-boolean-branch-development-2.json"
       },
       {
         "id": "gap:inferred-case-coverage",
@@ -783,9 +783,9 @@
         "id": "gap:coverage",
         "title": "Audit every frontend-facing test outside the Stage3 matrix",
         "state": "pending",
-        "detail": "130 Rust targets are outside the preserved105-target Stage3 matrix. Direct API assertions require classification; portable source cases require matching frontend coverage.",
+        "detail": "130 Rust targets are outside the preserved105-target Stage3 matrix. Ten target-level reviews identify two Native harness roles and eight source/mixed targets needing complementary Cinch coverage;120 targets and per-assertion work remain. A whole original two-test fixity replay is queued through development2866 with only dispatch changed.",
         "doneWhen": "Review all remaining targets and assertions, retain direct Rust API roles explicitly, and add every missing portable behavior case to final Stage3 execution.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/external-coverage-inventory.json"
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-outside-frontend-target-review.json"
       },
       {
         "id": "gap:final-audit",
@@ -18549,19 +18549,8 @@
         "auditPending": false
       },
       {
-        "title": "Cinch partial Boolean implications: complete groups",
-        "status": "failed",
-        "phase": "native-control-prerequisite",
-        "passed": 0,
-        "failed": 0,
-        "total": 9,
-        "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
-        "nativeSource": null,
-        "auditPending": false
-      },
-      {
         "title": "Core branch repair: complete Native44 source check",
-        "status": "failed",
+        "status": "waiting-complete-function-precondition-group",
         "phase": null,
         "passed": 0,
         "failed": 0,
@@ -18579,6 +18568,17 @@
         "total": 1,
         "source": "14a889472c7bf47867414410bba2b91bc059a77df5b20e7105eb7274e3cff134",
         "nativeSource": null,
+        "auditPending": false
+      },
+      {
+        "title": "Additional original fixity tests: actual Cinch frontend",
+        "status": "waiting-worker",
+        "phase": null,
+        "passed": 0,
+        "failed": 0,
+        "total": 1,
+        "source": "286613ea3571aebd6747def34f7a8f9d8af0c84c78e5fee82f9ca65ff90fe7e1",
+        "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
         "auditPending": false
       },
       {
@@ -18714,8 +18714,8 @@
     ],
     "counts": {
       "verified": 426,
-      "blocked": 4,
-      "running": 7,
+      "blocked": 3,
+      "running": 8,
       "pending": 92,
       "recheck": 139
     },
@@ -18725,5 +18725,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T02:10:27.871552+00:00"
+  "updatedAt": "2026-11-07T02:12:38.205779+00:00"
 }
