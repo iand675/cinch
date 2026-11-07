@@ -547,7 +547,7 @@
   "candidateSource": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
   "candidatePublished": true,
   "fullGoalComplete": false,
-  "summary": "Cinch 5bf127d9 rebuilt itself to matching Stage2 and Stage3 and passed the changed-source check. Its original frontend sweep has 18 of 105 targets passing, 3 failed and 84 still running or queued.",
+  "summary": "Cinch 5bf127d9 rebuilt itself to matching Stage2 and Stage3 and passed the changed-source check. Its original frontend sweep has 19 of 105 targets passing, 3 failed and 83 still running or queued.",
   "activity": "The independently audited integrated build is running all 105 frontend targets. Open the test inventory for live failures and the repairs being replayed.",
   "checklist": {
     "version": 1,
@@ -12214,16 +12214,16 @@
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_boolean_branches.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185",
               "startedAt": "2026-11-07T09:46:14.419824+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T10:01:20.190037+00:00",
+              "exitCode": 0,
+              "logSha256": "a88e9b971c330a113106a9edf31362ebb59b9a33163c9d996a97f5796e90ef88",
               "cases": [
                 {
                   "name": "compiled_cinch_retains_only_valid_one_way_boolean_facts",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -14030,8 +14030,7 @@
         ],
         "observedCounts": {
           "failed": 3,
-          "passed": 18,
-          "running": 1,
+          "passed": 19,
           "pending": 83
         },
         "observedSource": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185"
@@ -18199,9 +18198,9 @@
       },
       {
         "title": "Integrated self-built Stage3: complete frontend sweep",
-        "status": "running",
+        "status": "waiting-disk-space",
         "phase": "bootstrap_boolean_branches",
-        "passed": 18,
+        "passed": 19,
         "failed": 3,
         "total": 105,
         "source": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185"
@@ -18786,16 +18785,6 @@
         "auditPending": false
       },
       {
-        "title": "Earlier Stage3: complete frontend sweep",
-        "status": "running",
-        "phase": "bootstrap_boolean_branches",
-        "passed": 18,
-        "failed": 3,
-        "total": 105,
-        "source": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185",
-        "earlier": true
-      },
-      {
         "title": "Cinch task forwarding: six-case source replay",
         "status": "passed",
         "phase": "Unchanged Tasks program and refusal, unsafe capture, and interface boundary",
@@ -18971,5 +18960,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T09:59:26.666852+00:00"
+  "updatedAt": "2026-11-07T10:01:29.420948+00:00"
 }
