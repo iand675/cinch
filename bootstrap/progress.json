@@ -18721,9 +18721,9 @@
       },
       {
         "title": "Diagnostic byte scan: large-bundle control and full pipeline",
-        "status": "waiting-worker",
-        "phase": null,
-        "passed": 0,
+        "status": "running",
+        "phase": "bootstrap_pipeline",
+        "passed": 1,
         "failed": 0,
         "total": 2,
         "source": "03d1790a4b4d9e1d1bcd0b702ff3cab7c04b9da865de2d84f696886d6da38d18",
@@ -18765,14 +18765,14 @@
       },
       {
         "title": "Rust callback capture: focused, concurrency and unit tests",
-        "status": "running",
+        "status": "passed-native-local-callback-controls-and-original-groups",
         "phase": "all-native-unit-tests",
-        "passed": 2,
+        "passed": 3,
         "failed": 0,
         "total": 3,
         "source": null,
         "nativeSource": "1fd2ac475c28b4798b5026d66562f401dd2ce0d62cec22abde5268a8272d4813",
-        "auditPending": false
+        "auditPending": true
       },
       {
         "title": "Function defaults: fresh pinned library object",
@@ -18960,5 +18960,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T03:19:25.449098+00:00"
+  "updatedAt": "2026-11-07T03:20:27.246403+00:00"
 }
