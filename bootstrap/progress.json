@@ -11895,8 +11895,8 @@
         "total": 105,
         "counts": {
           "verified": 16,
-          "blocked": 4,
-          "running": 1,
+          "blocked": 5,
+          "running": 0,
           "pending": 84,
           "recheck": 0
         },
@@ -12181,17 +12181,17 @@
           {
             "id": "stage3:bootstrap_body_bindings",
             "title": "bootstrap_body_bindings",
-            "state": "running",
+            "state": "blocked",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_body_bindings.rs",
             "observed": {
-              "status": "running",
+              "status": "failed",
               "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
               "startedAt": "2026-11-07T12:48:44.509337+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T12:58:50.080906+00:00",
+              "exitCode": 101,
+              "logSha256": "b85c65e6d65644990e36939ce98db6dd50463a6216030ea3defc16b607ee5c80",
               "cases": [
                 {
                   "name": "compiled_cinch_rechecks_body_bindings_refinements_and_changed_callees",
@@ -12199,7 +12199,7 @@
                 },
                 {
                   "name": "compiled_cinch_source_bodies_require_the_actual_root_and_dependency_definitions",
-                  "status": "running"
+                  "status": "failed"
                 }
               ]
             },
@@ -14027,9 +14027,8 @@
           }
         ],
         "observedCounts": {
-          "failed": 4,
+          "failed": 5,
           "passed": 16,
-          "running": 1,
           "pending": 84
         },
         "observedSource": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854"
@@ -18197,10 +18196,10 @@
       },
       {
         "title": "Published schema 9 Stage3: all 105 frontend targets",
-        "status": "running",
+        "status": "waiting-disk-space",
         "phase": "bootstrap_body_bindings",
         "passed": 16,
-        "failed": 4,
+        "failed": 5,
         "total": 105,
         "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854"
       },
@@ -18793,16 +18792,6 @@
         "auditPending": false
       },
       {
-        "title": "Earlier Stage3: complete frontend sweep",
-        "status": "running",
-        "phase": "bootstrap_body_bindings",
-        "passed": 16,
-        "failed": 4,
-        "total": 105,
-        "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-        "earlier": true
-      },
-      {
         "title": "Cinch task forwarding: six-case source replay",
         "status": "passed",
         "phase": "Unchanged Tasks program and refusal, unsafe capture, and interface boundary",
@@ -19180,8 +19169,8 @@
     ],
     "counts": {
       "verified": 192,
-      "blocked": 9,
-      "running": 11,
+      "blocked": 10,
+      "running": 10,
       "pending": 90,
       "recheck": 372
     },
@@ -19191,5 +19180,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T12:56:29.804855+00:00"
+  "updatedAt": "2026-11-07T12:58:51.981403+00:00"
 }
