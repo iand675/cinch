@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "185 of 235 complete groups passed; 2 running, 0 failed and 48 pending.Every group includes ignored tests. State: running.",
+      "detail": "186 of 235 complete groups passed; 2 running, 0 failed and 47 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -499,7 +499,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "185 of 235 complete groups passed; 2 running, 0 failed and 48 pending."
+      "detail": "186 of 235 complete groups passed; 2 running, 0 failed and 47 pending."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -803,10 +803,10 @@
         "unit": "targets",
         "total": 235,
         "counts": {
-          "verified": 186,
+          "verified": 187,
           "blocked": 0,
           "running": 2,
-          "pending": 47,
+          "pending": 46,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -2042,21 +2042,21 @@
           {
             "id": "native:bootstrap_ladder",
             "title": "bootstrap_ladder",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_ladder.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "startedAt": "2026-11-07T03:00:13.361420+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T03:07:37.024243+00:00",
+              "exitCode": 0,
+              "logSha256": "4226b4978be10d81782702810b6642e7bc39aaf5fc628c24ce6a75356f0e7d24",
               "cases": [
                 {
                   "name": "every_ladder_module_checks_together",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -2065,17 +2065,17 @@
           {
             "id": "native:bootstrap_lexer",
             "title": "bootstrap_lexer",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_lexer.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T19:25:00.769915+00:00",
-              "finishedAt": "2026-11-06T19:25:16.239065+00:00",
-              "exitCode": 0,
-              "logSha256": "5fc97a6e588502dd274a69f9bb8c5065bf7b8c7a7027ace46f32eb72b66b26d2",
+              "status": "running",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T03:07:37.027002+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "lexer_reads_the_corpus_and_agrees_with_the_compiler",
@@ -2087,7 +2087,7 @@
                 },
                 {
                   "name": "the_whole_prelude_lexes_and_agrees_with_the_compiler",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -18809,8 +18809,8 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "bootstrap_ladder",
-        "passed": 185,
+        "phase": "bootstrap_lexer",
+        "passed": 186,
         "failed": 0,
         "total": 235,
         "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
@@ -18828,10 +18828,10 @@
       }
     ],
     "counts": {
-      "verified": 440,
+      "verified": 441,
       "blocked": 3,
       "running": 9,
-      "pending": 72,
+      "pending": 71,
       "recheck": 144
     },
     "total": 668,
@@ -18840,5 +18840,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T03:06:24.665092+00:00"
+  "updatedAt": "2026-11-07T03:07:46.699473+00:00"
 }
