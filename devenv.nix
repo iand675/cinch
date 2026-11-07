@@ -20,6 +20,7 @@
     pkgs.clang
     pkgs.llvm
     pkgs.llvmPackages.bintools
+    pkgs.tree-sitter
   ];
 
   env.SAFELANG_CLANG = "${pkgs.clang}/bin/clang";

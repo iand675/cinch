@@ -20,7 +20,10 @@ the dependent core is still ahead of us.
 
 ## Toolchain
 
-Everything runs inside [devenv](https://devenv.sh) (nix):
+The [devenv](https://devenv.sh) shell supplies Rust, LLVM, Tree-sitter and
+Node. Cargo generates the parser during the build. Outside the shell, put
+the `tree-sitter` CLI and its JavaScript runtime on PATH or set
+`TREE_SITTER` to the path of the CLI.
 
 ```sh
 devenv shell        # rustc, cargo, clang, llvm

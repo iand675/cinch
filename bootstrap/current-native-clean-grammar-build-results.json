@@ -1,0 +1,24 @@
+{
+  "build_script_sha256": "13dbddac0ee0591e5ea62dc4912ec2bcc1dff9b5938548f04731cd74156c06c9",
+  "full_goal_complete": false,
+  "generated_parser_sha256": "c141ab98eb0690810692f00552fbd6570cd90e45c80ff3b96cd51d41ad093993",
+  "grammar_sha256": "9c19a705ac3afddf91f3d57c6f9d8397e62c80ddbc9f106e224068d5896248b1",
+  "native_source_sha256": "f1bfdca8c79e4299effd20057114ed2e17072108b4fbe6940847c4b208b6eeb1",
+  "rows": [
+    {
+      "cases": 204,
+      "exit_code": 0,
+      "log_sha256": "1ab6e71329d8985b6c104581bf44d2326185ad564c4ecf7f518e36ccd81b4ed1",
+      "name": "native-lib",
+      "status": "passed"
+    },
+    {
+      "cases": 15,
+      "exit_code": 0,
+      "log_sha256": "3b09bb0968f21698cb7508290dcb74a0d080f20e712cdafa9b66e1515fb9136c",
+      "name": "native-repl",
+      "status": "passed"
+    }
+  ],
+  "status": "passed-clean-cargo-build-and-repl"
+}
