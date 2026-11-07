@@ -1,0 +1,34 @@
+{
+  "compiler_modules": 44,
+  "compiler_source_sha256": "14a889472c7bf47867414410bba2b91bc059a77df5b20e7105eb7274e3cff134",
+  "diagnostic": "bootstrap.check:19956:89: function precondition is not established at this call\nbootstrap.check:19959:17: non-exhaustive patterns\nbootstrap.check:19960:25: non-exhaustive patterns\n",
+  "diagnostic_sha256": "8daf0badbd0d01d07f598adf9d8b9c54e56aff49dca979883ad4c5a1e39f89d3",
+  "earlier_stage3_sha256": "856510792ec46c33500f249d252e77ecccd731979d6d394c60914b7e217ddb77",
+  "full_goal_complete": false,
+  "native_checker_sha256": "0a17e07fed9d9f52f36038d9f7676a97ce82f1e8a011f3d7cc33cdc08b64bdcd",
+  "native_source_sha256": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+  "rows": [
+    {
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "build-optimized-checker",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "4825c38ba9e071bc3e19961e7c1bd0c1a2fcc575a5cff7e416d7f7c772597271",
+      "name": "native44",
+      "status": "passed"
+    },
+    {
+      "exit_code": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "earlier-stage3-44",
+      "status": "failed"
+    }
+  ],
+  "scope": "The exact14a8 source bundle is accepted by current Native8ba but refused by genuine earlier4f Stage3. The earlier compiler rejects one guarded Nat subtraction precondition and reports two coverage failures in the new source-origin helper. This is not a matching latest bootstrap result; the latest actual compiler still requires its own source-admission and Stage1/2/3 checks. Four cut-down Native/earlier-Cinch probes are queued. No failure has been waived or converted into success.",
+  "source_sha256": "18a4fc34f0ac3c295cb05ac293c57b2a8d51442698fa8a1a4eb2300946202fa2",
+  "status": "audited-native44-pass-earlier-stage3-source-refusal",
+  "verified_at": "2026-11-07T01:29:39.633818+00:00"
+}

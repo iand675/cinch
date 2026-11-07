@@ -45,9 +45,12 @@ and bundled position. Seven renderer controls pass. The first candidate's
 reserved-word parse error and the second run's inherited stale FFI diagnostic
 assertions remain recorded. The third complete pipeline/resolver/source-instance
 run retains the already-published fa405 FFI diagnostic correction, its positive
-ABI control and all original refusal sources. Both exact44 source checks, the
-complete actual compiler/object gate and every original API filename assertion
-remain separate requirements. No filename is guessed from a module name. See
+ABI control and all original refusal sources. Native accepts all44 modules;
+earlier self-built4f refuses one guarded Nat subtraction and two pattern-coverage
+checks in the new helper. Cut-down differential probes are queued. The latest
+actual compiler still needs its own source admission, matching Stage1/2/3 build,
+complete compiler/object gate and every original API filename assertion. See
+`bootstrap/current-source-origin-input-results.json`. No filename is guessed from a module name. See
 `bootstrap/current-source-default-diagnostic-component-results.json` and
 `bootstrap/current-source-default-origins-development-2.json`.
 
