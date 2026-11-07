@@ -18,7 +18,22 @@ const {package:p,version}=Astro.props;
       <section id="modules"><div class="section-rule mono">02 / MODULES</div><h2>Module reference</h2><div class="module-table">{p.modules.map(m=><a href={moduleUrl(p,m,version)}><div><h3>{m.name}</h3><p>{m.description}</p></div><span class="mono">{declarationsFor(m,version).length} declarations <b aria-hidden="true">↗</b></span></a>)}</div></section>
       <section id="dependencies"><div class="section-rule mono">03 / DEPENDENCIES</div><h2>Dependencies</h2>{p.dependencies.length?<ul class="dependency-list">{p.dependencies.map(name=>{const dep=packages.find(x=>x.name===name)!;return <li><a href={packageUrl(dep)}>{dep.name}</a><code>{dep.version}</code></li>;})}</ul>:<p>This sample core package has no package dependencies.</p>}</section>
       <section id="versions"><div class="section-rule mono">04 / VERSIONS</div><h2>Versions</h2><ul class="version-list">{p.versions.map(v=><li><a href={packageUrl(p,v)}>{v}</a><span class="mono">{v===p.version?'Latest sample':'Previous sample'}</span></li>)}</ul></section>
-      <section id="install"><div class="section-rule mono">05 / INSTALL</div><h2>Install in a project</h2><p>Run this from the project root. The command fetches the release, writes its sources under <code>vendor/</code>, checks them into interfaces, and emits the package object.</p><div class="usage-fragment"><span class="mono">PROJECT INSTALL</span><pre><code>{`cinch pkg add ${p.name}@${version}`}</code></pre></div><p class="mono">Choose a registry with <code>--registry URL</code>. The sample catalogue entries on this page are not published packages; use a registry that serves this release. See <a href="/reference/29-package-management/">packages, manifests, and the registry</a> for the install and verification boundaries.</p></section>
+      <section id="install"><div class="section-rule mono">05 / INSTALL</div><h2>Install in a project</h2><p>Run this from the project root. The command fetches the release, writes its sources under <code>vendor/</code>, checks them into interfaces, and emits the package object.</p><div class="usage-fragment install-command"><span class="mono">PROJECT INSTALL</span><pre><code>{`cinch pkg add ${p.name}@${version}`}</code></pre><button type="button" class="install-copy mono" data-install-command={`cinch pkg add ${p.name}@${version}`}>Copy command</button></div><p class="mono">Choose a registry with <code>--registry URL</code>. The sample catalogue entries on this page are not published packages; use a registry that serves this release. See <a href="/reference/29-package-management/">packages, manifests, and the registry</a> for the install and verification boundaries.</p></section>
     </article>
   </div>
 </PlatformLayout>
+
+<script>
+const copyButton = document.querySelector<HTMLButtonElement>('[data-install-command]');
+copyButton?.addEventListener('click', async () => {
+  const command = copyButton.dataset.installCommand;
+  if (!command) return;
+  try {
+    await navigator.clipboard.writeText(command);
+    copyButton.textContent = 'Copied';
+    window.setTimeout(() => { copyButton.textContent = 'Copy command'; }, 1600);
+  } catch {
+    copyButton.textContent = 'Select the command';
+  }
+});
+</script>
