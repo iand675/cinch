@@ -547,7 +547,7 @@
   "candidateSource": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
   "candidatePublished": true,
   "fullGoalComplete": false,
-  "summary": "Cinch 5bf127d9 rebuilt itself to matching Stage2 and Stage3 and passed the changed-source check. Its original frontend sweep has 4 of 105 targets passing, 3 failed and 98 still running or queued.",
+  "summary": "Cinch 5bf127d9 rebuilt itself to matching Stage2 and Stage3 and passed the changed-source check. Its original frontend sweep has 7 of 105 targets passing, 3 failed and 95 still running or queued.",
   "activity": "The independently audited integrated build is running all 105 frontend targets. Open the test inventory for live failures and the repairs being replayed.",
   "checklist": {
     "version": 1,
@@ -11898,8 +11898,8 @@
           "verified": 0,
           "blocked": 0,
           "running": 0,
-          "pending": 97,
-          "recheck": 8
+          "pending": 94,
+          "recheck": 11
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
         "items": [
@@ -13751,16 +13751,16 @@
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_class_contracts.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185",
               "startedAt": "2026-11-07T08:45:45.188989+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T08:46:04.251271+00:00",
+              "exitCode": 0,
+              "logSha256": "a5e6f835b8d96369e60a318991aeb28346ca0eaddd98b33fbe6d02bef1d3dd2b",
               "cases": [
                 {
                   "name": "class_contexts_methods_and_private_contracts_keep_their_definitions",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -13769,54 +13769,73 @@
           {
             "id": "stage3:interface_kinds",
             "title": "interface_kinds",
-            "state": "pending",
+            "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_kinds.rs",
             "observed": {
-              "status": "pending",
+              "status": "passed",
               "source": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185",
-              "startedAt": null,
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
-              "cases": []
+              "startedAt": "2026-11-07T08:46:06.313722+00:00",
+              "finishedAt": "2026-11-07T08:46:25.757403+00:00",
+              "exitCode": 0,
+              "logSha256": "98c489584190094e2f49c9dd7e507c43a372d16b13edfddfc38fddb129bfe4a1",
+              "cases": [
+                {
+                  "name": "interfaces_preserve_indexed_constructors_and_method_visibility",
+                  "status": "passed"
+                },
+                {
+                  "name": "opaque_parameter_kinds_survive_checked_interfaces_and_facades",
+                  "status": "passed"
+                }
+              ]
             },
             "category": "interface / API"
           },
           {
             "id": "stage3:interface_nominals",
             "title": "interface_nominals",
-            "state": "pending",
+            "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_nominals.rs",
             "observed": {
-              "status": "pending",
+              "status": "passed",
               "source": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185",
-              "startedAt": null,
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
-              "cases": []
+              "startedAt": "2026-11-07T08:46:27.159549+00:00",
+              "finishedAt": "2026-11-07T08:46:44.217580+00:00",
+              "exitCode": 0,
+              "logSha256": "81bf64fcef5907487478469bb3010c1693584edaba2598e263f29f1182c3ac0a",
+              "cases": [
+                {
+                  "name": "resolved_schemes_preserve_definition_sites_and_private_contracts",
+                  "status": "passed"
+                }
+              ]
             },
             "category": "interface / API"
           },
           {
             "id": "stage3:interface_preconditions",
             "title": "interface_preconditions",
-            "state": "pending",
+            "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_preconditions.rs",
             "observed": {
-              "status": "pending",
+              "status": "running",
               "source": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185",
-              "startedAt": null,
+              "startedAt": "2026-11-07T08:46:45.821575+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "numeric_conditions_keep_checked_argument_positions_and_reexports",
+                  "status": "running"
+                }
+              ]
             },
             "category": "interface / API"
           },
@@ -13900,9 +13919,9 @@
         ],
         "observedCounts": {
           "failed": 3,
-          "passed": 4,
+          "passed": 7,
           "running": 1,
-          "pending": 97
+          "pending": 94
         },
         "observedSource": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185"
       },
@@ -18070,8 +18089,8 @@
       {
         "title": "Integrated self-built Stage3: complete frontend sweep",
         "status": "running",
-        "phase": "interface_class_contracts",
-        "passed": 4,
+        "phase": "interface_preconditions",
+        "passed": 7,
         "failed": 3,
         "total": 105,
         "source": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185"
@@ -18658,8 +18677,8 @@
       {
         "title": "Earlier Stage3: complete frontend sweep",
         "status": "running",
-        "phase": "interface_class_contracts",
-        "passed": 4,
+        "phase": "interface_preconditions",
+        "passed": 7,
         "failed": 3,
         "total": 105,
         "source": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185",
@@ -18742,8 +18761,8 @@
       "verified": 489,
       "blocked": 6,
       "running": 10,
-      "pending": 103,
-      "recheck": 66
+      "pending": 100,
+      "recheck": 69
     },
     "total": 674,
     "acceptanceVerified": 0,
@@ -18751,5 +18770,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T08:46:00.773508+00:00"
+  "updatedAt": "2026-11-07T08:47:02.844464+00:00"
 }
