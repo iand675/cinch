@@ -361,6 +361,7 @@ def build_checklist(root, cfg, previous=None):
     stage_evaluation_proof = read(root/'bootstrap/current-staging-evaluation-results.json')
     stage_expansion_proof = read(root/'bootstrap/current-staging-expansion-results.json')
     combined_arrays = read(root/'bootstrap/current-stage1-combined-arrays-results.json')
+    allocation_replay = read(root/'bootstrap/current-stage3-allocation-object-replay-results.json')
     stage_expansion = read(cfg.get('stageExpansion'))
     nominal_dependency = read(cfg.get('schema9NominalDependencies'))
     instance_header = read(cfg.get('schema9InstanceHeader'))
@@ -369,6 +370,7 @@ def build_checklist(root, cfg, previous=None):
     typed_law = read(cfg.get('typedLawSampling'))
     native_typed_law = read(cfg.get('nativeTypedLawSampling'))
     native_typed_law_proof = read(root/'bootstrap/current-native-mathematical-law-sampling-results.json')
+    native_numeric_method_proof = read(root/'bootstrap/current-native-numeric-and-class-method-contract-results.json')
     portable_law = read(cfg.get('portableLawCinch'))
     family_replay = read(cfg.get('arrowFamilyReplay'))
     gaps=[
@@ -686,6 +688,11 @@ def build_checklist(root, cfg, previous=None):
             phase='Reject the wrong identity and evaluate the lawful Nat-backed samples',
             passed=native_typed_law_proof['passed'], failed=0, total=native_typed_law_proof['total'],
             source=native_typed_law_proof['native_source_sha256'], evidence=link('bootstrap/current-native-mathematical-law-sampling-results.json')))
+    if native_numeric_method_proof.get('status') == 'passed-native-numeric-and-class-method-contracts':
+        active.append(dict(title='Rust: mathematical law equations and canonical class methods', status='passed',
+            phase='Four complete targets across the original run and the corrected law assertion replay',
+            passed=native_numeric_method_proof['passed'], failed=0, total=native_numeric_method_proof['total'],
+            source=native_numeric_method_proof['native_source_sha256'], evidence=link('bootstrap/current-native-numeric-and-class-method-contract-results.json')))
     typed_admission = read(cfg.get('schema10TypedLawAdmission'))
     if typed_admission:
         checked = next((row for row in typed_admission.get('rows', []) if row['name'] == 'check-44-compiler-modules'), {})
@@ -698,6 +705,11 @@ def build_checklist(root, cfg, previous=None):
             phase='Fourteen tests passed in the full run and the remaining test passed with the matching runtime archive',
             passed=combined_arrays['passed'], failed=0, total=combined_arrays['total'],
             source=combined_arrays['compiler_source_sha256'], evidence=link('bootstrap/current-stage1-combined-arrays-results.json')))
+    if allocation_replay.get('status') == 'passed-original-stage3-allocation-accounting':
+        active.append(dict(title='Schema 9 Stage3: allocation accounting with the missing library variant', status='passed',
+            phase='The unchanged test binary passed with Data.List.length@T and all 55 original interface identities',
+            passed=allocation_replay['passed'], failed=0, total=allocation_replay['total'],
+            source=allocation_replay['compiler_source_sha256'], evidence=link('bootstrap/current-stage3-allocation-object-replay-results.json')))
     if finite_law_pipeline.get('status') == 'passed-complete-schema9-candidate-pipeline':
         active.append(dict(title='Schema 9: complete original pipeline and finite-law controls', status='passed',
             phase='Both original tests passed with additional lawful and unlawful finite-constructor instances',

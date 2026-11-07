@@ -1,0 +1,42 @@
+{
+  "corrected_law_test_sha256": "49d4441fccfb4e8ce07f98b8e325f1afe1f67702c8fc8ad90c6193cc3bdd7a4f",
+  "full_goal_complete": false,
+  "native_binary_sha256": "345ad8e2201720b9c1056364048c0ec7bb69b5b10b95c3898a69aeb9ed0dc95c",
+  "native_rlib_sha256": "166d1a1152ebfcaf08389a9f9fe4f120428ef9b99991af921ca7d729654c06eb",
+  "native_source_sha256": "b938d9c27df7255c15067e1371adb293529d7b1682b9809ec4539caf15497ebf",
+  "original_index_arithmetic_regression": "not checked (the samples did not evaluate: a law's index arithmetic sample did not reduce to a word)",
+  "original_law_test_sha256": "478abac771217bc83328c8f97733d78bd5d39797c7d1bbaadd15e4b2ebad83de",
+  "original_log_sha256": "89ed751f84c03d38a1b0c5df248941a135aa27ba9897a2712a7c40abbc433548",
+  "passed": 21,
+  "replay_log_sha256": "e27d4725c660709aa168c5211442d0d3c4c181deeac782214ac74a33bd167096",
+  "rows": [
+    {
+      "name": "interface_class_contracts",
+      "passed": 1,
+      "status": "passed",
+      "total": 1
+    },
+    {
+      "name": "interface_kinds",
+      "passed": 4,
+      "status": "passed",
+      "total": 4
+    },
+    {
+      "name": "interface_method_bodies",
+      "passed": 8,
+      "status": "passed",
+      "total": 8
+    },
+    {
+      "name": "laws",
+      "passed": 8,
+      "status": "passed",
+      "total": 8
+    }
+  ],
+  "scope": "All tests in four affected Rust targets. The first complete run passed the three interface targets and seven of eight law tests. The failure was an assertion that omitted the defining module in the correctly reported counterexample. The complete law target then passed with the exact same Rust library and corrected assertion. The matching Cinch source, library, and Stage3 suite are separate.",
+  "status": "passed-native-numeric-and-class-method-contracts",
+  "total": 21,
+  "verified_at": "2026-11-07T12:18:29.171664+00:00"
+}

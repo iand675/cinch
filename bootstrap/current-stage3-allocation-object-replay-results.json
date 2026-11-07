@@ -1,0 +1,60 @@
+{
+  "compiler_sha256": "169251cf16109c0571b38ed96271c7f5df9e7b6b7af4b688fbed903f66073f92",
+  "compiler_source_sha256": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
+  "exit_code": 0,
+  "full_goal_complete": false,
+  "matching_interface_identities": 55,
+  "native_source_sha256": "dc2dd19280f2e51d07e7b2995d40ddc230a8265eeb1e6e75446249cd51e1e0f0",
+  "original_failed": 3,
+  "original_log_sha256": "87f09ad8950429a4f7b713815f36a5199859ead4dc45dcc8c687ca94d217d892",
+  "original_manifest_sha256": "23301d8f36ab8b600e04881af38c8bd29cb757a91608c6f9b71758b7f8b8ca4d",
+  "original_object_sha256": "c00554f3d47aac3088b3f70a1ccd7ad3cc01637af5c568f3d5c17f1c65e155d8",
+  "original_passed": 5,
+  "passed": 8,
+  "provided_variant": "Data.List.length@T",
+  "replacement_manifest_sha256": "07aef422031247bd11418aac228bfc3cd6c8b5cbb172a7927773c5d8a38a599e",
+  "replacement_object_sha256": "7adc36dd53729405c187e9af1ca1788473f23d950fabd104aa644fa4384749d0",
+  "replay_log_sha256": "6a497dbb09378066e7144c23a987b328cb897fea1a9a966927976c8d22e41a5d",
+  "rows": [
+    {
+      "name": "a_compiled_structure_drops_back_to_the_immortal_baseline",
+      "status": "passed"
+    },
+    {
+      "name": "escaped_constructors_match_and_carry_one_descriptor_word",
+      "status": "passed"
+    },
+    {
+      "name": "header_blocks_count_constructor_cells_with_their_header",
+      "status": "passed"
+    },
+    {
+      "name": "interned_symbols_are_counted_immortal_once_per_name",
+      "status": "passed"
+    },
+    {
+      "name": "normal_program_is_quiet_under_the_guarded_cap",
+      "status": "passed"
+    },
+    {
+      "name": "stats_line_counts_list_cells_only_when_asked",
+      "status": "passed"
+    },
+    {
+      "name": "the_cap_bounds_live_bytes_not_the_lifetime_total",
+      "status": "passed"
+    },
+    {
+      "name": "unbounded_allocation_hits_the_named_cap",
+      "status": "passed"
+    }
+  ],
+  "runtime_sha256": "2fab721751aa601f3ca72d7677f8520e5bdd37d93887275b5636fce478f959c6",
+  "scope": "The unchanged original allocation-accounting target on the exact published schema 9 Stage3 executable. The replay changed only the library object configuration. Its producer and all 55 canonical interface identities match the original provider, and the original manifest and runtime were retained. The original pinned-object result is preserved.",
+  "source_test_sha256": "04f37006581907117365664f0713e531943a59015125ff1260634c1d410a89c2",
+  "status": "passed-original-stage3-allocation-accounting",
+  "test_binary_sha256": "3d7592b387103cac5794b1bf63562d199dd2f0e0c31d6e5faa40fc9045754c6a",
+  "total": 8,
+  "verified_at": "2026-11-07T12:16:44.716404+00:00",
+  "wrapper_sha256": "3d38499d52abff221ffa3ee78b86b669fb21211f53ecc9ea2e809665f6910982"
+}

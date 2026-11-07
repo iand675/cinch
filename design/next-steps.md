@@ -31,12 +31,14 @@ a named law argument because the decoder reconstructed the wrong terminator.
 The corrected decoder parses. Its source-instance replay will also check
 Nat-backed and generic constructor fields with lawful and unlawful examples.
 
-Rust now supplies a typed `Nat` or `Int` sample to its evaluator. The
-previous sampler accepted a wrong Nat-backed identity after skipping
-evaluation. The corrected compiler rejects it and checks the lawful
-identity and associativity samples. All 19 tests in the three affected Rust
-targets passed. The schema 10 library rebuild uses this compiler.
-See [the Rust sampler receipt](../bootstrap/current-native-mathematical-law-sampling-results.json).
+Rust now supplies typed `Nat` and `Int` samples and evaluates arithmetic
+on them directly in law equations. The tests check the lawful identity and
+associativity samples and reject both the wrong Nat-backed identity and an
+incorrect arithmetic law. The schema 10 method rows now use the checked
+type spelling that Cinch already writes, which addresses the Functor
+interface difference. All 21 tests in the four affected Rust targets
+passed across the original run and an exact replay of the law target.
+See [the Rust contract receipt](../bootstrap/current-native-numeric-and-class-method-contract-results.json).
 
 The staged declaration pipeline checked and emitted a generated `Nat` value
 through typed IR. The linked program returned 0 with zero leaks. The unchanged
@@ -45,6 +47,13 @@ All 15 original array cases passed on the Stage1 candidate with staging and
 CopyOut. Fourteen passed in the complete run. The remaining case passed
 on an exact retry after supplying the matching runtime archive. The
 matching Stage3 replay remains open. See [the arrays receipt](../bootstrap/current-stage1-combined-arrays-results.json).
+
+The published Stage3 passed all eight allocation-accounting tests when
+linked with the library object that provides `Data.List.length@T`.
+The original run passed five and refused three builds at that missing
+variant. The replay used the same compiler, test binary, manifest and
+runtime, with the same 55 interface identities.
+See [the allocation replay](../bootstrap/current-stage3-allocation-object-replay-results.json).
 
 The normal Git-pinned schema 9 provider rebuilt and verified all 55 library
 interfaces. It includes the raw `list-length` variant requested when the
