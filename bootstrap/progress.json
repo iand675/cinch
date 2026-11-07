@@ -11971,6 +11971,10 @@
                 },
                 {
                   "name": "arrays_keep_record_and_string_elements_alive",
+                  "status": "passed"
+                },
+                {
+                  "name": "cinch_array_runtime_matches_checked_kinds_bounds_formats_and_ownership",
                   "status": "running"
                 }
               ]
@@ -18841,5 +18845,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T10:59:49.877205+00:00"
+  "updatedAt": "2026-11-07T11:00:52.057854+00:00"
 }
