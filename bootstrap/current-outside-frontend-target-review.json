@@ -220,17 +220,19 @@
       ],
       "rust_test_function_count": 2,
       "role": "Source frontend with Native JSON readback",
-      "target_role_classification_complete": false,
-      "per_assertion_portable_audit_complete": false,
+      "target_role_classification_complete": true,
+      "per_assertion_portable_audit_complete": true,
       "requires_additional_matching_cinch_source_coverage": true,
-      "findings": "Two tests check an imported Semigroup operator and run a renamed facade operator at exit9, then inspect real emitted defining/facade fixity and value identities. No checked Rust Program fields are used.",
+      "findings": "Two tests check an imported Semigroup operator and run a renamed facade operator at exit9, then inspect real emitted defining/facade fixity and value identities. No checked Rust Program fields are used. The complete original target now passes through actual2866 Cinch with every source/assertion intact, exit9, exact defining/facade metadata and zero leaks. Final matching Stage3 remains open.",
       "required": "Preserve both original test bodies. Dispatch source checking/run to the selected Cinch frontend, use Native only for JSON readback, and require final matching Stage3. A development2866 replay is queued; it is not final acceptance.",
       "native_observation": {
         "status": "passed",
         "compiler_source_sha256": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
         "native_source_sha256": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b"
       },
-      "matching_final_cinch_execution_proven": false
+      "matching_final_cinch_execution_proven": false,
+      "development_execution_proven": true,
+      "development_execution_receipt": "bootstrap/current-additional-fixity-frontend-results.json"
     },
     {
       "target": "codata",
@@ -459,5 +461,5 @@
   ],
   "whole_coverage_audit_complete": false,
   "full_goal_complete": false,
-  "scope": "A target-level review of ten of the130 targets outside the historical105-target selected-frontend matrix. Two infrastructure targets need their original Native tests; eight source/mixed targets still require portable assertion-level coverage and actual final matching Cinch execution. All original files match the current frozen Native sweep. No target, original assertion, expected refusal reason or direct Native API role is dropped. The historical active105 run remains immutable. This report is coverage work identification, not a passing-test or complete coverage claim."
+  "scope": "A target-level review of ten of the130 targets outside the historical105-target selected-frontend matrix. Two infrastructure targets need their original Native tests; eight source/mixed targets still require portable assertion-level coverage and actual final matching Cinch execution. All original files match the current frozen Native sweep. No target, original assertion, expected refusal reason or direct Native API role is dropped. The historical active105 run remains immutable. This report is coverage work identification, not a passing-test or complete coverage claim. The full fixity target has since passed development2866 replay; that exact assertion-level coverage review is complete, but final matching Stage3 execution remains unproved."
 }

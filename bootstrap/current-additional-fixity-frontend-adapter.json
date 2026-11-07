@@ -1,5 +1,5 @@
 {
-  "status": "audited-dispatch-only-adapter-awaiting-execution",
+  "status": "audited-dispatch-only-adapter-and-complete-development-execution",
   "test_target": "fixity_interfaces",
   "whole_original_tests": 2,
   "original_test_sha256": "04e198162cf9837150c1b6c92f1d5e85dcd115b6adb23eb51b750f5d6d7797f3",
@@ -13,6 +13,8 @@
   "execution_state": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/additional-fixity-frontend-validation-1/state.json",
   "selected_development_compiler_source_sha256": "286613ea3571aebd6747def34f7a8f9d8af0c84c78e5fee82f9ca65ff90fe7e1",
   "full_goal_complete": false,
-  "scope": "This unapplied test adapter is only for an explicitly selected Cinch frontend snapshot. The original Native test remains unchanged in production. Unit return from the standalone checker carries only success/failure; no Native Program or source semantics is fabricated. All original Semigroup import, right-associated facade execution9 and exact emitted fixity/value/visibility assertions stay intact. Complete actual execution and final matching Stage3 remain required.",
-  "patch": "bootstrap/additional-fixity-frontend-adapter.patch"
+  "scope": "This unapplied test adapter is only for an explicitly selected Cinch frontend snapshot. The original Native test remains unchanged in production. Unit return from the standalone checker carries only success/failure; no Native Program or source semantics is fabricated. All original Semigroup import, right-associated facade execution9 and exact emitted fixity/value/visibility assertions stay intact. Complete actual execution and final matching Stage3 remain required. Both whole original tests now pass with actual2866 Cinch, exit9 and one32M poisoned zero-leak runtime report; final matching Stage3 remains required.",
+  "patch": "bootstrap/additional-fixity-frontend-adapter.patch",
+  "development_tests_passed": 2,
+  "execution_receipt": "bootstrap/current-additional-fixity-frontend-results.json"
 }

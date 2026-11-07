@@ -72,8 +72,11 @@ partial implications are never negated for an opposite branch. Nine new controls
 cover operand order, nested guards, wrong identities, wrong branches and scope
 escape. The first fixtures used the reserved opaque parameter and failed
 parsing; these raw failures are retained and negative parser refusals grant no
-semantic credit. Corrected flag fixtures and nine complete Cinch groups are
-queued, followed by Native44 admission and the complete compiler/object gate. Matching current
+semantic credit. All9 corrected flag controls pass independent Native audit:
+5 valid programs and4 actual ordering/precondition refusals. The full Cinch
+precondition target is running; eight more whole groups, Native44 admission and
+the complete compiler/object gate remain. See
+`bootstrap/current-partial-boolean-native-controls.json`. Matching current
 self-source admission and fresh Stage1/2/3 emission remain required. See
 `bootstrap/current-partial-boolean-branch-development-2.json`.
 
@@ -99,8 +102,12 @@ A partial review covers10 of130 targets outside the historical105-target
 frontend matrix: two Native harness roles and eight source/mixed targets needing
 additional Cinch coverage, spanning124 Rust test functions. This is target-level
 classification, not a completed per-assertion audit;120 targets remain unreviewed.
-A dispatch-only adapter preserves both whole original fixity-interface tests
-for an actual2866 Cinch replay. See
+A dispatch-only adapter preserves both whole original fixity-interface tests;
+they now pass through actual2866 Cinch, including exact defining/facade metadata,
+the renamed operator runtime result9 and one32M poisoned zero-leak report. This
+completes that target's assertion-level adaptation review; final matching Stage3
+execution remains required. See
+`bootstrap/current-additional-fixity-frontend-results.json`. See
 `bootstrap/current-outside-frontend-target-review.json`.
 
 Still required: every original default/runtime/diagnostic/path assertion,

@@ -1,0 +1,87 @@
+{
+  "compiler_source_sha256": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+  "controls": 9,
+  "full_goal_complete": false,
+  "initial_invalid_fixture_preserved": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/partial-boolean-branch-controls-native-1/state.json",
+  "native_compiler_sha256": "82707997b842e13810dbce82b58233796ac09b5965946003ea2053fe9a3b85fb",
+  "native_source_sha256": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+  "positive_controls": 5,
+  "rows": [
+    {
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "partial Boolean right conjunction proves subtraction",
+      "source_sha256": "5f86cfc7e738b85642c48a45dbe946e1c0c59b6c30aa15e4aad70797058de136",
+      "status": "passed",
+      "wanted_acceptance": true
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "partial Boolean left conjunction retains subtraction",
+      "source_sha256": "fdd88431f46dd2d0c3730415ecc885f52f30878ef492408700355f620c5368f6",
+      "status": "passed",
+      "wanted_acceptance": true
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "partial Boolean right disjunction false proves subtraction",
+      "source_sha256": "983ecb60a0ba585a5d7cdc253768bba79d791946fec122fda2968e7c03b8d34d",
+      "status": "passed",
+      "wanted_acceptance": true
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "partial Boolean nested conjunction proves call",
+      "source_sha256": "c7a750d8bf1ebb5b5b453d2b04c08872bdd3e8d2238ae65a97ff99b016aaf7f7",
+      "status": "passed",
+      "wanted_acceptance": true
+    },
+    {
+      "exit_code": 1,
+      "log_sha256": "adf28c5176aeb3ce9734206511c82116e48e0eebe38e5ddd311749d683fc1b65",
+      "name": "partial Boolean false conjunction cannot prove subtraction",
+      "source_sha256": "35ef42c394bc2cc6916c8b8c8a03742fc528e4523239de1f675c3a14fe13ae59",
+      "status": "passed",
+      "wanted_acceptance": false
+    },
+    {
+      "exit_code": 1,
+      "log_sha256": "bd943b84ef3ae6f77476596e8822cdda27e0c0f035ea1595ba60c5ea82d89df9",
+      "name": "partial Boolean true disjunction cannot prove subtraction",
+      "source_sha256": "606b1a5403b98eeef56b2950187458b8ba404713c3120611f66923ddf6b3a60d",
+      "status": "passed",
+      "wanted_acceptance": false
+    },
+    {
+      "exit_code": 1,
+      "log_sha256": "db2ecc60cbb84bc59c9d9e9dbb98bfaf3f7c59336b1582da1490f61f7256aec6",
+      "name": "partial Boolean right fact keeps actual identities",
+      "source_sha256": "8c3ea8fd1778d6d983512251d995081b568c477cd52c7209791323c7fe6bea72",
+      "status": "passed",
+      "wanted_acceptance": false
+    },
+    {
+      "exit_code": 1,
+      "log_sha256": "f9ff1188e9ac482735684ffc6fa3dac65dd77ab6930ba1cbc6cb0f8a8c486445",
+      "name": "partial Boolean fact cannot escape its branch",
+      "source_sha256": "19e79409674910c81cda36346531c6fd14663cafc78b631ac303b61cbbb768d1",
+      "status": "passed",
+      "wanted_acceptance": false
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "partial Boolean nested disjunction false proves call",
+      "source_sha256": "0f22e53570613c4f0347ca70de998770ad1de6e04aabdcdec1478bc956644357",
+      "status": "passed",
+      "wanted_acceptance": true
+    }
+  ],
+  "scope": "Exact corrected nine-source Native oracle replay. Positive controls must actually check; every negative must fail for an ordering/precondition obligation, with parser or unbound-name refusals explicitly rejected. This is Native oracle evidence, not proof that the new Cinch Core implementation passes its own component/runtime/bootstrap gates.",
+  "semantic_negative_controls": 4,
+  "status": "audited-nine-native-partial-boolean-source-controls",
+  "verified_at": "2026-11-07T02:25:46.314068+00:00"
+}
