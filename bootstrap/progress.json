@@ -18452,8 +18452,8 @@
       {
         "title": "Cinch class/instance diagnostics: complete groups",
         "status": "running",
-        "phase": "bootstrap_source_instances",
-        "passed": 0,
+        "phase": "bootstrap_resolve",
+        "passed": 1,
         "failed": 0,
         "total": 2,
         "source": "7ccd088f5a00fb1784fbfaee3b3888d7edc4ed531703925c3f78e670048f2cdf",
@@ -18575,5 +18575,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T00:54:16.884892+00:00"
+  "updatedAt": "2026-11-07T00:58:13.797888+00:00"
 }
