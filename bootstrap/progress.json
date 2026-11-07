@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "170 of 235 complete groups passed; 2 running, 0 failed and 63 pending.Every group includes ignored tests. State: running.",
+      "detail": "171 of 235 complete groups passed; 1 running, 0 failed and 63 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -499,7 +499,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "170 of 235 complete groups passed; 2 running, 0 failed and 63 pending."
+      "detail": "171 of 235 complete groups passed; 1 running, 0 failed and 63 pending."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -803,9 +803,9 @@
         "unit": "targets",
         "total": 235,
         "counts": {
-          "verified": 171,
+          "verified": 172,
           "blocked": 0,
-          "running": 2,
+          "running": 1,
           "pending": 62,
           "recheck": 0
         },
@@ -1588,21 +1588,21 @@
           {
             "id": "native:bootstrap_export_interfaces",
             "title": "bootstrap_export_interfaces",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_export_interfaces.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "startedAt": "2026-11-07T02:03:41.804834+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T02:09:54.342966+00:00",
+              "exitCode": 0,
+              "logSha256": "14648843ecac64ec034302078bd124dce7c81dc18f426c1d2e332d4d58c3c017",
               "cases": [
                 {
                   "name": "source_interfaces_preserve_private_nominals_and_defining_fixities",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -18695,7 +18695,7 @@
         "title": "Current compiler: full Rust sweep",
         "status": "running",
         "phase": "bootstrap_function_preconditions",
-        "passed": 170,
+        "passed": 171,
         "failed": 0,
         "total": 235,
         "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
@@ -18713,9 +18713,9 @@
       }
     ],
     "counts": {
-      "verified": 425,
+      "verified": 426,
       "blocked": 4,
-      "running": 8,
+      "running": 7,
       "pending": 92,
       "recheck": 139
     },
@@ -18725,5 +18725,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T02:09:25.626658+00:00"
+  "updatedAt": "2026-11-07T02:10:27.871552+00:00"
 }
