@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "204 of 235 complete groups passed; 2 running, 0 failed and 29 pending.Every group includes ignored tests. State: running.",
+      "detail": "205 of 235 complete groups passed; 2 running, 0 failed and 28 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -499,7 +499,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "204 of 235 complete groups passed; 2 running, 0 failed and 29 pending."
+      "detail": "205 of 235 complete groups passed; 2 running, 0 failed and 28 pending."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -805,8 +805,8 @@
         "counts": {
           "verified": 205,
           "blocked": 0,
-          "running": 1,
-          "pending": 29,
+          "running": 2,
+          "pending": 28,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -2389,16 +2389,16 @@
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-pipeline-results.json",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "startedAt": "2026-11-07T03:47:15.109849+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T03:57:32.336162+00:00",
+              "exitCode": 0,
+              "logSha256": "8ba34507fe795a9d38e29c8739fc4e6b5e66130f09cd017cb32082be3a415c86",
               "cases": [
                 {
                   "name": "the_ladder_compiles_the_fib_example_with_itself",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -2522,21 +2522,21 @@
           {
             "id": "native:bootstrap_refinement_constructors",
             "title": "bootstrap_refinement_constructors",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_refinement_constructors.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T21:11:37.257505+00:00",
-              "finishedAt": "2026-11-06T21:24:50.755195+00:00",
-              "exitCode": 0,
-              "logSha256": "bf6e62048a4c7533b23a5b8859177d19d06f6763187712a359c58fbefee6d6e6",
+              "status": "running",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T03:57:32.338843+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "compiled_cinch_checks_explicit_refinement_proofs_and_payload_identity",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -18798,14 +18798,14 @@
       },
       {
         "title": "Base constructor spellings: complete exporter and nominal tests",
-        "status": "running",
+        "status": "passed-constructor-public-display-components",
         "phase": "bootstrap_nominals",
-        "passed": 1,
+        "passed": 2,
         "failed": 0,
         "total": 2,
         "source": "208317ed5b7e7feeeb34b0124f86340c763e48988633f5a38325184e8ebcdfae",
         "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
-        "auditPending": false
+        "auditPending": true
       },
       {
         "title": "Original concurrency suite through the Cinch compiler",
@@ -19028,8 +19028,8 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "bootstrap_refinement_closure",
-        "passed": 204,
+        "phase": "bootstrap_refinement_constructors",
+        "passed": 205,
         "failed": 0,
         "total": 235,
         "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
@@ -19049,8 +19049,8 @@
     "counts": {
       "verified": 459,
       "blocked": 4,
-      "running": 8,
-      "pending": 45,
+      "running": 9,
+      "pending": 44,
       "recheck": 153
     },
     "total": 669,
@@ -19059,5 +19059,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T03:56:48.710778+00:00"
+  "updatedAt": "2026-11-07T03:57:50.709704+00:00"
 }
