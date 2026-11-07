@@ -543,67 +543,67 @@
       "title": "Earlier source: Changed-source rebuilding verified"
     }
   ],
-  "candidateSource": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
+  "candidateSource": "309a4f696ed5072050009e59562deabb2fc205731e47655662d1d8d69cd2d020",
   "candidatePublished": true,
   "fullGoalComplete": false,
-  "summary": "Rust and Cinch now use one interface format on main. The pinned library was rebuilt, and both compilers refused schema 8 artifacts and fingerprint-only defaults.",
-  "activity": "All four stages, the fixed point, and the changed-source rebuild passed independent audit. The 105-target frontend suite is running separately.",
+  "summary": "Schema 10 is the sole compiled-interface format on main. Rust, Cinch and the bootstrap verifier passed the cutover checks. The library producer rebuilt all 55 interfaces.",
+  "activity": "The published schema 10 sources have passed 2 of four build stages. Stage2 is building.",
   "checklist": {
     "version": 1,
     "target": {
-      "compiler": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-      "native": "dc2dd19280f2e51d07e7b2995d40ddc230a8265eeb1e6e75446249cd51e1e0f0"
+      "compiler": "309a4f696ed5072050009e59562deabb2fc205731e47655662d1d8d69cd2d020",
+      "native": "9022a54f85312db671f7ee14a89a7aa9b6dfcfa7c54010b6f304016ff3401f57"
     },
     "acceptance": [
       {
         "id": "acceptance:1",
         "title": "1. Pinned seed builds Stage1",
-        "state": "verified",
-        "detail": "The independent audit passed for the published compiler.",
+        "state": "recheck",
+        "detail": "The audit passed for earlier compiler b59c4893.",
         "doneWhen": "The pinned Rust seed builds all latest compiler sources; Stage1 is runnable and passes its executable smoke checks.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema9-bootstrap-results.json",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-bootstrap-results.json",
         "observed": {
           "status": "passed",
-          "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
+          "source": "b59c4893c4214d1c94c624bf9ba3f9e99ee7eb9b9568c1f092b20e5080967b38",
           "cases": []
         }
       },
       {
         "id": "acceptance:2",
         "title": "2. Stage1 builds Stage2",
-        "state": "verified",
-        "detail": "The independent audit passed for the published compiler.",
+        "state": "recheck",
+        "detail": "The audit passed for earlier compiler b59c4893.",
         "doneWhen": "Stage1 freshly rebuilds every compiler module from those same inputs, without a Rust frontend or prebuilt compiler substitution.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema9-bootstrap-results.json",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-bootstrap-results.json",
         "observed": {
           "status": "passed",
-          "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
+          "source": "b59c4893c4214d1c94c624bf9ba3f9e99ee7eb9b9568c1f092b20e5080967b38",
           "cases": []
         }
       },
       {
         "id": "acceptance:3",
         "title": "3. Stage2 builds matching Stage3",
-        "state": "verified",
-        "detail": "The independent audit passed for the published compiler.",
+        "state": "recheck",
+        "detail": "The audit passed for earlier compiler b59c4893.",
         "doneWhen": "Build and run Stage3; Stage2/Stage3 emitted IR, executable and every canonical interface agree.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema9-bootstrap-results.json",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-bootstrap-results.json",
         "observed": {
           "status": "passed",
-          "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
+          "source": "b59c4893c4214d1c94c624bf9ba3f9e99ee7eb9b9568c1f092b20e5080967b38",
           "cases": []
         }
       },
       {
         "id": "acceptance:4",
         "title": "4. Changed-source bootstrap works",
-        "state": "verified",
-        "detail": "The independent audit passed for the published compiler.",
+        "state": "recheck",
+        "detail": "The audit passed for earlier compiler b59c4893.",
         "doneWhen": "Change actual compiler source, rebuild it through the chain, and prove that its changed behavior reaches the consumer.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema9-bootstrap-results.json",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-bootstrap-results.json",
         "observed": {
           "status": "passed",
-          "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
+          "source": "b59c4893c4214d1c94c624bf9ba3f9e99ee7eb9b9568c1f092b20e5080967b38",
           "cases": []
         }
       },
@@ -616,7 +616,7 @@
         "evidence": "https://github.com/iand675/cinch/blob/main/design/self-hosting.md#acceptance",
         "observed": {
           "status": "pending",
-          "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
+          "source": "b59c4893c4214d1c94c624bf9ba3f9e99ee7eb9b9568c1f092b20e5080967b38",
           "cases": []
         }
       }
@@ -690,9 +690,9 @@
         "id": "gap:imported-defaults",
         "title": "Use one interface format for Rust and Cinch",
         "state": "verified",
-        "detail": "Both compilers read and write schema 9. The checked class-default body travels with the interface. Real schema 8 files and fingerprint-only defaults were refused. The pinned producer rebuilt the 55 library interfaces.",
+        "detail": "Rust, Cinch and the verifier require schema 10. A real schema 9 file and fingerprint-only defaults were refused. The pinned producer rebuilt all 55 library interfaces.",
         "doneWhen": "Rebuild library interfaces in the same format both compilers use and verify that obsolete formats are refused.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-interface-format-switch-results.json"
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-family-and-cutover-results.json"
       },
       {
         "id": "gap:laws",
@@ -11894,18 +11894,18 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 19,
-          "blocked": 6,
-          "running": 1,
+          "verified": 0,
+          "blocked": 0,
+          "running": 0,
           "pending": 79,
-          "recheck": 0
+          "recheck": 26
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
         "items": [
           {
             "id": "stage3:alloc_accounting",
             "title": "alloc_accounting",
-            "state": "blocked",
+            "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/alloc_accounting.rs",
@@ -11956,7 +11956,7 @@
           {
             "id": "stage3:argv",
             "title": "argv",
-            "state": "verified",
+            "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/argv.rs",
@@ -11987,7 +11987,7 @@
           {
             "id": "stage3:arrays",
             "title": "arrays",
-            "state": "blocked",
+            "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/arrays.rs",
@@ -12066,7 +12066,7 @@
           {
             "id": "stage3:bootstrap_abstract_nonzero_methods",
             "title": "bootstrap_abstract_nonzero_methods",
-            "state": "verified",
+            "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_abstract_nonzero_methods.rs",
@@ -12089,7 +12089,7 @@
           {
             "id": "stage3:bootstrap_abstract_nonzero_types",
             "title": "bootstrap_abstract_nonzero_types",
-            "state": "blocked",
+            "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_abstract_nonzero_types.rs",
@@ -12112,7 +12112,7 @@
           {
             "id": "stage3:bootstrap_anonymous_contracts",
             "title": "bootstrap_anonymous_contracts",
-            "state": "verified",
+            "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_anonymous_contracts.rs",
@@ -12135,7 +12135,7 @@
           {
             "id": "stage3:bootstrap_argument_scopes",
             "title": "bootstrap_argument_scopes",
-            "state": "verified",
+            "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_argument_scopes.rs",
@@ -12158,7 +12158,7 @@
           {
             "id": "stage3:bootstrap_array_float_bits",
             "title": "bootstrap_array_float_bits",
-            "state": "verified",
+            "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_array_float_bits.rs",
@@ -12181,7 +12181,7 @@
           {
             "id": "stage3:bootstrap_body_bindings",
             "title": "bootstrap_body_bindings",
-            "state": "blocked",
+            "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_body_bindings.rs",
@@ -12208,7 +12208,7 @@
           {
             "id": "stage3:bootstrap_boolean_branches",
             "title": "bootstrap_boolean_branches",
-            "state": "verified",
+            "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_boolean_branches.rs",
@@ -12231,7 +12231,7 @@
           {
             "id": "stage3:bootstrap_buffer_aliases",
             "title": "bootstrap_buffer_aliases",
-            "state": "verified",
+            "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_buffer_aliases.rs",
@@ -12254,7 +12254,7 @@
           {
             "id": "stage3:bootstrap_byte_observations",
             "title": "bootstrap_byte_observations",
-            "state": "blocked",
+            "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_byte_observations.rs",
@@ -12285,7 +12285,7 @@
           {
             "id": "stage3:bootstrap_check",
             "title": "bootstrap_check",
-            "state": "verified",
+            "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_check.rs",
@@ -12308,7 +12308,7 @@
           {
             "id": "stage3:bootstrap_checked_program",
             "title": "bootstrap_checked_program",
-            "state": "running",
+            "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_checked_program.rs",
@@ -13339,7 +13339,7 @@
           {
             "id": "stage3:bootstrap_source_decisions",
             "title": "bootstrap_source_decisions",
-            "state": "verified",
+            "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_source_decisions.rs",
@@ -13542,7 +13542,7 @@
           {
             "id": "stage3:bootstrap_total_semantics",
             "title": "bootstrap_total_semantics",
-            "state": "verified",
+            "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_total_semantics.rs",
@@ -13573,7 +13573,7 @@
           {
             "id": "stage3:bootstrap_type_syntax",
             "title": "bootstrap_type_syntax",
-            "state": "verified",
+            "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_type_syntax.rs",
@@ -13830,7 +13830,7 @@
           {
             "id": "stage3:interface_anonymous_contracts",
             "title": "interface_anonymous_contracts",
-            "state": "verified",
+            "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_anonymous_contracts.rs",
@@ -13853,7 +13853,7 @@
           {
             "id": "stage3:interface_class_contracts",
             "title": "interface_class_contracts",
-            "state": "verified",
+            "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_class_contracts.rs",
@@ -13876,7 +13876,7 @@
           {
             "id": "stage3:interface_kinds",
             "title": "interface_kinds",
-            "state": "verified",
+            "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_kinds.rs",
@@ -13907,7 +13907,7 @@
           {
             "id": "stage3:interface_nominals",
             "title": "interface_nominals",
-            "state": "verified",
+            "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_nominals.rs",
@@ -13930,7 +13930,7 @@
           {
             "id": "stage3:interface_preconditions",
             "title": "interface_preconditions",
-            "state": "verified",
+            "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_preconditions.rs",
@@ -13953,7 +13953,7 @@
           {
             "id": "stage3:interface_prelude_overrides",
             "title": "interface_prelude_overrides",
-            "state": "blocked",
+            "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_prelude_overrides.rs",
@@ -13976,7 +13976,7 @@
           {
             "id": "stage3:interface_refinement_closure",
             "title": "interface_refinement_closure",
-            "state": "verified",
+            "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_refinement_closure.rs",
@@ -13999,7 +13999,7 @@
           {
             "id": "stage3:interface_refinements",
             "title": "interface_refinements",
-            "state": "verified",
+            "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_refinements.rs",
@@ -14034,7 +14034,7 @@
           {
             "id": "stage3:interface_region_effects",
             "title": "interface_region_effects",
-            "state": "verified",
+            "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_region_effects.rs",
@@ -18229,7 +18229,7 @@
         "auditPending": false
       },
       {
-        "title": "Published schema 9 Stage3: all 105 frontend targets",
+        "title": "Earlier schema 9 Stage3: all 105 frontend targets",
         "status": "running",
         "phase": "bootstrap_checked_program",
         "passed": 19,
@@ -19141,7 +19141,7 @@
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-interface-controls-and-schema9-nonzero-results.json"
       },
       {
-        "title": "Bootstrap the stricter schema 10 candidate",
+        "title": "Bootstrap the schema 10 compiler on main",
         "status": "building-stage2",
         "phase": "building stage2",
         "passed": 2,
@@ -19190,13 +19190,14 @@
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-stage3-and-library-replays-results.json"
       },
       {
-        "title": "Run all 34 original language examples with schema 10 Stage3",
+        "title": "First schema 10 Stage3: all 34 original language examples",
         "status": "completed-with-failures",
-        "phase": "completed with failures",
-        "passed": null,
-        "failed": null,
+        "phase": "6/13 valid programs passed. All 21 invalid programs refused. 8/21 met the original diagnostic assertions.",
+        "passed": 14,
+        "failed": 20,
         "total": 34,
-        "source": "b59c4893c4214d1c94c624bf9ba3f9e99ee7eb9b9568c1f092b20e5080967b38"
+        "source": "b59c4893c4214d1c94c624bf9ba3f9e99ee7eb9b9568c1f092b20e5080967b38",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-external-language-results.json"
       },
       {
         "title": "Run the original 14 external acceptance checks on schema 10 Stage3",
@@ -19339,17 +19340,17 @@
       }
     ],
     "counts": {
-      "verified": 195,
-      "blocked": 11,
-      "running": 11,
+      "verified": 172,
+      "blocked": 5,
+      "running": 10,
       "pending": 85,
-      "recheck": 372
+      "recheck": 402
     },
     "total": 674,
-    "acceptanceVerified": 4,
+    "acceptanceVerified": 0,
     "acceptanceTotal": 5,
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T14:02:04.686151+00:00"
+  "updatedAt": "2026-11-07T14:15:08.377774+00:00"
 }
