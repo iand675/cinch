@@ -132,6 +132,12 @@ See also `bootstrap/current-partial-boolean-stage1-results.json`,
 `bootstrap/current-partial-boolean-stage2-demand.json` and
 `bootstrap/current-partial-boolean-stage2-provider-results.json`.
 
+The complete earlier 4f Stage3 sweep finished with 102 of 105 targets passing.
+The four failing assertions are in arrays, the bootstrap pipeline and the
+source-family override test. The 105 original target results are independently
+audited in `bootstrap/earlier-stage3-frontend-suite-results.json`. The current
+32ab compiler requires its own Stage3 sweep.
+
 The complete source-effects target passes all 43 cases, including a foreign
 call whose declared row omits `Blocking`. Its diagnostic now retains both
 checked rows. The original concurrency replay remains a separate gate. See

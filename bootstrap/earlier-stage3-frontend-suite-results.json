@@ -1,0 +1,761 @@
+{
+  "compiler_sha256": "856510792ec46c33500f249d252e77ecccd731979d6d394c60914b7e217ddb77",
+  "compiler_source_sha256": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+  "failed_targets": [
+    "arrays",
+    "bootstrap_pipeline",
+    "interface_prelude_overrides"
+  ],
+  "full_goal_complete": false,
+  "harness_test_counts": {
+    "failed": 4,
+    "passed": 175
+  },
+  "native_source_sha256": "e5a981ac7ba7545c618fb368458a0917c07bac3d1746c7f4aa612cf7c22e459b",
+  "original_interface_api_targets": 9,
+  "passed_targets": 102,
+  "portable_targets": 96,
+  "rows": [
+    {
+      "failed_tests": 0,
+      "log_sha256": "6e444ecde0f53e46af1a6866bcdb5c9f8f9ad0357f182f685e882f31e28581ec",
+      "name": "alloc_accounting",
+      "passed_tests": 8,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "d3c726427f8a8067b984690fc9648dc9f0ccc9b323097e4347654de2bf1d9da9",
+      "name": "argv",
+      "passed_tests": 3,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 2,
+      "log_sha256": "e097c1dd7cc42c90e56b58aba30d99b31e0d2f70c1ea8ebf010b6d656f4bf4a7",
+      "name": "arrays",
+      "passed_tests": 13,
+      "status": "failed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "0fa37bb0755d0850dbc8080000bc4cfee49c1a6039703b8b6650468aa963cdb6",
+      "name": "bootstrap_abstract_nonzero_methods",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "c1be10579ce9a4b30adc08dd5aa33cc79015953b68293bb9e7afa4d79193221c",
+      "name": "bootstrap_abstract_nonzero_types",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "f3009387898e546c2bd8f9f2a9229e06146739399e5d66fb5a4c7815e3f8e97e",
+      "name": "bootstrap_anonymous_contracts",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "458088239cfc8d4fff1e01939f5799fead64f796c9bdda3879cc9bbf916aad02",
+      "name": "bootstrap_argument_scopes",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "43dc7a5bb8cab31630430f25efd5314428073f31edf1871482c03fec36a63318",
+      "name": "bootstrap_array_float_bits",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "24a8afe3a0cc555cb9d134f84dbd528324040fde7e5d94a9787423fd7776994c",
+      "name": "bootstrap_body_bindings",
+      "passed_tests": 2,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "d4799803f513443d703e18650f9a75d178b5c03a30ff9969c713b45770149e81",
+      "name": "bootstrap_boolean_branches",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "16ace9b03188c17bfbff9ea051bf0debe55787cae283909527164875c0362841",
+      "name": "bootstrap_buffer_aliases",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "37688589a8f04c414b8bb235a28a677a6d91895d8bf973e350a313eb84c36dc5",
+      "name": "bootstrap_byte_observations",
+      "passed_tests": 3,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "40f35a405669bb345c714c8e0a23631ab711e531a69798f65d8191bda305b358",
+      "name": "bootstrap_check",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "980f78ca800787bbfd58f4520f72bee18cf7c14545eb3a2f6cbc79fb04e41c27",
+      "name": "bootstrap_checked_program",
+      "passed_tests": 2,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "754f87e345d8d2b0477656605d978ff9bb9fcf66e2b4ee83b5e6348116b20dc6",
+      "name": "bootstrap_collections",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "6f275428949dc44f7fe5392e265393491a7dcb3ca51a41f3a66b3202acb390e9",
+      "name": "bootstrap_conditional_methods",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "175b2eda24f1c5af253bdb6db22a5932a4aa094bcf6f0b29eb751edcfb1318d8",
+      "name": "bootstrap_contract",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "d5398f955b4f1d41649daa2a3526e3b1badb6e80e0240d662aa7ac9abecfea2c",
+      "name": "bootstrap_core",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "9c7248bdbdc7a18969a63ac30af20da0d659af1a59750d8669b6af9d869e604f",
+      "name": "bootstrap_decisions",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "3dac3dc3107c4804fdcd0add96fa5c5d26f3d9fa49205d2c095274fd752c8d59",
+      "name": "bootstrap_driver",
+      "passed_tests": 2,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "6c6d3c2cc1b1e1a784fc2e67ac0f46469ba1627f8f467d734d2e16c88b4cee14",
+      "name": "bootstrap_effect_types",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "d2068690a8455cc90ac7be3fdadaa2f7e57816138a57e85bc271d4696ab4a222",
+      "name": "bootstrap_effects",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "431501a3ec3da8444b47f1a6d09abc95ae4a4e2aed1af91f32ad3d187cdc2804",
+      "name": "bootstrap_eval",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "4ce76b3793e181c6689d6e8c4cc438432825c18342546df09f3195d131487d92",
+      "name": "bootstrap_export_interfaces",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "0f55aff4326e540c79cab03ae44c2ddc478b2f10cc1c633203df5fbbb069c66c",
+      "name": "bootstrap_export_types",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "dc67db1c8e1b45dfb1ba08c929872eb3c18389f76bff90feb4ca3712458617bc",
+      "name": "bootstrap_function_preconditions",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "17963687343e628c81175c4bb376b1ac04568419c9cfb0675b80350a70c61acb",
+      "name": "bootstrap_globals",
+      "passed_tests": 2,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "a09f983fa6daa5395d5ea37288a9574c0acc39fae780268b27cbe39396ff260c",
+      "name": "bootstrap_guarded_arithmetic",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "2fef2c5ea7e8ea262ef9d2d48df72f2775d177a7ee280e49f8d86018c248c381",
+      "name": "bootstrap_guarded_association",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "e330db5dbf93ada242b35579b55f65607b169097519c327a155d42f5443d014d",
+      "name": "bootstrap_guarded_bodies",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "0f1a8744d0e03d1c804829ee365d3fbb3d54db63093f0a9dac436048f51efd72",
+      "name": "bootstrap_guarded_calls",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "f4e0f89b2eb4a2177bac2cc138458954761dfcbd7fdbed1af8b989f329ddb023",
+      "name": "bootstrap_handler_core",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "7408c4d2f2c6dee69d5f6791442994270b09f10b7f7563b5fa03d7b2738bfe43",
+      "name": "bootstrap_imported_nonzero",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "7ba31999983351d1b47d34d2eba8d8227b55347fd0a592018b3a368e91034e60",
+      "name": "bootstrap_imported_preconditions",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "aaee0ba964f58e04957f6814a3f4db0c68767b9ce65f81a84f47d7d31d01381f",
+      "name": "bootstrap_indices",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "9c9082a761a535288e85af4abad9622d67ec9f26fc7b0876f94aab67011ed8bf",
+      "name": "bootstrap_infer",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "6ce642b91f83fb918f1651e705185cf61810b310e119ff02e38ad296c01a9b37",
+      "name": "bootstrap_instance_resolution",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "a70dd66e18283820f44e718963807cc23844c9f3a7669400f50303de5beb053b",
+      "name": "bootstrap_interface",
+      "passed_tests": 2,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "0d8d9ef44564b6b11331995a67ab0ad016a1bd9dd4254ad1f7c92ec5e2ac32d1",
+      "name": "bootstrap_intrinsics",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "4428c7854e822b19704597267885b906ad207375963d8e8985668fd9de66f32a",
+      "name": "bootstrap_ir",
+      "passed_tests": 2,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "7634f7bc78a888fc23f8433688fa86cad5a59ad5d74f60a1855125f0b359be9f",
+      "name": "bootstrap_ladder",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "df90e18d6b386ca9ef13d49fe67189222e83acc6a71ac957ee1ac998b373c0f2",
+      "name": "bootstrap_lexer",
+      "passed_tests": 3,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "5a1696a01576e4911be7c2ad04f2df176ab66fc8f10915d91b424cb90ca1e5cd",
+      "name": "bootstrap_library_object",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "67c5fd5589d098c1d4b0c3da3012eab1f42727922918b478455394aad02fb5d1",
+      "name": "bootstrap_load",
+      "passed_tests": 2,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "5154af55e2d840fdcb5af7f37678dd1c93b8b06ba3e6757f2dcdb22417dbf116",
+      "name": "bootstrap_machine_values",
+      "passed_tests": 2,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "9a929692ae6b7312c0a0f315198dd9bb9448ae342a57524ebfda0a91760074b1",
+      "name": "bootstrap_manifest",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "5f5c221a84b0ef72f7f07138c66a0f375426ecc38b51d4e7e23d7a5ce40b6e7d",
+      "name": "bootstrap_measure_contracts",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "c245599bc5f9e9365529c2356f25b2e52a63cca73e3ecd7a4462bdff364bded8",
+      "name": "bootstrap_module_scopes",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "6dfbbfd41c9d8b77bfaeef858555e2a5621bf0a9c5227661e7a62fc6c5540a32",
+      "name": "bootstrap_named_refinements",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "684145d37e24488976fe9a39e6ce4401009dddbdacd80888c969e535975c339e",
+      "name": "bootstrap_nominals",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "3fc13aebe2779aa2ecab06ec92a627a3fd73c15ff0add5a2ad3b6ef56b119394",
+      "name": "bootstrap_nonzero_source",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "5a64534af4acbb0b05b90978ba7290171c906e193281ab3015daacbb5b017bd1",
+      "name": "bootstrap_nonzero_types",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "a257aae67397453a5b0e15e457e096a6879c56f1347561916971326675d54d6d",
+      "name": "bootstrap_parse",
+      "passed_tests": 2,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "70928f6a3d8f111dacf9f6049fed4174895d20307bdcffd59da126670298d25c",
+      "name": "bootstrap_pi",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 1,
+      "log_sha256": "39aade7115389521274bb728124517a7489ab4a911a7c808f6021da3e8035651",
+      "name": "bootstrap_pipeline",
+      "passed_tests": 0,
+      "status": "failed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "31ae0a56fa120f97260ab0ab35255ec7330008bc175c6509a8ce40d162fce656",
+      "name": "bootstrap_proof",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "7a839ddb5de5253f144501dc1e197db2f1871b537073584e12c87df7ce804f7b",
+      "name": "bootstrap_proof_arrows",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "3f6b47b323aaa36d402ecc7a91d7ff78bd5fd3030fb5731d6f9e6d33b0934164",
+      "name": "bootstrap_proof_terms",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "b8456ea97ee821042d4f41790b8e3b3f505c47b335bb6bf99c854aedeb105737",
+      "name": "bootstrap_proposition_types",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "c88eda57e6501aef57444358768e144a7a996a9023056b69740f76e746613fcd",
+      "name": "bootstrap_refinement_closure",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "063b8808a2917e5103c46174f366e5fc950111129fd091ab96bed4330488ef8f",
+      "name": "bootstrap_refinement_constructors",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "92d4013d9b1652c7a690f1302b2c3f61177188273d1ac312839b614e4957873b",
+      "name": "bootstrap_refinement_core",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "02629451365c5196a702f7277869ff241e38ba5283a157ae45e2b8950285b565",
+      "name": "bootstrap_refinement_types",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "980578db2723cd461c435a98ac0a7335073c9dcbcf026cb8afc79ddad1eae398",
+      "name": "bootstrap_resolve",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "adc2d2a0212e5776d5fb31fa24297c3dc51c5645012dabba8ed7da63f5a49afa",
+      "name": "bootstrap_runtime_emit",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "9322f022df4a3e5a7182a9ee079f5e7c3701c825c0f61ea31385fa0babf64e8d",
+      "name": "bootstrap_runtime_ir",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "f62e50b281badb9d0117353d017b34bcc1c7dd3791edd0005f309d18137c64c2",
+      "name": "bootstrap_runtime_library",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "f0fb651d0eeba130924399508881a37ae634f0fafc42714a21d875086a5549ac",
+      "name": "bootstrap_runtime_library_abi",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "a1feb6e147a0249a0c2cd4e9a3dfc428b384be4b72e83264445bb6989b8bfaed",
+      "name": "bootstrap_runtime_objects",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "1fc70c6a734398bf173c5ec2c6b6d3b4a99f6de9099ddfb8be195675e8d3a9c5",
+      "name": "bootstrap_source_constructors",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "4a16e093218e671b83e3ebc9b5c6002ba507e792d12d22f65a618715d489da33",
+      "name": "bootstrap_source_decisions",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "2da26192b3a8737dafcbb588558e9af4c50f697b9dbd5ba057e87c072f19f6ba",
+      "name": "bootstrap_source_effects",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "88d8777275b883491bb31026e9dba8394e99690b8e99d3dd42786361bf8347f9",
+      "name": "bootstrap_source_handlers",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "159ac77397ccbba26b5f271b3263febefef84bfc8c40e067172263dc969294f7",
+      "name": "bootstrap_source_instances",
+      "passed_tests": 2,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "a52819e9e53cfb7f059eeb18c3026b49c66e9631cef2f1cd1d298eb15e4bda04",
+      "name": "bootstrap_source_pi",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "6b70c6683573ba9fe7b5512de3b2d3483a900524699ef60175f4281c51327956",
+      "name": "bootstrap_source_projection",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "f33b59c873c2f9e0a3563f435b5e5354632b4bc137382cf9eadf3669c0a9525c",
+      "name": "bootstrap_source_proofs",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "9a4bba8d3b5e7ba93196f93c1b1f57652028bd0a79d479a31d3e9bdb4bf0c6f2",
+      "name": "bootstrap_source_refinements",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "2235ac880887afce3d2d0d34ebfd3f3355eb980fa0d59e428aae48431f9df052",
+      "name": "bootstrap_test_runner",
+      "passed_tests": 2,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "db220a2b06710108d4fd91f5354ed4b989f8ed60a48da47fdc04536411d3f684",
+      "name": "bootstrap_total",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "bd957709f377a62cf8290b19a4e0b585ff02216fba6b9a6f32c198c48595b104",
+      "name": "bootstrap_total_indices",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "a0affb3a00ede31d5ed71d5ee020eba6c082249397dbb8cbbb1d45d6392272ac",
+      "name": "bootstrap_total_semantics",
+      "passed_tests": 3,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "7023685bc1df741fed4bfb223b509ed745030149c9135a021ea4907adaf8228f",
+      "name": "bootstrap_type_syntax",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "57c57f37d5299882093a88a3ff9ebabc27bfdf18d73242e54edd412cb601e95c",
+      "name": "bootstrap_typed_indices",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "84a1b26ba565673c1f38ed655e8191f287be77e5017fff2e8789629f60d0ee62",
+      "name": "bootstrap_typing",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "91ae800a8a88898e84b8fef9b6059e44ddc0779ab5f047418bbb8b2815f58064",
+      "name": "bootstrap_value_indices",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "307b8067da7407642f3f47de5817f3b756bbc0567b0ff822cb68286ae7d9bff3",
+      "name": "bootstrap_value_kinds",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "ee7c8b02488471e837380eae10553334147a43ebf9b9bf98c2bf8933490a9415",
+      "name": "canonical_artifacts",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "82e4c84c45c37e769f8617803f71330bc937e7aa458961ee7d0727af060961d4",
+      "name": "case_evidence",
+      "passed_tests": 17,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "2e71024cdd09a5b5642dc829b9de838a749f7dae601e0cafecd200e63f3f23f9",
+      "name": "class_identity",
+      "passed_tests": 3,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "e62cc974bce78020ebbab55ce84baf252781b942c83992cd01bcf537a7533b27",
+      "name": "exhaustion",
+      "passed_tests": 4,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "97709ef7e33ba5566c158d216dfa5858188dd63e60c398d706363bfff927e048",
+      "name": "folded_literal_ownership",
+      "passed_tests": 2,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "83e5c3d3133e36476ff20849b582f665d64188db6d8588b0e3b6fee813f406eb",
+      "name": "interface_anonymous_contracts",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "03f4159bd6223793fd934e74ed9cfd1440cf50204a6d927f46084b9d5b1bef07",
+      "name": "interface_byte_observations",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "f495b48de6d20410ee476574dd15c4b6282d04a1959e5784431a4212635d3134",
+      "name": "interface_class_contracts",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "ae7a11e6eef9e9df996c5e521ec293428cbd29d22dc3404e6fa17d51ca91a62c",
+      "name": "interface_kinds",
+      "passed_tests": 2,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "235f2769aa06e3adaec77f67a96eaaa3ef2fdb4008a7d1d80b9baf85d15a9484",
+      "name": "interface_machine_contracts",
+      "passed_tests": 2,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "b4d538adad23a977c0ea2752a9f9135a277f52a4ad7d124e61acb00cde573eac",
+      "name": "interface_nominals",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "f7353270cba9bc4ee19e5d19271387a81943ff9a69cf560080b5deb53de66e2f",
+      "name": "interface_preconditions",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 1,
+      "log_sha256": "4ee59f5acb324eeeb7f8c7b277f98b1aed7348705be2cc4655270f7f9e91a739",
+      "name": "interface_prelude_overrides",
+      "passed_tests": 0,
+      "status": "failed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "111ebafa05b6d0989eab0377a04e644d4d85d98f14f1e74b46ff53df8013e2c8",
+      "name": "interface_refinement_closure",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "cd13e6b8e444477ad6bed74bdc4f146be39b7c29699a661cff69914aaa05197a",
+      "name": "interface_refinements",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "743404b390826c1a63903c6b5cd428a9a281383782e3a1323077ca35d3e10f49",
+      "name": "interface_region_effects",
+      "passed_tests": 2,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "66eea22ca6832177abd47d5bc2fabd6f44e2bd770f47b89089bf21bb9f3e3470",
+      "name": "lib_hashmap_real",
+      "passed_tests": 2,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "ca91491f5b93b1b05959e76626074adf25cea50cd35ecc14ad3b70801722f4f9",
+      "name": "primitive_length_identity",
+      "passed_tests": 9,
+      "status": "passed"
+    }
+  ],
+  "scope": "Completed historical 4f Stage3 dispatch across all 105 targets, preserving every original assertion. Some targets call Rust APIs directly in addition to the Cinch CLI. These results belong to the earlier compiler, and the matching current-candidate Stage3 suite is still required.",
+  "scope_sha256": "f59c13606ddc30b6dec757ca5b4f006e22b18ff2fc9b883a8bbaf715a0762de8",
+  "status": "audited-earlier-stage3-suite-with-failures",
+  "total_targets": 105,
+  "verified_at": "2026-11-07T04:34:39.569900+00:00",
+  "wrapper_sha256": "75af2d6a1107caecfddf18c581355124d2a3294bdaf78068a5eab5d12321e988"
+}
