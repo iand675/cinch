@@ -18856,10 +18856,10 @@
       },
       {
         "title": "Unchanged source-library families: structural arrow candidate",
-        "status": "running",
-        "phase": "core",
-        "passed": 0,
-        "failed": 0,
+        "status": "completed",
+        "phase": null,
+        "passed": 1,
+        "failed": 3,
         "total": 4,
         "source": "b655a0a0d31a67be39ff71bc36b4434c4ca0bb9b6b991928f64329efc133bd63"
       }
@@ -18877,5 +18877,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T07:25:31.274466+00:00"
+  "updatedAt": "2026-11-07T07:26:33.430657+00:00"
 }
