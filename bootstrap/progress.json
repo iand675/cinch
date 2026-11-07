@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "91 of 235 complete groups passed; 1 running, 0 failed and 143 pending.Every group includes ignored tests. State: running.",
+      "detail": "92 of 235 complete groups passed; 1 running, 0 failed and 142 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -494,7 +494,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "91 of 235 complete groups passed; 1 running, 0 failed and 143 pending."
+      "detail": "92 of 235 complete groups passed; 1 running, 0 failed and 142 pending."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -790,10 +790,10 @@
         "unit": "targets",
         "total": 235,
         "counts": {
-          "verified": 100,
+          "verified": 101,
           "blocked": 0,
           "running": 1,
-          "pending": 134,
+          "pending": 133,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -8024,17 +8024,17 @@
           {
             "id": "native:observability",
             "title": "observability",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/observability.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "startedAt": "2026-11-07T00:23:32.152785+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T00:24:01.352415+00:00",
+              "exitCode": 0,
+              "logSha256": "6e2f03579e4a92dd6c082cc7ed14850ee1c0a6df2410a3fc0c400baebf1fbfcf",
               "cases": [
                 {
                   "name": "collecting_handler_nests_span_scopes_by_lexical_scope",
@@ -8046,7 +8046,23 @@
                 },
                 {
                   "name": "otlp_json_envelope_exports_logs_metrics_and_spans",
-                  "status": "running"
+                  "status": "passed"
+                },
+                {
+                  "name": "scope_brackets_close_sibling_scopes",
+                  "status": "passed"
+                },
+                {
+                  "name": "trace_context_propagates_across_run_boundaries_in_one_trace",
+                  "status": "passed"
+                },
+                {
+                  "name": "unhandled_operations_are_refused_at_the_boundary",
+                  "status": "passed"
+                },
+                {
+                  "name": "w3c_traceparent_round_trips_and_refuses_ill_formed_headers",
+                  "status": "passed"
                 }
               ]
             },
@@ -8055,17 +8071,17 @@
           {
             "id": "native:optimizer",
             "title": "optimizer",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/optimizer.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:17:53.605768+00:00",
-              "finishedAt": "2026-11-06T14:18:39.605058+00:00",
-              "exitCode": 0,
-              "logSha256": "7a29e0f424b579967c1d18dd295e28d2473b7784de739dc40a9d29c485f77618",
+              "status": "running",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T00:24:01.354687+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "blocked_fusion_names_the_blocker",
@@ -8101,35 +8117,7 @@
                 },
                 {
                   "name": "map_fusion_preserves_values_and_effect_order",
-                  "status": "passed"
-                },
-                {
-                  "name": "map_headed_fusion_composes_every_stage",
-                  "status": "passed"
-                },
-                {
-                  "name": "rewrite_rule_fires_and_report_names_it",
-                  "status": "passed"
-                },
-                {
-                  "name": "rewrites_do_not_extend_conversion",
-                  "status": "passed"
-                },
-                {
-                  "name": "rule_that_would_change_definitional_equality_is_rejected",
-                  "status": "passed"
-                },
-                {
-                  "name": "scalable_profile_does_not_pin_a_width",
-                  "status": "passed"
-                },
-                {
-                  "name": "target_rewrite_applies_in_capability_scope_only",
-                  "status": "passed"
-                },
-                {
-                  "name": "weights_survive_optimization",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -18437,8 +18425,8 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "observability",
-        "passed": 91,
+        "phase": "optimizer",
+        "passed": 92,
         "failed": 0,
         "total": 235,
         "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
@@ -18456,10 +18444,10 @@
       }
     ],
     "counts": {
-      "verified": 272,
+      "verified": 273,
       "blocked": 4,
       "running": 6,
-      "pending": 173,
+      "pending": 172,
       "recheck": 212
     },
     "total": 667,
@@ -18468,5 +18456,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T00:23:46.377567+00:00"
+  "updatedAt": "2026-11-07T00:24:48.978129+00:00"
 }
