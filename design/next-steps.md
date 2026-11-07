@@ -92,13 +92,15 @@ semantic credit. All9 corrected flag controls pass independent Native audit:
 and every original assertion retained. All 44 exact compiler modules also pass
 Native admission. The pinned Native builder produced the candidate Cinch CLI,
 which passed all nine compiler and object tests. The independent artifact audit
-confirmed 17 foreign ABI clients and 50 zero-leak reports. The candidate's
-own-source check and remaining component tests precede the queued Stage1/2/3
-rebuild. See
+confirmed 17 foreign ABI clients and 50 zero-leak reports. The candidate also
+checked every one of its own 44 exact source modules with an empty executable
+search path, the 55 verified library interfaces, and zero leaks. Its component
+tests precede the queued Stage1/2/3 rebuild. See
 `bootstrap/current-partial-boolean-precondition-results.json` and
 `bootstrap/current-partial-boolean-input-results.json`. See also
 `bootstrap/current-partial-boolean-native-controls.json`,
-`bootstrap/current-partial-boolean-compiler-results.json` and
+`bootstrap/current-partial-boolean-compiler-results.json`,
+`bootstrap/current-partial-boolean-own-source-results.json` and
 `bootstrap/current-partial-boolean-branch-development-2.json`.
 
 All9 development patches apply in order to a fresh published-source snapshot,
@@ -119,10 +121,14 @@ The older NativeE5/4f complete sweep independently records234/235 groups and
 1635/1636 tests, retaining its stale pipeline-diagnostic assertion failure. Earlier
 results do not close current full-suite acceptance.
 
-A partial review covers10 of130 targets outside the historical105-target
-frontend matrix: two Native harness roles and eight source/mixed targets needing
-additional Cinch coverage, spanning124 Rust test functions. This is target-level
-classification, not a completed per-assertion audit;120 targets remain unreviewed.
+A partial review covers 11 of 130 targets outside the historical 105-target
+frontend matrix. Two targets exercise the Native harness and nine contain
+source behavior, spanning 141 Rust test functions. Another 119 targets still
+need review. The complete original concurrency target through development
+Cinch passes six tests and records eleven failures. Eight executed programs
+report zero leaks. The unresolved cases cover representation declarations,
+borrow and thunk operations, and precise ownership, lifetime and effect
+diagnostics. See `bootstrap/current-original-concurrency-frontend-results.json`.
 A dispatch-only adapter preserves both whole original fixity-interface tests;
 they now pass through actual2866 Cinch, including exact defining/facade metadata,
 the renamed operator runtime result9 and one32M poisoned zero-leak report. This

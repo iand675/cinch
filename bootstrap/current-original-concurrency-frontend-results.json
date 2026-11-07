@@ -1,0 +1,106 @@
+{
+  "actual_compiler_invocations": 22,
+  "cases": [
+    {
+      "first_blocker": "Representation declarations stop at namespace elaboration.",
+      "name": "a_linear_capture_transfers_into_a_task_exactly_once",
+      "status": "failed"
+    },
+    {
+      "first_blocker": "copyOut is unresolved before the exclusive Mut capture check.",
+      "name": "a_mut_borrow_capture_is_rejected",
+      "status": "failed"
+    },
+    {
+      "first_blocker": "Memo binding and demand are unavailable before the task capture check.",
+      "name": "a_thread_shared_memo_cell_is_rejected",
+      "status": "failed"
+    },
+    {
+      "first_blocker": "The tuple escape is rejected with the generic task error, losing the region escape reason.",
+      "name": "aggregate_results_cannot_hide_scoped_closure_captures",
+      "status": "failed"
+    },
+    {
+      "first_blocker": "delay and force are unresolved.",
+      "name": "an_affine_thunk_moves_into_a_task_by_transfer",
+      "status": "failed"
+    },
+    {
+      "first_blocker": "The Bytes capture is refused with the generic task error, losing the shareable evidence reason.",
+      "name": "an_unshared_mutable_capture_is_rejected",
+      "status": "failed"
+    },
+    {
+      "first_blocker": "The positive C fixture linked and ran. The negative diagnostic omits the Blocking label.",
+      "name": "blocking_foreign_call_is_accounted_in_the_task_row",
+      "status": "failed"
+    },
+    {
+      "first_blocker": null,
+      "name": "checked_private_and_recursive_data_results_do_not_capture_scope_regions",
+      "status": "passed"
+    },
+    {
+      "first_blocker": "Representation declarations stop before checking duplicate use.",
+      "name": "double_capture_of_a_linear_value_is_rejected",
+      "status": "failed"
+    },
+    {
+      "first_blocker": null,
+      "name": "dropping_a_handle_is_rejected",
+      "status": "passed"
+    },
+    {
+      "first_blocker": null,
+      "name": "example_11_structured_tasks_accepts",
+      "status": "passed"
+    },
+    {
+      "first_blocker": null,
+      "name": "io_read_and_write_round_trip",
+      "status": "passed"
+    },
+    {
+      "first_blocker": null,
+      "name": "join_all_or_cancel_cancels_siblings_on_failure",
+      "status": "passed"
+    },
+    {
+      "first_blocker": "The first closure escape is refused with the generic task error.",
+      "name": "partial_application_cannot_hide_a_scoped_token_in_an_escaping_closure",
+      "status": "failed"
+    },
+    {
+      "first_blocker": "borrow and copyOut are unresolved.",
+      "name": "ref_and_copy_captures_are_accepted",
+      "status": "failed"
+    },
+    {
+      "first_blocker": null,
+      "name": "spawned_task_results_join_correctly",
+      "status": "passed"
+    },
+    {
+      "first_blocker": "A type mismatch is reported before the scope escape reason.",
+      "name": "task_handles_cannot_escape_their_scope",
+      "status": "failed"
+    }
+  ],
+  "compiler_sha256": "287936be0bcf35a79d8e85083dee0595d3e9b9f3b2bc5c4c72ef8da4d59f561c",
+  "compiler_source_sha256": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+  "failed_tests": 11,
+  "filtered": 0,
+  "full_goal_complete": false,
+  "ignored": 0,
+  "log_sha256": "993e14a26813f581f589b07759d2642372ccd448cd8dd9c48d8c25e939ac5b53",
+  "native_source_sha256": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+  "original_sources_and_assertions_retained": true,
+  "passed_tests": 6,
+  "positive_runtime_clients": 8,
+  "scope": "Original concurrency target through actual Cinch32ab. Host dispatch alone is replaced. The tests keep the same source, stdin/stdout, exit status, foreign C fixture and exact refusal-reason assertions. Runtime programs are run with a 32 MiB heap and poisoning. Tests that fail their first assertion leave later cases in that test unreached. Native-only checks, helper callback transport and final matching Stage3 remain separate.",
+  "status": "audited-original-concurrency-target-with-failures",
+  "tests": 17,
+  "verified_at": "2026-11-07T03:18:00.380691+00:00",
+  "zero_leak_reports": 8
+}

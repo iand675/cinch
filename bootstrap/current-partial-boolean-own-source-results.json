@@ -1,0 +1,27 @@
+{
+  "checked_library_interfaces": 55,
+  "compiler_modules": 44,
+  "compiler_sha256": "287936be0bcf35a79d8e85083dee0595d3e9b9f3b2bc5c4c72ef8da4d59f561c",
+  "compiler_source_sha256": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+  "full_goal_complete": false,
+  "interfaces_sha256": "067ab7c76c130a53b952b9d8fa0a0cfd7702bddf64e3dae51724c0275ae98163",
+  "rows": [
+    {
+      "diagnostic": "",
+      "diagnostic_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "exit_code": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "self-check44",
+      "status": "passed"
+    }
+  ],
+  "runner_path_empty": true,
+  "scope": "Actual Cinch32ab CLI built by the pinned Native22 builder checks every exact own source module. Bundle and staged driver bytes match all 44 modules. PATH is empty and only the 55 verified library interfaces are supplied. Diagnostics are empty and the checker reports zero leaks. This proves own-source admission. Stage1 through Stage3 emission, fixed point, source change and the full test audit still require matching runs.",
+  "source": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/partial-boolean-branch-inputs-2/source",
+  "source_bundle_sha256": "cacd5676c97de0cdff77c32545a1712e842e12884278a4e578e7f45791a2aefa",
+  "source_sha256": "bcdef01e9e81352fa9c382da746c82acd0fd13b9ffbe1810bbfb9eecc0dbd27a",
+  "status": "passed-exact-own-source-check",
+  "verified_at": "2026-11-07T03:16:12.712599+00:00",
+  "whole_groups": 1,
+  "zero_leak_reports": 1
+}

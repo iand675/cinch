@@ -1,16 +1,15 @@
 {
   "status": "partial-audit-of-targets-outside-historical105-frontend-matrix",
-  "verified_at": "2026-11-07T02:06:34.588452+00:00",
+  "verified_at": "2026-11-07T03:19:23.171568+00:00",
   "published_compiler_source_sha256": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
   "native_source_sha256": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
   "historical_frontend_targets": 105,
   "outside_targets_total": 130,
-  "target_level_reviews": 10,
+  "target_level_reviews": 11,
   "infrastructure_roles_identified": 2,
-  "targets_with_identified_source_coverage_obligations": 8,
+  "targets_with_identified_source_coverage_obligations": 9,
   "unreviewed_targets": [
     "bin-cinch",
-    "concurrency",
     "dependent",
     "doc",
     "effects",
@@ -130,7 +129,7 @@
     "total_bodies",
     "wasm"
   ],
-  "reviewed_rust_test_functions": 124,
+  "reviewed_rust_test_functions": 141,
   "rows": [
     {
       "target": "bootstrap_external_frontend",
@@ -457,9 +456,45 @@
         "native_source_sha256": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b"
       },
       "matching_final_cinch_execution_proven": false
+    },
+    {
+      "target": "concurrency",
+      "test_file": "compiler/tests/concurrency.rs",
+      "test_file_sha256": "52c91490d2d956a2670de1bd9424562020f298792aef207193e994066e36b854",
+      "rust_test_functions": [
+        "a_linear_capture_transfers_into_a_task_exactly_once",
+        "a_mut_borrow_capture_is_rejected",
+        "a_thread_shared_memo_cell_is_rejected",
+        "aggregate_results_cannot_hide_scoped_closure_captures",
+        "an_affine_thunk_moves_into_a_task_by_transfer",
+        "an_unshared_mutable_capture_is_rejected",
+        "blocking_foreign_call_is_accounted_in_the_task_row",
+        "checked_private_and_recursive_data_results_do_not_capture_scope_regions",
+        "double_capture_of_a_linear_value_is_rejected",
+        "dropping_a_handle_is_rejected",
+        "example_11_structured_tasks_accepts",
+        "io_read_and_write_round_trip",
+        "join_all_or_cancel_cancels_siblings_on_failure",
+        "partial_application_cannot_hide_a_scoped_token_in_an_escaping_closure",
+        "ref_and_copy_captures_are_accepted",
+        "spawned_task_results_join_correctly",
+        "task_handles_cannot_escape_their_scope"
+      ],
+      "rust_test_function_count": 17,
+      "role": "Cinch source and runtime behavior",
+      "target_role_classification_complete": true,
+      "per_assertion_portable_audit_complete": false,
+      "requires_additional_matching_cinch_source_coverage": true,
+      "findings": "Whole original target replay through actual development Cinch yields six passing tests and eleven failures. Later assertions in failed tests remain required.",
+      "required": "All original source checks, C fixture, runtime assertions, and named refusal reasons pass through matching Stage3. Retain the complete Rust target.",
+      "native_observation": {
+        "status": "passed",
+        "log_sha256": "e51db13097add7742a57ebdd5c21f657a3da055f385936dd30519f894131de62"
+      },
+      "matching_final_cinch_execution_proven": false
     }
   ],
   "whole_coverage_audit_complete": false,
   "full_goal_complete": false,
-  "scope": "A target-level review of ten of the130 targets outside the historical105-target selected-frontend matrix. Two infrastructure targets need their original Native tests; eight source/mixed targets still require portable assertion-level coverage and actual final matching Cinch execution. All original files match the current frozen Native sweep. No target, original assertion, expected refusal reason or direct Native API role is dropped. The historical active105 run remains immutable. This report is coverage work identification, not a passing-test or complete coverage claim. The full fixity target has since passed development2866 replay; that exact assertion-level coverage review is complete, but final matching Stage3 execution remains unproved."
+  "scope": "Eleven target-level reviews outside the historical Stage3 matrix identify two Native harness roles and nine targets that contain source behavior. Development concurrency runs all seventeen original Rust tests with six passing and eleven failing. A failed first assertion can prevent later cases from running. The earlier fixity target passes its development replay. Every original test and named refusal remains required, including matching final Stage3 verification."
 }

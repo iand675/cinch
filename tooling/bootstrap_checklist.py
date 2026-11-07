@@ -245,8 +245,17 @@ def build_checklist(root, cfg, previous=None):
             'Pass every original default source, runtime, identity and diagnostic/path assertion through the final matching Cinch-built compiler; classify the11 direct Rust annotation checks separately.',
             link('bootstrap/current-source-class-default-self-values-api-results.json'),
             observed=dict(status='failed',source=additional['compiler_source_sha256'],cases=cases(Path(cfg.get('artifactRoot', BASE))/'source-class-default-interface-api-2/class_defaults.log')))
-        suites.append(suite('additional','Additional frontend coverage','targets',[row],
-            'Added by the coverage audit. All original105 Stage3 targets remain separately required; direct Rust calls do not grant Cinch frontend credit.'))
+        extra_rows = [row]
+        concurrency = read(cfg.get('originalConcurrencyReceipt'))
+        if concurrency:
+            extra_rows.append(item('additional:concurrency', 'concurrency', 'blocked',
+                f"Development Cinch passed {concurrency['passed_tests']} of {concurrency['tests']} original concurrency tests. The failed cases retain their first blocker.",
+                'Run the complete original target through matching Stage3, including original runtime, I/O, foreign fixture and exact refusal reasons.',
+                link('bootstrap/current-original-concurrency-frontend-results.json'),
+                observed=dict(status='failed',source=concurrency['compiler_source_sha256'],
+                    cases=[dict(name=case['name'], status=case['status']) for case in concurrency['cases']])))
+        suites.append(suite('additional','Additional frontend coverage','targets',extra_rows,
+            'The coverage audit adds these targets alongside all original Stage3 targets. Direct Rust calls have their own test inventory.'))
 
     acceptance_text = [
         ('Pinned seed builds Stage1', 'The pinned Rust seed builds all latest compiler sources; Stage1 is runnable and passes its executable smoke checks.'),
@@ -327,7 +336,7 @@ def build_checklist(root, cfg, previous=None):
         item('gap:fixities','Reverify defining-module-only fixities','recheck','The earlier self-built controls prove that both identical and changed importer declarations refuse.',
              'Repeat the original defining-owner, facade/rename and importer-refusal controls through the final matching Stage3.',link('bootstrap/current-record-indexed-external-acceptance-results.json')),
         item('gap:coverage','Audit every frontend-facing test outside the Stage3 matrix','pending',
-             f'{len(set(native_names)-set(front_names))} Rust targets are outside the preserved105-target Stage3 matrix. Ten target-level reviews identify two Native harness roles and eight source/mixed targets needing complementary Cinch coverage;120 targets and per-assertion work remain. The whole original two-test fixity replay now passes through actual development2866 with only dispatch changed, exact interface assertions, exit9 and zero leaks. Final matching Stage3 execution remains required.',
+             f'{len(set(native_names)-set(front_names))} Rust targets are outside the preserved Stage3 matrix. Eleven reviews identify two Native harness roles and nine source or mixed targets. The original fixity replay passes on development Cinch. The complete original concurrency replay identifies eleven failures. Another 119 targets need review before matching final Stage3 coverage.',
              'Review all remaining targets and assertions, retain direct Rust API roles explicitly, and add every missing portable behavior case to final Stage3 execution.',link('bootstrap/current-outside-frontend-target-review.json')),
         item('gap:final-audit','Complete the requirement-by-requirement final audit','pending','A green subset, source check or earlier fixed point cannot close the full goal.',
              'Every acceptance item, named artifact, invariant and complete matching suite has direct current evidence; all failures and unclassified coverage are closed.',link('design/self-hosting.md#acceptance'))]
@@ -366,7 +375,10 @@ def build_checklist(root, cfg, previous=None):
         ('sourceOriginOwnCompilerCheck','Diagnostic compiler: its own44 source modules',1,'build-'),
         ('partialBooleanOwnCompilerCheck','Core branch compiler: its own44 source modules',1,'build-'),
         ('sourceOriginByteScan','Diagnostic byte scan: large-bundle control and full pipeline',2,'compile-'),
+        ('sourceOriginByteScanPrior','Diagnostic byte scan: earlier run with stale FFI expectation',2,'compile-'),
         ('constructorPublicDisplay','Constructor display: interface and nominal tests',2,'compile-'),
+        ('originalConcurrencyFrontend','Original concurrency suite through the Cinch compiler',1,'compile-'),
+        ('nativeTaskLocalCapture','Rust callback capture: focused, concurrency and unit tests',3,'compile-'),
         ('functionDefaultProvider','Function defaults: fresh pinned library object',1,'compile-'),
         ('additionalFixityValidation','Additional original fixity tests: actual Cinch frontend',1,'compile-')]:
         state=read(cfg.get(key))

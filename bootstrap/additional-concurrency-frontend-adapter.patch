@@ -1,0 +1,85 @@
+--- a/compiler/tests/concurrency.rs
++++ b/compiler/tests/concurrency.rs
+@@ -5,10 +5,13 @@
+ //! (concurrency specification sections 2, 3, 4 and 6, and the runtime
+ //! capabilities, effects and sequencing spec).
+ 
+-use cinch::driver::{check_sources, run_source_io, run_source_objects};
++mod common;
++#[path = "common/concurrency_frontend.rs"]
++mod concurrency_frontend;
++use concurrency_frontend::{check_sources, run_source, run_source_io, run_source_objects};
+ 
+ fn expect_ok(name: &str, src: &str, expected: i32) {
+-    match cinch::driver::run_source(src) {
++    match run_source(src) {
+         Ok(code) => assert_eq!(code, expected, "{name}: expected exit {expected}, got {code}"),
+         Err(e) => panic!("{name}: compilation failed: {e}"),
+     }
+--- /dev/null
++++ b/compiler/tests/common/concurrency_frontend.rs
+@@ -0,0 +1,64 @@
++//! Test dispatch for the original structured-concurrency sources and assertions.
++use super::common::{external_frontend, project};
++use cinch::driver::Mode;
++use std::io::Write;
++use std::path::{Path, PathBuf};
++use std::process::{Command, Stdio};
++
++fn required_path(name: &str) -> Result<PathBuf, String> {
++    std::env::var_os(name).filter(|value| !value.is_empty()).map(PathBuf::from)
++        .ok_or_else(|| format!("{name} is required for the selected Cinch frontend"))
++}
++
++fn drive(mode: Mode, dir: &Path, entry: &str, output: Option<PathBuf>) -> Result<i32, String> {
++    let frontend = external_frontend::configured()?.ok_or("explicit Cinch frontend required")?;
++    external_frontend::drive(&frontend, mode, dir, entry, output)
++}
++
++pub fn check_sources(source: &str, name: &str) -> Result<(), String> {
++    let entry = if name == "<test>" { "Main.cinch" } else { name };
++    let dir = project("concurrency_check", &[(entry, source)]);
++    drive(Mode::Check, &dir, entry, None).map(|_| ())
++}
++
++fn execute(source: &str, objects: &[&str], input: &[u8]) -> Result<(i32, String), String> {
++    let dir = project("concurrency_run", &[("Main.cinch", source)]);
++    let ir = dir.join("program.ll");
++    drive(Mode::EmitIr, &dir, "Main.cinch", Some(ir.clone()))?;
++    let program = dir.join("program");
++    let link = Command::new(std::env::var_os("CINCH_CLANG").unwrap_or_else(|| "clang".into()))
++        .arg(&ir).arg(required_path("CINCH_TEST_LIBRARY_OBJECT")?)
++        .args(objects).arg(required_path("CINCH_TEST_RUNTIME_ARCHIVE")?)
++        .arg("-o").arg(&program).output().map_err(|e| e.to_string())?;
++    std::fs::write(dir.join("link.stderr"), &link.stderr).map_err(|e| e.to_string())?;
++    if !link.status.success() {
++        return Err(format!("clang failed for {}: {}", dir.display(), String::from_utf8_lossy(&link.stderr)));
++    }
++    let mut child = Command::new(&program)
++        .env("CINCH_HEAP_LIMIT", "32M").env("CINCH_RC_DEBUG", "1").env("CINCH_LEAK_CHECK", "1")
++        .stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped())
++        .spawn().map_err(|e| e.to_string())?;
++    let wrote_input = child.stdin.take().expect("piped stdin").write_all(input);
++    let output = child.wait_with_output().map_err(|e| e.to_string())?;
++    std::fs::write(dir.join("run.stdout"), &output.stdout).map_err(|e| e.to_string())?;
++    std::fs::write(dir.join("run.stderr"), &output.stderr).map_err(|e| e.to_string())?;
++    wrote_input.map_err(|e| e.to_string())?;
++    let code = output.status.code().ok_or_else(|| format!("{} terminated without an exit code", program.display()))?;
++    let stderr = String::from_utf8_lossy(&output.stderr);
++    if stderr.matches("cinch-leak: live=0 immortal=0 leaked=0").count() != 1 {
++        return Err(format!("runtime leak report for {}: {stderr}", program.display()));
++    }
++    Ok((code, String::from_utf8(output.stdout).map_err(|e| e.to_string())?))
++}
++
++pub fn run_source(source: &str) -> Result<i32, String> {
++    execute(source, &[], &[]).map(|(code, _)| code)
++}
++
++pub fn run_source_io(source: &str, input: &[u8]) -> Result<(i32, String), String> {
++    execute(source, &[], input)
++}
++
++pub fn run_source_objects(source: &str, objects: &[&str]) -> Result<i32, String> {
++    execute(source, objects, &[]).map(|(code, _)| code)
++}
