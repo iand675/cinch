@@ -18962,9 +18962,9 @@
       {
         "title": "Schema 10: pinned Stage1 and original library replacement tests",
         "status": "running",
-        "phase": "interface_prelude_overrides",
-        "passed": 1,
-        "failed": 0,
+        "phase": "Algebra.Monoid",
+        "passed": 4,
+        "failed": 3,
         "total": 8,
         "source": "7779280734c485942b9fe5c009c686f0719c8b3bcad7e224dccd4c32c7690f8c"
       },
@@ -19139,5 +19139,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T12:28:51.092351+00:00"
+  "updatedAt": "2026-11-07T12:29:53.300599+00:00"
 }
