@@ -19063,6 +19063,16 @@
         "source": "fd96d8d21894bdb3d578caeddcbff3f48b5bd54867f541634f5121e92efc0f00"
       },
       {
+        "title": "Match defining names in schema 10 law observations",
+        "status": "waiting-worker",
+        "phase": "Rust and Cinch emitted different law names in the same schema. waiting worker",
+        "passed": 0,
+        "failed": 0,
+        "total": 5,
+        "source": "9df59053b3dc0df7c8af55f7903bd252728427448ae03345b95a6b120efc584a",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-law-identity-gap.json"
+      },
+      {
         "title": "Schema 9 Stage1: original arrays with staging and CopyOut",
         "status": "passed",
         "phase": "Fourteen tests passed in the full run and the remaining test passed with the matching runtime archive",
@@ -19177,5 +19187,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T12:49:04.683965+00:00"
+  "updatedAt": "2026-11-07T12:53:25.484474+00:00"
 }
