@@ -19104,7 +19104,7 @@
       },
       {
         "title": "Require complete schema 10 interfaces and preserve public type spelling",
-        "status": "waiting-worker",
+        "status": "running",
         "phase": "arrays",
         "passed": 4,
         "failed": 0,
@@ -19124,19 +19124,19 @@
       },
       {
         "title": "Bootstrap the stricter schema 10 candidate",
-        "status": "waiting-for-pinned-library",
-        "phase": "waiting for pinned library",
+        "status": "failed",
+        "phase": "failed",
         "passed": 0,
-        "failed": 0,
+        "failed": 1,
         "total": 4,
         "source": "309a4f696ed5072050009e59562deabb2fc205731e47655662d1d8d69cd2d020"
       },
       {
         "title": "Replay the original library families with the rebuilt provider",
-        "status": "waiting-stage1",
-        "phase": "waiting stage1",
+        "status": "failed-stage1",
+        "phase": "failed stage1",
         "passed": 0,
-        "failed": 0,
+        "failed": 1,
         "total": 1,
         "source": "309a4f696ed5072050009e59562deabb2fc205731e47655662d1d8d69cd2d020"
       },
@@ -19255,5 +19255,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T13:22:40.092193+00:00"
+  "updatedAt": "2026-11-07T13:24:42.412926+00:00"
 }
