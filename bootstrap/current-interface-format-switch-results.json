@@ -1,0 +1,64 @@
+{
+  "chain_status_at_format_verification": "building-stage3",
+  "checked_at": "2026-11-07T10:41:00.004098+00:00",
+  "compiler_source_sha256": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
+  "format_cases": [
+    {
+      "Cinch": 0,
+      "Python": "accepted",
+      "Rust": 0,
+      "Rust_diagnostic": "",
+      "case": "current",
+      "diagnostic": ""
+    },
+    {
+      "Cinch": 7,
+      "Python": "refused",
+      "Rust": 1,
+      "Rust_diagnostic": "interface schema 8 is not supported (expected 9)",
+      "case": "previous-schema",
+      "diagnostic": "bootstrap.interfaces: Algebra.Monoid: unsupported interface schema"
+    },
+    {
+      "Cinch": 7,
+      "Python": "refused",
+      "Rust": 1,
+      "Rust_diagnostic": "expected array",
+      "case": "fingerprint-only",
+      "diagnostic": "bootstrap.interfaces: Algebra.Monoid: malformed interface contract envelope"
+    }
+  ],
+  "full_goal_complete": false,
+  "library_producer": {
+    "description": "ABI 6 Rust library-only producer for checked schema 9 interfaces.",
+    "revision": "90ebe80f7a8d6ebb5394f6ad6c2cdc60622d0e43",
+    "runtime_abi": 6,
+    "schema": 1,
+    "source_sha256": "dc2dd19280f2e51d07e7b2995d40ddc230a8265eeb1e6e75446249cd51e1e0f0"
+  },
+  "native_source_sha256": "dc2dd19280f2e51d07e7b2995d40ddc230a8265eeb1e6e75446249cd51e1e0f0",
+  "runtime_abi": 6,
+  "schema": 9,
+  "stages": [
+    {
+      "compiler_sha256": "746ceb2b78f8ea3343b02a6020813f22b4fe7146425cf47c737c5cffd5ca6265",
+      "receipt_sha256": "07b0173c9ee3cfdcf4f752edc267474a3e8c1efbc2b04e61cda14496f4c00cef",
+      "stage": 0,
+      "status": "passed"
+    },
+    {
+      "compiler_sha256": "39c88cb1dddddf2105a29f43aefc5165ed88e3e165671bae7d8061e914d0eb17",
+      "receipt_sha256": "7ce4c7211127253b4278de436a6a7d0a2d296e577a07d6d3a44af94247888397",
+      "stage": 1,
+      "status": "passed"
+    },
+    {
+      "compiler_sha256": "169251cf16109c0571b38ed96271c7f5df9e7b6b7af4b688fbed903f66073f92",
+      "receipt_sha256": "9190c225bcefd1a2cb942359e7bcecfdf405179c00ae867fea118f9d57f026de",
+      "stage": 2,
+      "status": "passed"
+    }
+  ],
+  "status": "passed",
+  "tooling_tests_passed": 42
+}

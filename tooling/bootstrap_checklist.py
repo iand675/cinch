@@ -335,6 +335,9 @@ def build_checklist(root, cfg, previous=None):
     schema9_provider = read(cfg.get('unifiedDefaultProvider'))
     schema9_chain = read(cfg.get('unifiedDefaultChain'))
     schema9_cross = read(root/'bootstrap/current-schema9-default-replay-results.json')
+    format_switch = read(root/'bootstrap/current-interface-format-switch-results.json')
+    unified_format = (format_switch.get('status') == 'passed' and
+                      format_switch.get('compiler_source_sha256') == compiler)
     stage_syntax = read(root/'bootstrap/current-staging-surface-results.json')
     class_interface = read(cfg.get('classInterfaceParity'))
     class_interface_proof = read(root/'bootstrap/current-class-interface-exports-results.json')
@@ -382,12 +385,14 @@ def build_checklist(root, cfg, previous=None):
         item('gap:default-refinement','Preserve refinement carriers in the original default runtime program','running' if read(cfg.get('refinementContainerValidation')) else 'blocked',
              'With the two test-provider factories, the development compiler passes all seven original class-default tests. The original mconcat program also passes at 32 MiB with poisoning and zero leaks. Replay through final Stage3 remains.' if function_defaults.get('default_tests_passed') == 7 else 'The development compiler checks the original mconcat program. The replay needs a test library object with both checked function dictionary factories.',
              'The original function carrier, refined product and unit cases compile and execute their expected results through final Stage3.',link('bootstrap/current-function-default-api-results.json' if function_defaults else 'bootstrap/current-source-class-default-self-values-api-results.json')),
-        item('gap:imported-defaults','Use one interface format for class defaults','running' if cfg.get('portableDefaultWork') else 'pending',
+        item('gap:imported-defaults','Use one interface format for Rust and Cinch',
+             'verified' if unified_format else 'running' if cfg.get('portableDefaultWork') else 'pending',
+             'Both compilers read and write schema 9. The checked class-default body travels with the interface. Real schema 8 files and fingerprint-only defaults were refused. The pinned producer rebuilt the 55 library interfaces.' if unified_format else
              'The combined schema 9 candidate passed admission of all 44 compiler modules. Its full class-default test inherited checked Rust and Cinch defaults and rejected both tampered and digest-only artifacts. The staged bootstrap and remaining component groups are running.' if schema9_cross.get('combined_candidate') else
              'The schema 9 candidate uses one checked clause array per default. All 15 Rust default and interface tests passed. A Cinch-built consumer inherited both producers’ defaults, and the rebuilt provider verified all 55 library interfaces. The combined candidate is replaying the full component groups and preparing a fresh bootstrap.' if schema9_cross.get('status') == 'passed' else
              'The schema 9 candidate carries one checked clause array in each default. All 15 Rust default and interface tests passed, including the real mconcat body. The Cinch inheritance replay and library rebuild are tracked separately.' if schema9_native.get('status') == 'passed' else
              'The original Ordering bundle needs the inherited Monoid mconcat implementation. The schema 9 candidate carries the defining clauses and the importing compiler rechecks them.',
-             'Inherited imported defaults retain owner scope, private closure, actual method contracts and compiled behavior; missing or stale contracts refuse.',link('bootstrap/current-schema9-default-replay-results.json' if schema9_cross else 'design/compiled-interface-metadata.md')),
+             'Rebuild library interfaces in the same format both compilers use and verify that obsolete formats are refused.',link('bootstrap/current-interface-format-switch-results.json' if unified_format else 'bootstrap/current-schema9-default-replay-results.json' if schema9_cross else 'design/compiled-interface-metadata.md')),
         item('gap:laws','Elaborate source class laws and declarations','running',
              'The pipeline and interface-writer groups passed audit. A lawful Boolean implementation reports two checked samples, an unlawful one refuses by name, and the unsampled function carrier is explicitly reported as unchecked. General sampling and imported law declarations remain open.' if law_receipt else
              'The checker verifies one carrier for both law operands and refuses incompatible types. The Boolean sampler follows the actual checked instance fields.',
