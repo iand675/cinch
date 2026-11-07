@@ -914,19 +914,37 @@ def build_checklist(root, cfg, previous=None):
     constructor_diagnostics = read(cfg.get('schema10DependentConstructorAndDiagnostics'))
     if constructor_diagnostics:
         rows = constructor_diagnostics['rows']
+        repaired_path = 'bootstrap/current-schema10-dependent-pattern-and-diagnostics-results.json'
+        repaired = read(root / repaired_path)
+        audited = (repaired.get('status') == 'audited-dependent-pattern-and-original-diagnostics'
+                   and repaired['compiler_sha256'] == constructor_diagnostics.get('compiler_sha256'))
         active.append(dict(title='Replay the dependent constructor and diagnostic repairs',
             status=constructor_diagnostics['status'],
-            phase=constructor_diagnostics.get('phase', 'Waiting for a compiler rebuild and the original tactics, Html and Tensor cases'),
+            phase=('Tactics and the Html and Tensor diagnostic cases passed. The stale-evidence case still reaches unresolved refSet.'
+                   if audited else constructor_diagnostics.get('phase', 'Waiting for a compiler rebuild and the original tactics, Html and Tensor cases')),
             passed=sum(row['status']=='passed' for row in rows), failed=sum(row['status']=='failed' for row in rows),
-            total=7, source=constructor_diagnostics['compiler_source_sha256']))
+            total=7, source=constructor_diagnostics['compiler_source_sha256'], evidence=link(repaired_path) if audited else None))
     overlay_validation = read(cfg.get('schema10ExecutableSourceOverlays'))
     if overlay_validation:
-        rows = overlay_validation['rows']
+        copy_path = 'bootstrap/current-schema10-executable-source-copy-results.json'
+        copy_audit = read(root / copy_path)
+        audited = (copy_audit.get('status') == 'audited-executable-source-spans-with-two-fixture-failures'
+                   and copy_audit['compiler_sha256'] == overlay_validation.get('compiler_sha256'))
+        rows = copy_audit['rows'] if audited else overlay_validation['rows']
         active.append(dict(title='Recheck copied library source before executable linking',
             status=overlay_validation['status'],
-            phase=overlay_validation.get('phase', 'Waiting for Stage1 and the original Category and Foldable fixtures'),
+            phase=('Core, Algebra and both edit refusals passed. Category differs on one law observation and Foldable cannot see a checked facade value.'
+                   if audited else overlay_validation.get('phase', 'Waiting for Stage1 and the original Category and Foldable fixtures')),
             passed=sum(row['status']=='passed' for row in rows), failed=sum(row['status']=='failed' for row in rows),
-            total=4, source=overlay_validation['compiler_source_sha256']))
+            total=copy_audit['total'] if audited else 4, source=overlay_validation['compiler_source_sha256'],
+            evidence=link(copy_path) if audited else None))
+    ambient = read(cfg.get('schema10LibraryCopyAmbient'))
+    if ambient:
+        rows = ambient['rows']
+        active.append(dict(title='Recheck late library copies with checked facade values',
+            status=ambient['status'], phase=ambient.get('phase', 'Waiting to rebuild and replay the original copied-module cases'),
+            passed=sum(row['status']=='passed' for row in rows), failed=sum(row['status']=='failed' for row in rows),
+            total=6, source=ambient['compiler_source_sha256']))
     library_replay = read(cfg.get('schema10LibraryDispatchVariantReplay'))
     if library_replay:
         rows = library_replay['rows']
@@ -936,12 +954,17 @@ def build_checklist(root, cfg, previous=None):
             total=5, source=library_replay.get('compiler_source_sha256')))
     local_number_scope = read(cfg.get('schema10LocalNumberScope'))
     if local_number_scope:
-        rows = local_number_scope['rows']
+        numeric_path = 'bootstrap/current-schema10-local-numeric-check-results.json'
+        numeric_audit = read(root / numeric_path)
+        audited = (numeric_audit.get('status') == 'audited-local-number-check-and-controls'
+                   and numeric_audit['compiler_sha256'] == local_number_scope.get('compiler_sha256'))
+        rows = numeric_audit['rows'] if audited else local_number_scope['rows']
         active.append(dict(title='Preserve numeric inference through local bindings',
-            status=local_number_scope['status'],
-            phase=local_number_scope.get('phase', 'Waiting to rebuild and recheck the original map-key fixture'),
+            status='passed' if audited else local_number_scope['status'],
+            phase=('The original map-key fixture and both literal checks passed. The complete runtime group remains open.'
+                   if audited else local_number_scope.get('phase', 'Waiting to rebuild and recheck the original map-key fixture')),
             passed=sum(row['passed'] for row in rows), failed=sum(not row['passed'] for row in rows),
-            total=3, source=local_number_scope['compiler_source_sha256']))
+            total=3, source=local_number_scope['compiler_source_sha256'], evidence=link(numeric_path) if audited else None))
     byte_repair = read(cfg.get('schema10ByteObservationRepair'))
     if byte_repair:
         status = byte_repair['status']
@@ -1115,7 +1138,7 @@ def build_checklist(root, cfg, previous=None):
             elif passed + failed == 105:
                 status = 'completed-with-failures'
             else:
-                status = 'running' if rows else 'waiting-stage3-audit'
+                status = 'running' if rows else strict_shards[0]['status']
             active.append(dict(title='Run the full original 105-target Stage3 frontend matrix', status=status,
                 phase=f'{len(strict_shards)} disjoint runs share the same audited compiler and provider.',
                 passed=passed, failed=failed, total=105, source=next(iter(sources))))

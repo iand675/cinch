@@ -1,0 +1,111 @@
+{
+  "compiler_sha256": "ec75904d78e43fd6fe3d4fd9662948084ce4b99f34442e03f7029a7ec3c3f81f",
+  "compiler_source_sha256": "7af4b784ce9e2eda5eda78de92778fde307fc8f402e8f1ed8c8002284a7a7311",
+  "const_law_difference": {
+    "actual": {
+      "class": "Category.Functor.Functor",
+      "instance": "Data.Const.Functor_Const",
+      "law": "map-identity",
+      "status": "not checked (the Cinch sampler cannot evaluate this instance)"
+    },
+    "actual_identity": "10712510296734293559",
+    "expected": {
+      "class": "Category.Functor.Functor",
+      "instance": "Data.Const.Functor_Const",
+      "law": "map-identity",
+      "status": "checked (2 samples)"
+    },
+    "expected_identity": "1259983299478273456",
+    "probe_sha256": "7f7e9c520276608a4ced95a40ae66b7ae80e558717fe64b56d2a0868a4d0ee8c"
+  },
+  "full_goal_complete": false,
+  "native_source_sha256": "a4bc2344653dc50ef044ba7a0e4661cf589a91dbf2b12907e279869f7586632b",
+  "note": "The failure path writes a zero-byte IR file. Both intended change refusals matched their diagnostic, empty IR and exit code.",
+  "original_state_sha256": "4eda93c9605547d9c23fbd248487ad646ab2eb2af55c23dcbd5d7894c282b9bc",
+  "provider_metadata_sha256": "56bd8eb3ee713394681244dde30331d440a611f871e1be684f5674b1c9fa0009",
+  "provider_object_sha256": "cbf9775153b93ea1e9fe0f138728f3043abca8ac3bd6607019e35413b8999f46",
+  "rows": [
+    {
+      "diagnostic": [],
+      "exit_code": 0,
+      "expected": 17,
+      "ir_bytes": 35061,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "exact-copy",
+      "original_harness_status": "passed",
+      "program_exit": 17,
+      "source_sha256": "14394e94694f9d47f01029a8e31a6b5e103d2841e72b276a33fcfc6bdf86d274",
+      "status": "passed"
+    },
+    {
+      "diagnostic": [
+        "bootstrap.object: rebuild the library object for changed source module Data.Bool"
+      ],
+      "exit_code": 4,
+      "expected": "rebuild the library object for changed source module Data.Bool",
+      "ir_bytes": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "edited-body",
+      "original_harness_status": "failed",
+      "program_exit": null,
+      "source_sha256": "7f6d87261445423bb454016d13b8e47e6e0b7873d7b4e71eadbe99e5b025524e",
+      "status": "passed"
+    },
+    {
+      "diagnostic": [
+        "bootstrap.object: rebuild the library object for changed source module Data.Bool"
+      ],
+      "exit_code": 4,
+      "expected": "rebuild the library object for changed source module Data.Bool",
+      "ir_bytes": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "appended-body",
+      "original_harness_status": "failed",
+      "program_exit": null,
+      "source_sha256": "adafbf993b3957f827b6e874a9dbc1846cf6ae8cde1a76e30b61d90975933a1b",
+      "status": "passed"
+    },
+    {
+      "diagnostic": [
+        "bootstrap.object: rechecked source contract differs from the library object for Data.Const"
+      ],
+      "exit_code": 4,
+      "expected": 0,
+      "ir_bytes": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "original-cat",
+      "original_harness_status": "failed",
+      "program_exit": null,
+      "source_sha256": "271e899579f8a832915abb70a2b0d0f2782772b35ce19a6c998a89247e119da6",
+      "status": "failed"
+    },
+    {
+      "diagnostic": [
+        "bootstrap.resolve:198:19: name is not in scope: not (Foldable.cinch:107:19)"
+      ],
+      "exit_code": 4,
+      "expected": 0,
+      "ir_bytes": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "original-fold",
+      "original_harness_status": "failed",
+      "program_exit": null,
+      "source_sha256": "d08547834c69bb1c6b322f9db6249a9dea486e59c0f684fc8b7f6f463d6f32f2",
+      "status": "failed"
+    },
+    {
+      "diagnostic": [],
+      "exit_code": 0,
+      "expected": 0,
+      "ir_bytes": 54948,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "original-algebra",
+      "original_harness_status": "passed",
+      "program_exit": 0,
+      "source_sha256": "81cfa0353bf34bf708344cc8a92db76ad36f04c647cdf10e643b7fcac6b17b85",
+      "status": "passed"
+    }
+  ],
+  "status": "audited-executable-source-spans-with-two-fixture-failures",
+  "total": 6
+}

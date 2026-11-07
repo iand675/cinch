@@ -1,0 +1,41 @@
+{
+  "checked_at": "2026-11-07T18:35:45.393673+00:00",
+  "compiler_sha256": "5bb3bd07aeb8c73bc3f76e3b24b15a05181ac11c933427907161a34c1cfffe47",
+  "compiler_source_sha256": "9f1d93da35d7ee94f974cc2ff76ddb85bcadf8cf4a8dcac50c954fa609ce0ac0",
+  "full_goal_complete": false,
+  "interface_manifest_sha256": "112b5bafcd61b3bbdddd1f2df929ebab43bacc769ecc7bd3ca1e2ec142eb9941",
+  "native_source_sha256": "a4bc2344653dc50ef044ba7a0e4661cf589a91dbf2b12907e279869f7586632b",
+  "original_state_sha256": "21bc093d8fb498943123a87802ed736ec2596289216a757a44bd45827b137559",
+  "rows": [
+    {
+      "diagnostic": "",
+      "diagnostic_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "exit_code": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "original-map-keys",
+      "passed": true,
+      "source_sha256": "6c3c71cb42a17bfc957cff1748c4849909f7eaf0f866154eba10953c6ebdd40e"
+    },
+    {
+      "diagnostic": "",
+      "diagnostic_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "exit_code": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "positive-literal",
+      "passed": true,
+      "source_sha256": "332a9774f23ec4872503d1d69bb90f9ff48d832c9ef4f95e6870c3c8fe71ad7f"
+    },
+    {
+      "diagnostic": "bootstrap.check:7:26: literal is outside its resolved integer carrier",
+      "diagnostic_sha256": "15a2fc3be5a333b083666b724830cd08b8fd759f3526e68c84643386b0564ff2",
+      "exit_code": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "negative-literal",
+      "passed": true,
+      "source_sha256": "9adeabcaa6db33cfac090c6d34941ab982fdd88971031cc762762a880bfcd5fc"
+    }
+  ],
+  "scope": "Exact original failing map-key fixture and two controls through the checker. The invalid control diagnostic is emitted in the report sidecar.",
+  "stage1_receipt_sha256": "68b379d1ba7053ac9e6f4bdccad2ecbe8640f4e42fc5e6d49568ed7cf001ad8a",
+  "status": "audited-local-number-check-and-controls"
+}

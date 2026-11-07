@@ -1,0 +1,155 @@
+{
+  "checked_at": "2026-11-07T18:35:45.490851+00:00",
+  "compiler_sha256": "70d52d4b68804618f752ac745d52ab6fc98a02f40dcc45eecb39796a88327386",
+  "compiler_source_sha256": "ba8b2fa22307621579a2ac1e008fc23742cd75b2cb85ccdfbe320ae1aa68ee8a",
+  "full_goal_complete": false,
+  "invocations_sha256": "b4269c344b52f9e055dd71ff1976fa1bb30e229412475181a7ea166b9cf10265",
+  "native_source_sha256": "a4bc2344653dc50ef044ba7a0e4661cf589a91dbf2b12907e279869f7586632b",
+  "object_configuration_sha256": "267422358f6a00af395058ec3640d33bb853be98c9db711f72ecb0d671a0bf39",
+  "rows": [
+    {
+      "exit_code": 0,
+      "heap": "32M",
+      "leaks": 0,
+      "name": "run-Tactics",
+      "poisoned": true,
+      "result_sha256": "28b33110e938a3e50f412f7aa73b888559cbb87e84997604a061ea2235788494",
+      "sections": [
+        [
+          "Main.cinch",
+          1,
+          35,
+          "74176fe07ac3f0a52bb17d7116ae50489acfd669f5fff3e41c6229849ec83df6"
+        ]
+      ],
+      "source_location": "examples/Tactics.cinch",
+      "source_sha256": "4ad5422c6002a0e372f03ba738092507b58f4aa8d75d66aa019d9fe482215fc4",
+      "status": "passed"
+    },
+    {
+      "exit_code": 4,
+      "first_diagnostic": "4:29: tactic plan `linear` could not prove `(i < n)`",
+      "name": "check-TacticsMissing",
+      "result_sha256": "d0f0a7e10e9cf58eb5677d7ac5b8342bd4a956a80c35971cb5aa9cf7c68294e1",
+      "sections": [
+        [
+          "Main.cinch",
+          1,
+          7,
+          "ce7ae3bf00e45ad1b026da217ac68e48f2a0fa12b2efe65a3b2c0b077206b9fd"
+        ]
+      ],
+      "source_location": "examples/negative/TacticsMissing.cinch",
+      "source_sha256": "f62030137d6526ef418f2a7746656d387c9aeb51c3e8ecd2b7d797d6d5627608",
+      "status": "passed"
+    },
+    {
+      "exit_code": 4,
+      "first_diagnostic": "5:44: tactic plan `assumption linear` could not prove `(n < n)`",
+      "name": "check-TacticsShadow",
+      "result_sha256": "472921574f07df61d677e2b6f785eda5bceefba89b6423d78a9901aa26d8f0dc",
+      "sections": [
+        [
+          "Main.cinch",
+          1,
+          9,
+          "d23ea74df5887b575a9923f2d051b6132ee558506741b4d32a5525c7bda30f73"
+        ]
+      ],
+      "source_location": "examples/negative/TacticsShadow.cinch",
+      "source_sha256": "fa12e3ce42d3bfe66f260e6e8c25c81c713735e9f47794b8eef709bce353b053",
+      "status": "passed"
+    },
+    {
+      "exit_code": 4,
+      "first_diagnostic": "6:15: name is not in scope: refSet",
+      "name": "check-TacticsStale",
+      "result_sha256": "fe307a4917eb0ff4fa748f8b771bfe992fe9143d90bb8a8f0d12cf8664879442",
+      "sections": [
+        [
+          "Main.cinch",
+          1,
+          10,
+          "ca75d6c1f1550014645ac0c17be01ef995d92efbba39f9508b22faf8c18e7dd2"
+        ]
+      ],
+      "source_location": "examples/negative/TacticsStale.cinch",
+      "source_sha256": "cec568c2ba862516c9564dd0660c24e11e6b14202d1904ef46923a2904040a7f",
+      "status": "failed"
+    },
+    {
+      "exit_code": 4,
+      "first_diagnostic": "18:105: integer literal cannot have type (Unit -> Int)",
+      "name": "check-Html",
+      "result_sha256": "a4484115210bbb38e1b1f5b903124904b4c3e7ab6abad89a9b6f16b9063dc90c",
+      "sections": [
+        [
+          "Main.cinch",
+          1,
+          27,
+          "7fcd9ebff695fa7928bc64d3194197bc721571934fed46311794fd04c863efcf"
+        ],
+        [
+          "Ui.cinch",
+          28,
+          87,
+          "6652ccb5859b9842263d43a97d34bde456c48a2fa11f84ecbc2b667618a9d287"
+        ]
+      ],
+      "source_location": "examples/negative/Html.cinch",
+      "source_sha256": "db69c4595acddc1eaa7839d633d063b2608d5eb28f1e11c1abd35c8ec9d4cbdc",
+      "status": "passed"
+    },
+    {
+      "exit_code": 4,
+      "first_diagnostic": "4:9: unknown constructor Tensor.MkMatrix: not exported into this scope",
+      "name": "check-TensorPrivate",
+      "result_sha256": "db86dd10f66c3e9ec1aecb27ac427aa4de9c62de735e2a58155ba7134c0b69ff",
+      "sections": [
+        [
+          "Main.cinch",
+          1,
+          7,
+          "d9bee1c90a9d84157d0850f6ded5eaa65d3b90c4b3d8784a1a094353e6c11643"
+        ],
+        [
+          "Tensor.cinch",
+          8,
+          87,
+          "9471c132450872e1a7b16991078cd9704b0e9c55e86147b175e9a9cb699fdf1a"
+        ]
+      ],
+      "source_location": "examples/negative/TensorPrivate.cinch",
+      "source_sha256": "d9bee1c90a9d84157d0850f6ded5eaa65d3b90c4b3d8784a1a094353e6c11643",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "heap": "32M",
+      "leaks": 0,
+      "name": "run-Html",
+      "poisoned": true,
+      "result_sha256": "1167ff5ebfbe309de1cc766ecf24c836b39a63929890000c8b6c597fc9a2da70",
+      "sections": [
+        [
+          "Main.cinch",
+          1,
+          28,
+          "4513c745e1f9239d45ec89b9469b442315b79c6e9e3c2ac7782b9093b7fed4c0"
+        ],
+        [
+          "Ui.cinch",
+          29,
+          88,
+          "6652ccb5859b9842263d43a97d34bde456c48a2fa11f84ecbc2b667618a9d287"
+        ]
+      ],
+      "source_location": "examples/Html.cinch",
+      "source_sha256": "5062098ae93a5d23dd988d8ce4ac476080e16dd2ca27b250cfde7bd6baa615d9",
+      "status": "passed"
+    }
+  ],
+  "scope": "Seven unchanged original tactic, Html and Tensor fixtures on the candidate Stage1. The stale-evidence fixture still stops at refSet.",
+  "stage1_receipt_sha256": "06aaba3f5457c5dc68c3a7c69a17826a73b6991a1e8b43daecc60e7fc349a40c",
+  "status": "audited-dependent-pattern-and-original-diagnostics"
+}

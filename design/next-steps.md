@@ -75,15 +75,13 @@ Choreography remain open on that exact compiler. Named proof support and
 the finite-index tactic work are tracked on separate source snapshots.
 See [the repaired language-suite audit](../bootstrap/current-schema10-repaired-external-language-results.json).
 
-The finite-index tactic candidate now refuses the original missing-fact and
-shadowed-fact examples at the expected source locations. The valid case
-reached a dependent constructor pattern whose index binder was missing from
-pattern checking. The stale-evidence fixture still stops at the unresolved
-`refSet` operation. A candidate opens the constructor binder using the
-same checked index substitution as function arguments. Its replay also
-checks the original Html literal and private Tensor constructor diagnostics
-that passed on an earlier development compiler.
-See [the original tactic replay](../bootstrap/current-schema10-original-tactics-results.json).
+The dependent constructor candidate opens the index binder using the same
+checked substitution as function arguments. The original valid Tactics
+program now runs with zero leaks at 32 MiB. Both proof-search refusals and
+the original Html and private Tensor checks passed. The stale-evidence
+fixture still stops at the unresolved `refSet` operation.
+See [the original tactic replay](../bootstrap/current-schema10-original-tactics-results.json)
+and [the constructor and diagnostic replay](../bootstrap/current-schema10-dependent-pattern-and-diagnostics-results.json).
 
 The separate library targets exposed missing runtime specializations and
 conflicts between copied Category and Foldable sources and loaded interfaces.
@@ -92,18 +90,24 @@ retained diagnostics. The first expanded object preserved all 55 interface
 identities. The completed sweep exposed four additional HashMap variants, so
 the replay waits for the object containing those requests too.
 
-The executable replacement candidate verifies source bytes against the
-pinned library object and rechecks each copied module's interface before
-reusing that object's code. All 203 copied files in the original Category
-and Foldable bundles match the pinned bytes. The real compiler replay and
-the edited-body refusal control are queued.
+The executable replacement candidate authenticates the copied module bytes
+and rechecks their interfaces before linking the library object. The Core
+control and original Algebra program ran. The edited and appended source
+controls were refused with empty IR. Category differs only on the
+`Data.Const` map-identity law observation. Foldable needs the checked
+`Data.Bool.not` declaration, whose complete dependency closure leads back
+to Foldable. A separate candidate projects the checked value into the
+copied implementation scope while retaining the interface checks.
+See [the copied-module replay](../bootstrap/current-schema10-executable-source-copy-results.json).
 
 The additional library sweep found 29 more missing List function variants
 and a local numeric inference failure in the original small Nat/Int tests.
 The map value defaulted to Int before the body of its let could constrain it
 to Nat. The candidate keeps unresolved literal carriers shared with their
-uses and validates them when the enclosing definition closes. Rechecking
-the original case and the valid and invalid literal controls is queued.
+uses and validates them when the enclosing definition closes. The
+original map-key fixture and both literal controls passed checking.
+The complete runtime group remains open.
+See [the local numeric checks](../bootstrap/current-schema10-local-numeric-check-results.json).
 
 The UTF-8 diagnostic renderer passed both original pipeline tests when
 replayed with the matching debug and release runtime archives. The stricter
