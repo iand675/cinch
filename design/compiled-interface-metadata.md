@@ -46,10 +46,14 @@ carriers, and the implementation must match that dictionary's method table.
 The dictionary and implementation belong to the declaring module, including
 when distinct module names share a prefix. All graph dependencies belong to
 the checked import closure, and shared definitions must agree across roots.
-These records grant no public value or method names. Empty records are omitted,
-preserving the exact encoding of earlier opaque schema-8 instances; absence
-grants no executable semantics. Conditional, generic, recursive, effectful and
-partial implementations remain outside this first closed-body tier.
+These records grant no public value or method names. Omit the field when there
+are no method bodies. Conditional, generic, recursive, effectful and partial
+implementations remain outside this first closed-body tier.
+
+Each entry in `method_contracts` carries a `checked` declaration for the
+conditional implementation. A producer emits an entry only when it can
+publish that declaration. A checked declaration may also carry a guarded
+`body`. Omit `body` when the guarded implementation is unavailable.
 
 The Native producer and decoder pass all ten affected complete groups and all
 43 published compiler-source modules; see
@@ -141,7 +145,9 @@ exports
                 methods: [{ name, slot, exports: [public name], scheme,
                 resolved, default? }], laws }
   instances     [{ id, class, target, ctx, resolved, methods: [symbol],
-                method_contracts: [{ slot, name, scheme }],
+                method_contracts: [{ slot, name, scheme,
+                checked: { schema, head: { resolved },
+                implementation: { identity, resolved, body? } } }],
                 method_bodies?: [{ slot, implementation, resolved, total_body }], implicit }]
   fixities      operator -> { assoc, prec }
   foreign       [{ symbol, abi, external, type, effects, notes }] (FFI

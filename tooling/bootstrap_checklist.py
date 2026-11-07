@@ -368,6 +368,11 @@ def build_checklist(root, cfg, previous=None):
     family_audit_path = 'bootstrap/current-schema10-family-and-cutover-results.json'
     family_audit = read(root/family_audit_path)
     cutover = family_audit.get('format_cutover', {})
+    single_format_path = 'bootstrap/current-schema10-single-instance-format-results.json'
+    single_format = read(root/single_format_path)
+    single_format_verified = (single_format.get('status') == 'passed-single-checked-instance-format'
+                              and single_format.get('compiler_source_sha256') == compiler
+                              and single_format.get('native_source_sha256') == native)
     stage_syntax = read(root/'bootstrap/current-staging-surface-results.json')
     class_interface = read(cfg.get('classInterfaceParity'))
     class_interface_proof = read(root/'bootstrap/current-class-interface-exports-results.json')
@@ -426,8 +431,9 @@ def build_checklist(root, cfg, previous=None):
              'The original function carrier, refined product and unit cases compile and execute their expected results through final Stage3.',link('bootstrap/current-function-default-api-results.json' if function_defaults else 'bootstrap/current-source-class-default-self-values-api-results.json')),
         item('gap:imported-defaults','Require schema 10 compiled interfaces',
              'verified' if cutover.get('status') == 'passed' else 'pending',
+             'Rust, Cinch and the verifier use schema 10. Conditional methods require checked declarations, and absent optional bodies have one encoding. All 13 compiler and 43 tooling tests passed.' if single_format_verified else
              'Rust, Cinch and the verifier use schema 10. The cutover tests refused a schema 9 artifact and fingerprint-only defaults. The pinned producer rebuilt all 55 library interfaces.',
-             'Both compilers read the same compiled interfaces and rebuild outdated artifacts from source.',link(family_audit_path)),
+             'Both compilers read the same compiled interfaces and rebuild outdated artifacts from source.',link(single_format_path if single_format_verified else family_audit_path)),
         item('gap:laws','Elaborate source class laws and declarations','running',
              'The separate imported-law replay reached the checker and exposed an incorrect terminator on a named law binder. The corrected candidate parses and is queued with Nat and generic constructor-field counterexamples.' if typed_law else
              'The pipeline and interface-writer groups passed audit. A lawful Boolean implementation reports two checked samples, an unlawful one refuses by name, and the unsampled function carrier is explicitly reported as unchecked. General sampling and imported law declarations remain open.' if law_receipt else

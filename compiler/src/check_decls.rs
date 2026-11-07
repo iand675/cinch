@@ -16592,9 +16592,11 @@ impl Checker {
                 target,
                 method_bodies: if resolved.is_some() { self.interface_method_bodies(i) } else { Vec::new() },
                 resolved,
-                method_contracts: i.method_contracts.iter().map(|(slot, name, scheme)| InstanceMethodContract {
-                    slot: *slot as u64, name: name.clone(), scheme: render_scheme(scheme),
-                    checked: self.checked_conditional_method(i, *slot),
+                method_contracts: i.method_contracts.iter().filter_map(|(slot, name, scheme)| {
+                    let checked = self.checked_conditional_method(i, *slot)?;
+                    Some(InstanceMethodContract {
+                        slot: *slot as u64, name: name.clone(), scheme: render_scheme(scheme), checked,
+                    })
                 }).collect(),
                 ctx: context,
                 methods: self.instance_defs.iter().find(|definition| definition.id == i.base_id)
@@ -16613,7 +16615,7 @@ impl Checker {
             .chain(iface.exports.types.iter().flat_map(|t| &t.ctors).filter_map(|c| c.resolved.as_ref()))
             .chain(iface.exports.signatures.iter().flat_map(|s| &s.methods).filter_map(|m| m.resolved.as_ref()))
             .chain(iface.exports.instances.iter().filter_map(|i| i.resolved.as_ref()))
-            .chain(iface.exports.instances.iter().flat_map(|i| &i.method_contracts).filter_map(|m| m.checked.as_ref()).flat_map(|m| [&m.head, &m.resolved])) {
+            .chain(iface.exports.instances.iter().flat_map(|i| &i.method_contracts).flat_map(|m| [&m.checked.head, &m.checked.resolved])) {
             pending.extend(class_refs(scheme));
         }
         let mut known: std::collections::BTreeSet<_> = iface.exports.signatures.iter().map(|s| s.identity.clone()).collect();
@@ -16782,7 +16784,7 @@ fn interface_nominal_dependencies(
                 .filter_map(|i| i.resolved.as_ref()),
         );
     let contracts = contracts.chain(iface.exports.instances.iter().flat_map(|i| &i.method_contracts)
-        .filter_map(|m| m.checked.as_ref()).flat_map(|m| [&m.head, &m.resolved]));
+        .flat_map(|m| [&m.checked.head, &m.checked.resolved]));
     let mut dependencies = std::collections::BTreeSet::new();
     for identity in iface
         .exports

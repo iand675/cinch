@@ -9,6 +9,15 @@ are tracked separately from the completed first schema 10 fixed point.
 See [the cutover checks](../bootstrap/current-schema10-family-and-cutover-results.json)
 and [the first schema 10 fixed point](../bootstrap/current-schema10-bootstrap-results.json).
 
+Schema 10 conditional method rows now require the checked implementation
+declaration. The producer omits optional bodies when they are unavailable.
+The Rust reader, Cinch loader and bootstrap verifier refuse display-only rows,
+null bodies and empty body tables. Thirteen compiler tests and 43 tooling
+tests passed. Two previously built interface closures kept all their
+recorded identities under the stricter verifier. A fresh ladder and full
+suite remain separate checks.
+See [the format consolidation checks](../bootstrap/current-schema10-single-instance-format-results.json).
+
 The Stage1 probe with a faster diagnostic renderer refused the original
 Stage2 source and library inputs. The pinned producer wrote an unqualified
 `InRange` in the `bytes-len` intrinsic record and the defining qualified name

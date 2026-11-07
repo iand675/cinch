@@ -1,0 +1,44 @@
+{
+  "compiler_source_sha256": "19c934eb9f05b8d964b12db98cda8ddb4f8d0641c5770865d412a004bf1f382b",
+  "controls": [
+    "checked declaration without a guarded body",
+    "display-only conditional method refused",
+    "null checked declaration refused",
+    "null guarded body refused",
+    "empty method-body array refused"
+  ],
+  "existing_artifact_sets": [
+    {
+      "compiler_identities_sha256": "d2b8c98722b9f72d203e0ec81e09e6cb978511d18ff97b8db8b8880f76c324dd",
+      "compiler_interfaces": 46,
+      "compiler_sha256": "91291a55dc3bb9e509396c303e1441e8c539af924dfdc5fb204bb7cf26c5c849",
+      "library_identities_sha256": "2776221baf513363eaedec57269b40409bb33086ab0936596f68eb8b68e490d9",
+      "library_interfaces": 55
+    },
+    {
+      "compiler_identities_sha256": "5e152ed692695adc4d4a3880a4fadbaa444ce9e416703cc931bc6af238fe312b",
+      "compiler_interfaces": 46,
+      "compiler_sha256": "5b4d36680e652bbfaddee007ec148592aabbdce34c12353ca6eb625d1ae189d0",
+      "library_identities_sha256": "2776221baf513363eaedec57269b40409bb33086ab0936596f68eb8b68e490d9",
+      "library_interfaces": 55
+    }
+  ],
+  "focused_log_sha256": "684a0f83d8a78e4545648be5f206aeec317db7671b743714c22eb656f466faca",
+  "focused_targets": [
+    "bootstrap_load",
+    "interface_conditional_methods",
+    "interface_guarded_bodies",
+    "interface_method_bodies",
+    "interface_class_contracts"
+  ],
+  "focused_tests": 13,
+  "full_goal_complete": false,
+  "native_source_sha256": "a4bc2344653dc50ef044ba7a0e4661cf589a91dbf2b12907e279869f7586632b",
+  "prior_fixture_correction": "Change the display and resolved schemes together so the original facade test reaches the defining-signature ownership check.",
+  "revision": "cea0c6c9b75fd7d71f340a321adf7bbffbfaa794",
+  "schema": 1,
+  "status": "passed-single-checked-instance-format",
+  "tooling_log_sha256": "0631aa56b5941cf811885916013b6b25d314cb73e29cc0cb588561890787875b",
+  "tooling_tests": 43,
+  "verified_at": "2026-11-07T16:43:46.158493+00:00"
+}

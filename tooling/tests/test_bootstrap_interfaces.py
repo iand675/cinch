@@ -46,6 +46,30 @@ class CompilerInterfaceGate(unittest.TestCase):
                 with self.assertRaises((KeyError, TypeError, ValueError)):
                     contracts.validate_contract(doc, 6)
 
+    def test_instance_metadata_uses_the_writer_encoding(self):
+        declaration = {"resolved": {"scheme": "Nat", "nominals": [], "measures": []}}
+        method = {"name": "operation", "slot": 0, "scheme": "Nat",
+                  "checked": {"schema": 1, "head": declaration,
+                              "implementation": {**declaration, "identity": "Main.method"}}}
+        instance = {"id": "Main.Instance", "class": "Main.Class", "target": "Nat",
+                    "resolved": None, "implicit": True, "ctx": [], "methods": ["Main.method"],
+                    "method_contracts": [method]}
+        self.doc["exports"]["instances"] = [instance]
+        contracts.validate_contract(self.doc, 6)
+
+        for name, mutate in (
+            ("non-object-method", lambda i: i["method_contracts"].append(None)),
+            ("display-only", lambda i: i["method_contracts"][0].pop("checked")),
+            ("null-checked", lambda i: i["method_contracts"][0].update(checked=None)),
+            ("null-body", lambda i: i["method_contracts"][0]["checked"]["implementation"].update(body=None)),
+            ("empty-bodies", lambda i: i.update(method_bodies=[])),
+        ):
+            with self.subTest(name=name):
+                doc = copy.deepcopy(self.doc)
+                mutate(doc["exports"]["instances"][0])
+                with self.assertRaises(ValueError):
+                    contracts.validate_contract(doc, 6)
+
     def test_dependency_changes_cannot_be_hidden_by_stable_output(self):
         child = {**self.doc, "module": "Client", "imports": [
             {"module": "Main", "iface_hash": contracts.interface_hash(self.doc)}]}

@@ -361,10 +361,11 @@ module Bootstrap.Load where
     JArr (JStr identity) rest -> if slot == 0 then Some identity else conditional-slot (slot - 1) rest
     other -> None
   conditional-contract-valid :: Nat -> Json -> Json -> Bool
-  conditional-contract-valid slot methods row = case field "checked" row of
-    JNull -> True
-    checked -> let head = field "head" checked in let implementation = field "implementation" checked in
+  conditional-contract-valid slot methods row =
+      let checked = field "checked" row in
+      let head = field "head" checked in let implementation = field "implementation" checked in
       (case field "schema" checked of JNum 1 -> True; other -> False)
+      && (not (has-field "body" implementation) || (case field "body" implementation of JObj key value rest -> True; other -> False))
       && (case (field "resolved" head, field "resolved" implementation) of (JNull, other) -> False; (other, JNull) -> False; other -> True)
       && resolved-entry-valid head && resolved-entry-valid implementation
       && measure-bodies-valid (resolved-measures head) && measure-bodies-valid (resolved-measures implementation)
@@ -400,7 +401,6 @@ module Bootstrap.Load where
     other -> False
   optional-method-bodies-valid :: Json -> Bool
   optional-method-bodies-valid row = if not (has-field "method_bodies" row) then True else case field "method_bodies" row of
-    JArrEnd -> True
     JArr first rest -> (case (field "ctx" row, field "method_contracts" row, field "resolved" row) of
       (JArrEnd, JArrEnd, JNull) -> False
       (JArrEnd, JArrEnd, resolved) -> method-bodies-valid (field "method_bodies" row) (field "methods" row) Nil Nil
