@@ -11,14 +11,14 @@
     },
     {
       "name": "Stage 1",
-      "state": "running",
-      "label": "Building",
+      "state": "passed",
+      "label": "Smoke tests passed",
       "description": "Build all 46 compiler modules with the Rust seed."
     },
     {
       "name": "Stage 2",
-      "state": "pending",
-      "label": "Pending",
+      "state": "running",
+      "label": "Building",
       "description": "Rebuild the compiler with Stage1."
     },
     {
@@ -547,7 +547,7 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "Main includes the higher-kinded runtime, pure arrow inference and checked String layout.",
-  "activity": "Building stage1. The full suite remains open.",
+  "activity": "Building stage2. The full suite remains open.",
   "checklist": {
     "version": 1,
     "target": {
@@ -18231,8 +18231,8 @@
       {
         "title": "Bootstrap the exact published compiler and corrected library",
         "status": "running",
-        "phase": "Building stage1",
-        "passed": 1,
+        "phase": "Building stage2",
+        "passed": 2,
         "failed": 0,
         "total": 4,
         "unit": "stages",
@@ -19814,9 +19814,9 @@
       {
         "title": "Check NotNull in Core and both original visitor refusals",
         "status": "running",
-        "phase": "foldable-nonempty",
-        "passed": 0,
-        "failed": 0,
+        "phase": "the unchanged Category visitor diagnostics",
+        "passed": 2,
+        "failed": 1,
         "total": 4,
         "source": "f34deb5ffbc3bc02847b773bdc99744331cc7a086994187eaf07d3955bcb3279"
       },
@@ -19862,5 +19862,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T23:23:40.162360+00:00"
+  "updatedAt": "2026-11-07T23:24:42.065275+00:00"
 }
