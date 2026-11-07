@@ -754,10 +754,10 @@
       {
         "id": "gap:copyout",
         "title": "Finish Copy / borrow / Thunk ownership",
-        "state": "blocked",
-        "detail": "Exact candidate Stage3 fails to resolve copyOut before checking Copy evidence for Array (Thunk {} Int).",
+        "state": "recheck",
+        "detail": "The development pipeline and runtime groups pass. A shared immutable array is accepted, affine Thunk elements refuse for Copy, and the tuple case returns 42 with zero leaks. The combined compiler still needs its own Stage3 replay.",
         "doneWhen": "The original ownership case reaches and passes its required semantic checks and runtime behavior.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-stage3-arrays-and-library-overrides-results.json"
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-copy-out-development-results.json"
       },
       {
         "id": "gap:staging",
@@ -18806,7 +18806,7 @@
         "title": "Cinch copyOut: pipeline and runtime IR",
         "status": "passed-copy-out-pipeline-and-runtime",
         "phase": "bootstrap_runtime_ir",
-        "passed": 3,
+        "passed": 2,
         "failed": 0,
         "total": 2,
         "source": "56f015c0195ec3ce4864634156c5884ea6a0f9599b0257cab77a77a96b9b1e26"
@@ -18831,10 +18831,10 @@
       },
       {
         "title": "Schema 9: source admission, imported defaults and pipeline",
-        "status": "running",
+        "status": "failed",
         "phase": "separate-imported-default",
         "passed": 1,
-        "failed": 0,
+        "failed": 1,
         "total": 4,
         "source": "ceb02b36b4954259d906d6fd29ae7c79a3e14805e3c21133ffc61d01b6b64311"
       },
@@ -18849,10 +18849,10 @@
       },
       {
         "title": "Schema 9 development bootstrap",
-        "status": "waiting-for-schema9-inheritance-and-provider",
+        "status": "failed-prerequisite",
         "phase": "Fresh Stage1, Stage2 and Stage3 with the checked development provider",
         "passed": 0,
-        "failed": 0,
+        "failed": 1,
         "total": 4,
         "source": "c7022419c62e87a276a2834fa605cc54bf41ab8b4928d02ac944d41482a6dd39"
       },
@@ -18868,10 +18868,10 @@
     ],
     "counts": {
       "verified": 489,
-      "blocked": 6,
+      "blocked": 5,
       "running": 10,
       "pending": 94,
-      "recheck": 75
+      "recheck": 76
     },
     "total": 674,
     "acceptanceVerified": 0,
@@ -18879,5 +18879,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T09:03:47.058310+00:00"
+  "updatedAt": "2026-11-07T09:07:29.725406+00:00"
 }
