@@ -1356,6 +1356,10 @@
               "cases": [
                 {
                   "name": "checked_program_constructor_is_not_an_external_authority_bypass",
+                  "status": "passed"
+                },
+                {
+                  "name": "checked_program_retains_runtime_source_core_and_its_typed_emitter_boundary",
                   "status": "running"
                 }
               ]
@@ -18630,5 +18634,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T01:34:10.018414+00:00"
+  "updatedAt": "2026-11-07T01:35:11.959168+00:00"
 }
