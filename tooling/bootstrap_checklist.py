@@ -298,11 +298,15 @@ def build_checklist(root, cfg, previous=None):
     function_defaults=read(cfg.get('functionDefaultApiReceipt'))
     source_overlay=read(cfg.get('sourceInterfaceOverlayReceipt'))
     early_base=read(cfg.get('sourceOverlayBaseScopeReceipt'))
+    stage3_failure_path='bootstrap/current-stage3-arrays-and-library-overrides-results.json'
+    stage3_failures=read(root/stage3_failure_path)
+    latest_chain=read(cfg.get('partialBooleanBootstrapChain'))
+    stage3_failures_current=bool(stage3_failures) and stage3_failures.get('compiler_source_sha256') == latest_chain.get('compiler_source_sha256')
     default_detail='Latest75fb passes all seven complete default/dependent component groups (nine tests), all nine full compiler/object tests and both original strict-value runtime/build tests. Original API/default replay:16/21 tests pass; source-Prelude, three diagnostic assertions and the refinement runtime client remain failures. Imported checked default transport and matching final bootstrap remain required.'
     gaps=[
-        item('gap:prelude','Replace source copies of library modules safely','blocked'if 'interface_prelude_overrides'in failed_api else'pending',
-             'Data.Core emits the matching contract. Data.Ordering stops at the imported mconcat default. Category rejects the class laws and structural function instance. Algebra now resolves Nil, None, Cons and Some and stops at the class law.' if early_base else 'The development pipeline checks each original source family separately. Data.Core emits the matching contract. Data.Ordering stops at the imported mconcat default. Category rejects the class laws and structural function instance. Algebra rejects the class law and cannot resolve Nil, None, Cons or Some.' if source_overlay else 'The current interface/API run fails when source Data.Core is supplied alongside its cached interface. All four original families remain required.',
-             'Core, Ordering, Category and Algebra replacements pass with fresh checked provider hashes, valid consumer chains and no Prelude back-edge.',link('bootstrap/current-source-overlay-family-probes.json' if source_overlay else 'bootstrap/current-source-prelude-counterexample.json')),
+        item('gap:prelude','Replace source copies of library modules safely','blocked' if stage3_failures_current or 'interface_prelude_overrides' in failed_api else 'pending',
+             'Exact candidate Stage3 refuses the original Data.Core source as a conflicting loaded interface. Development Data.Core emits the matching contract. Ordering, Category and Algebra still need their original replacement checks.' if stage3_failures_current else 'Data.Core emits the matching contract. Data.Ordering stops at the imported mconcat default. Category rejects the class laws and structural function instance. Algebra now resolves Nil, None, Cons and Some and stops at the class law.' if early_base else 'The development pipeline checks each original source family separately. Data.Core emits the matching contract. Data.Ordering stops at the imported mconcat default. Category rejects the class laws and structural function instance. Algebra rejects the class law and cannot resolve Nil, None, Cons or Some.' if source_overlay else 'The current interface/API run fails when source Data.Core is supplied alongside its cached interface. All four original families remain required.',
+             'Core, Ordering, Category and Algebra replacements pass with fresh checked provider hashes, valid consumer chains and no Prelude back-edge.',link(stage3_failure_path if stage3_failures_current else 'bootstrap/current-source-overlay-family-probes.json' if source_overlay else 'bootstrap/current-source-prelude-counterexample.json')),
         item('gap:source-defaults','Check and inherit source class defaults','running',default_detail if default_receipt else 'Development compiler8fce passes all15 controls in a retained-checker replay with the corrected Rust oracle; complete groups and runtime integration remain separate.',
              'All source default controls, unused errors, generic scopes, metadata stability, runtime and original class-default behavior pass.',link('bootstrap/current-source-class-default-development.json')),
         item('gap:type-term-scope','Keep term and type annotation names separate','running',
@@ -342,10 +346,10 @@ def build_checklist(root, cfg, previous=None):
              'Complete the affected proof/syntax/interface groups and both compiler-source projects, retain kind/scope refusals, then publish the validated repair.',link('bootstrap/current-native-default-annotation-results.json') if annotation_published else link('design/next-steps.md')),
         item('gap:records','Finish record interface transport','recheck','A known earlier compiler gap; latest exact behavior still needs a complete check.',
              'The original record construction, projection, privacy, layout and interface assertions pass on the matching compiler.',link('design/next-steps.md')),
-        item('gap:copyout','Finish Copy / borrow / Thunk ownership','recheck','The original array target had13/15 passing cases; ownership/copyOut is one of its two retained failures.',
-             'The original ownership case reaches and passes its required semantic checks and runtime behavior.',link('bootstrap/current-original-array-suite-results.json')),
-        item('gap:staging','Finish staging and namespace behavior','recheck','The second original array failure and remaining language examples require real staging/declaration behavior.',
-             'Preserve original sources and expected named refusals; execute the matching staging and language suites.',link('bootstrap/current-original-array-suite-results.json')),
+        item('gap:copyout','Finish Copy / borrow / Thunk ownership','blocked' if stage3_failures_current else 'recheck','Exact candidate Stage3 fails to resolve copyOut before checking Copy evidence for Array (Thunk {} Int).' if stage3_failures_current else 'The previous original array target had 13 of 15 passing cases.',
+             'The original ownership case reaches and passes its required semantic checks and runtime behavior.',link(stage3_failure_path if stage3_failures_current else 'bootstrap/current-original-array-suite-results.json')),
+        item('gap:staging','Finish staging and namespace behavior','blocked' if stage3_failures_current else 'recheck','Exact candidate Stage3 reports an unsupported declaration before checking whether arrayReplicate is available at compile time.' if stage3_failures_current else 'The original array and language cases require staging and declaration behavior.',
+             'Preserve original sources and expected named refusals; execute the matching staging and language suites.',link(stage3_failure_path if stage3_failures_current else 'bootstrap/current-original-array-suite-results.json')),
         item('gap:hidden-types','Stop choosing a concrete hidden constructor type','pending','Native existential/hidden-type introduction remains a required investigation and repair.',
              'Hidden types remain existential, with correct construction, scoped elimination, kind checks and no guessed Nat carrier.',link('design/next-steps.md')),
         item('gap:fixities','Reverify defining-module-only fixities','recheck','The earlier self-built controls prove that both identical and changed importer declarations refuse.',
@@ -423,6 +427,8 @@ def build_checklist(root, cfg, previous=None):
         ('taskEffectDiagnostic','Cinch source effects: retain the Blocking label',1,'compile-'),
         ('taskTraceDiagnostics','Cinch task refusals: runtime-IR suite',1,'compile-'),
         ('taskTraceRuntimeReplay','Cinch task refusals: retained emitter, runtime setup and whole suite',3,'compile-'),
+        ('taskDropDiagnostics','Cinch dropped-task diagnostic: complete runtime-IR suite',1,'compile-'),
+        ('taskForwarderValidation','Cinch task forwarding: complete pipeline tests',1,'compile-'),
         ('sourceInterfaceOverlay','Source-library replacement: complete pipeline and dependency checks',1,'compile-'),
         ('originalSourceOverlay','Original four-family source-library replacement test',1,'compile-'),
         ('functionDefaultProvider','Function defaults: fresh pinned library object',1,'compile-'),

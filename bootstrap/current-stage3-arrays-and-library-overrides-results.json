@@ -1,0 +1,36 @@
+{
+  "compiler_sha256": "09af398222f987deb9b35ea8b20fafca82617e7d51b8d381ee6604436811ee8a",
+  "compiler_source_sha256": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+  "full_goal_complete": false,
+  "groups": [
+    {
+      "binary_sha256": "d26116042f2526d5b0edbe721feb34e7184a292955c0b9c4fdec503f102c4410",
+      "failed": 2,
+      "failure_reasons": {
+        "array_copy_evidence_depends_on_the_element_type": "name is not in scope: copyOut",
+        "native_staging_refuses_arrays_by_name_until_the_evaluator_supports_them": "this declaration requires further namespace elaboration"
+      },
+      "log_sha256": "1021ae99e27fa2c13bb105c81b8452625e7b7251bb1c533ceb337549c75a399b",
+      "name": "arrays",
+      "original_assertions": 15,
+      "passed": 13,
+      "source_sha256": "8d1ccd32224302805c2b206f8f484d6aebd8d2658aa2a5e95d40aaf6576b5139"
+    },
+    {
+      "binary_sha256": "7e9fb3f87cbad1b95681176f79e7938fce1c96ad6edb22fd33e701e56c9c1a1a",
+      "failed": 1,
+      "failure_reasons": {
+        "source_family_homes_precede_embedded_consumers_with_checked_hashes": "source module conflicts with a loaded interface"
+      },
+      "log_sha256": "deb71ee90d83afadf106ab004c5f7ac5752318daafee07ad0ad0abd0c5fa3e52",
+      "name": "interface_prelude_overrides",
+      "original_assertions": 1,
+      "passed": 0,
+      "source_sha256": "1d0b1cc10f9d1788183686a742e455c0ddbccb40f8b46720050c857a07e86630"
+    }
+  ],
+  "native_source_sha256": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+  "status": "verified-current-stage3-failed-targets",
+  "verified_at": "2026-11-07T05:57:40.816109+00:00",
+  "wrapper_sha256": "9b8b7d896517d4cec5ec8b9fab5337f4611429c01d12c3db30edee8b170a9f8e"
+}
