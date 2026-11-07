@@ -19306,38 +19306,50 @@
       {
         "title": "Replay the dependent constructor and diagnostic repairs",
         "status": "completed-original-tactics-and-diagnostics-with-failures",
-        "phase": "run-Html",
+        "phase": "Tactics and the Html and Tensor diagnostic cases passed. The stale-evidence case still reaches unresolved refSet.",
         "passed": 6,
         "failed": 1,
         "total": 7,
-        "source": "ba8b2fa22307621579a2ac1e008fc23742cd75b2cb85ccdfbe320ae1aa68ee8a"
+        "source": "ba8b2fa22307621579a2ac1e008fc23742cd75b2cb85ccdfbe320ae1aa68ee8a",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-dependent-pattern-and-diagnostics-results.json"
       },
       {
         "title": "Recheck copied library source before executable linking",
         "status": "completed-overlays-with-failures",
-        "phase": "original-fold",
+        "phase": "Core, Algebra and both edit refusals passed. Category differs on one law observation and Foldable cannot see a checked facade value.",
+        "passed": 4,
+        "failed": 2,
+        "total": 6,
+        "source": "7af4b784ce9e2eda5eda78de92778fde307fc8f402e8f1ed8c8002284a7a7311",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-executable-source-copy-results.json"
+      },
+      {
+        "title": "Recheck late library copies with checked facade values",
+        "status": "running",
+        "phase": "build all 46 compiler modules and smoke-test Stage1",
         "passed": 0,
-        "failed": 4,
-        "total": 4,
-        "source": "48ab477424b967601ec509284249f4a9299c25a30f5828f71ee5f0f4e99ecde0"
+        "failed": 0,
+        "total": 6,
+        "source": "4b9cc96eb7228d6d8fe8c18b4f4ca3b33519b6f7617763a3a54199fa30ff427f"
       },
       {
         "title": "Replay the five original library targets with the expanded object",
-        "status": "running",
+        "status": "waiting-worker",
         "phase": "lib_function_ord",
         "passed": 0,
-        "failed": 0,
+        "failed": 1,
         "total": 5,
         "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a"
       },
       {
         "title": "Preserve numeric inference through local bindings",
-        "status": "failed",
-        "phase": "negative-literal",
-        "passed": 2,
-        "failed": 1,
+        "status": "passed",
+        "phase": "The original map-key fixture and both literal checks passed. The complete runtime group remains open.",
+        "passed": 3,
+        "failed": 0,
         "total": 3,
-        "source": "9f1d93da35d7ee94f974cc2ff76ddb85bcadf8cf4a8dcac50c954fa609ce0ac0"
+        "source": "9f1d93da35d7ee94f974cc2ff76ddb85bcadf8cf4a8dcac50c954fa609ce0ac0",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-local-numeric-check-results.json"
       },
       {
         "title": "Rebuild the pinned library and rerun the ladder with one bytes-len type spelling",
@@ -19401,12 +19413,12 @@
       },
       {
         "title": "Run every Rust compiler target on the combined fixes",
-        "status": "running",
-        "phase": "bootstrap_core",
-        "passed": 20,
+        "status": "waiting-worker",
+        "phase": "lib",
+        "passed": 2,
         "failed": 0,
         "total": 235,
-        "source": "1a7e275f0519f670012f993304a975446020a814dc62bad21ec9244117a64d25"
+        "source": "a4bc2344653dc50ef044ba7a0e4661cf589a91dbf2b12907e279869f7586632b"
       },
       {
         "title": "Bootstrap the consolidated compiler with named proofs",
@@ -19541,11 +19553,11 @@
       {
         "title": "Run the full original 105-target Stage3 frontend matrix",
         "status": "running",
-        "phase": "3 disjoint runs share the same audited compiler and provider.",
-        "passed": 32,
+        "phase": "1 disjoint runs share the same audited compiler and provider.",
+        "passed": 1,
         "failed": 0,
         "total": 105,
-        "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a"
+        "source": "1c8e4305e070018121b087e47dd7572c3844617af7391841d74b1e8f2ed4c3d5"
       },
       {
         "title": "Schema 9 Stage1: original arrays with staging and CopyOut",
@@ -19662,5 +19674,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T18:35:07.031543+00:00"
+  "updatedAt": "2026-11-07T18:39:22.859261+00:00"
 }
