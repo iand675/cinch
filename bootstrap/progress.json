@@ -19109,8 +19109,8 @@
       {
         "title": "Require complete schema 10 interfaces and preserve public type spelling",
         "status": "running",
-        "phase": "arrays",
-        "passed": 4,
+        "phase": "interface_byte_observations",
+        "passed": 5,
         "failed": 0,
         "total": 9,
         "source": "309a4f696ed5072050009e59562deabb2fc205731e47655662d1d8d69cd2d020",
@@ -19288,5 +19288,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T13:30:13.678466+00:00"
+  "updatedAt": "2026-11-07T13:31:15.658666+00:00"
 }
