@@ -907,6 +907,13 @@ def build_checklist(root, cfg, previous=None):
             phase='Stage1 rebuilt all 46 compiler modules and Stage2 passed all three smoke cases.',
             passed=1, failed=0, total=1, source=repaired_stage2['compiler_source_sha256'],
             evidence=link(repaired_stage2_path)))
+    repaired_agreement_path = 'bootstrap/current-schema10-repaired-stage3-agreement-results.json'
+    repaired_agreement = read(root / repaired_agreement_path)
+    if repaired_agreement.get('status') == 'audited-repaired-schema10-stage3-agreement':
+        active.append(dict(title='Verify Stage2 and Stage3 agree on the repaired compiler', status='passed',
+            phase='Executables, LLVM IR and 46 interfaces agree. Stage3 passed the smoke tests and a separate client.',
+            passed=1, failed=0, total=1, source=repaired_agreement['compiler_source_sha256'],
+            evidence=link(repaired_agreement_path)))
     consolidated_path = 'bootstrap/current-schema10-consolidated-provider-results.json'
     consolidated = read(root / consolidated_path)
     if consolidated.get('status') == 'audited-consolidated-provider-and-complete-runtime-tooling':
