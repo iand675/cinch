@@ -720,6 +720,18 @@ def build_checklist(root, cfg, previous=None):
             phase=remaining_family.get('phase') or remaining_family['status'].replace('-', ' '),
             passed=sum(row.get('status') == 'passed' for row in rows),
             failed=sum(row.get('status') == 'failed' for row in rows), total=2, source=remaining_family['compiler_source_sha256']))
+    canonical_laws = read(cfg.get('schema10LawIdentitiesValidation'))
+    law_identity_gap = read(root/'bootstrap/current-schema10-law-identity-gap.json')
+    if law_identity_gap:
+        rows = canonical_laws.get('rows', [])
+        status = canonical_laws.get('status', 'pending')
+        active.append(dict(title='Match defining names in schema 10 law observations', status=status,
+            phase='Rust and Cinch emitted different law names in the same schema. ' +
+                (canonical_laws.get('phase') or status).replace('-', ' '),
+            passed=sum(row.get('status') == 'passed' for row in rows),
+            failed=sum(row.get('status') == 'failed' for row in rows), total=5,
+            source=canonical_laws.get('compiler_source_sha256'),
+            evidence=link('bootstrap/current-schema10-law-identity-gap.json')))
     if combined_arrays:
         active.append(dict(title='Schema 9 Stage1: original arrays with staging and CopyOut', status='passed',
             phase='Fourteen tests passed in the full run and the remaining test passed with the matching runtime archive',

@@ -1,0 +1,34 @@
+{
+  "status": "reproduced-distinct-defining-names-within-schema10",
+  "full_goal_complete": false,
+  "schema": 10,
+  "reproduction": {
+    "target": "bootstrap_source_instances",
+    "test": "source_class_defaults_are_checked_at_the_owner_and_inherited_with_closed_contracts",
+    "subject": "Unsampled.KeepEndo",
+    "compiler_source_sha256": "7779280734c485942b9fe5c009c686f0719c8b3bcad7e224dccd4c32c7690f8c",
+    "native_source_sha256": "b938d9c27df7255c15067e1371adb293529d7b1682b9809ec4539caf15497ebf",
+    "Cinch": {
+      "class": "Keep",
+      "unsampled_binder": "x :: Endo a"
+    },
+    "Rust": {
+      "class": "Unsampled.Keep",
+      "unsampled_binder": "x :: Unsampled.Endo a"
+    },
+    "assertion_output_sha256": "6615ef914d60200884202da487e1b666c849b9d69dad226c8e87e5140876a2cd"
+  },
+  "separate_combined_candidate_stage1": {
+    "revision": "201d8d8ff68149ecfc3845569850e9078a96c419",
+    "compiler_source_sha256": "b59c4893c4214d1c94c624bf9ba3f9e99ee7eb9b9568c1f092b20e5080967b38",
+    "compiler_sha256": "1bc54080788c570c00ea06191112cef27853ada28499f686807a4d0b2b3bcc22",
+    "receipt_sha256": "2bb24600f6db09e95ee64d090a02810fedfdfad8184cc423d258328193877ef5",
+    "stage": 1,
+    "status": "passed"
+  },
+  "repair_validation": {
+    "compiler_source_sha256": "9df59053b3dc0df7c8af55f7903bd252728427448ae03345b95a6b120efc584a",
+    "native_source_sha256": "196c5940e068a268870140ac2cb482421dcf0d8c00a5272d87774720b9781268",
+    "status": "awaiting-original-test-replay"
+  }
+}
