@@ -332,6 +332,20 @@ def build_checklist(root, cfg, previous=None):
              'Every acceptance item, named artifact, invariant and complete matching suite has direct current evidence; all failures and unclassified coverage are closed.',link('design/self-hosting.md#acceptance'))]
 
     active=[]
+    next_chain = read(cfg.get('partialBooleanBootstrapChain'))
+    if next_chain:
+        status = next_chain.get('status', '')
+        active.append(dict(
+            title='Fresh Stage0 through Stage3 rebuild',
+            status='running' if status.startswith(('building-', 'checking-')) else status,
+            phase='Waiting for the compiler/object tests, the own-source check, and the nine component targets'
+                  if status == 'waiting-matching-development-gates' else status.replace('-', ' '),
+            passed=sum(stage['status'] == 'passed' for stage in next_chain.get('stages', [])),
+            failed=int(status.startswith('failed')),
+            total=4,
+            unit='stages',
+            source=next_chain.get('compiler_source_sha256') or read(cfg.get('partialBooleanValidation')).get('compiler_source_sha256'),
+            auditPending=status == 'passed-chain-awaiting-independent-audit'))
     for key,title,total,skip in [
         ('nativeDefaultAnnotationValidation','Rust annotation repair: primary groups',14,'build-'),
         ('nativeDefaultAnnotationFollowup','Rust annotation repair: proof/syntax groups',7,'compile-'),
