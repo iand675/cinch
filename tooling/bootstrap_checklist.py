@@ -316,6 +316,10 @@ def build_checklist(root, cfg, previous=None):
     projection = read(cfg.get('structuralProjectionCases'))
     copyout = read(cfg.get('copyoutValidation'))
     laws = read(cfg.get('classLawObservationValidation'))
+    arrow_receipt = read(cfg.get('arrowFormerReceipt'))
+    law_receipt = read(cfg.get('classLawObservationReceipt'))
+    default_transport = read(cfg.get('portableDefaultValidation'))
+    family_replay = read(cfg.get('arrowFamilyReplay'))
     gaps=[
         item('gap:prelude','Replace source copies of library modules safely','blocked' if stage3_failures_current or 'interface_prelude_overrides' in failed_api else 'pending',
              'Exact candidate Stage3 refuses the original Data.Core source as a conflicting loaded interface. Development Data.Core emits the matching contract. Ordering, Category and Algebra still need their original replacement checks.' if stage3_failures_current else 'Data.Core emits the matching contract. Data.Ordering stops at the imported mconcat default. Category rejects the class laws and structural function instance. Algebra now resolves Nil, None, Cons and Some and stops at the class law.' if early_base else 'The development pipeline checks each original source family separately. Data.Core emits the matching contract. Data.Ordering stops at the imported mconcat default. Category rejects the class laws and structural function instance. Algebra rejects the class law and cannot resolve Nil, None, Cons or Some.' if source_overlay else 'The current interface/API run fails when source Data.Core is supplied alongside its cached interface. All four original families remain required.',
@@ -343,8 +347,10 @@ def build_checklist(root, cfg, previous=None):
         item('gap:imported-defaults','Transport checked imported default implementations','running' if cfg.get('portableDefaultWork') else 'pending',
              'The original Ordering bundle cannot inherit mconcat from the pinned Monoid interface. Its default hash authenticates a body but carries no implementation. Owner-scoped body transport and fresh typechecking are in development.',
              'Inherited imported defaults retain owner scope, private closure, actual method contracts and compiled behavior; missing or stale contracts refuse.',link('design/compiled-interface-metadata.md')),
-        item('gap:laws','Elaborate source class laws and declarations','running','The full syntax and pipeline tests pass. The checker verifies one carrier for both law operands and refuses incompatible types. The Boolean sampler follows the actual checked instance fields. A lawful instance passes both assignments, and a faulty implementation is rejected by name. Other carriers and checked law transport remain open. Category also needs the structural Functor_Function instance.',
-             'Retain and check the original class laws and namespace declarations; pass all original family and law assertions.',link('bootstrap/current-source-class-law-instance-samples-results.json')),
+        item('gap:laws','Elaborate source class laws and declarations','running',
+             'The pipeline and interface-writer groups passed audit. A lawful Boolean implementation reports two checked samples, an unlawful one refuses by name, and the unsampled function carrier is explicitly reported as unchecked. General sampling and imported law declarations remain open.' if law_receipt else
+             'The checker verifies one carrier for both law operands and refuses incompatible types. The Boolean sampler follows the actual checked instance fields.',
+             'Retain and check the original class laws and namespace declarations; pass all original family and law assertions.',link('bootstrap/current-class-law-observations-results.json' if law_receipt else 'bootstrap/current-source-class-law-instance-samples-results.json')),
         item('gap:base-names','Restore source-family implicit base names','running' if early_base else 'pending',
              'The development compiler now resolves the original Algebra.Semigroup constructors. Explicit and implicit Data.Core usage give the same checked contract and exact dependency hash; qualified access still requires an import.' if early_base else 'With the complete authenticated library interface set, source Algebra.Semigroup still cannot resolve Nil, None, Cons and Some before Prelude.',
              'Source library homes retain their checked base scope without a facade back-edge or unchecked aliases.',link('bootstrap/current-source-overlay-base-scope-results.json' if early_base else 'bootstrap/current-source-prelude-counterexample.json')),
@@ -376,6 +382,10 @@ def build_checklist(root, cfg, previous=None):
         item('gap:structural-projection','Replay anonymous refinement contracts','running' if projection.get('status') == 'running' else 'recheck',
              'The original sweep stops on an implicit projection from a structural refinement. Both compilers refuse that expression and accept explicit unrefine. The full replay includes both controls and retains the stronger-predicate refusal.',
              'The complete anonymous-contract target passes through matching Stage3, including explicit projection and the exact refusal reasons.',link('compiler/tests/bootstrap_anonymous_contracts.rs')),
+        item('gap:function-constructor','Replay higher-kinded function instances','recheck' if arrow_receipt else 'running',
+             'The structural function constructor passes all three complete development groups. The unchanged Category family and matching final Stage3 still require their own results.' if arrow_receipt else
+             'The original Category.Functor source needs the partially applied (->) type constructor.',
+             'The original Category family and higher-kinded tests pass on matching Stage3.',link('bootstrap/current-structural-arrow-results.json' if arrow_receipt else 'compiler/prelude/Category/Functor.cinch')),
         item('gap:final-audit','Complete the requirement-by-requirement final audit','pending','A green subset, source check or earlier fixed point cannot close the full goal.',
              'Every acceptance item, named artifact, invariant and complete matching suite has direct current evidence; all failures and unclassified coverage are closed.',link('design/self-hosting.md#acceptance'))]
 
@@ -559,12 +569,19 @@ def build_checklist(root, cfg, previous=None):
     for title, run, total in (
         ('Cinch copyOut: pipeline and runtime IR', copyout, 2),
         ('Cinch class-law samples and counterexamples', laws, 2),
+        ('Cinch imported defaults: source admission and two complete groups', default_transport, 3),
     ):
         if run:
             rows = [r for r in run.get('rows', []) if not r['name'].startswith('compile-')]
             active.append(dict(title=title, status=run['status'], phase=run.get('phase') or run['status'].replace('-', ' '),
                 passed=sum(r['status'] == 'passed' for r in rows), failed=sum(r['status'] == 'failed' for r in rows),
                 total=total, source=run.get('compiler_source_sha256')))
+    if family_replay:
+        rows = family_replay.get('rows', [])
+        active.append(dict(title='Unchanged source-library families: structural arrow candidate',
+            status=family_replay['status'], phase=family_replay.get('phase'),
+            passed=sum(r['exit_code'] == 0 for r in rows), failed=sum(r['exit_code'] != 0 for r in rows),
+            total=4, source=arrow_receipt.get('compiler_source_sha256')))
 
     all_rows=acceptance+gaps+[r for s in suites for r in s['items']]
     assert len({r['id']for r in all_rows})==len(all_rows)

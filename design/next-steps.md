@@ -1,5 +1,23 @@
 # Next steps (as of 2026-11-07)
 
+## Development checkpoint for function constructors and class-law observations
+
+The structural function constructor candidate `b655a0a0` adds kind-checked
+`(->)`, supports partial application in instance heads, and rejects
+overapplication. The complete pipeline, type-syntax, and source-instance groups
+passed six tests. Apply `bootstrap/structural-arrow-development.patch` to the
+integrated task/law source `5bf127d9`.
+
+The class-law observation candidate `390867a9` builds on that change. It records
+two checked Boolean samples for a lawful instance, refuses an actual Boolean
+counterexample, and records an unchecked observation for an unsampled function
+carrier. The complete pipeline and interface-writer groups passed three tests.
+The two patches reapplied without offsets or fuzz and left the seed and library
+pins intact. The original source-library families, broader sample generation,
+imported law transport, and matching Stage3 verification remain open. The
+receipts are `bootstrap/current-structural-arrow-results.json` and
+`bootstrap/current-class-law-observations-results.json`.
+
 ## Development checkpoint: checked defaults, coverage and structural refinements (2026-11-07)
 
 The published compiler remains Cinch3268 with Native8ba8. Immutable Native22

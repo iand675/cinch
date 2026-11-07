@@ -1,0 +1,39 @@
+{
+  "base_compiler_source_sha256": "b655a0a0d31a67be39ff71bc36b4434c4ca0bb9b6b991928f64329efc133bd63",
+  "compiler_source_sha256": "390867a97984998d814b051dea60c193e7c1d551032160da9302bb6c13b7f5ac",
+  "evidence": [
+    "A declaration with no instance emits no observations.",
+    "Boolean involution reports checked on two samples.",
+    "Unlawful Boolean method refuses with its law and instance name and writes no interface.",
+    "Function carrier reports not checked. General sampling and imported law transport remain open."
+  ],
+  "files": {
+    "bootstrap/Bootstrap.Export.cinch": "57a3eb5405ec9abb014b9403cbf57632911d2c2920476673bfe3f17a7e3c6d87",
+    "bootstrap/Bootstrap.Infer.cinch": "3cddeda828e8bc306334b0dbcfa588eda72eb6e17942d38f637f79b6462c044d",
+    "compiler/tests/bootstrap_pipeline.rs": "7e874c82b776d603bec11704a98d40dc6195df8b33a93e7be890766eee3789f6"
+  },
+  "full_goal_complete": false,
+  "groups": {
+    "bootstrap_export_interfaces": 1,
+    "bootstrap_pipeline": 2
+  },
+  "native_source_sha256": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+  "patch_sha256": "8c6df627f9bcc31de21005536090ad3fec0d2b6b13f3c69c158a2cb4f12a2838",
+  "rows": [
+    {
+      "exit_code": 0,
+      "log_sha256": "9066a1dcd5031a770a011b39b62b5b92f424741f38835421e9a8dc870f1ae18c",
+      "name": "bootstrap_pipeline",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "6339dc4faf18e12072b1ddfb8662c2215f50da0ec6dc62c88a35d02e1d4fca14",
+      "name": "bootstrap_export_interfaces",
+      "status": "passed"
+    }
+  ],
+  "source_sha256": "3360c371dc39f4232cb81be7f18821a811a0521b26068b2778f78ec5e7090982",
+  "status": "passed-class-law-observation-groups",
+  "verified_at": "2026-11-07T07:15:50.039664+00:00"
+}

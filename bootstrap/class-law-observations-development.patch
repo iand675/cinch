@@ -1,0 +1,335 @@
+--- a/bootstrap/Bootstrap.Infer.cinch
++++ b/bootstrap/Bootstrap.Infer.cinch
+@@ -33,7 +33,7 @@
+   import Algebra.Semigroup
+ 
+   export needs-inference, infer-program, elaborate-program
+-  export Elaboration, elaboration-errors, elaboration-bindings, elaboration-contexts, elaboration-core
++  export Elaboration, elaboration-errors, elaboration-bindings, elaboration-contexts, elaboration-core, elaboration-law-observations
+   export elaboration-core-contracts-closed
+   export CheckedBinding, checked-name, checked-scheme, checked-role, checked-body-binding, checked-guarded-binding, checked-method-matches, checked-conditional-target
+   export checked-foreign-plan
+@@ -105,23 +105,26 @@
+   checked-foreign-plan binding = case binding of MkForeignBinding name scheme plan -> Some plan; other -> None
+   checked-body-binding :: CheckedBinding -> Option BodyBinding
+   checked-body-binding binding = case binding of MkBodyBinding body -> Some body; other -> None
++  -- Instance law samples are observations and never proof evidence.
+   data Elaboration where
+-    MkElaboration :: List Diagnostic -> List CheckedBinding -> List Json -> List CoreDefinition -> List CoreData -> List CoreEffect -> CoreClassContext -> List CoreInstance -> List Decl -> Elaboration
++    MkElaboration :: List Diagnostic -> List CheckedBinding -> List Json -> List CoreDefinition -> List CoreData -> List CoreEffect -> CoreClassContext -> List CoreInstance -> List Decl -> List (String, String, String, String) -> Elaboration
++  elaboration-law-observations :: Elaboration -> List (String, String, String, String)
++  elaboration-law-observations e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations -> observations; other -> Nil
+   elaboration-errors :: Elaboration -> List Diagnostic
+-  elaboration-errors e = case e of MkElaboration errors bindings contexts core datas effects descriptions instances declarations -> errors
++  elaboration-errors e = case e of MkElaboration errors bindings contexts core datas effects descriptions instances declarations observations -> errors
+   elaboration-bindings :: Elaboration -> List CheckedBinding
+-  elaboration-bindings e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations -> bindings; other -> Nil
++  elaboration-bindings e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations -> bindings; other -> Nil
+   elaboration-contexts :: Elaboration -> List Json
+-  elaboration-contexts e = case e of MkElaboration errors bindings contexts core datas effects descriptions instances declarations -> contexts
++  elaboration-contexts e = case e of MkElaboration errors bindings contexts core datas effects descriptions instances declarations observations -> contexts
+   elaboration-core :: Elaboration -> List CoreDefinition
+-  elaboration-core e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations -> core; other -> Nil
++  elaboration-core e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations -> core; other -> Nil
+ 
+   -- A retained proof may cite actual helper or instance bodies. Recheck
+   -- it against the same checked declaration context, not an empty world.
+   -- The standalone Core API deliberately keeps its stricter empty context.
+   elaboration-core-contracts-closed :: Elaboration -> Bool
+   elaboration-core-contracts-closed result = case result of
+-    MkElaboration Nil bindings contexts definitions datas effects descriptions instances declarations ->
++    MkElaboration Nil bindings contexts definitions datas effects descriptions instances declarations observations ->
+       closed-elaboration-definitions (env-body-context bindings) (env-guarded-bindings bindings) definitions
+     other -> False
+   closed-elaboration-definitions :: BodyBindings -> List GuardedBinding -> List CoreDefinition -> Bool
+@@ -132,20 +135,20 @@
+   -- Only a successful elaboration exposes its defining declarations.
+   -- Interface provenance comes from these resolved, checked definitions.
+   elaboration-declarations :: Elaboration -> List Decl
+-  elaboration-declarations e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations -> declarations; other -> Nil
++  elaboration-declarations e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations -> declarations; other -> Nil
+ 
+   elaboration-data :: Elaboration -> List CoreData
+-  elaboration-data e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations -> datas; other -> Nil
++  elaboration-data e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations -> datas; other -> Nil
+ 
+   elaboration-effects :: Elaboration -> List CoreEffect
+-  elaboration-effects e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations -> effects; other -> Nil
++  elaboration-effects e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations -> effects; other -> Nil
+ 
+   elaboration-classes :: Elaboration -> List CoreClass
+-  elaboration-classes e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations -> context-classes descriptions; other -> Nil
++  elaboration-classes e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations -> context-classes descriptions; other -> Nil
+   elaboration-class-context :: Elaboration -> CoreClassContext
+-  elaboration-class-context e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations -> descriptions; other -> MkCoreClassContext Nil Nil
++  elaboration-class-context e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations -> descriptions; other -> MkCoreClassContext Nil Nil
+   elaboration-instances :: Elaboration -> List CoreInstance
+-  elaboration-instances e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations -> instances; other -> Nil
++  elaboration-instances e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations -> instances; other -> Nil
+ 
+   same :: String -> String -> Bool
+   same a b = string-compare a b == 0
+@@ -3728,7 +3731,7 @@
+     (Cons q rest, Cons ty more) -> Cons (quant-name q, ty) (law-type-locals rest more)
+     other -> Nil
+ 
+-  check-boolean-law-instance :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> CoreClass -> CoreInstance -> Span -> String -> LawSyntax -> Store -> Store
++  check-boolean-law-instance :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> CoreClass -> CoreInstance -> Span -> String -> LawSyntax -> Store -> (String, Store)
+   check-boolean-law-instance classes kinds families env description dictionary sp name syntax st =
+     let subject = scheme-body (instance-scheme dictionary) in
+     let locals = law-type-locals (class-params description) (constructor-result-arguments subject Nil) in
+@@ -3736,54 +3739,87 @@
+     case convert False kinds locals (law-input-type sp syntax) (enter-level st) of
+       (inputs, opened) -> case bind-requirements sp [MkRequirement "#self" subject] env opened of
+         (bound, givens, ready) -> case law-operands classes kinds families bound locals inputs syntax ready of
+-          (patterns, Some (first, second), checked) -> if list-length (store-errors checked) /= list-length (store-errors st) then restore-level level checked else
++          (patterns, Some (first, second), checked) -> if list-length (store-errors checked) /= list-length (store-errors st) then ("", restore-level level checked) else
+             (case resolve-dictionary-term-with classes (env-instances env) givens first checked of
+               (left, checked-left) -> case resolve-dictionary-term-with classes (env-instances env) givens second checked-left of
+                 (right, checked-right) -> let done = restore-level level checked-right in
+-                  if list-length (store-errors done) /= list-length (store-errors st) then done else
++                  if list-length (store-errors done) /= list-length (store-errors st) then ("", done) else
+                     report-boolean-law-samples sp name description dictionary givens
+                       (law-normalize-patterns checked-right patterns) (map-term-types (normalize checked-right) left) (map-term-types (normalize checked-right) right) done)
+-          (patterns, None, checked) -> restore-level level checked
++          (patterns, None, checked) -> (unchecked-law "the law has no checked equation", restore-level level checked)
+ 
+   law-normalize-patterns :: Store -> List CorePattern -> List CorePattern
+   law-normalize-patterns st patterns = case patterns of
+     Nil -> Nil
+     Cons p rest -> Cons (map-pattern-types (normalize st) p) (law-normalize-patterns st rest)
+ 
+-  report-boolean-law-samples :: Span -> String -> CoreClass -> CoreInstance -> List CoreGiven -> List CorePattern -> CoreTerm -> CoreTerm -> Store -> Store
++  unchecked-law :: String -> String
++  unchecked-law reason = string-concat-all ["not checked (", reason, ")"]
++  report-boolean-law-samples :: Span -> String -> CoreClass -> CoreInstance -> List CoreGiven -> List CorePattern -> CoreTerm -> CoreTerm -> Store -> (String, Store)
+   report-boolean-law-samples sp name description dictionary givens patterns left right st = case givens of
+     Cons given Nil -> case sample-boolean-law (class-name description) dictionary given patterns left right of
+-      BooleanLawSamples samples -> add-error sp (string-concat-all ["class law passed ", nat-to-string samples, " Boolean samples; checked interface transport is pending: ", name]) st
+-      BooleanLawCounterexample -> add-error sp (string-concat-all ["class law ", name, " failed for ", instance-diagnostic-name (instance-name dictionary), " on a Boolean sample"]) st
+-      BooleanLawUnavailable message -> add-error sp (string-concat-all ["class law needs checked instance evidence: ", name, " (", message, ")"]) st
+-    other -> add-error sp (string-concat "class law needs checked instance evidence: " name) st
+-
+-  boolean-law-instance :: String -> List CoreInstance -> Option CoreInstance
+-  boolean-law-instance owner instances = case instances of
+-    Nil -> None
+-    Cons dictionary rest -> let factory = instance-scheme dictionary in
+-      (case (scheme-params factory, scheme-requirements factory, scheme-body factory) of
+-        (Nil, Nil, UApp (UCon class kind) (UCon carrier KType)) ->
+-          if same class owner && same carrier "Bool" then Some dictionary else boolean-law-instance owner rest
+-        other -> boolean-law-instance owner rest)
+-
+-  check-law-instances :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List CoreInstance -> List Decl -> Store -> Store
++      BooleanLawSamples samples -> (string-concat-all ["checked (", nat-to-string samples, " samples)"], st)
++      BooleanLawCounterexample -> ("", add-error sp (string-concat-all ["class law ", name, " failed for ", instance-diagnostic-name (instance-name dictionary), " on a Boolean sample"]) st)
++      BooleanLawUnavailable message -> (unchecked-law message, st)
++    other -> (unchecked-law "the instance's dictionaries do not resolve", st)
++
++  boolean-law-instance :: CoreInstance -> Bool
++  boolean-law-instance dictionary = let factory = instance-scheme dictionary in
++    case (scheme-params factory, scheme-requirements factory, scheme-body factory) of
++      (Nil, Nil, UApp (UCon class kind) (UCon carrier KType)) -> same carrier "Bool"
++      other -> False
++  law-class-arguments :: List Quant -> List UType -> List (Nat, UType)
++  law-class-arguments parameters actuals = case (parameters, actuals) of
++    (Cons parameter rest, Cons actual more) -> Cons (quant-id parameter, actual) (law-class-arguments rest more)
++    other -> Nil
++  unsampled-law-binder :: UType -> Option String
++  unsampled-law-binder ty = case ty of
++    UPi id name domain row result -> case domain of
++      UFun input output -> Some (string-concat-all ["no samples for the law binder `", name, " :: ", type-text domain, "`"])
++      UTuple fields -> if list-length (type-free-bound domain) == 0 then unsampled-law-binder result
++        else Some (string-concat-all ["no samples for the law binder `", name, " :: ", type-text domain, "`"])
++      other -> unsampled-law-binder result
++    UFun domain result -> Some "the law's binders must be named: `(x :: T) -> ...`"
++    other -> None
++  unsampled-law-status :: List (String, Kind) -> TypeContext -> CoreClass -> CoreInstance -> Span -> LawSyntax -> String
++  unsampled-law-status classes kinds description dictionary sp syntax =
++    case make-scheme False classes kinds (class-params description) (law-input-type sp syntax) (empty-store "law observation") of
++      (sc, checked) -> let actuals = constructor-result-arguments (scheme-body (instance-scheme dictionary)) Nil in
++        let specialized = substitute-bound (law-class-arguments (class-params description) actuals) (scheme-body sc) in
++        case (store-errors checked, unsampled-law-binder specialized) of
++          (Nil, Some reason) -> unchecked-law reason
++          other -> unchecked-law "the Cinch sampler cannot evaluate this instance"
++
++  check-law-instances :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List CoreInstance -> List Decl -> Store -> (List (String, String, String, String), Store)
+   check-law-instances classes kinds families env instances ds st = case ds of
+-    Nil -> st
+-    Cons (DClass sp name parameters members) rest -> check-law-instances classes kinds families env instances rest
+-      (case find-class name (context-source-classes kinds) of
+-        Some description -> check-law-instance-members classes kinds families env description (boolean-law-instance name instances) (decls-of members) st
+-        None -> st)
++    Nil -> (Nil, st)
++    Cons (DClass sp name parameters members) rest -> case (case find-class name (context-source-classes kinds) of
++      Some description -> check-law-instance-members classes kinds families env description instances (decls-of members) st
++      None -> (Nil, st)) of
++      (facts, checked) -> case check-law-instances classes kinds families env instances rest checked of
++        (more, done) -> (facts <> more, done)
+     Cons other rest -> check-law-instances classes kinds families env instances rest st
+ 
+-  check-law-instance-members :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> CoreClass -> Option CoreInstance -> List Decl -> Store -> Store
+-  check-law-instance-members classes kinds families env description selected members st = case members of
+-    Nil -> st
+-    Cons (DLaw sp name syntax) rest -> check-law-instance-members classes kinds families env description selected rest
+-      (case (selected, syntax) of
+-        (Some dictionary, LawArrow domain body) -> check-boolean-law-instance classes kinds families env description dictionary sp name syntax st
+-        other -> add-error sp (string-concat "class law needs checked instance evidence: " name) st)
+-    Cons other rest -> check-law-instance-members classes kinds families env description selected rest st
++  check-law-instance-members :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> CoreClass -> List CoreInstance -> List Decl -> Store -> (List (String, String, String, String), Store)
++  check-law-instance-members classes kinds families env description instances members st = case members of
++    Nil -> (Nil, st)
++    Cons (DLaw sp name syntax) rest -> case check-law-subjects classes kinds families env description sp name syntax instances st of
++      (facts, checked) -> case check-law-instance-members classes kinds families env description instances rest checked of
++        (more, done) -> (facts <> more, done)
++    Cons other rest -> check-law-instance-members classes kinds families env description instances rest st
++
++  check-law-subjects :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> CoreClass -> Span -> String -> LawSyntax -> List CoreInstance -> Store -> (List (String, String, String, String), Store)
++  check-law-subjects classes kinds families env description sp name syntax instances st = case instances of
++    Nil -> (Nil, st)
++    Cons dictionary rest -> let owner = class-name description in
++      if (case root-name (scheme-body (instance-scheme dictionary)) of Some class -> same owner class; None -> False) then
++        (case (case syntax of
++          LawArrow domain body -> if boolean-law-instance dictionary then check-boolean-law-instance classes kinds families env description dictionary sp name syntax st
++            else (unsampled-law-status classes kinds description dictionary sp syntax, st)
++          other -> (unsampled-law-status classes kinds description dictionary sp syntax, st)) of
++          (status, checked) -> case check-law-subjects classes kinds families env description sp name syntax rest checked of
++            (more, done) -> (Cons (instance-name dictionary, owner, name, status) more, done))
++      else check-law-subjects classes kinds families env description sp name syntax rest st
+ 
+   elaborate-module :: String -> Module -> Elaboration
+   elaborate-module label m = elaborate-module-with-source-bodies True label m
+@@ -3817,7 +3853,7 @@
+     let (effects, sx) = case store-errors default-store of Nil -> checked-effects kinds env ds default-store; other -> (Nil, default-store) in
+     let linked-kinds = context-with-effects effects kinds in
+     let (descriptions, instances, sm) = case store-errors sx of Nil -> checked-source-instances rows classes linked-kinds families env ds (context-source-classes linked-kinds) sx; other -> (Nil, Nil, sx) in
+-    let sampled = case store-errors sm of Nil -> check-law-instances classes linked-kinds families env instances ds sm; other -> sm in
++    let (law-observations, sampled) = case store-errors sm of Nil -> check-law-instances classes linked-kinds families env instances ds sm; other -> (Nil, sm) in
+     let (ordinary-core, done) = case store-errors sampled of Nil -> check-bodies classes linked-kinds families env Nil ds ds sampled; other -> (Nil, sampled) in
+     let core = defaults <> ordinary-core in
+     let (declared-data, declared-store) = case store-errors done of Nil -> checked-data classes linked-kinds env ds Nil done; other -> (Nil, done) in
+@@ -3825,7 +3861,7 @@
+     let (datas, sd) = case store-errors nominal-store of Nil -> complete-runtime-data ds classes linked-kinds nominal-data nominal-store; other -> (nominal-data, nominal-store) in
+     let finished = case store-errors sd of Nil -> check-data-closed datas (check-global-core linked-kinds env instances datas core sd); other -> sd in
+     let retained-classes = case store-errors finished of Nil -> checked-imported-classes rows rows classes linked-kinds descriptions; other -> descriptions in
+-    MkElaboration (store-errors finished) (finish-bindings finished env) (contexts ds) core datas effects (MkCoreClassContext classes retained-classes) instances ds
++    MkElaboration (store-errors finished) (finish-bindings finished env) (contexts ds) core datas effects (MkCoreClassContext classes retained-classes) instances ds law-observations
+ 
+   -- Records use the ordinary independently checked single-constructor
+   -- representation. Labels remain in a DRecord for source provenance;
+@@ -4178,9 +4214,9 @@
+     Cons first rest -> case context-add-total zero first kinds st of (more, checked) -> add-source-bodies rest more checked
+   elaborate-modules :: String -> List Module -> Elaboration
+   elaborate-modules label ms = case ms of
+-    Nil -> MkElaboration Nil Nil Nil Nil Nil Nil (MkCoreClassContext Nil Nil) Nil Nil
++    Nil -> MkElaboration Nil Nil Nil Nil Nil Nil (MkCoreClassContext Nil Nil) Nil Nil Nil
+     Cons m rest -> case (elaborate-module label m, elaborate-modules label rest) of
+-      (MkElaboration errors bindings ctx core datas effects descriptions instances declarations, MkElaboration more others scopes other-core other-data other-effects other-classes other-instances other-declarations) -> MkElaboration (errors <> more) (bindings <> others) (ctx <> scopes) (core <> other-core) (datas <> other-data) (effects <> other-effects) (merge-class-contexts descriptions other-classes) (instances <> other-instances) (declarations <> other-declarations)
++      (MkElaboration errors bindings ctx core datas effects descriptions instances declarations observations, MkElaboration more others scopes other-core other-data other-effects other-classes other-instances other-declarations other-observations) -> MkElaboration (errors <> more) (bindings <> others) (ctx <> scopes) (core <> other-core) (datas <> other-data) (effects <> other-effects) (merge-class-contexts descriptions other-classes) (instances <> other-instances) (declarations <> other-declarations) (observations <> other-observations)
+   elaborate-program :: String -> Program -> Elaboration
+   elaborate-program label p = elaborate-modules label (program-modules p)
+   infer-program :: String -> Program -> List Diagnostic
+--- a/bootstrap/Bootstrap.Export.cinch
++++ b/bootstrap/Bootstrap.Export.cinch
+@@ -5,7 +5,7 @@
+   import Algebra.Semigroup
+   import Bootstrap.Check (CheckedProgram, checked-elaboration, checked-surface)
+   import Bootstrap.Ast (Program, Module, Decl, module-decls, program-modules, DClass, DInstance, DForeign, DRefine, DRecord, DEffect, source-clauses-document)
+-  import Bootstrap.Infer (Elaboration, elaboration-bindings, elaboration-core, elaboration-data, elaboration-contexts, elaboration-classes, elaboration-instances, elaboration-declarations, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-body-binding, checked-foreign-plan, source-class-default-symbol, source-class-default-clauses)
++  import Bootstrap.Infer (Elaboration, elaboration-bindings, elaboration-core, elaboration-data, elaboration-contexts, elaboration-classes, elaboration-instances, elaboration-declarations, elaboration-law-observations, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-body-binding, checked-foreign-plan, source-class-default-symbol, source-class-default-clauses)
+   import Bootstrap.Core (CoreData, CoreConstructor, CoreDefinition, core-data-name, core-data-params, core-data-constructors, core-constructor-name, core-constructor-scheme, core-name, core-scheme, core-method-total-function, core-definition-closed)
+   import Bootstrap.Typing (task-source-forwarder, task-forwarder-type)
+   import Bootstrap.Instance
+@@ -621,8 +621,26 @@
+     other -> JArrEnd
+   assumptions :: Json -> Json -> Json
+   assumptions primitives rows = JObj "primitives" primitives (JObj "foreign" (foreign-assumptions rows) (JObj "declared" JArrEnd JObjEnd))
+-  document :: Json -> String -> Json -> Json -> Json -> Json -> Json -> Json -> Json -> Json
+-  document context source-hash dependencies values types signatures instances primitives foreign-rows =
++  law-order :: Json -> String
++  law-order row = string-concat-all [text (field "instance" row), "\n", text (field "class" row), "\n", text (field "law" row)]
++  insert-law :: Json -> Json -> Json
++  insert-law row rows = case rows of
++    JArr first rest -> if string-compare (law-order row) (law-order first) < 0 then JArr row rows else JArr first (insert-law row rest)
++    other -> JArr row JArrEnd
++  law-observations :: Json -> List (String, String, String, String) -> Result String Json
++  law-observations context observations = case observations of
++    Nil -> Ok JArrEnd
++    Cons (subject, owner, law-name, status) rest -> case law-observations context rest of
++      Err error -> Err error
++      Ok rows -> if has-symbol subject (field "declarations" context) then
++        (case (export-global subject, export-global owner) of
++          (Ok identity, Ok class) -> Ok (insert-law (JObj "instance" (JStr identity) (JObj "class" (JStr (last-name (unpack class) Nil))
++            (JObj "law" (JStr law-name) (JObj "status" (JStr status) JObjEnd)))) rows)
++          (Err error, other) -> Err error
++          (other, Err error) -> Err error)
++        else Ok rows
++  document :: Json -> String -> Json -> Json -> Json -> Json -> Json -> Json -> Json -> Json -> Json
++  document context source-hash dependencies values types signatures instances primitives foreign-rows laws =
+     JObj "schema" (JNum 8) (JObj "runtime_abi" (JNum runtime-abi-int)
+       (JObj "language" (JStr "draft-0.2+amendments") (JObj "compiler" (JStr "cinch-self-hosted")
+         (JObj "module" (field "module" context) (JObj "source_hash" (JStr source-hash)
+@@ -632,7 +650,7 @@
+               (JObj "abi" (JObj "convention" (JStr "uniform-word, curried apply stub")
+                 (JObj "symbols" (sorted-strings (symbols values)) (JObj "layouts" (layouts types) JObjEnd)))
+                 (JObj "assumptions" (assumptions primitives foreign-rows) (JObj "assertions" JArrEnd
+-                  (JObj "contracts" JArrEnd (JObj "must_use" JArrEnd (JObj "laws" JArrEnd
++                  (JObj "contracts" JArrEnd (JObj "must_use" JArrEnd (JObj "laws" laws
+                     (JObj "upgrades" JArrEnd (JObj "units" JArrEnd JObjEnd))))))))))))))))
+   source-hash :: Bytes -> Json -> Result String String
+   source-hash source context = case (field "source_start" context, field "source_end" context) of
+@@ -655,9 +673,11 @@
+               Err error -> Err error
+               Ok instances -> case signature-rows typed interfaces (field "exports" context) (JArr values (JArr instances JArrEnd)) types (elaboration-classes typed) of
+                 Err error -> Err error
+-                Ok signatures -> case source-foreign-rows name (elaboration-bindings typed) (source-intrinsic-foreign context (elaboration-contexts typed)) of
+-                  Err error -> Err error
+-                  Ok foreign-rows -> let doc = document context hash dependencies values types signatures instances (source-primitives context (elaboration-contexts typed)) foreign-rows in
++                Ok signatures -> case (source-foreign-rows name (elaboration-bindings typed) (source-intrinsic-foreign context (elaboration-contexts typed)),
++                  law-observations context (elaboration-law-observations typed)) of
++                  (Err error, other) -> Err error
++                  (other, Err error) -> Err error
++                  (Ok foreign-rows, Ok laws) -> let doc = document context hash dependencies values types signatures instances (source-primitives context (elaboration-contexts typed)) foreign-rows laws in
+                     (case export-loop typed interfaces source (Cons (name, interface-hash doc) produced) rest of
+                       Err error -> Err error
+                       Ok more -> Ok (Cons (name, doc) more))
+--- a/compiler/tests/bootstrap_pipeline.rs
++++ b/compiler/tests/bootstrap_pipeline.rs
+@@ -414,9 +414,8 @@
+ 
+     let class_law = "module LawExample where\n  signature Restore a where\n    restore :: a -> a\n    law identity :: (x :: a) -> Eq (restore x) x\n";
+     let (status, diagnostics) = invoke("--emit-interfaces", class_law, "unchecked-class-law");
+-    assert_eq!(status, Some(4), "{diagnostics}");
+-    assert!(diagnostics.contains("class law needs checked instance evidence: identity"), "{diagnostics}");
+-    assert!(!dir.join("unchecked-class-law.LawExample.cinchif").exists());
++    assert_eq!(status, Some(0), "{diagnostics}");
++    assert!(load(&dir.join("unchecked-class-law.LawExample.cinchif")).laws.is_empty());
+     let different = class_law.replace("Eq (restore x) x", "Eq (restore x) True");
+     let (status, diagnostics) = invoke("--emit-interfaces", &different, "wrong-law-carrier");
+     assert_eq!(status, Some(4), "{diagnostics}");
+@@ -446,14 +445,23 @@
+ 
+     let boolean_law = "module LawExample where\n  signature Restore a where\n    restore :: a -> a\n    law involution :: (x :: a) -> Eq (restore (restore x)) x\n  implicit instance Restore_Bool :: Restore Bool where\n    restore x = if x then False else True\n";
+     let (status, diagnostics) = invoke("--emit-interfaces", boolean_law, "sampled-boolean-law");
+-    assert_eq!(status, Some(4), "{diagnostics}");
+-    assert!(diagnostics.contains("class law passed 2 Boolean samples"), "{diagnostics}");
+-    assert!(!dir.join("sampled-boolean-law.LawExample.cinchif").exists());
++    assert_eq!(status, Some(0), "{diagnostics}");
++    let sampled = load(&dir.join("sampled-boolean-law.LawExample.cinchif"));
++    assert_eq!(sampled.laws.len(), 1);
++    assert_eq!(sampled.laws[0].instance, "LawExample.Restore_Bool");
++    assert_eq!(sampled.laws[0].status, "checked (2 samples)");
+     let unlawful = boolean_law.replace("if x then False else True", "False");
+     let (status, diagnostics) = invoke("--emit-interfaces", &unlawful, "refused-boolean-law");
+     assert_eq!(status, Some(4), "{diagnostics}");
+     assert!(diagnostics.contains("class law involution failed for Restore_Bool on a Boolean sample"), "{diagnostics}");
+     assert!(!dir.join("refused-boolean-law.LawExample.cinchif").exists());
++    let function_law = format!("{class_law}  implicit instance Restore_Function :: Restore (Int -> Int) where\n    restore f = f\n");
++    let (status, diagnostics) = invoke("--emit-interfaces", &function_law, "unsampled-function-law");
++    assert_eq!(status, Some(0), "{diagnostics}");
++    let unsampled = load(&dir.join("unsampled-function-law.LawExample.cinchif"));
++    assert_eq!(unsampled.laws.len(), 1);
++    assert_eq!(unsampled.laws[0].instance, "LawExample.Restore_Function");
++    assert_eq!(unsampled.laws[0].status, "not checked (no samples for the law binder `x :: (Int -> Int)`)");
+ 
+     let incompatible = edited.replace("Option, None, Some", "Option, None, Some, Missing")
+         .replace("    None :: Option a", "    None :: Option a\n    Missing :: Option a");

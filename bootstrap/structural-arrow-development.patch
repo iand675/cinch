@@ -1,0 +1,151 @@
+--- a/bootstrap/Bootstrap.Parse.cinch
++++ b/bootstrap/Bootstrap.Parse.cinch
+@@ -2406,6 +2406,9 @@
+     Cons t rest -> case lt-token t of
+       TPunct p ->
+         if string-compare p ")" == 0 then POk (TName (span-join sp (sp-of t)) "()") rest
++        else if string-compare p "->" == 0 then (case rest of
++          Cons close tail -> if is-punct-t (lt-token close) ")" then POk (TName (span-join sp (sp-of close)) "(->)") tail else PBad
++          Nil -> PBad)
+         else paren-type-head sp toks src
+       _ -> paren-type-head sp toks src
+     Nil -> PBad
+--- a/bootstrap/Bootstrap.Type.cinch
++++ b/bootstrap/Bootstrap.Type.cinch
+@@ -13,6 +13,7 @@
+ 
+   export Kind, KType, KProp, KRegion, KEffect, KRow, KFun, KValue, kind-equal, kind-text
+   export valid-kind, map-kind-types, value-kind, value-carrier
++  export arrow-constructor-kind, type-application
+   export UType, UPropLit, UCompare, UPropAnd, UPropOr, UPropNot, UPropNonZero, UPropNonZeroPending, URequire, URefine, UCon, UBound, URigid, UMeta, UIndex, UIndexForget, UIndexPromote, UIndexByteLength, UIndexCall, UIndexMath, UPi, UApp, UFun, UFunEff, UProofFun, URow, URowJoin, UTuple, UArg, UEnd, UError
+   export without-index-levels, index-of-type, index-runtime-admissible, typed-index-admissible, open-pi, open-refinement
+   export type-free-bound
+@@ -381,6 +382,17 @@
+   put-cell :: Cell -> Store -> Store
+   put-cell c st = case st of MkStore label next level cells errors numbers -> MkStore label next level (replace-cell c cells) errors numbers
+ 
++  arrow-constructor-kind :: Kind
++  arrow-constructor-kind = KFun KType (KFun KType KType)
++  arrow-constructor :: UType
++  arrow-constructor = UCon "(->)" arrow-constructor-kind
++  -- The partial application is a constructor. Once saturated it is the
++  -- same checked pure arrow used by ordinary function signatures.
++  type-application :: UType -> UType -> UType
++  type-application head argument = case head of
++    UApp (UCon name (KFun KType (KFun KType KType))) domain ->
++      if same-tag name "(->)" then UFun domain argument else UApp head argument
++    other -> UApp head argument
+   normalize :: Store -> UType -> UType
+   normalize st ty = case ty of
+     UPropLit value -> UPropLit value
+@@ -406,7 +418,7 @@
+     URigid id name level k -> normalized-variable st ty
+     UIndex carrier value -> normalize-value-index st (normalize st carrier) value
+     UPi id name domain row result -> UPi id name (normalize st domain) (normalize st row) (normalize st result)
+-    UApp f x -> UApp (normalize st f) (normalize st x)
++    UApp f x -> type-application (normalize st f) (normalize st x)
+     UFun a b -> UFun (normalize st a) (normalize st b)
+     UFunEff a row b -> UFunEff (normalize st a) (normalize st row) (normalize st b)
+     UProofFun a row b -> UProofFun (normalize st a) (normalize st row) (normalize st b)
+@@ -748,11 +760,15 @@
+     UCon n k -> case b of UCon m l -> if string-compare n m == 0 then unify-kind sp k l st else mismatch sp a b st; other -> mismatch sp a b st
+     UBound n name k -> case b of UBound m other l -> if n == m then unify-kind sp k l st else mismatch sp a b st; other -> mismatch sp a b st
+     URigid n name lev k -> case b of URigid m other l kind -> if n == m then unify-kind sp k kind st else mismatch sp a b st; other -> mismatch sp a b st
+-    UApp f x -> case b of UApp g y -> unify sp x y (unify sp f g st); other -> mismatch sp a b st
++    UApp f x -> case b of
++      UApp g y -> unify sp x y (unify sp f g st)
++      UFun domain result -> unify sp x result (unify sp f (UApp arrow-constructor domain) st)
++      other -> mismatch sp a b st
+     UFun x y -> case b of
+       UPi id name domain row result -> unify-pi sp (function-pi a) b st
+       UFun u v -> unify sp y v (unify sp x u st)
+       UFunEff u row v -> unify sp y v (unify sp x u (unify sp (URow UEnd) row st))
++      UApp f result -> unify sp y result (unify sp (UApp arrow-constructor x) f st)
+       other -> mismatch sp a b st
+     UFunEff x row y -> case b of
+       UPi id name domain effects result -> unify-pi sp (function-pi a) b st
+@@ -906,7 +922,7 @@
+     UCon name k -> UCon name (map-kind-types (substitute pairs) k)
+     URigid id name level k -> URigid id name level (map-kind-types (substitute pairs) k)
+     UMeta id k -> UMeta id (map-kind-types (substitute pairs) k)
+-    UApp f x -> UApp (substitute pairs f) (substitute pairs x)
++    UApp f x -> type-application (substitute pairs f) (substitute pairs x)
+     UFun a b -> UFun (substitute pairs a) (substitute pairs b)
+     UFunEff a row b -> UFunEff (substitute pairs a) (substitute pairs row) (substitute pairs b)
+     UProofFun a row b -> UProofFun (substitute pairs a) (substitute pairs row) (substitute pairs b)
+@@ -962,7 +978,7 @@
+     UCon name k -> UCon name (map-kind-types (replace-metas pairs) k)
+     UBound id name k -> UBound id name (map-kind-types (replace-metas pairs) k)
+     URigid id name level k -> URigid id name level (map-kind-types (replace-metas pairs) k)
+-    UApp f x -> UApp (replace-metas pairs f) (replace-metas pairs x)
++    UApp f x -> type-application (replace-metas pairs f) (replace-metas pairs x)
+     UFun a b -> UFun (replace-metas pairs a) (replace-metas pairs b)
+     UFunEff a row b -> UFunEff (replace-metas pairs a) (replace-metas pairs row) (replace-metas pairs b)
+     UProofFun a row b -> UProofFun (replace-metas pairs a) (replace-metas pairs row) (replace-metas pairs b)
+--- a/bootstrap/Bootstrap.Infer.cinch
++++ b/bootstrap/Bootstrap.Infer.cinch
+@@ -264,7 +264,7 @@
+       other -> primitive-type name)
+     else primitive-type name
+   primitive-kinds :: TypeContext
+-  primitive-kinds = MkTypeContext (foreign-pointer-kinds <> array-kinds <> Cons ("b.Scope", scope-kind) (Cons ("b.Task", task-kind) (Cons ("b.Io", KFun KRegion KType) (Cons ("b.Dec", KFun KProp KType) (map-primitive ["Int", "Nat", "Bool", "Unit", "()", "String", "Char", "Bytes", "Sym", "Isize", "Usize", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "F32", "F64"])) ))) Nil Nil [ByteObservation "#kernel.bytes-length" None] Nil Nil
++  primitive-kinds = MkTypeContext ([("(->)", arrow-constructor-kind)] <> foreign-pointer-kinds <> array-kinds <> Cons ("b.Scope", scope-kind) (Cons ("b.Task", task-kind) (Cons ("b.Io", KFun KRegion KType) (Cons ("b.Dec", KFun KProp KType) (map-primitive ["Int", "Nat", "Bool", "Unit", "()", "String", "Char", "Bytes", "Sym", "Isize", "Usize", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "F32", "F64"])) ))) Nil Nil [ByteObservation "#kernel.bytes-length" None] Nil Nil
+   foreign-pointer-kinds :: List (String, Kind)
+   foreign-pointer-kinds = [("RawPtr", KFun KType KType), ("Borrowed", KFun KType KType), ("MaybeNull", KFun KType KType)]
+   array-kinds :: List (String, Kind)
+@@ -468,7 +468,8 @@
+   convert external kinds locals ty st = case ty of
+     TName s name -> case lookup-type-local name locals of
+       Some found -> (found, st)
+-      None -> if same name "Io" || same name "b.Io" then (UCon "b.Io" (KFun KRegion KType), st)
++      None -> if same name "(->)" then (UCon name arrow-constructor-kind, st)
++        else if same name "Io" || same name "b.Io" then (UCon "b.Io" (KFun KRegion KType), st)
+         else if same name "Dec" || same name "b.Dec" then (case context-kind name kinds of Some kind -> (UCon name kind, st); None -> (UCon "b.Dec" (KFun KProp KType), st))
+         else if external && same name "String" then bad s (string-concat "imported nominal scheme needs defining-module type identities: " name) st
+         else if primitive name then (literal-type kinds name, st)
+@@ -899,7 +900,7 @@
+         Some carrier -> convert-index external kinds locals carrier arg st
+         None -> if kind-equal domain KProp then convert-predicate external kinds locals arg st else convert external kinds locals arg st) of
+           (x, sx) -> let checked = unify-kind s domain (type-kind x) sx in
+-            convert-args external kinds locals sp (UApp head x) rest checked
++            convert-args external kinds locals sp (type-application head x) rest checked
+       other -> bad sp "type constructor is applied to too many arguments" st
+     other -> bad sp "malformed type argument spine" st
+   convert-spine :: Bool -> TypeContext -> List (String, UType) -> TypeExpr -> Store -> (UType, Store)
+--- a/bootstrap/Bootstrap.Nominal.cinch
++++ b/bootstrap/Bootstrap.Nominal.cinch
+@@ -27,7 +27,7 @@
+   interface-global :: String -> String
+   interface-global identity = string-concat "i." (encode (unpack identity))
+   kernel-type-name :: String -> Bool
+-  kernel-type-name name = array-type-name name || has name ["Int", "Nat", "Bool", "Unit", "()", "Bytes", "Sym", "Char", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "F32", "F64"]
++  kernel-type-name name = array-type-name name || has name ["Int", "Nat", "Bool", "Unit", "()", "(->)", "Bytes", "Sym", "Char", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "F32", "F64"]
+   nonempty :: Json -> Bool
+   nonempty doc = case doc of JStr value -> string-length value > 0; other -> False
+   unique-strings :: Json -> List String -> Bool
+--- a/compiler/tests/bootstrap_pipeline.rs
++++ b/compiler/tests/bootstrap_pipeline.rs
+@@ -427,6 +427,23 @@
+     assert_eq!(status, Some(4), "{diagnostics}");
+     assert!(diagnostics.contains("name is not in scope: not-in-law-scope"), "{diagnostics}");
+ 
++    let function_former = r#"module ArrowExample where
++  signature Mapping (f :: Type -> Type) where
++    project :: forall a b. (a -> b) -> f a -> f b
++  implicit instance Mapping_Function r :: Mapping ((->) r) where
++    project f g x = f (g x)
++  direct :: ((->) Int) Int
++  direct x = x
++  use-project :: Int -> Int
++  use-project = project (\n -> n + 1) direct
++"#;
++    let (status, diagnostics) = invoke("--check", function_former, "structural-function-instance");
++    assert_eq!(status, Some(0), "{diagnostics}");
++    let too_many = function_former.replace("((->) Int) Int", "(->) Int Int Int");
++    let (status, diagnostics) = invoke("--check", &too_many, "overapplied-function-constructor");
++    assert_eq!(status, Some(4), "{diagnostics}");
++    assert!(diagnostics.contains("type constructor is applied to too many arguments"), "{diagnostics}");
++
+     let boolean_law = "module LawExample where\n  signature Restore a where\n    restore :: a -> a\n    law involution :: (x :: a) -> Eq (restore (restore x)) x\n  implicit instance Restore_Bool :: Restore Bool where\n    restore x = if x then False else True\n";
+     let (status, diagnostics) = invoke("--emit-interfaces", boolean_law, "sampled-boolean-law");
+     assert_eq!(status, Some(4), "{diagnostics}");

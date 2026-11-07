@@ -1,0 +1,45 @@
+{
+  "base_compiler_source_sha256": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185",
+  "compiler_source_sha256": "b655a0a0d31a67be39ff71bc36b4434c4ca0bb9b6b991928f64329efc133bd63",
+  "evidence": [
+    "Checked higher-kinded function constructor, saturated arrow application, generic higher-kinded instance and exact overapplication refusal."
+  ],
+  "files": {
+    "bootstrap/Bootstrap.Infer.cinch": "6fa022a35b1f13309304e03879d627fdd95a21941c9a85625f554dad882890e4",
+    "bootstrap/Bootstrap.Nominal.cinch": "0a1d024d486f95be07d1878d395240224918cf00e25da825d725b533c450daa0",
+    "bootstrap/Bootstrap.Parse.cinch": "8b222dccd77147fce7fd61561635abc568bfb851fa28714cdbc412790aed84b8",
+    "bootstrap/Bootstrap.Type.cinch": "1ebb49401a5871e6621d61b43a3fb35b43e2ac4578528d418fbe9deae7afa40a",
+    "compiler/tests/bootstrap_pipeline.rs": "5be62c159bc743d69b148d78c28b9f3567add536e77c2ec208394ff15f68316b"
+  },
+  "full_goal_complete": false,
+  "groups": {
+    "bootstrap_pipeline": 2,
+    "bootstrap_source_instances": 3,
+    "bootstrap_type_syntax": 1
+  },
+  "native_source_sha256": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+  "patch_sha256": "403b926abc19a83f2a46f653b0654107cfb1f4912923bf76296dbce9d3b78324",
+  "rows": [
+    {
+      "exit_code": 0,
+      "log_sha256": "0e96d2add6949573d9f563a07c4591a74af8d584b5d037d448898e1317edd74f",
+      "name": "bootstrap_pipeline",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "3ba920ab408ab6326d8875629011b5ea285f6e3f9b73f8847de6e484e33ea59f",
+      "name": "bootstrap_type_syntax",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "987e10ebf323afc2659b2bb382624142905ca58aae213ba7acfbf01d5c87493c",
+      "name": "bootstrap_source_instances",
+      "status": "passed"
+    }
+  ],
+  "source_sha256": "2b4cdffd9b3454723749e057ef0998fe8abee9e69fbc84b77be37e8217888923",
+  "status": "passed-structural-arrow-frontend",
+  "verified_at": "2026-11-07T07:15:49.135662+00:00"
+}
