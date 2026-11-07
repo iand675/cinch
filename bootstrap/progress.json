@@ -71,7 +71,7 @@
     },
     {
       "title": "Earlier API checkpoint: exact Stage3 behavior",
-      "detail": "71 of 105 complete groups passed; 1 running, 3 failed and 30 pending.All105 required targets:96 portable and9 original interface/API groups, preserving the original100 plus5 additions. Original explicit32M poisoned client limits remain; compiler/checker consumers use256M. Direct Native operations in mixed targets remain classified separately. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "72 of 105 complete groups passed; 1 running, 3 failed and 29 pending.All105 required targets:96 portable and9 original interface/API groups, preserving the original100 plus5 additions. Original explicit32M poisoned client limits remain; compiler/checker consumers use256M. Direct Native operations in mixed targets remain classified separately. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -507,7 +507,7 @@
     },
     {
       "title": "Finish the exact self-built compiler tests",
-      "detail": "71 of 105 complete groups passed; 1 running, 3 failed and 30 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "72 of 105 complete groups passed; 1 running, 3 failed and 29 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Pass all external language examples through Stage3",
@@ -11061,6 +11061,14 @@
                 },
                 {
                   "name": "native_captured_index_keeps_its_global_definition",
+                  "status": "passed"
+                },
+                {
+                  "name": "native_captured_index_polymorphic_arguments_share_their_type_parameter",
+                  "status": "passed"
+                },
+                {
+                  "name": "native_captured_index_polymorphic_function_keeps_argument_carriers",
                   "status": "running"
                 }
               ]
@@ -11202,6 +11210,38 @@
                 },
                 {
                   "name": "erased_bindings_check_generic_data_and_actual_callback_bodies",
+                  "status": "passed"
+                },
+                {
+                  "name": "erased_destructuring_cannot_extract_evidence_from_a_looping_container",
+                  "status": "passed"
+                },
+                {
+                  "name": "erased_proof_lets_cannot_launder_a_linear_runtime_use",
+                  "status": "passed"
+                },
+                {
+                  "name": "erased_proof_lets_refuse_effects_even_when_the_caller_permits_them",
+                  "status": "passed"
+                },
+                {
+                  "name": "erased_runtime_bindings_need_checked_total_bodies_including_forward_references",
+                  "status": "passed"
+                },
+                {
+                  "name": "proof_admission_rejects_computational_bottom_and_stage_only_evidence",
+                  "status": "passed"
+                },
+                {
+                  "name": "proof_lets_cannot_retarget_evidence_to_another_runtime_value",
+                  "status": "passed"
+                },
+                {
+                  "name": "proof_local_scopes_keep_termination_and_ghost_boundaries",
+                  "status": "passed"
+                },
+                {
+                  "name": "proposition_results_require_termination_without_a_proof_modifier",
                   "status": "running"
                 }
               ]
@@ -11594,8 +11634,8 @@
           "verified": 0,
           "blocked": 0,
           "running": 0,
-          "pending": 30,
-          "recheck": 75
+          "pending": 29,
+          "recheck": 76
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
         "items": [
@@ -13177,16 +13217,16 @@
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_refinement_types.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "startedAt": "2026-11-07T00:37:43.591374+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T00:42:32.518263+00:00",
+              "exitCode": 0,
+              "logSha256": "02629451365c5196a702f7277869ff241e38ba5283a157ae45e2b8950285b565",
               "cases": [
                 {
                   "name": "refinement_types_preserve_binders_and_require_evidence",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -13195,18 +13235,23 @@
           {
             "id": "stage3:bootstrap_resolve",
             "title": "bootstrap_resolve",
-            "state": "pending",
+            "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_resolve.rs",
             "observed": {
-              "status": "pending",
+              "status": "running",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": null,
+              "startedAt": "2026-11-07T00:42:32.530679+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "source_module_imports_exports_and_lexical_scopes_resolve",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -14026,10 +14071,10 @@
           }
         ],
         "observedCounts": {
-          "passed": 71,
+          "passed": 72,
           "failed": 3,
           "running": 1,
-          "pending": 30
+          "pending": 29
         },
         "observedSource": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2"
       },
@@ -18268,8 +18313,8 @@
       {
         "title": "Earlier Stage3: complete frontend sweep",
         "status": "running",
-        "phase": "bootstrap_refinement_types",
-        "passed": 71,
+        "phase": "bootstrap_resolve",
+        "passed": 72,
         "failed": 3,
         "total": 105,
         "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
@@ -18280,8 +18325,8 @@
       "verified": 314,
       "blocked": 4,
       "running": 7,
-      "pending": 128,
-      "recheck": 214
+      "pending": 127,
+      "recheck": 215
     },
     "total": 667,
     "acceptanceVerified": 0,
@@ -18289,5 +18334,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T00:41:37.221112+00:00"
+  "updatedAt": "2026-11-07T00:42:39.565158+00:00"
 }
