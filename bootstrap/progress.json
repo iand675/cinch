@@ -668,6 +668,14 @@
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-source-class-default-self-values-api-results.json"
       },
       {
+        "id": "gap:boolean-implications",
+        "title": "Retain valid facts from either short-circuit operand",
+        "state": "running",
+        "detail": "A true opaque && ordered condition must retain ordered; a false opaque || unordered condition must retain not unordered. Core currently retains only a readable test operand when the entire condition is opaque. Candidate32ab combines sound selected-branch implications without changing exact condition readings. Nine positive/negative controls and nine complete groups are queued; the wrong branch and scope escape must still refuse.",
+        "doneWhen": "Run the original precondition, Boolean, Core and refinement groups, preserve all negative controls, and prove the repaired compiler reads its own44 source modules and freshly bootstraps.",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-partial-boolean-branch-development.json"
+      },
+      {
         "id": "gap:inferred-case-coverage",
         "title": "Infer a constructor case before deciding coverage",
         "state": "running",
@@ -18494,8 +18502,8 @@
       {
         "title": "Cinch structural result inference: complete groups",
         "status": "running",
-        "phase": "bootstrap_infer",
-        "passed": 4,
+        "phase": "bootstrap_source_instances",
+        "passed": 5,
         "failed": 0,
         "total": 8,
         "source": "286613ea3571aebd6747def34f7a8f9d8af0c84c78e5fee82f9ca65ff90fe7e1",
@@ -18533,6 +18541,28 @@
         "total": 2,
         "source": "286613ea3571aebd6747def34f7a8f9d8af0c84c78e5fee82f9ca65ff90fe7e1",
         "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+        "auditPending": false
+      },
+      {
+        "title": "Core branch repair: complete Native44 source check",
+        "status": "waiting-complete-function-precondition-group",
+        "phase": null,
+        "passed": 0,
+        "failed": 0,
+        "total": 1,
+        "source": null,
+        "nativeSource": null,
+        "auditPending": false
+      },
+      {
+        "title": "Diagnostic compiler: its own44 source modules",
+        "status": "waiting-worker",
+        "phase": null,
+        "passed": 0,
+        "failed": 0,
+        "total": 1,
+        "source": "14a889472c7bf47867414410bba2b91bc059a77df5b20e7105eb7274e3cff134",
+        "nativeSource": null,
         "auditPending": false
       },
       {
@@ -18626,6 +18656,16 @@
         "auditPending": false
       },
       {
+        "title": "Cinch result inference: full compiler/object gate",
+        "status": "running",
+        "phase": "bootstrap_library_object",
+        "passed": 1,
+        "failed": 0,
+        "total": 2,
+        "source": "286613ea3571aebd6747def34f7a8f9d8af0c84c78e5fee82f9ca65ff90fe7e1",
+        "auditPending": false
+      },
+      {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
         "phase": "bootstrap_collections",
@@ -18649,15 +18689,15 @@
     "counts": {
       "verified": 414,
       "blocked": 4,
-      "running": 7,
+      "running": 8,
       "pending": 104,
       "recheck": 138
     },
-    "total": 667,
+    "total": 668,
     "acceptanceVerified": 0,
     "acceptanceTotal": 5,
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T01:49:01.189538+00:00"
+  "updatedAt": "2026-11-07T01:50:10.082498+00:00"
 }
