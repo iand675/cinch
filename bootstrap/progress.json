@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "commit": "f4ab92c579e9bb88fb4878a4f34157ac358b763b",
+  "commit": "ab391ed30d57bd1be528b16ea31dfaa559271f24",
   "status": "Full bootstrap verification remains open",
   "stages": [
     {
@@ -19707,6 +19707,33 @@
         "failed": 3,
         "total": 4,
         "source": "b655a0a0d31a67be39ff71bc36b4434c4ca0bb9b6b991928f64329efc133bd63"
+      },
+      {
+        "title": "Bootstrap the quantified-law compiler with the expanded library",
+        "status": "building-stage2",
+        "phase": "building stage2",
+        "passed": 2,
+        "failed": 0,
+        "total": 4,
+        "unit": "stages",
+        "source": "e3bb55095234f4daed2ea57198b25879a19fc0273492a09ca951ebb94a743c77"
+      },
+      {
+        "title": "Replay Foldable and Category through selected Stage3",
+        "status": "running",
+        "phase": "Each counted target records the selected compiler for every client.",
+        "passed": 0,
+        "failed": 1,
+        "total": 2
+      },
+      {
+        "title": "Rerun the full Native suite after the clean-build fix",
+        "status": "running",
+        "phase": "clean-native-build",
+        "passed": 0,
+        "failed": 0,
+        "total": 236,
+        "source": "f1bfdca8c79e4299effd20057114ed2e17072108b4fbe6940847c4b208b6eeb1"
       }
     ],
     "counts": {
@@ -19722,5 +19749,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T21:49:29.615568+00:00"
+  "updatedAt": "2026-11-07T21:55:25.339609+00:00"
 }
