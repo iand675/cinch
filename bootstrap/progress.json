@@ -18553,8 +18553,8 @@
       {
         "title": "Fresh Stage0 through Stage3 rebuild",
         "status": "running",
-        "phase": "building stage0",
-        "passed": 0,
+        "phase": "building library only provider",
+        "passed": 1,
         "failed": 0,
         "total": 4,
         "unit": "stages",
@@ -18827,10 +18827,10 @@
       },
       {
         "title": "Cinch task refusals: runtime-IR suite",
-        "status": "running",
+        "status": "failed",
         "phase": "bootstrap_runtime_ir",
         "passed": 0,
-        "failed": 0,
+        "failed": 1,
         "total": 1,
         "source": "11076882ef69d26134bedbd894c3619d14e1ba6eb082c1d93c314c8e52589b86",
         "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
@@ -19022,5 +19022,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T03:38:38.156122+00:00"
+  "updatedAt": "2026-11-07T03:39:39.974837+00:00"
 }
