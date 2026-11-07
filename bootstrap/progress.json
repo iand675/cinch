@@ -547,7 +547,7 @@
   "candidateSource": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
   "candidatePublished": true,
   "fullGoalComplete": false,
-  "summary": "Cinch 5bf127d9 rebuilt itself to matching Stage2 and Stage3 and passed the changed-source check. Its original frontend sweep has 11 of 105 targets passing, 3 failed and 91 still running or queued.",
+  "summary": "Cinch 5bf127d9 rebuilt itself to matching Stage2 and Stage3 and passed the changed-source check. Its original frontend sweep has 12 of 105 targets passing, 3 failed and 90 still running or queued.",
   "activity": "The independently audited integrated build is running all 105 frontend targets. Open the test inventory for live failures and the repairs being replayed.",
   "checklist": {
     "version": 1,
@@ -11898,8 +11898,8 @@
           "verified": 0,
           "blocked": 0,
           "running": 0,
-          "pending": 90,
-          "recheck": 15
+          "pending": 89,
+          "recheck": 16
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
         "items": [
@@ -11911,12 +11911,12 @@
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/alloc_accounting.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185",
               "startedAt": "2026-11-07T08:49:22.180461+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T08:51:59.649537+00:00",
+              "exitCode": 0,
+              "logSha256": "9ea797269de5402bedbf9129435f7f8050dff809ac2b43263a8cf09a2b1331da",
               "cases": [
                 {
                   "name": "a_compiled_structure_drops_back_to_the_immortal_baseline",
@@ -11940,7 +11940,15 @@
                 },
                 {
                   "name": "stats_line_counts_list_cells_only_when_asked",
-                  "status": "running"
+                  "status": "passed"
+                },
+                {
+                  "name": "the_cap_bounds_live_bytes_not_the_lifetime_total",
+                  "status": "passed"
+                },
+                {
+                  "name": "unbounded_allocation_hits_the_named_cap",
+                  "status": "passed"
                 }
               ]
             },
@@ -11949,18 +11957,23 @@
           {
             "id": "stage3:argv",
             "title": "argv",
-            "state": "pending",
+            "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/argv.rs",
             "observed": {
-              "status": "pending",
+              "status": "running",
               "source": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185",
-              "startedAt": null,
+              "startedAt": "2026-11-07T08:52:00.646149+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "a_program_reads_its_own_command_line",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -13975,9 +13988,9 @@
         ],
         "observedCounts": {
           "failed": 3,
-          "passed": 11,
+          "passed": 12,
           "running": 1,
-          "pending": 90
+          "pending": 89
         },
         "observedSource": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185"
       },
@@ -18145,8 +18158,8 @@
       {
         "title": "Integrated self-built Stage3: complete frontend sweep",
         "status": "running",
-        "phase": "alloc_accounting",
-        "passed": 11,
+        "phase": "argv",
+        "passed": 12,
         "failed": 3,
         "total": 105,
         "source": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185"
@@ -18733,8 +18746,8 @@
       {
         "title": "Earlier Stage3: complete frontend sweep",
         "status": "running",
-        "phase": "alloc_accounting",
-        "passed": 11,
+        "phase": "argv",
+        "passed": 12,
         "failed": 3,
         "total": 105,
         "source": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185",
@@ -18817,8 +18830,8 @@
       "verified": 489,
       "blocked": 6,
       "running": 10,
-      "pending": 96,
-      "recheck": 73
+      "pending": 95,
+      "recheck": 74
     },
     "total": 674,
     "acceptanceVerified": 0,
@@ -18826,5 +18839,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T08:51:11.128112+00:00"
+  "updatedAt": "2026-11-07T08:52:13.139717+00:00"
 }
