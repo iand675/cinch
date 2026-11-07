@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "commit": "8687f4661098d259087445d90500a2168c4f19b4",
+  "commit": "08101d62f6fbcd37d83c44371e2795861da256ba",
   "status": "Full bootstrap verification remains open",
   "stages": [
     {
@@ -543,15 +543,15 @@
       "title": "Earlier source: Changed-source rebuilding verified"
     }
   ],
-  "candidateSource": "19c934eb9f05b8d964b12db98cda8ddb4f8d0641c5770865d412a004bf1f382b",
+  "candidateSource": "1c8e4305e070018121b087e47dd7572c3844617af7391841d74b1e8f2ed4c3d5",
   "candidatePublished": true,
   "fullGoalComplete": false,
-  "summary": "Rust and Cinch use a single schema 10 compiled-interface format. All 13 format-focused compiler tests and 43 tooling tests passed.",
-  "activity": "The current source is rebuilding through the bootstrap ladder. The preceding source passed the independent bootstrap audit. The full suite remains open.",
+  "summary": "Main combines the strict schema 10 reader with checked named proofs and the consolidated library producer.",
+  "activity": "The matching bootstrap is queued for the next worker. The preceding proof compiler passed independent audit. The full suite remains open.",
   "checklist": {
     "version": 1,
     "target": {
-      "compiler": "19c934eb9f05b8d964b12db98cda8ddb4f8d0641c5770865d412a004bf1f382b",
+      "compiler": "1c8e4305e070018121b087e47dd7572c3844617af7391841d74b1e8f2ed4c3d5",
       "native": "a4bc2344653dc50ef044ba7a0e4661cf589a91dbf2b12907e279869f7586632b"
     },
     "acceptance": [
@@ -690,9 +690,9 @@
         "id": "gap:imported-defaults",
         "title": "Require schema 10 compiled interfaces",
         "state": "verified",
-        "detail": "Rust, Cinch and the verifier use schema 10. Conditional methods require checked declarations, and absent optional bodies have one encoding. All 13 compiler and 43 tooling tests passed.",
+        "detail": "Rust, Cinch and the verifier use schema 10. The cutover tests refused a schema 9 artifact and fingerprint-only defaults. The pinned producer rebuilt all 55 library interfaces.",
         "doneWhen": "Both compilers read the same compiled interfaces and rebuild outdated artifacts from source.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-single-instance-format-results.json"
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-family-and-cutover-results.json"
       },
       {
         "id": "gap:laws",
@@ -18219,14 +18219,14 @@
     ],
     "active": [
       {
-        "title": "Bootstrap the single-format compiler",
+        "title": "Bootstrap the combined strict-format and named-proof compiler",
         "unit": "stages",
         "status": "waiting-worker",
         "phase": "waiting worker",
         "passed": 0,
         "failed": 0,
         "total": 4,
-        "source": "19c934eb9f05b8d964b12db98cda8ddb4f8d0641c5770865d412a004bf1f382b",
+        "source": "1c8e4305e070018121b087e47dd7572c3844617af7391841d74b1e8f2ed4c3d5",
         "auditPending": false
       },
       {
@@ -19297,21 +19297,21 @@
       },
       {
         "title": "Supply the library specializations requested by Stage3",
-        "status": "waiting-worker",
+        "status": "passed-provider-and-identity-check",
         "phase": "66 function variants and 3 dictionary variants requested by the original tests.",
-        "passed": 0,
+        "passed": 1,
         "failed": 0,
         "total": 1,
         "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a"
       },
       {
         "title": "Check finite-index tactics on the original programs",
-        "status": "waiting-worker",
-        "phase": "Waiting for a worker",
+        "status": "running",
+        "phase": "build all 46 compiler modules and smoke-test Stage1",
         "passed": 0,
         "failed": 0,
         "total": 4,
-        "source": "fa2d85ff66f9860aa3fe9d664a2712595dcbb6d84a1b26ad618a04690549c309"
+        "source": "fec58fe2c6538e4014e648855ae0e69abc2eefed017b074fd134dda0ff66aeab"
       },
       {
         "title": "Rebuild the pinned library and rerun the ladder with one bytes-len type spelling",
@@ -19376,8 +19376,8 @@
       {
         "title": "Run every Rust compiler target on the combined fixes",
         "status": "running",
-        "phase": "bootstrap_buffer_aliases",
-        "passed": 13,
+        "phase": "bootstrap_byte_observations",
+        "passed": 14,
         "failed": 0,
         "total": 235,
         "source": "1a7e275f0519f670012f993304a975446020a814dc62bad21ec9244117a64d25"
@@ -19391,6 +19391,16 @@
         "total": 4,
         "source": "7e94e53cca26f1df764d79741a0fab9f8d4e8201c4d06d722b76a2790cd02454",
         "auditPending": true
+      },
+      {
+        "title": "Audit the consolidated compiler with named proofs",
+        "status": "passed",
+        "phase": "Four stages, matching Stage2 and Stage3, a separate client and the changed-source control passed independent audit.",
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "source": "7e94e53cca26f1df764d79741a0fab9f8d4e8201c4d06d722b76a2790cd02454",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-consolidated-proof-bootstrap-results.json"
       },
       {
         "title": "Core checks erased Eq witnesses",
@@ -19464,10 +19474,10 @@
       },
       {
         "title": "Run four more original library and numeric targets with Stage3",
-        "status": "running",
+        "status": "waiting-worker",
         "phase": "Forty original tests retain their fixtures and assertions and use the selected frontend.",
         "passed": 1,
-        "failed": 1,
+        "failed": 2,
         "total": 4,
         "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a"
       },
@@ -19485,7 +19495,7 @@
         "title": "Run the full original 105-target Stage3 frontend matrix",
         "status": "running",
         "phase": "3 disjoint runs share the same audited compiler and provider.",
-        "passed": 3,
+        "passed": 8,
         "failed": 0,
         "total": 105,
         "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a"
@@ -19605,5 +19615,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T17:03:33.431119+00:00"
+  "updatedAt": "2026-11-07T17:06:45.300026+00:00"
 }
