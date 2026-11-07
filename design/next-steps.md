@@ -9,10 +9,13 @@ are tracked separately from the completed first schema 10 fixed point.
 See [the cutover checks](../bootstrap/current-schema10-family-and-cutover-results.json)
 and [the first schema 10 fixed point](../bootstrap/current-schema10-bootstrap-results.json).
 
-The stricter Stage2 is spending CPU in character scans. A separate Stage1
-with the byte-scanning diagnostic renderer passed its smoke tests. It will
-compile the same frozen Stage2 bundle with the same library to test whether
-the scan is hiding a refusal. The original build is still running.
+The Stage1 probe with a faster diagnostic renderer refused the original
+Stage2 source and library inputs. The pinned producer wrote an unqualified
+`InRange` in the `bytes-len` intrinsic record and the defining qualified name
+in the exported value. Stage1 requires the two declarations to agree. The
+Rust repair uses the checked exported value's spelling for both records.
+The rebuilt provider and full bootstrap need validation.
+See [the Stage2 refusal and exact inputs](../bootstrap/current-schema10-stage2-byte-observation-results.json).
 
 The development checker passed the complete Core proof test with an erased
 `refl` witness for `Eq`. The added checks reject false equalities,

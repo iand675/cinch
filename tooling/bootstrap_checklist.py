@@ -866,16 +866,27 @@ def build_checklist(root, cfg, previous=None):
                 failed=sum(row.get('status') == 'failed' for row in rows), total=total,
                 source=run.get('compiler_source_sha256')))
     diagnostic_probe = read(cfg.get('schema10Stage2DiagnosticProbe'))
+    byte_observation_path = 'bootstrap/current-schema10-stage2-byte-observation-results.json'
+    byte_observation = read(root / byte_observation_path)
     if diagnostic_probe:
         status = diagnostic_probe['status']
         exit_code = diagnostic_probe.get('exit_code')
         if exit_code is not None:
             status = 'passed' if exit_code == 0 else 'failed'
+        diagnosed = byte_observation.get('diagnostic_sha256') == diagnostic_probe.get('diagnostic_sha256') and bool(byte_observation)
         active.append(dict(title='Probe the original Stage2 source with faster diagnostics', status=status,
-            phase=(diagnostic_probe.get('phase') or diagnostic_probe['status']).replace('-', ' '),
+            phase='Stage1 refused conflicting type spellings for the imported bytes-len intrinsic.' if diagnosed else
+                  (diagnostic_probe.get('phase') or diagnostic_probe['status']).replace('-', ' '),
             passed=int(bool(diagnostic_probe.get('stage1_sha256'))) + int(exit_code == 0),
             failed=int(exit_code not in (None, 0)), total=2,
-            source=diagnostic_probe['compiler_source_sha256']))
+            source=diagnostic_probe['compiler_source_sha256'], evidence=link(byte_observation_path) if diagnosed else None))
+    byte_repair = read(cfg.get('schema10ByteObservationRepair'))
+    if byte_repair:
+        status = byte_repair['status']
+        active.append(dict(title='Rebuild the pinned library and rerun the ladder with one bytes-len type spelling',
+            status=status, phase=byte_repair['phase'], passed=len(byte_repair['rows']),
+            failed=int(status == 'failed'), total=3, source=byte_repair['compiler_source_sha256'],
+            auditPending=status == 'passed-ladder-awaiting-independent-audit'))
     reflexivity_path = 'bootstrap/current-schema10-reflexivity-core-results.json'
     reflexivity = read(root/reflexivity_path)
     if reflexivity.get('status') == 'passed-development-reflexivity-core':

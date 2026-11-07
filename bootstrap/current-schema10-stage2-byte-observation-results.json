@@ -1,0 +1,50 @@
+{
+  "compiler_source_sha256": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
+  "configuration_sha256": "5228e722cc23f43c2dcafc2fc8d0897aef2210f39dfb8c5ece8a62c0406701c2",
+  "data_bytes": {
+    "defining_value": "Data.Bytes.bytes-len",
+    "foreign_type": "(Bytes -> InRange 0 9223372036854775807 Nat)",
+    "interface_identity": "2321099523195849253",
+    "interface_sha256": "bce2f8c9e4398ee9a7946e7326f4541d230aac89758b9c84334cd7fba1271c3d",
+    "primitive": "cinch.runtime.bytesLen",
+    "resolved_scheme": "(Bytes -> (((Algebra.Arithmetic.InRange 0) 9223372036854775807) Nat))",
+    "value_scheme": "(Bytes -> (Algebra.Arithmetic.InRange 0 9223372036854775807 Nat))"
+  },
+  "diagnostic_excerpt": [
+    "bootstrap.check:1:1: imported byte observation foreign/value schemes disagree"
+  ],
+  "diagnostic_lines": 1,
+  "diagnostic_sha256": "64f1c4e769a324d462b4d58708d657242a27b7762d79403b6efeadb906e75c07",
+  "exit_code": 4,
+  "full_goal_complete": false,
+  "input_changes_from_published_stage1": [
+    "Bootstrap.Report.cinch"
+  ],
+  "ir_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+  "manifest_sha256": "9955bc395f6003aed5811d704b50cf8f36dcbef248dc73c200da596f2206d365",
+  "native_source_sha256": "9022a54f85312db671f7ee14a89a7aa9b6dfcfa7c54010b6f304016ff3401f57",
+  "original_bundle_sha256": "5f45bd96b7e7d3d2e2aee8736a7e6c471989b79001acf2017dc7d48dc15dee4f",
+  "original_compiler_source_sha256": "309a4f696ed5072050009e59562deabb2fc205731e47655662d1d8d69cd2d020",
+  "probe_revision": "a489f30e4782cc41364c0aec0a1e3af6c94dc48b",
+  "provider_pin": {
+    "description": "ABI 6 Rust library producer for checked schema 10 interfaces.",
+    "revision": "f997f90cf6424e94465ddf951211afd3482e758f",
+    "runtime_abi": 6,
+    "schema": 1,
+    "source_sha256": "9022a54f85312db671f7ee14a89a7aa9b6dfcfa7c54010b6f304016ff3401f57"
+  },
+  "repair_candidate": {
+    "revision": "96cda90346887d4cdd31c230a21027f9ff31cb93",
+    "validation": "pending"
+  },
+  "requested_roots": {
+    "dictionaries": [],
+    "methods": [],
+    "schema": 1,
+    "units": []
+  },
+  "stage1_receipt_sha256": "6870c27a2cb06fb28f17728e7f1ced3730ccd2831c5e2206e1a6ee162236a0b8",
+  "stage1_sha256": "b90730ef5c8e58e8b6c094de19476349dfc3d2e59819e3338e473b97596675d5",
+  "status": "diagnosed-original-stage2-refusal"
+}
