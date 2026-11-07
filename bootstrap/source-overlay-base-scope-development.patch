@@ -1,0 +1,265 @@
+--- a/bootstrap/Bootstrap.Resolve.cinch
++++ b/bootstrap/Bootstrap.Resolve.cinch
+@@ -15,7 +15,7 @@
+   import Data.Json
+   import Algebra.Semigroup
+ 
+-  export resolve-program, resolve-program-with
++  export resolve-program, resolve-program-with, resolve-overlay-with
+ 
+   -- Visible spelling, defining module, internal global spelling.
+   data Binding where
+@@ -274,33 +274,33 @@
+           (entries, errors) -> case build-exports rest visible views entries of
+             (surface, more) -> (surface, errors <> more)
+ 
+-  module-visibility :: Module -> List Scoped -> (List Binding, List Binding, List View, List Diagnostic)
+-  module-visibility m done =
++  module-visibility :: Module -> List Scoped -> List Binding -> (List Binding, List Binding, List View, List Diagnostic)
++  module-visibility m done base =
+     let home = module-name m in
+     let declared = own-bindings home (module-decls m) Nil in
+     let (views, errors) = import-views (module-decls m) done in
+     let (bare, clashes) = bare-imports views Nil in
+     let qualified = qualified-imports views in
+-    let prelude-bindings = case lookup-scoped "Prelude" done of None -> Nil; Some (MkScoped n surface body) -> surface in
++    let prelude-bindings = case lookup-scoped "Prelude" done of None -> base; Some (MkScoped n surface body) -> surface in
+     let visible = declared <> qualify home declared <> bare <> qualified <> prelude-bindings <> kernel-bindings builtin-bindings in
+     (declared, visible, views, errors <> clashes <> qualified-duplicates (module-span m) qualified Nil)
+-  build-scope :: Module -> List Scoped -> (Scoped, List Diagnostic)
+-  build-scope m done =
++  build-scope :: Module -> List Scoped -> List Binding -> (Scoped, List Diagnostic)
++  build-scope m done base =
+     let home = module-name m in
+-    let (declared, visible, views, visibility-errors) = module-visibility m done in
++    let (declared, visible, views, visibility-errors) = module-visibility m done base in
+     let (surface, export-errors) = case export-items (module-decls m) of
+           Nil -> (declared, Nil)
+           Cons first rest -> build-exports (Cons first rest) visible views Nil in
+     let (body, body-errors) = rename-decls home visible (module-decls m) in
+     (MkScoped home surface body, visibility-errors <> export-errors <> body-errors)
+ 
+-  resolve-ordered :: List Module -> List Scoped -> (List Scoped, List Diagnostic)
+-  resolve-ordered remaining done = case remaining of
++  resolve-ordered :: List Module -> List Scoped -> List Binding -> (List Scoped, List Diagnostic)
++  resolve-ordered remaining done base = case remaining of
+     Nil -> (reverse done, Nil)
+     Cons first rest -> case pick-ready remaining done Nil of
+       None -> (reverse done, fail (module-span first) (cat ["cyclic module imports involving ", module-name first]))
+-      Some (m, pending) -> case build-scope m done of
+-        (ready, errors) -> case resolve-ordered pending (Cons ready done) of
++      Some (m, pending) -> case build-scope m done base of
++        (ready, errors) -> case resolve-ordered pending (Cons ready done) base of
+           (ordered, more) -> (ordered, errors <> more)
+ 
+   scoped-decls :: List Scoped -> List Decl
+@@ -723,17 +723,54 @@
+   resolve-program-with :: Program -> List LoadedInterface -> (Program, List Diagnostic)
+   resolve-program-with p interfaces = case validate-interface-set interfaces of
+     Err message -> (p, fail (program-span p) message)
+-    Ok ordered -> resolve-context p (interface-scopes ordered) (interface-headers ordered)
+-
+-  resolve-context :: Program -> List Scoped -> List Module -> (Program, List Diagnostic)
+-  resolve-context p interfaces headers = case p of
++    Ok ordered -> resolve-context p (interface-scopes ordered) (interface-headers ordered) Nil
++
++  -- A library home may precede the Prelude facade that re-exports it.
++  -- Only project facade names whose defining interface is already in the
++  -- home's checked dependency closure. The facade itself is never loaded
++  -- into that closure or made available as a source import.
++  resolve-overlay-with :: Program -> List LoadedInterface -> LoadedInterface -> (Program, List Diagnostic)
++  resolve-overlay-with p dependencies facade = case validate-interface-set dependencies of
++    Err message -> (p, fail (program-span p) message)
++    Ok ordered -> let base = overlay-base-bindings facade (loaded-exports facade) ordered Nil in
++      resolve-context p (interface-scopes ordered) (interface-headers ordered) base
++
++  overlay-base-bindings :: LoadedInterface -> List (String, String, String) -> List LoadedInterface -> List Binding -> List Binding
++  overlay-base-bindings facade exports dependencies found = case exports of
++    Nil -> reverse found
++    Cons (name, kind, identity) rest ->
++      let symbol = interface-global identity in
++      case overlay-defining-interface (identity-owner (reverse (unpack identity))) kind identity dependencies of
++        Some owner -> overlay-base-bindings facade rest dependencies
++          (if same symbol (public-global facade name) then Cons (MkBinding name owner symbol) found else found)
++        None -> overlay-base-bindings facade rest dependencies found
++
++  identity-owner :: List Char -> String
++  identity-owner reversed = case reversed of
++    Nil -> ""
++    Cons first rest -> if first == '.' then pack (reverse rest) else identity-owner rest
++
++  overlay-defining-interface :: String -> String -> String -> List LoadedInterface -> Option String
++  overlay-defining-interface owner kind identity dependencies = case dependencies of
++    Nil -> None
++    Cons i rest -> if same owner (loaded-module i) then
++      (if exports-identity kind identity (loaded-exports i) then Some owner else None)
++      else overlay-defining-interface owner kind identity rest
++
++  exports-identity :: String -> String -> List (String, String, String) -> Bool
++  exports-identity kind identity exports = case exports of
++    Nil -> False
++    Cons (name, category, symbol) rest -> (same kind category && same identity symbol) || exports-identity kind identity rest
++
++  resolve-context :: Program -> List Scoped -> List Module -> List Binding -> (Program, List Diagnostic)
++  resolve-context p interfaces headers base = case p of
+     MkProgram sp modules -> case validate-modules modules interfaces modules Nil of
+-      Nil -> case resolve-ordered modules (reverse interfaces) of
++      Nil -> case resolve-ordered modules (reverse interfaces) base of
+         (done, Nil) ->
+           let declarations = builtin-declarations <> scoped-decls done in
+           let source-surfaces = source-scopes modules done in
+           case materialize-externals (declaration-references declarations <> export-references source-surfaces) declarations Nil of
+-            (body, errors) -> (MkProgram sp (Cons (MkModule sp "Main" (decl-spine sp (source-contexts modules (modules <> headers) done source-surfaces (case lookup-scoped "Prelude" done of Some prelude -> True; None -> False) (source-record-symbols modules) <> body))) Nil), errors)
++            (body, errors) -> (MkProgram sp (Cons (MkModule sp "Main" (decl-spine sp (source-contexts modules (modules <> headers) done source-surfaces (case lookup-scoped "Prelude" done of Some prelude -> True; None -> False) (source-record-symbols modules) base <> body))) Nil), errors)
+         (done, errors) -> (p, errors)
+       errors -> (p, errors)
+ 
+@@ -744,22 +781,22 @@
+ 
+   -- The fragment backend uses one aggregate, but checked interface output
+   -- must still know each source module's public aliases and declarations.
+-  source-contexts :: List Module -> List Module -> List Scoped -> List Scoped -> Bool -> List String -> List Decl
+-  source-contexts modules available all-scopes scopes prelude records = case scopes of
++  source-contexts :: List Module -> List Module -> List Scoped -> List Scoped -> Bool -> List String -> List Binding -> List Decl
++  source-contexts modules available all-scopes scopes prelude records base = case scopes of
+     Nil -> Nil
+     Cons (MkScoped name surface body) rest ->
+       let at = source-span name modules in
+       let begin = span-start at in
+       let finish = span-end at in
+       Cons (DSource at name
+-        (record-source-context name modules all-scopes records
++        (record-source-context name modules all-scopes records base
+         (JObj "module" (JStr name)
+           (JObj "source_start" (JNum (nat-to-int begin))
+             (JObj "source_end" (JNum (nat-to-int finish))
+               (JObj "exports" (surface-json surface)
+                 (JObj "declarations" (symbols-json body)
+-                  (JObj "imports" (strings-json (module-imports name modules prelude))
+-                    (JObj "fixities" (fixity-json (exported-fixities name available (surface-names surface))) JObjEnd))))))))) (source-contexts modules available all-scopes rest prelude records)
++                  (JObj "imports" (strings-json (module-imports name modules prelude base surface body))
++                    (JObj "fixities" (fixity-json (exported-fixities name available (surface-names surface))) JObjEnd))))))))) (source-contexts modules available all-scopes rest prelude records base)
+ 
+   source-record-symbols :: List Module -> List String
+   source-record-symbols modules = case modules of
+@@ -778,16 +815,16 @@
+   visible-record-symbol name bindings = case bindings of
+     Nil -> False
+     Cons binding rest -> same name (binding-symbol binding) || visible-record-symbol name rest
+-  record-source-context :: String -> List Module -> List Scoped -> List String -> Json -> Json
+-  record-source-context name modules scopes records document = case records of
++  record-source-context :: String -> List Module -> List Scoped -> List String -> List Binding -> Json -> Json
++  record-source-context name modules scopes records base document = case records of
+     Nil -> document
+-    other -> JObj "record_scope" (strings-json (module-record-scope name modules scopes records)) document
+-  module-record-scope :: String -> List Module -> List Scoped -> List String -> List String
+-  module-record-scope name modules scopes records = case modules of
+-    Nil -> Nil
+-    Cons m rest -> if same name (module-name m) then (case module-visibility m scopes of
++    other -> JObj "record_scope" (strings-json (module-record-scope name modules scopes records base)) document
++  module-record-scope :: String -> List Module -> List Scoped -> List String -> List Binding -> List String
++  module-record-scope name modules scopes records base = case modules of
++    Nil -> Nil
++    Cons m rest -> if same name (module-name m) then (case module-visibility m scopes base of
+       (declared, visible, views, errors) -> visible-record-symbols visible records)
+-      else module-record-scope name rest scopes records
++      else module-record-scope name rest scopes records base
+ 
+   -- Retain consumed imports and the parser's definition-owned fixity facts
+   -- before elaboration drops source declarations. Reexport metadata carries
+@@ -801,9 +838,16 @@
+     Nil -> reverse seen
+     Cons (DImport sp name mods alias members arguments) rest -> declared-imports rest (if has-name name seen then seen else Cons name seen)
+     Cons other rest -> declared-imports rest seen
+-  module-imports :: String -> List Module -> Bool -> List String
+-  module-imports name modules prelude = declared-imports (module-declarations name modules)
+-    (if prelude && not (same name "Prelude") then ["Prelude"] else Nil)
++  module-imports :: String -> List Module -> Bool -> List Binding -> List Binding -> List Decl -> List String
++  module-imports name modules prelude base surface body = declared-imports (module-declarations name modules)
++    (if prelude && not (same name "Prelude") then ["Prelude"] else case base of
++      Nil -> Nil
++      other -> consumed-base-imports base (binding-references surface <> declaration-references body) Nil)
++  consumed-base-imports :: List Binding -> List String -> List String -> List String
++  consumed-base-imports bindings references found = case bindings of
++    Nil -> found
++    Cons (MkBinding name owner symbol) rest -> consumed-base-imports rest references
++      (if has-name symbol references && not (has-name owner found) then Cons owner found else found)
+   strings-json :: List String -> Json
+   strings-json values = case values of Nil -> JArrEnd; Cons first rest -> JArr (JStr first) (strings-json rest)
+   surface-names :: List Binding -> List String
+--- a/bootstrap/Bootstrap.Pipeline.cinch
++++ b/bootstrap/Bootstrap.Pipeline.cinch
+@@ -27,7 +27,7 @@
+   import Bootstrap.Load (LoadedInterface, loaded-module, loaded-hash, loaded-contract, loaded-imports, load-interface, validate-interface-set)
+   import Bootstrap.Inputs (read-interfaces, embedded-library-home)
+   import Bootstrap.Contracts (interface-headers)
+-  import Bootstrap.Resolve (resolve-program, resolve-program-with)
++  import Bootstrap.Resolve (resolve-program, resolve-program-with, resolve-overlay-with)
+   import Bootstrap.Report (Diagnostic, render-diagnostics, render-source-diagnostics)
+   import Bootstrap.Export (export-interfaces, interface-hash)
+   import Bootstrap.Interface (fnv-source-hash)
+@@ -167,7 +167,9 @@
+   -- The interface-only path shares the real parser, resolver and retained
+   -- checker. It never asks another compiler to manufacture source contracts.
+   checked-source :: Program -> List LoadedInterface -> Result (List Diagnostic) CheckedProgram
+-  checked-source program interfaces = case resolve-program-with program interfaces of
++  checked-source program interfaces = retain-resolved-source (resolve-program-with program interfaces)
++  retain-resolved-source :: (Program, List Diagnostic) -> Result (List Diagnostic) CheckedProgram
++  retain-resolved-source result = case result of
+     (resolved, Nil) -> check-and-retain resolved
+     (resolved, errors) -> Err errors
+   overlay-interface :: String -> List LoadedInterface -> Option LoadedInterface
+@@ -192,8 +194,12 @@
+     Nil -> Nil
+     Cons previous rest -> if string-compare (loaded-module fresh) (loaded-module previous) == 0 then Cons fresh rest
+       else Cons previous (replace-overlay-interface fresh rest)
+-  rebuild-source-interface :: Bytes -> Program -> String -> List LoadedInterface -> Result String (LoadedInterface, Json)
+-  rebuild-source-interface source program name dependencies = case checked-source program dependencies of
++  checked-overlay-source :: Program -> List LoadedInterface -> Option LoadedInterface -> Result (List Diagnostic) CheckedProgram
++  checked-overlay-source program dependencies facade = case facade of
++    Some entry -> retain-resolved-source (resolve-overlay-with program dependencies entry)
++    None -> checked-source program dependencies
++  rebuild-source-interface :: Bytes -> Program -> String -> List LoadedInterface -> Option LoadedInterface -> Result String (LoadedInterface, Json)
++  rebuild-source-interface source program name dependencies facade = case checked-overlay-source program dependencies facade of
+     Err errors -> Err (render-source-diagnostics source errors)
+     Ok checked -> case export-interfaces checked dependencies source of
+       Err message -> Err (string-concat "bootstrap.export: " message)
+@@ -220,7 +226,7 @@
+           Some (replacement, remaining) -> case overlay-dependencies (loaded-imports previous) interfaces Nil of
+             Err message -> Err (string-concat "bootstrap.interfaces: " message)
+             Ok dependencies -> let sp = program-span program in
+-              case rebuild-source-interface source (MkProgram sp [replacement]) name dependencies of
++              case rebuild-source-interface source (MkProgram sp [replacement]) name dependencies (overlay-interface "Prelude" interfaces) of
+                 Err message -> Err message
+                 Ok (fresh, doc) -> recheck-source-overlays source (MkProgram sp remaining) rest (replace-overlay-interface fresh interfaces) (Cons (name, doc) written))
+       else recheck-source-overlays source program rest interfaces written
+--- a/compiler/tests/bootstrap_pipeline.rs
++++ b/compiler/tests/bootstrap_pipeline.rs
+@@ -391,6 +391,27 @@
+     for consumer in [native_consumer, source_consumer] {
+         assert!(consumer.imports.iter().any(|reference| reference.module == "Data.Core" && reference.iface_hash == replacement.iface_hash()));
+     }
++    // No retained module consumes Data.Set, so a changed public interface can
++    // be emitted and compared without invalidating an unrelated consumer.
++    let implicit_core = "module Data.Set where\n  sentinel :: List Int -> Option Int\n  sentinel xs = case xs of Nil -> None; Cons x rest -> Some x\n";
++    let explicit_core = implicit_core.replace("module Data.Set where", "module Data.Set where\n  import Data.Core");
++    let (status, diagnostics) = invoke("--emit-interfaces", &explicit_core, "early-explicit-core");
++    assert_eq!(status, Some(0), "{diagnostics}");
++    let (status, diagnostics) = invoke("--emit-interfaces", implicit_core, "early-implicit-core");
++    assert_eq!(status, Some(0), "{diagnostics}");
++    let implicit = load(&dir.join("early-implicit-core.Data.Set.cinchif"));
++    let explicit = load(&dir.join("early-explicit-core.Data.Set.cinchif"));
++    assert_eq!(implicit.iface_hash(), explicit.iface_hash());
++    assert_ne!(implicit.source_hash, explicit.source_hash);
++    assert_eq!(implicit.imports.len(), 1);
++    assert_eq!(implicit.imports[0].module, "Data.Core");
++    assert_eq!(implicit.imports[0].iface_hash, previous.iface_hash());
++
++    let qualified_without_import = implicit_core.replace("List Int", "Data.Core.List Int");
++    let (status, diagnostics) = invoke("--check", &qualified_without_import, "early-qualified-core");
++    assert_eq!(status, Some(4), "{diagnostics}");
++    assert!(diagnostics.contains("unknown type constructor or unbound type variable: Data.Core.List"), "{diagnostics}");
++
+     let incompatible = edited.replace("Option, None, Some", "Option, None, Some, Missing")
+         .replace("    None :: Option a", "    None :: Option a\n    Missing :: Option a");
+     let (status, diagnostics) = invoke("--emit-interfaces", &format!("{incompatible}\n{main}"), "stale-core-source");

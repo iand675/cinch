@@ -168,6 +168,15 @@ omitted `mconcat` default. Category, Algebra, and source replacement in runtime
 object builds remain open. See
 `bootstrap/current-source-interface-overlay-results.json`.
 
+The early-library scope repair exposes facade names backed by a checked
+defining interface in the dependency closure. The exact defining hash is
+recorded without a Prelude back-edge. Explicit and implicit Data.Core
+references produce equal Data.Set contracts, and a qualified reference
+without an import refuses. Both complete pipeline tests pass. The unchanged
+Algebra source now reaches its class law without missing constructor names.
+See `bootstrap/current-source-overlay-base-scope-results.json` and the
+reapplied patch receipt `bootstrap/current-source-overlay-base-scope-pipeline-results.json`.
+
 All9 development patches apply in order to a fresh published-source snapshot,
 produce the exact32ab compiler-module bytes and preserve the published FFI test
 correction. This is reproducibility evidence, not promotion or bootstrap proof:

@@ -1,0 +1,17 @@
+{
+  "compiler_source_sha256": "dd1c20b4c1c3d78825718cd6fe7c055ea220e8227f12911f4dc8d8e864204f0e",
+  "exact_patched_files": {
+    "bootstrap/Bootstrap.Pipeline.cinch": "14151534a72d63934b532703f11ea87cc666d0bc17e38c86cb8ca3cc2e157e9f",
+    "bootstrap/Bootstrap.Resolve.cinch": "3a37a231929e531e6c55bed9bd2aff6c1e861cdc48b613b073c34ebe9274e666",
+    "compiler/tests/bootstrap_pipeline.rs": "78bcc0400b6bfd4ffa60cc2566393a1d923e394de19e2d80ce9447f15ebf587c"
+  },
+  "full_goal_complete": false,
+  "patch_sha256": "0f1761928f84117c5abff3dab3543ffe5f988a720ec402050a086c848dc0f0a8",
+  "pipeline_log_sha256": "4d9d43bcc95b376fafb752533770fea8d9488c90594e2740527274c6d0c47f71",
+  "pipeline_tests": 2,
+  "reapply_log_sha256": "a41ae1028f209f742d710c22a45fdb1dd1aa0669b1d8926a42f39f41d775ec29",
+  "scope": "Full original pipeline plus explicit/implicit early constructor scope and qualified-import refusal. Original Algebra source resolves constructors, then refuses its class law. The independently reapplied patch matches all compiler source bytes and the tested Rust fixture.",
+  "status": "verified-early-base-scope-pipeline-development",
+  "verified_at": "2026-11-07T04:53:11.029122+00:00",
+  "verified_original_family_probes_sha256": "c51674aac2c4513d89d436202a8e8dcdf4cd6e06e624db054ce94bf26ca9611d"
+}
