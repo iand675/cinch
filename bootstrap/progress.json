@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "195 of 235 complete groups passed; 2 running, 0 failed and 38 pending.Every group includes ignored tests. State: running.",
+      "detail": "196 of 235 complete groups passed; 2 running, 0 failed and 37 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -499,7 +499,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "195 of 235 complete groups passed; 2 running, 0 failed and 38 pending."
+      "detail": "196 of 235 complete groups passed; 2 running, 0 failed and 37 pending."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -803,10 +803,10 @@
         "unit": "targets",
         "total": 235,
         "counts": {
-          "verified": 196,
+          "verified": 197,
           "blocked": 0,
           "running": 2,
-          "pending": 37,
+          "pending": 36,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -2265,21 +2265,21 @@
           {
             "id": "native:bootstrap_nominals",
             "title": "bootstrap_nominals",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_nominals.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "startedAt": "2026-11-07T03:31:01.111251+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T03:43:54.557718+00:00",
+              "exitCode": 0,
+              "logSha256": "090a1e58d17032d84d7b378777fb8b3c534a57e43214d0b90e93a4a6931e64e0",
               "cases": [
                 {
                   "name": "imported_nominals_are_checked_with_defining_identities_in_cinch",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -2311,21 +2311,21 @@
           {
             "id": "native:bootstrap_nonzero_types",
             "title": "bootstrap_nonzero_types",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_nonzero_types.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T20:43:27.843087+00:00",
-              "finishedAt": "2026-11-06T20:44:53.754997+00:00",
-              "exitCode": 0,
-              "logSha256": "1d102782e51fbb4bde2d6dcc2f86d71cf15bb5df08c90813166e49c935a73aea",
+              "status": "running",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T03:43:54.560322+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "structural_nonzero_types_and_core_preserve_scope_and_evidence",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -18789,8 +18789,8 @@
       {
         "title": "Base constructor spellings: complete exporter and nominal tests",
         "status": "running",
-        "phase": "bootstrap_export_interfaces",
-        "passed": 0,
+        "phase": "bootstrap_nominals",
+        "passed": 1,
         "failed": 0,
         "total": 2,
         "source": "208317ed5b7e7feeeb34b0124f86340c763e48988633f5a38325184e8ebcdfae",
@@ -18996,8 +18996,8 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "bootstrap_nonzero_source",
-        "passed": 195,
+        "phase": "bootstrap_nonzero_types",
+        "passed": 196,
         "failed": 0,
         "total": 235,
         "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
@@ -19015,10 +19015,10 @@
       }
     ],
     "counts": {
-      "verified": 450,
+      "verified": 451,
       "blocked": 4,
       "running": 9,
-      "pending": 55,
+      "pending": 54,
       "recheck": 151
     },
     "total": 669,
@@ -19027,5 +19027,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T03:42:23.936349+00:00"
+  "updatedAt": "2026-11-07T03:44:06.029298+00:00"
 }
