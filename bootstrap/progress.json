@@ -71,7 +71,7 @@
     },
     {
       "title": "Earlier API checkpoint: exact Stage3 behavior",
-      "detail": "82 of 105 complete groups passed; 1 running, 3 failed and 19 pending.All105 required targets:96 portable and9 original interface/API groups, preserving the original100 plus5 additions. Original explicit32M poisoned client limits remain; compiler/checker consumers use256M. Direct Native operations in mixed targets remain classified separately. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "83 of 105 complete groups passed; 1 running, 3 failed and 18 pending.All105 required targets:96 portable and9 original interface/API groups, preserving the original100 plus5 additions. Original explicit32M poisoned client limits remain; compiler/checker consumers use256M. Direct Native operations in mixed targets remain classified separately. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -507,7 +507,7 @@
     },
     {
       "title": "Finish the exact self-built compiler tests",
-      "detail": "82 of 105 complete groups passed; 1 running, 3 failed and 19 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "83 of 105 complete groups passed; 1 running, 3 failed and 18 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Pass all external language examples through Stage3",
@@ -687,9 +687,9 @@
         "id": "gap:default-refinement",
         "title": "Preserve refinement carriers in the original default runtime program",
         "state": "running",
-        "detail": "The2866 whole original replay remains19/21, but mconcat now passes frontend checking. Backend lowering requests genuine Semigroup_Function and Monoid_Function OO factory variants missing from the test library object. A fresh exact pinnedNative22 library-only provider now supplies both with ten checked physical symbols, all55 interface files and runtime bytes unchanged. The unchanged original full21 replay is queued against that new object. All8 component groups and all9 full compiler/object tests remain audited.",
-        "doneWhen": "The original function carrier, refined product and unit cases compile and execute their expected results without guessing an underlying carrier.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-source-class-default-self-values-api-results.json"
+        "detail": "With the two test-provider factories, the development compiler passes all seven original class-default tests. The original mconcat program also passes at 32 MiB with poisoning and zero leaks. Replay through final Stage3 remains.",
+        "doneWhen": "The original function carrier, refined product and unit cases compile and execute their expected results through final Stage3.",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-function-default-api-results.json"
       },
       {
         "id": "gap:imported-defaults",
@@ -11878,8 +11878,8 @@
           "verified": 0,
           "blocked": 0,
           "running": 0,
-          "pending": 19,
-          "recheck": 86
+          "pending": 18,
+          "recheck": 87
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
         "items": [
@@ -13741,16 +13741,16 @@
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_source_pi.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "startedAt": "2026-11-07T02:56:10.111733+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T03:04:40.691745+00:00",
+              "exitCode": 0,
+              "logSha256": "a52819e9e53cfb7f059eeb18c3026b49c66e9631cef2f1cd1d298eb15e4bda04",
               "cases": [
                 {
                   "name": "source_dependent_functions_use_checked_argument_values",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -13759,18 +13759,23 @@
           {
             "id": "stage3:bootstrap_source_projection",
             "title": "bootstrap_source_projection",
-            "state": "pending",
+            "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_source_projection.rs",
             "observed": {
-              "status": "pending",
+              "status": "running",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": null,
+              "startedAt": "2026-11-07T03:04:40.705521+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "source_projection_preserves_carriers_and_kernel_authority",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -14369,10 +14374,10 @@
           }
         ],
         "observedCounts": {
-          "passed": 82,
+          "passed": 83,
           "failed": 3,
           "running": 1,
-          "pending": 19
+          "pending": 18
         },
         "observedSource": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2"
       },
@@ -18586,8 +18591,8 @@
       {
         "title": "Cinch partial Boolean implications: complete groups",
         "status": "running",
-        "phase": "bootstrap_value_indices",
-        "passed": 6,
+        "phase": "bootstrap_source_instances",
+        "passed": 7,
         "failed": 0,
         "total": 9,
         "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
@@ -18607,8 +18612,8 @@
       },
       {
         "title": "Diagnostic compiler: its own44 source modules",
-        "status": "running",
-        "phase": "self-check44",
+        "status": "cancelled-obsolete-diagnostic-scan",
+        "phase": "retired older 14a8 run after profiling repeated string indexing",
         "passed": 0,
         "failed": 0,
         "total": 1,
@@ -18625,6 +18630,28 @@
         "total": 1,
         "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
         "nativeSource": null,
+        "auditPending": false
+      },
+      {
+        "title": "Diagnostic byte scan: large-bundle control and full pipeline",
+        "status": "running",
+        "phase": "bootstrap_pipeline",
+        "passed": 1,
+        "failed": 0,
+        "total": 2,
+        "source": "03d1790a4b4d9e1d1bcd0b702ff3cab7c04b9da865de2d84f696886d6da38d18",
+        "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+        "auditPending": false
+      },
+      {
+        "title": "Constructor display: interface and nominal tests",
+        "status": "waiting-worker",
+        "phase": null,
+        "passed": 0,
+        "failed": 0,
+        "total": 2,
+        "source": "8f99a0c75845bab16a64102d4510f027c27d91900342b5b4df448298ecb61edf",
+        "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
         "auditPending": false
       },
       {
@@ -18792,8 +18819,8 @@
       {
         "title": "Earlier Stage3: complete frontend sweep",
         "status": "running",
-        "phase": "bootstrap_source_pi",
-        "passed": 82,
+        "phase": "bootstrap_source_projection",
+        "passed": 83,
         "failed": 3,
         "total": 105,
         "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
@@ -18804,8 +18831,8 @@
       "verified": 440,
       "blocked": 3,
       "running": 9,
-      "pending": 73,
-      "recheck": 143
+      "pending": 72,
+      "recheck": 144
     },
     "total": 668,
     "acceptanceVerified": 0,
@@ -18813,5 +18840,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T03:03:41.574151+00:00"
+  "updatedAt": "2026-11-07T03:06:24.665092+00:00"
 }
