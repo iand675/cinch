@@ -11894,10 +11894,10 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 10,
+          "verified": 12,
           "blocked": 2,
           "running": 1,
-          "pending": 92,
+          "pending": 90,
           "recheck": 0
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
@@ -11905,18 +11905,27 @@
           {
             "id": "stage3:alloc_accounting",
             "title": "alloc_accounting",
-            "state": "pending",
+            "state": "running",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/alloc_accounting.rs",
             "observed": {
-              "status": "pending",
+              "status": "running",
               "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": null,
+              "startedAt": "2026-11-07T11:59:16.374477+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "a_compiled_structure_drops_back_to_the_immortal_baseline",
+                  "status": "passed"
+                },
+                {
+                  "name": "escaped_constructors_match_and_carry_one_descriptor_word",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -13891,17 +13900,17 @@
           {
             "id": "stage3:interface_refinements",
             "title": "interface_refinements",
-            "state": "running",
+            "state": "verified",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_refinements.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
               "startedAt": "2026-11-07T11:57:15.786423+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T11:58:53.063555+00:00",
+              "exitCode": 0,
+              "logSha256": "44769a1250046179cb20745685a911d26e2a17221145b66b39f1894b435fc116",
               "cases": [
                 {
                   "name": "interfaces_publish_preconditions_and_named_refinement_definitions",
@@ -13913,7 +13922,11 @@
                 },
                 {
                   "name": "logical_literal_proof_contracts_round_trip_without_becoming_boolean_values",
-                  "status": "running"
+                  "status": "passed"
+                },
+                {
+                  "name": "portable_proof_arrows_keep_kinds_effects_erasure_and_type_owners",
+                  "status": "passed"
                 }
               ]
             },
@@ -13922,27 +13935,36 @@
           {
             "id": "stage3:interface_region_effects",
             "title": "interface_region_effects",
-            "state": "pending",
+            "state": "verified",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_region_effects.rs",
             "observed": {
-              "status": "pending",
+              "status": "passed",
               "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": null,
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
-              "cases": []
+              "startedAt": "2026-11-07T11:58:55.022330+00:00",
+              "finishedAt": "2026-11-07T11:59:14.257374+00:00",
+              "exitCode": 0,
+              "logSha256": "8942d7d48b02d85787464027e33a58f5787cdfee4206585b6c39f9ecfa1fdcff",
+              "cases": [
+                {
+                  "name": "resolved_contracts_keep_region_binders_and_closed_kernel_effects",
+                  "status": "passed"
+                },
+                {
+                  "name": "scope_and_task_contracts_preserve_kernel_and_source_type_owners",
+                  "status": "passed"
+                }
+              ]
             },
             "category": "interface / API"
           }
         ],
         "observedCounts": {
           "failed": 2,
-          "passed": 10,
+          "passed": 12,
           "running": 1,
-          "pending": 92
+          "pending": 90
         },
         "observedSource": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854"
       },
@@ -18110,8 +18132,8 @@
       {
         "title": "Published schema 9 Stage3: all 105 frontend targets",
         "status": "running",
-        "phase": "interface_refinements",
-        "passed": 10,
+        "phase": "alloc_accounting",
+        "passed": 12,
         "failed": 2,
         "total": 105,
         "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854"
@@ -18707,8 +18729,8 @@
       {
         "title": "Earlier Stage3: complete frontend sweep",
         "status": "running",
-        "phase": "interface_refinements",
-        "passed": 10,
+        "phase": "alloc_accounting",
+        "passed": 12,
         "failed": 2,
         "total": 105,
         "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
@@ -19014,10 +19036,10 @@
       }
     ],
     "counts": {
-      "verified": 186,
+      "verified": 188,
       "blocked": 7,
       "running": 11,
-      "pending": 98,
+      "pending": 96,
       "recheck": 372
     },
     "total": 674,
@@ -19026,5 +19048,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T11:58:42.996112+00:00"
+  "updatedAt": "2026-11-07T11:59:45.271972+00:00"
 }
