@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "218 of 235 complete groups passed; 2 running, 0 failed and 15 pending.Every group includes ignored tests. State: running.",
+      "detail": "221 of 235 complete groups passed; 2 running, 0 failed and 12 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -499,7 +499,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "218 of 235 complete groups passed; 2 running, 0 failed and 15 pending."
+      "detail": "221 of 235 complete groups passed; 2 running, 0 failed and 12 pending."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -631,7 +631,7 @@
         "id": "gap:prelude",
         "title": "Replace source copies of library modules safely",
         "state": "blocked",
-        "detail": "The development pipeline checks each original source family separately. Data.Core emits the matching contract. Data.Ordering stops at the imported mconcat default. Category rejects the class laws and structural function instance. Algebra rejects the class law and cannot resolve Nil, None, Cons or Some.",
+        "detail": "Data.Core emits the matching contract. Data.Ordering stops at the imported mconcat default. Category rejects the class laws and structural function instance. Algebra now resolves Nil, None, Cons and Some and stops at the class law.",
         "doneWhen": "Core, Ordering, Category and Algebra replacements pass with fresh checked provider hashes, valid consumer chains and no Prelude back-edge.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-source-overlay-family-probes.json"
       },
@@ -710,10 +710,10 @@
       {
         "id": "gap:base-names",
         "title": "Restore source-family implicit base names",
-        "state": "pending",
-        "detail": "With the complete authenticated library interface set, source Algebra.Semigroup still cannot resolve Nil, None, Cons and Some before Prelude.",
+        "state": "running",
+        "detail": "The development compiler now resolves the original Algebra.Semigroup constructors. Explicit and implicit Data.Core usage give the same checked contract and exact dependency hash; qualified access still requires an import.",
         "doneWhen": "Source library homes retain their checked base scope without a facade back-edge or unchecked aliases.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-source-prelude-counterexample.json"
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-source-overlay-base-scope-results.json"
       },
       {
         "id": "gap:task-callback",
@@ -803,10 +803,10 @@
         "unit": "targets",
         "total": 235,
         "counts": {
-          "verified": 218,
+          "verified": 221,
           "blocked": 0,
           "running": 2,
-          "pending": 15,
+          "pending": 12,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -2798,21 +2798,21 @@
           {
             "id": "native:bootstrap_source_handlers",
             "title": "bootstrap_source_handlers",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_source_handlers.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "startedAt": "2026-11-07T04:36:03.789912+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T04:40:53.125000+00:00",
+              "exitCode": 0,
+              "logSha256": "80ea387128b303083151648c0bf3cf0195b14748727c95db2e76248237a5ee15",
               "cases": [
                 {
                   "name": "source_handlers_preserve_declarations_effects_and_resumptions",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -2848,17 +2848,17 @@
           {
             "id": "native:bootstrap_source_paths",
             "title": "bootstrap_source_paths",
-            "state": "pending",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_source_paths.rs",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T22:59:43.561030+00:00",
-              "finishedAt": "2026-11-06T22:59:43.829402+00:00",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T04:40:53.130243+00:00",
+              "finishedAt": "2026-11-07T04:40:54.130148+00:00",
               "exitCode": 0,
-              "logSha256": "219050039a8f5258fcb30641d76bf29282cb9bdd163182aca4dca2bbbb697e61",
+              "logSha256": "f4d70195560988074a1cfb1442329435e0924c609db03b840cc770086dfe289d",
               "cases": [
                 {
                   "name": "aliases_of_the_same_source_directory_are_accepted",
@@ -2879,17 +2879,17 @@
           {
             "id": "native:bootstrap_source_pi",
             "title": "bootstrap_source_pi",
-            "state": "pending",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_source_pi.rs",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T22:59:43.841694+00:00",
-              "finishedAt": "2026-11-06T23:06:16.868810+00:00",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T04:40:54.132614+00:00",
+              "finishedAt": "2026-11-07T04:45:43.822333+00:00",
               "exitCode": 0,
-              "logSha256": "b775df00ea1b16f46ca52960655563590ca8d3e6d2e77bb61fcd97daeb82d3ef",
+              "logSha256": "56dce34606108a6556623214e48ea963db9fc1e2958826951b73fe72cf669339",
               "cases": [
                 {
                   "name": "source_dependent_functions_use_checked_argument_values",
@@ -2902,21 +2902,21 @@
           {
             "id": "native:bootstrap_source_projection",
             "title": "bootstrap_source_projection",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_source_projection.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T23:06:16.879692+00:00",
-              "finishedAt": "2026-11-06T23:12:02.872904+00:00",
-              "exitCode": 0,
-              "logSha256": "f5d53b3f6bd3e7fd92800910de445f1cbf6efd7ef87a6e834f8e911203ee3313",
+              "status": "running",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T04:45:43.824881+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "source_projection_preserves_carriers_and_kernel_authority",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -18739,7 +18739,7 @@
       {
         "title": "Fresh Stage0 through Stage3 rebuild",
         "status": "running",
-        "phase": "building stage3",
+        "phase": "Building Stage3 with a 512 MiB heap after the verified 256 MiB exhaustion",
         "passed": 3,
         "failed": 0,
         "total": 4,
@@ -18752,6 +18752,17 @@
         "status": "failed",
         "phase": "Stage2 requested the missing Data.List.list-length [R] library specialization",
         "passed": 2,
+        "failed": 1,
+        "total": 4,
+        "unit": "stages",
+        "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+        "auditPending": false
+      },
+      {
+        "title": "Earlier Stage3 attempt at 256 MiB",
+        "status": "failed",
+        "phase": "Stage3 exhausted the 256 MiB heap after emitting 44 matching interfaces",
+        "passed": 3,
         "failed": 1,
         "total": 4,
         "unit": "stages",
@@ -19221,19 +19232,28 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "bootstrap_source_instances",
-        "passed": 218,
+        "phase": "bootstrap_source_projection",
+        "passed": 221,
         "failed": 0,
         "total": 235,
         "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
         "earlier": false
+      },
+      {
+        "title": "Current candidate: complete Stage3 frontend sweep",
+        "status": "waiting-matching-stage3-audit",
+        "phase": "Waiting for independent Stage3 audit",
+        "passed": 0,
+        "failed": 0,
+        "total": 105,
+        "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157"
       }
     ],
     "counts": {
-      "verified": 472,
+      "verified": 475,
       "blocked": 4,
-      "running": 9,
-      "pending": 22,
+      "running": 10,
+      "pending": 18,
       "recheck": 162
     },
     "total": 669,
@@ -19242,5 +19262,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T04:39:37.639960+00:00"
+  "updatedAt": "2026-11-07T04:46:10.927204+00:00"
 }
