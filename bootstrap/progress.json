@@ -19721,8 +19721,8 @@
       },
       {
         "title": "Rebuild the pinned library with corrected Traversable kinds",
-        "status": "waiting-disk-space",
-        "phase": "Waiting for the pinned Native build",
+        "status": "running",
+        "phase": "build exact Native provider with scoped member kinds",
         "passed": 0,
         "failed": 0,
         "total": 2,
@@ -19730,9 +19730,9 @@
       },
       {
         "title": "Bootstrap the quantified-law compiler with the expanded library",
-        "status": "building-stage3",
-        "phase": "building stage3",
-        "passed": 3,
+        "status": "checking-fixed-point-and-source-change",
+        "phase": "checking fixed point and source change",
+        "passed": 4,
         "failed": 0,
         "total": 4,
         "unit": "stages",
@@ -19769,5 +19769,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T22:17:40.904906+00:00"
+  "updatedAt": "2026-11-07T22:19:23.379618+00:00"
 }
