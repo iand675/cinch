@@ -54,3 +54,17 @@
 .install-copy { margin-top:.8rem; padding:.55rem .9rem; border:1px solid var(--platform-rule); border-radius:2px; background:transparent; color:var(--platform-accent); font-size:var(--label); letter-spacing:var(--label-tracking); cursor:pointer; }
 .install-copy:hover { border-color:var(--platform-accent); }
 .install-copy:focus-visible { outline:2px solid var(--platform-accent); outline-offset:3px; }
+
+.install-page { max-width: 960px; }
+.install-form { display: grid; grid-template-columns: minmax(150px, 220px) minmax(0, 1fr); gap: .75rem 1.5rem; align-items: center; margin: 1rem 0 2rem; }
+.install-form label { color: var(--platform-muted); }
+.install-form label span { color: var(--platform-muted); opacity: .7; }
+.install-form input { width: 100%; padding: .7rem .8rem; border: 1px solid var(--platform-rule); border-radius: 2px; background: transparent; color: var(--platform-ink); font: inherit; }
+.install-form input:focus-visible { outline: 2px solid var(--platform-accent); outline-offset: 2px; }
+.install-submit { justify-self: start; grid-column: 2; padding: .6rem 1rem; border: 1px solid var(--platform-accent); border-radius: 2px; background: var(--platform-accent); color: var(--platform-paper); font: inherit; cursor: pointer; }
+.install-status { min-height: 1.2rem; color: var(--platform-muted); }
+.install-result { margin-top: 2rem; padding-top: 1.5rem; border-top: 3px double var(--platform-rule); }
+.install-result pre { margin: .75rem 0 0; padding: 1.25rem; overflow-x: auto; background: #252c20; color: #d7c49d; border: 1px solid #6d7457; border-radius: 4px 30px 4px 4px; }
+.install-result code { font-size: .9rem; }
+.install-result .install-copy { margin-top: .8rem; }
+@media (max-width: 760px) { .install-form { grid-template-columns: 1fr; } .install-submit { grid-column: 1; } }

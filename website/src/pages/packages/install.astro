@@ -1,0 +1,97 @@
+---
+import PlatformLayout from '../../layouts/PlatformLayout.astro';
+---
+<PlatformLayout title="Install a package" description="Resolve a public registry release and prepare its project install command." section="packages">
+  <section class="platform-banner catalogue-banner">
+    <div class="platform-eyebrow mono"><span>PACKAGE INSTALL</span><span class="sample-badge">REGISTRY LOOKUP</span></div>
+    <h1>Install a release.</h1>
+    <p>Read a real registry release, then run the resulting command in your project.<br />The package leaf writes sources, interfaces, and a native object.</p>
+  </section>
+  <section class="platform-content install-page">
+    <form class="install-form" id="install-form">
+      <label class="mono" for="install-registry">REGISTRY URL</label>
+      <input id="install-registry" name="registry" type="url" value="http://127.0.0.1:8787" spellcheck="false" />
+      <label class="mono" for="install-name">PACKAGE</label>
+      <input id="install-name" name="package" type="text" placeholder="alice/library" autocomplete="off" required />
+      <label class="mono" for="install-version">VERSION <span>(OPTIONAL)</span></label>
+      <input id="install-version" name="version" type="text" placeholder="0.1.0" autocomplete="off" />
+      <label class="mono" for="install-project">PROJECT DIRECTORY <span>(OPTIONAL)</span></label>
+      <input id="install-project" name="project" type="text" placeholder="/path/to/project" autocomplete="off" />
+      <button type="submit" class="install-submit mono">Fetch release</button>
+    </form>
+    <p class="install-status mono" id="install-status" aria-live="polite"></p>
+    <div class="install-result" id="install-result" hidden>
+      <div class="section-rule mono">PROJECT INSTALL</div>
+      <pre><code id="install-command"></code></pre>
+      <button type="button" class="install-copy mono" id="install-copy">Copy command</button>
+      <p class="mono" id="install-facts"></p>
+    </div>
+    <aside class="preview-note"><span class="mono">REGISTRY LOOKUP</span><p>The browser reads public registry metadata. It does not execute the compiler. Run the copied command from the project you want to change; see <a href="/reference/29-package-management/">packages, manifests, and the registry</a> for the accepted release, dependency, and verification boundaries.</p></aside>
+  </section>
+</PlatformLayout>
+<script>
+const form = document.querySelector<HTMLFormElement>('#install-form')!;
+const status = document.querySelector<HTMLElement>('#install-status')!;
+const result = document.querySelector<HTMLElement>('#install-result')!;
+const command = document.querySelector<HTMLElement>('#install-command')!;
+const facts = document.querySelector<HTMLElement>('#install-facts')!;
+const copy = document.querySelector<HTMLButtonElement>('#install-copy')!;
+const input = (id: string) => document.querySelector<HTMLInputElement>(id)!;
+
+function show(message: string) {
+  status.textContent = message;
+}
+
+form.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const registry = input('#install-registry').value.trim().replace(/\/+$/, '');
+  const name = input('#install-name').value.trim();
+  const requested = input('#install-version').value.trim();
+  const project = input('#install-project').value.trim();
+  if (!registry || !name) {
+    show('Registry and package are required.');
+    return;
+  }
+  show('Reading registry...');
+  result.hidden = true;
+  try {
+    const encoded = name.replaceAll('/', '%2F');
+    const url = requested
+      ? `${registry}/api/v1/packages/${encoded}/${encodeURIComponent(requested)}`
+      : `${registry}/api/v1/packages/${encoded}`;
+    const response = await fetch(url, { headers: { accept: 'application/json' } });
+    if (!response.ok) throw new Error(`registry returned ${response.status}`);
+    const data = await response.json();
+    const version = requested || data.versions?.[0]?.version;
+    if (!version) throw new Error('the registry did not report a version');
+    const metadata = requested
+      ? data
+      : await fetch(`${registry}/api/v1/packages/${encoded}/${encodeURIComponent(version)}`).then((r) => {
+          if (!r.ok) throw new Error(`registry returned ${r.status}`);
+          return r.json();
+        });
+    if (metadata.blocked) throw new Error('this release is blocked');
+    if (metadata.yanked) {
+      show('This release is yanked; the command will install it if the compiler permits it.');
+    } else {
+      show('Release found.');
+    }
+    const install = `cinch pkg add ${name}@${version} --registry ${registry}${project ? ` --project ${JSON.stringify(project)}` : ''}`;
+    command.textContent = install;
+    facts.textContent = `${metadata.packageId} · ${metadata.manifest?.modules?.length ?? 0} modules${metadata.manifest?.dependencies?.length ? ` · ${metadata.manifest.dependencies.length} dependencies` : ''}`;
+    result.hidden = false;
+  } catch (error) {
+    show(`Lookup failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
+});
+
+copy.addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(command.textContent ?? '');
+    copy.textContent = 'Copied';
+    window.setTimeout(() => { copy.textContent = 'Copy command'; }, 1600);
+  } catch {
+    copy.textContent = 'Select the command';
+  }
+});
+</script>
