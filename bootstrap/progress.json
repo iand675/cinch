@@ -19306,12 +19306,22 @@
       },
       {
         "title": "Check finite-index tactics on the original programs",
-        "status": "completed-tactics-with-failures",
-        "phase": "TacticsStale",
+        "status": "failed",
+        "phase": "Missing and shadowed facts were rejected for the expected reasons. The valid example reached a dependent constructor pattern, and the stale-evidence example reached refSet.",
         "passed": 2,
         "failed": 2,
         "total": 4,
-        "source": "fec58fe2c6538e4014e648855ae0e69abc2eefed017b074fd134dda0ff66aeab"
+        "source": "fec58fe2c6538e4014e648855ae0e69abc2eefed017b074fd134dda0ff66aeab",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-original-tactics-results.json"
+      },
+      {
+        "title": "Replay the dependent constructor and diagnostic repairs",
+        "status": "waiting-worker",
+        "phase": "Waiting for a compiler rebuild and the original tactics, Html and Tensor cases",
+        "passed": 0,
+        "failed": 0,
+        "total": 7,
+        "source": "ba8b2fa22307621579a2ac1e008fc23742cd75b2cb85ccdfbe320ae1aa68ee8a"
       },
       {
         "title": "Recheck copied library source before executable linking",
@@ -19652,5 +19662,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T17:56:04.356425+00:00"
+  "updatedAt": "2026-11-07T18:01:17.913306+00:00"
 }
