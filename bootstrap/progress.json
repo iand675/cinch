@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "174 of 235 complete groups passed; 2 running, 0 failed and 59 pending.Every group includes ignored tests. State: running.",
+      "detail": "175 of 235 complete groups passed; 2 running, 0 failed and 58 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -499,7 +499,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "174 of 235 complete groups passed; 2 running, 0 failed and 59 pending."
+      "detail": "175 of 235 complete groups passed; 2 running, 0 failed and 58 pending."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -687,7 +687,7 @@
         "id": "gap:default-refinement",
         "title": "Preserve refinement carriers in the original default runtime program",
         "state": "running",
-        "detail": "The unchanged original mconcat runtime still fails: a029 now preserves inferred containers, but generic calls expected to return a structural refinement are hinted as plain Int too early. Its full original API/default replay remains16/21. Candidate2866 hints the full structural result; all17 Native controls and the complete original Cinch NamedRefinements target pass. Seven further whole Cinch groups are validating. The a029 eleven controls and eight original groups (ten Rust tests) remain audited. The superseded broad range-preservation assumption and subsequent fixture/cache-guard errors remain recorded. The original full runtime program remains required.",
+        "detail": "The unchanged original mconcat runtime still fails: a029 now preserves inferred containers, but generic calls expected to return a structural refinement are hinted as plain Int too early. Its full original API/default replay remains16/21. Candidate2866 hints the full structural result; all17 Native controls and the complete original Cinch NamedRefinements target pass. All eight whole Cinch groups (ten Rust tests) now pass independent audit; the original mconcat runtime is still being replayed. The a029 eleven controls and eight original groups (ten Rust tests) remain audited. The superseded broad range-preservation assumption and subsequent fixture/cache-guard errors remain recorded. The original full runtime program remains required.",
         "doneWhen": "The original function carrier, refined product and unit cases compile and execute their expected results without guessing an underlying carrier.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-source-class-default-self-values-api-results.json"
       },
@@ -803,10 +803,10 @@
         "unit": "targets",
         "total": 235,
         "counts": {
-          "verified": 175,
+          "verified": 176,
           "blocked": 0,
           "running": 2,
-          "pending": 58,
+          "pending": 57,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -1722,6 +1722,10 @@
               "cases": [
                 {
                   "name": "globals_recheck_instantiations_roles_slots_and_lexical_dictionaries",
+                  "status": "passed"
+                },
+                {
+                  "name": "hidden_constructor_parameters_cannot_be_chosen_by_a_pattern_annotation",
                   "status": "running"
                 }
               ]
@@ -1777,21 +1781,21 @@
           {
             "id": "native:bootstrap_guarded_bodies",
             "title": "bootstrap_guarded_bodies",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_guarded_bodies.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "startedAt": "2026-11-07T02:21:27.388987+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T02:22:11.542750+00:00",
+              "exitCode": 0,
+              "logSha256": "562151dbcab6d21f66362b304364b5e2fafe746a9f79f2ff00f66e3ba603c140",
               "cases": [
                 {
                   "name": "guarded_nat_bodies_need_actual_preconditions_and_formal_scope",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -1800,21 +1804,21 @@
           {
             "id": "native:bootstrap_guarded_calls",
             "title": "bootstrap_guarded_calls",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_guarded_calls.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T17:38:20.615026+00:00",
-              "finishedAt": "2026-11-06T17:59:23.374210+00:00",
-              "exitCode": 0,
-              "logSha256": "8704c9069721d2da49745357a81fbfcffad2797ce84a526aa6e27fd9068f17a9",
+              "status": "running",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T02:22:11.545439+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "compiled_cinch_uses_actual_guarded_bodies_for_dependent_bounds",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -18503,7 +18507,7 @@
         "total": 3,
         "source": "14a889472c7bf47867414410bba2b91bc059a77df5b20e7105eb7274e3cff134",
         "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
-        "auditPending": true
+        "auditPending": false
       },
       {
         "title": "Cinch structural result inference: complete groups",
@@ -18514,7 +18518,7 @@
         "total": 8,
         "source": "286613ea3571aebd6747def34f7a8f9d8af0c84c78e5fee82f9ca65ff90fe7e1",
         "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
-        "auditPending": true
+        "auditPending": false
       },
       {
         "title": "Current Rust tooling and editor suites",
@@ -18685,9 +18689,9 @@
       {
         "title": "Cinch result inference: original API/default groups",
         "status": "running",
-        "phase": "compile-interface_nominals",
-        "passed": 3,
-        "failed": 0,
+        "phase": "interface_refinements",
+        "passed": 6,
+        "failed": 1,
         "total": 10,
         "source": "286613ea3571aebd6747def34f7a8f9d8af0c84c78e5fee82f9ca65ff90fe7e1",
         "auditPending": false
@@ -18695,8 +18699,8 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "bootstrap_guarded_bodies",
-        "passed": 174,
+        "phase": "bootstrap_guarded_calls",
+        "passed": 175,
         "failed": 0,
         "total": 235,
         "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
@@ -18714,10 +18718,10 @@
       }
     ],
     "counts": {
-      "verified": 429,
+      "verified": 430,
       "blocked": 3,
       "running": 9,
-      "pending": 87,
+      "pending": 86,
       "recheck": 140
     },
     "total": 668,
@@ -18726,5 +18730,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T02:21:51.535933+00:00"
+  "updatedAt": "2026-11-07T02:23:06.991917+00:00"
 }
