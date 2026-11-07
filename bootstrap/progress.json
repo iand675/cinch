@@ -19379,7 +19379,7 @@
       },
       {
         "title": "Evaluate the original Const law and two controls",
-        "status": "waiting-disk-space",
+        "status": "waiting-worker",
         "phase": "Waiting to build the Stage1 law sampler and compare the pinned interface",
         "passed": 0,
         "failed": 0,
@@ -19448,9 +19448,9 @@
       },
       {
         "title": "Run every Rust compiler target on the combined fixes",
-        "status": "running",
+        "status": "waiting-worker",
         "phase": "bootstrap_abstract_nonzero_methods",
-        "passed": 6,
+        "passed": 7,
         "failed": 0,
         "total": 235,
         "source": "a4bc2344653dc50ef044ba7a0e4661cf589a91dbf2b12907e279869f7586632b"
@@ -19709,5 +19709,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T19:11:20.977424+00:00"
+  "updatedAt": "2026-11-07T19:12:22.980306+00:00"
 }
