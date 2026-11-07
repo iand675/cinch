@@ -1,0 +1,36 @@
+{
+  "schema": 1,
+  "status": "passed",
+  "scope": "Schema 9 checked class defaults in a development compiler",
+  "compiler_source_sha256": "ceb02b36b4954259d906d6fd29ae7c79a3e14805e3c21133ffc61d01b6b64311",
+  "native_source_sha256": "4dad2adc21c0104df7770f3856aca3171bebbc409967326186be475386bd692b",
+  "wire_schema": 9,
+  "default_representation": "one checked clause array in the optional default field",
+  "rust_tests": {
+    "passed": 15,
+    "failed": 0,
+    "log_sha256": "899660750a096f09d6f1235237990450b15d97f2fd349d5d14df8b8eaeef8ece"
+  },
+  "library_provider": {
+    "interfaces_verified": 55,
+    "interfaces_sha256": "3612da932b9a3f4458aacc470f3ef225c784e318bb3f5d7ed29c126e370eeef3"
+  },
+  "cinch_to_cinch": {
+    "status": "passed",
+    "evidence": "The separate Cinch-producer inheritance assertion passed before the Native fixture stopped at manifest loading."
+  },
+  "native_to_cinch": {
+    "status": "passed",
+    "compiler_sha256": "4b4f335d26189d2337b6d25e5a27b9068fdbdba116b77343d230e820ef053c91",
+    "source_sha256": "f0c07b47a400707efb9bb726df1087f5f8f842030815c4e50d698d04adc3eca5",
+    "native_owner_sha256": "35ef289e184c6419b39679111fad1a82fe7782d450edcfe4840046adc85d1570",
+    "manifest_sha256": "213b453d6117fe19cd7df2d32e3e35bc2e81d74ab2bf660517426bb542b47a6c",
+    "exit_code": 0,
+    "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+  },
+  "corrected_fixture": "The first Native manifest omitted the owner interface’s recorded Prelude dependency. The replay adds the authenticated provider closure, preserving the owner artifact and consumer source.",
+  "original_manifest_failure_log_sha256": "d12fa693285116b357d32890336df1cf79aa64ff7df53fcc6fc2c31569ebe83a",
+  "full_bootstrap_verified": false,
+  "full_suite_verified": false,
+  "production_pin_changed": false
+}

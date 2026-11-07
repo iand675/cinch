@@ -179,6 +179,17 @@ public spellings cannot change dictionary layout. Re-exported class
 contracts must agree with the defining interface after removing public
 aliases and export lists. Unit aliases retain one defining class contract.
 
+The schema 9 candidate carries each method default as one optional `default`
+array containing its checked patterns and bodies. The interface hash covers
+the array and its method scheme. The consumer rechecks the clauses before
+inheriting them. A compiler using schema 9 requires freshly built interface
+artifacts from its matching library producer.
+
+A Cinch-built consumer inherited defaults from separate Rust and Cinch
+producers, and the rebuilt provider verified all 55 library interfaces. The
+published stage chain uses schema 8 while the combined candidate runs its
+full validation. See [the schema 9 replay](../bootstrap/current-schema9-default-replay-results.json).
+
 ### Resolved type occurrences
 
 The display `scheme` is retained for diagnostics and richer consumers.
