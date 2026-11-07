@@ -1,0 +1,52 @@
+{
+  "compiler_source_sha256": "6e6f132b91837e7d5379c6a35fa619746fa7a16588f9b1bad15b161460aaccb9",
+  "exact_tests": {
+    "bootstrap_pipeline": 2,
+    "bootstrap_typed_indices": 1
+  },
+  "full_goal_complete": false,
+  "original_negative_cases": [
+    {
+      "diagnostic_sha256": "f479d96dab28d3afd022e61cf95ef12c48fc092e0975a49bc58f6506d0d4ebc5",
+      "exit_code": 4,
+      "mapped_location": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/stage3-32ab-external-language-1/work/experiments/malleable-syntax/examples/negative/Query.cinch",
+      "name": "Query",
+      "reason": "unknown record field salary",
+      "source_sha256": "d021e25e425610b8f6dbf8db2e462ae13cacca2fe29b04e12b96ba5f811da085",
+      "usable_ir": false
+    },
+    {
+      "diagnostic_sha256": "671216c6508464564b5ee96e4593171315e83a7a94c6f94dad8e97e642c98c70",
+      "exit_code": 4,
+      "mapped_location": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/stage3-32ab-external-language-1/work/experiments/malleable-syntax/examples/negative/Audio.cinch",
+      "name": "Audio",
+      "reason": "index mismatch",
+      "source_sha256": "39bbf06781364839e6abf81d09882592ed098b19ecc28140725fb3a2b485fbb4",
+      "usable_ir": false
+    },
+    {
+      "diagnostic_sha256": "2fb42ec8cc58f74525ced0768b480e8fa1be8b7a49edf0bc74f08b9c99470012",
+      "exit_code": 4,
+      "mapped_location": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/stage3-32ab-external-language-1/work/experiments/malleable-syntax/examples/negative/Circuit.cinch",
+      "name": "Circuit",
+      "reason": "index mismatch",
+      "source_sha256": "4b0e038abeba13d547b224b6f22e2eefc4eb8c8a4b95cc69e14a0a9f3afd07dd",
+      "usable_ir": false
+    },
+    {
+      "diagnostic_sha256": "9d84ecb881593b7761d73a76eeed48f65d370b2f57e978a8d6ff1bce426ae292",
+      "exit_code": 4,
+      "mapped_location": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/stage3-32ab-external-language-1/work/experiments/malleable-syntax/examples/negative/TensorADShape.cinch",
+      "name": "TensorADShape",
+      "reason": "index mismatch",
+      "source_sha256": "18daff95edff8f3bdf5507bccce7eb71c12cd43903a9a33fad0b98d2960d5edb",
+      "usable_ir": false
+    }
+  ],
+  "patch_sha256": "aa59d15dd15124e911218acee3afb8a0db12bda266dadd646ba8fa073fc5aa01",
+  "pipeline_sha256": "80d61e84933811fcc93c027c48dca404e772400f124887150b5af2e03329baa3",
+  "replay_coordinator_used_stricter_output_path_check": true,
+  "scope": "A development compiler produced the original four refusal reasons and original source locations, with no usable IR. The prior fixed-point Stage3 requires a new combined build before these results apply to it.",
+  "status": "verified-external-refusal-diagnostics-development",
+  "verified_at": "2026-11-07T05:45:03.180541+00:00"
+}

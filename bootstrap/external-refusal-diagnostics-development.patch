@@ -1,0 +1,44 @@
+--- a/bootstrap/Bootstrap.Infer.cinch
++++ b/bootstrap/Bootstrap.Infer.cinch
+@@ -3955,7 +3955,7 @@
+           (case bind-pattern classes kinds families env locals (PCon sp owner (pat-spine sp (record-projection-pattern sp label fields))) (core-type scrutinee) checked of
+             (bound, pattern, prepared) -> (case lookup-expression-value sp kinds (record-local-name label) bound prepared of
+               (selected, done) -> (CCase sp (core-type selected) scrutinee (CAlternative sp pattern selected (CAlternativesEnd sp)), done)))
+-          else term-error sp ("record has no field: " <> label) checked
++          else term-error sp ("unknown record field " <> label) checked
+         other -> term-error sp "field projection needs the checked defining record contract" checked)
+       None -> term-error sp "field projection needs a known record type" checked)
+   -- Certify eligible definitions using an independent checked preliminary
+--- a/bootstrap/Bootstrap.Type.cinch
++++ b/bootstrap/Bootstrap.Type.cinch
+@@ -716,7 +716,9 @@
+         UIndex carrier (IMeta id) -> if same-shape a b then checked else bind-meta sp id (value-kind carrier) a checked
+         other -> unify-structure sp a b checked
+   mismatch :: Span -> UType -> UType -> Store -> Store
+-  mismatch sp a b st = add-error sp (string-concat-all ["type mismatch: expected ", type-text b, ", found ", type-text a]) st
++  mismatch sp a b st = add-error sp (mismatch-message a b) st
++  mismatch-message :: UType -> UType -> String
++  mismatch-message a b = string-concat-all ["type mismatch: expected ", type-text b, ", found ", type-text a]
+   unify-structure :: Span -> UType -> UType -> Store -> Store
+   unify-structure sp a b st = case a of
+     UPropLit value -> case b of UPropLit other -> if (if value then other else not other) then st else mismatch sp a b st; other -> mismatch sp a b st
+@@ -1187,7 +1189,7 @@
+       (IAdd x y, IAdd u v) -> unify-index sp carrier y v (unify-index sp carrier x u st)
+       (ISubtract x y, ISubtract u v) -> unify-index sp carrier y v (unify-index sp carrier x u st)
+       (IMultiply x y, IMultiply u v) -> unify-index sp carrier y v (unify-index sp carrier x u st)
+-      other -> mismatch sp (UIndex carrier a) (UIndex carrier b) st
++      other -> add-error sp (string-concat (mismatch-message (UIndex carrier a) (UIndex carrier b)) " (index mismatch)") st
+ 
+   validate-kind-indices :: Span -> Kind -> Store -> Store
+   validate-kind-indices sp kind st = case kind of
+--- a/compiler/tests/bootstrap_pipeline.rs
++++ b/compiler/tests/bootstrap_pipeline.rs
+@@ -515,6 +515,8 @@
+         ("conditional-call-lowering", "module Main where\n  pred :: using (n > 0) => (n :: Nat) -> Nat\n  pred actual = actual - 1\n  answer :: Nat\n  answer = pred 1\n  main :: Int\n  main = 0\n", 5, "a using constraint the fragment does not lower"),
+         ("conditional-call-ignored", "module Main where\n  pred :: using (n > 0) => (n :: Nat) -> Nat\n  pred actual = actual - 1\n  main :: Int\n  main = let ignored = pred 0 in 0\n", 4, "function precondition is not established"),
+         ("indexed-pi-lowering", "module Main where\n  data At (n :: Nat) where\n    Mark :: At n\n  make :: (n :: Nat) -> At n\n  make actual = Mark\n  main :: Int\n  main = 0\n", 5, "typed constructor lowering"),
++        ("missing-record-field", "module Main where\n  record Person where\n    age :: Int\n  salary :: Person -> Int\n  salary p = p.salary\n  main :: Int\n  main = 0\n", 4, "unknown record field salary"),
++        ("fixed-index-mismatch", "module Main where\n  data At (n :: Nat) where\n    One :: At 1\n  wrong :: At 2\n  wrong = One\n  main :: Int\n  main = 0\n", 4, "type mismatch: expected 2, found 1 (index mismatch)"),
+         ("constructor-lowering", "module Main where\n  data Box a where\n    Box :: a -> Box a\n  unwrap :: forall a. Box a -> a\n  unwrap (Box x) = x\n  main :: Int\n  main = unwrap (Box 0)\n", 5, "typed constructor lowering"),
+     ];
+     for (name, source, expected, message) in cases {

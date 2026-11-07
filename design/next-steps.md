@@ -205,6 +205,14 @@ named counterexample for a constant-false implementation. Lawful samples
 remain internal until checked law transport is available. See
 `bootstrap/current-source-class-law-instance-samples-results.json`.
 
+A separate development compiler preserves the checked index mismatch and
+unknown record field reasons. The original Query, Audio, Circuit and
+TensorADShape negatives produce the expected reasons at their original
+source locations. The pipeline and typed-index tests pass. The original
+Stage3 acceptance receipt retains its four failures until the repairs run
+on a matching Stage3. See
+`bootstrap/current-external-refusal-diagnostics-results.json`.
+
 All9 development patches apply in order to a fresh published-source snapshot,
 produce the exact32ab compiler-module bytes and preserve the published FFI test
 correction. This is reproducibility evidence, not promotion or bootstrap proof:
