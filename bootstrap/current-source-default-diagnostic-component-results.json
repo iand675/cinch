@@ -1,0 +1,48 @@
+{
+  "bootstrap_seed_and_library_pins_unchanged": true,
+  "compiler_source_sha256": "7ccd088f5a00fb1784fbfaee3b3888d7edc4ed531703925c3f78e670048f2cdf",
+  "default_controls": [
+    "inherited default",
+    "explicit override",
+    "unused valid default",
+    "owner private helper wins over caller helper",
+    "changed default",
+    "comment and span changes preserve default",
+    "unused bad default",
+    "overrides cannot hide a bad default",
+    "undeclared default",
+    "missing nondefault method",
+    "bad override",
+    "default helper stays private",
+    "class parameter annotation in inherited default",
+    "method local parameter annotation in inherited default",
+    "term and type names stay separate in inherited annotations",
+    "nullary default field"
+  ],
+  "full_goal_complete": false,
+  "native_rlib_sha256": "28fc6a79877135149049c3ac8ab2519f22d509a4fe3ecf6c82c992fe5f751709",
+  "native_source_sha256": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+  "original_resolver_unchanged": true,
+  "original_source_instance_tests_unchanged_except_additional_diagnostic_assertions": true,
+  "runs": [
+    {
+      "log_sha256": "a1089111f38459b6f1671b0bba799763760c7882bc869e69e7bc6b5ca11f62b9",
+      "name": "bootstrap_source_instances",
+      "observed_zero_leak_reports": 0,
+      "tests": 3
+    },
+    {
+      "log_sha256": "d624d103937185fd2f7a96ba482dcd397d06c68854a0659fe9128f815c8c10bc",
+      "name": "bootstrap_resolve",
+      "observed_zero_leak_reports": 1,
+      "tests": 1
+    }
+  ],
+  "rust_tests": 4,
+  "scope": "Whole original component targets with zero ignored or filtered Rust tests. This is development compiler evidence, not a matching final self-built compiler or complete-suite signoff.",
+  "source_sha256": "327e78980a8db867ffa01c211c1b94cb9d61ba0574ee0d7c1f32dd480f76c3a0",
+  "status": "audited-complete-development-component-groups",
+  "verified_at": "2026-11-07T01:05:05.720978+00:00",
+  "whole_groups": 2,
+  "source": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/source-default-diagnostics-validation-1/source"
+}
