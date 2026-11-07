@@ -71,7 +71,7 @@
     },
     {
       "title": "Earlier API checkpoint: exact Stage3 behavior",
-      "detail": "91 of 105 complete groups passed; 1 running, 3 failed and 10 pending.All105 required targets:96 portable and9 original interface/API groups, preserving the original100 plus5 additions. Original explicit32M poisoned client limits remain; compiler/checker consumers use256M. Direct Native operations in mixed targets remain classified separately. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "92 of 105 complete groups passed; 1 running, 3 failed and 9 pending.All105 required targets:96 portable and9 original interface/API groups, preserving the original100 plus5 additions. Original explicit32M poisoned client limits remain; compiler/checker consumers use256M. Direct Native operations in mixed targets remain classified separately. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -507,7 +507,7 @@
     },
     {
       "title": "Finish the exact self-built compiler tests",
-      "detail": "91 of 105 complete groups passed; 1 running, 3 failed and 10 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "92 of 105 complete groups passed; 1 running, 3 failed and 9 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Pass all external language examples through Stage3",
@@ -11878,8 +11878,8 @@
           "verified": 0,
           "blocked": 0,
           "running": 0,
-          "pending": 10,
-          "recheck": 95
+          "pending": 9,
+          "recheck": 96
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
         "items": [
@@ -14006,16 +14006,16 @@
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_value_indices.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "startedAt": "2026-11-07T03:47:59.429916+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T03:54:14.630575+00:00",
+              "exitCode": 0,
+              "logSha256": "91ae800a8a88898e84b8fef9b6059e44ddc0779ab5f047418bbb8b2815f58064",
               "cases": [
                 {
                   "name": "typed_indices_preserve_carriers_scope_and_runtime_witnesses",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -14024,18 +14024,23 @@
           {
             "id": "stage3:bootstrap_value_kinds",
             "title": "bootstrap_value_kinds",
-            "state": "pending",
+            "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_value_kinds.rs",
             "observed": {
-              "status": "pending",
+              "status": "running",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": null,
+              "startedAt": "2026-11-07T03:54:14.643154+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "value_kinds_retain_carriers_and_do_not_invent_runtime_witnesses",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -14418,10 +14423,10 @@
           }
         ],
         "observedCounts": {
-          "passed": 91,
+          "passed": 92,
           "failed": 3,
           "running": 1,
-          "pending": 10
+          "pending": 9
         },
         "observedSource": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2"
       },
@@ -18848,14 +18853,14 @@
       },
       {
         "title": "Cinch task refusals: retained emitter, runtime setup and whole suite",
-        "status": "running",
+        "status": "passed-task-trace-runtime-ir-and-original-controls",
         "phase": "bootstrap_runtime_ir",
-        "passed": 2,
+        "passed": 3,
         "failed": 0,
         "total": 3,
         "source": "11076882ef69d26134bedbd894c3619d14e1ba6eb082c1d93c314c8e52589b86",
         "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
-        "auditPending": false
+        "auditPending": true
       },
       {
         "title": "Function defaults: fresh pinned library object",
@@ -19022,8 +19027,8 @@
       {
         "title": "Earlier Stage3: complete frontend sweep",
         "status": "running",
-        "phase": "bootstrap_value_indices",
-        "passed": 91,
+        "phase": "bootstrap_value_kinds",
+        "passed": 92,
         "failed": 3,
         "total": 105,
         "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
@@ -19034,8 +19039,8 @@
       "verified": 459,
       "blocked": 4,
       "running": 8,
-      "pending": 46,
-      "recheck": 152
+      "pending": 45,
+      "recheck": 153
     },
     "total": 669,
     "acceptanceVerified": 0,
@@ -19043,5 +19048,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T03:53:24.343597+00:00"
+  "updatedAt": "2026-11-07T03:54:26.447047+00:00"
 }
