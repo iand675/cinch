@@ -19307,11 +19307,29 @@
       {
         "title": "Check finite-index tactics on the original programs",
         "status": "waiting-worker",
-        "phase": "build all 46 compiler modules and smoke-test Stage1",
+        "phase": "Stage1 built all 46 compiler modules and passed its smoke checks. Waiting to replay the original examples.",
         "passed": 0,
         "failed": 0,
         "total": 4,
         "source": "fec58fe2c6538e4014e648855ae0e69abc2eefed017b074fd134dda0ff66aeab"
+      },
+      {
+        "title": "Recheck copied library source before executable linking",
+        "status": "waiting-worker",
+        "phase": "Waiting for Stage1 and the original Category and Foldable fixtures",
+        "passed": 0,
+        "failed": 0,
+        "total": 4,
+        "source": "48ab477424b967601ec509284249f4a9299c25a30f5828f71ee5f0f4e99ecde0"
+      },
+      {
+        "title": "Replay the five original library targets with the expanded object",
+        "status": "waiting-provider",
+        "phase": "Waiting for the complete library object",
+        "passed": 0,
+        "failed": 0,
+        "total": 5,
+        "source": null
       },
       {
         "title": "Rebuild the pinned library and rerun the ladder with one bytes-len type spelling",
@@ -19376,8 +19394,8 @@
       {
         "title": "Run every Rust compiler target on the combined fixes",
         "status": "running",
-        "phase": "bootstrap_byte_observations",
-        "passed": 14,
+        "phase": "bootstrap_check",
+        "passed": 15,
         "failed": 0,
         "total": 235,
         "source": "1a7e275f0519f670012f993304a975446020a814dc62bad21ec9244117a64d25"
@@ -19474,10 +19492,10 @@
       },
       {
         "title": "Run four more original library and numeric targets with Stage3",
-        "status": "running",
+        "status": "completed-with-failures",
         "phase": "Forty original tests retain their fixtures and assertions and use the selected frontend.",
         "passed": 1,
-        "failed": 2,
+        "failed": 3,
         "total": 4,
         "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a"
       },
@@ -19495,7 +19513,7 @@
         "title": "Run the full original 105-target Stage3 frontend matrix",
         "status": "running",
         "phase": "3 disjoint runs share the same audited compiler and provider.",
-        "passed": 13,
+        "passed": 15,
         "failed": 0,
         "total": 105,
         "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a"
@@ -19615,5 +19633,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T17:18:41.574432+00:00"
+  "updatedAt": "2026-11-07T17:22:20.601790+00:00"
 }
