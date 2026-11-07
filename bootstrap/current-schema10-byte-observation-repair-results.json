@@ -1,0 +1,59 @@
+{
+  "changed_interface_identities": [
+    "Data.Ascii",
+    "Data.Bool",
+    "Data.Bytes",
+    "Data.Json",
+    "Data.Machine",
+    "Data.Path",
+    "Data.String",
+    "Data.Sym",
+    "Effect.Fs",
+    "Effect.Io",
+    "Effect.Process",
+    "Prelude",
+    "Text.Codec",
+    "Text.Show"
+  ],
+  "checked_at": "2026-11-07T15:33:10.621284+00:00",
+  "checked_intrinsic_and_value_type": "(Bytes -> (Algebra.Arithmetic.InRange 0 9223372036854775807 Nat))",
+  "compiler_source_sha256": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
+  "full_goal_complete": false,
+  "identical_binary_artifacts": {
+    "libcinchruntime.a": "2fab721751aa601f3ca72d7677f8520e5bdd37d93887275b5636fce478f959c6",
+    "library.ll": "6ebdaba13b7eb2e1296a60a7fa0ee3b6b5e70943136560bd1867d21289c7410c",
+    "library.o": "13817354cc3fc1f09c3808c78009e94a64d32e3d986e9604e87c9cdb1f99d8fa"
+  },
+  "interfaces_verified": 55,
+  "only_non_dependency_change": "Data.Bytes intrinsic type spelling",
+  "original_stage2": {
+    "before_retirement_sha256": "d48623882fe2ae7b4e142a622ee809eca37c79bcb0ae7109e26cacef81950523",
+    "diagnostic_probe_receipt_sha256": "86eab7b8506c83928484f0e3f28c1534f645642e7c4a4859070bde484dee3442",
+    "process_exit": -15,
+    "status": "interrupted-after-diagnostic-probe"
+  },
+  "pending": [
+    "four-stage fixed point and source-change control",
+    "complete byte-observation target",
+    "complete original suites and independent final audit"
+  ],
+  "prior_interface_manifest_sha256": "7cf4994fc07acc58a858643cd1e1711ad967bd57e7e3fdde13f5918dda9e54b8",
+  "prior_intrinsic_type": "(Bytes -> InRange 0 9223372036854775807 Nat)",
+  "producer": {
+    "description": "ABI 6 Rust library producer for checked schema 10 interfaces.",
+    "revision": "96cda90346887d4cdd31c230a21027f9ff31cb93",
+    "runtime_abi": 6,
+    "schema": 1,
+    "source_sha256": "c96201cd96f4949fbad30c5ec91e84b94b76c30281ac319b36eaf39191027444"
+  },
+  "provider_receipt_sha256": "6311d057cc73e710ba3a6baeef3ee88b92ab7cbcb4b9431ed992f187c12d2a71",
+  "repaired_interface_manifest_sha256": "112b5bafcd61b3bbdddd1f2df929ebab43bacc769ecc7bd3ca1e2ec142eb9941",
+  "separate_consumer": {
+    "diagnostics_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "exit_code": 0,
+    "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+    "source_sha256": "622e2de431946af2549b30b6680f438b9b7000a4e636cadfd042b636587939d8"
+  },
+  "stage1_executable_sha256": "b90730ef5c8e58e8b6c094de19476349dfc3d2e59819e3338e473b97596675d5",
+  "status": "audited-repaired-schema10-byte-observation-provider-and-client"
+}

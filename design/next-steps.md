@@ -14,8 +14,13 @@ Stage2 source and library inputs. The pinned producer wrote an unqualified
 `InRange` in the `bytes-len` intrinsic record and the defining qualified name
 in the exported value. Stage1 requires the two declarations to agree. The
 Rust repair uses the checked exported value's spelling for both records.
-The rebuilt provider and full bootstrap need validation.
-See [the Stage2 refusal and exact inputs](../bootstrap/current-schema10-stage2-byte-observation-results.json).
+The rebuilt provider passed readback of all 55 interfaces. The 14 changed
+identities follow from the corrected `Data.Bytes` contract and its dependants.
+The library object, LLVM IR and runtime archive are byte-identical. Stage1
+accepted a separate client using the renamed observation in a proof. The
+matching four-stage check and complete byte-observation target are underway.
+See [the Stage2 refusal and exact inputs](../bootstrap/current-schema10-stage2-byte-observation-results.json)
+and [the provider and consumer audit](../bootstrap/current-schema10-byte-observation-repair-results.json).
 
 The development checker passed the complete Core proof test with an erased
 `refl` witness for `Eq`. The added checks reject false equalities,

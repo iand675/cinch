@@ -883,10 +883,23 @@ def build_checklist(root, cfg, previous=None):
     byte_repair = read(cfg.get('schema10ByteObservationRepair'))
     if byte_repair:
         status = byte_repair['status']
+        byte_repair_path = 'bootstrap/current-schema10-byte-observation-repair-results.json'
+        repair_audit = read(root / byte_repair_path)
+        verified = (repair_audit.get('status') == 'audited-repaired-schema10-byte-observation-provider-and-client'
+                    and repair_audit.get('producer') == byte_repair.get('producer')
+                    and repair_audit.get('compiler_source_sha256') == byte_repair['compiler_source_sha256'])
         active.append(dict(title='Rebuild the pinned library and rerun the ladder with one bytes-len type spelling',
             status=status, phase=byte_repair['phase'], passed=len(byte_repair['rows']),
             failed=int(status == 'failed'), total=3, source=byte_repair['compiler_source_sha256'],
-            auditPending=status == 'passed-ladder-awaiting-independent-audit'))
+            auditPending=status == 'passed-ladder-awaiting-independent-audit',
+            evidence=link(byte_repair_path) if verified else None))
+    byte_tests = read(cfg.get('schema10ByteObservationTests'))
+    if byte_tests:
+        status = byte_tests['status']
+        active.append(dict(title='Run all original byte-observation tests with the repaired producer',
+            status='passed' if status == 'passed-complete-byte-observation-target' else status,
+            phase=byte_tests['phase'], passed=int(status == 'passed-complete-byte-observation-target'),
+            failed=int(status.startswith('failed')), total=1, source=byte_tests.get('compiler_source_sha256')))
     reflexivity_path = 'bootstrap/current-schema10-reflexivity-core-results.json'
     reflexivity = read(root/reflexivity_path)
     if reflexivity.get('status') == 'passed-development-reflexivity-core':
