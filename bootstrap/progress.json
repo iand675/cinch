@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "94 of 235 complete groups passed; 1 running, 0 failed and 140 pending.Every group includes ignored tests. State: running.",
+      "detail": "97 of 235 complete groups passed; 1 running, 0 failed and 137 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -494,7 +494,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "94 of 235 complete groups passed; 1 running, 0 failed and 140 pending."
+      "detail": "97 of 235 complete groups passed; 1 running, 0 failed and 137 pending."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -790,10 +790,10 @@
         "unit": "targets",
         "total": 235,
         "counts": {
-          "verified": 103,
+          "verified": 106,
           "blocked": 0,
           "running": 1,
-          "pending": 131,
+          "pending": 128,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -8193,17 +8193,17 @@
           {
             "id": "native:ownership",
             "title": "ownership",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/ownership.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "startedAt": "2026-11-07T00:25:44.351114+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T00:26:28.267359+00:00",
+              "exitCode": 0,
+              "logSha256": "dfd001ad870bc12c79c4ac1567036de38cc88945687c74fbd6b84b282f73e16e",
               "cases": [
                 {
                   "name": "affine_double_use_is_rejected",
@@ -8215,7 +8215,87 @@
                 },
                 {
                   "name": "annotated_linear_lambda_owns_its_parameter_inside_its_body",
-                  "status": "running"
+                  "status": "passed"
+                },
+                {
+                  "name": "borrow_escape_is_rejected",
+                  "status": "passed"
+                },
+                {
+                  "name": "borrow_matching_yields_field_borrows",
+                  "status": "passed"
+                },
+                {
+                  "name": "copy_class_from_the_vector_filter_shape_works",
+                  "status": "passed"
+                },
+                {
+                  "name": "copy_class_is_structural_and_not_user_extensible",
+                  "status": "passed"
+                },
+                {
+                  "name": "copy_out_coheres_with_multiplicity",
+                  "status": "passed"
+                },
+                {
+                  "name": "erased_use_is_rejected_and_non_use_is_accepted",
+                  "status": "passed"
+                },
+                {
+                  "name": "exclusive_borrows_are_lexically_unique",
+                  "status": "passed"
+                },
+                {
+                  "name": "linear_double_use_is_rejected",
+                  "status": "passed"
+                },
+                {
+                  "name": "linear_dropped_on_one_path_is_rejected",
+                  "status": "passed"
+                },
+                {
+                  "name": "linear_lambda_parameter_still_cannot_be_captured_duplicated_or_dropped",
+                  "status": "passed"
+                },
+                {
+                  "name": "linear_record_disjoint_projections_split_once",
+                  "status": "passed"
+                },
+                {
+                  "name": "linear_thunk_forced_once_per_branch_is_accepted",
+                  "status": "passed"
+                },
+                {
+                  "name": "linear_thunk_is_forced_exactly_once",
+                  "status": "passed"
+                },
+                {
+                  "name": "linear_use_once_per_case_branch_is_accepted",
+                  "status": "passed"
+                },
+                {
+                  "name": "linear_use_once_per_if_branch_is_accepted",
+                  "status": "passed"
+                },
+                {
+                  "name": "scoped_borrow_is_accepted",
+                  "status": "passed"
+                },
+                {
+                  "name": "strict_aliases_preserve_linear_and_affine_usage",
+                  "status": "passed"
+                },
+                {
+                  "name": "unannotated_binders_default_to_unrestricted",
+                  "status": "passed"
+                },
+                {
+                  "name": "unannotated_thunk_defaults_to_affine",
+                  "status": "passed"
+                },
+                {
+                  "name": "unrestricted_use_is_free",
+                  "status": "passed"
                 }
               ]
             },
@@ -8224,17 +8304,17 @@
           {
             "id": "native:package_manifest",
             "title": "package_manifest",
-            "state": "pending",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/package_manifest.rs",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:19:33.911985+00:00",
-              "finishedAt": "2026-11-06T14:19:35.200479+00:00",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T00:26:28.269658+00:00",
+              "finishedAt": "2026-11-07T00:26:30.402259+00:00",
               "exitCode": 0,
-              "logSha256": "4cc4d12bfbb0364361c7612f779e3e47d7296f2ff5a48a308c6d5bd03be200ae",
+              "logSha256": "b5f216f5e7845b4e50518776c903f3c0e553204fac40b1a3f56d25a6794c0551",
               "cases": [
                 {
                   "name": "every_import_has_a_home_or_is_generated",
@@ -8267,17 +8347,17 @@
           {
             "id": "native:package_store",
             "title": "package_store",
-            "state": "pending",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/package_store.rs",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:19:35.210244+00:00",
-              "finishedAt": "2026-11-06T14:19:42.070264+00:00",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T00:26:30.404659+00:00",
+              "finishedAt": "2026-11-07T00:26:38.457666+00:00",
               "exitCode": 0,
-              "logSha256": "98838e203d5e9de273eeb7582a8f79f39fb2bf0ebdce96c897800b9cd9bf7723",
+              "logSha256": "9cd20f05f39dfdb7260c72dd2e535f5fea851352b494870b48975fec3f53c604",
               "cases": [
                 {
                   "name": "a_corrupt_artifact_is_a_hard_error_to_load_and_a_repair_to_write",
@@ -8326,17 +8406,17 @@
           {
             "id": "native:params",
             "title": "params",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/params.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:19:42.080554+00:00",
-              "finishedAt": "2026-11-06T14:19:57.771652+00:00",
-              "exitCode": 0,
-              "logSha256": "27d6cf22921a316090d72b6c457f088948a184e1c8e4f685018a4f39f13ef496",
+              "status": "running",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T00:26:38.459962+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "direct_use_of_a_parameterized_module_is_rejected",
@@ -8364,7 +8444,7 @@
                 },
                 {
                   "name": "wrong_typed_instantiation_is_rejected",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -18373,8 +18453,8 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "ownership",
-        "passed": 94,
+        "phase": "params",
+        "passed": 97,
         "failed": 0,
         "total": 235,
         "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
@@ -18392,10 +18472,10 @@
       }
     ],
     "counts": {
-      "verified": 275,
+      "verified": 278,
       "blocked": 4,
       "running": 6,
-      "pending": 170,
+      "pending": 167,
       "recheck": 212
     },
     "total": 667,
@@ -18404,5 +18484,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T00:25:51.207212+00:00"
+  "updatedAt": "2026-11-07T00:26:53.088495+00:00"
 }
