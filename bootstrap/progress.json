@@ -19078,13 +19078,13 @@
       },
       {
         "title": "Schema 10: combined self-host chain",
-        "status": "passed-production-schema10-chain-awaiting-independent-audit",
-        "phase": "passed production schema10 chain awaiting independent audit",
+        "status": "passed",
+        "phase": "The fixed point, separate interface consumer and changed-source rebuild passed independent audit.",
         "passed": 4,
         "failed": 0,
         "total": 4,
         "source": "b59c4893c4214d1c94c624bf9ba3f9e99ee7eb9b9568c1f092b20e5080967b38",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-stage3-and-library-replays-results.json"
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-bootstrap-results.json"
       },
       {
         "title": "Finite laws and source-instance regression tests",
@@ -19094,7 +19094,7 @@
         "failed": 0,
         "total": 5,
         "source": "c272860233cd944125805f27f3fb2521cd48f4c12f74fbc07b55f21f5a9ebb7f",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-stage3-and-library-replays-results.json"
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-bootstrap-results.json"
       },
       {
         "title": "Schema 10: division and canonical value schemes",
@@ -19151,7 +19151,18 @@
         "passed": 1,
         "failed": 0,
         "total": 1,
-        "source": "309a4f696ed5072050009e59562deabb2fc205731e47655662d1d8d69cd2d020"
+        "source": "309a4f696ed5072050009e59562deabb2fc205731e47655662d1d8d69cd2d020",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-family-and-cutover-results.json"
+      },
+      {
+        "title": "Check the schema 10 cutover in Rust, Cinch and Python",
+        "status": "passed",
+        "phase": "The real schema 9 file, the old default encoding and both malformed schema 10 files refused.",
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "source": "309a4f696ed5072050009e59562deabb2fc205731e47655662d1d8d69cd2d020",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-family-and-cutover-results.json"
       },
       {
         "title": "Rebuild the stricter schema 10 library",
@@ -19181,6 +19192,25 @@
         "failed": null,
         "total": 34,
         "source": "b59c4893c4214d1c94c624bf9ba3f9e99ee7eb9b9568c1f092b20e5080967b38"
+      },
+      {
+        "title": "Run the original 14 external acceptance checks on schema 10 Stage3",
+        "status": "passed",
+        "phase": "passed",
+        "passed": 14,
+        "failed": 0,
+        "total": 14,
+        "source": "b59c4893c4214d1c94c624bf9ba3f9e99ee7eb9b9568c1f092b20e5080967b38",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-external-acceptance-results.json"
+      },
+      {
+        "title": "Run four more original library and numeric targets with Stage3",
+        "status": "waiting-stage3",
+        "phase": "Forty original tests retain their fixtures and assertions and use the selected frontend.",
+        "passed": 0,
+        "failed": 0,
+        "total": 4,
+        "source": "309a4f696ed5072050009e59562deabb2fc205731e47655662d1d8d69cd2d020"
       },
       {
         "title": "Replay the original arrays with a custom Cargo output directory",
@@ -19316,5 +19346,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T13:49:36.835798+00:00"
+  "updatedAt": "2026-11-07T13:51:57.179920+00:00"
 }
