@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "168 of 235 complete groups passed; 2 running, 0 failed and 65 pending.Every group includes ignored tests. State: running.",
+      "detail": "170 of 235 complete groups passed; 2 running, 0 failed and 63 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -499,7 +499,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "168 of 235 complete groups passed; 2 running, 0 failed and 65 pending."
+      "detail": "170 of 235 complete groups passed; 2 running, 0 failed and 63 pending."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -803,10 +803,10 @@
         "unit": "targets",
         "total": 235,
         "counts": {
-          "verified": 169,
+          "verified": 171,
           "blocked": 0,
           "running": 2,
-          "pending": 64,
+          "pending": 62,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -1611,21 +1611,21 @@
           {
             "id": "native:bootstrap_export_types",
             "title": "bootstrap_export_types",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_export_types.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "startedAt": "2026-11-07T02:08:04.561784+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T02:08:46.161055+00:00",
+              "exitCode": 0,
+              "logSha256": "b5f22dd3ba9a0b5a70a33ec26f6eaca530323449219abc6b94155dc212486de0",
               "cases": [
                 {
                   "name": "checked_schemes_have_portable_definition_owned_syntax",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -1634,17 +1634,17 @@
           {
             "id": "native:bootstrap_external_frontend",
             "title": "bootstrap_external_frontend",
-            "state": "pending",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_external_frontend.rs",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T17:18:18.707436+00:00",
-              "finishedAt": "2026-11-06T17:18:22.025548+00:00",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T02:08:46.163385+00:00",
+              "finishedAt": "2026-11-07T02:08:50.967533+00:00",
               "exitCode": 0,
-              "logSha256": "7ca0d5007040335695fca779ca40762c2519e9925b616ccce3b2df37723054a5",
+              "logSha256": "a06266cf7d8896785e4f73de2fd9ea5d9bfdf926678f0a865d844d4670b7b728",
               "cases": [
                 {
                   "name": "duplicate_requested_providers_remain_in_the_selected_compiler_input",
@@ -1685,21 +1685,21 @@
           {
             "id": "native:bootstrap_function_preconditions",
             "title": "bootstrap_function_preconditions",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_function_preconditions.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T17:18:22.035281+00:00",
-              "finishedAt": "2026-11-06T17:24:37.516344+00:00",
-              "exitCode": 0,
-              "logSha256": "31158452cfdc3b8c6735db759b26fd785d3fb972a9b54ad134ba9e9a834e6053",
+              "status": "running",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T02:08:50.970266+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "function_preconditions_use_actual_arguments_and_cannot_be_ignored",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -18549,8 +18549,19 @@
         "auditPending": false
       },
       {
+        "title": "Cinch partial Boolean implications: complete groups",
+        "status": "failed",
+        "phase": "native-control-prerequisite",
+        "passed": 0,
+        "failed": 0,
+        "total": 9,
+        "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+        "nativeSource": null,
+        "auditPending": false
+      },
+      {
         "title": "Core branch repair: complete Native44 source check",
-        "status": "waiting-complete-function-precondition-group",
+        "status": "failed",
         "phase": null,
         "passed": 0,
         "failed": 0,
@@ -18683,8 +18694,8 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "bootstrap_export_types",
-        "passed": 168,
+        "phase": "bootstrap_function_preconditions",
+        "passed": 170,
         "failed": 0,
         "total": 235,
         "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
@@ -18702,10 +18713,10 @@
       }
     ],
     "counts": {
-      "verified": 423,
+      "verified": 425,
       "blocked": 4,
       "running": 8,
-      "pending": 94,
+      "pending": 92,
       "recheck": 139
     },
     "total": 668,
@@ -18714,5 +18725,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T02:08:23.631056+00:00"
+  "updatedAt": "2026-11-07T02:09:25.626658+00:00"
 }
