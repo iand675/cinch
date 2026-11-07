@@ -1,31 +1,31 @@
 {
   "schema": 2,
-  "commit": "9fb66f063608864127453af8f3667052001a8e75",
+  "commit": "b8f7a499f39db6da4cba0058fdea3fcc6b0ec020",
   "status": "Full bootstrap verification remains open",
   "stages": [
     {
-      "name": "Stage 0",
+      "name": "Prior API Stage 0",
       "state": "passed",
-      "label": "Smoke tests passed",
-      "description": "Verify the pinned Rust seed."
+      "label": "Verified",
+      "description": "Pinned Rust seed, independently revalidated and smoke-tested. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
-      "name": "Stage 1",
+      "name": "Prior API Stage 1",
       "state": "passed",
-      "label": "Smoke tests passed",
-      "description": "Build Cinch from source with the seed."
+      "label": "Verified",
+      "description": "Fresh Cinch compiler built from the seed; all three smoke checks. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
-      "name": "Stage 2",
+      "name": "Prior API Stage 2",
       "state": "passed",
-      "label": "Smoke tests passed",
-      "description": "Build the same compiler sources with Stage1."
+      "label": "Verified",
+      "description": "Every compiler module will be freshly rebuilt by Stage1 after all repair gates pass. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
-      "name": "Stage 3",
+      "name": "Prior API Stage 3",
       "state": "passed",
-      "label": "Matches Stage2",
-      "description": "Rebuild with Stage2 and check the fixed point."
+      "label": "Fixed point verified",
+      "description": "Fresh rebuild by Stage2, followed by code/interface matching and changed-source checks. Separate compiler snapshot; a matching published-source run remains required."
     }
   ],
   "checks": [
@@ -543,67 +543,67 @@
       "title": "Earlier source: Changed-source rebuilding verified"
     }
   ],
-  "candidateSource": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
+  "candidateSource": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
   "candidatePublished": true,
   "fullGoalComplete": false,
-  "summary": "Schema 10 is the sole compiled-interface format on main. Rust, Cinch and the bootstrap verifier passed the cutover checks. The library producer rebuilt all 55 interfaces.",
-  "activity": "Stage3 matches Stage2 and passed its smoke tests and separate client. See the ladder audit for the changed-source control and remaining tests.",
+  "summary": "Cinch 5bf127d9 rebuilt itself to matching Stage2 and Stage3 and passed the changed-source check. Its original frontend sweep has 22 of 105 targets passing, 3 failed and 80 still running or queued.",
+  "activity": "The independently audited integrated build is running all 105 frontend targets. Open the test inventory for live failures and the repairs being replayed.",
   "checklist": {
     "version": 1,
     "target": {
-      "compiler": "309a4f696ed5072050009e59562deabb2fc205731e47655662d1d8d69cd2d020",
-      "native": "9022a54f85312db671f7ee14a89a7aa9b6dfcfa7c54010b6f304016ff3401f57"
+      "compiler": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
+      "native": "1a7e275f0519f670012f993304a975446020a814dc62bad21ec9244117a64d25"
     },
     "acceptance": [
       {
         "id": "acceptance:1",
         "title": "1. Pinned seed builds Stage1",
-        "state": "recheck",
-        "detail": "The audit passed for earlier compiler b59c4893.",
+        "state": "verified",
+        "detail": "The independent audit passed for the published compiler.",
         "doneWhen": "The pinned Rust seed builds all latest compiler sources; Stage1 is runnable and passes its executable smoke checks.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-bootstrap-results.json",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-bootstrap-results.json",
         "observed": {
           "status": "passed",
-          "source": "b59c4893c4214d1c94c624bf9ba3f9e99ee7eb9b9568c1f092b20e5080967b38",
+          "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
           "cases": []
         }
       },
       {
         "id": "acceptance:2",
         "title": "2. Stage1 builds Stage2",
-        "state": "recheck",
-        "detail": "The audit passed for earlier compiler b59c4893.",
+        "state": "verified",
+        "detail": "The independent audit passed for the published compiler.",
         "doneWhen": "Stage1 freshly rebuilds every compiler module from those same inputs, without a Rust frontend or prebuilt compiler substitution.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-bootstrap-results.json",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-bootstrap-results.json",
         "observed": {
           "status": "passed",
-          "source": "b59c4893c4214d1c94c624bf9ba3f9e99ee7eb9b9568c1f092b20e5080967b38",
+          "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
           "cases": []
         }
       },
       {
         "id": "acceptance:3",
         "title": "3. Stage2 builds matching Stage3",
-        "state": "recheck",
-        "detail": "The audit passed for earlier compiler b59c4893.",
+        "state": "verified",
+        "detail": "The independent audit passed for the published compiler.",
         "doneWhen": "Build and run Stage3; Stage2/Stage3 emitted IR, executable and every canonical interface agree.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-bootstrap-results.json",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-bootstrap-results.json",
         "observed": {
           "status": "passed",
-          "source": "b59c4893c4214d1c94c624bf9ba3f9e99ee7eb9b9568c1f092b20e5080967b38",
+          "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
           "cases": []
         }
       },
       {
         "id": "acceptance:4",
         "title": "4. Changed-source bootstrap works",
-        "state": "recheck",
-        "detail": "The audit passed for earlier compiler b59c4893.",
+        "state": "verified",
+        "detail": "The independent audit passed for the published compiler.",
         "doneWhen": "Change actual compiler source, rebuild it through the chain, and prove that its changed behavior reaches the consumer.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-bootstrap-results.json",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-bootstrap-results.json",
         "observed": {
           "status": "passed",
-          "source": "b59c4893c4214d1c94c624bf9ba3f9e99ee7eb9b9568c1f092b20e5080967b38",
+          "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
           "cases": []
         }
       },
@@ -616,7 +616,7 @@
         "evidence": "https://github.com/iand675/cinch/blob/main/design/self-hosting.md#acceptance",
         "observed": {
           "status": "pending",
-          "source": "b59c4893c4214d1c94c624bf9ba3f9e99ee7eb9b9568c1f092b20e5080967b38",
+          "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
           "cases": []
         }
       }
@@ -688,10 +688,10 @@
       },
       {
         "id": "gap:imported-defaults",
-        "title": "Use one interface format for Rust and Cinch",
+        "title": "Require schema 10 compiled interfaces",
         "state": "verified",
-        "detail": "Rust, Cinch and the verifier require schema 10. A real schema 9 file and fingerprint-only defaults were refused. The pinned producer rebuilt all 55 library interfaces.",
-        "doneWhen": "Rebuild library interfaces in the same format both compilers use and verify that obsolete formats are refused.",
+        "detail": "Rust, Cinch and the verifier use schema 10. The cutover tests refused a schema 9 artifact and fingerprint-only defaults. The pinned producer rebuilt all 55 library interfaces.",
+        "doneWhen": "Both compilers read the same compiled interfaces and rebuild outdated artifacts from source.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-family-and-cutover-results.json"
       },
       {
@@ -18219,7 +18219,7 @@
     ],
     "active": [
       {
-        "title": "Bootstrap the schema 10 compiler on main",
+        "title": "Bootstrap the stricter schema 10 candidate",
         "status": "failed",
         "phase": "failed",
         "passed": 2,
@@ -19324,6 +19324,16 @@
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-stage3-agreement-results.json"
       },
       {
+        "title": "Verify that a source change reaches the rebuilt compiler",
+        "status": "passed",
+        "phase": "The independent audit verified all four stages, identical Stage2 and Stage3 artifacts, a separate client and the changed-source control.",
+        "passed": 1,
+        "failed": 0,
+        "total": 1,
+        "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-bootstrap-results.json"
+      },
+      {
         "title": "Verify the consolidated library, runtime and tooling",
         "status": "passed",
         "phase": "All 55 interfaces, the Stage1 client, 171 runtime tests and 42 tooling tests passed.",
@@ -19336,8 +19346,8 @@
       {
         "title": "Run every Rust compiler target on the combined fixes",
         "status": "running",
-        "phase": "bootstrap_anonymous_contracts",
-        "passed": 8,
+        "phase": "bootstrap_argument_scopes",
+        "passed": 9,
         "failed": 0,
         "total": 235,
         "source": "1a7e275f0519f670012f993304a975446020a814dc62bad21ec9244117a64d25"
@@ -19443,7 +19453,7 @@
       },
       {
         "title": "Run the full original 105-target Stage3 frontend matrix",
-        "status": "waiting-stage3-audit",
+        "status": "running",
         "phase": "3 disjoint runs share the same audited compiler and provider.",
         "passed": 0,
         "failed": 0,
@@ -19553,17 +19563,17 @@
       }
     ],
     "counts": {
-      "verified": 172,
+      "verified": 176,
       "blocked": 5,
       "running": 10,
       "pending": 85,
-      "recheck": 402
+      "recheck": 398
     },
     "total": 674,
-    "acceptanceVerified": 0,
+    "acceptanceVerified": 4,
     "acceptanceTotal": 5,
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T16:29:39.651952+00:00"
+  "updatedAt": "2026-11-07T16:32:16.548315+00:00"
 }
