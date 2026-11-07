@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "194 of 235 complete groups passed; 2 running, 0 failed and 39 pending.Every group includes ignored tests. State: running.",
+      "detail": "195 of 235 complete groups passed; 2 running, 0 failed and 38 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -71,7 +71,7 @@
     },
     {
       "title": "Earlier API checkpoint: exact Stage3 behavior",
-      "detail": "88 of 105 complete groups passed; 1 running, 3 failed and 13 pending.All105 required targets:96 portable and9 original interface/API groups, preserving the original100 plus5 additions. Original explicit32M poisoned client limits remain; compiler/checker consumers use256M. Direct Native operations in mixed targets remain classified separately. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "89 of 105 complete groups passed; 1 running, 3 failed and 12 pending.All105 required targets:96 portable and9 original interface/API groups, preserving the original100 plus5 additions. Original explicit32M poisoned client limits remain; compiler/checker consumers use256M. Direct Native operations in mixed targets remain classified separately. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -499,7 +499,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "194 of 235 complete groups passed; 2 running, 0 failed and 39 pending."
+      "detail": "195 of 235 complete groups passed; 2 running, 0 failed and 38 pending."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -507,7 +507,7 @@
     },
     {
       "title": "Finish the exact self-built compiler tests",
-      "detail": "88 of 105 complete groups passed; 1 running, 3 failed and 13 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "89 of 105 complete groups passed; 1 running, 3 failed and 12 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Pass all external language examples through Stage3",
@@ -719,9 +719,9 @@
         "id": "gap:task-callback",
         "title": "Reject mutable task captures hidden by callbacks",
         "state": "blocked",
-        "detail": "Reproduced on the current published Rust compiler. This is an incorrectly accepted program.",
-        "doneWhen": "The callback carries checked capture/transfer/lifetime facts and refuses the bad capture while safe callbacks still pass.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-task-capture-counterexample.json"
+        "detail": "A Rust development patch rejects the original unsafe local callback, keeps safe aliases accepted, and passes all concurrency and unit tests. The published compiler still accepts the counterexample.",
+        "doneWhen": "The callback carries checked capture, transfer and lifetime facts. The published Rust and Cinch compilers refuse the unsafe capture and accept safe callbacks.",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-local-task-capture-results.json"
       },
       {
         "id": "gap:task-helper",
@@ -803,10 +803,10 @@
         "unit": "targets",
         "total": 235,
         "counts": {
-          "verified": 195,
+          "verified": 196,
           "blocked": 0,
           "running": 2,
-          "pending": 38,
+          "pending": 37,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -2242,21 +2242,21 @@
           {
             "id": "native:bootstrap_named_refinements",
             "title": "bootstrap_named_refinements",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_named_refinements.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "startedAt": "2026-11-07T03:28:16.145673+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T03:37:16.732370+00:00",
+              "exitCode": 0,
+              "logSha256": "c16c4423c289cc6c1d8ac38ee00100c582309b078c2a2fb37a74fbf59aba2b9a",
               "cases": [
                 {
                   "name": "named_refinements_preserve_scope_bounds_and_proof_obligations",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -2288,21 +2288,21 @@
           {
             "id": "native:bootstrap_nonzero_source",
             "title": "bootstrap_nonzero_source",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_nonzero_source.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T20:33:24.747121+00:00",
-              "finishedAt": "2026-11-06T20:43:27.831701+00:00",
-              "exitCode": 0,
-              "logSha256": "7bc09d902fa59afaea7bed254d38b11e20642bd11d9e984919f4eb338e82b63f",
+              "status": "running",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T03:37:16.734960+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "structural_nonzero_source_preserves_value_identity_and_contracts",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -11878,8 +11878,8 @@
           "verified": 0,
           "blocked": 0,
           "running": 0,
-          "pending": 13,
-          "recheck": 92
+          "pending": 12,
+          "recheck": 93
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
         "items": [
@@ -13883,16 +13883,16 @@
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_total_indices.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "startedAt": "2026-11-07T03:32:25.734707+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T03:37:18.125028+00:00",
+              "exitCode": 0,
+              "logSha256": "bd957709f377a62cf8290b19a4e0b585ff02216fba6b9a6f32c198c48595b104",
               "cases": [
                 {
                   "name": "compiled_cinch_total_indices_preserve_body_authority_and_scoped_arguments",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -13955,18 +13955,23 @@
           {
             "id": "stage3:bootstrap_typed_indices",
             "title": "bootstrap_typed_indices",
-            "state": "pending",
+            "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_typed_indices.rs",
             "observed": {
-              "status": "pending",
+              "status": "running",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": null,
+              "startedAt": "2026-11-07T03:37:18.139060+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "typed_indices_preserve_sorts_scope_and_numeric_conversion",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -14403,10 +14408,10 @@
           }
         ],
         "observedCounts": {
-          "passed": 88,
+          "passed": 89,
           "failed": 3,
           "running": 1,
-          "pending": 13
+          "pending": 12
         },
         "observedSource": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2"
       },
@@ -18547,8 +18552,8 @@
     "active": [
       {
         "title": "Fresh Stage0 through Stage3 rebuild",
-        "status": "waiting-worker",
-        "phase": "waiting worker",
+        "status": "running",
+        "phase": "building stage0",
         "passed": 0,
         "failed": 0,
         "total": 4,
@@ -18752,7 +18757,7 @@
         "total": 2,
         "source": "03d1790a4b4d9e1d1bcd0b702ff3cab7c04b9da865de2d84f696886d6da38d18",
         "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
-        "auditPending": true
+        "auditPending": false
       },
       {
         "title": "Diagnostic byte scan: earlier run with stale FFI expectation",
@@ -18774,7 +18779,18 @@
         "total": 2,
         "source": "8f99a0c75845bab16a64102d4510f027c27d91900342b5b4df448298ecb61edf",
         "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
-        "auditPending": true
+        "auditPending": false
+      },
+      {
+        "title": "Base constructor spellings: complete exporter and nominal tests",
+        "status": "running",
+        "phase": "bootstrap_export_interfaces",
+        "passed": 0,
+        "failed": 0,
+        "total": 2,
+        "source": "208317ed5b7e7feeeb34b0124f86340c763e48988633f5a38325184e8ebcdfae",
+        "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+        "auditPending": false
       },
       {
         "title": "Original concurrency suite through the Cinch compiler",
@@ -18796,7 +18812,29 @@
         "total": 3,
         "source": null,
         "nativeSource": "1fd2ac475c28b4798b5026d66562f401dd2ce0d62cec22abde5268a8272d4813",
-        "auditPending": true
+        "auditPending": false
+      },
+      {
+        "title": "Cinch source effects: retain the Blocking label",
+        "status": "failed",
+        "phase": "bootstrap_source_effects",
+        "passed": 0,
+        "failed": 1,
+        "total": 1,
+        "source": "18b6c612b00f0cce16e50d645868efd31dcf627d13be8ae7ac7f18b5a947ddf7",
+        "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+        "auditPending": false
+      },
+      {
+        "title": "Cinch task refusals: runtime-IR suite",
+        "status": "running",
+        "phase": "bootstrap_runtime_ir",
+        "passed": 0,
+        "failed": 0,
+        "total": 1,
+        "source": "11076882ef69d26134bedbd894c3619d14e1ba6eb082c1d93c314c8e52589b86",
+        "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+        "auditPending": false
       },
       {
         "title": "Function defaults: fresh pinned library object",
@@ -18953,8 +18991,8 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "bootstrap_nominals",
-        "passed": 194,
+        "phase": "bootstrap_nonzero_source",
+        "passed": 195,
         "failed": 0,
         "total": 235,
         "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
@@ -18963,8 +19001,8 @@
       {
         "title": "Earlier Stage3: complete frontend sweep",
         "status": "running",
-        "phase": "bootstrap_total_indices",
-        "passed": 88,
+        "phase": "bootstrap_typed_indices",
+        "passed": 89,
         "failed": 3,
         "total": 105,
         "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
@@ -18972,11 +19010,11 @@
       }
     ],
     "counts": {
-      "verified": 449,
+      "verified": 450,
       "blocked": 4,
       "running": 9,
-      "pending": 58,
-      "recheck": 149
+      "pending": 56,
+      "recheck": 150
     },
     "total": 669,
     "acceptanceVerified": 0,
@@ -18984,5 +19022,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T03:36:45.713565+00:00"
+  "updatedAt": "2026-11-07T03:38:38.156122+00:00"
 }
