@@ -19375,10 +19375,10 @@
       },
       {
         "title": "Replay original Foldable and Category with the compiled library",
-        "status": "running",
-        "phase": "round 3 lib_category. Round one requested 31 functions, 18 factories and 4 method variants. Round 2 passed 8/15 Foldable and 5/12 Category cases.",
+        "status": "completed-with-non-object-failures",
+        "phase": "round 3 lib_category. Round one requested 31 functions, 18 factories and 4 method variants. Round 3 passed 10/15 Foldable and 9/12 Category cases.",
         "passed": 0,
-        "failed": 1,
+        "failed": 2,
         "total": 2,
         "unit": "original test targets",
         "source": "12ad4294369122399c47d9c40ada62259b507ff23e1c34dcb4aacc7ba812dc73"
@@ -19793,15 +19793,37 @@
         "source": "b655a0a0d31a67be39ff71bc36b4434c4ca0bb9b6b991928f64329efc133bd63"
       },
       {
-        "title": "Finish the preceding published compiler ladder",
-        "status": "passed-chain-awaiting-independent-audit",
-        "phase": "passed chain awaiting independent audit",
+        "title": "Audit the preceding published compiler ladder",
+        "status": "passed",
+        "phase": "Stage2 and Stage3 match. The changed-source rebuild and separate client passed.",
         "passed": 4,
         "failed": 0,
         "total": 4,
         "unit": "stages",
         "source": "c94c7578197341f7522754b233277945f6b476f2b913826b674831e450dd54e1",
-        "auditPending": true
+        "auditPending": false,
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-preceding-published-bootstrap-results.json"
+      },
+      {
+        "title": "Run compiled-library client fixtures with Rust",
+        "status": "passed",
+        "phase": "All 15 Foldable and 12 Category cases passed. All 26 linked programs reported zero leaks.",
+        "passed": 27,
+        "failed": 0,
+        "total": 27,
+        "unit": "original test cases",
+        "source": "ca7a6231fa497ca0c6b016fed5aaefc0d9ecb32fa3c41b10617e944ed8af1009",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-source-free-library-fixtures-results.json"
+      },
+      {
+        "title": "Link original NonEmpty clients against compiled objects",
+        "status": "passed",
+        "phase": "Foldable, Semigroup and Traversable linked and ran with zero leaks.",
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "unit": "original client programs",
+        "source": "64ee1c52436a3b37cb0217cec1e54de0d9dfbbf5161e577971bb1f9e4feb412e"
       },
       {
         "title": "Run original function-family and String clients with compiled objects",
@@ -19882,5 +19904,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T23:41:51.576241+00:00"
+  "updatedAt": "2026-11-07T23:47:36.680806+00:00"
 }
