@@ -11896,8 +11896,8 @@
         "counts": {
           "verified": 16,
           "blocked": 4,
-          "running": 0,
-          "pending": 85,
+          "running": 1,
+          "pending": 84,
           "recheck": 0
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
@@ -12181,18 +12181,23 @@
           {
             "id": "stage3:bootstrap_body_bindings",
             "title": "bootstrap_body_bindings",
-            "state": "pending",
+            "state": "running",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_body_bindings.rs",
             "observed": {
-              "status": "pending",
+              "status": "running",
               "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": null,
+              "startedAt": "2026-11-07T12:48:44.509337+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "compiled_cinch_rechecks_body_bindings_refinements_and_changed_callees",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -14020,7 +14025,8 @@
         "observedCounts": {
           "failed": 4,
           "passed": 16,
-          "pending": 85
+          "running": 1,
+          "pending": 84
         },
         "observedSource": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854"
       },
@@ -18187,8 +18193,8 @@
       },
       {
         "title": "Published schema 9 Stage3: all 105 frontend targets",
-        "status": "waiting-disk-space",
-        "phase": "bootstrap_array_float_bits",
+        "status": "running",
+        "phase": "bootstrap_body_bindings",
         "passed": 16,
         "failed": 4,
         "total": 105,
@@ -18783,6 +18789,16 @@
         "auditPending": false
       },
       {
+        "title": "Earlier Stage3: complete frontend sweep",
+        "status": "running",
+        "phase": "bootstrap_body_bindings",
+        "passed": 16,
+        "failed": 4,
+        "total": 105,
+        "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
+        "earlier": true
+      },
+      {
         "title": "Cinch task forwarding: six-case source replay",
         "status": "passed",
         "phase": "Unchanged Tasks program and refusal, unsafe capture, and interface boundary",
@@ -19030,8 +19046,8 @@
       },
       {
         "title": "Schema 10: combined self-host chain",
-        "status": "waiting-disk-space",
-        "phase": "waiting disk space",
+        "status": "building-stage2",
+        "phase": "building stage2",
         "passed": 2,
         "failed": 0,
         "total": 4,
@@ -19151,8 +19167,8 @@
     "counts": {
       "verified": 192,
       "blocked": 9,
-      "running": 10,
-      "pending": 91,
+      "running": 11,
+      "pending": 90,
       "recheck": 372
     },
     "total": 674,
@@ -19161,5 +19177,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T12:48:02.708832+00:00"
+  "updatedAt": "2026-11-07T12:49:04.683965+00:00"
 }
