@@ -17,14 +17,14 @@
     },
     {
       "name": "Stage 2",
-      "state": "running",
-      "label": "Building",
+      "state": "passed",
+      "label": "Smoke tests passed",
       "description": "Rebuild the compiler with Stage1."
     },
     {
       "name": "Stage 3",
-      "state": "pending",
-      "label": "Pending",
+      "state": "running",
+      "label": "Building",
       "description": "Rebuild with Stage2 and audit the fixed point."
     }
   ],
@@ -547,7 +547,7 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "Main includes the higher-kinded runtime, pure arrow inference and checked String layout.",
-  "activity": "Building stage2. The full suite remains open.",
+  "activity": "Building stage3. The full suite remains open.",
   "checklist": {
     "version": 1,
     "target": {
@@ -18231,8 +18231,8 @@
       {
         "title": "Bootstrap the exact published compiler and corrected library",
         "status": "running",
-        "phase": "Building stage2",
-        "passed": 2,
+        "phase": "Building stage3",
+        "passed": 3,
         "failed": 0,
         "total": 4,
         "unit": "stages",
@@ -19882,5 +19882,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T23:40:09.308650+00:00"
+  "updatedAt": "2026-11-07T23:41:51.576241+00:00"
 }
