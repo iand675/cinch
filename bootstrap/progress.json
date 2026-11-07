@@ -547,7 +547,7 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "Rust and Cinch now use one interface format on main. The pinned library was rebuilt, and both compilers refused schema 8 artifacts and fingerprint-only defaults.",
-  "activity": "The schema 9 chain has passed 3 of four stages. Stage3 is building.",
+  "activity": "The schema 9 chain has passed 4 of four stages. See the schema 9 checklist row for the fixed-point audit and suite status.",
   "checklist": {
     "version": 1,
     "target": {
@@ -19022,9 +19022,9 @@
       },
       {
         "title": "Schema 9 bootstrap with the production pin",
-        "status": "building-stage3",
-        "phase": "building stage3",
-        "passed": 3,
+        "status": "checking-fixed-point-and-source-change",
+        "phase": "checking fixed point and source change",
+        "passed": 4,
         "failed": 0,
         "total": 4,
         "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854"
@@ -19060,5 +19060,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T10:45:46.796853+00:00"
+  "updatedAt": "2026-11-07T10:47:28.852071+00:00"
 }
