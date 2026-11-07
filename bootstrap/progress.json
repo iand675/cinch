@@ -11894,9 +11894,9 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 14,
+          "verified": 15,
           "blocked": 4,
-          "running": 1,
+          "running": 0,
           "pending": 86,
           "recheck": 0
         },
@@ -12135,21 +12135,21 @@
           {
             "id": "stage3:bootstrap_argument_scopes",
             "title": "bootstrap_argument_scopes",
-            "state": "running",
+            "state": "verified",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_argument_scopes.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
               "startedAt": "2026-11-07T12:23:34.520031+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T12:35:59.329921+00:00",
+              "exitCode": 0,
+              "logSha256": "73505516b57435abb2a149ba590980f9b6c83848e19648173a3461b2b45ee0f8",
               "cases": [
                 {
                   "name": "compiled_cinch_keeps_argument_witness_scopes_and_effects",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -14014,8 +14014,7 @@
         ],
         "observedCounts": {
           "failed": 4,
-          "passed": 14,
-          "running": 1,
+          "passed": 15,
           "pending": 86
         },
         "observedSource": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854"
@@ -18183,9 +18182,9 @@
       },
       {
         "title": "Published schema 9 Stage3: all 105 frontend targets",
-        "status": "running",
+        "status": "waiting-disk-space",
         "phase": "bootstrap_argument_scopes",
-        "passed": 14,
+        "passed": 15,
         "failed": 4,
         "total": 105,
         "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854"
@@ -18779,16 +18778,6 @@
         "auditPending": false
       },
       {
-        "title": "Earlier Stage3: complete frontend sweep",
-        "status": "running",
-        "phase": "bootstrap_argument_scopes",
-        "passed": 14,
-        "failed": 4,
-        "total": 105,
-        "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-        "earlier": true
-      },
-      {
         "title": "Cinch task forwarding: six-case source replay",
         "status": "passed",
         "phase": "Unchanged Tasks program and refusal, unsafe capture, and interface boundary",
@@ -19127,9 +19116,9 @@
       }
     ],
     "counts": {
-      "verified": 190,
+      "verified": 191,
       "blocked": 9,
-      "running": 11,
+      "running": 10,
       "pending": 92,
       "recheck": 372
     },
@@ -19139,5 +19128,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T12:30:55.454831+00:00"
+  "updatedAt": "2026-11-07T12:36:18.019590+00:00"
 }
