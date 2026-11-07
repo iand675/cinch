@@ -19122,8 +19122,8 @@
       {
         "title": "Structural function instances: pipeline, syntax and instance checks",
         "status": "running",
-        "phase": "bootstrap_pipeline",
-        "passed": 0,
+        "phase": "bootstrap_type_syntax",
+        "passed": 1,
         "failed": 0,
         "total": 3,
         "source": "b655a0a0d31a67be39ff71bc36b4434c4ca0bb9b6b991928f64329efc133bd63",
@@ -19395,5 +19395,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T06:42:23.748969+00:00"
+  "updatedAt": "2026-11-07T06:44:26.271273+00:00"
 }
