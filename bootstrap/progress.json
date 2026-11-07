@@ -18576,14 +18576,14 @@
       },
       {
         "title": "Core branch repair: complete Native44 source check",
-        "status": "running",
+        "status": "passed-exact44-native-source-input-gate",
         "phase": "native44",
-        "passed": 0,
+        "passed": 1,
         "failed": 0,
         "total": 1,
         "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
         "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
-        "auditPending": false
+        "auditPending": true
       },
       {
         "title": "Diagnostic compiler: its own44 source modules",
@@ -18708,6 +18708,16 @@
         "auditPending": false
       },
       {
+        "title": "Cinch Core branch implications: full compiler/object gate",
+        "status": "running",
+        "phase": "build-own-runtime",
+        "passed": 0,
+        "failed": 0,
+        "total": 2,
+        "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+        "auditPending": false
+      },
+      {
         "title": "Cinch result inference: original API/default groups",
         "status": "completed-with-failures",
         "phase": "class_defaults",
@@ -18751,5 +18761,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T02:33:10.049932+00:00"
+  "updatedAt": "2026-11-07T02:37:12.522025+00:00"
 }
