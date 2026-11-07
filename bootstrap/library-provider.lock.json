@@ -1,7 +1,7 @@
 {
-  "description": "Published85f00ca ABI6 library-only Native provider. Never compiles Bootstrap implementation modules; independent role and private cache from the seed.",
-  "revision": "85f00ca880f0d9882c03c65031424a05c81b11bc",
+  "description": "ABI 6 Rust library-only producer for checked schema 9 interfaces.",
+  "revision": "90ebe80f7a8d6ebb5394f6ad6c2cdc60622d0e43",
   "runtime_abi": 6,
   "schema": 1,
-  "source_sha256": "22c91cf6c1855b049207612e9d94630850e880d5a49ea3e2c57c92aff7fdbe88"
+  "source_sha256": "dc2dd19280f2e51d07e7b2995d40ddc230a8265eeb1e6e75446249cd51e1e0f0"
 }
