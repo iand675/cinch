@@ -18896,21 +18896,21 @@
       },
       {
         "title": "Cinch: checked compile-time evaluation",
-        "status": "stopped-superseded-before-test",
-        "phase": "stopped superseded before test",
+        "status": "waiting-worker",
+        "phase": "waiting worker",
         "passed": 0,
         "failed": 0,
         "total": 1,
-        "source": "998862955e75a9cc5efa95bf2149a83804f4b5a7b5a2ffed7188dc17aa589e79"
+        "source": "c8d933aad9fad3d77f6e3bf089ee19cb048dcc3bce81118331f7a34958472308"
       },
       {
         "title": "Cinch: staged generation through the full pipeline",
-        "status": "stopped-superseded-before-test",
-        "phase": "stopped superseded before test",
+        "status": "waiting-worker",
+        "phase": "waiting worker",
         "passed": 0,
         "failed": 0,
         "total": 1,
-        "source": "f3c2b6cff30a10d4c7540729b62566417fd8bec5129ee49e0ae6a8ef3c9948e3"
+        "source": "c8d933aad9fad3d77f6e3bf089ee19cb048dcc3bce81118331f7a34958472308"
       },
       {
         "title": "Cinch staging syntax",
@@ -18971,5 +18971,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T09:48:57.559304+00:00"
+  "updatedAt": "2026-11-07T09:49:59.461437+00:00"
 }
