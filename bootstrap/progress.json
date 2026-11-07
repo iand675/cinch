@@ -11896,8 +11896,8 @@
         "counts": {
           "verified": 1,
           "blocked": 2,
-          "running": 0,
-          "pending": 102,
+          "running": 1,
+          "pending": 101,
           "recheck": 0
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
@@ -13231,18 +13231,23 @@
           {
             "id": "stage3:bootstrap_source_decisions",
             "title": "bootstrap_source_decisions",
-            "state": "pending",
+            "state": "running",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_source_decisions.rs",
             "observed": {
-              "status": "pending",
+              "status": "running",
               "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": null,
+              "startedAt": "2026-11-07T11:29:54.543746+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "source_decisions_preserve_predicates_and_check_authority",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -13867,7 +13872,8 @@
         "observedCounts": {
           "failed": 2,
           "passed": 1,
-          "pending": 102
+          "running": 1,
+          "pending": 101
         },
         "observedSource": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854"
       },
@@ -18034,8 +18040,8 @@
       },
       {
         "title": "Published schema 9 Stage3: all 105 frontend targets",
-        "status": "waiting-disk-space",
-        "phase": "bootstrap_anonymous_contracts",
+        "status": "running",
+        "phase": "bootstrap_source_decisions",
         "passed": 1,
         "failed": 2,
         "total": 105,
@@ -18630,6 +18636,16 @@
         "auditPending": false
       },
       {
+        "title": "Earlier Stage3: complete frontend sweep",
+        "status": "running",
+        "phase": "bootstrap_source_decisions",
+        "passed": 1,
+        "failed": 2,
+        "total": 105,
+        "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
+        "earlier": true
+      },
+      {
         "title": "Cinch task forwarding: six-case source replay",
         "status": "passed",
         "phase": "Unchanged Tasks program and refusal, unsafe capture, and interface boundary",
@@ -18894,8 +18910,8 @@
     "counts": {
       "verified": 177,
       "blocked": 7,
-      "running": 10,
-      "pending": 108,
+      "running": 11,
+      "pending": 107,
       "recheck": 372
     },
     "total": 674,
@@ -18904,5 +18920,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T11:28:25.732960+00:00"
+  "updatedAt": "2026-11-07T11:30:08.051512+00:00"
 }
