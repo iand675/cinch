@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "97 of 235 complete groups passed; 1 running, 0 failed and 137 pending.Every group includes ignored tests. State: running.",
+      "detail": "98 of 235 complete groups passed; 1 running, 0 failed and 136 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -494,7 +494,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "97 of 235 complete groups passed; 1 running, 0 failed and 137 pending."
+      "detail": "98 of 235 complete groups passed; 1 running, 0 failed and 136 pending."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -790,10 +790,10 @@
         "unit": "targets",
         "total": 235,
         "counts": {
-          "verified": 106,
+          "verified": 107,
           "blocked": 0,
           "running": 1,
-          "pending": 128,
+          "pending": 127,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -8406,17 +8406,17 @@
           {
             "id": "native:params",
             "title": "params",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/params.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "startedAt": "2026-11-07T00:26:38.459962+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T00:26:54.430937+00:00",
+              "exitCode": 0,
+              "logSha256": "fa2bf04cb55fb730d1cda57c6dc8c86cfc4457093ee4532748d396b9d467adc6",
               "cases": [
                 {
                   "name": "direct_use_of_a_parameterized_module_is_rejected",
@@ -8444,7 +8444,7 @@
                 },
                 {
                   "name": "wrong_typed_instantiation_is_rejected",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -8453,17 +8453,17 @@
           {
             "id": "native:parsers",
             "title": "parsers",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/parsers.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:19:57.783145+00:00",
-              "finishedAt": "2026-11-06T14:21:08.375646+00:00",
-              "exitCode": 0,
-              "logSha256": "535d840d6d94554d6303132c2061f1610cae53c5da32dbe7082a70eaf5b35a44",
+              "status": "running",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T00:26:54.432940+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "bootstrap_grammar_parses_the_examples",
@@ -8487,19 +8487,7 @@
                 },
                 {
                   "name": "parse_recovery_handlers",
-                  "status": "passed"
-                },
-                {
-                  "name": "parse_refusals_named",
-                  "status": "passed"
-                },
-                {
-                  "name": "top_level_eager_value_cycle_is_a_named_diagnostic",
-                  "status": "passed"
-                },
-                {
-                  "name": "top_level_lazy_value_recursion_runs",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -18453,8 +18441,8 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "params",
-        "passed": 97,
+        "phase": "parsers",
+        "passed": 98,
         "failed": 0,
         "total": 235,
         "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
@@ -18472,10 +18460,10 @@
       }
     ],
     "counts": {
-      "verified": 278,
+      "verified": 279,
       "blocked": 4,
       "running": 6,
-      "pending": 167,
+      "pending": 166,
       "recheck": 212
     },
     "total": 667,
@@ -18484,5 +18472,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T00:26:53.088495+00:00"
+  "updatedAt": "2026-11-07T00:27:55.782762+00:00"
 }
