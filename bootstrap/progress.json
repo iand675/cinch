@@ -19099,14 +19099,14 @@
       },
       {
         "title": "Current Stage3 original pipeline at 512 MiB",
-        "status": "running",
+        "status": "passed-verified-32ab-promotion-pipeline",
         "phase": "bootstrap_pipeline",
-        "passed": 0,
+        "passed": 1,
         "failed": 0,
         "total": 1,
         "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
         "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
-        "auditPending": false
+        "auditPending": true
       },
       {
         "title": "Source-library replacement: complete pipeline and dependency checks",
@@ -19343,5 +19343,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T06:16:37.688163+00:00"
+  "updatedAt": "2026-11-07T06:18:39.781677+00:00"
 }
