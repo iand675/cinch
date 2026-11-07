@@ -56,8 +56,8 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "233 of 235 complete groups passed; 1 running, 0 failed and 1 pending.Every group includes ignored tests. State: running.",
-      "state": "running"
+      "detail": "235 of 235 complete groups passed; 0 running, 0 failed and 0 pending.Every group includes ignored tests. State: passed.",
+      "state": "passed"
     },
     {
       "title": "Earlier API compiler bootstrap",
@@ -498,10 +498,6 @@
       "detail": " Separate compiler snapshot; a matching published-source run remains required. A matching final chain is not yet verified."
     },
     {
-      "title": "Finish all current compiler tests",
-      "detail": "233 of 235 complete groups passed; 1 running, 0 failed and 1 pending."
-    },
-    {
       "title": "Finish matching runtime, tooling and editor checks",
       "detail": "runtime: passed; tooling: passed; syntax-editor: passed. Separate compiler snapshot; a matching published-source run remains required."
     },
@@ -803,10 +799,10 @@
         "unit": "targets",
         "total": 235,
         "counts": {
-          "verified": 233,
+          "verified": 235,
           "blocked": 0,
-          "running": 1,
-          "pending": 1,
+          "running": 0,
+          "pending": 0,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -3167,21 +3163,21 @@
           {
             "id": "native:bootstrap_value_kinds",
             "title": "bootstrap_value_kinds",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_value_kinds.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "startedAt": "2026-11-07T05:19:33.831038+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T05:20:52.241360+00:00",
+              "exitCode": 0,
+              "logSha256": "ce8d9954423446f620f70f6c84ca1bd4ca6120a3a2836d3bb96ab58a93cd8cd2",
               "cases": [
                 {
                   "name": "value_kinds_retain_carriers_and_do_not_invent_runtime_witnesses",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -3686,17 +3682,17 @@
           {
             "id": "native:doc",
             "title": "doc",
-            "state": "pending",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/Cargo.toml",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": null,
-              "finishedAt": null,
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T05:20:52.247634+00:00",
+              "finishedAt": "2026-11-07T05:20:53.094263+00:00",
               "exitCode": 0,
-              "logSha256": "be651a597bd457c9001971e34574afdad5ff5998af1faad933c943499d337d7c",
+              "logSha256": "df166913f47ff1f04202cae9b31df67ed272d692d99a0023a8117dc3029100dd",
               "cases": []
             },
             "currentTests": null
@@ -19246,16 +19242,6 @@
         "auditPending": false
       },
       {
-        "title": "Current compiler: full Rust sweep",
-        "status": "running",
-        "phase": "bootstrap_value_kinds",
-        "passed": 233,
-        "failed": 0,
-        "total": 235,
-        "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
-        "earlier": false
-      },
-      {
         "title": "Current candidate: complete Stage3 frontend sweep",
         "status": "running",
         "phase": "bootstrap_type_syntax",
@@ -19266,10 +19252,10 @@
       }
     ],
     "counts": {
-      "verified": 487,
+      "verified": 489,
       "blocked": 4,
-      "running": 10,
-      "pending": 8,
+      "running": 9,
+      "pending": 7,
       "recheck": 162
     },
     "total": 671,
@@ -19278,5 +19264,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T05:20:11.765538+00:00"
+  "updatedAt": "2026-11-07T05:21:13.747491+00:00"
 }
