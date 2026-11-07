@@ -1,0 +1,22 @@
+{
+  "check_decls_sha256": "3d221e426e6c912786cc4b5026acb13efdffe9d14e9390bdc94f42557fa06816",
+  "full_goal_complete": false,
+  "native_source_sha256": "ca7a6231fa497ca0c6b016fed5aaefc0d9ecb32fa3c41b10617e944ed8af1009",
+  "rows": [
+    {
+      "cases": 205,
+      "exit_code": 0,
+      "log_sha256": "a3cacf4fe7115e5f4fcb4faf23de7fbbae6bee1d664eb88cef9fee4b5cae7beb",
+      "name": "native-lib",
+      "status": "passed"
+    },
+    {
+      "cases": 24,
+      "exit_code": 0,
+      "log_sha256": "4e349dd85cda99aec1fa40a64a980b7c252354dd8312c827b5f28196ef6f13cb",
+      "name": "native-hk",
+      "status": "passed"
+    }
+  ],
+  "status": "passed-scoped-native-method-kinds"
+}

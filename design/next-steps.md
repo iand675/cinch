@@ -33,6 +33,13 @@ checked interface identities. All 23 original Option, Result, function, Map
 and Set cases ran through the repaired Stage1 with zero leaks.
 See [the selected runtime audit](../bootstrap/current-schema10-private-runtime-library-results.json).
 
+Native now isolates kind inference within each class method and law, while
+combining the enclosing class parameter uses. The original Traversable
+`sequence` contract emits `f :: Type -> Type`. All 205 Native library
+tests and 24 higher-kinded tests passed. Rebuilding the pinned library
+with the corrected contract is a separate check.
+See [the Native method kind audit](../bootstrap/current-native-scoped-method-kind-results.json).
+
 Set `CINCH_TEST_INVOCATIONS` to an evidence directory when running the
 selected frontend tests. Each record identifies the test case, selected
 compiler, input files and observed compiler exit code. It survives project

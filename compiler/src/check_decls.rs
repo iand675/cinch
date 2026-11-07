@@ -4350,13 +4350,15 @@ impl Checker {
                     self.kind_constraints.borrow_mut().clear();
                     let mut methods: Vec<(String, Scheme)> = Vec::new();
                     let mut method_contracts: Vec<Option<Scheme>> = Vec::new();
+                    let mut class_kind_uses = Vec::new();
                     for (idx, (mname, mty)) in sig.methods.iter().enumerate() {
                         // Method schemes quantify over the signature's
                         // parameters plus their own; the class constraint is
                         // always `ctx[0]`.
                         let mut extra: Vec<String> = Vec::new();
                         let mut own_binders: Vec<ast::TypeBinder> = Vec::new();
-                        let notes_start = self.kind_constraints.borrow().len();
+                        // Deduplication belongs to this member's binder scope.
+                        self.kind_constraints.borrow_mut().clear();
                         let mut rest = mty;
                         let mut own_ctx: Vec<(String, ClassApp)> = Vec::new();
                         loop {
@@ -4401,14 +4403,15 @@ impl Checker {
                             args: params.iter().cloned().map(Ty::Param).collect(),
                         })];
                         ctx.append(&mut own_ctx);
-                        let notes = self.kind_constraints.borrow()[notes_start..].to_vec();
+                        let notes = self.kind_constraints.borrow().clone();
+                        class_kind_uses.extend(notes.iter().filter(|(name, _)| params.contains(name)).cloned());
                         let scheme = self.quantified_member_scheme(&sig.params, &own_binders, ty, ctx, &notes)?;
                         methods.push((mname.text.clone(), scheme));
                         // Keep method-local kind inference scoped to this
                         // method. Another method may quantify the same name
                         // with a different kind. This metadata copy does not
                         // change the native checker's method dispatch.
-                        let notes = self.kind_constraints.borrow()[notes_start..].to_vec();
+                        let notes = self.kind_constraints.borrow().clone();
                         let mut contract = Some(methods.last().unwrap().1.clone());
                         for binder in &own_binders {
                             let hint = match &binder.ann {
@@ -4466,7 +4469,8 @@ impl Checker {
                     for (lname, lty) in &sig.laws {
                         let mut extra: Vec<String> = Vec::new();
                         let mut own_binders = Vec::new();
-                        let notes_start = self.kind_constraints.borrow().len();
+                        // Deduplication belongs to this member's binder scope.
+                        self.kind_constraints.borrow_mut().clear();
                         let mut rest = lty;
                         loop {
                             match rest {
@@ -4515,7 +4519,8 @@ impl Checker {
                                 }
                             }
                         }
-                        let notes = self.kind_constraints.borrow()[notes_start..].to_vec();
+                        let notes = self.kind_constraints.borrow().clone();
+                        class_kind_uses.extend(notes.iter().filter(|(name, _)| params.contains(name)).cloned());
                         let context = std::iter::once(("#class".into(), law_context)).chain(extra_context).collect();
                         let scheme = self.quantified_member_scheme(&sig.params, &own_binders, ty, context, &notes)?;
                         let info = ValueInfo {
@@ -4534,13 +4539,12 @@ impl Checker {
                             .insert((sig.name.text.clone(), lname.text.clone()), info);
                         laws.push((lname.text.clone(), scheme));
                     }
-                    let notes = self.kind_constraints.borrow().clone();
                     let mut param_kinds: Vec<ParamKind> = Vec::new();
                     for (b, hint) in sig.params.iter().zip(&hints) {
                         param_kinds.push(self.resolve_binder_kind(
                             &b.name.text,
                             hint.as_ref(),
-                            &notes,
+                            &class_kind_uses,
                             b.name.span,
                         )?);
                     }
@@ -15808,6 +15812,32 @@ mod interface_scheme_tests {
         let back = read_scheme(&rendered);
         assert_eq!(scheme.val_params, back.val_params, "{rendered}");
         assert_eq!(scheme.prop_params, back.prop_params, "{rendered}");
+    }
+
+    #[test]
+    fn repeated_member_binders_retain_their_own_inferred_kinds() {
+        let source = "module Main where
+  signature Carry t where
+    carry-first :: forall f a. t -> f a -> f a
+    carry-second :: forall f a. t -> f a -> f a
+    carry-scalar :: forall f. t -> f -> f
+  main :: Int
+  main = 0
+";
+        let (_, interfaces) = crate::driver::check_sources_ifaces(source, "member-kinds.cinch").unwrap();
+        let member = |module: &str, class: &str, method: &str| {
+            interfaces.iter().find(|iface| iface.module == module).unwrap()
+                .exports.signatures.iter().find(|signature| signature.name == class).unwrap()
+                .methods.iter().find(|item| item.name == method).unwrap().resolved.as_ref().unwrap()
+        };
+        for name in ["carry-first", "carry-second"] {
+            let scheme = &member("Main", "Carry", name).scheme;
+            assert!(scheme.contains("(f :: Type -> Type)"), "{scheme}");
+        }
+        let scalar = &member("Main", "Carry", "carry-scalar").scheme;
+        assert!(scalar.contains("(f :: Type)"), "{scalar}");
+        let sequence = &member("Category.Traversable", "Traversable", "sequence").scheme;
+        assert!(sequence.contains("(f :: Type -> Type)"), "{sequence}");
     }
 
     #[test]
