@@ -965,6 +965,12 @@ def build_checklist(root, cfg, previous=None):
             phase=status.replace('-', ' '), passed=len(proof_chain['stages']),
             failed=int(status == 'failed'), total=4, source=proof_chain['compiler_source_sha256'],
             auditPending=status == 'passed-consolidated-proof-ladder-awaiting-independent-audit'))
+    proof_audit_path = 'bootstrap/current-schema10-consolidated-proof-bootstrap-results.json'
+    proof_audit = read(root/proof_audit_path)
+    if proof_audit.get('status') == 'passed-production-schema10-bootstrap-chain':
+        active.append(dict(title='Audit the consolidated compiler with named proofs', status='passed',
+            phase='Four stages, matching Stage2 and Stage3, a separate client and the changed-source control passed independent audit.',
+            passed=4, failed=0, total=4, source=proof_audit['compiler_source_sha256'], evidence=link(proof_audit_path)))
     reflexivity_path = 'bootstrap/current-schema10-reflexivity-core-results.json'
     reflexivity = read(root/reflexivity_path)
     if reflexivity.get('status') == 'passed-development-reflexivity-core':

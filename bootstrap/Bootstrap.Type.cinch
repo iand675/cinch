@@ -553,7 +553,7 @@ module Bootstrap.Type where
   valid-comparison :: String -> UType -> UType -> Bool
   valid-comparison relation left right = case (typed-index-carrier left, typed-index-carrier right) of
     (Some a, Some b) -> valid-type left && valid-type right && carrier-equal a b &&
-      (if same-tag relation "==" || same-tag relation "/=" then True
+      (if same-tag relation "Eq" || same-tag relation "==" || same-tag relation "/=" then True
        else mathematical-carrier a && (same-tag relation "<" || same-tag relation "<=" || same-tag relation ">" || same-tag relation ">="))
     other -> False
 
@@ -566,7 +566,9 @@ module Bootstrap.Type where
   type-text :: UType -> String
   type-text ty = case ty of
     UPropLit value -> if value then "True#Prop" else "False#Prop"
-    UCompare relation left right -> string-concat-all ["(", type-text left, " ", relation, " ", type-text right, ")"]
+    UCompare relation left right -> if same-tag relation "Eq" then
+      string-concat-all ["(Eq ", type-text left, " ", type-text right, ")"]
+      else string-concat-all ["(", type-text left, " ", relation, " ", type-text right, ")"]
     UPropAnd left right -> string-concat-all ["(", type-text left, " && ", type-text right, ")"]
     UPropOr left right -> string-concat-all ["(", type-text left, " || ", type-text right, ")"]
     UPropNot body -> string-concat "not " (type-text body)

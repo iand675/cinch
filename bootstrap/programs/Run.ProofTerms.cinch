@@ -68,6 +68,10 @@ module Main where
       Some context ->
         let pure body = typing-definition-closed context (definition "pure" pure-arrow [binder] body) in
         let effectful body = typing-definition-closed context (definition "effectful" effect-arrow [binder] body) in
+        let value = UIndex int (IInteger 5) in
+        let equality = UCompare "Eq" value value in
+        let unequal = UCompare "Eq" value (UIndex int (IInteger 6)) in
+        let comparison = UCompare "==" value value in
         [ pure one
         , effectful (call effects (ref h))
         , not (pure (call effects (ref h)))
@@ -96,6 +100,12 @@ module Main where
         , not (scoped-proof-reference gamma (UPropLit False) (ref h))
         , not (scoped-proof-reference gamma truth (CProofRef sp truth (h + 1) "h"))
         , scoped-proof-reference gamma truth (CProofRef sp truth h "renamed")
+        , scoped-proof-reference gamma equality (CProofRefl sp equality)
+        , not (scoped-proof-reference gamma unequal (CProofRefl sp unequal))
+        , not (scoped-proof-reference gamma truth (CProofRefl sp truth))
+        , not (scoped-proof-reference gamma unequal (CProofRefl sp equality))
+        , not (scoped-proof-reference gamma comparison (CProofRefl sp comparison))
+        , not (pure (CProofRefl sp equality))
         , not (pure (CApply sp int (CUse sp pure-arrow "accept" "external" Nil) (ref h)))
         , pure (CErasedApply sp int empty-row (CUse sp pure-arrow "accept" "external" Nil) (ref h))
         , guarded (nonce + 10)

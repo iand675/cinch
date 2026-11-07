@@ -49,9 +49,15 @@ diagnostic. The corrected development compiler routes predicate syntax
 through typed checking and sends named proof declarations to the dedicated
 proof pass. The unchanged valid Proof example ran without leaks and the
 invalid example reported `obligation disproved` at its original source
-location. Its full pipeline and matching Stage3 replay remain open.
+location. Both original pipeline tests passed on that development snapshot.
+A separate four-stage ladder using the consolidated library and named proofs
+passed the independent fixed-point, consumer and changed-source audit.
+The named-proof implementation and consolidated producer are now integrated
+with the stricter interface reader. Their combined ladder and the original
+Proof example replay through the audited Stage3 are queued.
 See [the Core proof replay](../bootstrap/current-schema10-reflexivity-core-results.json)
-and [the original Proof example audit](../bootstrap/current-schema10-original-proof-replay-results.json).
+[the original Proof example audit](../bootstrap/current-schema10-original-proof-replay-results.json)
+and [the consolidated ladder audit](../bootstrap/current-schema10-consolidated-proof-bootstrap-results.json).
 
 The repaired Stage3 ran all 34 original language cases. Nine of thirteen
 valid programs ran at 32 MiB with poisoned allocations and zero leaks.

@@ -283,6 +283,7 @@ module Bootstrap.Contracts where
 
   declaration-reference :: Decl -> List String
   declaration-reference d = case d of
+    DProof sp body -> declaration-reference body
     DSig s name ty -> type-references ty
     DMethod s label name ty -> type-references ty
     DLaw s name syntax -> law-references syntax

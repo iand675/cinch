@@ -755,17 +755,18 @@ module Bootstrap.Parse where
     else if string-compare w "foreign" == 0 then parse-foreign toks src
     else if string-compare w "instance" == 0 then parse-instance toks src fix False
     else if string-compare w "implicit" == 0 then parse-implicit toks src fix
-    else if string-compare w "stage" == 0 then parse-stage-decl toks src fix
+    else if string-compare w "stage" == 0 then parse-marked-decl DStage toks src fix
+    else if string-compare w "proof" == 0 then parse-marked-decl DProof toks src fix
     else if string-compare w "generate" == 0 then parse-generate-decl toks src fix
     else if string-compare w "infix" == 0 then parse-fixity toks
     else if string-compare w "infixl" == 0 then parse-fixity toks
     else if string-compare w "infixr" == 0 then parse-fixity toks
     else PBad
 
-  parse-stage-decl :: List LToken -> Bytes -> List (String, Fix) -> Ps Decl
-  parse-stage-decl toks src fix = case toks of
+  parse-marked-decl :: (Span -> Decl -> Decl) -> List LToken -> Bytes -> List (String, Fix) -> Ps Decl
+  parse-marked-decl mark toks src fix = case toks of
     Cons keyword rest -> case parse-sig-or-eq rest src fix of
-      POk body tail -> POk (DStage (span-join (sp-of keyword) (decl-span body)) body) tail
+      POk body tail -> POk (mark (span-join (sp-of keyword) (decl-span body)) body) tail
       PBad -> PBad
     Nil -> PBad
 

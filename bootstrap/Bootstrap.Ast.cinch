@@ -401,6 +401,7 @@ module Bootstrap.Ast where
     DRecord :: Span -> String -> List TypeParam -> List (String, TypeExpr) -> Decl
     DEffect :: Span -> String -> List TypeParam -> List (String, TypeExpr) -> Decl
     DForeign :: Span -> String -> String -> String -> String -> TypeExpr -> Decl
+    DProof :: Span -> Decl -> Decl
     DStage :: Span -> Decl -> Decl
     DGenerate :: Span -> Decl -> Decl
     DStageEmit :: Span -> Decl -> Decl
@@ -440,6 +441,7 @@ module Bootstrap.Ast where
     DRecord s n params fields -> s
     DEffect s n params ops -> s
     DForeign s direction conv symbol foreign-name t -> s
+    DProof s body -> s
     DStage s body -> s
     DGenerate s actions -> s
     DStageEmit s template -> s
@@ -472,6 +474,7 @@ module Bootstrap.Ast where
     DDecl s x rest -> None
     DDeclsEnd s -> None
     DUnmodeled s text -> None
+    DProof s body -> decl-name body
     DStage s body -> None
     DGenerate s actions -> None
     DStageEmit s template -> None
@@ -673,6 +676,7 @@ module Bootstrap.Ast where
     DDecl s x rest -> decl-unmodeled-count x + decl-unmodeled-count rest
     DDeclsEnd s -> 0
     DUnmodeled s text -> 1
+    DProof s body -> decl-unmodeled-count body
     DStage s body -> decl-unmodeled-count body
     DGenerate s actions -> decl-unmodeled-count actions
     DStageEmit s template -> decl-unmodeled-count template

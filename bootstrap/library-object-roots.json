@@ -27,9 +27,24 @@
     {
       "classes": "OO",
       "symbol": "Algebra.Semigroup.Semigroup_Function"
+    },
+    {
+      "classes": "",
+      "symbol": "Data.List.Functor_List"
     }
   ],
-  "methods": [],
+  "methods": [
+    {
+      "class": "Category.Functor.Functor",
+      "own": "OO",
+      "slot": 1
+    },
+    {
+      "class": "Category.Functor.Functor",
+      "own": "RO",
+      "slot": 1
+    }
+  ],
   "schema": 1,
   "units": [
     {
@@ -215,6 +230,26 @@
     {
       "classes": "T",
       "symbol": "Data.Option.is-none"
+    },
+    {
+      "classes": "OOO",
+      "symbol": "Data.List.zip-with"
+    },
+    {
+      "classes": "OT",
+      "symbol": "Data.List.map"
+    },
+    {
+      "classes": "TOO",
+      "symbol": "Data.List.zip-with"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.List.map"
+    },
+    {
+      "classes": "TTT",
+      "symbol": "Data.List.zip-with"
     }
   ]
 }

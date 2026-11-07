@@ -940,6 +940,7 @@ module Bootstrap.Check where
     DRecord s n params fields -> fail s "record declarations are not supported in this rung"
     DEffect s n params ops -> fail s "effect declarations are not supported in this rung"
     DForeign s direction conv symbol foreign-name t -> fail s "foreign declarations are not supported in this rung"
+    DProof s body -> fail s "a proof declaration requires erased checking"
     DStage s body -> fail s "a stage declaration requires compile-time checking"
     DGenerate s actions -> fail s "a generate block requires compile-time expansion"
     DStageEmit s template -> fail s "emit requires a generate block"
