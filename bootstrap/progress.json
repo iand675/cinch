@@ -18887,10 +18887,10 @@
       },
       {
         "title": "Schema 9: source admission, imported defaults, runtime and pipeline",
-        "status": "running",
+        "status": "failed",
         "phase": "bootstrap_runtime_ir",
         "passed": 3,
-        "failed": 0,
+        "failed": 1,
         "total": 5,
         "source": "8959030d54643c5c4c2898e4e1b389930f084753b1d7424c23d02f8c228dd918"
       },
@@ -19060,5 +19060,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T10:43:02.308944+00:00"
+  "updatedAt": "2026-11-07T10:44:24.502222+00:00"
 }
