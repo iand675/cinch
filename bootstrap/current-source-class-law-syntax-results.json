@@ -1,0 +1,12 @@
+{
+  "compiler_source_sha256": "facbefe7e176723ade0c7d55da59581a7b403d7cf5c4f39a7b6c425ac2b60281",
+  "full_goal_complete": false,
+  "log_sha256": "23510e472a79153ba38939b5d7db5de07b86d62173966d88d863df971351eaa5",
+  "scope": "Complete original type syntax target plus structural checks for original associativity grouping and Functor quantifiers and operands, and malformed equality refusal. This verifies parsing only; class law typing, instance evidence and manifest compatibility require separate proof.",
+  "source_sha256": "1fb82439061798a8d541080d88559c02d524158ed08728d5faaa0bf8a14b4cf3",
+  "status": "verified-source-class-law-syntax",
+  "syntax_fixture_sha256": "8178d35759be9b00dc7cfc51fb21e75aceffef2dc4a065aacf95ada40eabaf51",
+  "syntax_group_tests": 1,
+  "verified_at": "2026-11-07T05:02:05.342632+00:00",
+  "zero_leak_reports": 1
+}

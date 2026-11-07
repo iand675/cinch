@@ -88,6 +88,7 @@ def build_checklist(root, cfg, previous=None):
     full = read(cfg['native'])
     front = read(cfg['selected'])
     scope = read(cfg['coverage'])
+    outside_review = read(root/'bootstrap/current-outside-frontend-target-review.json')
     chain = read(Path(cfg['chain'])/'independent-verification.json')
     earlier_full = read(cfg.get('previousNative')) or full
     earlier_native = {r['name']: r for r in earlier_full.get('rows', [])}
@@ -254,6 +255,12 @@ def build_checklist(root, cfg, previous=None):
                 link('bootstrap/current-original-concurrency-frontend-results.json'),
                 observed=dict(status='failed',source=concurrency['compiler_source_sha256'],
                     cases=[dict(name=case['name'], status=case['status']) for case in concurrency['cases']])))
+        for reviewed in outside_review.get('rows', []):
+            name = reviewed['target']
+            if name in ('laws', 'prim'):
+                extra_rows.append(item('additional:'+name, name, 'pending',
+                    f"The Rust target passed all {reviewed['rust_test_function_count']} tests. Matching Stage3 source coverage is pending. "+reviewed['findings'],
+                    reviewed['required'], link('bootstrap/current-outside-frontend-target-review.json')))
         suites.append(suite('additional','Additional frontend coverage','targets',extra_rows,
             'The coverage audit adds these targets alongside all original Stage3 targets. Direct Rust calls have their own test inventory.'))
 
@@ -317,8 +324,8 @@ def build_checklist(root, cfg, previous=None):
              'The original function carrier, refined product and unit cases compile and execute their expected results through final Stage3.',link('bootstrap/current-function-default-api-results.json' if function_defaults else 'bootstrap/current-source-class-default-self-values-api-results.json')),
         item('gap:imported-defaults','Transport checked imported default implementations','pending','A default hash alone does not provide the checked implementation required by an inheriting source instance.',
              'Inherited imported defaults retain owner scope, private closure, actual method contracts and compiled behavior; missing or stale contracts refuse.',link('design/compiled-interface-metadata.md')),
-        item('gap:laws','Elaborate source class laws and declarations','pending','The exact Category.Functor probe rejects map-identity and map-compose as well as the structural Functor_Function instance. Algebra.Semigroup rejects assoc.',
-             'Retain and check the original class laws and namespace declarations; pass all original family and law assertions.',link('design/next-steps.md')),
+        item('gap:laws','Elaborate source class laws and declarations','pending','The full type-syntax test passes and preserves the original law binders and equation structure. Checked carriers and instance evidence remain required. Category also needs the structural Functor_Function instance.',
+             'Retain and check the original class laws and namespace declarations; pass all original family and law assertions.',link('bootstrap/current-source-class-law-syntax-results.json')),
         item('gap:base-names','Restore source-family implicit base names','running' if early_base else 'pending',
              'The development compiler now resolves the original Algebra.Semigroup constructors. Explicit and implicit Data.Core usage give the same checked contract and exact dependency hash; qualified access still requires an import.' if early_base else 'With the complete authenticated library interface set, source Algebra.Semigroup still cannot resolve Nil, None, Cons and Some before Prelude.',
              'Source library homes retain their checked base scope without a facade back-edge or unchecked aliases.',link('bootstrap/current-source-overlay-base-scope-results.json' if early_base else 'bootstrap/current-source-prelude-counterexample.json')),
@@ -340,7 +347,9 @@ def build_checklist(root, cfg, previous=None):
         item('gap:fixities','Reverify defining-module-only fixities','recheck','The earlier self-built controls prove that both identical and changed importer declarations refuse.',
              'Repeat the original defining-owner, facade/rename and importer-refusal controls through the final matching Stage3.',link('bootstrap/current-record-indexed-external-acceptance-results.json')),
         item('gap:coverage','Audit every frontend-facing test outside the Stage3 matrix','pending',
-             f'{len(set(native_names)-set(front_names))} Rust targets are outside the preserved Stage3 matrix. Eleven reviews identify two Native harness roles and nine source or mixed targets. The original fixity replay passes on development Cinch. The complete original concurrency replay identifies eleven failures. Another 119 targets need review before matching final Stage3 coverage.',
+             f"{len(set(native_names)-set(front_names))} Rust targets are outside the preserved Stage3 matrix. "
+             f"{outside_review.get('target_level_reviews', 0)} have a target-level review and "
+             f"{len(outside_review.get('unreviewed_targets', []))} still need one. The original law, prim and concurrency source checks remain required.",
              'Review all remaining targets and assertions, retain direct Rust API roles explicitly, and add every missing portable behavior case to final Stage3 execution.',link('bootstrap/current-outside-frontend-target-review.json')),
         item('gap:final-audit','Complete the requirement-by-requirement final audit','pending','A green subset, source check or earlier fixed point cannot close the full goal.',
              'Every acceptance item, named artifact, invariant and complete matching suite has direct current evidence; all failures and unclassified coverage are closed.',link('design/self-hosting.md#acceptance'))]

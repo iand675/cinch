@@ -1,13 +1,13 @@
 {
   "status": "partial-audit-of-targets-outside-historical105-frontend-matrix",
-  "verified_at": "2026-11-07T03:19:23.171568+00:00",
+  "verified_at": "2026-11-07T05:01:21.368792+00:00",
   "published_compiler_source_sha256": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
   "native_source_sha256": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
   "historical_frontend_targets": 105,
   "outside_targets_total": 130,
-  "target_level_reviews": 11,
+  "target_level_reviews": 13,
   "infrastructure_roles_identified": 2,
-  "targets_with_identified_source_coverage_obligations": 9,
+  "targets_with_identified_source_coverage_obligations": 11,
   "unreviewed_targets": [
     "bin-cinch",
     "dependent",
@@ -27,7 +27,6 @@
     "intrinsic_objects",
     "json",
     "lattice",
-    "laws",
     "letrec",
     "lib",
     "lib_algebra",
@@ -85,7 +84,6 @@
     "platform",
     "prelude_lib",
     "prelude_split",
-    "prim",
     "primitives",
     "proof_guarded_lets",
     "proof_value_identity",
@@ -129,7 +127,7 @@
     "total_bodies",
     "wasm"
   ],
-  "reviewed_rust_test_functions": 141,
+  "reviewed_rust_test_functions": 163,
   "rows": [
     {
       "target": "bootstrap_external_frontend",
@@ -492,9 +490,75 @@
         "log_sha256": "e51db13097add7742a57ebdd5c21f657a3da055f385936dd30519f894131de62"
       },
       "matching_final_cinch_execution_proven": false
+    },
+    {
+      "target": "laws",
+      "test_file": "compiler/tests/laws.rs",
+      "test_file_sha256": "504d194e75843990e6d5ce210166a1d1f1ddd2820b12ae980d41da1e4291da98",
+      "rust_test_functions": [
+        "class_laws_state_the_equations",
+        "law_abiding_instance_passes_sample_wise",
+        "law_breaking_instance_is_rejected_naming_the_law",
+        "rewrite_citing_a_law_by_identity_records_the_assumption",
+        "rewrite_equations_retain_generic_instantiations_and_explicit_annotations"
+      ],
+      "rust_test_function_count": 5,
+      "role": "Source behavior and Native harness",
+      "target_role_classification_complete": true,
+      "per_assertion_portable_audit_complete": false,
+      "requires_additional_matching_cinch_source_coverage": true,
+      "findings": "All five Rust tests drive source checking directly. Required behavior includes shipped associativity, unit and functor equations, original intended-reason refusals, sampled passing and failing instances, manifest assumption identity, and typed rewriting with polymorphic functions, lambdas and annotations.",
+      "required": "Keep the full Native suite. Execute the original source checks through final Stage3, including the exact sample and manifest assertions and the three mismatched rewrite justifications.",
+      "native_observation": {
+        "status": "passed",
+        "tests": 5,
+        "compiler_source_sha256": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+        "native_source_sha256": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+        "log_sha256": "187ff035af752bf02dde7f946f56048a5fd81b3a52023aff92dca95fbeec6acb"
+      },
+      "matching_final_cinch_execution_proven": false
+    },
+    {
+      "target": "prim",
+      "test_file": "compiler/tests/prim.rs",
+      "test_file_sha256": "cb3ec8869b53772302f71180268f95621996e9043cfb0d0651a8a2a315fd4b4a",
+      "rust_test_functions": [
+        "prim_with_llvm_and_asm_bodies_checks_and_compiles",
+        "intrinsic_families_migrate_onto_prim_bodies",
+        "escaping_body_fails_containment_naming_no_escape",
+        "extra_parameters_fail_containment_naming_signature_discipline",
+        "unwinding_body_fails_containment_naming_no_unwind",
+        "effectful_body_fails_containment_naming_effects",
+        "clr_and_jvm_body_slots_are_reserved",
+        "capability_scoped_selection_is_manifest_only",
+        "justified_prim_records_its_law_identity",
+        "assumed_prim_identity_is_the_body_hash",
+        "pure_prim_calls_leave_evidence_intact_and_carry_memory_none",
+        "effectful_prim_calls_invalidate_per_row",
+        "unsafe_pure_prim_records_its_assumption_and_stays_scan_gated",
+        "containment_rejects_a_pure_row_with_stores_even_unsafe",
+        "unverifiable_bodies_without_unsafe_are_rejected",
+        "platform_gated_asm_bodies_select_per_arch",
+        "conditional_only_prims_reject_naming_the_missing_platform"
+      ],
+      "rust_test_function_count": 17,
+      "role": "Source behavior and Native harness",
+      "target_role_classification_complete": true,
+      "per_assertion_portable_audit_complete": false,
+      "requires_additional_matching_cinch_source_coverage": true,
+      "findings": "All seventeen Rust tests exercise source-facing prim declarations or their generated IR and manifests. The harness has direct Rust code generation, profile and IR inspection roles. Portable assertions include runtime execution, named containment and platform refusals, effect-row invalidation and lawful versus assumed identities.",
+      "required": "Keep the complete Native harness, and replay all original Cinch inputs and portable assertions through final Stage3. Preserve profile-specific selection, stable justified identities, hashed assumptions, safety diagnostics, generated attributes and runtime results.",
+      "native_observation": {
+        "status": "passed",
+        "tests": 17,
+        "compiler_source_sha256": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+        "native_source_sha256": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+        "log_sha256": "f65a2ee756dcfee14792738d658dbb912a6210411df727f3cb9d68f180415418"
+      },
+      "matching_final_cinch_execution_proven": false
     }
   ],
   "whole_coverage_audit_complete": false,
   "full_goal_complete": false,
-  "scope": "Eleven target-level reviews outside the historical Stage3 matrix identify two Native harness roles and nine targets that contain source behavior. Development concurrency runs all seventeen original Rust tests with six passing and eleven failing. A failed first assertion can prevent later cases from running. The earlier fixity target passes its development replay. Every original test and named refusal remains required, including matching final Stage3 verification."
+  "scope": "Thirteen target-level reviews outside the preserved 105-target Stage3 matrix. Two have Native harness roles and eleven contain source or mixed obligations. The five laws and seventeen prim tests pass in the Rust suite and still require their portable checks through matching Stage3. No additional acceptance credit is claimed."
 }
