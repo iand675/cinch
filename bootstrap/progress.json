@@ -71,7 +71,7 @@
     },
     {
       "title": "Earlier API checkpoint: exact Stage3 behavior",
-      "detail": "95 of 105 complete groups passed; 1 running, 3 failed and 6 pending.All105 required targets:96 portable and9 original interface/API groups, preserving the original100 plus5 additions. Original explicit32M poisoned client limits remain; compiler/checker consumers use256M. Direct Native operations in mixed targets remain classified separately. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "96 of 105 complete groups passed; 1 running, 3 failed and 5 pending.All105 required targets:96 portable and9 original interface/API groups, preserving the original100 plus5 additions. Original explicit32M poisoned client limits remain; compiler/checker consumers use256M. Direct Native operations in mixed targets remain classified separately. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -507,7 +507,7 @@
     },
     {
       "title": "Finish the exact self-built compiler tests",
-      "detail": "95 of 105 complete groups passed; 1 running, 3 failed and 6 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "96 of 105 complete groups passed; 1 running, 3 failed and 5 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Pass all external language examples through Stage3",
@@ -11878,8 +11878,8 @@
           "verified": 0,
           "blocked": 0,
           "running": 0,
-          "pending": 6,
-          "recheck": 99
+          "pending": 5,
+          "recheck": 100
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
         "items": [
@@ -14162,12 +14162,12 @@
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/class_identity.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "startedAt": "2026-11-07T04:03:49.907828+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T04:04:38.551428+00:00",
+              "exitCode": 0,
+              "logSha256": "2e71024cdd09a5b5642dc829b9de838a749f7dae601e0cafecd200e63f3f23f9",
               "cases": [
                 {
                   "name": "a_local_data_type_can_shadow_a_legacy_signature_spelling",
@@ -14175,7 +14175,11 @@
                 },
                 {
                   "name": "distinct_declaring_classes_with_the_same_name_select_their_own_instances",
-                  "status": "running"
+                  "status": "passed"
+                },
+                {
+                  "name": "evidence_for_another_declaring_class_is_rejected",
+                  "status": "passed"
                 }
               ]
             },
@@ -14184,18 +14188,35 @@
           {
             "id": "stage3:exhaustion",
             "title": "exhaustion",
-            "state": "pending",
+            "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/exhaustion.rs",
             "observed": {
-              "status": "pending",
+              "status": "running",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": null,
+              "startedAt": "2026-11-07T04:04:38.565514+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "deep_recursion_inside_a_task_exits_exhausted_stack",
+                  "status": "passed"
+                },
+                {
+                  "name": "deep_recursion_within_the_limit_still_succeeds",
+                  "status": "passed"
+                },
+                {
+                  "name": "unbounded_allocation_exits_exhausted_heap",
+                  "status": "passed"
+                },
+                {
+                  "name": "unbounded_non_tail_recursion_exits_exhausted_stack",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -14506,10 +14527,10 @@
           }
         ],
         "observedCounts": {
-          "passed": 95,
+          "passed": 96,
           "failed": 3,
           "running": 1,
-          "pending": 6
+          "pending": 5
         },
         "observedSource": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2"
       },
@@ -18947,14 +18968,14 @@
       },
       {
         "title": "Source-library replacement: complete pipeline and dependency checks",
-        "status": "running",
+        "status": "passed-source-interface-overlay-pipeline",
         "phase": "bootstrap_pipeline",
-        "passed": 0,
+        "passed": 1,
         "failed": 0,
         "total": 1,
         "source": "5d309ef740666a6d9ced99ecc6067416e165bb2544d1b2c471787b00c872a756",
         "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
-        "auditPending": false
+        "auditPending": true
       },
       {
         "title": "Function defaults: fresh pinned library object",
@@ -19121,8 +19142,8 @@
       {
         "title": "Earlier Stage3: complete frontend sweep",
         "status": "running",
-        "phase": "class_identity",
-        "passed": 95,
+        "phase": "exhaustion",
+        "passed": 96,
         "failed": 3,
         "total": 105,
         "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
@@ -19133,8 +19154,8 @@
       "verified": 462,
       "blocked": 4,
       "running": 9,
-      "pending": 38,
-      "recheck": 156
+      "pending": 37,
+      "recheck": 157
     },
     "total": 669,
     "acceptanceVerified": 0,
@@ -19142,5 +19163,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T04:04:31.964341+00:00"
+  "updatedAt": "2026-11-07T04:05:34.080118+00:00"
 }
