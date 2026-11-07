@@ -385,6 +385,7 @@ fn typed_runtime_numbers_preserve_exact_values_and_reclaim_owned_words() {
         ("nested-escaping-closures", "  make :: Int -> Int -> Int -> Int\n  make x = \\y -> \\z -> x + y + z\n  main :: Int\n  main = if make 18446744073709551616 2 3 == 18446744073709551621 then 213 else 1\n", 213),
         ("unused-capture", "  ignore :: Int -> Int -> Int\n  ignore outer = \\inner -> inner\n  main :: Int\n  main = if ignore 18446744073709551616 9 == 9 then 215 else 1\n", 215),
         ("shadowed-capture", "  make :: Int -> Int -> Int -> Int\n  make x = \\x -> let y = x + 1 in \\z -> y + z\n  main :: Int\n  main = if make 18446744073709551616 2 3 == 6 then 217 else 1\n", 217),
+        ("copy-out-owned-tuple", "  values :: (Int, Int)\n  values = (20, 22)\n  main :: Int\n  main = case copyOut values of (a, b) -> a + b\n", 42),
         ("generic-capture-classes", "  constant :: forall a b. a -> b -> a\n  constant x = \\y -> x\n  main :: Int\n  main = if constant True (18446744073709551616 :: Int) && constant 18446744073709551616 True == 18446744073709551616 then 219 else 1\n", 219),
         ("higher-order-generic-map", "  data Seq a where\n    End :: Seq a\n    Link :: a -> Seq a -> Seq a\n  mapSeq :: forall a b. (a -> b) -> Seq a -> Seq b\n  mapSeq f End = End\n  mapSeq f (Link x rest) = Link (f x) (mapSeq f rest)\n  total :: Seq Int -> Int\n  total End = 0\n  total (Link x rest) = x + total rest\n  main :: Int\n  main = if total (mapSeq (\\x -> x + 18446744073709551616) (Link (2 :: Int) (Link 3 End))) == 36893488147419103237 then 221 else 1\n", 221),
         ("borrowed-field-capture", "  data Box where\n    Box :: Int -> Box\n  get :: Box -> Int -> Int\n  get box = case box of Box n -> \\x -> n + x\n  main :: Int\n  main = if get (Box 18446744073709551616) 3 == 18446744073709551619 then 223 else 1\n", 223),
@@ -582,9 +583,17 @@ fn typed_runtime_numbers_preserve_exact_values_and_reclaim_owned_words() {
     for index in 0..invalid_source_signatures.len() {
         assert_eq!(common::read_output(&dir, &format!("output-{}.status", cases.len() + 2 + index)), "4", "invalid source signature {index}");
         assert!(common::read_output(&dir, &format!("output-{}.ll", cases.len() + 2 + index)).is_empty());
-        if [0, 1, 2, 3, 6, 7, 8].contains(&index) {
+        let task_reason = match index {
+            0..=1 => Some("task handle must be joined exactly once"),
+            2..=3 => Some("task handle must be consumed exactly once"),
+            6 => Some("region escape: a task capture does not outlive the destination scope"),
+            7 => Some("region escape: a scoped capture leaves its `withScope`"),
+            8 => Some("without shareable evidence"),
+            _ => None,
+        };
+        if let Some(reason) = task_reason {
             assert!(common::read_output(&dir, &format!("output-{}.diagnostics", cases.len() + 2 + index))
-                .contains("task handle must be consumed exactly once"),
+                .contains(reason),
                 "task refusal {index} must reach ownership/lifetime checking, not fail an unrelated source check");
         }
     }

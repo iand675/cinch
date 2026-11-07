@@ -50,3 +50,43 @@ module Bootstrap.Report where
   render-diagnostics ds = case ds of
     Nil -> empty-string
     Cons d rest -> string-concat (render-diagnostic d) (string-concat "\n" (render-diagnostics rest))
+
+  -- Project bundles label their actual input files with column-one
+  -- `-- source: <escaped path>` comments. These affect presentation only:
+  -- no source name or proof authority is obtained from a label. Preserve
+  -- the phase and bundled position, adding the original file and line.
+  origin-prefix :: List Char -> List Char -> Option String
+  origin-prefix prefix input = case prefix of
+    Nil -> if list-length input == 0 then None else Some (pack input)
+    Cons a rest -> (case input of
+      Cons b more -> if char-code a == char-code b then origin-prefix rest more else None
+      Nil -> None)
+  origin-line :: List Char -> List Char -> (List Char, List Char)
+  origin-line input seen = case input of
+    Nil -> (reverse seen, Nil)
+    Cons c rest -> if char-code c == 10 then (reverse seen, rest) else origin-line rest (Cons c seen)
+  origin-at :: Nat -> List Char -> Nat -> String -> Nat -> Option (String, Nat)
+  origin-at wanted-line input line label start =
+    if line == wanted-line then
+      if string-length label > 0 && wanted-line > start then Some (label, wanted-line - start) else None
+    else case input of
+      Nil -> None
+      other -> (case origin-line input Nil of
+        (text, rest) -> case origin-prefix (unpack "-- source: ") text of
+          Some path -> origin-at wanted-line rest (line + 1) path line
+          None -> origin-at wanted-line rest (line + 1) label start)
+  render-source-diagnostic :: List Char -> Diagnostic -> String
+  render-source-diagnostic source diagnostic = case origin-at (span-line (diagnostic-span diagnostic)) source 1 "" 0 of
+    None -> render-diagnostic diagnostic
+    Some (path, line) -> string-concat (render-diagnostic diagnostic)
+      (string-concat " (" (string-concat path (string-concat ":" (string-concat (nat-to-string line)
+        (string-concat ":" (string-concat (nat-to-string (span-col (diagnostic-span diagnostic))) ")"))))))
+  render-source-diagnostics-from :: List Char -> List Diagnostic -> String
+  render-source-diagnostics-from source diagnostics = case diagnostics of
+    Nil -> empty-string
+    Cons first rest -> string-concat (render-source-diagnostic source first)
+      (string-concat "\n" (render-source-diagnostics-from source rest))
+  render-source-diagnostics :: Bytes -> List Diagnostic -> String
+  render-source-diagnostics source diagnostics = case string-from-bytes source of
+    None -> render-diagnostics diagnostics
+    Some text -> render-source-diagnostics-from (unpack text) diagnostics

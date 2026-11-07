@@ -10,7 +10,7 @@ module Bootstrap.ExportType where
   import Text.Show (nat-to-string, int-to-string)
 
   export export-global, export-type, export-scheme, export-value-scheme, export-display-scheme, export-kind
-  export export-parameters, export-constructor-fields, export-instance-scheme
+  export export-parameters, export-constructor-fields, export-constructor-display, export-instance-scheme
   export export-resolved-value-scheme
 
   join :: List (Result String String) -> Result String String
@@ -114,6 +114,88 @@ module Bootstrap.ExportType where
     (Ok value, Ok more) -> Ok (Cons value more)
     (Err error, other) -> Err error
     (other, Err error) -> Err error
+  -- Ordinary constructors use the public schema's nominal application
+  -- syntax. Keep the fully resolved scheme on its separate canonical path.
+  ordinary-quantifiers :: List Quant -> Bool
+  ordinary-quantifiers quants = case quants of
+    Nil -> True
+    Cons q rest -> not (quant-implicit q) && kind-equal (quant-kind q) KType && ordinary-quantifiers rest
+  ordinary-type :: UType -> Bool
+  ordinary-type ty = case ty of
+    UCon name kind -> True
+    UBound id name kind -> kind-equal kind KType
+    UApp f x -> ordinary-type f && ordinary-type x
+    UFun a b -> ordinary-type a && ordinary-type b
+    UTuple items -> ordinary-tuple items
+    other -> False
+  ordinary-tuple :: UType -> Bool
+  ordinary-tuple items = case items of
+    UEnd -> True
+    UArg first rest -> ordinary-type first && ordinary-tuple rest
+    other -> False
+  -- Public constructor spellings of the pinned base family, from the
+  -- defining declarations in its embedded package. These aliases format
+  -- metadata only. Resolved contracts keep their full defining identity.
+  base-constructor-names :: List (String, String)
+  base-constructor-names =
+    [("Data.Target.AVX2_256", "AVX2_256"), ("Algebra.Monoid.All", "All"), ("Algebra.Monoid.Any", "Any"),
+    ("Data.Ascii.Ascii", "Ascii"), ("Data.Target.CapAvailable", "CapAvailable"), ("Effect.Process.Child", "Child"),
+    ("Effect.Process.Command", "Command"), ("Data.Compose.Compose", "Compose"), ("Effect.Io.Config", "Config"),
+    ("Effect.Io.ConfigError", "ConfigError"), ("Data.Const.Const", "Const"), ("Relation.Ord.Down", "Down"),
+    ("Algebra.Monoid.Dual", "Dual"), ("Effect.Clock.Duration", "Duration"), ("Data.Target.EightLanes", "EightLanes"),
+    ("Algebra.Monoid.Endo", "Endo"), ("Effect.Fs.FileKind", "FileKind"), ("Effect.Fs.FileMeta", "FileMeta"),
+    ("Algebra.Monoid.First", "First"), ("Effect.Fs.FsError", "FsError"), ("Data.HashMap.HashMap", "HashMap"),
+    ("Data.Identity.Identity", "Identity"), ("Algebra.Arithmetic.InRange", "InRange"), ("Data.Json.Json", "Json"),
+    ("Text.Codec.JsonDecodeError", "JsonDecodeError"), ("Algebra.Monoid.Last", "Last"), ("Data.Core.List", "List"),
+    ("Effect.Concurrent.LoadError", "LoadError"), ("Data.Map.Map", "Map"), ("Data.Target.NEON64", "NEON64"),
+    ("Data.NonEmpty.NonEmpty", "NonEmpty"), ("Algebra.Arithmetic.NonZero", "NonZero"), ("Data.Core.Option", "Option"),
+    ("Data.Ordering.Ordering", "Ordering"), ("Data.Path.Path", "Path"), ("Effect.Process.ProcessError", "ProcessError"),
+    ("Data.Producer.Producer", "Producer"), ("Algebra.Monoid.Product", "Product"), ("Effect.Concurrent.Request", "Request"),
+    ("Data.Core.Result", "Result"), ("Data.Target.ScalableShape", "ScalableShape"), ("Data.Set.Set", "Set"),
+    ("Data.Sorted.Sorted", "Sorted"), ("Data.HashMap.Spine", "Spine"), ("Data.Producer.Step", "Step"),
+    ("Effect.Process.Stream", "Stream"), ("Data.String.String", "String"), ("Algebra.Monoid.Sum", "Sum"),
+    ("Data.Producer.TakeSt", "TakeSt"), ("Effect.Clock.Timeout", "Timeout")]
+  constructor-name :: String -> List (String, String) -> String
+  constructor-name identity names = case names of
+    Nil -> identity
+    Cons (owner, spelling) rest -> if same owner identity then spelling else constructor-name identity rest
+  constructor-type :: List (Nat, String) -> UType -> Result String String
+  constructor-type scope ty = case ty of
+    UCon name kind -> case export-global name of
+      Err error -> Err error
+      Ok identity -> Ok (constructor-name identity base-constructor-names)
+    UApp f x -> join [constructor-type scope f, Ok " ", case x of
+      UApp g y -> join [Ok "(", constructor-type scope x, Ok ")"]
+      other -> constructor-type scope x]
+    UFun a b -> join [Ok "(", constructor-type scope a, Ok " -> ", constructor-type scope b, Ok ")"]
+    UTuple items -> join [Ok "(", constructor-tuple scope items, Ok ")"]
+    other -> type-in scope ty
+  constructor-tuple :: List (Nat, String) -> UType -> Result String String
+  constructor-tuple scope items = case items of
+    UEnd -> Ok ""
+    UArg first rest -> join [constructor-type scope first, case rest of
+      UEnd -> Ok ""
+      other -> join [Ok ", ", constructor-tuple scope rest]]
+    other -> Err "invalid constructor tuple"
+  constructor-quantifiers :: List (Nat, String) -> List Quant -> (List String, List (Nat, String))
+  constructor-quantifiers scope quants = case quants of
+    Nil -> (Nil, scope)
+    Cons q rest -> let name = source-binder (fresh-name "q" (list-length scope)) (quant-name q) scope in
+      case constructor-quantifiers (Cons (quant-id q, name) scope) rest of
+        (names, bound) -> (Cons name names, bound)
+  ordinary-fields :: List (Nat, String) -> UType -> Result String (List String)
+  ordinary-fields scope ty = case ty of
+    UFun domain result -> prepend-field (constructor-type scope domain) (ordinary-fields scope result)
+    other -> Ok Nil
+  export-constructor-display :: Bool -> Scheme -> (Result String (List String), Result String String)
+  export-constructor-display hidden scheme = let quants = scheme-params scheme in let body = scheme-body scheme in
+    if hidden || not (ordinary-quantifiers quants && ordinary-type body) then (export-constructor-fields scheme, export-value-scheme scheme)
+    else case scheme-requirements scheme of
+      Cons first rest -> (export-constructor-fields scheme, export-value-scheme scheme)
+      Nil -> case constructor-quantifiers Nil quants of
+        (names, scope) -> (ordinary-fields scope body, case names of
+          Nil -> constructor-type scope body
+          other -> join [Ok "forall ", Ok (strings " " names), Ok " . ", constructor-type scope body])
   index-in :: List (Nat, String) -> IndexTerm -> Result String String
   index-in scope index = case index of
     IInteger n -> Ok (int-to-string n)

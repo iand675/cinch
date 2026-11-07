@@ -50,7 +50,8 @@ fn imported_anonymous_results_and_arguments_keep_their_meaning() {
         ("argument appears before result", "probe :: refined (r <= 4) Nat\n  probe = under 4", 0),
         ("result equality uses actual argument", "probe :: refined (r == 9) Nat\n  probe = identity 9", 0),
         ("fresh result avoids argument collision", "probe :: refined (r == 5) Nat\n  probe = collide 5", 0),
-        ("bare structural result projects", "probe :: Nat\n  probe = pos", 0),
+        ("bare structural result needs projection", "probe :: Nat\n  probe = pos", 4),
+        ("explicit projection preserves the carrier", "probe :: Nat\n  probe = unrefine pos", 0),
         ("anonymous parameter accepts proven value", "probe :: Nat\n  probe = need 2", 0),
         ("anonymous parameter rejects zero", "bad :: Nat\n  bad = need 0", 4),
         ("negative mathematical result", "probe :: refined (r < 0) Int\n  probe = below-zero", 0),
@@ -58,7 +59,7 @@ fn imported_anonymous_results_and_arguments_keep_their_meaning() {
         ("exported bound cannot strengthen", "bad :: refined (r < 3) Nat\n  bad = bound 3", 4),
         ("equality cannot change argument identity", "bad :: refined (r == 8) Nat\n  bad = identity 9", 4),
         ("negative bound cannot hold of Nat", "bad :: refined (r < 0) Nat\n  bad = bound 0", 4),
-        ("positive result cannot prove stronger bound", "bad :: refined (r > 10) Nat\n  bad = pos", 4),
+        ("positive result cannot prove stronger bound", "bad :: refined (r > 10) Nat\n  bad = unrefine pos", 4),
         ("result names refined argument carrier", "probe :: refined (r < 3) Nat\n  probe = by-positive 3", 0),
         ("refined argument still rejects zero", "bad :: Nat\n  bad = by-positive 0", 4),
         ("real remainder retains result bound", "probe :: refined (r < 3) Nat\n  probe = nat-rem 7 3", 0),
@@ -69,7 +70,14 @@ fn imported_anonymous_results_and_arguments_keep_their_meaning() {
         let report = common::read_output(&dir, "refinement-report.txt");
         assert_eq!(output.status.code(), Some(status), "{name}: {report}\n{}", String::from_utf8_lossy(&output.stderr));
         if status == 0 { assert!(report.is_empty(), "{name}: {report}"); }
-        else { assert!(report.contains("refinement predicate is not established"), "{name}: {report}"); }
+        else {
+            let reason = if name == "bare structural result needs projection" {
+                "type mismatch"
+            } else {
+                "refinement predicate is not established"
+            };
+            assert!(report.contains(reason), "{name}: {report}");
+        }
         eprintln!("anonymous contract case passed: {name}");
     }
     common::cleanup(&source); common::cleanup(&dir);

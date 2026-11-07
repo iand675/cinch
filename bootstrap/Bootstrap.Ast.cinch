@@ -31,7 +31,8 @@
 module Bootstrap.Ast where
 
   import Text.Lex (Span, span-start, span-end, span-line, span-col)
-  import Data.Json (Json)
+  import Data.Json (Json, JArr, JArrEnd, JStr, JBool, JNull)
+  import Algebra.Semigroup
 
   -- ------------------------------------------------------------------ spans
 
@@ -370,6 +371,14 @@ module Bootstrap.Ast where
     ExportName :: Span -> List String -> ExportItem
     ExportModule :: Span -> String -> ExportItem
 
+  -- A law equation contains terms, including the declaring class's methods.
+  -- Keeping them distinct from its binder types preserves both scopes.
+  data LawSyntax where
+    LawForall :: List TypeParam -> LawSyntax -> LawSyntax
+    LawArrow :: TypeExpr -> LawSyntax -> LawSyntax
+    LawEquation :: Expr -> Expr -> LawSyntax
+    LawProposition :: TypeExpr -> LawSyntax
+
   data Decl where
     DSource :: Span -> String -> Json -> Decl
     DInterface :: Span -> String -> String -> Json -> Decl
@@ -377,6 +386,7 @@ module Bootstrap.Ast where
     DSig :: Span -> String -> TypeExpr -> Decl
     -- Resolved source method: slot label and actual module binding.
     DMethod :: Span -> String -> String -> TypeExpr -> Decl
+    DLaw :: Span -> String -> LawSyntax -> Decl
     DFun :: Span -> String -> List (List Pat, Expr) -> Decl
     DData :: Span -> String -> List TypeParam -> List (String, TypeExpr) -> Decl
     DOpaque :: Span -> String -> List TypeParam -> TypeExpr -> Decl
@@ -411,6 +421,7 @@ module Bootstrap.Ast where
     DExternal s name kind scheme metadata -> s
     DSig s n t -> s
     DMethod s label name t -> s
+    DLaw s name syntax -> s
     DFun s n clauses -> s
     DData s n params ctors -> s
     DOpaque s n params kind -> s
@@ -435,6 +446,7 @@ module Bootstrap.Ast where
     DExternal s name kind scheme metadata -> Some name
     DSig s n t -> Some n
     DMethod s label name t -> Some name
+    DLaw s name syntax -> None
     DFun s n clauses -> Some n
     DData s n params ctors -> Some n
     DOpaque s n params kind -> Some n
@@ -630,6 +642,7 @@ module Bootstrap.Ast where
     DExternal s name kind scheme metadata -> 0
     DSig s n t -> type-unmodeled-count t
     DMethod s label name t -> type-unmodeled-count t
+    DLaw s name syntax -> law-unmodeled-count syntax
     DFun s n clauses -> clauses-unmodeled clauses
     DData s n params ctors -> params-unmodeled params + ctors-unmodeled ctors
     DOpaque s n params kind -> params-unmodeled params + type-unmodeled-count kind
@@ -645,6 +658,13 @@ module Bootstrap.Ast where
     DDecl s x rest -> decl-unmodeled-count x + decl-unmodeled-count rest
     DDeclsEnd s -> 0
     DUnmodeled s text -> 1
+
+  law-unmodeled-count :: LawSyntax -> Nat
+  law-unmodeled-count syntax = case syntax of
+    LawForall parameters rest -> params-unmodeled parameters + law-unmodeled-count rest
+    LawArrow domain rest -> type-unmodeled-count domain + law-unmodeled-count rest
+    LawEquation left right -> expr-unmodeled-count left + expr-unmodeled-count right
+    LawProposition ty -> type-unmodeled-count ty
 
   decls-unmodeled :: List Decl -> Nat
   decls-unmodeled ds = case ds of
@@ -663,3 +683,268 @@ module Bootstrap.Ast where
   modules-unmodeled ms = case ms of
     Nil -> 0
     Cons m rest -> module-unmodeled-count m + modules-unmodeled rest
+
+  -- Span-free constructor-tagged identity of resolved source syntax.
+  -- Used only after type checking; this grants no typing or proof authority.
+  -- Qualified globals and argument order remain explicit.
+  source-identity-type :: TypeExpr -> Json
+  source-identity-type value = case value of
+    TName part0 part1 -> JArr (JStr "TName") (JArr (JStr part1) (JArrEnd))
+    TIndex part0 part1 -> JArr (JStr "TIndex") (JArr (JStr part1) (JArrEnd))
+    TNegate part0 part1 -> JArr (JStr "TNegate") (JArr (source-identity-type part1) (JArrEnd))
+    TInfix part0 part1 part2 part3 -> JArr (JStr "TInfix") (JArr (JStr part1) (JArr (source-identity-type part2) (JArr (source-identity-type part3) (JArrEnd))))
+    TRefined part0 part1 part2 -> JArr (JStr "TRefined") (JArr (source-identity-type part1) (JArr (source-identity-type part2) (JArrEnd)))
+    TApp part0 part1 part2 -> JArr (JStr "TApp") (JArr (source-identity-type part1) (JArr (source-identity-type part2) (JArrEnd)))
+    TFun part0 part1 part2 -> JArr (JStr "TFun") (JArr (source-identity-type part1) (JArr (source-identity-type part2) (JArrEnd)))
+    TFunEff part0 part1 part2 part3 -> JArr (JStr "TFunEff") (JArr (source-identity-type part1) (JArr (source-identity-type part2) (JArr (source-identity-type part3) (JArrEnd))))
+    TRow part0 part1 part2 -> JArr (JStr "TRow") (JArr (source-identity-type part1) (JArr (source-identity-optional part2) (JArrEnd)))
+    TTuple part0 part1 -> JArr (JStr "TTuple") (JArr (source-identity-type part1) (JArrEnd))
+    TForall part0 part1 part2 -> JArr (JStr "TForall") (JArr (source-identity-type part1) (JArr (source-identity-type part2) (JArrEnd)))
+    TQuantifier part0 part1 part2 part3 part4 -> JArr (JStr "TQuantifier") (JArr (JStr part1) (JArr (JBool part2) (JArr (source-identity-type part3) (JArr (source-identity-type part4) (JArrEnd)))))
+    TQuantifiersEnd part0 -> JArr (JStr "TQuantifiersEnd") (JArrEnd)
+    TNoKind part0 -> JArr (JStr "TNoKind") (JArrEnd)
+    TUsing part0 part1 part2 -> JArr (JStr "TUsing") (JArr (source-identity-type part1) (JArr (source-identity-type part2) (JArrEnd)))
+    TArg part0 part1 part2 -> JArr (JStr "TArg") (JArr (source-identity-type part1) (JArr (source-identity-type part2) (JArrEnd)))
+    TArgsEnd part0 -> JArr (JStr "TArgsEnd") (JArrEnd)
+    TBound part0 part1 part2 part3 -> JArr (JStr "TBound") (JArr (JStr part1) (JArr (source-identity-type part2) (JArr (source-identity-type part3) (JArrEnd))))
+    TBoundsEnd part0 -> JArr (JStr "TBoundsEnd") (JArrEnd)
+    TUnmodeled part0 part1 -> JArr (JStr "TUnmodeled") (JArr (JStr part1) (JArrEnd))
+
+  source-identity-pat :: Pat -> Json
+  source-identity-pat value = case value of
+    PWild part0 -> JArr (JStr "PWild") (JArrEnd)
+    PVar part0 part1 -> JArr (JStr "PVar") (JArr (JStr part1) (JArrEnd))
+    PCon part0 part1 part2 -> JArr (JStr "PCon") (JArr (JStr part1) (JArr (source-identity-pat part2) (JArrEnd)))
+    PRecord part0 part1 part2 -> JArr (JStr "PRecord") (JArr (JStr part1) (JArr (source-identity-pat part2) (JArrEnd)))
+    PRecordField part0 part1 part2 part3 -> JArr (JStr "PRecordField") (JArr (JStr part1) (JArr (source-identity-pat part2) (JArr (source-identity-pat part3) (JArrEnd))))
+    PLitInt part0 part1 -> JArr (JStr "PLitInt") (JArr (JStr part1) (JArrEnd))
+    PLitStr part0 part1 -> JArr (JStr "PLitStr") (JArr (JStr part1) (JArrEnd))
+    PLitChar part0 part1 -> JArr (JStr "PLitChar") (JArr (JStr part1) (JArrEnd))
+    PTuple part0 part1 -> JArr (JStr "PTuple") (JArr (source-identity-pat part1) (JArrEnd))
+    PList part0 part1 -> JArr (JStr "PList") (JArr (source-identity-pat part1) (JArrEnd))
+    PAs part0 part1 part2 -> JArr (JStr "PAs") (JArr (JStr part1) (JArr (source-identity-pat part2) (JArrEnd)))
+    PAnn part0 part1 part2 -> JArr (JStr "PAnn") (JArr (source-identity-pat part1) (JArr (source-identity-type part2) (JArrEnd)))
+    PArg part0 part1 part2 -> JArr (JStr "PArg") (JArr (source-identity-pat part1) (JArr (source-identity-pat part2) (JArrEnd)))
+    PArgsEnd part0 -> JArr (JStr "PArgsEnd") (JArrEnd)
+    PUnmodeled part0 part1 -> JArr (JStr "PUnmodeled") (JArr (JStr part1) (JArrEnd))
+
+  source-identity-expr :: Expr -> Json
+  source-identity-expr value = case value of
+    EVar part0 part1 -> JArr (JStr "EVar") (JArr (JStr part1) (JArrEnd))
+    ECon part0 part1 part2 -> JArr (JStr "ECon") (JArr (JStr part1) (JArr (source-identity-expr part2) (JArrEnd)))
+    ERecord part0 part1 part2 -> JArr (JStr "ERecord") (JArr (JStr part1) (JArr (source-identity-expr part2) (JArrEnd)))
+    ERecordField part0 part1 part2 part3 -> JArr (JStr "ERecordField") (JArr (JStr part1) (JArr (source-identity-expr part2) (JArr (source-identity-expr part3) (JArrEnd))))
+    EProject part0 part1 part2 -> JArr (JStr "EProject") (JArr (source-identity-expr part1) (JArr (JStr part2) (JArrEnd)))
+    ELitInt part0 part1 -> JArr (JStr "ELitInt") (JArr (JStr part1) (JArrEnd))
+    ELitFloat part0 part1 -> JArr (JStr "ELitFloat") (JArr (JStr part1) (JArrEnd))
+    ELitStr part0 part1 -> JArr (JStr "ELitStr") (JArr (JStr part1) (JArrEnd))
+    ELitChar part0 part1 -> JArr (JStr "ELitChar") (JArr (JStr part1) (JArrEnd))
+    EUnit part0 -> JArr (JStr "EUnit") (JArrEnd)
+    ETuple part0 part1 -> JArr (JStr "ETuple") (JArr (source-identity-expr part1) (JArrEnd))
+    EList part0 part1 -> JArr (JStr "EList") (JArr (source-identity-expr part1) (JArrEnd))
+    EApp part0 part1 part2 -> JArr (JStr "EApp") (JArr (source-identity-expr part1) (JArr (source-identity-expr part2) (JArrEnd)))
+    EBin part0 part1 part2 part3 -> JArr (JStr "EBin") (JArr (JStr part1) (JArr (source-identity-expr part2) (JArr (source-identity-expr part3) (JArrEnd))))
+    ENeg part0 part1 -> JArr (JStr "ENeg") (JArr (source-identity-expr part1) (JArrEnd))
+    ELam part0 part1 part2 -> JArr (JStr "ELam") (JArr (source-identity-pats part1) (JArr (source-identity-expr part2) (JArrEnd)))
+    ELet part0 part1 part2 -> JArr (JStr "ELet") (JArr (source-identity-expr part1) (JArr (source-identity-expr part2) (JArrEnd)))
+    EIf part0 part1 part2 part3 -> JArr (JStr "EIf") (JArr (source-identity-expr part1) (JArr (source-identity-expr part2) (JArr (source-identity-expr part3) (JArrEnd))))
+    ECase part0 part1 part2 -> JArr (JStr "ECase") (JArr (source-identity-expr part1) (JArr (source-identity-expr part2) (JArrEnd)))
+    EGuarded part0 part1 part2 -> JArr (JStr "EGuarded") (JArr (source-identity-expr part1) (JArr (source-identity-expr part2) (JArrEnd)))
+    EAnn part0 part1 part2 -> JArr (JStr "EAnn") (JArr (source-identity-expr part1) (JArr (source-identity-type part2) (JArrEnd)))
+    EForall part0 part1 part2 -> JArr (JStr "EForall") (JArr (source-identity-names part1) (JArr (source-identity-expr part2) (JArrEnd)))
+    EUsing part0 part1 part2 -> JArr (JStr "EUsing") (JArr (source-identity-type part1) (JArr (source-identity-expr part2) (JArrEnd)))
+    EBind part0 part1 part2 -> JArr (JStr "EBind") (JArr (JStr part1) (JArr (source-identity-expr part2) (JArrEnd)))
+    EDo part0 part1 -> JArr (JStr "EDo") (JArr (source-identity-expr part1) (JArrEnd))
+    EHandle part0 part1 part2 -> JArr (JStr "EHandle") (JArr (source-identity-expr part1) (JArr (source-identity-expr part2) (JArrEnd)))
+    EHandler part0 part1 part2 -> JArr (JStr "EHandler") (JArr (source-identity-type part1) (JArr (source-identity-expr part2) (JArrEnd)))
+    EHandlerClause part0 part1 part2 part3 part4 part5 -> JArr (JStr "EHandlerClause") (JArr (JStr part1) (JArr (source-identity-pats part2) (JArr (source-identity-optional part3) (JArr (source-identity-expr part4) (JArr (source-identity-expr part5) (JArrEnd))))))
+    EHandlerEnd part0 -> JArr (JStr "EHandlerEnd") (JArrEnd)
+    EWith part0 part1 part2 -> JArr (JStr "EWith") (JArr (source-identity-expr part1) (JArr (source-identity-expr part2) (JArrEnd)))
+    EArg part0 part1 part2 -> JArr (JStr "EArg") (JArr (source-identity-expr part1) (JArr (source-identity-expr part2) (JArrEnd)))
+    EArgsEnd part0 -> JArr (JStr "EArgsEnd") (JArrEnd)
+    EBinding part0 part1 part2 part3 -> JArr (JStr "EBinding") (JArr (JStr part1) (JArr (source-identity-expr part2) (JArr (source-identity-expr part3) (JArrEnd))))
+    EBindingsEnd part0 -> JArr (JStr "EBindingsEnd") (JArrEnd)
+    EAlt part0 part1 part2 part3 -> JArr (JStr "EAlt") (JArr (source-identity-pat part1) (JArr (source-identity-expr part2) (JArr (source-identity-expr part3) (JArrEnd))))
+    EAltsEnd part0 -> JArr (JStr "EAltsEnd") (JArrEnd)
+    EUnmodeled part0 part1 -> JArr (JStr "EUnmodeled") (JArr (JStr part1) (JArrEnd))
+
+  source-identity-pats :: List Pat -> Json
+  source-identity-pats values = case values of Nil -> JArrEnd; Cons first rest -> JArr (source-identity-pat first) (source-identity-pats rest)
+  source-identity-names :: List String -> Json
+  source-identity-names values = case values of Nil -> JArrEnd; Cons first rest -> JArr (JStr first) (source-identity-names rest)
+  source-identity-optional :: Option String -> Json
+  source-identity-optional value = case value of None -> JNull; Some name -> JStr name
+  source-clauses-document :: List (List Pat, Expr) -> Json
+  source-clauses-document clauses = case clauses of
+    Nil -> JArrEnd
+    Cons (patterns, body) rest -> JArr (JArr (source-identity-pats patterns) (JArr (source-identity-expr body) JArrEnd)) (source-clauses-document rest)
+
+  qualify-default-clauses :: (String -> Option String) -> Json -> Json
+  qualify-default-clauses globals syntax = case syntax of
+    JArr (JStr tag) (JArr (JStr name) rest) -> if default-global-tag tag then
+      JArr (JStr tag) (JArr (JStr (case globals name of Some identity -> identity; None -> name)) (qualify-default-clauses globals rest))
+      else JArr (JStr tag) (JArr (JStr name) (qualify-default-clauses globals rest))
+    JArr first rest -> JArr (qualify-default-clauses globals first) (qualify-default-clauses globals rest)
+    other -> syntax
+  default-global-tag :: String -> Bool
+  default-global-tag tag =
+    default-tag tag "EVar" || default-tag tag "ECon" || default-tag tag "PCon"
+    || default-tag tag "ERecord" || default-tag tag "PRecord" || default-tag tag "TName"
+
+  -- The interface body is syntax, never checked Core. Decode only the
+  -- portable forms and rebuild their lexical scopes before elaboration.
+  default-tag :: String -> String -> Bool
+  default-tag a b = string-compare a b == 0
+  default-bound :: String -> List String -> Bool
+  default-bound name bound = case bound of
+    Nil -> False
+    Cons first rest -> default-tag name first || default-bound name rest
+  default-local :: String -> Bool
+  default-local name = case unpack name of
+    Nil -> False
+    Cons first rest -> default-local-chars (Cons first rest)
+  default-local-chars :: List Char -> Bool
+  default-local-chars chars = case chars of
+    Nil -> True
+    Cons c rest -> char-code c /= 46 && default-local-chars rest
+  default-reference :: (String -> Option String) -> List String -> String -> Option String
+  default-reference globals bound name = if default-bound name bound then Some name else globals name
+
+  default-pattern :: Span -> (String -> Option String) -> Json -> Option (Pat, List String)
+  default-pattern sp globals syntax = case syntax of
+    JArr (JStr tag) JArrEnd ->
+      if default-tag tag "PWild" then Some (PWild sp, Nil)
+      else if default-tag tag "PArgsEnd" then Some (PArgsEnd sp, Nil) else None
+    JArr (JStr tag) (JArr (JStr name) JArrEnd) ->
+      if default-tag tag "PVar" && default-local name then Some (PVar sp name, [name])
+      else if default-tag tag "PLitInt" then Some (PLitInt sp name, Nil)
+      else if default-tag tag "PLitChar" then Some (PLitChar sp name, Nil)
+      else if default-tag tag "PLitStr" then Some (PLitStr sp name, Nil)
+      else None
+    JArr (JStr tag) (JArr body JArrEnd) -> case default-pattern sp globals body of
+      Some (pattern, bound) -> if default-tag tag "PTuple" then Some (PTuple sp pattern, bound)
+        else if default-tag tag "PList" then Some (PList sp pattern, bound) else None
+      None -> None
+    JArr (JStr tag) (JArr (JStr name) (JArr body JArrEnd)) -> case default-pattern sp globals body of
+      Some (pattern, bound) ->
+        if default-tag tag "PAs" && default-local name then Some (PAs sp name pattern, Cons name bound)
+        else if default-tag tag "PCon" then
+          (case globals name of Some identity -> Some (PCon sp identity pattern, bound); None -> None)
+        else None
+      None -> None
+    JArr (JStr tag) (JArr first (JArr rest JArrEnd)) -> if not (default-tag tag "PArg") then None else
+      (case (default-pattern sp globals first, default-pattern sp globals rest) of
+        (Some (pattern, bound), Some (more, bindings)) -> Some (PArg sp pattern more, bound <> bindings)
+        other -> None)
+    other -> None
+
+  default-patterns :: Span -> (String -> Option String) -> Json -> Option (List Pat, List String)
+  default-patterns sp globals syntax = case syntax of
+    JArrEnd -> Some (Nil, Nil)
+    JArr first rest -> case (default-pattern sp globals first, default-patterns sp globals rest) of
+      (Some (pattern, bound), Some (more, bindings)) -> Some (Cons pattern more, bound <> bindings)
+      other -> None
+    other -> None
+
+  default-type :: Span -> (String -> Option String) -> Json -> Option TypeExpr
+  default-type sp globals syntax = case syntax of
+    JArr (JStr tag) JArrEnd -> if default-tag tag "TArgsEnd" then Some (TArgsEnd sp) else None
+    JArr (JStr tag) (JArr (JStr name) JArrEnd) ->
+      if default-tag tag "TIndex" then Some (TIndex sp name)
+      else if default-tag tag "TName" then
+        (case globals name of
+          Some identity -> Some (TName sp identity)
+          None -> if default-local name then Some (TName sp name) else None)
+      else None
+    JArr (JStr tag) (JArr left (JArr right JArrEnd)) -> case (default-type sp globals left, default-type sp globals right) of
+      (Some first, Some second) -> if default-tag tag "TFun" then Some (TFun sp first second)
+        else if default-tag tag "TApp" then Some (TApp sp first second)
+        else if default-tag tag "TArg" then Some (TArg sp first second) else None
+      other -> None
+    other -> None
+
+  default-expression :: Span -> (String -> Option String) -> List String -> Json -> Option Expr
+  default-expression sp globals bound syntax = case syntax of
+    JArr (JStr tag) JArrEnd ->
+      if default-tag tag "EUnit" then Some (EUnit sp)
+      else if default-tag tag "EArgsEnd" then Some (EArgsEnd sp)
+      else if default-tag tag "EAltsEnd" then Some (EAltsEnd sp)
+      else None
+    JArr (JStr tag) (JArr (JStr value) JArrEnd) ->
+      if default-tag tag "EVar" then
+        (case default-reference globals bound value of Some name -> Some (EVar sp name); None -> None)
+      else if default-tag tag "ELitInt" then Some (ELitInt sp value)
+      else if default-tag tag "ELitStr" then Some (ELitStr sp value)
+      else if default-tag tag "ELitChar" then Some (ELitChar sp value)
+      else None
+    JArr (JStr tag) (JArr value JArrEnd) -> case default-expression sp globals bound value of
+      Some body -> if default-tag tag "ETuple" then Some (ETuple sp body)
+        else if default-tag tag "EList" then Some (EList sp body)
+        else if default-tag tag "ENeg" then Some (ENeg sp body) else None
+      None -> None
+    JArr (JStr tag) (JArr (JStr name) (JArr arguments JArrEnd)) -> if not (default-tag tag "ECon") then None else
+      (case (globals name, default-expression sp globals bound arguments) of
+        (Some identity, Some args) -> Some (ECon sp identity args)
+        other -> None)
+    JArr (JStr tag) (JArr first (JArr second JArrEnd)) ->
+      if default-tag tag "ELam" then
+        (case default-patterns sp globals first of
+          Some (patterns, locals) -> (case default-expression sp globals (locals <> bound) second of
+            Some body -> Some (ELam sp patterns body)
+            None -> None)
+          None -> None)
+      else if default-tag tag "ELet" then
+        (case default-bindings sp globals bound first of
+          Some (bindings, locals) -> (case default-expression sp globals locals second of
+            Some body -> Some (ELet sp bindings body)
+            None -> None)
+          None -> None)
+      else if default-tag tag "EAnn" then
+        (case (default-expression sp globals bound first, default-type sp globals second) of
+          (Some body, Some ty) -> Some (EAnn sp body ty)
+          other -> None)
+      else case (default-expression sp globals bound first, default-expression sp globals bound second) of
+        (Some a, Some b) -> if default-tag tag "EApp" then Some (EApp sp a b)
+          else if default-tag tag "ECase" then Some (ECase sp a b)
+          else if default-tag tag "EArg" then Some (EArg sp a b)
+          else if default-tag tag "EGuarded" then Some (EGuarded sp a b)
+          else None
+        other -> None
+    JArr (JStr tag) (JArr first (JArr second (JArr third JArrEnd))) ->
+      if default-tag tag "EAlt" then
+        (case default-pattern sp globals first of
+          Some (pattern, locals) -> (case (default-expression sp globals (locals <> bound) second, default-expression sp globals bound third) of
+            (Some body, Some rest) -> Some (EAlt sp pattern body rest)
+            other -> None)
+          None -> None)
+      else if default-tag tag "EIf" then
+        (case (default-expression sp globals bound first, default-expression sp globals bound second, default-expression sp globals bound third) of
+          (Some test, Some yes, Some no) -> Some (EIf sp test yes no)
+          other -> None)
+      else if default-tag tag "EBin" then
+        (case (first, default-expression sp globals bound second, default-expression sp globals bound third) of
+          (JStr op, Some left, Some right) -> Some (EBin sp op left right)
+          other -> None)
+      else None
+    other -> None
+
+  default-bindings :: Span -> (String -> Option String) -> List String -> Json -> Option (Expr, List String)
+  default-bindings sp globals bound syntax = case syntax of
+    JArr (JStr tag) JArrEnd -> if default-tag tag "EBindingsEnd" then Some (EBindingsEnd sp, bound) else None
+    JArr (JStr tag) (JArr (JStr name) (JArr value (JArr rest JArrEnd))) ->
+      if not (default-tag tag "EBinding" && default-local name) then None else
+        (case (default-expression sp globals bound value, default-bindings sp globals (Cons name bound) rest) of
+          (Some rhs, Some (more, locals)) -> Some (EBinding sp name rhs more, locals)
+          other -> None)
+    other -> None
+
+  portable-default-clauses :: Span -> (String -> Option String) -> Json -> Option (List (List Pat, Expr))
+  portable-default-clauses sp globals syntax = case syntax of
+    JArrEnd -> Some Nil
+    JArr (JArr patterns (JArr expression JArrEnd)) rest ->
+      (case (default-patterns sp globals patterns, portable-default-clauses sp globals rest) of
+        (Some (arguments, bound), Some more) -> (case default-expression sp globals bound expression of
+          Some body -> Some (Cons (arguments, body) more)
+          None -> None)
+        other -> None)
+    other -> None

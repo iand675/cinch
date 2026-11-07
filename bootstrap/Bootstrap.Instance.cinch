@@ -17,8 +17,9 @@ module Bootstrap.Instance where
   export CoreInstance, MkCoreInstance, CoreDictionaryField, MkCoreDictionaryField
   export instance-name, instance-implicit, instance-scheme, instance-fields
   export dictionary-field-slot, dictionary-field-definition, instance-closed
-  export find-class, class-target, specialize-method, implementation-scheme
+  export find-class, class-target, specialize-method, implementation-scheme, default-annotation-bindings
   export dictionary-method-symbol, scheme-equivalent
+  export BooleanLawSamples, BooleanLawCounterexample, BooleanLawUnavailable, sample-boolean-law
 
   data CoreClassMethod where
     MkCoreClassMethod :: Span -> String -> Nat -> Scheme -> CoreClassMethod
@@ -211,17 +212,41 @@ module Bootstrap.Instance where
   declared-member member methods = case methods of
     Nil -> False
     Cons actual rest -> (class-method-slot member == class-method-slot actual && same (class-method-name member) (class-method-name actual) && scheme-equivalent (class-method-scheme member) (class-method-scheme actual)) || declared-member member rest
-  specialize-method :: CoreClass -> Scheme -> CoreClassMethod -> Option Scheme
-  specialize-method description factory member = if not (class-closed description && declared-member member (class-methods description) && contract-scheme-closed factory && class-target description (scheme-body factory)) then None else
+  specialized-method-bindings :: CoreClass -> Scheme -> CoreClassMethod -> Option (Scheme, List (Nat, UType))
+  specialized-method-bindings description factory member = if not (class-closed description && declared-member member (class-methods description) && contract-scheme-closed factory && class-target description (scheme-body factory)) then None else
     case application (class-name description) (class-kind description) (scheme-body factory) of
       Some actual -> case member-bindings description member actual of
         Some pairs -> let sc = class-method-scheme member in
           case fresh-members (scheme-params sc) pairs (highest (scheme-ids factory <> scheme-ids sc) + 1) (quant-names (scheme-params factory)) of
             (local, substitutions) -> case scheme-requirements sc of
-              Cons self rest -> Some (qualified (scheme-params factory <> local) (map-requirements (substitute-bound substitutions) rest) (substitute-bound substitutions (scheme-body sc)))
+              Cons self rest -> Some (qualified (scheme-params factory <> local) (map-requirements (substitute-bound substitutions) rest) (substitute-bound substitutions (scheme-body sc)), substitutions)
               Nil -> None
         None -> None
       None -> None
+  specialize-method :: CoreClass -> Scheme -> CoreClassMethod -> Option Scheme
+  specialize-method description factory member = case specialized-method-bindings description factory member of
+    Some (sc, bindings) -> Some sc
+    None -> None
+  annotation-actual :: Nat -> List (Nat, UType) -> Option UType
+  annotation-actual id bindings = case bindings of
+    Nil -> None
+    Cons (key, value) rest -> if id == key then Some value else annotation-actual id rest
+  annotation-locals :: List Quant -> List (Nat, UType) -> List (Nat, UType) -> Option (List (String, UType))
+  annotation-locals parameters specialized aligned = case parameters of
+    Nil -> Some Nil
+    Cons parameter rest -> case (annotation-actual (quant-id parameter) specialized, annotation-locals rest specialized aligned) of
+      (Some value, Some more) -> Some (Cons (quant-name parameter, substitute-bound aligned value) more)
+      other -> None
+  -- Surface binders retain their declaring class/method identities even
+  -- when specialization freshens method variables or an instance has an
+  -- alpha-equivalent local annotation. No unknown name supplies a binder.
+  default-annotation-bindings :: CoreClass -> Scheme -> CoreClassMethod -> Scheme -> Option (List (String, UType))
+  default-annotation-bindings description factory member actual = case specialized-method-bindings description factory member of
+    Some (expected, specialized) -> if not (scheme-equivalent expected actual) then None else
+      (case quant-pairs (scheme-params expected) (scheme-params actual) Nil of
+        Some aligned -> annotation-locals (scheme-params (class-method-scheme member)) specialized aligned
+        None -> None)
+    None -> None
   requirement-names :: List Requirement -> List String
   requirement-names rs = case rs of Nil -> Nil; Cons r rest -> Cons (requirement-name r) (requirement-names rest)
   captured-requirements :: Nat -> List String -> List Requirement -> List Requirement
@@ -255,3 +280,83 @@ module Bootstrap.Instance where
         Some description -> class-closed description && class-target description (scheme-body factory) && fields-closed description factory (instance-name node) (class-methods description) (instance-fields node)
         None -> False)
       None -> False)
+
+  -- Evaluate only closed Boolean terms and the actual checked fields of
+  -- the selected dictionary. An unsupported term or exhausted fuel
+  -- cannot supply a successful sample.
+  data BooleanLawResult where
+    BooleanLawSamples :: Nat -> BooleanLawResult
+    BooleanLawCounterexample :: BooleanLawResult
+    BooleanLawUnavailable :: String -> BooleanLawResult
+
+  sample-boolean-law :: String -> CoreInstance -> CoreGiven -> List CorePattern -> CoreTerm -> CoreTerm -> BooleanLawResult
+  sample-boolean-law owner dictionary given patterns left right =
+    if list-length patterns > 6 then BooleanLawUnavailable "Boolean sample limit reached" else
+      boolean-assignments owner dictionary (given-symbol given) patterns Nil left right
+
+  boolean-assignments :: String -> CoreInstance -> String -> List CorePattern -> List (Nat, Bool) -> CoreTerm -> CoreTerm -> BooleanLawResult
+  boolean-assignments owner dictionary self patterns values left right = case patterns of
+    Nil -> case (boolean-law-term owner dictionary self values left 64, boolean-law-term owner dictionary self values right 64) of
+      (Some first, Some second) -> if first == second then BooleanLawSamples 1 else BooleanLawCounterexample
+      other -> BooleanLawUnavailable "the checked Boolean equation could not be evaluated"
+    Cons (CPVar sp ty id name) rest -> if equal-type ty (UCon "Bool" KType) then
+      (case boolean-assignments owner dictionary self rest (Cons (id, False) values) left right of
+        BooleanLawSamples first -> case boolean-assignments owner dictionary self rest (Cons (id, True) values) left right of
+          BooleanLawSamples second -> BooleanLawSamples (first + second)
+          refusal -> refusal
+        refusal -> refusal)
+      else BooleanLawUnavailable "the law binder does not have a Boolean carrier"
+    Cons other rest -> BooleanLawUnavailable "the law has an unsupported sample pattern"
+
+  boolean-local :: Nat -> List (Nat, Bool) -> Option Bool
+  boolean-local id values = case values of
+    Nil -> None
+    Cons (key, value) rest -> if id == key then Some value else boolean-local id rest
+
+  boolean-law-term :: String -> CoreInstance -> String -> List (Nat, Bool) -> CoreTerm -> Nat -> Option Bool
+  boolean-law-term owner dictionary self values term fuel = if fuel == 0 then None else
+    let remaining = fuel - 1 in
+    case term of
+      CUse sp ty name role Nil -> if not (same role "constructor" && equal-type ty (UCon "Bool" KType)) then None
+        else if same name "True" then Some True else if same name "False" then Some False else None
+      CLocal sp ty id name Nil -> if equal-type ty (UCon "Bool" KType) then boolean-local id values else None
+      CIf sp ty test yes no -> case boolean-law-term owner dictionary self values test remaining of
+        Some answer -> boolean-law-term owner dictionary self values (if answer then yes else no) remaining
+        None -> None
+      CApply sp ty function argument -> boolean-law-call owner dictionary self values term Nil remaining
+      CMethod sp ty name class slot actuals evidence -> boolean-law-call owner dictionary self values term Nil remaining
+      other -> None
+
+  boolean-law-call :: String -> CoreInstance -> String -> List (Nat, Bool) -> CoreTerm -> List Bool -> Nat -> Option Bool
+  boolean-law-call owner dictionary self values term arguments fuel = if fuel == 0 then None else
+    let remaining = fuel - 1 in
+    case term of
+      CApply sp ty function argument -> case boolean-law-term owner dictionary self values argument remaining of
+        Some value -> boolean-law-call owner dictionary self values function (Cons value arguments) remaining
+        None -> None
+      CMethod sp ty name class slot actuals (Cons (CEGiven at subject symbol) Nil) ->
+        if same class owner && same symbol self && equal-type subject (scheme-body (instance-scheme dictionary)) then
+          boolean-law-field owner dictionary slot (instance-fields dictionary) arguments remaining
+        else None
+      other -> None
+
+  boolean-law-field :: String -> CoreInstance -> Nat -> List CoreDictionaryField -> List Bool -> Nat -> Option Bool
+  boolean-law-field owner dictionary slot fields arguments fuel = case fields of
+    Nil -> None
+    Cons field rest -> if slot == dictionary-field-slot field then
+      let definition = dictionary-field-definition field in
+      (case (core-givens definition, core-clauses definition) of
+        (Cons given Nil, Cons (MkCoreClause sp patterns body) Nil) -> case boolean-field-arguments patterns arguments Nil of
+          Some values -> boolean-law-term owner dictionary (given-symbol given) values body fuel
+          None -> None
+        other -> None)
+      else boolean-law-field owner dictionary slot rest arguments fuel
+
+  boolean-field-arguments :: List CorePattern -> List Bool -> List (Nat, Bool) -> Option (List (Nat, Bool))
+  boolean-field-arguments patterns arguments values = case (patterns, arguments) of
+    (Nil, Nil) -> Some values
+    (Cons (CPVar sp ty id name) rest, Cons value more) -> if equal-type ty (UCon "Bool" KType) then
+      boolean-field-arguments rest more (Cons (id, value) values) else None
+    (Cons (CPWild sp ty) rest, Cons value more) -> if equal-type ty (UCon "Bool" KType) then
+      boolean-field-arguments rest more values else None
+    other -> None

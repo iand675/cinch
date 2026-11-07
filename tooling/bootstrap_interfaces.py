@@ -1,4 +1,4 @@
-"""Structural and dependency checks for genuine self-produced schema8 files.
+"""Structural and dependency checks for genuine self-produced schema 9 files.
 
 These checks supplement the checked writer and independent compiler-consumer
 regressions. They do not infer type semantics from display strings.
@@ -70,7 +70,7 @@ def _parameters(row):
 
 
 def _resolved(row):
-    # Null is schema8's explicit non-portable contract, never permission to
+    # Null is an explicit non-portable contract, never permission to
     # reconstruct an effect/dictionary declaration from its display scheme.
     resolved = row["resolved"]
     if resolved is None:
@@ -104,8 +104,8 @@ def validate_contract(doc: dict, runtime_abi: int) -> None:
               "imports", "params", "exports", "abi", "assumptions", "assertions",
               "contracts", "laws", "must_use", "upgrades", "units"}
     if set(doc) != fields:
-        raise ValueError("incomplete or unknown schema8 fields")
-    if type(doc["schema"]) is not int or doc["schema"] != 8:
+        raise ValueError("incomplete or unknown interface fields")
+    if type(doc["schema"]) is not int or doc["schema"] != 9:
         raise ValueError("wrong interface schema")
     if type(doc["runtime_abi"]) is not int or doc["runtime_abi"] != runtime_abi:
         raise ValueError("wrong runtime ABI")
@@ -168,6 +168,9 @@ def validate_contract(doc: dict, runtime_abi: int) -> None:
         public.update(signature["exports"])
         slots = set()
         for method in _list(signature["methods"]):
+            required = {"name", "slot", "exports", "scheme", "resolved"}
+            if not required <= method.keys() <= required | {"default"}:
+                raise ValueError("unknown or missing method contract field")
             _text(method["name"])
             _text(method["scheme"])
             _list(method["exports"])
@@ -177,6 +180,11 @@ def validate_contract(doc: dict, runtime_abi: int) -> None:
                 raise ValueError("duplicate signature slot")
             slots.add(method["slot"])
             _resolved(method)
+            if "default" in method:
+                clauses = _list(method["default"])
+                if not clauses or any(len(_list(clause)) != 2 or not all(isinstance(part, list) for part in clause)
+                                      for clause in clauses):
+                    raise ValueError("invalid class default clauses")
     for instance in exports["instances"]:
         for key in ("id", "class", "target"):
             _text(instance[key])

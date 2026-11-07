@@ -120,7 +120,7 @@ module Bootstrap.Contracts where
     -- Projection and scope/task syntax inspect their actual arguments;
     -- they have no first-class imported function scheme.
     -- Infer validates the complete metadata against the owned kernel rule.
-    if same kind "builtin-syntax" && (same name "b.unrefine" || same name "b.withScope" || same name "b.spawn" || same name "b.joinAllOrCancel") then (None, Nil)
+    if same kind "builtin-syntax" && (same name "b.unrefine" || same name "b.copyOut" || same name "b.withScope" || same name "b.spawn" || same name "b.joinAllOrCancel") then (None, Nil)
     else if same kind "value" || same kind "constructor" || same kind "method" || same kind "builtin" || same kind "builtin-syntax" || same kind "builtin-constructor" then case field "scheme" metadata of
       JStr text -> case parse-scheme name (string-to-bytes text) of
         Parsed ty Nil -> (Some ty, Nil)
@@ -196,6 +196,17 @@ module Bootstrap.Contracts where
     Nil -> Nil
     Cons (ps, body) rest -> patterns-references ps <> expr-references body <> clause-references rest
 
+  default-method-references :: Json -> List String
+  default-method-references methods = case methods of
+    JArr method rest -> (case portable-default-clauses zero (\name -> Some name) (field "default" method) of
+      Some clauses -> clause-references clauses
+      None -> Nil) <> default-method-references rest
+    other -> Nil
+  default-class-references :: Json -> List String
+  default-class-references classes = case classes of
+    JArr description rest -> default-method-references (field "methods" description) <> default-class-references rest
+    other -> Nil
+
   ctor-references :: List (String, TypeExpr) -> List String
   ctor-references ctors = case ctors of Nil -> Nil; Cons (name, ty) rest -> type-references ty <> ctor-references rest
 
@@ -207,10 +218,18 @@ module Bootstrap.Contracts where
   -- Keep the recursive list frame small. Putting this declaration match
   -- inside the traversal reserves every branch's native slots for every
   -- declaration still on the stack while collecting the following ones.
+  law-references :: LawSyntax -> List String
+  law-references syntax = case syntax of
+    LawForall parameters rest -> param-references parameters <> law-references rest
+    LawArrow domain rest -> type-references domain <> law-references rest
+    LawEquation left right -> expr-references left <> expr-references right
+    LawProposition ty -> type-references ty
+
   declaration-reference :: Decl -> List String
   declaration-reference d = case d of
     DSig s name ty -> type-references ty
     DMethod s label name ty -> type-references ty
+    DLaw s name syntax -> law-references syntax
     DClass s name params members -> param-references params <> declaration-references (decls-of members)
     DFun s name clauses -> clause-references clauses
     DOpaque s name params kind -> param-references params <> type-references kind
@@ -218,6 +237,7 @@ module Bootstrap.Contracts where
     DRecord s name params fields -> param-references params <> ctor-references fields
     DEffect s name params ops -> param-references params <> ctor-references ops
     DInstance s only name params class-app members -> param-references params <> type-references class-app <> declaration-references (decls-of members)
+    DInterface s name hash metadata -> default-class-references (field "signatures" (field "exports" metadata))
     DForeign s direction abi symbol name ty -> type-references ty <> (if same direction "export" then Cons name Nil else Nil)
     other -> Nil
 

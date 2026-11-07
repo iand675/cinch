@@ -153,7 +153,7 @@ fn default_ids(dir: &Path) -> Vec<(String, Option<String>)> {
     let mut out = Vec::new();
     for s in &iface.exports.signatures {
         for m in &s.methods {
-            out.push((format!("{}.{}", s.name, m.name), m.default.clone()));
+            out.push((format!("{}.{}", s.name, m.name), m.default.as_ref().map(|body| body.to_json())));
         }
     }
     out.sort();

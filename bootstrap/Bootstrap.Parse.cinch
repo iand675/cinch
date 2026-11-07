@@ -746,6 +746,7 @@ module Bootstrap.Parse where
     if string-compare w "import" == 0 then parse-import toks src fix
     else if string-compare w "export" == 0 then parse-export toks src
     else if string-compare w "signature" == 0 then parse-signature toks src fix
+    else if string-compare w "law" == 0 then parse-law toks src fix
     else if string-compare w "data" == 0 then parse-data toks src fix
     else if string-compare w "type" == 0 then parse-refinement toks src
     else if string-compare w "opaque" == 0 then parse-opaque toks src
@@ -1028,6 +1029,50 @@ module Bootstrap.Parse where
           PBad -> PBad
       else PBad
     Nil -> PBad
+
+  parse-law :: List LToken -> Bytes -> List (String, Fix) -> Ps Decl
+  parse-law toks src fix = case expect-word-t toks "law" of
+    POk sp rest -> case parse-value-name rest of
+      POk name tail -> case expect-punct-t tail "::" of
+        POk separator body -> case law-syntax body src fix of
+          POk syntax more -> POk (DLaw sp name syntax) more
+          PBad -> PBad
+        PBad -> PBad
+      PBad -> PBad
+    PBad -> PBad
+
+  law-syntax :: List LToken -> Bytes -> List (String, Fix) -> Ps LawSyntax
+  law-syntax toks src fix = case toks of
+    Cons t rest -> if is-word-t (lt-token t) "forall" then law-forall rest src fix
+      else case lt-token t of
+        TCon name -> if string-compare name "Eq" == 0 then law-equation rest src fix else law-arrow toks src fix
+        other -> law-arrow toks src fix
+    Nil -> PBad
+
+  law-forall :: List LToken -> Bytes -> List (String, Fix) -> Ps LawSyntax
+  law-forall toks src fix = case parse-params toks src Nil of
+    POk (Cons parameter more) rest -> case expect-punct-t rest "." of
+      POk dot body -> case law-syntax body src fix of
+        POk syntax tail -> POk (LawForall (Cons parameter more) syntax) tail
+        PBad -> PBad
+      PBad -> PBad
+    other -> PBad
+
+  law-equation :: List LToken -> Bytes -> List (String, Fix) -> Ps LawSyntax
+  law-equation toks src fix = case parse-atom toks src fix of
+    POk left rest -> case parse-atom rest src fix of
+      POk right tail -> POk (LawEquation left right) tail
+      PBad -> PBad
+    PBad -> PBad
+
+  law-arrow :: List LToken -> Bytes -> List (String, Fix) -> Ps LawSyntax
+  law-arrow toks src fix = case parse-type-infix toks src 0 of
+    POk domain rest -> case expect-punct-t rest "->" of
+      POk arrow body -> case law-syntax body src fix of
+        POk syntax tail -> POk (LawArrow domain syntax) tail
+        PBad -> PBad
+      PBad -> POk (LawProposition domain) rest
+    PBad -> PBad
 
   parse-ctor-name :: List LToken -> Ps String
   parse-ctor-name toks = case toks of
@@ -2361,6 +2406,9 @@ module Bootstrap.Parse where
     Cons t rest -> case lt-token t of
       TPunct p ->
         if string-compare p ")" == 0 then POk (TName (span-join sp (sp-of t)) "()") rest
+        else if string-compare p "->" == 0 then (case rest of
+          Cons close tail -> if is-punct-t (lt-token close) ")" then POk (TName (span-join sp (sp-of close)) "(->)") tail else PBad
+          Nil -> PBad)
         else paren-type-head sp toks src
       _ -> paren-type-head sp toks src
     Nil -> PBad

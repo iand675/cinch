@@ -2844,10 +2844,8 @@ struct Checker {
     /// never to arbitrary new declarations in a replaced module.
     legacy_class_sites: HashSet<(String, String)>,
     qualified_sigs: HashMap<(String, String), SigInfo>,
-    /// `(module, class, method)` to the hash of the default's generic
-    /// elaboration: the interface records it, so an instance that inlined
-    /// the default rechecks when the default changes.
-    default_ids: HashMap<(String, String, String), String>,
+    /// Checked defaults by defining module, class, and method.
+    method_defaults: HashMap<(String, String, String), crate::interface::MethodDefault>,
     instances: HashMap<String, Vec<usize>>,
     instance_list: Vec<InstanceInfo>,
     declaration_seed: Option<Vec<InstanceInfo>>,
@@ -3599,7 +3597,7 @@ impl Checker {
             class_sigs: HashMap::new(),
             legacy_class_sites: HashSet::new(),
             qualified_sigs: HashMap::new(),
-            default_ids: HashMap::new(),
+            method_defaults: HashMap::new(),
             instances: HashMap::new(),
             instance_list: Vec::new(),
             declaration_seed: None,
@@ -11435,6 +11433,7 @@ include!("check_terms.rs");
 include!("check_code.rs");
 include!("check_dictionary.rs");
 include!("check_decls.rs");
+include!("check_default_wire.rs");
 include!("check_interface.rs");
 include!("check_total.rs");
 include!("check_erasure.rs");

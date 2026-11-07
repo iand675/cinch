@@ -417,12 +417,58 @@ module Main where
       else 4
     else function-code ds
 
+  class-law-source :: String
+  class-law-source = "module LawExample where\n  infixr 6 <>\n  signature Semigroup a where\n    (<>) :: a -> a -> a\n    law assoc :: (x :: a) -> (y :: a) -> (z :: a) -> Eq ((x <> y) <> z) (x <> (y <> z))\n  signature Functor (f :: Type -> Type) where\n    map :: forall a b. (a -> b) -> f a -> f b\n    law map-identity :: forall a. (x :: f a) -> Eq (map identity x) x\n"
+
+  law-value-binder :: String -> TypeExpr -> Bool
+  law-value-binder expected domain = case domain of
+    TBound sp name ty tail -> same name expected
+    other -> False
+
+  associative-sides-ok :: Expr -> Expr -> Bool
+  associative-sides-ok left right = case (left, right) of
+    (EBin ls first (EBin li second (EVar xsp x) (EVar ysp y)) (EVar zsp z),
+      EBin rs third (EVar a first-right) (EBin ri fourth (EVar b second-right) (EVar c third-right))) ->
+      same first "<>" && same second "<>" && same third "<>" && same fourth "<>"
+      && same x "x" && same y "y" && same z "z" && same x first-right && same y second-right && same z third-right
+    other -> False
+
+  associative-law-ok :: Decl -> Bool
+  associative-law-ok declaration = case declaration of
+    DLaw sp name (LawArrow x (LawArrow y (LawArrow z (LawEquation left right)))) ->
+      same name "assoc" && law-value-binder "x" x && law-value-binder "y" y && law-value-binder "z" z
+      && associative-sides-ok left right
+    other -> False
+
+  functor-law-ok :: Decl -> Bool
+  functor-law-ok declaration = case declaration of
+    DLaw sp name (LawForall (Cons parameter Nil) (LawArrow x (LawEquation left right))) -> case (left, right) of
+      (EApp at (EApp apply (EVar m map) (EVar i identity)) (EVar lhs first), EVar rhs second) ->
+        same name "map-identity" && same (param-name parameter) "a" && law-value-binder "x" x
+        && same map "map" && same identity "identity" && same first "x" && same second "x"
+      other -> False
+    other -> False
+
+  class-laws-ok :: Bool
+  class-laws-ok = case parse-program "laws" (string-to-bytes class-law-source) of
+    Parsed program Nil -> if program-unmodeled-count program == 0 then
+      (case program-modules program of
+        Cons m Nil -> (case module-decls m of
+          Cons (DFixity sp assoc precedence names) (Cons (DClass at semigroup p members) (Cons (DClass pos functor q next) Nil)) ->
+            case (decls-of members, decls-of next) of
+              (Cons (DSig sig op ty) (Cons equation Nil), Cons (DSig site method scheme) (Cons identity Nil)) ->
+                associative-law-ok equation && functor-law-ok identity
+              other -> False
+          other -> False)
+        other -> False) else False
+    other -> False
+
   main :: Int
   main = case parse-program "types" (string-to-bytes source) of
     Failed errors -> 1
     Parsed program errors ->
       if program-unmodeled-count program == 0 && list-length errors == 0 then
         case program-modules program of
-          Cons m Nil -> check-decls (module-decls m)
+          Cons m Nil -> if class-laws-ok && malformed-refused "module X where\n  signature Bad a where\n    law broken :: (x :: a) -> Eq x\n" then check-decls (module-decls m) else 21
           other -> 2
       else 8

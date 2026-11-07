@@ -268,9 +268,19 @@ module Bootstrap.Load where
 
   method-default-valid :: Json -> Bool
   method-default-valid row = case row of
-    JObj key value rest -> if same key "default" then (case value of JStr identity -> string-length identity > 0; other -> False)
-      else method-default-valid rest
+    JObj key value rest ->
+      (if same key "default" then (case value of JArr first more -> method-clauses-valid value; other -> False)
+       else same key "name" || same key "slot" || same key "exports" || same key "scheme" || same key "resolved")
+      && method-default-valid rest
     JObjEnd -> True
+    other -> False
+  method-clauses-valid :: Json -> Bool
+  method-clauses-valid clauses = case clauses of
+    JArr (JArr patterns (JArr body JArrEnd)) rest ->
+      (case patterns of JArr first more -> True; JArrEnd -> True; other -> False)
+      && (case body of JArr first more -> True; JArrEnd -> True; other -> False)
+      && method-clauses-valid rest
+    JArrEnd -> True
     other -> False
   methods-valid :: Json -> List String -> Bool
   methods-valid rows seen = case rows of

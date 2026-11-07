@@ -43,7 +43,7 @@ module Bootstrap.Builtin where
     , ("Scope", "b.Scope"), ("Task", "b.Task")
     , ("ioWrite", "b.ioWrite"), ("ioRead", "b.ioRead")
     , ("ioSleep", "b.ioSleep"), ("pollCancel", "b.pollCancel")
-    , ("unrefine", "b.unrefine")
+    , ("unrefine", "b.unrefine"), ("copyOut", "b.copyOut")
     , ("decide", "b.decide"), ("Yes", "b.Yes"), ("No", "b.No"), ("Dec", "b.Dec")
     ]
 
@@ -98,6 +98,7 @@ module Bootstrap.Builtin where
     , task-rule "spawn" "Spawn" 2 False
     , task-rule "joinAllOrCancel" "JoinAllOrCancel" 2 True
     , task-rule "unrefine" "Unrefine" 1 False
+    , task-rule "copyOut" "CopyOut" 1 False
     , decision-rule
     , decision-constructor "Yes" 0 "forall (p :: Prop). (h :: p) -> Dec p"
     , decision-constructor "No" 1 "forall (p :: Prop). (h :: Not p) -> Dec p"

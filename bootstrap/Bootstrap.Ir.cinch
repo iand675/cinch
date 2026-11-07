@@ -547,6 +547,7 @@ module Bootstrap.Ir where
     DSig s name t -> sig-refusal s name t
     DFun s name clauses -> fun-refusal fns ds s name clauses
     DClass s name params members -> Cons (diag s (cat ["class `", name, "` is not in the fragment"])) Nil
+    DLaw s name syntax -> Cons (diag s "class laws require checked proposition elaboration") Nil
     DMethod s label name ty -> Cons (diag s "resolved signature methods require the typed backend") Nil
     DInstance s i name params t members -> Cons (diag s "an instance declaration is not in the fragment") Nil
     DEffect s name params ops -> Cons (diag s (cat ["effect `", name, "` is not in the fragment"])) Nil

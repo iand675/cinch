@@ -1,0 +1,20 @@
+module Main where
+  import Bootstrap.Report
+  import Text.Lex (Span)
+
+  same :: String -> String -> Bool
+  same a b = string-compare a b == 0
+  check :: Bool -> Int -> Int
+  check yes bit = if yes then 0 else bit
+  rendered :: String -> Nat -> String
+  rendered source line = render-source-diagnostics (string-to-bytes source) [MkDiagnostic "bootstrap.check" (Span 0 0 line 9) "broken"]
+  main :: Int
+  main =
+    let a = check (same (rendered "module Main where\n  main = 0\n" 2) "bootstrap.check:2:9: broken\n") 1 in
+    let b = check (same (rendered "-- source: Shapes.cinch\nmodule Shapes where\n  broken = x\n" 3) "bootstrap.check:3:9: broken (Shapes.cinch:2:9)\n") 2 in
+    let c = check (same (rendered "-- source: Shapes.cinch\nmodule Shapes where\n\n-- source: Main.cinch\nmodule Main where\n  main = x\n" 6) "bootstrap.check:6:9: broken (Main.cinch:2:9)\n") 4 in
+    let d = check (same (rendered "-- source: Main.cinch\nmodule Main where\n  -- source: NotAFile.cinch\n  main = x\n" 4) "bootstrap.check:4:9: broken (Main.cinch:3:9)\n") 8 in
+    let e = check (same (rendered "-- source: Main.cinch\nmodule Main where\n" 10) "bootstrap.check:10:9: broken\n") 16 in
+    let f = check (same (rendered "-- source: odd\\nfile.cinch\nmodule Main where\n  main = x\n" 3) "bootstrap.check:3:9: broken (odd\\nfile.cinch:2:9)\n") 32 in
+    let g = check (same (rendered "-- source: \nmodule Main where\n  main = x\n" 3) "bootstrap.check:3:9: broken\n") 64 in
+    a + b + c + d + e + f + g

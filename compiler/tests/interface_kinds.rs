@@ -5,6 +5,29 @@ mod common;
 use cinch::interface::{Iface, SCHEMA_VERSION};
 
 #[test]
+fn partial_arrow_former_survives_a_checked_instance_interface() {
+    let source = r#"module ArrowMapping where
+  signature Mapper (f :: Type -> Type) where
+    map-item :: forall a b. (a -> b) -> f a -> f b
+  implicit instance MapperArrow r :: Mapper ((->) r) where
+    map-item f g x = f (g x)
+module Main where
+  import ArrowMapping
+  main :: Int
+  main = 0
+"#;
+    let (_, interfaces) = cinch::driver::check_sources_ifaces(source, "arrow-instance.cinch").unwrap();
+    cinch::interface::verify_chain(&interfaces).unwrap();
+    let owner = interfaces.iter().find(|iface| iface.module == "ArrowMapping").unwrap();
+    let artifact = Iface::from_json(&owner.to_json()).unwrap();
+    let instance = artifact.exports.instances.iter().find(|item| item.id == "ArrowMapping.MapperArrow").unwrap();
+    let resolved = instance.resolved.as_ref().expect("checked arrow former in the instance head");
+    assert_eq!(resolved.scheme, "forall (r :: Type). ArrowMapping.Mapper ((->) r)");
+    assert_eq!(resolved.nominals.iter().map(|nominal| nominal.identity.as_str()).collect::<Vec<_>>(),
+        ["ArrowMapping.Mapper"]);
+}
+
+#[test]
 fn interfaces_preserve_indexed_constructors_and_method_visibility() {
     let dir = common::project("interface_kinds", &[
         ("Contract.cinch", r#"module Contract where

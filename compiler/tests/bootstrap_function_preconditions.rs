@@ -12,6 +12,15 @@ fn function_preconditions_use_actual_arguments_and_cannot_be_ignored() {
     ]);
     let exe = common::build(&dir, "Main.cinch", "function-preconditions").expect("build the Cinch function precondition checker");
     let cases = [
+        ("partial Boolean right conjunction proves subtraction", "safe :: Bool -> Nat -> Nat -> Nat\n  safe flag n m = if flag && n >= m then n - m else 0", 0),
+        ("partial Boolean left conjunction retains subtraction", "safe :: Bool -> Nat -> Nat -> Nat\n  safe flag n m = if n >= m && flag then n - m else 0", 0),
+        ("partial Boolean right disjunction false proves subtraction", "safe :: Bool -> Nat -> Nat -> Nat\n  safe flag n m = if flag || n < m then 0 else n - m", 0),
+        ("partial Boolean nested conjunction proves call", "difference :: using (n >= m) => (n :: Nat) -> (m :: Nat) -> Nat\n  difference n m = n - m\n  safe :: Bool -> Bool -> Nat -> Nat -> Nat\n  safe first second n m = if first && (second && n >= m) then difference n m else 0", 0),
+        ("partial Boolean false conjunction cannot prove subtraction", "bad :: Bool -> Nat -> Nat -> Nat\n  bad flag n m = if flag && n >= m then 0 else n - m", 4),
+        ("partial Boolean true disjunction cannot prove subtraction", "bad :: Bool -> Nat -> Nat -> Nat\n  bad flag n m = if flag || n >= m then n - m else 0", 4),
+        ("partial Boolean right fact keeps actual identities", "difference :: using (n >= m) => (n :: Nat) -> (m :: Nat) -> Nat\n  difference n m = n - m\n  bad :: Bool -> Nat -> Nat -> Nat\n  bad flag n m = if flag && n >= m then difference m n else 0", 4),
+        ("partial Boolean fact cannot escape its branch", "difference :: using (n >= m) => (n :: Nat) -> (m :: Nat) -> Nat\n  difference n m = n - m\n  bad :: Bool -> Nat -> Nat -> Nat\n  bad flag n m = let ignored = if flag && n >= m then difference n m else 0 in difference n m", 4),
+        ("partial Boolean nested disjunction false proves call", "difference :: using (n >= m) => (n :: Nat) -> (m :: Nat) -> Nat\n  difference n m = n - m\n  safe :: Bool -> Bool -> Nat -> Nat -> Nat\n  safe first second n m = if first || (second || n < m) then 0 else difference n m", 0),
         ("declared assumption", "pred :: using (n > 0) => (n :: Nat) -> Nat\n  pred actual = actual - 1", 0),
         ("proved literal", "pred :: using (n > 0) => (n :: Nat) -> Nat\n  pred actual = actual - 1\n  answer :: Nat\n  answer = pred 1", 0),
         ("proved branch", "pred :: using (n > 0) => (n :: Nat) -> Nat\n  pred actual = actual - 1\n  safe :: Nat -> Nat\n  safe value = if value > 0 then pred value else 0", 0),
@@ -40,12 +49,16 @@ fn function_preconditions_use_actual_arguments_and_cannot_be_ignored() {
     ];
     for (name, body, wanted) in cases {
         let source = format!("module Main where\n  {body}\n  main :: Int\n  main = 0\n");
+        if name.starts_with("partial Boolean ") {
+            let oracle = cinch::driver::check_sources(&source, "partial-boolean-branch-oracle.cinch");
+            assert_eq!(oracle.is_ok(), wanted == 0, "Native partial Boolean oracle: {name}\n{oracle:?}");
+        }
         std::fs::write(dir.join("source.cinch"), &source).unwrap();
         let output = std::process::Command::new(&exe).current_dir(&dir).output().unwrap();
         let report = common::read_output(&dir, "signature-type-report.txt");
         assert_eq!(output.status.code(), Some(wanted), "{name}; project {}\n{source}\n{report}\n{}", dir.display(), String::from_utf8_lossy(&output.stderr));
         if wanted == 4 {
-            let expected = if name == "missing precondition" { "ordering evidence" } else { "precondition is not established" };
+            let expected = if name == "missing precondition" || matches!(name, "partial Boolean false conjunction cannot prove subtraction" | "partial Boolean true disjunction cannot prove subtraction") { "ordering evidence" } else { "precondition is not established" };
             assert!(report.contains(expected), "{name}: {report}");
         }
     }

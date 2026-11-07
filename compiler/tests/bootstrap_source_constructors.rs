@@ -17,6 +17,14 @@ fn decision_constructors_check_erasure_metadata_and_source_evidence() {
     let exe = common::build(&dir, "Main.cinch", "source-constructors").expect("build source constructor checker");
     let yes = "wrap :: forall (p :: Prop). (h :: p) -> Dec p\n  wrap h = Yes h";
     let cases = [
+        ("inferred coverage single constructor in checked case", "data Box where\n    Box :: Int -> Box\n  apply :: forall a b. (a -> b) -> a -> b\n  apply f x = f x\n  answer :: Int\n  answer = apply (\\box -> case box of Box n -> n) (Box 7)", true),
+        ("inferred coverage single constructor in inferred case", "data Box where\n    Box :: Int -> Box\n  answer :: Int\n  answer = let read = \\box -> case box of Box n -> n in read (Box 7)", true),
+        ("inferred coverage both constructors", "data Choice where\n    First :: Int -> Choice\n    Second :: Int -> Choice\n  answer :: Int\n  answer = let read = \\choice -> case choice of First n -> n; Second n -> n in read (Second 7)", true),
+        ("inferred coverage missing feasible constructor", "data Choice where\n    First :: Int -> Choice\n    Second :: Int -> Choice\n  answer :: Int\n  answer = let read = \\choice -> case choice of First n -> n in read (First 7)", false),
+        ("inferred coverage nested tuple and constructor", "data Box where\n    Box :: Int -> Box\n  answer :: Int\n  answer = let read = \\pair -> case pair of (Box n, _) -> n in read (Box 7, True)", true),
+        ("inferred coverage guard does not cover", "data Box where\n    Box :: Int -> Box\n  answer :: Int\n  answer = let read = \\box -> case box of Box n | False -> n in read (Box 7)", false),
+        ("inferred coverage constructor family mismatch", "data Box where\n    Box :: Int -> Box\n  data Other where\n    Other :: Int -> Other\n  answer :: Int\n  answer = let read = \\box -> case box of Box n -> n; Other n -> n in read (Box 7)", false),
+        ("inferred coverage rigid index keeps other constructor", "data Signal (channels :: Nat) where\n    Mono :: Int -> Signal 1\n    Stereo :: Int -> Int -> Signal 2\n  observe :: forall (n :: Nat). Signal n -> Int\n  observe signal = case signal of Mono x -> x", false),
         ("projection scope infers a unique visible declaring record", "record User where\n    age :: Nat\n  apply :: forall a b. (a -> b) -> a -> b\n  apply f value = f value\n  user :: User\n  user = User { age = 36 }\n  age :: Nat\n  age = apply (\\value -> value.age) user", true),
         ("projection scope retains the original ambiguous lambda refusal", "record Number where\n    value :: Nat\n  record Flag where\n    value :: Bool\n  apply :: forall a b. (a -> b) -> a -> b\n  apply f value = f value\n  flag :: Flag\n  flag = Flag { value = True }\n  read :: Bool\n  read = apply (\\item -> item.value) flag", false),
         ("projection scope accepts an annotated receiver among identical labels", "record Number where\n    value :: Nat\n  record Flag where\n    value :: Bool\n  apply :: forall a b. (a -> b) -> a -> b\n  apply f value = f value\n  flag :: Flag\n  flag = Flag { value = True }\n  read :: Bool\n  read = apply (\\item -> (item :: Flag).value) flag", true),
@@ -92,7 +100,7 @@ fn decision_constructors_check_erasure_metadata_and_source_evidence() {
     ];
     for (name, body, accepted) in cases {
         let source = if body.starts_with("module ") { body.to_string() } else { format!("module Main where\n  {body}\n  main :: Int\n  main = 0\n") };
-        if name.starts_with("record ") || name.starts_with("constructor result ") || name.starts_with("indexed coverage ") || name.starts_with("projection scope ") {
+        if name.starts_with("inferred coverage ") || name.starts_with("record ") || name.starts_with("constructor result ") || name.starts_with("indexed coverage ") || name.starts_with("projection scope ") {
             let oracle = cinch::driver::check_sources(&source, "native-record-source-oracle.cinch");
             assert_eq!(oracle.is_ok(), accepted, "Native record oracle: {name}\n{oracle:?}");
         }
