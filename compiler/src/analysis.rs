@@ -123,6 +123,8 @@ pub struct UpdateReport {
 pub struct ProbeOutcome {
     /// The inferred scheme (`render_scheme` form).
     pub scheme: Option<String>,
+    /// The inferred result type, for a runtime fallback's printer.
+    pub ty: Option<Ty>,
     /// The evaluated value, rendered.
     pub value: Option<String>,
     /// Why the value is absent (the evaluator cannot run this code).
@@ -281,6 +283,16 @@ impl Analysis {
         self.files.keys().cloned().collect()
     }
 
+    /// The workspace root, which moves to a loaded project's directory.
+    pub fn root(&self) -> &std::path::Path {
+        &self.root
+    }
+
+    /// Restore the workspace root during a transactional load rollback.
+    pub fn set_root(&mut self, root: std::path::PathBuf) {
+        self.root = root;
+    }
+
     /// The user modules (never the embedded prelude family).
     pub fn modules(&self) -> Vec<String> {
         self.modules.keys().cloned().collect()
@@ -371,10 +383,10 @@ impl Analysis {
                 continue;
             }
             let path = self.root.join(&key);
-            if let Ok(text) = std::fs::read_to_string(&path) {
-                self.set_document(&key, &text);
-                self.pending.insert(key);
-            }
+            let text = std::fs::read_to_string(&path)
+                .map_err(|e| format!("{key}: {e}"))?;
+            self.set_document(&key, &text);
+            self.pending.insert(key);
         }
         Ok(())
     }
@@ -742,8 +754,9 @@ impl Analysis {
                     self.diags.entry(file).or_default();
                 }
                 if let Some(p) = probe_out {
-                    if let Some((_, text)) = &p.scheme {
+                    if let Some((scheme, text)) = &p.scheme {
                         outcome.scheme = Some(text.clone());
+                        outcome.ty = Some(scheme.ty.clone());
                     }
                     if let Some(v) = &p.value {
                         let ty = p

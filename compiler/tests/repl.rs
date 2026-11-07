@@ -90,6 +90,33 @@ fn load_and_reload_a_multi_file_project() {
     assert!(reloaded.contains("rechecked Util"), "{reloaded}");
     assert!(reloaded.contains("rechecked Main"), "{reloaded}");
     assert!(out(repl.eval("double 4")).contains("8"));
+
+    // A broken revision keeps the previous checked session.
+    std::fs::write(
+        dir.join("Util.cinch"),
+        "module Util where\n  double :: Int -> Int\n  double n = \"broken\"\n",
+    )
+    .expect("broken Util.cinch");
+    let failed = out(repl.eval(":reload"));
+    assert!(failed.contains("reload failed"), "{failed}");
+    assert!(failed.contains("previous checked session"), "{failed}");
+    assert!(out(repl.eval("quad 21")).contains("84"));
+
+    // A missing source is also a failed reload, not a silent stale mix.
+    std::fs::remove_file(dir.join("Util.cinch")).expect("remove Util.cinch");
+    let missing = out(repl.eval(":reload"));
+    assert!(missing.contains("reload failed"), "{missing}");
+    assert!(out(repl.eval("quad 21")).contains("84"));
+
+    // Repair the source and reload it normally.
+    std::fs::write(
+        dir.join("Util.cinch"),
+        "\nmodule Util where\n  double :: Int -> Int\n  double n = n + n\n",
+    )
+    .expect("restored Util.cinch");
+    let repaired = out(repl.eval(":reload"));
+    assert!(repaired.contains("rechecked Util"), "{repaired}");
+    assert!(out(repl.eval("quad 21")).contains("84"));
     std::fs::remove_dir_all(&dir).ok();
 }
 
@@ -169,4 +196,64 @@ fn history_records_the_accepted_inputs() {
     repl.eval("x = 5");
     repl.eval(":type x");
     assert_eq!(repl.history(), &["x :: Int".to_string(), "x = 5".to_string(), ":type x".to_string()]);
+}
+
+#[test]
+fn runtime_backed_io_uses_the_native_compiler() {
+    let dir = std::env::temp_dir().join(format!("cinch-repl-runtime-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("temp dir");
+    let mut repl = Repl::with_compiler(&dir, env!("CARGO_BIN_EXE_cinch"));
+    let output = out(repl.eval(
+        "with (io = newIO ()) in let written = ioWrite (string-to-bytes \"runtime\\n\") in 42",
+    ));
+    assert!(output.contains("runtime"), "{output}");
+    assert!(output.contains("42 :: Int"), "{output}");
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
+fn a_failed_load_keeps_the_previous_session() {
+    let base = std::env::temp_dir().join(format!("cinch-repl-load-fail-{}", std::process::id()));
+    let project = base.join("project");
+    std::fs::create_dir_all(&project).expect("project dir");
+    std::fs::write(
+        project.join("Main.cinch"),
+        "module Main where\n  import Missing\n  value :: Int\n  value = 1\n",
+    )
+    .expect("Main.cinch");
+    let mut repl = Repl::with_compiler(&base, env!("CARGO_BIN_EXE_cinch"));
+    let failed = out(repl.eval(&format!(":load {}", project.join("Main.cinch").display())));
+    assert!(failed.contains("kept the previous checked session"), "{failed}");
+    assert!(out(repl.eval("1 + 2")).contains("3 :: Int"));
+    std::fs::remove_dir_all(&base).ok();
+}
+
+#[test]
+fn runtime_backed_probe_sees_a_session_definition() {
+    let dir = std::env::temp_dir().join(format!("cinch-repl-runtime-session-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("temp dir");
+    let mut repl = Repl::with_compiler(&dir, env!("CARGO_BIN_EXE_cinch"));
+    repl.eval("shout :: forall r. using (io :: Io r) => String ->{IO r} Unit");
+    repl.eval("shout s = ioWrite (string-to-bytes s)");
+    let output = out(repl.eval("with (io = newIO ()) in shout \"session runtime\\n\""));
+    assert!(output.contains("session runtime"), "{output}");
+    assert!(output.contains("() :: Unit"), "{output}");
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
+fn runtime_backed_probe_sees_a_loaded_module() {
+    let dir = std::env::temp_dir().join(format!("cinch-repl-runtime-load-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("temp dir");
+    std::fs::write(
+        dir.join("Echo.cinch"),
+        "module Echo where\n  shout :: forall r. using (io :: Io r) => String ->{IO r} Unit\n  shout s = ioWrite (string-to-bytes s)\n",
+    )
+    .expect("Echo.cinch");
+    let mut repl = Repl::with_compiler(&dir, env!("CARGO_BIN_EXE_cinch"));
+    assert!(out(repl.eval(":load Echo.cinch")).contains("loaded"));
+    let output = out(repl.eval("with (io = newIO ()) in shout \"loaded runtime\\n\""));
+    assert!(output.contains("loaded runtime"), "{output}");
+    assert!(output.contains("() :: Unit"), "{output}");
+    std::fs::remove_dir_all(&dir).ok();
 }

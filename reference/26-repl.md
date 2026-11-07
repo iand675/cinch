@@ -1,6 +1,6 @@
 # Interactive programming with the REPL
 
-<span class="support-tag support-tag--current">Available</span> **`cinch repl` starts a full-screen terminal session.** It uses the compiler's shared analysis layer, keeps declarations across inputs, and runs expressions through the D92 evaluator. Runtime-backed effects and a few project-reload edges remain limited; [current implementation](#current-implementation) records the exact boundary.
+<span class="support-tag support-tag--current">Available</span> **`cinch repl` starts a full-screen terminal session.** It uses the compiler's shared analysis layer, keeps declarations across inputs, and runs expressions through the D92 evaluator. Foreign and IO expressions fall back to a temporary native probe; reload rolls back broken revisions. [Current implementation](#current-implementation) records the remaining limits.
 
 The REPL is an interactive Cinch session. Enter an expression to inspect its value and type, add declarations to use in later inputs, or load a project and explore its exported functions. It uses the compiler's analysis layer, so signatures, instances, effects, refinements, and ownership follow the same rules as source files.
 
@@ -117,7 +117,7 @@ List :: Type -> Type
 
 Type queries use the session's imports and instance environment. An unresolved name, ambiguous instance, or unmet proof obligation remains an error. `:kind` takes a type or class name; arbitrary type-expression queries are not part of this command's current API contract.
 
-The intended type-query interface reports types without performing runtime effects. The existing implementation uses a shared expression probe which can attempt evaluation; a strict separation of query and execution remains part of completing the frontend.
+`:type` uses the shared probe and does not start a native runtime probe, so asking for a type never executes a foreign or IO action. The D92 probe may reduce pure expressions while elaborating them; that is checking work, not an effectful run.
 
 ## Browse names
 
@@ -139,9 +139,9 @@ rechecked Util
 rechecked Main
 ```
 
-The transcript illustrates the workflow; the actual affected set depends on the files and dependency changes. Loading follows source module identities and imports. A source-distributed library still needs its files available locally; loading a module is not a remote package installation operation.
+The transcript illustrates the workflow; the actual affected set depends on the files and dependency changes. Loading follows source module identities and imports. A source-distributed library still needs its files available locally; loading a module is not a remote package installation operation. `:load` is transactional too: a missing import, parse error, or check error restores the previous workspace instead of leaving a partial project loaded.
 
-The intended reload operation publishes one coherent checked project revision. If an edit breaks a signature or invalidates a session declaration, the REPL should report the affected source and prevent evaluation against a mixture of incompatible revisions. Repair the source and reload before continuing. Transactional reload, recovery from broken imports, and dependent-session invalidation are completion requirements; today's API should not be assumed to provide that entire experience.
+Reload is transactional. If the new revision has a type error, a broken import edge, or a missing loaded source, `:reload` reports the failure and restores the previous in-memory revision instead of leaving the session on a half-replaced interface chain. Evaluation continues against the last coherent project until the source is repaired and reloaded.
 
 For larger experiments, move declarations into a source module and reload it. That makes imports, signatures, and dependencies reproducible outside the session. Use [`cinch check`](01-using-the-compiler.md) to check the saved program and `cinch run` to exercise its native runtime path.
 
@@ -155,9 +155,11 @@ The current API keeps history in memory. Cross-session persistence, replay comma
 
 The REPL must retain normal Cinch checking rules. An effectful expression needs its effect row, capability supply, and permitted execution context. A linear resource cannot become reusable just because it was entered at a prompt. Refinement evidence must remain attached to the values and assumptions that justified it, and must be invalidated when those assumptions change.
 
-**Coming soon: complete runtime-backed interactive execution.** The intended session distinguishes inspecting a pure value from executing an effectful computation. An effectful action runs only as an explicit evaluation with the required capabilities; merely browsing or asking for its type must not execute it. Files, foreign calls, tasks, and other runtime facilities must use the same contracts and cleanup rules as compiled programs.
+Evaluation starts with the compiler's D92 evaluator. When that evaluator cannot run a construct because it needs target code (a foreign import, an I/O operation, or a runtime-only value), the REPL writes a temporary `ReplProbe` program, copies the loaded project sources, and runs the project through the same native compiler. The native probe has a 60 second timeout and does not inherit the terminal's stdin, so a probe that needs input sees end-of-input.
 
-Until that path is complete, use `cinch run` for runtime I/O, foreign integration, concurrency, and native representation tests. The current REPL evaluates through the compiler's D92 expression evaluator. Support for a construct in the compiler does not by itself establish support for evaluating it interactively.
+The probe prints the result when the type has an obvious printer: `Int`, `Nat`, `Bool`, `Char`, `String`, `Unit`, and `Bytes`. Other result types report `<value>` after running, because the REPL will not invent a `Show` instance. An effectful action still needs its capability, exactly as in a compiled program; supply it lexically with `with (io = ...) in ...`. Asking for a type with `:type` does not execute the expression.
+
+Runtime-backed evaluation is deliberately bounded. It does not yet cover arbitrary effect capabilities, interactive stdin, or interruption of a running probe; use `cinch run` for a broader runtime workflow. Support for a construct in the compiler does not by itself establish support for evaluating it interactively.
 
 # Errors and recovery
 
@@ -169,7 +171,7 @@ When diagnosing a failure, separate three cases:
 | --- | --- |
 | The input has a syntax, type, effect, ownership, or proof error. | Correct the input using the same rules as a source file. |
 | A loaded module fails. | Fix the named file or import, then reload. |
-| The expression checks but cannot be evaluated interactively. | Save a small program and use the native build/run path; retain the evaluator refusal in a bug report. |
+| The expression checks but the native probe also fails. | Read the probe diagnostic; save a small program and use `cinch run` for a broader runtime workflow. |
 
 Include the compiler revision, minimal sequence of inputs, required source files, and complete diagnostic when reporting a session bug. See [diagnostics](21-editors-and-diagnostics.md) for phase-specific checks.
 
@@ -182,8 +184,10 @@ Include the compiler revision, minimal sequence of inputs, required source files
 | Commands | The command table above is available in the terminal frontend. |
 | Checking and pure expression evaluation | Implemented through shared analysis and the D92 evaluator, within that evaluator's admitted subset. |
 | Completion | `Tab` cycles session, imported, prelude, and `:` command names. |
-| Complete project/runtime session | **Partial.** Coherent reload recovery and full runtime-backed evaluation remain ahead; use `cinch run` for runtime I/O, foreign calls, and concurrency. |
+| Runtime-backed evaluation | **Available for target-code probes.** D92 is the fast path; foreign/IO/runtime-only expressions fall back to a temporary native `ReplProbe` with a 60 second timeout and project source copy. |
+| Project reload | **Transactional.** A broken or missing revision is rejected and the previous checked revision is restored. |
+| Complete project/runtime session | **Partial.** Arbitrary effect capabilities, interactive stdin, full value printers for every ADT, and interruption of a running probe remain ahead. |
 
-`cinch repl` is the terminal adapter. Frontend authors can also create `Repl::with_root(path)` and feed submissions to `eval(&str)`. Its result is `ReplOutcome::Output(String)`, `Incomplete`, or `Quit`. `Incomplete` requests more input; it is not a successful declaration. The API also exposes `complete`, `history`, `session_source`, `abort_pending`, and `analysis`.
+`cinch repl` is the terminal adapter. Frontend authors can also create `Repl::with_root(path)` and feed submissions to `eval(&str)`; `Repl::with_compiler(root, cinch_binary)` selects the executable used by runtime probes. Its result is `ReplOutcome::Output(String)`, `Incomplete`, or `Quit`. `Incomplete` requests more input; it is not a successful declaration. The API also exposes `complete`, `history`, `session_source`, `abort_pending`, and `analysis`.
 
 Implementation: `compiler/src/repl.rs`, `compiler/src/analysis.rs`; behaviour suite: `compiler/tests/repl.rs`. The [language server guide](27-language-server.md) describes the other frontend sharing this analysis layer.

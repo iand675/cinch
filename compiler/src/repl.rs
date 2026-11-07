@@ -12,7 +12,14 @@
 use crate::analysis::{self, Analysis, ProbeOutcome, SESSION_FILE, SESSION_MODULE};
 use crate::ast;
 use crate::lexer::{self, Span, Tok};
-use std::io::{self, BufRead, IsTerminal, Write};
+use crate::types::{Scalar, Ty};
+use std::collections::HashSet;
+use std::fs;
+use std::io::{self, BufRead, IsTerminal, Read, Write};
+use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
+use std::thread;
+use std::time::{Duration, Instant};
 
 /// The outcome of feeding one input line to the REPL.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -39,6 +46,109 @@ pub struct Repl {
     /// The lines of the block being continued.
     pending: Vec<String>,
     history: Vec<String>,
+    root: PathBuf,
+    compiler: PathBuf,
+    runtime_store: PathBuf,
+}
+
+#[derive(Clone, Copy)]
+enum RuntimePrint {
+    Show,
+    Unit,
+    Bytes,
+    Opaque,
+}
+
+impl RuntimePrint {
+    fn of(ty: &Ty) -> Option<RuntimePrint> {
+        match ty {
+            Ty::Int | Ty::Nat | Ty::Bool => Some(RuntimePrint::Show),
+            Ty::Unit => Some(RuntimePrint::Unit),
+            Ty::Bytes => Some(RuntimePrint::Bytes),
+            Ty::Prim(Scalar::Char) => Some(RuntimePrint::Show),
+            Ty::Adt(name, _) if name.ends_with("String") => Some(RuntimePrint::Show),
+            Ty::Fun(..) | Ty::Pi { .. } => None,
+            Ty::Param(_) | Ty::Region(_) | Ty::Meta(_) | Ty::Sort(_) | Ty::Prp(_) | Ty::Idx(_) => {
+                None
+            }
+            _ => Some(RuntimePrint::Opaque),
+        }
+    }
+}
+
+fn indent_expr(block: &str, spaces: usize) -> String {
+    let pad = " ".repeat(spaces);
+    block
+        .lines()
+        .map(|line| format!("{pad}{line}"))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn run_with_timeout(
+    mut command: Command,
+    timeout: Duration,
+) -> Option<(bool, String, String, bool)> {
+    let mut child = command
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .ok()?;
+    let mut stdout = child.stdout.take()?;
+    let mut stderr = child.stderr.take()?;
+    let stdout_thread = thread::spawn(move || {
+        let mut bytes = Vec::new();
+        let _ = stdout.read_to_end(&mut bytes);
+        bytes
+    });
+    let stderr_thread = thread::spawn(move || {
+        let mut bytes = Vec::new();
+        let _ = stderr.read_to_end(&mut bytes);
+        bytes
+    });
+    let start = Instant::now();
+    let (status, timed_out) = loop {
+        match child.try_wait().ok()? {
+            Some(status) => break (status, false),
+            None if start.elapsed() > timeout => {
+                let _ = child.kill();
+                break (child.wait().ok()?, true);
+            }
+            None => thread::sleep(Duration::from_millis(20)),
+        }
+    };
+    let stdout = String::from_utf8_lossy(&stdout_thread.join().ok()?).into_owned();
+    let stderr = String::from_utf8_lossy(&stderr_thread.join().ok()?).into_owned();
+    Some((status.success(), stdout, stderr, timed_out))
+}
+
+fn copy_cinch_sources(root: &Path, destination: &Path) {
+    let mut stack = vec![root.to_path_buf()];
+    while let Some(directory) = stack.pop() {
+        let Ok(entries) = fs::read_dir(&directory) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                let name = path.file_name().and_then(|name| name.to_str()).unwrap_or("");
+                if matches!(name, "target" | ".git" | "node_modules" | "build" | "dist" | ".devenv") {
+                    continue;
+                }
+                stack.push(path);
+            } else if path.extension().and_then(|ext| ext.to_str()) == Some("cinch") {
+                let Some(relative) = path.strip_prefix(root).ok() else {
+                    continue;
+                };
+                let target = destination.join(relative);
+                if let Some(parent) = target.parent() {
+                    let _ = fs::create_dir_all(parent);
+                }
+                let _ = fs::copy(&path, &target);
+            }
+        }
+    }
 }
 
 impl Default for Repl {
@@ -55,13 +165,33 @@ impl Repl {
 
     /// A REPL whose paths resolve against `root`.
     pub fn with_root(root: impl AsRef<std::path::Path>) -> Repl {
+        let compiler = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("cinch"));
+        Repl::with_compiler(root, compiler)
+    }
+
+    /// A REPL that uses `compiler` for runtime-backed probes. Embedders and
+    /// integration tests point this at the built `cinch` binary; the CLI
+    /// uses its own executable.
+    pub fn with_compiler(root: impl AsRef<std::path::Path>, compiler: impl Into<PathBuf>) -> Repl {
+        let root = root.as_ref().to_path_buf();
+        static STORE_COUNTER: std::sync::atomic::AtomicUsize =
+            std::sync::atomic::AtomicUsize::new(0);
+        let count = STORE_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let runtime_store = std::env::temp_dir().join(format!(
+            "cinch-repl-store-{}-{count}",
+            std::process::id()
+        ));
+        let _ = fs::create_dir_all(&runtime_store);
         let mut repl = Repl {
-            analysis: Analysis::new(root),
+            analysis: Analysis::new(&root),
             entries: Vec::new(),
             entry_skips: Vec::new(),
             pending_sigs: Vec::new(),
             pending: Vec::new(),
             history: Vec::new(),
+            root,
+            compiler: compiler.into(),
+            runtime_store,
         };
         repl.sync_session();
         repl
@@ -406,6 +536,11 @@ impl Repl {
         {
             return ReplOutcome::Output(render_session_diag(diag, &self.entries, &self.entry_skips));
         }
+        if outcome.value.is_none() && outcome.eval_error.is_some() {
+            if let Some(rendered) = self.runtime_eval(block, &outcome) {
+                return ReplOutcome::Output(rendered);
+            }
+        }
         match outcome {
             ProbeOutcome {
                 value: Some(v),
@@ -427,6 +562,220 @@ impl Repl {
             }
             _ => ReplOutcome::Output("error: the expression does not elaborate".to_string()),
         }
+    }
+
+    /// D92 is the fast path. Foreign calls, effects, and a few runtime-only
+    /// constructs need target code, so a failed probe falls back to a
+    /// temporary native program that imports the session and executes the
+    /// expression. Successful stdout is the REPL's answer; a failed build
+    /// keeps the original evaluator diagnostic.
+    fn runtime_eval(&self, block: &str, outcome: &ProbeOutcome) -> Option<String> {
+        let ty = outcome.ty.as_ref()?;
+        let scheme = outcome.scheme.as_deref()?;
+        let mode = RuntimePrint::of(ty)?;
+        let workspace = tempfile::tempdir().ok()?;
+        copy_cinch_sources(&self.root, workspace.path());
+        fs::write(workspace.path().join("ReplSession.cinch"), self.session_source()).ok()?;
+        let expression = indent_expr(block, 6);
+        let body = match mode {
+            RuntimePrint::Show => format!(
+                "    let value = (\n{expression}\n    )\n    \
+                 in let written = ioWrite (string-to-bytes (string-concat (show value) \"\\n\"))\n       \
+                 in 0"
+            ),
+            RuntimePrint::Unit => format!(
+                "    let _ = (\n{expression}\n    )\n    \
+                 in let written = ioWrite (string-to-bytes \"()\\n\")\n       in 0"
+            ),
+            RuntimePrint::Bytes => format!(
+                "    let value = (\n{expression}\n    )\n    \
+                 in let written = ioWrite value\n       \
+                 in let newline = ioWrite (string-to-bytes \"\\n\")\n          in 0"
+            ),
+            RuntimePrint::Opaque => format!(
+                "    let _ = (\n{expression}\n    )\n    \
+                 in let written = ioWrite (string-to-bytes \"<value>\\n\")\n       in 0"
+            ),
+        };
+        let mut imports = vec!["  import Text.Show".to_string()];
+        for module in self.analysis.modules() {
+            if module == "Text.Show" || module == "ReplProbe" {
+                continue;
+            }
+            imports.push(format!("  import {module}"));
+        }
+        if !imports.iter().any(|line| line == "  import ReplSession") {
+            imports.push("  import ReplSession".to_string());
+        }
+        let main = format!(
+            "module ReplProbe where\n{}\n\n  \
+             main :: Unit ->{{IO r}} Int\n  main unit = with (io = newIO ()) in\n{body}\n",
+            imports.join("\n")
+        );
+        fs::write(workspace.path().join("ReplProbe.cinch"), main).ok()?;
+        let mut command = Command::new(&self.compiler);
+        command
+            .arg("run")
+            .arg("ReplProbe.cinch")
+            .current_dir(workspace.path())
+            .env("CINCH_STORE", &self.runtime_store);
+        let (success, stdout, stderr, timed_out) =
+            run_with_timeout(command, Duration::from_secs(60))?;
+        if timed_out {
+            return Some("error: runtime evaluation timed out after 60s".to_string());
+        }
+        if !success {
+            let detail = stderr.trim();
+            return if detail.is_empty() {
+                None
+            } else {
+                Some(format!("error: runtime evaluation failed\n{detail}"))
+            };
+        }
+        let text = stdout.trim_end_matches(['\n', '\r']);
+        Some(format!("{text} :: {scheme}"))
+    }
+
+    /// Load a project as one transaction. A missing import, a parse failure,
+    /// or a check error restores the previous workspace and session imports.
+    fn load(&mut self, arg: &str) -> ReplOutcome {
+        if arg.is_empty() {
+            return ReplOutcome::Output("usage: :load <file>".to_string());
+        }
+        let previous_root = self.analysis.root().to_path_buf();
+        let previous_files = self.analysis.files();
+        let previous_texts: Vec<(String, String)> = previous_files
+            .iter()
+            .filter(|file| *file != SESSION_FILE)
+            .filter_map(|file| {
+                self.analysis
+                    .document(file)
+                    .map(|text| (file.clone(), text.to_string()))
+            })
+            .collect();
+        let previous_keys: HashSet<String> = previous_files.into_iter().collect();
+        let entry_count = self.entries.len();
+        match self.analysis.load_project(arg) {
+            Ok(loaded) => {
+                self.root = self.analysis.root().to_path_buf();
+                for m in &loaded {
+                    let imp = format!("import {m}");
+                    if !self.entries.iter().any(|e| e.trim() == imp) {
+                        self.entries.push(imp);
+                    }
+                }
+                self.sync_session();
+                let report = self.analysis.update();
+                let errors: Vec<String> = report
+                    .diagnostics
+                    .iter()
+                    .filter(|d| d.severity == analysis::Severity::Error)
+                    .map(|d| format!("{}:{}: {}", d.file, d.line, d.message))
+                    .collect();
+                if !errors.is_empty() {
+                    self.entries.truncate(entry_count);
+                    self.restore_workspace(&previous_root, &previous_keys, &previous_texts);
+                    return ReplOutcome::Output(format!(
+                        "error: load failed; kept the previous checked session\n{}",
+                        errors.join("\n")
+                    ));
+                }
+                let mut out = vec![format!(
+                    "loaded {}",
+                    self.analysis.rel_path(std::path::Path::new(arg))
+                )];
+                for m in &loaded {
+                    out.push(format!("rechecked {m}"));
+                }
+                ReplOutcome::Output(out.join("\n"))
+            }
+            Err(e) => {
+                self.restore_workspace(&previous_root, &previous_keys, &previous_texts);
+                ReplOutcome::Output(format!(
+                    "error: {e}; kept the previous checked session"
+                ))
+            }
+        }
+    }
+
+    fn restore_workspace(
+        &mut self,
+        root: &Path,
+        keys: &HashSet<String>,
+        texts: &[(String, String)],
+    ) {
+        for file in self.analysis.files() {
+            if !keys.contains(&file) {
+                self.analysis.remove_document(&file);
+            }
+        }
+        for (file, text) in texts {
+            self.analysis.set_document(file, text);
+        }
+        self.analysis.set_root(root.to_path_buf());
+        self.root = root.to_path_buf();
+        self.sync_session();
+        let _ = self.analysis.update();
+    }
+
+    /// Re-read the project. If the new revision does not check, restore
+    /// the previous in-memory revision instead of leaving the session
+    /// evaluating against a half-replaced interface chain.
+    fn reload(&mut self) -> ReplOutcome {
+        let previous: Vec<(String, String)> = self
+            .analysis
+            .files()
+            .into_iter()
+            .filter(|file| file != SESSION_FILE)
+            .filter_map(|file| {
+                self.analysis
+                    .document(&file)
+                    .map(|text| (file, text.to_string()))
+            })
+            .collect();
+        if let Err(e) = self.analysis.reload_from_disk() {
+            for (file, text) in &previous {
+                self.analysis.set_document(file, text);
+            }
+            let _ = self.analysis.update();
+            return ReplOutcome::Output(format!(
+                "error: reload failed; kept the previous checked session\n{e}"
+            ));
+        }
+        let report = self.analysis.update();
+        let errors: Vec<String> = report
+            .diagnostics
+            .iter()
+            .filter(|d| d.severity == analysis::Severity::Error)
+            .map(|d| format!("{}:{}: {}", d.file, d.line, d.message))
+            .collect();
+        if !errors.is_empty() {
+            for (file, text) in &previous {
+                self.analysis.set_document(file, text);
+            }
+            let restored = self.analysis.update();
+            let mut out = vec![
+                "error: reload failed; kept the previous checked session".to_string(),
+            ];
+            out.extend(errors);
+            for d in restored.diagnostics.iter() {
+                if d.severity == analysis::Severity::Error {
+                    out.push(format!(
+                        "error: previous session also fails: {}:{}: {}",
+                        d.file, d.line, d.message
+                    ));
+                }
+            }
+            return ReplOutcome::Output(out.join("\n"));
+        }
+        let mut out: Vec<String> = Vec::new();
+        for m in &report.rechecked {
+            out.push(format!("rechecked {m}"));
+        }
+        if out.is_empty() {
+            out.push("ok".to_string());
+        }
+        ReplOutcome::Output(out.join("\n"))
     }
 
     // ------------------------------------------------------- commands
@@ -494,60 +843,8 @@ impl Repl {
                 }
                 ReplOutcome::Output(out.join("\n"))
             }
-            ":load" | ":l" => {
-                if arg.is_empty() {
-                    return ReplOutcome::Output("usage: :load <file>".to_string());
-                }
-                match self.analysis.load_project(arg) {
-                    Ok(loaded) => {
-                        for m in &loaded {
-                            let imp = format!("import {m}");
-                            if !self.entries.iter().any(|e| e.trim() == imp) {
-                                self.entries.push(imp);
-                            }
-                        }
-                        self.sync_session();
-                        let report = self.analysis.update();
-                        let errors: Vec<String> = report
-                            .diagnostics
-                            .iter()
-                            .filter(|d| d.severity == analysis::Severity::Error)
-                            .map(|d| format!("{}:{}: {}", d.file, d.line, d.message))
-                            .collect();
-                        if !errors.is_empty() {
-                            return ReplOutcome::Output(format!("error: {}", errors.join("\n")));
-                        }
-                        let mut out = vec![format!(
-                            "loaded {}",
-                            self.analysis.rel_path(std::path::Path::new(arg))
-                        )];
-                        for m in &loaded {
-                            out.push(format!("rechecked {m}"));
-                        }
-                        ReplOutcome::Output(out.join("\n"))
-                    }
-                    Err(e) => ReplOutcome::Output(format!("error: {e}")),
-                }
-            }
-            ":reload" | ":r" => {
-                if let Err(e) = self.analysis.reload_from_disk() {
-                    return ReplOutcome::Output(format!("error: {e}"));
-                }
-                let report = self.analysis.update();
-                let mut out: Vec<String> = Vec::new();
-                for m in &report.rechecked {
-                    out.push(format!("rechecked {m}"));
-                }
-                for d in report.diagnostics.iter() {
-                    if d.severity == analysis::Severity::Error {
-                        out.push(format!("error: {}:{}: {}", d.file, d.line, d.message));
-                    }
-                }
-                if out.is_empty() {
-                    out.push("ok".to_string());
-                }
-                ReplOutcome::Output(out.join("\n"))
-            }
+            ":load" | ":l" => self.load(arg),
+            ":reload" | ":r" => self.reload(),
             ":history" | ":hist" => {
                 let out: Vec<String> = self
                     .history

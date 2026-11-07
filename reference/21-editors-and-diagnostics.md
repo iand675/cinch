@@ -16,7 +16,7 @@ The [REPL guide](26-repl.md) describes the terminal experience, with worked sess
 
 `cinch::repl::Repl` maintains definitions across inputs. `eval` returns output, an incomplete-input indication, or quit. Supported session commands include `:type`, `:kind`, `:browse`, `:load`, `:reload`, `:history`, `:help`, and `:quit`. Definitions, multi-line continuation, expression evaluation, and completion are tested through the Rust API.
 
-`cinch repl` opens the full-screen terminal frontend: transcript, session sidebar, input editor, completion popup, history, and tree-sitter token colours. Piped stdin gets a plain line loop. Evaluation is synchronous, so `Ctrl+C` cancels pending input rather than a running check. Complete runtime-backed execution and some project-reload recovery remain ahead; use `cinch run` for runtime effects.
+`cinch repl` opens the full-screen terminal frontend: transcript, session sidebar, input editor, completion popup, history, and tree-sitter token colours. Piped stdin gets a plain line loop. Foreign and IO expressions fall back to a temporary native probe; reload restores the previous checked revision when the new one is broken or missing. Evaluation is synchronous, so `Ctrl+C` cancels pending input rather than a running probe.
 
 # Read diagnostics by phase
 
