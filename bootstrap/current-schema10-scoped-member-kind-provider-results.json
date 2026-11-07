@@ -1,0 +1,61 @@
+{
+  "full_goal_complete": false,
+  "interface_manifest_sha256": "719aeede0780bac0c86ba72ccf84289c1de4e19101bf1c975ac31fab38626aaa",
+  "object_metadata_sha256": "1e9205f204ba1e51cdfcfbc84929da7d74718e8f88498fd8afe0e6131fcf78c4",
+  "object_sha256": "44ec237d5bf7c289ce9103e5e4fd1a7df1b5cd9343e78d46a026f79d9f830505",
+  "provider": {
+    "description": "ABI 6 Native library producer with scoped class member kinds and schema 10 interfaces.",
+    "revision": "7d7acaf63c6233263f1e10feac5c020b8443ed0f",
+    "runtime_abi": 6,
+    "schema": 1,
+    "source_sha256": "ca7a6231fa497ca0c6b016fed5aaefc0d9ecb32fa3c41b10617e944ed8af1009"
+  },
+  "roots_sha256": "c3168d896d0fa7f52a31df627eb54fe52fce5d706e715a26791dba6fe7029a18",
+  "rows": [
+    {
+      "changed_interfaces": [
+        "Category.Traversable",
+        "Data.Ascii",
+        "Data.Bool",
+        "Data.Bytes",
+        "Data.Char",
+        "Data.Enum",
+        "Data.FromMap",
+        "Data.HashMap",
+        "Data.Json",
+        "Data.List",
+        "Data.Machine",
+        "Data.Map",
+        "Data.NonEmpty",
+        "Data.Option",
+        "Data.Path",
+        "Data.String",
+        "Data.Sym",
+        "Data.Target",
+        "Effect.Fs",
+        "Effect.Io",
+        "Effect.Process",
+        "Effect.Sequencing",
+        "Prelude",
+        "Text.Codec",
+        "Text.Show"
+      ],
+      "interfaces": 55,
+      "name": "pinned-provider",
+      "new_sequence": "forall (t :: Type -> Type) (f :: Type -> Type) (a :: Type). using (dict :: Category.Traversable.Traversable t, app :: Category.Applicative.Applicative f) => ((t (f a)) -> (f (t a)))",
+      "old_sequence": "forall (t :: Type -> Type) (f :: Type) (a :: Type). using (dict :: Category.Traversable.Traversable t, app :: Category.Applicative.Applicative f) => ((t (f a)) -> (f (t a)))",
+      "status": "passed"
+    },
+    {
+      "compiler_sha256": "94048ff6b6367001d6b9140dd279312a3d84a155637685c5201698332a5ab0de",
+      "diagnostics": "bootstrap.runtime-ir:20:11: method type arguments need runtime representation classes\nbootstrap.runtime-ir:24:19: method type arguments need runtime representation classes\nbootstrap.runtime-ir:30:11: method type arguments need runtime representation classes\nbootstrap.runtime-ir:36:11: method type arguments need runtime representation classes\n",
+      "exit_code": 5,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "original-traversal-class",
+      "source_sha256": "b85be92e962ad011c964c46cf76927ad82705b52be6cade5baa66af985b9cf76",
+      "status": "passed"
+    }
+  ],
+  "runtime_sha256": "c4ab921147a8ea1055306428e0ba84859513888ac0188f4973b408c5c7b399f5",
+  "status": "passed-provider-and-traversal-class"
+}

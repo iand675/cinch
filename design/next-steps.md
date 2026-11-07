@@ -36,9 +36,13 @@ See [the selected runtime audit](../bootstrap/current-schema10-private-runtime-l
 Native now isolates kind inference within each class method and law, while
 combining the enclosing class parameter uses. The original Traversable
 `sequence` contract emits `f :: Type -> Type`. All 205 Native library
-tests and 24 higher-kinded tests passed. Rebuilding the pinned library
-with the corrected contract is a separate check.
-See [the Native method kind audit](../bootstrap/current-native-scoped-method-kind-results.json).
+tests and 24 higher-kinded tests passed. The rebuilt pinned library
+passed readback of all 55 interfaces and retained every requested object
+root. The original List-to-Option traversal progressed from a missing
+declaring class to a representation error on the earlier Stage3. The
+complete traversal replay with higher-kinded runtime support is pending.
+See [the Native method kind audit](../bootstrap/current-native-scoped-method-kind-results.json)
+and [the rebuilt library audit](../bootstrap/current-schema10-scoped-member-kind-provider-results.json).
 
 Set `CINCH_TEST_INVOCATIONS` to an evidence directory when running the
 selected frontend tests. Each record identifies the test case, selected
