@@ -18203,13 +18203,13 @@
     "active": [
       {
         "title": "Integrated compiler: fresh bootstrap",
-        "status": "running",
-        "phase": "checking fixed point and source change",
+        "status": "passed-chain-awaiting-independent-audit",
+        "phase": "passed chain awaiting independent audit",
         "passed": 4,
         "failed": 0,
         "total": 4,
         "source": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185",
-        "auditPending": false
+        "auditPending": true
       },
       {
         "title": "Earlier self-built Stage3: complete frontend sweep",
@@ -18608,8 +18608,8 @@
       {
         "title": "Rust task-forwarding candidate: complete Rust sweep",
         "status": "running",
-        "phase": "lib_function_ord",
-        "passed": 63,
+        "phase": "lib_map_set_ops",
+        "passed": 68,
         "failed": 0,
         "total": 235,
         "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
@@ -18886,5 +18886,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T07:40:15.666670+00:00"
+  "updatedAt": "2026-11-07T07:41:17.965486+00:00"
 }
