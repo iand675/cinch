@@ -1,0 +1,41 @@
+{
+  "additional_renderer_controls": 2,
+  "changed_compiler_modules": [
+    "Bootstrap.Report.cinch"
+  ],
+  "compiler_source_sha256": "03d1790a4b4d9e1d1bcd0b702ff3cab7c04b9da865de2d84f696886d6da38d18",
+  "corrected_published_pipeline_preserved": true,
+  "full_goal_complete": false,
+  "native_rlib_sha256": "28fc6a79877135149049c3ac8ab2519f22d509a4fe3ecf6c82c992fe5f751709",
+  "native_source_sha256": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+  "original_renderer_controls": 7,
+  "patch_sha256": "9cff5ee4c222a2c03314e02c678efe0b1d50826dd33a01f2fbceaaacac10d7d2",
+  "prior_failed_assertion": "pre-typed-FFI diagnostic expectation",
+  "rows": [
+    {
+      "exit_code": 0,
+      "log_sha256": "4231a3df6b61e9a6aa8a9d1dc3aa85681143ae357de2f5574dc9901399b0e3b5",
+      "name": "compile-bootstrap_pipeline",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "0b2d75443ab673f5b3d808305bfe1b7aa63784153431de7f4c6feac91c479ef3",
+      "name": "origin-controls",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "52d1cd7b4a03620e7759cfe37e0cf8b0d1c730d0b91e39fb42c26d89301b9eb9",
+      "name": "bootstrap_pipeline",
+      "status": "passed"
+    }
+  ],
+  "rust_tests": 2,
+  "scope": "Two complete pipeline tests, with the original pipeline test body identical to main. The renderer preserves all seven previous controls and adds an approximately two-megabyte UTF-8 bundle with a non-ASCII path and a malformed UTF-8 fallback. The renderer passed separately and within the full group. The earlier full run had the stale pre-FFI fixture assertion; its failure is retained. This is a development compiler built by Native for the test, before matching bootstrap.",
+  "source": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/source-origin-byte-scan-validation-3/source",
+  "source_sha256": "5766197932de79544e6e6bc1820a61c01f2c63ccd2be7106fc94d121e4a3ecf0",
+  "status": "audited-source-origin-byte-scan",
+  "verified_at": "2026-11-07T03:36:47.622116+00:00",
+  "whole_groups": 1
+}

@@ -1,0 +1,105 @@
+--- a/bootstrap/Bootstrap.Export.cinch
++++ b/bootstrap/Bootstrap.Export.cinch
+@@ -234,13 +234,12 @@
+   constructor-hidden-parameters parameters visible = case parameters of
+     Nil -> False
+     Cons first rest -> not (constructor-id-member (quant-id first) visible) || constructor-hidden-parameters rest visible
+-  constructor-resolved :: Elaboration -> List LoadedInterface -> CoreConstructor -> Result String Json
+-  constructor-resolved typed interfaces constructor = let scheme = core-constructor-scheme constructor in
+-    if constructor-hidden-parameters (scheme-params scheme) (type-free-bound (constructor-result (scheme-body scheme)))
+-      then Ok JNull else resolved-value-scheme typed interfaces (core-constructor-name constructor) scheme
+   constructor-row :: Elaboration -> List LoadedInterface -> String -> Nat -> CoreConstructor -> Result String Json
+   constructor-row typed interfaces name tag constructor = let scheme = core-constructor-scheme constructor in
+-    case (export-global (core-constructor-name constructor), export-constructor-fields scheme, constructor-resolved typed interfaces constructor, export-value-scheme scheme) of
++    let hidden = constructor-hidden-parameters (scheme-params scheme) (type-free-bound (constructor-result (scheme-body scheme))) in
++    let resolved = if hidden then Ok JNull else resolved-value-scheme typed interfaces (core-constructor-name constructor) scheme in
++    let (fields, spelling) = export-constructor-display hidden scheme in
++    case (export-global (core-constructor-name constructor), fields, resolved, spelling) of
+       (Ok identity, Ok fields, Ok resolved, Ok spelling) -> Ok (JObj "name" (JStr name)
+         (JObj "symbol" (JStr identity) (JObj "tag" (JNum (nat-to-int tag))
+           (JObj "scheme" (JStr spelling) (JObj "resolved" resolved
+--- a/bootstrap/Bootstrap.ExportType.cinch
++++ b/bootstrap/Bootstrap.ExportType.cinch
+@@ -10,7 +10,7 @@
+   import Text.Show (nat-to-string, int-to-string)
+ 
+   export export-global, export-type, export-scheme, export-value-scheme, export-display-scheme, export-kind
+-  export export-parameters, export-constructor-fields, export-instance-scheme
++  export export-parameters, export-constructor-fields, export-constructor-display, export-instance-scheme
+   export export-resolved-value-scheme
+ 
+   join :: List (Result String String) -> Result String String
+@@ -114,6 +114,59 @@
+     (Ok value, Ok more) -> Ok (Cons value more)
+     (Err error, other) -> Err error
+     (other, Err error) -> Err error
++  -- Ordinary constructors use the public schema's nominal application
++  -- syntax. Keep the fully resolved scheme on its separate canonical path.
++  ordinary-quantifiers :: List Quant -> Bool
++  ordinary-quantifiers quants = case quants of
++    Nil -> True
++    Cons q rest -> not (quant-implicit q) && kind-equal (quant-kind q) KType && ordinary-quantifiers rest
++  ordinary-type :: UType -> Bool
++  ordinary-type ty = case ty of
++    UCon name kind -> True
++    UBound id name kind -> kind-equal kind KType
++    UApp f x -> ordinary-type f && ordinary-type x
++    UFun a b -> ordinary-type a && ordinary-type b
++    UTuple items -> ordinary-tuple items
++    other -> False
++  ordinary-tuple :: UType -> Bool
++  ordinary-tuple items = case items of
++    UEnd -> True
++    UArg first rest -> ordinary-type first && ordinary-tuple rest
++    other -> False
++  constructor-type :: List (Nat, String) -> UType -> Result String String
++  constructor-type scope ty = case ty of
++    UApp f x -> join [constructor-type scope f, Ok " ", case x of
++      UApp g y -> join [Ok "(", constructor-type scope x, Ok ")"]
++      other -> constructor-type scope x]
++    UFun a b -> join [Ok "(", constructor-type scope a, Ok " -> ", constructor-type scope b, Ok ")"]
++    UTuple items -> join [Ok "(", constructor-tuple scope items, Ok ")"]
++    other -> type-in scope ty
++  constructor-tuple :: List (Nat, String) -> UType -> Result String String
++  constructor-tuple scope items = case items of
++    UEnd -> Ok ""
++    UArg first rest -> join [constructor-type scope first, case rest of
++      UEnd -> Ok ""
++      other -> join [Ok ", ", constructor-tuple scope rest]]
++    other -> Err "invalid constructor tuple"
++  constructor-quantifiers :: List (Nat, String) -> List Quant -> (List String, List (Nat, String))
++  constructor-quantifiers scope quants = case quants of
++    Nil -> (Nil, scope)
++    Cons q rest -> let name = source-binder (fresh-name "q" (list-length scope)) (quant-name q) scope in
++      case constructor-quantifiers (Cons (quant-id q, name) scope) rest of
++        (names, bound) -> (Cons name names, bound)
++  ordinary-fields :: List (Nat, String) -> UType -> Result String (List String)
++  ordinary-fields scope ty = case ty of
++    UFun domain result -> prepend-field (constructor-type scope domain) (ordinary-fields scope result)
++    other -> Ok Nil
++  export-constructor-display :: Bool -> Scheme -> (Result String (List String), Result String String)
++  export-constructor-display hidden scheme = let quants = scheme-params scheme in let body = scheme-body scheme in
++    if hidden || not (ordinary-quantifiers quants && ordinary-type body) then (export-constructor-fields scheme, export-value-scheme scheme)
++    else case scheme-requirements scheme of
++      Cons first rest -> (export-constructor-fields scheme, export-value-scheme scheme)
++      Nil -> case constructor-quantifiers Nil quants of
++        (names, scope) -> (ordinary-fields scope body, case names of
++          Nil -> constructor-type scope body
++          other -> join [Ok "forall ", Ok (strings " " names), Ok " . ", constructor-type scope body])
+   index-in :: List (Nat, String) -> IndexTerm -> Result String String
+   index-in scope index = case index of
+     IInteger n -> Ok (int-to-string n)
+--- a/compiler/tests/bootstrap_export_interfaces.rs
++++ b/compiler/tests/bootstrap_export_interfaces.rs
+@@ -149,7 +149,11 @@
+     assert!(!cons.scheme.contains("n :: Nat"), "unused family index was quantified: {}", cons.scheme);
+     let public = a.exports.types.iter().find(|t| t.name == "PublicPositive").expect("public defining refinement");
+     let parcel = a.exports.types.iter().find(|t| t.name == "Parcel").unwrap();
++    let native_parcel = native_a.exports.types.iter().find(|t| t.name == "Parcel").unwrap();
+     for constructor in &parcel.ctors {
++        let reference = native_parcel.ctors.iter().find(|c| c.name == constructor.name).unwrap();
++        assert_eq!(constructor.scheme, reference.scheme, "public constructor display");
++        assert_eq!(constructor.fields, reference.fields, "public constructor fields");
+         let resolved = constructor.resolved.as_ref().unwrap();
+         assert!(resolved.scheme.starts_with("forall (a :: Type)."), "{}", resolved.scheme);
+     }

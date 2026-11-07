@@ -1,0 +1,45 @@
+{
+  "changed_compiler_modules": [
+    "Bootstrap.Export.cinch",
+    "Bootstrap.ExportType.cinch"
+  ],
+  "compiler_source_sha256": "8f99a0c75845bab16a64102d4510f027c27d91900342b5b4df448298ecb61edf",
+  "full_goal_complete": false,
+  "native_public_constructor_comparisons": 2,
+  "native_rlib_sha256": "28fc6a79877135149049c3ac8ab2519f22d509a4fe3ecf6c82c992fe5f751709",
+  "native_source_sha256": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+  "patch_sha256": "b1e5c3f1717fa5cb34a744c6271190a83b1a74ae4ae38126ca2342d6740fccbf",
+  "rows": [
+    {
+      "exit_code": 0,
+      "log_sha256": "3e91ec93d5b63ce26d344df7baed0777b4c491a8aafa1e3bd14c261e96f07da0",
+      "name": "compile-bootstrap_export_interfaces",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "3cc04b72cee51287d48a8c46910f0fc0a1d43a814cc4511ef3a7a3ac807c58c6",
+      "name": "bootstrap_export_interfaces",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "64506aa7aeddfee15afdeabd0b12ec91a9802d524323866bf0ab2984b6fbfa0d",
+      "name": "compile-bootstrap_nominals",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "5b24751c3964a610a170ef88facb3f2c4b90cfa611d30b703e9a2c0513456cab",
+      "name": "bootstrap_nominals",
+      "status": "passed"
+    }
+  ],
+  "rust_tests": 2,
+  "scope": "Both whole original interface exporter and nominal reader targets pass through compiled Cinch. The writer renders public ordinary constructor fields and schemes independently of the resolved contract, matching the Native Parcel oracle. Existing hidden, rich and resolved constructor checks remain. The pinned base alias follow-up and source-library replacement are separate open work.",
+  "source": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/constructor-public-display-validation-1/source",
+  "source_sha256": "fa08f02b414319a3ff6880ed5f03d39813e4b833e7305f1d90efc7e57c142975",
+  "status": "audited-constructor-public-display-components",
+  "verified_at": "2026-11-07T03:36:47.622116+00:00",
+  "whole_groups": 2
+}

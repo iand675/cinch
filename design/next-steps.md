@@ -80,6 +80,20 @@ is the remaining replay failure. See
 `bootstrap/current-function-default-library-provider-results.json`. See also
 `bootstrap/current-function-default-api-results.json`.
 
+The diagnostic byte scanner passes the full pipeline group, including the
+original diagnostic-origin controls, a two-megabyte Unicode bundle, and invalid
+UTF-8. The public constructor formatter also passes both complete exporter and
+nominal groups, with the Native `Parcel` comparison and original resolved and
+hidden constructor assertions. Base-family compatibility and source replacement
+still have their own tests. See `bootstrap/current-source-origin-byte-scan-results.json`
+and `bootstrap/current-constructor-public-display-results.json`.
+
+The Rust development patch rejects the original unsafe local callback and
+unsafe strict and nested aliases. Safe local callbacks still check. All
+18 concurrency tests and 186 Rust units pass, and the original helper-wrapped
+capture still needs a checked contract at the call boundary. See
+`bootstrap/current-native-local-task-capture-results.json`.
+
 Candidate32ab repairs a Core branch-implication gap: a true conjunction and a
 false disjunction retain valid implications from the selected operand even if
 the test operand is opaque. Exact condition readings remain unchanged, and

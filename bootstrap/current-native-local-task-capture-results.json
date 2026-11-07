@@ -1,0 +1,72 @@
+{
+  "all_original_counterexamples_replayed": true,
+  "compiler_sha256": "09eba59b282db15a525a3acc7648ff510215f9815df523d09016347ef652d221",
+  "full_goal_complete": false,
+  "native_source_sha256": "1fd2ac475c28b4798b5026d66562f401dd2ce0d62cec22abde5268a8272d4813",
+  "new_concurrency_tests": 1,
+  "original_concurrency_tests": 17,
+  "patch_sha256": "68cbb11c531f3f8072e8f503722f80a69b27413b5ea1a000d967a08317fce321",
+  "rows": [
+    {
+      "exit_code": 1,
+      "log_sha256": "8433df1f91cc87d8dc2712f538d88e4cb093845403ed608157bf877b5909adc7",
+      "name": "direct-mutable-capture",
+      "old_exit_code": 1,
+      "source_sha256": "ae3941b0b92b4cb6d485515846ba3f2b91c285be76f25550629cdee8da858f2d"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "literal-safe",
+      "old_exit_code": 0,
+      "source_sha256": "d970ac71bb4c9f187e17d27b3fb442419ec6d3a303c9a60fd0b56485db00d1f2"
+    },
+    {
+      "exit_code": 1,
+      "log_sha256": "90d4be7b060a42ea78bec8a7e3d588585893bbf66184ac0107c98792312aedb2",
+      "name": "opaque-mutable-capture",
+      "old_exit_code": 0,
+      "source_sha256": "c542ff3263b3e7427ddbfa64626d92968344e70baedce1c2be84f7e83b54bfe0"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "wrapped-mutable-capture",
+      "old_exit_code": 0,
+      "source_sha256": "a4833dab9adae08967971d6d9854f0397157bbccfdbaf24cc34c2c6d65618a67"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "wrapper-safe",
+      "old_exit_code": 0,
+      "source_sha256": "e3826799080011e177bb3f76da71600cd34ca06b9a3ebd362fb7129b655363c5"
+    }
+  ],
+  "rust_units": 186,
+  "scope": "Known local closure captures follow strict aliases and nested closure values. Reusable callbacks are checked for sharing and lifetime without assuming transfer. The original opaque mutable callback now refuses with the shareable-evidence diagnostic. The helper-wrapped mutable callback still checks and requires a checked callback contract at the call boundary. The repair is independently tested in development and has not been promoted.",
+  "source": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/native-task-local-capture-validation-1/source",
+  "source_sha256": "ab0fe8c622971a0d074188d36ba4caa5354272aa5e7ca5e58a2f45f3b322b760",
+  "status": "verified-native-local-callback-capture-development",
+  "validation_rows": [
+    {
+      "exit_code": 0,
+      "log_sha256": "c192b4611d2f770fa745b82bb2412defd7eec003e57662919588c2a10d5686d5",
+      "name": "local-capture-controls",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "d5c923fb766b59b08b97179e0d45588138b557f2c76129f2d7fd82374544242e",
+      "name": "concurrency",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "550b568c312e1c887e7b99f65a3e57d6ed222fd7a172d299ed6c55ecc8e25719",
+      "name": "all-native-unit-tests",
+      "status": "passed"
+    }
+  ],
+  "verified_at": "2026-11-07T03:31:14.843660+00:00"
+}

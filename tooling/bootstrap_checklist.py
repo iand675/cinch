@@ -319,8 +319,9 @@ def build_checklist(root, cfg, previous=None):
              'Retain and check the original class laws and namespace declarations; pass all original family and law assertions.',link('design/next-steps.md')),
         item('gap:base-names','Restore source-family implicit base names','pending','Invalidating the cached Prelude closure alone loses required constructor and base names.',
              'Source library homes retain their checked base scope without a facade back-edge or unchecked aliases.',link('bootstrap/current-source-prelude-counterexample.json')),
-        item('gap:task-callback','Reject mutable task captures hidden by callbacks','blocked','Reproduced on the current published Rust compiler. This is an incorrectly accepted program.',
-             'The callback carries checked capture/transfer/lifetime facts and refuses the bad capture while safe callbacks still pass.',link('bootstrap/current-native-task-capture-counterexample.json')),
+        item('gap:task-callback','Reject mutable task captures hidden by callbacks','blocked',
+             'A Rust development patch rejects the original unsafe local callback, keeps safe aliases accepted, and passes all concurrency and unit tests. The published compiler still accepts the counterexample.',
+             'The callback carries checked capture, transfer and lifetime facts. The published Rust and Cinch compilers refuse the unsafe capture and accept safe callbacks.',link('bootstrap/current-native-local-task-capture-results.json')),
         item('gap:task-helper','Reject mutable task captures hidden by helpers','blocked','Reproduced on the current published Rust compiler; helper indirection still hides a mutable capture.',
              'Capture requirements survive helpers, aliases and interfaces, with both bad and valid cases checked.',link('bootstrap/current-native-task-capture-counterexample.json')),
         item('gap:rust-annotations','Preserve Rust class/default annotation binders','verified' if annotation_published else 'blocked','Published8ba8 passes independent audit: all21 complete groups,332 tests, both44-module projects, actual inherited execution42 and three old/new CLI comparisons. Original refusal controls remain.' if annotation_published else 'The published995f compiler rejects three valid annotation examples. The private8ba8 repair has finished execution of its affected groups and both44-module checks; independent audit and publication remain required.',
@@ -377,8 +378,11 @@ def build_checklist(root, cfg, previous=None):
         ('sourceOriginByteScan','Diagnostic byte scan: large-bundle control and full pipeline',2,'compile-'),
         ('sourceOriginByteScanPrior','Diagnostic byte scan: earlier run with stale FFI expectation',2,'compile-'),
         ('constructorPublicDisplay','Constructor display: interface and nominal tests',2,'compile-'),
+        ('constructorBaseDisplay','Base constructor spellings: complete exporter and nominal tests',2,'compile-'),
         ('originalConcurrencyFrontend','Original concurrency suite through the Cinch compiler',1,'compile-'),
         ('nativeTaskLocalCapture','Rust callback capture: focused, concurrency and unit tests',3,'compile-'),
+        ('taskEffectDiagnostic','Cinch source effects: retain the Blocking label',1,'compile-'),
+        ('taskTraceDiagnostics','Cinch task refusals: runtime-IR suite',1,'compile-'),
         ('functionDefaultProvider','Function defaults: fresh pinned library object',1,'compile-'),
         ('additionalFixityValidation','Additional original fixity tests: actual Cinch frontend',1,'compile-')]:
         state=read(cfg.get(key))
@@ -402,8 +406,16 @@ def build_checklist(root, cfg, previous=None):
                         display_status=('passed-audited' if proof_matches else 'passed-execution-awaiting-audit') if len(rows)==total and all(r['status']=='passed' for r in rows) else 'running'
                         display_phase='Runner target-name error preserved; remaining real groups: '+follow_state.get('phase',follow_state.get('status','queued'))
             receipt_key={'sourceDefaultDiagnosticValidation':'sourceDefaultDiagnosticComponentReceipt','inferredCaseCoverageValidation':'inferredCaseCoverageComponentReceipt','refinementContainerValidation':'refinementContainerComponentReceipt','refinementExpectedResultValidation':'refinementExpectedResultComponentReceipt','currentAuxiliaryValidation':'currentAuxiliaryReceipt','partialBooleanValidation':'partialBooleanComponentReceipt','partialBooleanInput':'partialBooleanInputReceipt','sourceDefaultOriginValidation':'sourceDefaultOriginComponentReceipt','sourceOriginOwnCompilerCheck':'sourceOriginOwnCompilerReceipt','additionalFixityValidation':'additionalFixityReceipt','partialBooleanOwnCompilerCheck':'partialBooleanOwnCompilerReceipt','functionDefaultProvider':'functionDefaultProviderReceipt'}.get(key)
+            completed_receipt_keys = {
+                'sourceOriginByteScan': 'sourceOriginByteScanReceipt',
+                'constructorPublicDisplay': 'constructorPublicDisplayReceipt',
+                'nativeTaskLocalCapture': 'nativeTaskLocalCaptureReceipt',
+            }
+            receipt_key = completed_receipt_keys.get(key, receipt_key)
             receipt=read(cfg.get(receipt_key)) if receipt_key else annotation_receipt if key.startswith('nativeDefaultAnnotation') else default_receipt
             audited=bool(receipt) and receipt.get('compiler_source_sha256')==state.get('compiler_source_sha256') and (receipt.get('source')==state.get('source') or receipt.get('whole_groups')==total)
+            if key == 'nativeTaskLocalCapture':
+                audited = bool(receipt) and receipt.get('native_source_sha256') == state.get('native_source_sha256')
             active.append(dict(title=title,status=display_status,phase=display_phase,passed=sum(r['status']=='passed'for r in rows),failed=sum(r['status']=='failed'for r in rows),total=total,source=state.get('compiler_source_sha256'),nativeSource=state.get('native_source_sha256'), auditPending=state.get('status','').startswith('passed-') and not audited))
 
     for key,title,total in [('sourceClassDefaultFullCompiler','Cinch defaults: full compiler/object gate',2), ('nativeDefaultAnnotationApi','Published Cinch: Rust reader/API replay',9), ('pipelineInterfaceDiagnosticValidation','Pipeline: complete FFI and mode checks',1), ('sourceClassDefaultApi','Cinch defaults: original API and default groups',10), ('inferredCaseCoverageFullCompiler','Cinch constructor coverage: full compiler/object gate',2), ('refinementStructuralFullCompiler','Cinch structural refinements: full compiler/object gate',2), ('refinementStructuralApi','Cinch structural refinements: original API/default groups',10), ('sourceDefaultOriginFullCompiler','Cinch diagnostic origins: full compiler/object gate',2), ('sourceDefaultOriginApi','Cinch diagnostic origins: original API/default groups',10), ('refinementExpectedResultFullCompiler','Cinch result inference: full compiler/object gate',2), ('partialBooleanFullCompiler','Cinch Core branch implications: full compiler/object gate',2), ('refinementExpectedResultApi','Cinch result inference: original API/default groups',10), ('functionDefaultApi','Cinch defaults: full replay with function factories',10)]:

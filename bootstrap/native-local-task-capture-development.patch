@@ -1,0 +1,165 @@
+--- a/compiler/src/check.rs
++++ b/compiler/src/check.rs
+@@ -2446,6 +2446,8 @@
+     active: Vec<String>,
+     /// The memo regions that predate the task's scope.
+     outer: Vec<String>,
++    /// Direct one-shot task bodies may transfer a linear or affine capture.
++    transfer_allowed: bool,
+ }
+ 
+ /// Region names a type mentions in `Ref`/`Mut` borrow positions, with
+@@ -3122,6 +3124,8 @@
+     /// Task-capture sites of the definition being checked, validated at
+     /// its end (concurrency specification section 3).
+     task_captures: Vec<TaskCapture>,
++    /// Free locals of known closures before local aliases erase their shape.
++    local_closure_captures: HashMap<LocalId, Vec<LocalId>>,
+     /// Record-projection path accumulated for a `Proj` operand place.
+     place_path: Vec<String>,
+     /// User-declared effects by name (`effect L where ...`).
+@@ -3705,6 +3709,7 @@
+             oneshot_frames: Vec::new(),
+             scope_frames: Vec::new(),
+             task_captures: Vec::new(),
++            local_closure_captures: HashMap::new(),
+             place_path: Vec::new(),
+             effects: HashMap::new(),
+             effect_bindings: HashMap::new(),
+@@ -3871,6 +3876,7 @@
+         self.oneshot_frames.clear();
+         self.scope_frames.clear();
+         self.task_captures.clear();
++        self.local_closure_captures.clear();
+         self.place_path.clear();
+         self.conts.clear();
+         self.cont_depth = 0;
+@@ -4615,6 +4621,7 @@
+                         scopes: self.scope_frames.iter().map(|f| f.region.clone()).collect(),
+                         active: self.active_regions.clone(),
+                         outer: frame.outer.clone(),
++                        transfer_allowed: true,
+                     });
+                 } else {
+                     // A `withScope` body capture: the borrowed
+@@ -4972,7 +4979,7 @@
+                     ));
+                 }
+             }
+-            let transferred = matches!(
++            let transferred = c.transfer_allowed && matches!(
+                 self.effective_mult(c.binder),
+                 Some(Mult::One) | Some(Mult::Aff)
+             );
+--- a/compiler/src/check_terms.rs
++++ b/compiler/src/check_terms.rs
+@@ -291,8 +291,8 @@
+                     eb.clone(),
+                     conc_result_ty(&x, &a),
+                 );
+-                // A literal task body runs exactly once on its thread; an
+-                // opaque closure keeps the discipline it was defined with.
++                // A literal task body runs exactly once on its thread.
++                // A previously built closure retains its original captures.
+                 let lam = matches!(&args[1], ast::Term::Lam(_, _, _));
+                 let outer = self
+                     .scope_frames
+@@ -306,7 +306,7 @@
+                         lam: self.lam_depth + 1,
+                         task: true,
+                         scope: s.clone(),
+-                        outer,
++                        outer: outer.clone(),
+                     });
+                 }
+                 let bcore = self.check(env, &args[1], &body_ty);
+@@ -314,6 +314,9 @@
+                     self.oneshot_frames.pop();
+                 }
+                 let bcore = bcore?;
++                if !lam {
++                    self.note_spawned_closure(&bcore, &s, &outer, args[1].span(), &env.dicts);
++                }
+                 // Spawning makes the body's effects the spawning scope's
+                 // responsibility (section 3).
+                 self.perform(&EffRow {
+@@ -4218,6 +4221,49 @@
+         if let ECore::Var(original) = core {
+             let original = self.value_aliases.get(original).copied().unwrap_or(*original);
+             self.value_aliases.insert(local, original);
++        }
++        if matches!(core, ECore::Lam { .. }) {
++            let mut captures = Vec::new();
++            free_locals(core, &mut Vec::new(), &mut captures);
++            self.local_closure_captures.insert(local, captures);
++        }
++    }
++
++    fn note_spawned_closure(
++        &mut self, core: &ECore, scope: &str, outer: &[String], span: ast::Span,
++        dicts: &[(LocalId, ClassApp)],
++    ) {
++        let mut captures = Vec::new();
++        match core {
++            ECore::Lam { .. } => free_locals(core, &mut Vec::new(), &mut captures),
++            ECore::Var(local) => {
++                let origin = self.value_aliases.get(local).unwrap_or(local);
++                let Some(known) = self.local_closure_captures.get(origin) else { return };
++                captures.extend(known);
++            }
++            _ => return,
++        }
++        let mut seen = HashSet::new();
++        while let Some(local) = captures.pop() {
++            let origin = self.value_aliases.get(&local).copied().unwrap_or(local);
++            if !seen.insert(origin) { continue }
++            if let Some(nested) = self.local_closure_captures.get(&origin) {
++                captures.extend(nested);
++                continue;
++            }
++            let Some(binding) = self.obligations.get(&origin) else { continue };
++            self.task_captures.push(TaskCapture {
++                binder: origin,
++                name: binding.name.clone(),
++                ty: binding.ty.clone(),
++                span,
++                dicts: dicts.to_vec(),
++                scope: scope.to_string(),
++                scopes: self.scope_frames.iter().map(|frame| frame.region.clone()).collect(),
++                active: self.active_regions.clone(),
++                outer: outer.to_vec(),
++                transfer_allowed: false,
++            });
+         }
+     }
+ 
+--- a/compiler/tests/concurrency.rs
++++ b/compiler/tests/concurrency.rs
+@@ -338,6 +338,27 @@
+ }
+ 
+ #[test]
++fn local_task_callbacks_retain_their_captures_through_aliases() {
++    let opaque = include_str!("../../bootstrap/programs/task-capture-counterexamples/opaque-mutable-capture.cinch");
++    expect_err("opaque-bytes-capture", opaque, "without shareable evidence");
++
++    let aliased = opaque.replace(
++        "in withScope",
++        "in let alias = callback in withScope",
++    ).replace("spawn s callback", "spawn s alias");
++    expect_err("aliased-bytes-capture", &aliased, "without shareable evidence");
++
++    let nested = opaque.replace(
++        "let callback = \\() -> Ok (bytes-len bytes)",
++        "let get-length = \\() -> bytes-len bytes in let callback = \\() -> Ok (get-length ())",
++    );
++    expect_err("transitive-bytes-capture", &nested, "without shareable evidence");
++
++    let safe = aliased.replace("Bytes ->", "Nat ->").replace("bytes-len bytes", "bytes");
++    check_sources(&safe, "safe-task-callback.cinch").expect("aliased callback captures a shareable Nat");
++}
++
++#[test]
+ fn a_thread_shared_memo_cell_is_rejected() {
+     // The lazy specification's required rejection case (section 9): a
+     // `Lazy` cell is single-threaded by construction and does not cross
