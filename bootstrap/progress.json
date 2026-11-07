@@ -19448,7 +19448,7 @@
         "status": "running",
         "phase": "Forty original tests retain their fixtures and assertions and use the selected frontend.",
         "passed": 0,
-        "failed": 0,
+        "failed": 1,
         "total": 4,
         "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a"
       },
@@ -19586,5 +19586,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T16:57:02.362223+00:00"
+  "updatedAt": "2026-11-07T16:59:24.498190+00:00"
 }
