@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "commit": "ab391ed30d57bd1be528b16ea31dfaa559271f24",
+  "commit": "7d7acaf63c6233263f1e10feac5c020b8443ed0f",
   "status": "Full bootstrap verification remains open",
   "stages": [
     {
@@ -13,7 +13,7 @@
       "name": "Stage 1",
       "state": "passed",
       "label": "Smoke tests passed",
-      "description": "Build the repaired Cinch sources with the seed."
+      "description": "Build the repaired Cinch compiler with the seed."
     },
     {
       "name": "Stage 2",
@@ -543,16 +543,16 @@
       "title": "Earlier source: Changed-source rebuilding verified"
     }
   ],
-  "candidateSource": "9f1d93da35d7ee94f974cc2ff76ddb85bcadf8cf4a8dcac50c954fa609ce0ac0",
+  "candidateSource": "4656d5dee16c00122deddd87a48e92b5b5708eed8d63c1fe25a6a63970e5c1f2",
   "candidatePublished": true,
   "fullGoalComplete": false,
-  "summary": "Main includes the strict-let numeric repair and the Native scratch cleanup.",
-  "activity": "The repaired compiler sources passed the Stage1 smokes and the six original small-number tests. The matching Stage2 and Stage3 rebuilds and the full suites remain open. The earlier fixed-point audit remains in the checklist.",
+  "summary": "Main includes the private type representation repair and corrected Native method kinds.",
+  "activity": "Stage1 ran the 23 audited library clients. The published compiler still needs a matching Stage2 and Stage3 rebuild and the full test suites.",
   "checklist": {
     "version": 1,
     "target": {
-      "compiler": "9f1d93da35d7ee94f974cc2ff76ddb85bcadf8cf4a8dcac50c954fa609ce0ac0",
-      "native": "f1bfdca8c79e4299effd20057114ed2e17072108b4fbe6940847c4b208b6eeb1"
+      "compiler": "4656d5dee16c00122deddd87a48e92b5b5708eed8d63c1fe25a6a63970e5c1f2",
+      "native": "ca7a6231fa497ca0c6b016fed5aaefc0d9ecb32fa3c41b10617e944ed8af1009"
     },
     "acceptance": [
       {
@@ -19351,6 +19351,17 @@
         "total": 1
       },
       {
+        "title": "Run the original library clients with concrete representations",
+        "status": "passed",
+        "phase": "The selected Stage1 ran all 23 Option, Result, function, Map and Set cases with zero leaks.",
+        "passed": 23,
+        "failed": 0,
+        "total": 23,
+        "unit": "Stage1 cases",
+        "source": "4656d5dee16c00122deddd87a48e92b5b5708eed8d63c1fe25a6a63970e5c1f2",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-private-runtime-library-results.json"
+      },
+      {
         "title": "Verify the rebuilt library with the original function consumers",
         "status": "passed",
         "phase": "All 55 interface identities match. Stage3 passed all nine function cases. Native passed all 15 Foldable cases.",
@@ -19709,10 +19720,19 @@
         "source": "b655a0a0d31a67be39ff71bc36b4434c4ca0bb9b6b991928f64329efc133bd63"
       },
       {
+        "title": "Rebuild the pinned library with corrected Traversable kinds",
+        "status": "waiting-disk-space",
+        "phase": "Waiting for the pinned Native build",
+        "passed": 0,
+        "failed": 0,
+        "total": 2,
+        "source": "ca7a6231fa497ca0c6b016fed5aaefc0d9ecb32fa3c41b10617e944ed8af1009"
+      },
+      {
         "title": "Bootstrap the quantified-law compiler with the expanded library",
-        "status": "building-stage2",
-        "phase": "building stage2",
-        "passed": 2,
+        "status": "building-stage3",
+        "phase": "building stage3",
+        "passed": 3,
         "failed": 0,
         "total": 4,
         "unit": "stages",
@@ -19749,5 +19769,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T22:00:35.517538+00:00"
+  "updatedAt": "2026-11-07T22:17:40.904906+00:00"
 }
