@@ -18726,9 +18726,9 @@
       },
       {
         "title": "Rust: emit definition-owned instance headers",
-        "status": "running",
+        "status": "passed-schema9-instance-header-validation",
         "phase": "interface_kinds",
-        "passed": 1,
+        "passed": 2,
         "failed": 0,
         "total": 2,
         "source": "25a7dcbb994410f18d5313bd3b742ba9fa544267e0be9089cee5229fb90bd1ad"
@@ -18845,5 +18845,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T11:07:18.858954+00:00"
+  "updatedAt": "2026-11-07T11:08:20.813146+00:00"
 }
