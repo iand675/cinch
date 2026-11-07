@@ -11923,6 +11923,18 @@
                 },
                 {
                   "name": "escaped_constructors_match_and_carry_one_descriptor_word",
+                  "status": "passed"
+                },
+                {
+                  "name": "header_blocks_count_constructor_cells_with_their_header",
+                  "status": "passed"
+                },
+                {
+                  "name": "interned_symbols_are_counted_immortal_once_per_name",
+                  "status": "passed"
+                },
+                {
+                  "name": "normal_program_is_quiet_under_the_guarded_cap",
                   "status": "running"
                 }
               ]
@@ -19048,5 +19060,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T11:59:45.271972+00:00"
+  "updatedAt": "2026-11-07T12:00:47.470998+00:00"
 }
