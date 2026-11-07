@@ -679,7 +679,7 @@
         "id": "gap:default-refinement",
         "title": "Preserve refinement carriers in the original default runtime program",
         "state": "running",
-        "detail": "The unchanged original mconcat runtime still fails: a029 now preserves inferred containers, but generic calls expected to return a structural refinement are hinted as plain Int too early. Its full original API/default replay remains16/21. Candidate2866 hints the full structural result; all17 Native controls pass and eight whole Cinch groups are validating. The a029 eleven controls and eight original groups (ten Rust tests) remain audited. The superseded broad range-preservation assumption and subsequent fixture/cache-guard errors remain recorded. The original full runtime program remains required.",
+        "detail": "The unchanged original mconcat runtime still fails: a029 now preserves inferred containers, but generic calls expected to return a structural refinement are hinted as plain Int too early. Its full original API/default replay remains16/21. Candidate2866 hints the full structural result; all17 Native controls and the complete original Cinch NamedRefinements target pass. Seven further whole Cinch groups are validating. The a029 eleven controls and eight original groups (ten Rust tests) remain audited. The superseded broad range-preservation assumption and subsequent fixture/cache-guard errors remain recorded. The original full runtime program remains required.",
         "doneWhen": "The original function carrier, refined product and unit cases compile and execute their expected results without guessing an underlying carrier.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-source-class-default-self-values-api-results.json"
       },
@@ -18480,11 +18480,22 @@
       {
         "title": "Cinch structural result inference: complete groups",
         "status": "running",
-        "phase": "bootstrap_named_refinements",
-        "passed": 0,
+        "phase": "bootstrap_source_refinements",
+        "passed": 1,
         "failed": 0,
         "total": 8,
         "source": "286613ea3571aebd6747def34f7a8f9d8af0c84c78e5fee82f9ca65ff90fe7e1",
+        "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+        "auditPending": false
+      },
+      {
+        "title": "Current Rust tooling and editor suites",
+        "status": "waiting-worker",
+        "phase": null,
+        "passed": 0,
+        "failed": 0,
+        "total": 2,
+        "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
         "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
         "auditPending": false
       },
@@ -18592,5 +18603,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T01:24:31.462847+00:00"
+  "updatedAt": "2026-11-07T01:26:15.641805+00:00"
 }
