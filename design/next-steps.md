@@ -48,8 +48,10 @@ run retains the already-published fa405 FFI diagnostic correction, its positive
 ABI control and all original refusal sources. Native accepts all44 modules;
 earlier self-built4f refuses one guarded Nat subtraction and two pattern-coverage
 checks in the new helper. Cut-down differential probes are queued. The latest
-actual compiler still needs its own source admission, matching Stage1/2/3 build,
-complete compiler/object gate and every original API filename assertion. See
+actual14a8 compiler now passes all9 complete compiler/object tests,17 C clients
+and50 zero-leak reports; see `bootstrap/current-source-origin-compiler-results.json`.
+Its own source-admission check and original API/default replay are queued, and a
+matching Stage1/2/3 build and every original API filename assertion remain required. See
 `bootstrap/current-source-origin-input-results.json`. No filename is guessed from a module name. See
 `bootstrap/current-source-default-diagnostic-component-results.json` and
 `bootstrap/current-source-default-origins-development-2.json`.
@@ -58,6 +60,11 @@ All8 development patches apply in order to a fresh published-source snapshot,
 produce the exact2866 compiler-module bytes and preserve the published FFI test
 correction. This is reproducibility evidence, not promotion or bootstrap proof:
 `bootstrap/current-development-patch-chain-results.json`.
+
+Current Native8ba8/Cinch3268 also passes all43 tooling and39 syntax/editor tests
+under independent audit, with no skipped tests. These preserve their Native
+editor integration role and do not replace the separate final Cinch-built
+language/frontend checks. See `bootstrap/current-native-tooling-editor-results.json`.
 
 The fresh full235-target Native8ba8/Cinch3268 sweep retains every original target
 and assertion, with shared worker leases, one codegen unit/test thread per job,

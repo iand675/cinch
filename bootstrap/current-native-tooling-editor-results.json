@@ -1,0 +1,365 @@
+{
+  "compiler_sha256": "82707997b842e13810dbce82b58233796ac09b5965946003ea2053fe9a3b85fb",
+  "compiler_source_sha256": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+  "debug_assertions": true,
+  "editor_tests": 39,
+  "full_goal_complete": false,
+  "native_source_sha256": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+  "original_test_sources_unchanged": true,
+  "overflow_checks": true,
+  "runs": [
+    {
+      "cases": [
+        {
+          "name": "test_base_interfaces_cannot_stand_in_for_compiler_fixed_point_contracts (test_bootstrap.BootstrapContract)",
+          "status": "passed"
+        },
+        {
+          "name": "test_base_manifest_excludes_compiler_sources_and_verifies_artifacts (test_bootstrap.BootstrapContract)",
+          "status": "passed"
+        },
+        {
+          "name": "test_cache_rechecks_outputs_and_inputs (test_bootstrap.BootstrapContract)",
+          "status": "passed"
+        },
+        {
+          "name": "test_exit_zero_without_compiler_is_not_a_successful_stage (test_bootstrap.BootstrapContract)",
+          "status": "passed"
+        },
+        {
+          "name": "test_heap_caps_are_preserved_and_never_disabled_or_raised (test_bootstrap.BootstrapContract)",
+          "status": "passed"
+        },
+        {
+          "name": "test_link_failure_is_visible_even_when_frontend_diagnostics_are_empty (test_bootstrap.BootstrapContract)",
+          "status": "passed"
+        },
+        {
+          "name": "test_linker_success_without_a_runnable_compiler_is_a_failed_stage (test_bootstrap.BootstrapContract)",
+          "status": "passed"
+        },
+        {
+          "name": "test_runtime_abi_preparation_is_exact_and_part_of_source_identity (test_bootstrap.BootstrapContract)",
+          "status": "passed"
+        },
+        {
+          "name": "test_seed_archive_cannot_escape_snapshot_or_add_links (test_bootstrap.BootstrapContract)",
+          "status": "passed"
+        },
+        {
+          "name": "test_seed_built_compiler_also_requires_its_frozen_source_bundle (test_bootstrap.BootstrapContract)",
+          "status": "passed"
+        },
+        {
+          "name": "test_seed_runtime_failure_cannot_fall_back_to_a_debug_archive (test_bootstrap.BootstrapContract)",
+          "status": "passed"
+        },
+        {
+          "name": "test_seed_stage_imports_every_bundled_compiler_module (test_bootstrap.BootstrapContract)",
+          "status": "passed"
+        },
+        {
+          "name": "test_self_build_requires_ir_and_report_as_well_as_executable (test_bootstrap.BootstrapContract)",
+          "status": "passed"
+        },
+        {
+          "name": "test_source_identity_includes_names_and_bytes (test_bootstrap.BootstrapContract)",
+          "status": "passed"
+        },
+        {
+          "name": "test_stage1_cache_is_invalidated_when_its_seed_runtime_changes (test_bootstrap.BootstrapContract)",
+          "status": "passed"
+        },
+        {
+          "name": "test_stage_commands_keep_build_and_test_workers_serial (test_bootstrap.BootstrapContract)",
+          "status": "passed"
+        },
+        {
+          "name": "test_successful_link_with_a_broken_compiler_entry_is_not_built (test_bootstrap.BootstrapContract)",
+          "status": "passed"
+        },
+        {
+          "name": "test_typed_refusal_never_calls_a_linker_or_falls_back_to_native (test_bootstrap.BootstrapContract)",
+          "status": "passed"
+        },
+        {
+          "name": "test_typed_self_build_uses_only_cinch_then_links_and_checks_the_compiler_entry (test_bootstrap.BootstrapContract)",
+          "status": "passed"
+        },
+        {
+          "name": "test_unchanged_compiler_behavior_cannot_pass_the_changed_source_gate (test_bootstrap.BootstrapContract)",
+          "status": "passed"
+        },
+        {
+          "name": "test_actual_writer_contract_and_closed_chain_pass (test_bootstrap_interfaces.CompilerInterfaceGate)",
+          "status": "passed"
+        },
+        {
+          "name": "test_dependency_changes_cannot_be_hidden_by_stable_output (test_bootstrap_interfaces.CompilerInterfaceGate)",
+          "status": "passed"
+        },
+        {
+          "name": "test_final_consumer_uses_self_built_compiler_and_emitted_contracts (test_bootstrap_interfaces.CompilerInterfaceGate)",
+          "status": "passed"
+        },
+        {
+          "name": "test_noncanonical_and_duplicate_key_documents_are_rejected (test_bootstrap_interfaces.CompilerInterfaceGate)",
+          "status": "passed"
+        },
+        {
+          "name": "test_placeholder_and_malformed_contracts_are_rejected (test_bootstrap_interfaces.CompilerInterfaceGate)",
+          "status": "passed"
+        },
+        {
+          "name": "test_abi_mismatch_is_rejected_before_a_native_command (test_bootstrap_objects.LibraryProviderContract)",
+          "status": "passed"
+        },
+        {
+          "name": "test_actual_generated_primitive_and_tuple_units_are_library_dependencies (test_bootstrap_objects.LibraryProviderContract)",
+          "status": "passed"
+        },
+        {
+          "name": "test_compiler_contract_or_unit_cannot_hide_in_the_library_closure (test_bootstrap_objects.LibraryProviderContract)",
+          "status": "passed"
+        },
+        {
+          "name": "test_demands_are_actual_concrete_vectors_and_defining_identities (test_bootstrap_objects.LibraryProviderContract)",
+          "status": "passed"
+        },
+        {
+          "name": "test_only_generated_library_root_reaches_native_and_corrupt_inputs_rebuild (test_bootstrap_objects.LibraryProviderContract)",
+          "status": "passed"
+        },
+        {
+          "name": "test_source_pin_is_checked_even_for_an_existing_snapshot (test_bootstrap_objects.LibraryProviderContract)",
+          "status": "passed"
+        },
+        {
+          "name": "test_audit_rejects_mutation_and_new_source_files (test_verify_bootstrap.FrozenVerification)",
+          "status": "passed"
+        },
+        {
+          "name": "test_build_caches_and_brand_assets_are_not_source_inputs (test_verify_bootstrap.FrozenVerification)",
+          "status": "passed"
+        },
+        {
+          "name": "test_compiler_and_runtime_use_distinct_private_cargo_targets (test_verify_bootstrap.FrozenVerification)",
+          "status": "passed"
+        },
+        {
+          "name": "test_copied_inputs_do_not_follow_live_file_links (test_verify_bootstrap.FrozenVerification)",
+          "status": "passed"
+        },
+        {
+          "name": "test_directory_link_cycles_are_rejected (test_verify_bootstrap.FrozenVerification)",
+          "status": "passed"
+        },
+        {
+          "name": "test_directory_links_cannot_capture_outside_the_source_tree (test_verify_bootstrap.FrozenVerification)",
+          "status": "passed"
+        },
+        {
+          "name": "test_existing_cache_directory_cannot_be_reused_as_fresh_evidence (test_verify_bootstrap.FrozenVerification)",
+          "status": "passed"
+        },
+        {
+          "name": "test_internal_directory_links_are_copied_as_frozen_directories (test_verify_bootstrap.FrozenVerification)",
+          "status": "passed"
+        },
+        {
+          "name": "test_empty_skipped_and_failed_runs_cannot_report_complete_success (test_verify_malleable.CompleteExperimentVerification)",
+          "status": "passed"
+        },
+        {
+          "name": "test_frozen_experiment_inputs_detect_later_changes (test_verify_malleable.CompleteExperimentVerification)",
+          "status": "passed"
+        },
+        {
+          "name": "test_generated_experiment_files_do_not_change_input_identity (test_verify_malleable.CompleteExperimentVerification)",
+          "status": "passed"
+        },
+        {
+          "name": "test_syntax_gate_uses_the_preceding_frozen_compiler_build (test_verify_malleable.CompleteExperimentVerification)",
+          "status": "passed"
+        }
+      ],
+      "log_sha256": "f635b5352e47a2746223b50f57fc6bbcbfb64911e06edd2babef29cf635a14e7",
+      "name": "tooling",
+      "status": "passed",
+      "tests": 43
+    },
+    {
+      "cases": [
+        {
+          "name": "test_all_source_islands_parse_with_their_library_grammars (test_editor.TreeSitterIntegration)",
+          "status": "passed"
+        },
+        {
+          "name": "test_embedded_cinch_uses_the_actual_host_grammar (test_editor.TreeSitterIntegration)",
+          "status": "passed"
+        },
+        {
+          "name": "test_full_document_highlighting_composes_both_injection_levels (test_editor.TreeSitterIntegration)",
+          "status": "passed"
+        },
+        {
+          "name": "test_highlight_queries_are_executable (test_editor.TreeSitterIntegration)",
+          "status": "passed"
+        },
+        {
+          "name": "test_host_boundary_scanner_handles_cinch_lexical_modes (test_editor.TreeSitterIntegration)",
+          "status": "passed"
+        },
+        {
+          "name": "test_outer_cinch_grammar_accepts_all_original_sources (test_editor.TreeSitterIntegration)",
+          "status": "passed"
+        },
+        {
+          "name": "test_outer_reader_keeps_raw_text_out_of_host_lexical_modes (test_editor.TreeSitterIntegration)",
+          "status": "passed"
+        },
+        {
+          "name": "test_unfinished_html_retains_a_structural_tree (test_editor.TreeSitterIntegration)",
+          "status": "passed"
+        },
+        {
+          "name": "test_declarative_projection_generates_participant_specific_apis (test_engine.SyntaxEngineTests)",
+          "status": "passed"
+        },
+        {
+          "name": "test_duplicate_imports_refused (test_engine.SyntaxEngineTests)",
+          "status": "passed"
+        },
+        {
+          "name": "test_html_fragments_and_self_closing_components (test_engine.SyntaxEngineTests)",
+          "status": "passed"
+        },
+        {
+          "name": "test_html_is_a_library_not_a_builtin (test_engine.SyntaxEngineTests)",
+          "status": "passed"
+        },
+        {
+          "name": "test_import_in_multiline_string_is_inert (test_engine.SyntaxEngineTests)",
+          "status": "passed"
+        },
+        {
+          "name": "test_import_in_raw_markup_is_inert (test_engine.SyntaxEngineTests)",
+          "status": "passed"
+        },
+        {
+          "name": "test_input_budget_is_checked_before_parsing (test_engine.SyntaxEngineTests)",
+          "status": "passed"
+        },
+        {
+          "name": "test_left_recursion_is_bounded (test_engine.SyntaxEngineTests)",
+          "status": "passed"
+        },
+        {
+          "name": "test_macro_policy_cannot_be_laundered (test_engine.SyntaxEngineTests)",
+          "status": "passed"
+        },
+        {
+          "name": "test_module_scope_is_never_silently_widened (test_engine.SyntaxEngineTests)",
+          "status": "passed"
+        },
+        {
+          "name": "test_nested_comments_strings_characters_and_tick_names (test_engine.SyntaxEngineTests)",
+          "status": "passed"
+        },
+        {
+          "name": "test_nested_extension_inside_host_expression (test_engine.SyntaxEngineTests)",
+          "status": "passed"
+        },
+        {
+          "name": "test_no_ambient_grammar (test_engine.SyntaxEngineTests)",
+          "status": "passed"
+        },
+        {
+          "name": "test_only_declared_library_dependencies_are_expanded (test_engine.SyntaxEngineTests)",
+          "status": "passed"
+        },
+        {
+          "name": "test_projection_checks_roles_and_names_before_emitting_code (test_engine.SyntaxEngineTests)",
+          "status": "passed"
+        },
+        {
+          "name": "test_runtime_imports_in_host_strings_and_markup_are_inert (test_engine.SyntaxEngineTests)",
+          "status": "passed"
+        },
+        {
+          "name": "test_second_library_and_fresh_name_avoidance (test_engine.SyntaxEngineTests)",
+          "status": "passed"
+        },
+        {
+          "name": "test_source_map_round_trip_and_unicode (test_engine.SyntaxEngineTests)",
+          "status": "passed"
+        },
+        {
+          "name": "test_strings_and_comments_do_not_activate_syntax (test_engine.SyntaxEngineTests)",
+          "status": "passed"
+        },
+        {
+          "name": "test_tag_mismatch_and_unfinished_code (test_engine.SyntaxEngineTests)",
+          "status": "passed"
+        },
+        {
+          "name": "test_01_clean_diagnostics (test_lsp.NativeLspTests)",
+          "status": "passed"
+        },
+        {
+          "name": "test_02_hover_inside_embedded_code_after_unicode (test_lsp.NativeLspTests)",
+          "status": "passed"
+        },
+        {
+          "name": "test_03_definition_returns_original_source (test_lsp.NativeLspTests)",
+          "status": "passed"
+        },
+        {
+          "name": "test_04_semantic_tokens_are_original_utf16_positions (test_lsp.NativeLspTests)",
+          "status": "passed"
+        },
+        {
+          "name": "test_05_type_errors_map_to_the_host_hole (test_lsp.NativeLspTests)",
+          "status": "passed"
+        },
+        {
+          "name": "test_06_unfinished_markup_reports_and_recovers (test_lsp.NativeLspTests)",
+          "status": "passed"
+        },
+        {
+          "name": "test_07_generated_library_api_navigates_to_its_original_definition (test_lsp.NativeLspTests)",
+          "status": "passed"
+        },
+        {
+          "name": "test_08_library_first_open_and_close_preserve_one_module_identity (test_lsp.NativeLspTests)",
+          "status": "passed"
+        },
+        {
+          "name": "test_09_tactic_failure_reports_real_goal_at_original_notation (test_lsp.NativeLspTests)",
+          "status": "passed"
+        },
+        {
+          "name": "test_negative_examples_are_rejected_by_cinch (test_native.NativeProofsOfConcept)",
+          "status": "passed"
+        },
+        {
+          "name": "test_positive_examples_execute_as_native_cinch (test_native.NativeProofsOfConcept)",
+          "status": "passed"
+        }
+      ],
+      "log_sha256": "896fa79839934d2c67e034ea4d4b26af9a022240b69adfbac75eb6120caaebd9",
+      "name": "syntax-editor",
+      "status": "passed",
+      "tests": 39
+    }
+  ],
+  "scope": "All original tooling and syntax/editor checks on frozen current published Cinch3268/Native8ba sources. The Native8ba CLI is the independently audited current optimized host with assertions and overflow checks enabled. This is the Native editor integration role; it does not replace the separate final self-built Cinch frontend or34 language-example requirements. Runtime inputs remain unchanged and their171-test proof stays separately classified.",
+  "skipped": 0,
+  "source": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/current8ba-tooling-editor-1/source",
+  "source_sha256": "05375fe6992b5dd96fbe264aa0dc19f75b520058cf6dcaf388ce47834229baad",
+  "status": "audited-all-current-native-tooling-and-editor-tests",
+  "tests": 82,
+  "tooling_tests": 43,
+  "verified_at": "2026-11-07T01:39:20.592796+00:00",
+  "whole_groups": 2
+}

@@ -174,6 +174,11 @@ def build_checklist(root, cfg, previous=None):
     runtime_inputs = runtime_files(aux_source) if aux_source.is_dir() else {}
     runtime_current = bool(runtime_inputs) and runtime_inputs == runtime_files(root)
     aux_root = Path(cfg.get('artifactRoot', BASE))/'current4f-auxiliary-1'
+    latest_aux = read(cfg.get('currentAuxiliaryReceipt'))
+    latest_aux_matches = (latest_aux.get('status') == 'audited-all-current-native-tooling-and-editor-tests'
+                          and latest_aux.get('compiler_source_sha256') == compiler
+                          and latest_aux.get('native_source_sha256') == native
+                          and latest_aux.get('tooling_tests') == 43 and latest_aux.get('editor_tests') == 39)
     for id, title, log_name, total_key, required in [
         ('runtime','Runtime suite','runtime.log','runtime_tests',171),
         ('tooling','Bootstrap and tooling suite','tooling.log','tooling_tests',43),
@@ -181,13 +186,18 @@ def build_checklist(root, cfg, previous=None):
         found = cases(aux_root/log_name)
         assert len(found) == auxiliary.get(total_key) == required, (id, len(found), auxiliary.get(total_key))
         same = runtime_current if id == 'runtime' else auxiliary.get('compiler_source_sha256') == compiler and auxiliary.get('native_source_sha256') == native
+        current_run = next((r for r in latest_aux.get('runs', []) if r['name'] == log_name.removesuffix('.log')), None) if latest_aux_matches and id != 'runtime' else None
+        if current_run:
+            assert current_run['tests'] == required and {r['name'] for r in current_run['cases']} == {r['name'] for r in found}
+            found = current_run['cases']
+            same = current_run['status'] == 'passed'
         rows = [item(id+':'+c['name'], c['name'], 'verified' if same and c['status']=='passed' else 'blocked' if same and c['status']=='failed' else 'recheck',
-            'Passed; complete runtime source and test inputs are unchanged.' if id=='runtime' and same else 'Last run belongs to an earlier compiler snapshot.',
+            'Passed; complete runtime source and test inputs are unchanged.' if id=='runtime' and same else 'Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.' if current_run and same else 'Last run belongs to an earlier compiler snapshot.',
             'The complete original test passes against matching code and its required compiler role.',
-            link('bootstrap/current-record-indexed-auxiliary-results.json'),
-            observed=dict(status=c['status'], source=auxiliary.get('compiler_source_sha256'), cases=[])) for c in found]
+            link('bootstrap/current-native-tooling-editor-results.json') if current_run else link('bootstrap/current-record-indexed-auxiliary-results.json'),
+            observed=dict(status=c['status'], source=latest_aux.get('compiler_source_sha256') if current_run else auxiliary.get('compiler_source_sha256'), cases=[])) for c in found]
         suites.append(suite(id, title, 'tests', rows,
-            'Exact runtime/test input equivalence checked against the retained successful run.' if id=='runtime' and same else 'Older passing results remain visible; matching compiler/editor frontend execution is still required.'))
+            'Exact runtime/test input equivalence checked against the retained successful run.' if id=='runtime' and same else 'All original tests pass on current published inputs with audited Native8ba. Native editor integration stays separate from final self-built Cinch frontend acceptance.' if current_run and same else 'Older passing results remain visible; matching compiler/editor frontend execution is still required.'))
 
     external = read(cfg['external'])
     ext_rows = [item('external:'+str(i), r['name']+(' / '+r['phase'] if r.get('phase') else ''),
@@ -358,11 +368,11 @@ def build_checklist(root, cfg, previous=None):
             audited=bool(receipt) and receipt.get('compiler_source_sha256')==state.get('compiler_source_sha256') and (receipt.get('source')==state.get('source') or receipt.get('whole_groups')==total)
             active.append(dict(title=title,status=display_status,phase=display_phase,passed=sum(r['status']=='passed'for r in rows),failed=sum(r['status']=='failed'for r in rows),total=total,source=state.get('compiler_source_sha256'),nativeSource=state.get('native_source_sha256'), auditPending=state.get('status','').startswith('passed-') and not audited))
 
-    for key,title,total in [('sourceClassDefaultFullCompiler','Cinch defaults: full compiler/object gate',2), ('nativeDefaultAnnotationApi','Published Cinch: Rust reader/API replay',9), ('pipelineInterfaceDiagnosticValidation','Pipeline: complete FFI and mode checks',1), ('sourceClassDefaultApi','Cinch defaults: original API and default groups',10), ('inferredCaseCoverageFullCompiler','Cinch constructor coverage: full compiler/object gate',2), ('refinementStructuralFullCompiler','Cinch structural refinements: full compiler/object gate',2), ('refinementStructuralApi','Cinch structural refinements: original API/default groups',10)]:
+    for key,title,total in [('sourceClassDefaultFullCompiler','Cinch defaults: full compiler/object gate',2), ('nativeDefaultAnnotationApi','Published Cinch: Rust reader/API replay',9), ('pipelineInterfaceDiagnosticValidation','Pipeline: complete FFI and mode checks',1), ('sourceClassDefaultApi','Cinch defaults: original API and default groups',10), ('inferredCaseCoverageFullCompiler','Cinch constructor coverage: full compiler/object gate',2), ('refinementStructuralFullCompiler','Cinch structural refinements: full compiler/object gate',2), ('refinementStructuralApi','Cinch structural refinements: original API/default groups',10), ('sourceDefaultOriginFullCompiler','Cinch diagnostic origins: full compiler/object gate',2), ('sourceDefaultOriginApi','Cinch diagnostic origins: original API/default groups',10)]:
         state=read(cfg.get(key))
         if state:
             rows=[r for r in state.get('rows',[]) if not r['name'].startswith(('compile-','build-'))]
-            proof_key={'sourceClassDefaultFullCompiler':'sourceClassDefaultCompilerReceipt','nativeDefaultAnnotationApi':'interfaceApiReceipt','pipelineInterfaceDiagnosticValidation':'nativePipelineReceipt','sourceClassDefaultApi':'sourceClassDefaultApiReceipt','inferredCaseCoverageFullCompiler':'inferredCaseCoverageCompilerReceipt','refinementStructuralFullCompiler':'refinementStructuralCompilerReceipt','refinementStructuralApi':'refinementStructuralApiReceipt'}[key]
+            proof_key={'sourceClassDefaultFullCompiler':'sourceClassDefaultCompilerReceipt','nativeDefaultAnnotationApi':'interfaceApiReceipt','pipelineInterfaceDiagnosticValidation':'nativePipelineReceipt','sourceClassDefaultApi':'sourceClassDefaultApiReceipt','inferredCaseCoverageFullCompiler':'inferredCaseCoverageCompilerReceipt','refinementStructuralFullCompiler':'refinementStructuralCompilerReceipt','refinementStructuralApi':'refinementStructuralApiReceipt','sourceDefaultOriginFullCompiler':'sourceDefaultOriginCompilerReceipt','sourceDefaultOriginApi':'sourceDefaultOriginApiReceipt'}[key]
             proof=read(cfg.get(proof_key))
             audited=bool(proof) and proof.get('source_sha256')==state.get('source_sha256')
             active.append(dict(title=title,status=state.get('status'),phase=state.get('phase'),passed=sum(r['status']=='passed'for r in rows),failed=sum(r['status']=='failed'for r in rows),total=total,source=state.get('compiler_source_sha256'),auditPending=state.get('status')=='passed' and not audited))
