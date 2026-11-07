@@ -19306,8 +19306,8 @@
       {
         "title": "Replay the dependent constructor and diagnostic repairs",
         "status": "running",
-        "phase": "check-Html",
-        "passed": 3,
+        "phase": "run-Html",
+        "passed": 5,
         "failed": 1,
         "total": 7,
         "source": "ba8b2fa22307621579a2ac1e008fc23742cd75b2cb85ccdfbe320ae1aa68ee8a"
@@ -19542,7 +19542,7 @@
         "title": "Run the full original 105-target Stage3 frontend matrix",
         "status": "running",
         "phase": "3 disjoint runs share the same audited compiler and provider.",
-        "passed": 26,
+        "passed": 27,
         "failed": 0,
         "total": 105,
         "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a"
@@ -19662,5 +19662,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T18:26:30.054046+00:00"
+  "updatedAt": "2026-11-07T18:27:31.988579+00:00"
 }
