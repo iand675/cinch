@@ -547,7 +547,7 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "Rust and Cinch now use one interface format on main. The pinned library was rebuilt, and both compilers refused schema 8 artifacts and fingerprint-only defaults.",
-  "activity": "The schema 9 chain has passed 4 of four stages. See the schema 9 checklist row for the fixed-point audit and suite status.",
+  "activity": "All four stages, the fixed point, and the changed-source rebuild passed independent audit. The 105-target frontend suite is running separately.",
   "checklist": {
     "version": 1,
     "target": {
@@ -558,52 +558,52 @@
       {
         "id": "acceptance:1",
         "title": "1. Pinned seed builds Stage1",
-        "state": "recheck",
-        "detail": "Proven for earlier 5bf127d9; must be repeated for the latest compiler.",
+        "state": "verified",
+        "detail": "The independent audit passed for the published compiler.",
         "doneWhen": "The pinned Rust seed builds all latest compiler sources; Stage1 is runnable and passes its executable smoke checks.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/design/self-hosting.md#acceptance",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema9-bootstrap-results.json",
         "observed": {
           "status": "passed",
-          "source": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185",
+          "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
           "cases": []
         }
       },
       {
         "id": "acceptance:2",
         "title": "2. Stage1 builds Stage2",
-        "state": "recheck",
-        "detail": "Proven for earlier 5bf127d9; must be repeated for the latest compiler.",
+        "state": "verified",
+        "detail": "The independent audit passed for the published compiler.",
         "doneWhen": "Stage1 freshly rebuilds every compiler module from those same inputs, without a Rust frontend or prebuilt compiler substitution.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/design/self-hosting.md#acceptance",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema9-bootstrap-results.json",
         "observed": {
           "status": "passed",
-          "source": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185",
+          "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
           "cases": []
         }
       },
       {
         "id": "acceptance:3",
         "title": "3. Stage2 builds matching Stage3",
-        "state": "recheck",
-        "detail": "Proven for earlier 5bf127d9; must be repeated for the latest compiler.",
+        "state": "verified",
+        "detail": "The independent audit passed for the published compiler.",
         "doneWhen": "Build and run Stage3; Stage2/Stage3 emitted IR, executable and every canonical interface agree.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/design/self-hosting.md#acceptance",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema9-bootstrap-results.json",
         "observed": {
           "status": "passed",
-          "source": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185",
+          "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
           "cases": []
         }
       },
       {
         "id": "acceptance:4",
         "title": "4. Changed-source bootstrap works",
-        "state": "recheck",
-        "detail": "Proven for earlier 5bf127d9; must be repeated for the latest compiler.",
+        "state": "verified",
+        "detail": "The independent audit passed for the published compiler.",
         "doneWhen": "Change actual compiler source, rebuild it through the chain, and prove that its changed behavior reaches the consumer.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/design/self-hosting.md#acceptance",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema9-bootstrap-results.json",
         "observed": {
           "status": "passed",
-          "source": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185",
+          "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
           "cases": []
         }
       },
@@ -611,12 +611,12 @@
         "id": "acceptance:5",
         "title": "5. All tests and frontend parity pass",
         "state": "pending",
-        "detail": "No complete matching final acceptance receipt yet.",
+        "detail": "Complete matching verification is pending.",
         "doneWhen": "Complete all preserved compiler, runtime, tooling, editor and external behavior coverage, including ignored cases and the final coverage audit.",
         "evidence": "https://github.com/iand675/cinch/blob/main/design/self-hosting.md#acceptance",
         "observed": {
           "status": "pending",
-          "source": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185",
+          "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
           "cases": []
         }
       }
@@ -11895,9 +11895,9 @@
         "total": 105,
         "counts": {
           "verified": 0,
-          "blocked": 1,
+          "blocked": 2,
           "running": 1,
-          "pending": 103,
+          "pending": 102,
           "recheck": 0
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
@@ -11941,17 +11941,17 @@
           {
             "id": "stage3:arrays",
             "title": "arrays",
-            "state": "running",
+            "state": "blocked",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/arrays.rs",
             "observed": {
-              "status": "running",
+              "status": "failed",
               "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
               "startedAt": "2026-11-07T10:55:20.633970+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T11:13:04.991548+00:00",
+              "exitCode": 101,
+              "logSha256": "9f1884a8ffd48b44bafae0952fd5cc5cde883bdf26868343f6db29d2e88ca260",
               "cases": [
                 {
                   "name": "array_copy_evidence_depends_on_the_element_type",
@@ -11991,7 +11991,27 @@
                 },
                 {
                   "name": "multidimensional_arrays_check_every_axis_and_shape_product",
-                  "status": "running"
+                  "status": "failed"
+                },
+                {
+                  "name": "native_staging_refuses_arrays_by_name_until_the_evaluator_supports_them",
+                  "status": "failed"
+                },
+                {
+                  "name": "normal_arrays_preserve_values_and_return_none_at_boundaries",
+                  "status": "failed"
+                },
+                {
+                  "name": "packed_scalars_roundtrip_through_generic_operations",
+                  "status": "failed"
+                },
+                {
+                  "name": "packed_word_storage_resolves_width_from_the_target",
+                  "status": "passed"
+                },
+                {
+                  "name": "self_hosted_intrinsic_contracts_refuse_unimplemented_array_operations",
+                  "status": "failed"
                 }
               ]
             },
@@ -12036,18 +12056,23 @@
           {
             "id": "stage3:bootstrap_anonymous_contracts",
             "title": "bootstrap_anonymous_contracts",
-            "state": "pending",
+            "state": "running",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_anonymous_contracts.rs",
             "observed": {
-              "status": "pending",
+              "status": "running",
               "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": null,
+              "startedAt": "2026-11-07T11:13:06.069920+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "imported_anonymous_results_and_arguments_keep_their_meaning",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -13840,9 +13865,9 @@
           }
         ],
         "observedCounts": {
-          "failed": 1,
+          "failed": 2,
           "running": 1,
-          "pending": 103
+          "pending": 102
         },
         "observedSource": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854"
       },
@@ -18010,9 +18035,9 @@
       {
         "title": "Published schema 9 Stage3: all 105 frontend targets",
         "status": "running",
-        "phase": "arrays",
+        "phase": "bootstrap_anonymous_contracts",
         "passed": 0,
-        "failed": 1,
+        "failed": 2,
         "total": 105,
         "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854"
       },
@@ -18607,9 +18632,9 @@
       {
         "title": "Earlier Stage3: complete frontend sweep",
         "status": "running",
-        "phase": "arrays",
+        "phase": "bootstrap_anonymous_contracts",
         "passed": 0,
-        "failed": 1,
+        "failed": 2,
         "total": 105,
         "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
         "earlier": true
@@ -18823,8 +18848,8 @@
       },
       {
         "title": "Schema 9 bootstrap with the production pin",
-        "status": "passed-production-schema9-chain-awaiting-independent-audit",
-        "phase": "passed production schema9 chain awaiting independent audit",
+        "status": "passed",
+        "phase": "Fixed point, separate interface consumer and changed-source control verified",
         "passed": 4,
         "failed": 0,
         "total": 4,
@@ -18849,17 +18874,17 @@
       }
     ],
     "counts": {
-      "verified": 172,
-      "blocked": 6,
+      "verified": 176,
+      "blocked": 7,
       "running": 11,
-      "pending": 109,
-      "recheck": 376
+      "pending": 108,
+      "recheck": 372
     },
     "total": 674,
-    "acceptanceVerified": 0,
+    "acceptanceVerified": 4,
     "acceptanceTotal": 5,
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T11:11:04.996199+00:00"
+  "updatedAt": "2026-11-07T11:13:21.769312+00:00"
 }
