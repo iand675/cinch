@@ -18425,6 +18425,17 @@
     ],
     "active": [
       {
+        "title": "Fresh Stage0 through Stage3 rebuild",
+        "status": "waiting-matching-development-gates",
+        "phase": "Waiting for the compiler/object tests, the own-source check, and the nine component targets",
+        "passed": 0,
+        "failed": 0,
+        "total": 4,
+        "unit": "stages",
+        "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+        "auditPending": false
+      },
+      {
         "title": "Rust annotation repair: primary groups",
         "status": "passed-native-default-annotation-primary-gates",
         "phase": "interface_machine_contracts",
@@ -18570,8 +18581,8 @@
       {
         "title": "Cinch partial Boolean implications: complete groups",
         "status": "running",
-        "phase": "bootstrap_core",
-        "passed": 2,
+        "phase": "bootstrap_refinement_core",
+        "passed": 4,
         "failed": 0,
         "total": 9,
         "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
@@ -18797,5 +18808,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T02:47:34.111295+00:00"
+  "updatedAt": "2026-11-07T02:50:47.148632+00:00"
 }
