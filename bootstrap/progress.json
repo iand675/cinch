@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "140 of 235 complete groups passed; 2 running, 0 failed and 93 pending.Every group includes ignored tests. State: running.",
+      "detail": "141 of 235 complete groups passed; 2 running, 0 failed and 92 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -499,7 +499,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "140 of 235 complete groups passed; 2 running, 0 failed and 93 pending."
+      "detail": "141 of 235 complete groups passed; 2 running, 0 failed and 92 pending."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -795,9 +795,9 @@
         "unit": "targets",
         "total": 235,
         "counts": {
-          "verified": 142,
+          "verified": 143,
           "blocked": 0,
-          "running": 2,
+          "running": 1,
           "pending": 91,
           "recheck": 0
         },
@@ -11069,6 +11069,22 @@
                 },
                 {
                   "name": "native_captured_index_polymorphic_function_keeps_argument_carriers",
+                  "status": "passed"
+                },
+                {
+                  "name": "native_captured_index_quantified_value_shadows_same_named_global",
+                  "status": "passed"
+                },
+                {
+                  "name": "native_captured_index_unbound_name_cannot_acquire_caller_definition",
+                  "status": "passed"
+                },
+                {
+                  "name": "native_captured_index_uses_the_named_functions_argument_carrier",
+                  "status": "passed"
+                },
+                {
+                  "name": "native_macro_arguments_retain_caller_values_in_type_annotations",
                   "status": "running"
                 }
               ]
@@ -11192,17 +11208,17 @@
           {
             "id": "native:syntax_runtime_proofs",
             "title": "syntax_runtime_proofs",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/syntax_runtime_proofs.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "startedAt": "2026-11-07T00:41:29.811616+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T00:43:34.170756+00:00",
+              "exitCode": 0,
+              "logSha256": "e5484af0133c8031ce75972c23fe2462608977b94437a4a3b2cba6b6fbfcdf42",
               "cases": [
                 {
                   "name": "captured_witness_survives_a_same_spelled_generated_boolean_binder",
@@ -11242,7 +11258,15 @@
                 },
                 {
                   "name": "proposition_results_require_termination_without_a_proof_modifier",
-                  "status": "running"
+                  "status": "passed"
+                },
+                {
+                  "name": "recursive_proof_locals_keep_existing_evidence_and_reject_eager_cycles",
+                  "status": "passed"
+                },
+                {
+                  "name": "runtime_decision_witnesses_keep_their_subject_across_group_instances",
+                  "status": "passed"
                 }
               ]
             },
@@ -11256,12 +11280,12 @@
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-default-annotation-results.json",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:42:37.120028+00:00",
-              "finishedAt": "2026-11-06T14:42:48.354486+00:00",
-              "exitCode": 0,
-              "logSha256": "a90eba2d92c7ffa69aa5ae647e5c9720817df85322b33f7681cddcff9d18de3e",
+              "status": "running",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T00:43:34.173134+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "a_caller_provider_cannot_discharge_a_different_same_shaped_private_signature",
@@ -11277,19 +11301,7 @@
                 },
                 {
                   "name": "a_quoted_declaration_using_head_keeps_its_private_signature",
-                  "status": "passed"
-                },
-                {
-                  "name": "a_quoted_helper_keeps_its_private_signature_and_provider_under_caller_decoys",
-                  "status": "passed"
-                },
-                {
-                  "name": "a_quoted_using_head_cannot_acquire_a_signature_missing_at_definition_site",
-                  "status": "passed"
-                },
-                {
-                  "name": "quoted_declaration_using_heads_retain_compiler_known_copy_constraints",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -18303,8 +18315,8 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "syntax_runtime_proofs",
-        "passed": 140,
+        "phase": "syntax_signature_scope",
+        "passed": 141,
         "failed": 0,
         "total": 235,
         "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
@@ -18322,9 +18334,9 @@
       }
     ],
     "counts": {
-      "verified": 314,
+      "verified": 315,
       "blocked": 4,
-      "running": 7,
+      "running": 6,
       "pending": 127,
       "recheck": 215
     },
@@ -18334,5 +18346,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T00:42:39.565158+00:00"
+  "updatedAt": "2026-11-07T00:43:41.494256+00:00"
 }
