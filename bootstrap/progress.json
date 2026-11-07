@@ -19223,9 +19223,9 @@
       {
         "title": "Replay the same three programs with the additional method and zip variants",
         "status": "running",
-        "phase": "Html",
+        "phase": "Reactive",
         "passed": 0,
-        "failed": 0,
+        "failed": 1,
         "total": 3,
         "source": "b59c4893c4214d1c94c624bf9ba3f9e99ee7eb9b9568c1f092b20e5080967b38"
       },
@@ -19382,5 +19382,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T14:21:13.851443+00:00"
+  "updatedAt": "2026-11-07T14:22:16.197243+00:00"
 }
