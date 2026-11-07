@@ -54,6 +54,6 @@ The `.cinchpkg` format is canonical JSON with package name/version, module entri
 
 The current CLI does not install remote dependencies, resolve version ranges, or publish packages. Shipping source modules beside the entry is a supported development pattern. The package store is a verified local content-addressed artifact mechanism, described in [artifacts](18-artifacts-and-incremental.md).
 
-The proposed dependency graph, lockfile, registry protocol, and supply-chain policy are in [package management](../design/package-management.md). That note is a design proposal; this section remains the current behaviour.
+The current manifest, local store, and registry prototype are covered in [packages, manifests, and the registry](29-package-management.md). The proposed dependency graph, lockfile, client resolution, and supply-chain policy are in [package management](../design/package-management.md). The design is not the current behaviour: the CLI still does not install or publish packages.
 
 Implementation: `driver.rs`, `interface.rs`, `check_interface.rs`; suites: `modules.rs`, `params.rs`, `surface.rs`, `fixity_interfaces.rs`, `class_defaults.rs`, `package_manifest.rs`, `package_store.rs`.

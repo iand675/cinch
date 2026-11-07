@@ -1,6 +1,6 @@
 # Interactive programming with the REPL
 
-<span class="support-tag support-tag--current">Available</span> **`cinch repl` starts a full-screen terminal session.** It uses the compiler's shared analysis layer, keeps declarations across inputs, and runs expressions through the D92 evaluator. Foreign and IO expressions fall back to a temporary native probe; reload rolls back broken revisions. [Current implementation](#current-implementation) records the remaining limits.
+<span class="support-tag support-tag--current">Available</span> **`cinch repl` starts an interactive session.** In a terminal it provides a full-screen frontend; when input or output is redirected it uses a plain line loop. Both use the compiler's shared analysis layer, keep declarations across inputs, and run expressions through the D92 evaluator. Foreign and IO expressions fall back to a temporary native probe; reload rolls back broken revisions. [Current implementation](#current-implementation) records the remaining limits.
 
 The REPL is an interactive Cinch session. Enter an expression to inspect its value and type, add declarations to use in later inputs, or load a project and explore its exported functions. It uses the compiler's analysis layer, so signatures, instances, effects, refinements, and ownership follow the same rules as source files.
 
@@ -14,7 +14,23 @@ cinch repl
 
 The working directory establishes the session's project root. Source files and their imports are resolved using the compiler's module rules. Starting a REPL does not install dependencies or download packages.
 
-In the following **illustrative transcript**, `cinch>` is the input prompt and `...>` is a continuation prompt. Neither is part of Cinch source. Output wording and prompt spelling may change before the terminal frontend ships.
+# Terminal and piped sessions
+
+When both standard input and standard output are terminals, `cinch repl` starts the full-screen frontend. It uses raw mode, the alternate screen, and bracketed paste, and restores the terminal on exit or panic. The terminal must support those controls; the frontend is not a fallback for a line-only console.
+
+When either stream is redirected, `cinch repl` keeps the same session loop but prints no prompts and uses no alternate screen. This mode is useful for scripted transcripts and tests:
+
+```sh
+printf '1 + 2\n:quit\n' | cinch repl
+```
+
+```text
+3 :: Int
+```
+
+Piped input has no line editing or completion popup. Each line is submitted as it arrives, and an unfinished block continues on later lines exactly as in the terminal. End-of-input ends the session. The process exits 0 after a normal session; a startup failure exits 1.
+
+In the following **illustrative transcript**, `cinch>` is the input prompt and `...>` is a continuation prompt. Neither is part of Cinch source. Output wording and prompt spelling may change.
 
 ```text
 cinch> 1 + 2

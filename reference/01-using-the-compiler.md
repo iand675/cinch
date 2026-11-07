@@ -31,7 +31,7 @@ The checked-in `devenv.nix` still contains older `safelang` script and environme
 
 For `run`, `--` ends compiler argument interpretation. Use `cinch run Main.cinch -- --rebuild` to pass the literal argument `--rebuild` to the program. Program arguments are available through `process-args` in `Effect.Process`; they exclude the executable name. Do not assume shell tokenization is performed again inside the program.
 
-There is currently no `--target`, `-O2`, `--watch`, package-install, or arbitrary foreign-object option. Unsupported command names print usage and exit 2. Omitting `-o`'s path is also a usage error. `--help` is not a distinct successful command; invoking an unknown command takes the usage path.
+There is currently no `--target`, `-O2`, `--watch`, package-install, or arbitrary foreign-object option. For the current package format, local store, and registry prototype, see [packages, manifests, and the registry](29-package-management.md). Unsupported command names print usage and exit 2. Omitting `-o`'s path is also a usage error. `--help` is not a distinct successful command; invoking an unknown command takes the usage path.
 
 # Entry points and outcomes
 

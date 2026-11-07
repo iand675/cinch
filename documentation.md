@@ -36,6 +36,7 @@ Precise coverage of commands, syntax, types, instances, modules, effects, owners
 | Check whether a feature works yet | [Current support and Coming soon](reference/16-support-and-roadmap.md) |
 | Configure an editor or diagnose a failure | [Editors and diagnostics](reference/21-editors-and-diagnostics.md) |
 | Explore programs interactively | [REPL guide](reference/26-repl.md) |
+| Understand packages, manifests, or the registry | [Packages, manifests, and the registry](reference/29-package-management.md) |
 | Set up compiler assistance in an editor | [Language server — complete experience Coming soon](reference/27-language-server.md) |
 
 # Find an operation

@@ -39,6 +39,8 @@ The Rust implementation is the present authority. This guide does not use the se
 | [Allocators and heap customization](25-allocators.md) |
 | [Interactive programming with the REPL](26-repl.md) |
 | [Language server and editor integration — intended complete experience](27-language-server.md) |
+| [Documentation comments and symbol lookup](28-documentation.md) |
+| [Packages, manifests, and the registry](29-package-management.md) |
 
 # Find a specific operation
 

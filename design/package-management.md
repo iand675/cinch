@@ -1,5 +1,7 @@
 # Package management
 
+<span class="support-tag support-tag--planned">Coming soon</span> **This is a design record, not the current package manager.** For the compiler's present manifest, local store, and registry prototype, read [packages, manifests, and the registry](../reference/29-package-management.md).
+
 Status: design proposal, 2026-11-06. The compiler has a package manifest, a
 content-addressed local artifact store, and a checked interface per module. It
 has no dependency graph, no registry, and no install or publish command. This
