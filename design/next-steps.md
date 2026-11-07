@@ -191,6 +191,11 @@ empty effect row. The complete syntax and pipeline tests pass. A mismatched
 carrier produces a type refusal, and a well-typed law still awaits checked
 instance evidence. The original Category syntax probe reaches the structural
 function instance. See `bootstrap/current-source-class-law-carrier-results.json`.
+The Boolean sampler also passed both actual instance checks. It enumerates
+both Boolean values through the selected checked method slots and reports a
+named counterexample for a constant-false implementation. Lawful samples
+remain internal until checked law transport is available. See
+`bootstrap/current-source-class-law-instance-samples-results.json`.
 
 All9 development patches apply in order to a fresh published-source snapshot,
 produce the exact32ab compiler-module bytes and preserve the published FFI test

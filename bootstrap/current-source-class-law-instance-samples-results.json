@@ -1,0 +1,19 @@
+{
+  "compiler_source_sha256": "9f7d9b74011a7df63969cf86635525648d927e4b3b8c758b66322a174cdb6e4f",
+  "exact_patched_files": {
+    "bootstrap/Bootstrap.Infer.cinch": "fa3c5e79c8ccb66606460d8f84088cf5e57c8408a720b03344d339ba6cfff0a5",
+    "bootstrap/Bootstrap.Instance.cinch": "895111aa2bd68a7dc8b8536e39bb71d4dc443cf9c2bb76ae78fe14cb88e4ecb5",
+    "compiler/tests/bootstrap_pipeline.rs": "b96d13ab1afeaab105ce87787c6125c23741701f1909c22e8745f5000fef5bc1"
+  },
+  "full_goal_complete": false,
+  "patch_sha256": "1a95eec0cac04ac030edfd45a1254510ac537b4cb6caf2f47f8b4cb7667372f8",
+  "pipeline_log_sha256": "1d1b58955766fb8e50ebba4090eb11dc4d0ead7853566a27daebd41da51a0d7a",
+  "pipeline_tests": 2,
+  "scope": "Evaluate both Boolean assignments through checked source dictionary method slots. The lawful case passes two samples and still refuses export pending checked law transport. The invalid implementation produces a named counterexample and no interface. Other carriers, generic obligations and imported law definitions remain open.",
+  "status": "verified-class-law-boolean-instance-samples-development",
+  "verified_at": "2026-11-07T05:32:35.228203+00:00",
+  "verified_cases": {
+    "constant_false": "named counterexample",
+    "involution": 2
+  }
+}

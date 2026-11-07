@@ -1,0 +1,236 @@
+--- a/bootstrap/Bootstrap.Infer.cinch
++++ b/bootstrap/Bootstrap.Infer.cinch
+@@ -3674,18 +3674,19 @@
+     LawArrow domain body -> TFun (type-expr-span domain) domain (law-input-type sp body)
+     other -> TName sp "Unit"
+ 
+-  law-operand-check :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> UType -> LawSyntax -> Store -> Store
+-  law-operand-check classes kinds families env locals inputs syntax st = case syntax of
+-    LawForall parameters body -> law-operand-check classes kinds families env locals inputs body st
++  law-operands :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> UType -> LawSyntax -> Store -> (List CorePattern, Option (CoreTerm, CoreTerm), Store)
++  law-operands classes kinds families env locals inputs syntax st = case syntax of
++    LawForall parameters body -> law-operands classes kinds families env locals inputs body st
+     LawArrow domain body ->
+       let pattern = case domain of TBound sp name ty tail -> PVar sp name; other -> PWild (type-expr-span domain) in
+       (case bind-arrow-pattern classes kinds families env locals pattern inputs st of
+-        (bound, checked, effects, result, ready) -> law-operand-check classes kinds families bound locals result body ready)
++        (bound, checked, effects, result, ready) -> case law-operands classes kinds families bound locals result body ready of
++          (patterns, operands, final) -> (Cons checked patterns, operands, final))
+     LawEquation left right -> case infer classes kinds families env locals left st of
+       (first, checked) -> case check-required classes kinds families env locals right (normalize checked (core-type first)) checked of
+-        (second, done) -> include-effects (expr-span right) (core-effects second) (URow UEnd)
+-          (include-effects (expr-span left) (core-effects first) (URow UEnd) done)
+-    LawProposition ty -> add-error (type-expr-span ty) "class law proposition form needs checked elaboration" st
++        (second, done) -> (Nil, Some (first, second), include-effects (expr-span right) (core-effects second) (URow UEnd)
++          (include-effects (expr-span left) (core-effects first) (URow UEnd) done))
++    LawProposition ty -> (Nil, None, add-error (type-expr-span ty) "class law proposition form needs checked elaboration" st)
+ 
+   check-class-law :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> CoreClass -> Span -> String -> LawSyntax -> Store -> Store
+   check-class-law classes kinds families env description sp name syntax st =
+@@ -3700,11 +3701,8 @@
+             let locals = opened-locals (scheme-params scheme) pairs in
+             case bind-value-parameters (scheme-params scheme) pairs env opened of
+               (value-env, value-store) -> case bind-requirements sp requirements value-env value-store of
+-                (bound, givens, ready) -> let checked = law-operand-check classes kinds families bound locals inputs syntax ready in
+-                  let finished = restore-level level checked in
+-                  if list-length (store-errors finished) == list-length (store-errors st) then
+-                    add-error sp (string-concat "class law needs checked instance evidence: " name) finished
+-                  else finished
++                (bound, givens, ready) -> case law-operands classes kinds families bound locals inputs syntax ready of
++                  (patterns, operands, checked) -> restore-level level checked
+ 
+   check-class-laws :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> CoreClass -> List Decl -> List String -> Store -> Store
+   check-class-laws classes kinds families env description members seen st = case members of
+@@ -3722,6 +3720,68 @@
+         Some description -> check-class-laws classes kinds families env description (decls-of members) Nil st
+         None -> st)
+     Cons other rest -> check-source-laws classes kinds families env rest st
++
++  law-type-locals :: List Quant -> List UType -> List (String, UType)
++  law-type-locals parameters actuals = case (parameters, actuals) of
++    (Cons q rest, Cons ty more) -> Cons (quant-name q, ty) (law-type-locals rest more)
++    other -> Nil
++
++  check-boolean-law-instance :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> CoreClass -> CoreInstance -> Span -> String -> LawSyntax -> Store -> Store
++  check-boolean-law-instance classes kinds families env description dictionary sp name syntax st =
++    let subject = scheme-body (instance-scheme dictionary) in
++    let locals = law-type-locals (class-params description) (constructor-result-arguments subject Nil) in
++    let level = store-level st in
++    case convert False kinds locals (law-input-type sp syntax) (enter-level st) of
++      (inputs, opened) -> case bind-requirements sp [MkRequirement "#self" subject] env opened of
++        (bound, givens, ready) -> case law-operands classes kinds families bound locals inputs syntax ready of
++          (patterns, Some (first, second), checked) -> if list-length (store-errors checked) /= list-length (store-errors st) then restore-level level checked else
++            (case resolve-dictionary-term-with classes (env-instances env) givens first checked of
++              (left, checked-left) -> case resolve-dictionary-term-with classes (env-instances env) givens second checked-left of
++                (right, checked-right) -> let done = restore-level level checked-right in
++                  if list-length (store-errors done) /= list-length (store-errors st) then done else
++                    report-boolean-law-samples sp name description dictionary givens
++                      (law-normalize-patterns checked-right patterns) (map-term-types (normalize checked-right) left) (map-term-types (normalize checked-right) right) done)
++          (patterns, None, checked) -> restore-level level checked
++
++  law-normalize-patterns :: Store -> List CorePattern -> List CorePattern
++  law-normalize-patterns st patterns = case patterns of
++    Nil -> Nil
++    Cons p rest -> Cons (map-pattern-types (normalize st) p) (law-normalize-patterns st rest)
++
++  report-boolean-law-samples :: Span -> String -> CoreClass -> CoreInstance -> List CoreGiven -> List CorePattern -> CoreTerm -> CoreTerm -> Store -> Store
++  report-boolean-law-samples sp name description dictionary givens patterns left right st = case givens of
++    Cons given Nil -> case sample-boolean-law (class-name description) dictionary given patterns left right of
++      BooleanLawSamples samples -> add-error sp (string-concat-all ["class law passed ", nat-to-string samples, " Boolean samples; checked interface transport is pending: ", name]) st
++      BooleanLawCounterexample -> add-error sp (string-concat-all ["class law ", name, " failed for ", instance-diagnostic-name (instance-name dictionary), " on a Boolean sample"]) st
++      BooleanLawUnavailable message -> add-error sp (string-concat-all ["class law needs checked instance evidence: ", name, " (", message, ")"]) st
++    other -> add-error sp (string-concat "class law needs checked instance evidence: " name) st
++
++  boolean-law-instance :: String -> List CoreInstance -> Option CoreInstance
++  boolean-law-instance owner instances = case instances of
++    Nil -> None
++    Cons dictionary rest -> let factory = instance-scheme dictionary in
++      (case (scheme-params factory, scheme-requirements factory, scheme-body factory) of
++        (Nil, Nil, UApp (UCon class kind) (UCon carrier KType)) ->
++          if same class owner && same carrier "Bool" then Some dictionary else boolean-law-instance owner rest
++        other -> boolean-law-instance owner rest)
++
++  check-law-instances :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List CoreInstance -> List Decl -> Store -> Store
++  check-law-instances classes kinds families env instances ds st = case ds of
++    Nil -> st
++    Cons (DClass sp name parameters members) rest -> check-law-instances classes kinds families env instances rest
++      (case find-class name (context-source-classes kinds) of
++        Some description -> check-law-instance-members classes kinds families env description (boolean-law-instance name instances) (decls-of members) st
++        None -> st)
++    Cons other rest -> check-law-instances classes kinds families env instances rest st
++
++  check-law-instance-members :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> CoreClass -> Option CoreInstance -> List Decl -> Store -> Store
++  check-law-instance-members classes kinds families env description selected members st = case members of
++    Nil -> st
++    Cons (DLaw sp name syntax) rest -> check-law-instance-members classes kinds families env description selected rest
++      (case (selected, syntax) of
++        (Some dictionary, LawArrow domain body) -> check-boolean-law-instance classes kinds families env description dictionary sp name syntax st
++        other -> add-error sp (string-concat "class law needs checked instance evidence: " name) st)
++    Cons other rest -> check-law-instance-members classes kinds families env description selected rest st
+ 
+   elaborate-module :: String -> Module -> Elaboration
+   elaborate-module label m = elaborate-module-with-source-bodies True label m
+@@ -3755,7 +3815,8 @@
+     let (effects, sx) = case store-errors default-store of Nil -> checked-effects kinds env ds default-store; other -> (Nil, default-store) in
+     let linked-kinds = context-with-effects effects kinds in
+     let (descriptions, instances, sm) = case store-errors sx of Nil -> checked-source-instances rows classes linked-kinds families env ds (context-source-classes linked-kinds) sx; other -> (Nil, Nil, sx) in
+-    let (ordinary-core, done) = case store-errors sm of Nil -> check-bodies classes linked-kinds families env Nil ds ds sm; other -> (Nil, sm) in
++    let sampled = case store-errors sm of Nil -> check-law-instances classes linked-kinds families env instances ds sm; other -> sm in
++    let (ordinary-core, done) = case store-errors sampled of Nil -> check-bodies classes linked-kinds families env Nil ds ds sampled; other -> (Nil, sampled) in
+     let core = defaults <> ordinary-core in
+     let (declared-data, declared-store) = case store-errors done of Nil -> checked-data classes linked-kinds env ds Nil done; other -> (Nil, done) in
+     let (nominal-data, nominal-store) = case store-errors declared-store of Nil -> checked-nominal-data ds linked-kinds declared-data declared-store; other -> (declared-data, declared-store) in
+--- a/bootstrap/Bootstrap.Instance.cinch
++++ b/bootstrap/Bootstrap.Instance.cinch
+@@ -19,6 +19,7 @@
+   export dictionary-field-slot, dictionary-field-definition, instance-closed
+   export find-class, class-target, specialize-method, implementation-scheme, default-annotation-bindings
+   export dictionary-method-symbol, scheme-equivalent
++  export BooleanLawSamples, BooleanLawCounterexample, BooleanLawUnavailable, sample-boolean-law
+ 
+   data CoreClassMethod where
+     MkCoreClassMethod :: Span -> String -> Nat -> Scheme -> CoreClassMethod
+@@ -279,3 +280,83 @@
+         Some description -> class-closed description && class-target description (scheme-body factory) && fields-closed description factory (instance-name node) (class-methods description) (instance-fields node)
+         None -> False)
+       None -> False)
++
++  -- Evaluate only closed Boolean terms and the actual checked fields of
++  -- the selected dictionary. An unsupported term or exhausted fuel
++  -- cannot supply a successful sample.
++  data BooleanLawResult where
++    BooleanLawSamples :: Nat -> BooleanLawResult
++    BooleanLawCounterexample :: BooleanLawResult
++    BooleanLawUnavailable :: String -> BooleanLawResult
++
++  sample-boolean-law :: String -> CoreInstance -> CoreGiven -> List CorePattern -> CoreTerm -> CoreTerm -> BooleanLawResult
++  sample-boolean-law owner dictionary given patterns left right =
++    if list-length patterns > 6 then BooleanLawUnavailable "Boolean sample limit reached" else
++      boolean-assignments owner dictionary (given-symbol given) patterns Nil left right
++
++  boolean-assignments :: String -> CoreInstance -> String -> List CorePattern -> List (Nat, Bool) -> CoreTerm -> CoreTerm -> BooleanLawResult
++  boolean-assignments owner dictionary self patterns values left right = case patterns of
++    Nil -> case (boolean-law-term owner dictionary self values left 64, boolean-law-term owner dictionary self values right 64) of
++      (Some first, Some second) -> if first == second then BooleanLawSamples 1 else BooleanLawCounterexample
++      other -> BooleanLawUnavailable "the checked Boolean equation could not be evaluated"
++    Cons (CPVar sp ty id name) rest -> if equal-type ty (UCon "Bool" KType) then
++      (case boolean-assignments owner dictionary self rest (Cons (id, False) values) left right of
++        BooleanLawSamples first -> case boolean-assignments owner dictionary self rest (Cons (id, True) values) left right of
++          BooleanLawSamples second -> BooleanLawSamples (first + second)
++          refusal -> refusal
++        refusal -> refusal)
++      else BooleanLawUnavailable "the law binder does not have a Boolean carrier"
++    Cons other rest -> BooleanLawUnavailable "the law has an unsupported sample pattern"
++
++  boolean-local :: Nat -> List (Nat, Bool) -> Option Bool
++  boolean-local id values = case values of
++    Nil -> None
++    Cons (key, value) rest -> if id == key then Some value else boolean-local id rest
++
++  boolean-law-term :: String -> CoreInstance -> String -> List (Nat, Bool) -> CoreTerm -> Nat -> Option Bool
++  boolean-law-term owner dictionary self values term fuel = if fuel == 0 then None else
++    let remaining = fuel - 1 in
++    case term of
++      CUse sp ty name role Nil -> if not (same role "constructor" && equal-type ty (UCon "Bool" KType)) then None
++        else if same name "True" then Some True else if same name "False" then Some False else None
++      CLocal sp ty id name Nil -> if equal-type ty (UCon "Bool" KType) then boolean-local id values else None
++      CIf sp ty test yes no -> case boolean-law-term owner dictionary self values test remaining of
++        Some answer -> boolean-law-term owner dictionary self values (if answer then yes else no) remaining
++        None -> None
++      CApply sp ty function argument -> boolean-law-call owner dictionary self values term Nil remaining
++      CMethod sp ty name class slot actuals evidence -> boolean-law-call owner dictionary self values term Nil remaining
++      other -> None
++
++  boolean-law-call :: String -> CoreInstance -> String -> List (Nat, Bool) -> CoreTerm -> List Bool -> Nat -> Option Bool
++  boolean-law-call owner dictionary self values term arguments fuel = if fuel == 0 then None else
++    let remaining = fuel - 1 in
++    case term of
++      CApply sp ty function argument -> case boolean-law-term owner dictionary self values argument remaining of
++        Some value -> boolean-law-call owner dictionary self values function (Cons value arguments) remaining
++        None -> None
++      CMethod sp ty name class slot actuals (Cons (CEGiven at subject symbol) Nil) ->
++        if same class owner && same symbol self && equal-type subject (scheme-body (instance-scheme dictionary)) then
++          boolean-law-field owner dictionary slot (instance-fields dictionary) arguments remaining
++        else None
++      other -> None
++
++  boolean-law-field :: String -> CoreInstance -> Nat -> List CoreDictionaryField -> List Bool -> Nat -> Option Bool
++  boolean-law-field owner dictionary slot fields arguments fuel = case fields of
++    Nil -> None
++    Cons field rest -> if slot == dictionary-field-slot field then
++      let definition = dictionary-field-definition field in
++      (case (core-givens definition, core-clauses definition) of
++        (Cons given Nil, Cons (MkCoreClause sp patterns body) Nil) -> case boolean-field-arguments patterns arguments Nil of
++          Some values -> boolean-law-term owner dictionary (given-symbol given) values body fuel
++          None -> None
++        other -> None)
++      else boolean-law-field owner dictionary slot rest arguments fuel
++
++  boolean-field-arguments :: List CorePattern -> List Bool -> List (Nat, Bool) -> Option (List (Nat, Bool))
++  boolean-field-arguments patterns arguments values = case (patterns, arguments) of
++    (Nil, Nil) -> Some values
++    (Cons (CPVar sp ty id name) rest, Cons value more) -> if equal-type ty (UCon "Bool" KType) then
++      boolean-field-arguments rest more (Cons (id, value) values) else None
++    (Cons (CPWild sp ty) rest, Cons value more) -> if equal-type ty (UCon "Bool" KType) then
++      boolean-field-arguments rest more values else None
++    other -> None
+--- a/compiler/tests/bootstrap_pipeline.rs
++++ b/compiler/tests/bootstrap_pipeline.rs
+@@ -427,6 +427,17 @@
+     assert_eq!(status, Some(4), "{diagnostics}");
+     assert!(diagnostics.contains("name is not in scope: not-in-law-scope"), "{diagnostics}");
+ 
++    let boolean_law = "module LawExample where\n  signature Restore a where\n    restore :: a -> a\n    law involution :: (x :: a) -> Eq (restore (restore x)) x\n  implicit instance Restore_Bool :: Restore Bool where\n    restore x = if x then False else True\n";
++    let (status, diagnostics) = invoke("--emit-interfaces", boolean_law, "sampled-boolean-law");
++    assert_eq!(status, Some(4), "{diagnostics}");
++    assert!(diagnostics.contains("class law passed 2 Boolean samples"), "{diagnostics}");
++    assert!(!dir.join("sampled-boolean-law.LawExample.cinchif").exists());
++    let unlawful = boolean_law.replace("if x then False else True", "False");
++    let (status, diagnostics) = invoke("--emit-interfaces", &unlawful, "refused-boolean-law");
++    assert_eq!(status, Some(4), "{diagnostics}");
++    assert!(diagnostics.contains("class law involution failed for Restore_Bool on a Boolean sample"), "{diagnostics}");
++    assert!(!dir.join("refused-boolean-law.LawExample.cinchif").exists());
++
+     let incompatible = edited.replace("Option, None, Some", "Option, None, Some, Missing")
+         .replace("    None :: Option a", "    None :: Option a\n    Missing :: Option a");
+     let (status, diagnostics) = invoke("--emit-interfaces", &format!("{incompatible}\n{main}"), "stale-core-source");
