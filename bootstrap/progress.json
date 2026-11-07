@@ -19334,7 +19334,7 @@
       },
       {
         "title": "Run Foldable as a client of the compiled library",
-        "status": "waiting-worker",
+        "status": "running",
         "phase": "The fixture writes only Main.cinch and retains all 16 cases. The replay uses the audited Stage3 and pinned library interfaces and object.",
         "passed": 0,
         "failed": 0,
@@ -19350,9 +19350,9 @@
       },
       {
         "title": "Replay the five original library targets with the expanded object",
-        "status": "running",
+        "status": "completed-with-failures",
         "phase": "lib_hash_keys",
-        "passed": 0,
+        "passed": 1,
         "failed": 4,
         "total": 5,
         "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a"
@@ -19709,5 +19709,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T19:12:22.980306+00:00"
+  "updatedAt": "2026-11-07T19:13:45.032995+00:00"
 }
