@@ -11894,10 +11894,10 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 1,
+          "verified": 2,
           "blocked": 2,
           "running": 1,
-          "pending": 101,
+          "pending": 100,
           "recheck": 0
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
@@ -13231,21 +13231,21 @@
           {
             "id": "stage3:bootstrap_source_decisions",
             "title": "bootstrap_source_decisions",
-            "state": "running",
+            "state": "verified",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_source_decisions.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
               "startedAt": "2026-11-07T11:29:54.543746+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T11:38:42.528162+00:00",
+              "exitCode": 0,
+              "logSha256": "0ebe60efc85c2f545618a32d1efd265c939b24ff3383a8d7ddbe195dbc4ae93e",
               "cases": [
                 {
                   "name": "source_decisions_preserve_predicates_and_check_authority",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -13452,18 +13452,23 @@
           {
             "id": "stage3:bootstrap_type_syntax",
             "title": "bootstrap_type_syntax",
-            "state": "pending",
+            "state": "running",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_type_syntax.rs",
             "observed": {
-              "status": "pending",
+              "status": "running",
               "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": null,
+              "startedAt": "2026-11-07T11:38:43.871370+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "predicates_indices_and_refined_results_keep_their_structure",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -13871,9 +13876,9 @@
         ],
         "observedCounts": {
           "failed": 2,
-          "passed": 1,
+          "passed": 2,
           "running": 1,
-          "pending": 101
+          "pending": 100
         },
         "observedSource": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854"
       },
@@ -18041,8 +18046,8 @@
       {
         "title": "Published schema 9 Stage3: all 105 frontend targets",
         "status": "running",
-        "phase": "bootstrap_source_decisions",
-        "passed": 1,
+        "phase": "bootstrap_type_syntax",
+        "passed": 2,
         "failed": 2,
         "total": 105,
         "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854"
@@ -18638,8 +18643,8 @@
       {
         "title": "Earlier Stage3: complete frontend sweep",
         "status": "running",
-        "phase": "bootstrap_source_decisions",
-        "passed": 1,
+        "phase": "bootstrap_type_syntax",
+        "passed": 2,
         "failed": 2,
         "total": 105,
         "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
@@ -18908,10 +18913,10 @@
       }
     ],
     "counts": {
-      "verified": 177,
+      "verified": 178,
       "blocked": 7,
       "running": 11,
-      "pending": 107,
+      "pending": 106,
       "recheck": 372
     },
     "total": 674,
@@ -18920,5 +18925,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T11:30:08.051512+00:00"
+  "updatedAt": "2026-11-07T11:38:51.480235+00:00"
 }
