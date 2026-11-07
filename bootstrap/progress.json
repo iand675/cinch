@@ -19357,21 +19357,21 @@
       {
         "title": "Run every Rust compiler target on the combined fixes",
         "status": "running",
-        "phase": "bootstrap_body_bindings",
-        "passed": 11,
+        "phase": "bootstrap_boolean_branches",
+        "passed": 12,
         "failed": 0,
         "total": 235,
         "source": "1a7e275f0519f670012f993304a975446020a814dc62bad21ec9244117a64d25"
       },
       {
         "title": "Bootstrap the consolidated compiler with named proofs",
-        "status": "running",
-        "phase": "checking fixed point and source change",
+        "status": "passed-consolidated-proof-ladder-awaiting-independent-audit",
+        "phase": "passed consolidated proof ladder awaiting independent audit",
         "passed": 4,
         "failed": 0,
         "total": 4,
         "source": "7e94e53cca26f1df764d79741a0fab9f8d4e8201c4d06d722b76a2790cd02454",
-        "auditPending": false
+        "auditPending": true
       },
       {
         "title": "Core checks erased Eq witnesses",
@@ -19445,7 +19445,7 @@
       },
       {
         "title": "Run four more original library and numeric targets with Stage3",
-        "status": "waiting-worker",
+        "status": "running",
         "phase": "Forty original tests retain their fixtures and assertions and use the selected frontend.",
         "passed": 0,
         "failed": 0,
@@ -19586,5 +19586,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T16:45:54.764990+00:00"
+  "updatedAt": "2026-11-07T16:49:37.084766+00:00"
 }
