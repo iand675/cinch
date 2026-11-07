@@ -18910,10 +18910,10 @@
       },
       {
         "title": "Cinch: staged generation through the full pipeline",
-        "status": "running",
+        "status": "failed",
         "phase": "bootstrap_pipeline",
         "passed": 0,
-        "failed": 0,
+        "failed": 1,
         "total": 1,
         "source": "c235f623e827246722a4160b67f0603970062db1f0bf47ad621e69835d47bafa"
       },
@@ -18964,16 +18964,16 @@
       },
       {
         "title": "Schema 9 bootstrap with the production pin",
-        "status": "waiting-disk-space",
-        "phase": "waiting disk space",
-        "passed": 0,
+        "status": "building-stage1",
+        "phase": "building stage1",
+        "passed": 1,
         "failed": 0,
         "total": 4,
         "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854"
       },
       {
         "title": "Ordering: compare interfaces from the same source",
-        "status": "waiting-worker",
+        "status": "stopped-before-test",
         "phase": "Cinch and Rust check the original module with the same dependency closure",
         "passed": 0,
         "failed": 0,
@@ -19002,5 +19002,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T10:07:02.905941+00:00"
+  "updatedAt": "2026-11-07T10:08:04.851739+00:00"
 }
