@@ -18933,10 +18933,10 @@
       },
       {
         "title": "Schema 10: corrected law decoder and typed constructor samples",
-        "status": "running",
+        "status": "failed",
         "phase": "bootstrap_source_instances",
         "passed": 0,
-        "failed": 0,
+        "failed": 1,
         "total": 1,
         "source": "24718a6babdacf7c42e7af1d5238b078d45eef768977a88f6e8335ea90623f04"
       },
@@ -19109,5 +19109,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T12:06:52.599421+00:00"
+  "updatedAt": "2026-11-07T12:07:54.543259+00:00"
 }
