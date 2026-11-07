@@ -19402,7 +19402,7 @@
       },
       {
         "title": "Run every Rust compiler target on the combined fixes",
-        "status": "waiting-worker",
+        "status": "waiting-disk-space",
         "phase": "bootstrap_checked_program",
         "passed": 17,
         "failed": 0,
@@ -19652,5 +19652,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T17:37:47.996980+00:00"
+  "updatedAt": "2026-11-07T17:40:30.229898+00:00"
 }
