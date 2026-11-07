@@ -1,0 +1,36 @@
+{
+  "schema": 1,
+  "status": "passed",
+  "scope": "Rust checked partial arrow constructors and library interfaces",
+  "verified_at": "2026-11-07T09:44:57.901901+00:00",
+  "native_source_sha256": "dc2dd19280f2e51d07e7b2995d40ddc230a8265eeb1e6e75446249cd51e1e0f0",
+  "source_snapshot_sha256": "dc20acd9ac6d0b326fe15349e4192861acaeb5653a85006a3582cd338ce0c0e4",
+  "base_snapshot_sha256": "d82baa8d99a5841ab2f37f24a877d279e8777a5f8ff6bb9436fa8bf61e3437c7",
+  "patch": "native-arrow-contract-development.patch",
+  "patch_sha256": "5e441c533c04c33c5cff66cdb3efb3ca637c4838bd733d042f9b79a6e75dbed5",
+  "patch_replays_exactly": true,
+  "before_fix": {
+    "exit_code": 101,
+    "expected_exit": 101,
+    "log_sha256": "b45648a7fb6afe65f9e1a5aef8f0a1bf2bf7c24c799febf40bfc871b11818fe7",
+    "name": "baseline",
+    "status": "passed"
+  },
+  "test": {
+    "exit_code": 0,
+    "log_sha256": "29660e83abf71e4e69c619a3d8449a4f355925985d8e04de81659c6a73a04e73",
+    "name": "interface_kinds",
+    "status": "passed"
+  },
+  "tests_passed": 3,
+  "provider_interfaces_verified": 55,
+  "provider_interfaces_sha256": "07aef422031247bd11418aac228bfc3cd6c8b5cbb172a7927773c5d8a38a599e",
+  "provider_object_sha256": "7adc36dd53729405c187e9af1ca1788473f23d950fabd104aa644fa4384749d0",
+  "checked_category_instances": {
+    "Category.Applicative": "forall (r :: Type). Category.Applicative.Applicative ((->) r)",
+    "Category.Functor": "forall (r :: Type). Category.Functor.Functor ((->) r)"
+  },
+  "category_source_replacement_verified": false,
+  "production_provider_changed": false,
+  "full_goal_complete": false
+}

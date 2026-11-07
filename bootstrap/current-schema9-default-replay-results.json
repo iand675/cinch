@@ -32,5 +32,34 @@
   "original_manifest_failure_log_sha256": "d12fa693285116b357d32890336df1cf79aa64ff7df53fcc6fc2c31569ebe83a",
   "full_bootstrap_verified": false,
   "full_suite_verified": false,
-  "production_pin_changed": false
+  "production_pin_changed": false,
+  "combined_candidate": {
+    "compiler_source_sha256": "8959030d54643c5c4c2898e4e1b389930f084753b1d7424c23d02f8c228dd918",
+    "source_snapshot_sha256": "5c097694d322a729f2e8cdaa8c51e8f3b95c6f26df79dc497caea834b5e7b392",
+    "compiler_modules": 44,
+    "rows": {
+      "check44": {
+        "exit_code": 0,
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "check44",
+        "status": "passed"
+      },
+      "separate-imported-default": {
+        "exit_code": 0,
+        "log_sha256": "afb9bbc9a90efc01159c9bf9631f607b4880f71c21a421da8b4f73bace81dc00",
+        "name": "separate-imported-default",
+        "status": "passed"
+      }
+    },
+    "test_source_sha256": "81de31d81414b046d47a13380a8a14d87f28e7e9c293d309b9232c94c63abd31",
+    "accepted": [
+      "Cinch producer to Cinch consumer",
+      "Rust producer to Cinch consumer with its checked dependencies"
+    ],
+    "refused": [
+      "method without a default",
+      "changed clauses under the original hash",
+      "digest-only default"
+    ]
+  }
 }

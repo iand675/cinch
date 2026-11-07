@@ -339,13 +339,18 @@ def build_checklist(root, cfg, previous=None):
     class_interface = read(cfg.get('classInterfaceParity'))
     class_interface_proof = read(root/'bootstrap/current-class-interface-exports-results.json')
     class_arrow_native = read(cfg.get('classArrowNative'))
+    class_arrow_proof = read(root/'bootstrap/current-native-arrow-contract-results.json')
+    schema9_original_overlays = read(cfg.get('schema9OriginalOverlays'))
+    stage_evaluation = read(cfg.get('stageEvaluation'))
+    stage_expansion = read(cfg.get('stageExpansion'))
     family_replay = read(cfg.get('arrowFamilyReplay'))
     gaps=[
         item('gap:prelude','Replace source copies of library modules safely','blocked' if integrated_overlay or stage3_failures_current or 'interface_prelude_overrides' in failed_api else 'pending',
+             'The Core family passed. Schema 9 transports the inherited Ordering default. The rebuilt Rust provider verifies all 55 interfaces and preserves both Category arrow instances. The exact four-family test is queued with this provider. Display scheme parity remains open.' if class_arrow_proof else
              'The Core family passed. Schema 9 transports the inherited Ordering default. The Cinch writer now matches Rust on class type and layout rows and keeps instance factories in the instance table. The Category instance head and display scheme still need matching output.' if class_interface_proof else
              'The integrated Stage3 passed the original Core family and reached Ordering, where the inherited mconcat implementation is unavailable. Category and Algebra still need matching results.' if integrated_overlay else
              'The earlier Stage3 refuses the original Data.Core source as a conflicting loaded interface. Development Data.Core emits the matching contract. Ordering, Category and Algebra still need their original replacement checks.' if stage3_failures_current else 'Data.Core emits the matching contract. Data.Ordering stops at the imported mconcat default. Category rejects the class laws and structural function instance. Algebra now resolves Nil, None, Cons and Some and stops at the class law.' if early_base else 'The development pipeline checks each original source family separately. Data.Core emits the matching contract. Data.Ordering stops at the imported mconcat default. Category rejects the class laws and structural function instance. Algebra rejects the class law and cannot resolve Nil, None, Cons or Some.' if source_overlay else 'The current interface/API run fails when source Data.Core is supplied alongside its cached interface. All four original families remain required.',
-             'Core, Ordering, Category and Algebra replacements pass with fresh checked provider hashes, valid consumer chains and no Prelude back-edge.',link('bootstrap/current-class-interface-exports-results.json' if class_interface_proof else stage3_failure_path if stage3_failures_current else 'bootstrap/current-source-overlay-family-probes.json' if source_overlay else 'bootstrap/current-source-prelude-counterexample.json')),
+             'Core, Ordering, Category and Algebra replacements pass with fresh checked provider hashes, valid consumer chains and no Prelude back-edge.',link('bootstrap/current-native-arrow-contract-results.json' if class_arrow_proof else 'bootstrap/current-class-interface-exports-results.json' if class_interface_proof else stage3_failure_path if stage3_failures_current else 'bootstrap/current-source-overlay-family-probes.json' if source_overlay else 'bootstrap/current-source-prelude-counterexample.json')),
         item('gap:source-defaults','Check and inherit source class defaults','running',default_detail if default_receipt else 'Development compiler8fce passes all15 controls in a retained-checker replay with the corrected Rust oracle; complete groups and runtime integration remain separate.',
              'All source default controls, unused errors, generic scopes, metadata stability, runtime and original class-default behavior pass.',link('bootstrap/current-source-class-default-development.json')),
         item('gap:type-term-scope','Keep term and type annotation names separate','running',
@@ -367,6 +372,7 @@ def build_checklist(root, cfg, previous=None):
              'With the two test-provider factories, the development compiler passes all seven original class-default tests. The original mconcat program also passes at 32 MiB with poisoning and zero leaks. Replay through final Stage3 remains.' if function_defaults.get('default_tests_passed') == 7 else 'The development compiler checks the original mconcat program. The replay needs a test library object with both checked function dictionary factories.',
              'The original function carrier, refined product and unit cases compile and execute their expected results through final Stage3.',link('bootstrap/current-function-default-api-results.json' if function_defaults else 'bootstrap/current-source-class-default-self-values-api-results.json')),
         item('gap:imported-defaults','Use one interface format for class defaults','running' if cfg.get('portableDefaultWork') else 'pending',
+             'The combined schema 9 candidate passed admission of all 44 compiler modules. Its full class-default test inherited checked Rust and Cinch defaults and rejected both tampered and digest-only artifacts. The staged bootstrap and remaining component groups are running.' if schema9_cross.get('combined_candidate') else
              'The schema 9 candidate uses one checked clause array per default. All 15 Rust default and interface tests passed. A Cinch-built consumer inherited both producers’ defaults, and the rebuilt provider verified all 55 library interfaces. The combined candidate is replaying the full component groups and preparing a fresh bootstrap.' if schema9_cross.get('status') == 'passed' else
              'The schema 9 candidate carries one checked clause array in each default. All 15 Rust default and interface tests passed, including the real mconcat body. The Cinch inheritance replay and library rebuild are tracked separately.' if schema9_native.get('status') == 'passed' else
              'The original Ordering bundle needs the inherited Monoid mconcat implementation. The schema 9 candidate carries the defining clauses and the importing compiler rechecks them.',
@@ -610,6 +616,9 @@ def build_checklist(root, cfg, previous=None):
         ('Schema 9: source admission, imported defaults, runtime and pipeline', schema9_validation, 5),
         ('Category: class type and dictionary export parity', class_interface, 1),
         ('Rust: preserve the structural arrow in instance contracts', class_arrow_native, 2),
+        ('Schema 9 Stage1: original four-family replacement test', schema9_original_overlays, 1),
+        ('Cinch: checked compile-time evaluation', stage_evaluation, 1),
+        ('Cinch: staged generation through the full pipeline', stage_expansion, 1),
     ):
         if run:
             rows = [r for r in run.get('rows', []) if not r['name'].startswith(('compile-', 'build-'))]
