@@ -18581,8 +18581,8 @@
       {
         "title": "Cinch partial Boolean implications: complete groups",
         "status": "running",
-        "phase": "bootstrap_refinement_core",
-        "passed": 4,
+        "phase": "bootstrap_refinement_constructors",
+        "passed": 5,
         "failed": 0,
         "total": 9,
         "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
@@ -18767,8 +18767,8 @@
       {
         "title": "Cinch defaults: full replay with function factories",
         "status": "running",
-        "phase": "interface_anonymous_contracts",
-        "passed": 0,
+        "phase": "interface_preconditions",
+        "passed": 4,
         "failed": 0,
         "total": 10,
         "source": "286613ea3571aebd6747def34f7a8f9d8af0c84c78e5fee82f9ca65ff90fe7e1",
@@ -18808,5 +18808,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T02:51:55.307339+00:00"
+  "updatedAt": "2026-11-07T02:52:57.667188+00:00"
 }
