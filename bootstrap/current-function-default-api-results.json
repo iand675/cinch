@@ -1,0 +1,113 @@
+{
+  "compiler_sha256": "dbdda27035f507e18fe8310d6071a363fe9ddc75cff97a2324aec7b619d042b1",
+  "compiler_source_sha256": "286613ea3571aebd6747def34f7a8f9d8af0c84c78e5fee82f9ca65ff90fe7e1",
+  "default_adapter_only_changes_outcome_dispatch": true,
+  "default_tests_failed": 0,
+  "default_tests_passed": 7,
+  "direct_native_annotation_controls": 11,
+  "failed_tests": 1,
+  "filtered": 0,
+  "full_goal_complete": false,
+  "groups": [
+    {
+      "failed_tests": 0,
+      "log_sha256": "bb419ece4d789dfa279d51ef99d9469408e9042a8911c1367c436e99b88d7516",
+      "name": "interface_anonymous_contracts",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "db553fa46e91552d492958a2ffb9bb798db18140af458c964199017c93d9f5d6",
+      "name": "interface_class_contracts",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "00229300938c65471572810fe49931db458a61e9fcffc1d8e55602ba40d1e061",
+      "name": "interface_kinds",
+      "passed_tests": 2,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "19915c02872af5fc48ed1d510b0d82f27f04f5ceb504164d526691915f82417d",
+      "name": "interface_nominals",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "223c29058825d65384af4269a637784cd29e56936584be735b504fb07e7e81e3",
+      "name": "interface_preconditions",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 1,
+      "log_sha256": "1f3a61a14b112c15609eee780d091b6edf5619ec72f2a4ecc6daa5849835de3f",
+      "name": "interface_prelude_overrides",
+      "passed_tests": 0,
+      "status": "failed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "ffdc76a0e19e78c6728adc85eef3f7fcac814512c7060d61cc5d8688c47c6aa8",
+      "name": "interface_refinement_closure",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "c7d48c40a932e1aaf68f33adaa718ef99209b06d714008180f27ef586da8e6d9",
+      "name": "interface_refinements",
+      "passed_tests": 4,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "bb972f8035c63b1fd47ff4984d624799eb3661d58e9f3504eeb3d280c3f15d0f",
+      "name": "interface_region_effects",
+      "passed_tests": 2,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "9f8971ca8bc898c4e8389eac29e0828c11c7b5b768bd3f91332b613e16427e70",
+      "name": "class_defaults",
+      "passed_tests": 7,
+      "status": "passed"
+    }
+  ],
+  "ignored": 0,
+  "mconcat_program": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/function-default-interface-api-1/fixtures/cinch_class_defaults_56955_6/.cinch-self-tests/56955-7/program",
+  "mconcat_program_sha256": "cca31aff6b4edc61bbfb3911642c4f168c6f92439be4fb81f4b71aaa56c8b1ba",
+  "mconcat_runtime": {
+    "compiler_source_sha256": "286613ea3571aebd6747def34f7a8f9d8af0c84c78e5fee82f9ca65ff90fe7e1",
+    "exit_code": 0,
+    "full_goal_complete": false,
+    "heap_limit": "32M",
+    "program_sha256": "cca31aff6b4edc61bbfb3911642c4f168c6f92439be4fb81f4b71aaa56c8b1ba",
+    "rc_debug": true,
+    "source_sha256": "82814c69a00447e6b35322098a9342748c490ee74875be77170291e9af4aec0d",
+    "status": "passed-original-mconcat-runtime",
+    "stderr_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+    "verified_at": "2026-11-07T03:04:21.047500+00:00",
+    "zero_leak_reports": 1
+  },
+  "mconcat_source_sha256": "82814c69a00447e6b35322098a9342748c490ee74875be77170291e9af4aec0d",
+  "native_source_sha256": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+  "original_default_tests": 6,
+  "original_tests_and_assertions_retained": true,
+  "passed_groups": 9,
+  "passed_tests": 20,
+  "provider_object_sha256": "7adc36dd53729405c187e9af1ca1788473f23d950fabd104aa644fa4384749d0",
+  "scope": "All 21 original API and class-default tests ran with actual Cinch2866 dispatch and the freshly built, pinned Native22 library-only provider. All seven default tests passed, including the unchanged function-carrier mconcat, refined product and empty unit. Eleven direct Native annotation controls retain their separate role. The original Data.Core replacement is the one failure. This verifies development behavior before final Stage3",
+  "source": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/function-default-interface-api-1/source",
+  "source_sha256": "3d16b0d6c5b14543c53b562fc4f9920c8a9796ebdb468d16b33a296faae06f6c",
+  "status": "audited-original-api-and-defaults-with-failures",
+  "total_tests": 21,
+  "verified_at": "2026-11-07T03:02:56.355500+00:00",
+  "whole_groups": 10
+}

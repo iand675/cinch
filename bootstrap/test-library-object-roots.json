@@ -19,6 +19,14 @@
     {
       "classes": "R",
       "symbol": "Data.List.FromList_List"
+    },
+    {
+      "classes": "OO",
+      "symbol": "Algebra.Monoid.Monoid_Function"
+    },
+    {
+      "classes": "OO",
+      "symbol": "Algebra.Semigroup.Semigroup_Function"
     }
   ],
   "methods": [],

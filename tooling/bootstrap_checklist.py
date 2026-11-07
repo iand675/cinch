@@ -278,6 +278,7 @@ def build_checklist(root, cfg, previous=None):
     default_full=read(cfg.get('sourceClassDefaultFullCompiler'))
     coverage_state=read(cfg.get('inferredCaseCoverageValidation'))
     coverage_runtime=read(cfg.get('inferredCaseCoverageRuntimeReceipt'))
+    function_defaults=read(cfg.get('functionDefaultApiReceipt'))
     default_detail='Latest75fb passes all seven complete default/dependent component groups (nine tests), all nine full compiler/object tests and both original strict-value runtime/build tests. Original API/default replay:16/21 tests pass; source-Prelude, three diagnostic assertions and the refinement runtime client remain failures. Imported checked default transport and matching final bootstrap remain required.'
     gaps=[
         item('gap:prelude','Replace source copies of library modules safely','blocked'if 'interface_prelude_overrides'in failed_api else'pending',
@@ -301,8 +302,8 @@ def build_checklist(root, cfg, previous=None):
              'Private28d2 now compiles the exact unchanged Box counterexample and executes7 at32M with poisoning and zero leaks. All9 full compiler/object tests and both exact44 source gates pass independent audit. All eight complete component groups (ten Rust tests) pass independent audit; all original tests and assertions are retained alongside eight Native-compared controls. Published3268 still awaits validated promotion and a matching bootstrap.',
              'Infer the checked constructor family without borrowing branch-local index equalities as global coverage proof; retain every existing indexed/GADT refusal and run the owned constructor client with zero leaks.',link('bootstrap/current-inferred-case-coverage-runtime-results.json')),
         item('gap:default-refinement','Preserve refinement carriers in the original default runtime program','running' if read(cfg.get('refinementContainerValidation')) else 'blocked',
-             'The2866 whole original replay remains19/21, but mconcat now passes frontend checking. Backend lowering requests genuine Semigroup_Function and Monoid_Function OO factory variants missing from the test library object. A fresh exact pinnedNative22 library-only provider now supplies both with ten checked physical symbols, all55 interface files and runtime bytes unchanged. The unchanged original full21 replay is queued against that new object. All8 component groups and all9 full compiler/object tests remain audited.',
-             'The original function carrier, refined product and unit cases compile and execute their expected results without guessing an underlying carrier.',link('bootstrap/current-source-class-default-self-values-api-results.json')),
+             'With the two test-provider factories, the development compiler passes all seven original class-default tests. The original mconcat program also passes at 32 MiB with poisoning and zero leaks. Replay through final Stage3 remains.' if function_defaults.get('default_tests_passed') == 7 else 'The development compiler checks the original mconcat program. The replay needs a test library object with both checked function dictionary factories.',
+             'The original function carrier, refined product and unit cases compile and execute their expected results through final Stage3.',link('bootstrap/current-function-default-api-results.json' if function_defaults else 'bootstrap/current-source-class-default-self-values-api-results.json')),
         item('gap:imported-defaults','Transport checked imported default implementations','pending','A default hash alone does not provide the checked implementation required by an inheriting source instance.',
              'Inherited imported defaults retain owner scope, private closure, actual method contracts and compiled behavior; missing or stale contracts refuse.',link('design/compiled-interface-metadata.md')),
         item('gap:laws','Elaborate source class laws and declarations','pending','Category and Algebra source probes reach this explicit refusal.',
@@ -364,6 +365,8 @@ def build_checklist(root, cfg, previous=None):
         ('partialBooleanInput','Core branch repair: complete Native44 source check',1,'build-'),
         ('sourceOriginOwnCompilerCheck','Diagnostic compiler: its own44 source modules',1,'build-'),
         ('partialBooleanOwnCompilerCheck','Core branch compiler: its own44 source modules',1,'build-'),
+        ('sourceOriginByteScan','Diagnostic byte scan: large-bundle control and full pipeline',2,'compile-'),
+        ('constructorPublicDisplay','Constructor display: interface and nominal tests',2,'compile-'),
         ('functionDefaultProvider','Function defaults: fresh pinned library object',1,'compile-'),
         ('additionalFixityValidation','Additional original fixity tests: actual Cinch frontend',1,'compile-')]:
         state=read(cfg.get(key))

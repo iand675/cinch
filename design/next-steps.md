@@ -70,10 +70,15 @@ change: mconcat now passes checking and reaches runtime-object lowering. Its
 checked Semigroup_Function and Monoid_Function OO factories are absent from the
 old test library object. A fresh object from the unchanged pinnedNative22
 library-only producer supplies both, with ten physical symbols checked and all55
-interface files plus runtime bytes unchanged. The unchanged full21 replay is
-queued against that object. The old failure remains recorded. See
+interface files plus runtime bytes unchanged. The unchanged replay with that
+object passes 20 of 21 tests, including all seven class-default tests. The
+original function-carrier, refined product and empty-unit program exits zero
+with a 32 MiB heap, allocation poisoning and zero leaks. The two checked
+factory roots are now declared in the test provider. Source-library replacement
+is the remaining replay failure. See
 `bootstrap/current-refinement-expected-result-api-results.json` and
-`bootstrap/current-function-default-library-provider-results.json`.
+`bootstrap/current-function-default-library-provider-results.json`. See also
+`bootstrap/current-function-default-api-results.json`.
 
 Candidate32ab repairs a Core branch-implication gap: a true conjunction and a
 false disjunction retain valid implications from the selected operand even if
