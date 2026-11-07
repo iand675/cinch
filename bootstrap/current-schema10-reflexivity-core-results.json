@@ -1,0 +1,17 @@
+{
+  "additional_core_assertions": 6,
+  "candidate": "79be67ef7d90617045081ff6bf3f89b3e3683788",
+  "compiler_source_sha256": "27b293abb19983b96b74a2fed57fcdc298e93989dd2fd7958a73f7f0cf4384aa",
+  "complete_core_target": "bootstrap_proof_terms",
+  "full_goal_complete": false,
+  "log_sha256": "15d661f1a723c37ecca7bbdf728a4044b11102049c733447ed35361dd2e07a94",
+  "native_source_sha256": "9022a54f85312db671f7ee14a89a7aa9b6dfcfa7c54010b6f304016ff3401f57",
+  "original_dynamic_nonces": 5,
+  "original_rust_test_sha256": "1a39fee76a5fad83b0425bc6cb5937857517cfff6a28fb17f6f4ceead66603cb",
+  "original_whole_tests": 1,
+  "proof_runner_sha256": "bea29cc6380fae75cd2a6e77ffda942eae56311b0775633aafe24c07c95b452c",
+  "schema": 1,
+  "scope": "The original complete Core proof target ran with all five runtime-fed nonces. Each execution also checks a true Eq witness and rejects false Eq, a mismatched proposition, True, a comparison-only predicate and runtime use of the erased witness. Source pipeline and named proofs are separate validations.",
+  "status": "passed-development-reflexivity-core",
+  "test_binary_sha256": "3d35d417f8f0541cb3c77db0e9c5f1810eb0f018bafc806c939773fbfe84058d"
+}

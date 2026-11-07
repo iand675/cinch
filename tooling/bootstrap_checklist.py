@@ -855,6 +855,7 @@ def build_checklist(root, cfg, previous=None):
         ('schema10DiagnosticScanValidation', 'Replay the full pipeline with the diagnostic byte scan', 2),
         ('schema10DiagnosticScanPipelineReplay', 'Retry the byte-scan pipeline with both runtime archives', 1),
         ('schema10ProofReflexivityValidation', 'Check erased Eq witnesses in Core and the source pipeline', 2),
+        ('schema10NamedProofValidation', 'Check closed named proofs and their original runtime example', 2),
     ):
         run = read(cfg.get(key))
         if run:
@@ -875,6 +876,13 @@ def build_checklist(root, cfg, previous=None):
             passed=int(bool(diagnostic_probe.get('stage1_sha256'))) + int(exit_code == 0),
             failed=int(exit_code not in (None, 0)), total=2,
             source=diagnostic_probe['compiler_source_sha256']))
+    reflexivity_path = 'bootstrap/current-schema10-reflexivity-core-results.json'
+    reflexivity = read(root/reflexivity_path)
+    if reflexivity.get('status') == 'passed-development-reflexivity-core':
+        active.append(dict(title='Core checks erased Eq witnesses', status='passed',
+            phase='The full original Core target passed with six additional assertions across all five runtime nonces.',
+            passed=1, failed=0, total=1, source=reflexivity['compiler_source_sha256'],
+            evidence=link(reflexivity_path)))
     replay_path = 'bootstrap/current-schema10-external-replay-results.json'
     replay = read(root/replay_path)
     if replay.get('status') == 'audited-external-language-replays':
