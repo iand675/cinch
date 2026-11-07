@@ -19342,6 +19342,16 @@
         "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a"
       },
       {
+        "title": "Replay the eight original List tests with the expanded pinned library",
+        "status": "passed",
+        "phase": "All 55 library interface identities were preserved. All eight original cases ran with zero leaks.",
+        "passed": 8,
+        "failed": 0,
+        "total": 8,
+        "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-expanded-list-results.json"
+      },
+      {
         "title": "Preserve numeric inference through local bindings",
         "status": "passed",
         "phase": "The original map-key fixture and both literal checks passed. The complete runtime group remains open.",
@@ -19674,5 +19684,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T18:39:22.859261+00:00"
+  "updatedAt": "2026-11-07T18:42:03.994233+00:00"
 }
