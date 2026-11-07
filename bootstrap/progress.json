@@ -18430,8 +18430,8 @@
       {
         "title": "Cinch constructor coverage: complete groups",
         "status": "running",
-        "phase": "bootstrap_value_indices",
-        "passed": 6,
+        "phase": "bootstrap_function_preconditions",
+        "passed": 7,
         "failed": 0,
         "total": 8,
         "source": "28d2abf7398291b1ecd4b905117858d454cabb8f5c217d7fc02a86993f51ad61",
@@ -18575,5 +18575,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T01:01:20.344029+00:00"
+  "updatedAt": "2026-11-07T01:02:22.314739+00:00"
 }
