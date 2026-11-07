@@ -1,0 +1,15 @@
+{
+  "status": "passed-audited-stage3-structural-projection-fixture",
+  "verified_at": "2026-11-07T08:16:45.395516+00:00",
+  "compiler_source_sha256": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+  "compiler_sha256": "09af398222f987deb9b35ea8b20fafca82617e7d51b8d381ee6604436811ee8a",
+  "cases": 18,
+  "whole_groups": 1,
+  "rust_tests": 1,
+  "test_sha256": "29f1c528b07ac7e6f3fc5eff44d882a8cf752e0f038fb3887c2eafff2d1bacbe",
+  "original_test_sha256": "2db541d49180c862b296ef30b50300bf7465e22b1e117dc9de41a3763e4503c4",
+  "patch_sha256": "856d3a5073af350dfdbe192b26e7fb99cf264aaf7b942b8b4e84d6f17c88aaac",
+  "log_sha256": "067348fcb672ff8d40b36172db6152c29e14e25a3cdaa092e97c05d873f74b1c",
+  "full_goal_complete": false,
+  "scope": "The unchanged Stage3 compiler runs the complete corrected fixture. Explicit projection succeeds, implicit structural projection refuses, and the stronger refinement still refuses for its intended predicate reason. The patch applies cleanly to the next integrated input."
+}

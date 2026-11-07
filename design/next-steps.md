@@ -213,9 +213,21 @@ See `bootstrap/current-task-law-bootstrap-integration-results.json` and
 `bootstrap/current-stage3-promotion-pipeline-512-results.json`.
 
 The exact verified 32ab Stage3 admitted all 44 combined modules in one
-check with empty diagnostics. The next pinned Stage0 through Stage3 run
-uses this frozen combined source. See
-`bootstrap/current-integrated-task-law-stage3-admission-results.json`.
+check with empty diagnostics. The fresh pinned Stage0 through Stage3 run
+on the frozen integrated source `5bf127d9` passed independent audit.
+Stage2 and Stage3 produced identical executables, LLVM IR and all 44
+interfaces. The changed compiler source reached the consumer, and Stage3
+checked a separate interface consumer. The complete Stage3 suite is
+running. Its original library replacement test gets through Core and
+stops when Ordering needs the inherited `mconcat` implementation. See
+`bootstrap/current-task-law-bootstrap-chain-results.json`.
+
+The corrected anonymous refinement fixture passed all 18 cases on the
+audited 32ab Stage3. It checks that an explicit `unrefine` returns the
+carrier, a bare structural result refuses, and the projected value still
+cannot prove a stronger predicate. The fixture patch applies to the
+integrated test source and needs its matching replay. See
+`bootstrap/current-structural-projection-stage3-results.json`.
 
 The base constructor formatter matches the complete `Data.Core` interface
 hash against the Native writer and matches the three isolated `Data.Ordering`

@@ -87,9 +87,10 @@ def build_checklist(root, cfg, previous=None):
     native = cfg.get('publishedNativeSource')
     full = read(cfg['native'])
     front_path = cfg['selected']
-    current_front = read(cfg.get('currentStage3FrontendValidation'))
-    if current_front.get('compiler_source_sha256') and current_front.get('rows'):
-        front_path = cfg['currentStage3FrontendValidation']
+    for key in ('currentStage3FrontendValidation', 'integratedStage3FrontendValidation'):
+        candidate_front = read(cfg.get(key))
+        if candidate_front.get('compiler_source_sha256') and candidate_front.get('rows'):
+            front_path = cfg[key]
     front = read(front_path)
     scope = read(cfg['coverage'])
     outside_review = read(root/'bootstrap/current-outside-frontend-target-review.json')
@@ -97,6 +98,9 @@ def build_checklist(root, cfg, previous=None):
     newer_chain = read(root/'bootstrap/current-partial-boolean-chain-results.json')
     if chain.get('compiler_source_sha256') != compiler and newer_chain.get('status') == 'passed-bootstrap-chain-only':
         chain = newer_chain
+    integrated_proof = read(cfg.get('integratedTaskLawChainReceipt'))
+    if chain.get('compiler_source_sha256') != compiler and integrated_proof.get('status') == 'passed-bootstrap-chain-only':
+        chain = integrated_proof
     earlier_full = read(cfg.get('previousNative')) or full
     earlier_native = {r['name']: r for r in earlier_full.get('rows', [])}
     old_native = {r['name']: r for r in full.get('rows', [])}
@@ -312,8 +316,14 @@ def build_checklist(root, cfg, previous=None):
     stage3_failures=read(root/stage3_failure_path)
     latest_chain=read(cfg.get('partialBooleanBootstrapChain'))
     stage3_failures_current=bool(stage3_failures) and stage3_failures.get('compiler_source_sha256') == latest_chain.get('compiler_source_sha256')
+    overlay_result = old_front.get('interface_prelude_overrides', {})
+    integrated_overlay = (integrated_proof.get('compiler_source_sha256') == front.get('compiler_source_sha256')
+                          and overlay_result.get('status') == 'failed' and overlay_result.get('log')
+                          and Path(overlay_result['log']).is_file()
+                          and 'does not define method mconcat' in Path(overlay_result['log']).read_text())
     default_detail='Latest75fb passes all seven complete default/dependent component groups (nine tests), all nine full compiler/object tests and both original strict-value runtime/build tests. Original API/default replay:16/21 tests pass; source-Prelude, three diagnostic assertions and the refinement runtime client remain failures. Imported checked default transport and matching final bootstrap remain required.'
     projection = read(cfg.get('structuralProjectionCases'))
+    projection_proof = read(cfg.get('structuralProjectionReceipt'))
     copyout = read(cfg.get('copyoutValidation'))
     laws = read(cfg.get('classLawObservationValidation'))
     arrow_receipt = read(cfg.get('arrowFormerReceipt'))
@@ -321,8 +331,9 @@ def build_checklist(root, cfg, previous=None):
     default_transport = read(cfg.get('portableDefaultValidation'))
     family_replay = read(cfg.get('arrowFamilyReplay'))
     gaps=[
-        item('gap:prelude','Replace source copies of library modules safely','blocked' if stage3_failures_current or 'interface_prelude_overrides' in failed_api else 'pending',
-             'Exact candidate Stage3 refuses the original Data.Core source as a conflicting loaded interface. Development Data.Core emits the matching contract. Ordering, Category and Algebra still need their original replacement checks.' if stage3_failures_current else 'Data.Core emits the matching contract. Data.Ordering stops at the imported mconcat default. Category rejects the class laws and structural function instance. Algebra now resolves Nil, None, Cons and Some and stops at the class law.' if early_base else 'The development pipeline checks each original source family separately. Data.Core emits the matching contract. Data.Ordering stops at the imported mconcat default. Category rejects the class laws and structural function instance. Algebra rejects the class law and cannot resolve Nil, None, Cons or Some.' if source_overlay else 'The current interface/API run fails when source Data.Core is supplied alongside its cached interface. All four original families remain required.',
+        item('gap:prelude','Replace source copies of library modules safely','blocked' if integrated_overlay or stage3_failures_current or 'interface_prelude_overrides' in failed_api else 'pending',
+             'The integrated Stage3 passed the original Core family and reached Ordering, where the inherited mconcat implementation is unavailable. Category and Algebra still need matching results.' if integrated_overlay else
+             'The earlier Stage3 refuses the original Data.Core source as a conflicting loaded interface. Development Data.Core emits the matching contract. Ordering, Category and Algebra still need their original replacement checks.' if stage3_failures_current else 'Data.Core emits the matching contract. Data.Ordering stops at the imported mconcat default. Category rejects the class laws and structural function instance. Algebra now resolves Nil, None, Cons and Some and stops at the class law.' if early_base else 'The development pipeline checks each original source family separately. Data.Core emits the matching contract. Data.Ordering stops at the imported mconcat default. Category rejects the class laws and structural function instance. Algebra rejects the class law and cannot resolve Nil, None, Cons or Some.' if source_overlay else 'The current interface/API run fails when source Data.Core is supplied alongside its cached interface. All four original families remain required.',
              'Core, Ordering, Category and Algebra replacements pass with fresh checked provider hashes, valid consumer chains and no Prelude back-edge.',link(stage3_failure_path if stage3_failures_current else 'bootstrap/current-source-overlay-family-probes.json' if source_overlay else 'bootstrap/current-source-prelude-counterexample.json')),
         item('gap:source-defaults','Check and inherit source class defaults','running',default_detail if default_receipt else 'Development compiler8fce passes all15 controls in a retained-checker replay with the corrected Rust oracle; complete groups and runtime integration remain separate.',
              'All source default controls, unused errors, generic scopes, metadata stability, runtime and original class-default behavior pass.',link('bootstrap/current-source-class-default-development.json')),
@@ -380,8 +391,9 @@ def build_checklist(root, cfg, previous=None):
              f"{len(outside_review.get('unreviewed_targets', []))} still need one. The original law, prim and concurrency source checks remain required.",
              'Review all remaining targets and assertions, retain direct Rust API roles explicitly, and add every missing portable behavior case to final Stage3 execution.',link('bootstrap/current-outside-frontend-target-review.json')),
         item('gap:structural-projection','Replay anonymous refinement contracts','running' if projection.get('status') == 'running' else 'recheck',
+             'The corrected target passed all 18 cases through audited Stage3. It checks explicit projection, refusal of implicit projection, and the original stronger-predicate refusal. Apply the fixture patch to the next integrated snapshot and rerun it.' if projection_proof else
              'The original sweep stops on an implicit projection from a structural refinement. Both compilers refuse that expression and accept explicit unrefine. The full replay includes both controls and retains the stronger-predicate refusal.',
-             'The complete anonymous-contract target passes through matching Stage3, including explicit projection and the exact refusal reasons.',link('compiler/tests/bootstrap_anonymous_contracts.rs')),
+             'The complete anonymous-contract target passes through matching Stage3, including explicit projection and the exact refusal reasons.',link('bootstrap/current-structural-projection-stage3-results.json' if projection_proof else 'compiler/tests/bootstrap_anonymous_contracts.rs')),
         item('gap:function-constructor','Replay higher-kinded function instances','recheck' if arrow_receipt else 'running',
              'The structural function constructor passes all three complete development groups. The unchanged Category family and matching final Stage3 still require their own results.' if arrow_receipt else
              'The original Category.Functor source needs the partially applied (->) type constructor.',
@@ -530,9 +542,13 @@ def build_checklist(root, cfg, previous=None):
         state=integrated_chain.get('status','')
         completed=sum(row['status']=='passed' for row in integrated_chain.get('stages',[]))
         finished=state.startswith('passed')
+        audited=(integrated_proof.get('status')=='passed-bootstrap-chain-only'
+                 and integrated_proof.get('compiler_source_sha256')==integrated_chain.get('compiler_source_sha256')
+                 and integrated_proof.get('source_sha256')==integrated_chain.get('source_sha256'))
         active.insert(0, dict(title='Integrated compiler: fresh bootstrap', status='running' if state.startswith(('building-', 'checking-')) else state,
-            phase=state.replace('-', ' '), passed=completed, failed=int(state.startswith('failed')), total=4,
-            source=integrated_chain.get('compiler_source_sha256'), auditPending=finished))
+            phase='Independent audit passed, including matching Stage2 and Stage3 and the changed-source control' if audited else state.replace('-', ' '),
+            passed=completed, failed=int(state.startswith('failed')), total=4,
+            source=integrated_chain.get('compiler_source_sha256'), auditPending=finished and not audited))
 
     if cinch_forwarder.get('status') == 'verified-task-forwarder-six-case-development-replay':
         active.append(dict(title='Cinch task forwarding: six-case source replay', status='passed',
@@ -556,11 +572,16 @@ def build_checklist(root, cfg, previous=None):
             phase=f"{language['positive_passed']}/13 valid programs and {language['negative_intended_reason_passed']}/21 exact refusal checks",
             passed=passed_cases, failed=34-passed_cases, total=34, source=language['compiler_source_sha256']))
 
-    candidate_frontend = read(cfg.get('currentStage3FrontendValidation'))
-    if candidate_frontend:
+    for key, title in (
+        ('currentStage3FrontendValidation', 'Earlier self-built Stage3: complete frontend sweep'),
+        ('integratedStage3FrontendValidation', 'Integrated self-built Stage3: complete frontend sweep'),
+    ):
+        candidate_frontend = read(cfg.get(key))
+        if not candidate_frontend:
+            continue
         rows = candidate_frontend.get('rows', [])
         status = candidate_frontend.get('status')
-        active.insert(1, dict(title='Earlier self-built Stage3: complete frontend sweep', status=status,
+        active.insert(1, dict(title=title, status=status,
             phase=candidate_frontend.get('phase') or ('Waiting for independent Stage3 audit' if status == 'waiting-matching-stage3-audit' else None),
             passed=sum(r.get('status') == 'passed' for r in rows),
             failed=sum(r.get('status') == 'failed' for r in rows),
