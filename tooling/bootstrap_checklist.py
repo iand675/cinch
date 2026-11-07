@@ -384,6 +384,7 @@ def build_checklist(root, cfg, previous=None):
         ('taskEffectDiagnostic','Cinch source effects: retain the Blocking label',1,'compile-'),
         ('taskTraceDiagnostics','Cinch task refusals: runtime-IR suite',1,'compile-'),
         ('taskTraceRuntimeReplay','Cinch task refusals: retained emitter, runtime setup and whole suite',3,'compile-'),
+        ('sourceInterfaceOverlay','Source-library replacement: complete pipeline and dependency checks',1,'compile-'),
         ('functionDefaultProvider','Function defaults: fresh pinned library object',1,'compile-'),
         ('additionalFixityValidation','Additional original fixity tests: actual Cinch frontend',1,'compile-')]:
         state=read(cfg.get(key))
@@ -411,6 +412,7 @@ def build_checklist(root, cfg, previous=None):
                 'sourceOriginByteScan': 'sourceOriginByteScanReceipt',
                 'constructorPublicDisplay': 'constructorPublicDisplayReceipt',
                 'nativeTaskLocalCapture': 'nativeTaskLocalCaptureReceipt',
+                'taskEffectDiagnostic': 'taskEffectDiagnosticReceipt',
             }
             receipt_key = completed_receipt_keys.get(key, receipt_key)
             receipt=read(cfg.get(receipt_key)) if receipt_key else annotation_receipt if key.startswith('nativeDefaultAnnotation') else default_receipt

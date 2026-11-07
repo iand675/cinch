@@ -1,0 +1,30 @@
+{
+  "compiler_modules": 44,
+  "compiler_source_sha256": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+  "full_goal_complete": false,
+  "scope": "The pinned Native seed built a runnable Stage1 from all exact Cinch compiler modules. Both smoke programs execute with their expected result and the invalid program gives the named refusal. Stage2, Stage3 and the fixed-point comparison remain distinct.",
+  "seed_revision": "85f00ca880f0d9882c03c65031424a05c81b11bc",
+  "seed_sha256": "0d0207aa2b487ffd6d45829b8402aa697ab69bcdcd6bc85890cbb8da0f15c1c6",
+  "source_sha256": "bcdef01e9e81352fa9c382da746c82acd0fd13b9ffbe1810bbfb9eecc0dbd27a",
+  "stage1_compiler_interfaces": 44,
+  "stage1_compiler_sha256": "a03aa73643988c855f4565fd092b25d1429222219ce949de8ae68bfc3818cb68",
+  "stage1_manifest_sha256": "6b0e8e9be2f213f26e304e8d2e1940910020af173eeb6b5d6805c7c5f2e5bcf2",
+  "stage1_smoke": {
+    "fib": {
+      "expected_exit": 0,
+      "program_sha256": "7f1fb4ee23908540e97929a491b811df99946c0f0eea1b7c22a0347be2874e4f",
+      "result": "passed"
+    },
+    "precedence": {
+      "expected_exit": 14,
+      "program_sha256": "907e323c345ff6008178545aba969e4175463edff68efef88aacff47a178c9cd",
+      "result": "passed"
+    },
+    "refusal": {
+      "diagnostics_sha256": "b698294553190462cdca3e4b6cef0939809d4f510c780ceb825d08ebeac903e0",
+      "result": "named-refusal"
+    }
+  },
+  "status": "verified-fresh-stage1",
+  "verified_at": "2026-11-07T03:55:40.223964+00:00"
+}

@@ -110,8 +110,9 @@ confirmed 17 foreign ABI clients and 50 zero-leak reports. The candidate also
 checked every one of its own 44 exact source modules with an empty executable
 search path, the 55 verified library interfaces, and zero leaks. All nine
 complete component groups pass, with 11 Rust tests exercising the Cinch
-components. The fresh rebuild has passed Stage0 smoke checks and is building
-Stage1. See
+components. The fresh rebuild passed Stage0 and Stage1 smoke checks. The Stage1
+audit matches all 44 source and interface identities, the pinned builder,
+and the exact executable. Stage1 is now building Stage2. See
 `bootstrap/current-partial-boolean-precondition-results.json` and
 `bootstrap/current-partial-boolean-input-results.json`. See also
 `bootstrap/current-partial-boolean-native-controls.json`,
@@ -119,6 +120,12 @@ Stage1. See
 `bootstrap/current-partial-boolean-own-source-results.json`,
 `bootstrap/current-partial-boolean-component-results.json` and
 `bootstrap/current-partial-boolean-branch-development-2.json`.
+See also `bootstrap/current-partial-boolean-stage1-results.json`.
+
+The complete source-effects target passes all 43 cases, including a foreign
+call whose declared row omits `Blocking`. Its diagnostic now retains both
+checked rows. The original concurrency replay remains a separate gate. See
+`bootstrap/current-task-effect-diagnostic-results.json`.
 
 All9 development patches apply in order to a fresh published-source snapshot,
 produce the exact32ab compiler-module bytes and preserve the published FFI test

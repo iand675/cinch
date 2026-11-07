@@ -1,0 +1,29 @@
+{
+  "compiler_source_sha256": "18b6c612b00f0cce16e50d645868efd31dcf627d13be8ae7ac7f18b5a947ddf7",
+  "full_goal_complete": false,
+  "native_source_sha256": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+  "original_source_cases": 42,
+  "patch_sha256": "d5442a654e40a30838b0c6dd63ec1d11febaad4e55f699722d79b900b24ac024",
+  "rows": [
+    {
+      "exit_code": 0,
+      "log_sha256": "c188fdc3ae18a650226f53dd549995ab2b0166c0297b876f3e506ca74b583d28",
+      "name": "compile-bootstrap_source_effects",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "291025248670ddd58efcdffb937ace335f34ec4c86b5f741c72b223443e2ba77",
+      "name": "bootstrap_source_effects",
+      "status": "passed"
+    }
+  ],
+  "rust_tests": 1,
+  "scope": "The closed effect-row checker retains the performed and declared rows in its existing refusal. The complete original source-effects target passes, with a new foreign-call control requiring the actual missing Blocking label. The first harness run hit an unbound Ok in its task fixture; the full original task replay and matching bootstrap remain required.",
+  "source": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/task-effect-diagnostic-validation-2/source",
+  "source_cases": 43,
+  "source_sha256": "4120c6ec12b0d2db762e7443135e1668fd3f58095ed6a70f7d267aaaf2d4087d",
+  "status": "verified-effect-row-diagnostic-development",
+  "verified_at": "2026-11-07T03:55:40.223964+00:00",
+  "whole_groups": 1
+}
