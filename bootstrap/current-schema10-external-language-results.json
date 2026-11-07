@@ -1,0 +1,304 @@
+{
+  "case_evidence": [
+    {
+      "assertion": "failed",
+      "first_diagnostic": null,
+      "mode": "check",
+      "name": "Html",
+      "stage3_exit": 4
+    },
+    {
+      "assertion": "failed",
+      "first_diagnostic": "bootstrap.resolve:3:3: this declaration requires further namespace elaboration",
+      "mode": "check",
+      "name": "Once",
+      "stage3_exit": 4
+    },
+    {
+      "assertion": "passed",
+      "first_diagnostic": null,
+      "mode": "check",
+      "name": "Query",
+      "stage3_exit": 4
+    },
+    {
+      "assertion": "passed",
+      "first_diagnostic": null,
+      "mode": "check",
+      "name": "Tasks",
+      "stage3_exit": 4
+    },
+    {
+      "assertion": "failed",
+      "first_diagnostic": null,
+      "mode": "check",
+      "name": "Proof",
+      "stage3_exit": 4
+    },
+    {
+      "assertion": "passed",
+      "first_diagnostic": null,
+      "mode": "check",
+      "name": "Format",
+      "stage3_exit": 4
+    },
+    {
+      "assertion": "failed",
+      "first_diagnostic": null,
+      "mode": "check",
+      "name": "Protocol",
+      "stage3_exit": 4
+    },
+    {
+      "assertion": "passed",
+      "first_diagnostic": null,
+      "mode": "check",
+      "name": "Differentiate",
+      "stage3_exit": 4
+    },
+    {
+      "assertion": "passed",
+      "first_diagnostic": null,
+      "mode": "check",
+      "name": "Reactive",
+      "stage3_exit": 4
+    },
+    {
+      "assertion": "passed",
+      "first_diagnostic": null,
+      "mode": "check",
+      "name": "Audio",
+      "stage3_exit": 4
+    },
+    {
+      "assertion": "passed",
+      "first_diagnostic": null,
+      "mode": "check",
+      "name": "Circuit",
+      "stage3_exit": 4
+    },
+    {
+      "assertion": "failed",
+      "first_diagnostic": "bootstrap.resolve:3:18: name is not in scope: delay",
+      "mode": "check",
+      "name": "ChoreographyState",
+      "stage3_exit": 4
+    },
+    {
+      "assertion": "failed",
+      "first_diagnostic": "bootstrap.resolve:3:18: name is not in scope: delay",
+      "mode": "check",
+      "name": "ChoreographyBranch",
+      "stage3_exit": 4
+    },
+    {
+      "assertion": "failed",
+      "first_diagnostic": "bootstrap.resolve:3:18: name is not in scope: delay",
+      "mode": "check",
+      "name": "ChoreographyWire",
+      "stage3_exit": 4
+    },
+    {
+      "assertion": "failed",
+      "first_diagnostic": "bootstrap.resolve:3:18: name is not in scope: delay",
+      "mode": "check",
+      "name": "ChoreographyReplay",
+      "stage3_exit": 4
+    },
+    {
+      "assertion": "failed",
+      "first_diagnostic": "bootstrap.resolve:8:18: name is not in scope: delay",
+      "mode": "check",
+      "name": "ChoreographyForge",
+      "stage3_exit": 4
+    },
+    {
+      "assertion": "passed",
+      "first_diagnostic": "bootstrap.check:6:167: type mismatch: expected 2, found 1 (index mismatch)",
+      "mode": "check",
+      "name": "TensorADShape",
+      "stage3_exit": 4
+    },
+    {
+      "assertion": "failed",
+      "first_diagnostic": "bootstrap.resolve:4:9: name is not in scope: Tensor.MkMatrix",
+      "mode": "check",
+      "name": "TensorPrivate",
+      "stage3_exit": 4
+    },
+    {
+      "assertion": "failed",
+      "first_diagnostic": "bootstrap.resolve:4:22: name is not in scope: Fin",
+      "mode": "check",
+      "name": "TacticsMissing",
+      "stage3_exit": 4
+    },
+    {
+      "assertion": "failed",
+      "first_diagnostic": "bootstrap.resolve:5:37: name is not in scope: Fin",
+      "mode": "check",
+      "name": "TacticsShadow",
+      "stage3_exit": 4
+    },
+    {
+      "assertion": "failed",
+      "first_diagnostic": "bootstrap.resolve:6:15: name is not in scope: refSet",
+      "mode": "check",
+      "name": "TacticsStale",
+      "stage3_exit": 4
+    },
+    {
+      "assertion": "passed",
+      "first_diagnostic": null,
+      "mode": "run",
+      "name": "Audio",
+      "stage3_exit": 0
+    },
+    {
+      "assertion": "failed",
+      "first_diagnostic": "bootstrap.resolve:8:18: name is not in scope: delay",
+      "mode": "run",
+      "name": "Choreography",
+      "stage3_exit": 4
+    },
+    {
+      "assertion": "passed",
+      "first_diagnostic": null,
+      "mode": "run",
+      "name": "Circuit",
+      "stage3_exit": 0
+    },
+    {
+      "assertion": "passed",
+      "first_diagnostic": null,
+      "mode": "run",
+      "name": "Differentiate",
+      "stage3_exit": 0
+    },
+    {
+      "assertion": "passed",
+      "first_diagnostic": null,
+      "mode": "run",
+      "name": "Format",
+      "stage3_exit": 0
+    },
+    {
+      "assertion": "failed",
+      "first_diagnostic": "bootstrap.runtime-ir:18:150: checked factory variant is absent from the runtime object: i.68_97_116_97_46_76_105_115_116_46_70_117_110_99_116_111_114_95_76_105_115_116_ []",
+      "mode": "run",
+      "name": "Html",
+      "stage3_exit": 5
+    },
+    {
+      "assertion": "failed",
+      "first_diagnostic": "bootstrap.resolve:3:3: this declaration requires further namespace elaboration",
+      "mode": "run",
+      "name": "Proof",
+      "stage3_exit": 4
+    },
+    {
+      "assertion": "failed",
+      "first_diagnostic": "bootstrap.resolve:3:156: this declaration requires further namespace elaboration",
+      "mode": "run",
+      "name": "Protocol",
+      "stage3_exit": 4
+    },
+    {
+      "assertion": "passed",
+      "first_diagnostic": null,
+      "mode": "run",
+      "name": "Query",
+      "stage3_exit": 0
+    },
+    {
+      "assertion": "failed",
+      "first_diagnostic": "bootstrap.runtime-ir:54:45: checked factory variant is absent from the runtime object: i.68_97_116_97_46_76_105_115_116_46_70_117_110_99_116_111_114_95_76_105_115_116_ []",
+      "mode": "run",
+      "name": "Reactive",
+      "stage3_exit": 5
+    },
+    {
+      "assertion": "failed",
+      "first_diagnostic": "bootstrap.resolve:8:24: name is not in scope: Fin",
+      "mode": "run",
+      "name": "Tactics",
+      "stage3_exit": 4
+    },
+    {
+      "assertion": "passed",
+      "first_diagnostic": null,
+      "mode": "run",
+      "name": "Tasks",
+      "stage3_exit": 0
+    },
+    {
+      "assertion": "failed",
+      "first_diagnostic": "bootstrap.runtime-ir:136:45: checked external variant is absent from the runtime object: i.68_97_116_97_46_76_105_115_116_46_109_97_112_ [OT]",
+      "mode": "run",
+      "name": "TensorAD",
+      "stage3_exit": 5
+    }
+  ],
+  "compiler_sha256": "db3ba254048bcf7e4d88d2e07053cb0528280886aa7fac8b4e774034d7f71395",
+  "compiler_source_sha256": "b59c4893c4214d1c94c624bf9ba3f9e99ee7eb9b9568c1f092b20e5080967b38",
+  "full_goal_complete": false,
+  "log_sha256": "caf0066bfb2a604b2c573471f98020a68c0d778f678a6e574fdd1d145efa152a",
+  "negative_intended_reason_passed": 8,
+  "negative_reason_failures": [
+    "Html",
+    "Once",
+    "Proof",
+    "Protocol",
+    "ChoreographyState",
+    "ChoreographyBranch",
+    "ChoreographyWire",
+    "ChoreographyReplay",
+    "ChoreographyForge",
+    "TensorPrivate",
+    "TacticsMissing",
+    "TacticsShadow",
+    "TacticsStale"
+  ],
+  "negative_refused": 21,
+  "original_behavioral_tests_sha256": "2d05c2b458f12a5e112121b2d4306b3db95c1b3500c6267000dd0e731f2c64a5",
+  "original_cases": 34,
+  "passing_runtime_artifacts": [
+    {
+      "binary_sha256": "dc68631819aa7bec94fcf79b66f7afed2016568d9c8a86517b2f1ee3001fde6b",
+      "example": "Audio"
+    },
+    {
+      "binary_sha256": "3fb0975fc363074400b61ba77ec4f1f91c90d046611d90c562432946cccf2728",
+      "example": "Circuit"
+    },
+    {
+      "binary_sha256": "650be44adad09b434057ae257b4a9e7ca212ecbf5a4c0797e7cea69cd10c5ff2",
+      "example": "Differentiate"
+    },
+    {
+      "binary_sha256": "a5ef813116391994e3abf6d1e7ab67bbf3a0c6fe50868b9d5fd697950cd0cfef",
+      "example": "Format"
+    },
+    {
+      "binary_sha256": "ca640c3dfe662711cdcfbaf7b21b8ca21f31e34b733c52ad0a377291e7efa82e",
+      "example": "Query"
+    },
+    {
+      "binary_sha256": "f74cea42088e593d10cada34ea6a778b19a881ed754307210ec4475858a604a0",
+      "example": "Tasks"
+    }
+  ],
+  "positive_failures": [
+    "Choreography",
+    "Html",
+    "Proof",
+    "Protocol",
+    "Reactive",
+    "Tactics",
+    "TensorAD"
+  ],
+  "positive_passed": 6,
+  "scope": "All 13 positive and 21 negative original examples used the audited schema 10 Stage3. The original tests check program outcomes, exact refusal reasons and source locations. Every passing positive retains its executable and ran under a poisoned 32 MiB heap.",
+  "source_sha256": "a65f0c5dd9353445053ed4f0162f5417ce47eab3786aa569313578a4d2b5d6c3",
+  "status": "audited-matching-stage3-external-behavior-with-failures"
+}

@@ -274,7 +274,7 @@ class BootstrapContract(unittest.TestCase):
                 self.assertEqual((directory / "link-report.txt").read_text(), "clang-exit: 0\nartifact-exit: 1\n")
                 inputs = bootstrap.read_json(directory / "stage.json")["inputs"]
                 self.assertEqual(inputs["frontend_mode"], "typed-ir-objects")
-                self.assertEqual(inputs["interface_output"], "checked-schema9")
+                self.assertEqual(inputs["interface_output"], "checked-schema10")
                 self.assertEqual(inputs["runtime_archive_sha256"], bootstrap.file_hash(runtime))
                 bootstrap.build_self(builder, files, directory, 1)
                 self.assertEqual(len(calls), 3, "identical frozen inputs should reuse the verified compiler")

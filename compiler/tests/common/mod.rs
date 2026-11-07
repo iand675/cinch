@@ -79,6 +79,8 @@ pub fn project(tag: &str, files: &[(&str, &str)]) -> PathBuf {
             ("Bootstrap.Export.cinch", include_str!("../../../bootstrap/Bootstrap.Export.cinch")),
             ("Bootstrap.ExportType.cinch", include_str!("../../../bootstrap/Bootstrap.ExportType.cinch")),
             ("Bootstrap.ExportNominal.cinch", include_str!("../../../bootstrap/Bootstrap.ExportNominal.cinch")),
+            ("Bootstrap.Stage.cinch", include_str!("../../../bootstrap/Bootstrap.Stage.cinch")),
+            ("Bootstrap.StageEval.cinch", include_str!("../../../bootstrap/Bootstrap.StageEval.cinch")),
         ] {
             std::fs::write(dir.join(name), source).expect("checked pipeline interface dependency");
         }

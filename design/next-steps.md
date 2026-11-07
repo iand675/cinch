@@ -1,12 +1,25 @@
 # Next steps (as of 2026-11-07)
 
-Schema 9 is on `main` with the matching library pin. Stage0 through Stage3
-passed their smoke tests. Stage2 and Stage3 agree on the executable, LLVM IR,
-and all 44 compiler interfaces. The separate consumer accepted the Stage3
-interfaces. The changed-source compiler produced the expected changed
-diagnostic. The independent audit verified the stage receipts and read
-back the two compiler-and-library interface sets in Rust. The full
-105-target frontend sweep is running. See [the bootstrap audit](../bootstrap/current-schema9-bootstrap-results.json).
+Schema 10 is the compiled-interface format on `main`. Rust, Cinch and the
+bootstrap verifier require it. The pinned library producer rebuilt all 55
+library interfaces. Rebuild old compiled interfaces and their dependent
+objects from source. The stricter Stage1 passed the original library-family
+checks and the format cutover checks. Its Stage2, Stage3 and full test sweep
+are tracked separately from the completed first schema 10 fixed point.
+See [the cutover checks](../bootstrap/current-schema10-family-and-cutover-results.json)
+and [the first schema 10 fixed point](../bootstrap/current-schema10-bootstrap-results.json).
+
+The first schema 10 Stage3 passed 6 of 13 original valid language examples.
+All 21 invalid examples were refused, with 8 meeting their original diagnostic
+and source-location assertions. Three valid programs reached code generation
+and requested missing library variants. A library rebuild and exact replay
+are in progress. The other four stopped during source checking.
+See [the original language-suite audit](../bootstrap/current-schema10-external-language-results.json).
+
+The schema 9 chain remains a historical checkpoint. Its four stages and
+smoke tests passed, including the Stage2 and Stage3 fixed point, separate
+interface consumer and changed-source test.
+See [the schema 9 audit](../bootstrap/current-schema9-bootstrap-results.json).
 
 The 105-target Stage3 run reproduced the unchanged Ordering replacement
 failure. `Relation.Ord` rejects the stale dependency on `Data.Ordering` after

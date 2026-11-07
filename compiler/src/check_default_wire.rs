@@ -37,6 +37,83 @@ impl Checker {
         MethodDefault::from_value(DefaultJson::Arr(clauses)).ok()
     }
 
+    fn portable_law_syntax(&self, source: &ast::Type, checked: &Ty, binders: &[&str]) -> Option<DefaultJson> {
+        match (source, checked) {
+            (ast::Type::Forall(parameters, body, _), _) => {
+                let mut scope = binders.to_vec();
+                scope.extend(parameters.iter().map(|parameter| parameter.name.text.as_str()));
+                let parameters = parameters.iter().map(|parameter| {
+                    let kind = match &parameter.ann {
+                        Some(annotation) => self.default_type(annotation)?,
+                        None => DefaultJson::Null,
+                    };
+                    Some(DefaultJson::Arr(vec![
+                        parameter.name.text.as_str().into(), DefaultJson::Bool(parameter.implicit), kind,
+                    ]))
+                }).collect::<Option<Vec<_>>>()?;
+                Some(default_node("LawForall", [DefaultJson::Arr(parameters), self.portable_law_syntax(body, checked, &scope)?]))
+            }
+            (ast::Type::DepFun(name, carrier, None, None, body, _), Ty::Pi { var, cod, .. }) if var == &name.text => {
+                let mut scope = binders.to_vec();
+                scope.push(var);
+                Some(default_node("LawArrow", [
+                    var.as_str().into(), self.default_type(carrier)?, self.portable_law_syntax(body, cod, &scope)?,
+                ]))
+            }
+            (ast::Type::Fun { arg, mult: None, eff: None, res, .. }, Ty::Fun(_, _, _, cod)) => {
+                Some(default_node("LawArrow", [
+                    DefaultJson::Null, self.default_type(arg)?, self.portable_law_syntax(res, cod, binders)?,
+                ]))
+            }
+            (_, Ty::Prp(proposition)) => match proposition.as_ref() {
+                PTerm::Eq(left, right) => Some(default_node("LawEquation", [
+                    self.portable_law_operand(left, binders)?, self.portable_law_operand(right, binders)?,
+                ])),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    fn portable_law_operand(&self, operand: &ITerm, binders: &[&str]) -> Option<DefaultJson> {
+        match operand {
+            ITerm::Var(name) if binders.contains(&name.as_str()) =>
+                Some(default_node("EVar", [name.as_str().into()])),
+            ITerm::Num(value) => Some(default_node("ELitInt", [value.as_str().into()])),
+            ITerm::Fn(name) => self.portable_law_global(name),
+            ITerm::Inst(call) if call.arguments.is_empty() => match &call.head {
+                IndexHead::Function(name) => self.portable_law_global(name),
+                _ => None,
+            },
+            ITerm::App(function, arguments) => {
+                let mut body = self.portable_law_operand(function, binders)?;
+                for argument in arguments {
+                    body = default_node("EApp", [body, self.portable_law_operand(argument, binders)?]);
+                }
+                Some(body)
+            }
+            ITerm::Lam(name, body) if !name.contains('.') => {
+                let mut scope = binders.to_vec();
+                scope.push(name);
+                let patterns = DefaultJson::Arr(vec![default_node("PVar", [name.as_str().into()])]);
+                Some(default_node("ELam", [patterns, self.portable_law_operand(body, &scope)?]))
+            }
+            _ => None,
+        }
+    }
+
+    fn portable_law_global(&self, identity: &str) -> Option<DefaultJson> {
+        let (owner, name) = identity.rsplit_once('.')?;
+        let value = self.qualified.get(&(owner.to_string(), name.to_string()))?.clone();
+        let constructor = matches!(value.kind, ValueKind::Ctor { .. } | ValueKind::BoolLit(_));
+        let name = self.default_value(value)?;
+        if constructor {
+            Some(default_node("ECon", [name.into(), default_node("EArgsEnd", [])]))
+        } else {
+            Some(default_node("EVar", [name.into()]))
+        }
+    }
+
     fn default_value(&self, value: ValueInfo) -> Option<String> {
         match value.kind {
             ValueKind::BoolLit(truth) => Some(if truth { "True" } else { "False" }.into()),

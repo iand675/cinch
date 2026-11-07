@@ -143,10 +143,68 @@ fn the_ladder_compiles_the_fib_example_with_itself() {
     assert_eq!(std::process::Command::new(dir.join("modules.bin")).status().unwrap().code(), Some(0));
 
     frontend_modes(&dir, &exe);
+    staged_sources(&dir, &exe);
     interface_output(&dir, &exe);
     refused_source(&dir, &exe);
     checked_interfaces(&dir, &exe);
     common::cleanup(&dir);
+}
+
+fn staged_sources(dir: &Path, exe: &Path) {
+    let source = dir.join("staged.cinch");
+    let prefix = dir.join("staged.ll");
+    let run = |mode: &str, text: &str| {
+        std::fs::write(&source, text).unwrap();
+        let args = vec![mode.into(), source.display().to_string(), prefix.display().to_string()];
+        let (exit, stderr) = run_built(exe, dir, &args);
+        let diagnostic = std::fs::read_to_string(dir.join("staged.ll.diagnostics")).unwrap_or_default();
+        (exit, format!("{diagnostic}{stderr}"))
+    };
+    let generated = "module Main where\n  stage bump :: Nat -> Nat\n  stage bump n = n + 2\n  stage count :: Nat\n  stage count = bump 40\n  generate do\n    emit (quoteDecls where\n      result :: Nat\n      result = $(quoteNat count))\n  main :: Int\n  main = if result == 42 && result / 2 == 21 then 0 else 1\n";
+    let (exit, diagnostic) = run("--check", generated);
+    assert_eq!(exit, Some(0), "stage-checked generation: {diagnostic}");
+    let (exit, diagnostic) = run("--emit-ir", generated);
+    assert_eq!(exit, Some(0), "emit the checked generated declaration through typed IR: {diagnostic}");
+    let runtime = Path::new(env!("CARGO_MANIFEST_DIR")).join("runtime/target/debug/libcinchruntime.a");
+    let artifact = dir.join("staged.bin");
+    let mut clang = std::process::Command::new("clang");
+    clang.arg(&prefix).arg(runtime).arg("-o").arg(&artifact);
+    if cfg!(target_os = "linux") { clang.args(["-ldl", "-lpthread", "-lm"]); }
+    let linked = clang.output().expect("link the staged program");
+    assert!(linked.status.success(), "{}", String::from_utf8_lossy(&linked.stderr));
+    let ran = std::process::Command::new(&artifact).env("CINCH_LEAK_CHECK", "1")
+        .output().expect("run the staged program");
+    let report = String::from_utf8_lossy(&ran.stderr);
+    assert_eq!(ran.status.code(), Some(0), "execute the checked generated declaration: {report}");
+    assert!(report.contains("live=0 immortal=0 leaked=0"), "{report}");
+
+    let guarded = "module Main where\n  divide :: Nat -> Nat -> Nat\n  divide value divisor = if divisor == 0 then 0 else value / divisor\n  main :: Int\n  main = 0\n";
+    let (exit, diagnostic) = run("--check", guarded);
+    assert_eq!(exit, Some(0), "nonzero divisor from the actual branch: {diagnostic}");
+    let unchecked = guarded.replace("if divisor == 0 then 0 else ", "");
+    let (exit, diagnostic) = run("--check", &unchecked);
+    assert_eq!(exit, Some(4), "unguarded divisor: {diagnostic}");
+    assert!(diagnostic.contains("division needs checked NonZero evidence"), "{diagnostic}");
+
+    let shadowed = generated.replacen("  stage bump ::", "  stage quoteNat :: Nat -> Nat\n  stage quoteNat n = n\n  stage bump ::", 1);
+    let (exit, diagnostic) = run("--check", &shadowed);
+    assert_eq!(exit, Some(4), "a stage function returned a number in a code splice: {diagnostic}");
+    assert!(diagnostic.contains("type mismatch"), "{diagnostic}");
+
+    let leaked = "module Main where\n  stage count :: Int\n  stage count = 42\n  main :: Int\n  main = count\n";
+    let (exit, diagnostic) = run("--check", leaked);
+    assert_eq!(exit, Some(4), "stage-only binding escaped: {diagnostic}");
+    assert!(diagnostic.contains("name is not in scope: count"), "{diagnostic}");
+
+    let runtime_capture = "module Main where\n  runtime-value :: Nat\n  runtime-value = 42\n  stage count :: Nat\n  stage count = runtime-value\n  main :: Int\n  main = 0\n";
+    let (exit, diagnostic) = run("--check", runtime_capture);
+    assert_eq!(exit, Some(4), "runtime-only binding used by stage code: {diagnostic}");
+    assert!(diagnostic.contains("name is not in scope: runtime-value"), "{diagnostic}");
+
+    let unavailable = "module Main where\n  foreign import ccall \"cinch.runtime.arrayReplicate\" copies :: forall a. Nat -> a -> Array a\n  foreign import ccall \"cinch.runtime.arrayLen\" size :: forall a. Array a -> Nat\n  stage count :: Nat\n  stage count = size (copies 2 (1 :: Int))\n  generate do\n    emit (quoteDecls where\n      result :: Nat\n      result = $(quoteNat count))\n  main :: Int\n  main = 0\n";
+    let (exit, diagnostic) = run("--check", unavailable);
+    assert_eq!(exit, Some(4), "compile-time array use: {diagnostic}");
+    assert!(diagnostic.contains("arrayReplicate") && diagnostic.contains("not available at compile time"), "{diagnostic}");
 }
 
 fn interface_output(dir: &Path, exe: &Path) {
@@ -466,6 +524,33 @@ fn checked_source_library_replacement(dir: &Path, exe: &Path, manifest: &Path, l
     assert_eq!(status, Some(4), "{diagnostics}");
     assert!(diagnostics.contains("class law involution failed for Restore_Bool on a Boolean sample"), "{diagnostics}");
     assert!(!dir.join("refused-boolean-law.LawExample.cinchif").exists());
+    let finite_law = r#"module EnumLaw where
+  data Comparison where
+    Less :: Comparison
+    Same :: Comparison
+    Greater :: Comparison
+  signature Combine a where
+    combine :: a -> a -> a
+    law associate :: (x :: a) -> (y :: a) -> (z :: a) -> Eq (combine (combine x y) z) (combine x (combine y z))
+  signature UnitOf a where
+    unit-of :: a
+    law left-unit :: (x :: a) -> Eq (combine unit-of x) x
+  implicit instance CombineComparison :: Combine Comparison where
+    combine x y = case x of Less -> Less; Same -> y; Greater -> Greater
+  implicit instance UnitComparison :: UnitOf Comparison where
+    unit-of = Same
+"#;
+    let (status, diagnostics) = invoke("--emit-interfaces", finite_law, "sampled-finite-law");
+    assert_eq!(status, Some(0), "{diagnostics}");
+    let sampled = load(&dir.join("sampled-finite-law.EnumLaw.cinchif"));
+    let law = |name: &str| sampled.laws.iter().find(|item| item.law == name).unwrap().status.as_str();
+    assert_eq!(law("associate"), "checked (27 samples)");
+    assert_eq!(law("left-unit"), "checked (3 samples)");
+    let wrong_unit = finite_law.replace("unit-of = Same", "unit-of = Greater");
+    let (status, diagnostics) = invoke("--emit-interfaces", &wrong_unit, "refused-finite-law");
+    assert_eq!(status, Some(4), "{diagnostics}");
+    assert!(diagnostics.contains("class law left-unit failed for UnitComparison on a finite constructor sample"), "{diagnostics}");
+    assert!(!dir.join("refused-finite-law.EnumLaw.cinchif").exists());
     let function_law = format!("{class_law}  implicit instance Restore_Function :: Restore (Int -> Int) where\n    restore f = f\n");
     let (status, diagnostics) = invoke("--emit-interfaces", &function_law, "unsampled-function-law");
     assert_eq!(status, Some(0), "{diagnostics}");

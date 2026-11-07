@@ -104,6 +104,14 @@ def build_checklist(root, cfg, previous=None):
     pinned_audit = read(root/'bootstrap/current-schema9-bootstrap-results.json')
     if pinned_audit.get('status') == 'passed-production-schema9-bootstrap-chain':
         chain = pinned_audit
+    schema10_audit_path = 'bootstrap/current-schema10-bootstrap-results.json'
+    schema10_audit = read(root/schema10_audit_path)
+    strict_audit_path = 'bootstrap/current-schema10-strict-bootstrap-results.json'
+    strict_audit = read(root/strict_audit_path)
+    if strict_audit.get('compiler_source_sha256') == compiler and strict_audit.get('status') == 'passed-production-schema10-bootstrap-chain':
+        chain = strict_audit
+    elif schema10_audit.get('status') == 'passed-production-schema10-bootstrap-chain':
+        chain = schema10_audit
     earlier_full = read(cfg.get('previousNative')) or full
     earlier_native = {r['name']: r for r in earlier_full.get('rows', [])}
     old_native = {r['name']: r for r in full.get('rows', [])}
@@ -289,7 +297,8 @@ def build_checklist(root, cfg, previous=None):
     chain_matches = chain.get('compiler_source_sha256')==compiler
     acceptance=[]
     for i,(title,requirement)in enumerate(acceptance_text,1):
-        proven = i < 5 and chain.get('status') in ('passed-bootstrap-chain-only', 'passed-production-schema9-bootstrap-chain')
+        proven = i < 5 and chain.get('status') in ('passed-bootstrap-chain-only', 'passed-production-schema9-bootstrap-chain',
+                                                  'passed-production-schema10-bootstrap-chain')
         state = 'verified' if chain_matches and proven else 'recheck' if proven else 'pending'
         if state == 'verified':
             detail = 'The independent audit passed for the published compiler.'
@@ -297,7 +306,14 @@ def build_checklist(root, cfg, previous=None):
             detail = 'The audit passed for earlier compiler ' + chain.get('compiler_source_sha256','unknown')[:8] + '.'
         else:
             detail = 'Complete matching verification is pending.'
-        receipt = 'bootstrap/current-schema9-bootstrap-results.json' if proven and chain is pinned_audit else 'design/self-hosting.md#acceptance'
+        receipt = 'design/self-hosting.md#acceptance'
+        if proven:
+            if chain is strict_audit:
+                receipt = strict_audit_path
+            elif chain is schema10_audit:
+                receipt = schema10_audit_path
+            elif chain is pinned_audit:
+                receipt = 'bootstrap/current-schema9-bootstrap-results.json'
         acceptance.append(item('acceptance:'+str(i),str(i)+'. '+title,state,detail,
             requirement,link(receipt), observed=dict(status='passed'if proven else'pending',source=chain.get('compiler_source_sha256'),cases=[])))
 
@@ -344,9 +360,11 @@ def build_checklist(root, cfg, previous=None):
     schema9_provider = read(cfg.get('unifiedDefaultProvider'))
     schema9_chain = read(cfg.get('unifiedDefaultChain'))
     schema9_cross = read(root/'bootstrap/current-schema9-default-replay-results.json')
-    format_switch = read(root/'bootstrap/current-interface-format-switch-results.json')
-    unified_format = (format_switch.get('status') == 'passed' and
-                      format_switch.get('compiler_source_sha256') == compiler)
+    family_audit_path = 'bootstrap/current-schema10-family-and-cutover-results.json'
+    family_audit = read(root/family_audit_path)
+    cutover = family_audit.get('format_cutover', {})
+    unified_format = (cutover.get('status') == 'passed'
+                      and family_audit.get('compiler_source_sha256') == compiler)
     stage_syntax = read(root/'bootstrap/current-staging-surface-results.json')
     class_interface = read(cfg.get('classInterfaceParity'))
     class_interface_proof = read(root/'bootstrap/current-class-interface-exports-results.json')
@@ -405,12 +423,12 @@ def build_checklist(root, cfg, previous=None):
              'The original function carrier, refined product and unit cases compile and execute their expected results through final Stage3.',link('bootstrap/current-function-default-api-results.json' if function_defaults else 'bootstrap/current-source-class-default-self-values-api-results.json')),
         item('gap:imported-defaults','Use one interface format for Rust and Cinch',
              'verified' if unified_format else 'running' if cfg.get('portableDefaultWork') else 'pending',
-             'Both compilers read and write schema 9. The checked class-default body travels with the interface. Real schema 8 files and fingerprint-only defaults were refused. The pinned producer rebuilt the 55 library interfaces.' if unified_format else
+             'Rust, Cinch and the verifier require schema 10. A real schema 9 file and fingerprint-only defaults were refused. The pinned producer rebuilt all 55 library interfaces.' if unified_format else
              'The combined schema 9 candidate passed admission of all 44 compiler modules. Its full class-default test inherited checked Rust and Cinch defaults and rejected both tampered and digest-only artifacts. The staged bootstrap and remaining component groups are running.' if schema9_cross.get('combined_candidate') else
              'The schema 9 candidate uses one checked clause array per default. All 15 Rust default and interface tests passed. A Cinch-built consumer inherited both producers’ defaults, and the rebuilt provider verified all 55 library interfaces. The combined candidate is replaying the full component groups and preparing a fresh bootstrap.' if schema9_cross.get('status') == 'passed' else
              'The schema 9 candidate carries one checked clause array in each default. All 15 Rust default and interface tests passed, including the real mconcat body. The Cinch inheritance replay and library rebuild are tracked separately.' if schema9_native.get('status') == 'passed' else
              'The original Ordering bundle needs the inherited Monoid mconcat implementation. The schema 9 candidate carries the defining clauses and the importing compiler rechecks them.',
-             'Rebuild library interfaces in the same format both compilers use and verify that obsolete formats are refused.',link('bootstrap/current-interface-format-switch-results.json' if unified_format else 'bootstrap/current-schema9-default-replay-results.json' if schema9_cross else 'design/compiled-interface-metadata.md')),
+             'Rebuild library interfaces in the same format both compilers use and verify that obsolete formats are refused.',link(family_audit_path if unified_format else 'bootstrap/current-schema9-default-replay-results.json' if schema9_cross else 'design/compiled-interface-metadata.md')),
         item('gap:laws','Elaborate source class laws and declarations','running',
              'The separate imported-law replay reached the checker and exposed an incorrect terminator on a named law binder. The corrected candidate parses and is queued with Nat and generic constructor-field counterexamples.' if typed_law else
              'The pipeline and interface-writer groups passed audit. A lawful Boolean implementation reports two checked samples, an unlawful one refuses by name, and the unsampled function carrier is explicitly reported as unchecked. General sampling and imported law declarations remain open.' if law_receipt else
@@ -634,7 +652,7 @@ def build_checklist(root, cfg, previous=None):
     for key, title in (
         ('currentStage3FrontendValidation', 'Earlier self-built Stage3: complete frontend sweep'),
         ('integratedStage3FrontendValidation', 'Integrated self-built Stage3: complete frontend sweep'),
-        ('schema9Stage3FrontendValidation', 'Published schema 9 Stage3: all 105 frontend targets'),
+        ('schema9Stage3FrontendValidation', 'Earlier schema 9 Stage3: all 105 frontend targets'),
     ):
         candidate_frontend = read(cfg.get(key))
         if not candidate_frontend:
@@ -777,12 +795,11 @@ def build_checklist(root, cfg, previous=None):
     successor = read(cfg.get('schema10SuccessorChain'))
     if successor:
         status = successor['status']
-        active.append(dict(title='Bootstrap the stricter schema 10 candidate', status=status, phase=status.replace('-', ' '),
+        active.append(dict(title='Bootstrap the schema 10 compiler on main' if successor.get('compiler_source_sha256') == compiler else 'Bootstrap the stricter schema 10 candidate',
+            status=status, phase=status.replace('-', ' '),
             passed=sum(row.get('status') == 'passed' for row in successor.get('stages', [])),
             failed=int(status.startswith('failed')), total=4, source=successor['compiler_source_sha256']))
     families = read(cfg.get('schema10SuccessorStage1Families'))
-    family_audit_path = 'bootstrap/current-schema10-family-and-cutover-results.json'
-    family_audit = read(root/family_audit_path)
     if families:
         status = families['status']
         active.append(dict(title='Replay the original library families with the rebuilt provider', status=status,
@@ -790,7 +807,6 @@ def build_checklist(root, cfg, previous=None):
             passed=int(status == 'passed-original-schema10-family-overlays'), failed=int(status.startswith('failed')),
             total=1, source=families['compiler_source_sha256'],
             evidence=link(family_audit_path) if family_audit.get('compiler_source_sha256') == families['compiler_source_sha256'] else None))
-    cutover = family_audit.get('format_cutover', {})
     if cutover.get('status') == 'passed':
         active.append(dict(title='Check the schema 10 cutover in Rust, Cinch and Python', status='passed',
             phase='The real schema 9 file, the old default encoding and both malformed schema 10 files refused.',
@@ -808,11 +824,23 @@ def build_checklist(root, cfg, previous=None):
             passed=body_replay['passed'], failed=0, total=body_replay['total'],
             source=body_replay['compiler_source_sha256'], evidence=link(stage3_audit_path)))
     language = read(cfg.get('schema10Stage3Language'))
+    language_audit_path = 'bootstrap/current-schema10-external-language-results.json'
+    language_audit = read(root/language_audit_path)
     if language:
         status = language['status']
-        active.append(dict(title='Run all 34 original language examples with schema 10 Stage3', status=status,
-            phase=status.replace('-', ' '), passed=34 if status == 'passed' else None,
-            failed=0 if status == 'passed' else None, total=34, source=language['compiler_source_sha256']))
+        audited = (language_audit.get('compiler_source_sha256') == language['compiler_source_sha256']
+                   and language_audit.get('compiler_sha256') == language.get('compiler_sha256')
+                   and language_audit.get('original_cases') == 34)
+        passed_cases = 34 if status == 'passed' else None
+        phase = status.replace('-', ' ')
+        if audited:
+            passed_cases = language_audit['positive_passed'] + language_audit['negative_intended_reason_passed']
+            phase = (f"{language_audit['positive_passed']}/13 valid programs passed. "
+                     f"All {language_audit['negative_refused']} invalid programs refused. "
+                     f"{language_audit['negative_intended_reason_passed']}/21 met the original diagnostic assertions.")
+        active.append(dict(title='First schema 10 Stage3: all 34 original language examples', status=status,
+            phase=phase, passed=passed_cases, failed=34-passed_cases if passed_cases is not None else None,
+            total=34, source=language['compiler_source_sha256'], evidence=link(language_audit_path) if audited else None))
     external_acceptance = read(cfg.get('schema10Stage3ExternalAcceptance'))
     external_audit_path = 'bootstrap/current-schema10-external-acceptance-results.json'
     external_audit = read(root/external_audit_path)

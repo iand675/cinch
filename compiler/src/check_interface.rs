@@ -6,9 +6,18 @@
 #[derive(Clone)]
 struct DefinitionScheme {
     text: String,
+    display: Option<String>,
     references: std::collections::BTreeSet<(String, String)>,
     con_params: Vec<(String, usize)>,
     measure_calls: std::collections::BTreeSet<String>,
+    instance_header: Option<DefinitionInstanceHeader>,
+}
+
+#[derive(Clone)]
+struct DefinitionInstanceHeader {
+    class: String,
+    target: String,
+    context: Vec<String>,
 }
 
 // Every portable predicate binder retains its actual checked carrier sort.
@@ -276,12 +285,30 @@ impl Checker {
         let Some((predicates, measure_calls)) = self.resolved_numeric_preconditions(body, scheme) else { return };
         context.extend(predicates);
         let text = if class_target { self.resolved_source_class_type(body, scheme, &vars, &mut references) }
-            else { self.resolved_checked_source_type(body, &scheme.ty, scheme, &vars, &mut references, &[]) };
-        let Some(mut text) = text else { return };
-        if !context.is_empty() { text = format!("using ({}) => {text}", context.join(", ")); }
-        if !prefix.is_empty() { text = format!("forall {}. {text}", prefix.join(" ")); }
+            else { self.resolved_checked_source_type(body, &scheme.ty, scheme, &vars, &mut references, &[], false) };
+        let Some(text) = text else { return };
+        // Proof obligations use the existing positional display renderer.
+        // Plain value displays share the checked owners and quantified kinds
+        // while retaining the flat type applications used in public output.
+        let display = if !class_target && class.is_none() && scheme.obligs.is_empty() {
+            self.resolved_checked_source_type(body, &scheme.ty, scheme, &vars, &mut references, &[], true)
+        } else {
+            None
+        };
+        let instance_header = class_target.then(|| {
+            // The checked class resolver emits its defining identity first.
+            let class = text.split_once(' ').map_or(text.as_str(), |(owner, _)| owner);
+            DefinitionInstanceHeader { class: class.to_owned(), target: text.clone(), context: context.clone() }
+        });
+        let render = |mut body| {
+            if !context.is_empty() { body = format!("using ({}) => {body}", context.join(", ")); }
+            if !prefix.is_empty() { body = format!("forall {}. {body}", prefix.join(" ")); }
+            body
+        };
+        let text = render(text);
+        let display = display.map(render);
         self.interface_source_schemes.insert((module.to_string(), name.to_string()), DefinitionScheme {
-            text, references, con_params: scheme.con_params.clone(), measure_calls,
+            text, display, references, con_params: scheme.con_params.clone(), measure_calls, instance_header,
         });
     }
 
@@ -321,7 +348,7 @@ impl Checker {
         if class.param_kinds.iter()
             .any(|k| !matches!(k, ParamKind::Type | ParamKind::Con(_))) { return None }
         references.insert((class.module.clone(), class.name.clone()));
-        let args = arguments.iter().map(|ty| self.resolved_source_type(ty, scheme, vars, references))
+        let args = arguments.iter().map(|ty| self.resolved_source_type(ty, scheme, vars, references, false))
             .collect::<Option<Vec<_>>>()?;
         let args = args.iter().map(|t| format!(" {t}")).collect::<String>();
         Some(format!("{}.{}{args}", class.module, class.name))
@@ -350,7 +377,7 @@ impl Checker {
 
     fn resolved_source_type(
         &self, source: &ast::Type, scheme: &Scheme, vars: &[String],
-        references: &mut std::collections::BTreeSet<(String, String)>,
+        references: &mut std::collections::BTreeSet<(String, String)>, display: bool,
     ) -> Option<String> {
         Some(match source {
             ast::Type::Con(path, _) => {
@@ -381,20 +408,31 @@ impl Checker {
             // Literal index syntax is retained; the consumer checks its
             // actual argument kind and numerical carrier.
             ast::Type::Num(number, _) => number.clone(),
-            ast::Type::App(f, x, _) => format!("({} {})",
-                self.resolved_source_type(f, scheme, vars, references)?,
-                self.resolved_source_type(x, scheme, vars, references)?),
+            ast::Type::App(f, x, _) if !display => format!("({} {})",
+                self.resolved_source_type(f, scheme, vars, references, display)?,
+                self.resolved_source_type(x, scheme, vars, references, display)?),
+            ast::Type::App(..) => {
+                let mut head = source;
+                let mut args = Vec::new();
+                while let ast::Type::App(f, arg, _) = head {
+                    args.push(self.resolved_source_type(arg, scheme, vars, references, display)?);
+                    head = f;
+                }
+                args.push(self.resolved_source_type(head, scheme, vars, references, display)?);
+                args.reverse();
+                format!("({})", args.join(" "))
+            }
             ast::Type::Fun { arg, res, mult: None, eff, .. } => {
                 let effects = match eff {
                     None => String::new(),
                     Some(row) => self.resolved_kernel_effect_row(row, scheme, vars)?,
                 };
-                format!("({} ->{} {})", self.resolved_source_type(arg, scheme, vars, references)?,
-                    effects, self.resolved_source_type(res, scheme, vars, references)?)
+                format!("({} ->{} {})", self.resolved_source_type(arg, scheme, vars, references, display)?,
+                    effects, self.resolved_source_type(res, scheme, vars, references, display)?)
             },
             ast::Type::DepFun(name, domain, None, row, result, _) => {
                 if vars.contains(&name.text) { return None }
-                let domain = self.resolved_source_type(domain, scheme, vars, references)?;
+                let domain = self.resolved_source_type(domain, scheme, vars, references, display)?;
                 let mut bound = vars.to_vec();
                 bound.push(name.text.clone());
                 let effects = match row {
@@ -402,11 +440,11 @@ impl Checker {
                     Some(row) => self.resolved_kernel_effect_row(row, scheme, &bound)?,
                 };
                 format!("(({} :: {}) ->{} {})", name.text, domain, effects,
-                    self.resolved_source_type(result, scheme, &bound, references)?)
+                    self.resolved_source_type(result, scheme, &bound, references, display)?)
             }
             ast::Type::Unit(_) => "()".to_string(),
             ast::Type::Tuple(items, _) => format!("({})", items.iter()
-                .map(|t| self.resolved_source_type(t, scheme, vars, references))
+                .map(|t| self.resolved_source_type(t, scheme, vars, references, display))
                 .collect::<Option<Vec<_>>>()?.join(", ")),
             // Preserve the display contract, with an explicit refusal in
             // the consumer, rather than erasing an unsupported obligation.
@@ -421,7 +459,7 @@ impl Checker {
     fn resolved_checked_source_type(
         &self, source: &ast::Type, checked: &Ty, scheme: &Scheme, vars: &[String],
         references: &mut std::collections::BTreeSet<(String, String)>,
-        arguments: &[(Option<String>, Ty)],
+        arguments: &[(Option<String>, Ty)], display: bool,
     ) -> Option<String> {
         fn carries_predicates(ty: &Ty) -> bool {
             match ty {
@@ -436,7 +474,7 @@ impl Checker {
         // Keep existing canonical application parentheses for contracts
         // without predicates. Only logical structure needs checked printing.
         if !carries_predicates(checked) {
-            return self.resolved_source_type(source, scheme, vars, references);
+            return self.resolved_source_type(source, scheme, vars, references, display);
         }
         // Print propositions from their checked structure. Operator source
         // syntax has already been resolved into application spines, whose
@@ -467,7 +505,7 @@ impl Checker {
             let Ty::Adt(name, args) = checked else { return None };
             let [Ty::Prp(original), carrier] = args.as_slice() else { return None };
             if name != "refined" || source_args.len() != 2 { return None }
-            let carrier_text = self.resolved_checked_source_type(source_args[1], carrier, scheme, vars, references, arguments)?;
+            let carrier_text = self.resolved_checked_source_type(source_args[1], carrier, scheme, vars, references, arguments, display)?;
             let binder = crate::types::pred_binder(original);
             let mut free = Vec::new();
             original.free_vars(&mut free);
@@ -494,34 +532,34 @@ impl Checker {
         }
         match (source, checked) {
             (ast::Type::Fun { arg, res, mult: None, eff, .. }, Ty::Fun(domain, _, _, codomain)) => {
-                let domain_text = self.resolved_checked_source_type(arg, domain, scheme, vars, references, arguments)?;
+                let domain_text = self.resolved_checked_source_type(arg, domain, scheme, vars, references, arguments, display)?;
                 let effects = match eff { None => String::new(), Some(row) => self.resolved_kernel_effect_row(row, scheme, vars)? };
                 let mut next = arguments.to_vec();
                 next.push((None, (**domain).clone()));
-                let result = self.resolved_checked_source_type(res, codomain, scheme, vars, references, &next)?;
+                let result = self.resolved_checked_source_type(res, codomain, scheme, vars, references, &next, display)?;
                 Some(format!("({domain_text} ->{effects} {result})"))
             }
             (ast::Type::DepFun(name, domain, None, row, result, _), Ty::Fun(dom, _, _, cod) | Ty::Pi { dom, cod, .. }) => {
                 if vars.contains(&name.text) { return None }
-                let domain_text = self.resolved_checked_source_type(domain, dom, scheme, vars, references, arguments)?;
+                let domain_text = self.resolved_checked_source_type(domain, dom, scheme, vars, references, arguments, display)?;
                 let mut bound = vars.to_vec();
                 bound.push(name.text.clone());
                 let mut next = arguments.to_vec();
                 next.push((Some(name.text.clone()), (**dom).clone()));
                 let effects = match row { None => String::new(), Some(row) => self.resolved_kernel_effect_row(row, scheme, &bound)? };
-                let result = self.resolved_checked_source_type(result, cod, scheme, &bound, references, &next)?;
+                let result = self.resolved_checked_source_type(result, cod, scheme, &bound, references, &next, display)?;
                 Some(format!("(({} :: {domain_text}) ->{effects} {result})", name.text))
             }
             (ast::Type::Tuple(items, _), Ty::Tuple(types)) if items.len() == types.len() => {
-                let items = items.iter().zip(types).map(|(s, t)| self.resolved_checked_source_type(s, t, scheme, vars, references, arguments)).collect::<Option<Vec<_>>>()?;
+                let items = items.iter().zip(types).map(|(s, t)| self.resolved_checked_source_type(s, t, scheme, vars, references, arguments, display)).collect::<Option<Vec<_>>>()?;
                 Some(format!("({})", items.join(", ")))
             }
             (ast::Type::App(..), Ty::Adt(_, types) | Ty::App(_, types)) if source_args.len() == types.len() => {
-                let head = self.resolved_source_type(head, scheme, vars, references)?;
-                let args = source_args.iter().zip(types).map(|(s, t)| self.resolved_checked_source_type(s, t, scheme, vars, references, arguments)).collect::<Option<Vec<_>>>()?;
+                let head = self.resolved_source_type(head, scheme, vars, references, display)?;
+                let args = source_args.iter().zip(types).map(|(s, t)| self.resolved_checked_source_type(s, t, scheme, vars, references, arguments, display)).collect::<Option<Vec<_>>>()?;
                 Some(format!("({head} {})", args.join(" ")))
             }
-            _ => self.resolved_source_type(source, scheme, vars, references),
+            _ => self.resolved_source_type(source, scheme, vars, references, display),
         }
     }
 

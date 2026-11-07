@@ -60,6 +60,75 @@ use cinch::driver::Mode;
 // ------------------------------------- the shipped classes' equations
 
 #[test]
+fn mathematical_law_samples_use_the_checked_numeric_representation() {
+    let bad = r#"module Main where
+  import Algebra.Semigroup
+  import Algebra.Monoid
+  data Ticket where
+    Ticket :: Nat -> Ticket
+  implicit instance Semigroup_Ticket :: Semigroup Ticket where
+    (<>) x y = case x of Ticket a -> case y of Ticket b -> Ticket (a + b)
+  implicit instance Monoid_Ticket :: Monoid Ticket where
+    mempty = Ticket 1
+  main :: Int
+  main = 0
+"#;
+    expect_err("nat-law-counterexample.cinch", bad, "breaks class law `Monoid.left-unit`");
+
+    let lawful = bad.replace("mempty = Ticket 1", "mempty = Ticket 0");
+    let (_, interfaces) = cinch::driver::check_sources_ifaces(&lawful, "nat-lawful.cinch").unwrap();
+    let main = interfaces.iter().find(|iface| iface.module == "Main").unwrap();
+    let observations: Vec<_> = main.laws.iter().map(|law| (law.law.as_str(), law.status.as_str())).collect();
+    assert!(observations.contains(&("assoc", "checked (8 samples)")));
+    assert!(observations.contains(&("left-unit", "checked (2 samples)")));
+    assert!(observations.contains(&("right-unit", "checked (2 samples)")));
+}
+
+#[test]
+fn mathematical_law_indices_promote_integer_literals() {
+    let source = r#"module Main where
+  signature Keep a where
+    keep-value :: a -> a
+    law plus-zero :: (n :: Nat) -> Eq (n + 0) n
+    law self-difference :: (n :: Int) -> Eq (n - n) 0
+  implicit instance KeepBool :: Keep Bool where
+    keep-value value = value
+  main :: Int
+  main = 0
+"#;
+    let (_, interfaces) = cinch::driver::check_sources_ifaces(source, "mathematical-law-indices.cinch").unwrap();
+    let main = interfaces.iter().find(|iface| iface.module == "Main").unwrap();
+    assert_eq!(main.laws.len(), 2);
+    assert!(main.laws.iter().all(|law| law.status == "checked (3 samples)"), "{:?}", main.laws);
+    expect_err("wrong-nat-law-index.cinch", &source.replace("Eq (n + 0)", "Eq (n + 1)"),
+        "breaks class law `Main.Keep.plus-zero`");
+}
+
+#[test]
+fn checked_class_laws_travel_with_the_defining_interfaces() {
+    use cinch::interface::{verify_chain, Iface};
+
+    let source = "module Main where\n  import Data.Ordering\n  main :: Int\n  main = 0\n";
+    let (_, interfaces) = cinch::driver::check_sources_ifaces(source, "portable-laws.cinch").unwrap();
+    verify_chain(&interfaces).unwrap();
+    for (module, class, names) in [
+        ("Algebra.Semigroup", "Semigroup", &["assoc"][..]),
+        ("Algebra.Monoid", "Monoid", &["left-unit", "right-unit"][..]),
+        ("Category.Functor", "Functor", &["map-identity", "map-compose"][..]),
+    ] {
+        let owner = interfaces.iter().find(|iface| iface.module == module).unwrap();
+        let readback = Iface::from_json(&owner.to_json()).unwrap();
+        let id = format!("{module}.{class}");
+        let signature = readback.exports.signatures.iter().find(|row| row.identity == id).unwrap();
+        assert_eq!(signature.laws.iter().map(|law| law.name.as_str()).collect::<Vec<_>>(), names);
+        for law in &signature.laws {
+            let syntax = law.syntax_json().unwrap_or_else(|| panic!("{id}.{} must be portable", law.name));
+            assert!(syntax.contains("LawEquation"), "{id}.{}: {syntax}", law.name);
+        }
+    }
+}
+
+#[test]
 fn class_laws_state_the_equations() {
     // Each shipped law cites by identity and justifies the rule that
     // states its own equation: `Semigroup.assoc` proves association,

@@ -190,7 +190,7 @@ module Bootstrap.Typing where
     CArgumentsEnd sp -> type-is "Bool" ty && has name ["decision-true", "decision-false"]
     CArgument sp first (CArgumentsEnd end) -> same name "negate" && type-is "Int" ty && equal-type ty (core-type first)
     CArgument sp first (CArgument at second (CArgumentsEnd end)) -> let carrier = core-type first in
-      equal-type carrier (core-type second) && (if has name ["+", "-", "*"] then mathematical carrier && equal-type ty carrier
+      equal-type carrier (core-type second) && (if has name ["+", "-", "*", "/"] then mathematical carrier && equal-type ty carrier
         else if has name ["<", "<=", ">", ">="] then integer-carrier carrier && type-is "Bool" ty
         else if has name ["==", "/="] then comparable carrier && type-is "Bool" ty
         else False)

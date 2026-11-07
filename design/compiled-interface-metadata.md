@@ -7,12 +7,13 @@ where that chapter states obligations, this note fixes the mechanism.
 Status: design accepted for implementation (roadmap slice P3 in
 `compiler/CONFORMANCE.md`).
 
-The compiler reads and writes interface schema 9 with runtime ABI 6. This
-schema carries checked method defaults, closed executable total-body
-payloads and complete defining measure declarations. Rebuild interface
-artifacts from source when changing schema. The bootstrap uses a separately
-pinned Rust library producer for its base-library interfaces. Complete
-matching suites, original API parity and Acceptance 5 remain open.
+Rust and Cinch read and write interface schema 10 with runtime ABI 6. This
+schema carries checked class laws and method defaults, closed executable
+total-body payloads and complete defining measure declarations. Rebuild
+interface artifacts and dependent objects from source when changing schema.
+The bootstrap uses a separately pinned Rust library producer for its
+base-library interfaces. Complete matching suites, original API parity and
+Acceptance 5 remain open.
 
 A value's `total_body` is null or a version1 closed, sorted first-order graph.
 Only a supported monomorphic ordinary pure signature can advertise one. The
@@ -138,7 +139,7 @@ exports
   signatures    name -> { identity, exports: [public name], params,
                 parameters: [{ name, kind, implicit }],
                 methods: [{ name, slot, exports: [public name], scheme,
-                resolved, default? }] }
+                resolved, default? }], laws }
   instances     [{ id, class, target, ctx, resolved, methods: [symbol],
                 method_contracts: [{ slot, name, scheme }],
                 method_bodies?: [{ slot, implementation, resolved, total_body }], implicit }]
@@ -180,7 +181,7 @@ aliases and export lists. Unit aliases retain one defining class contract.
 Each method default is an optional `default` array containing its checked
 patterns and bodies. The interface hash covers the array and its method
 scheme. The consumer rechecks the clauses before inheriting them. Both
-compilers require schema 9 and reject fingerprint-only defaults. The
+compilers require schema 10 and reject fingerprint-only defaults. The
 library producer rebuilds its interfaces from pinned source.
 
 A Cinch-built consumer inherited defaults from separate Rust and Cinch

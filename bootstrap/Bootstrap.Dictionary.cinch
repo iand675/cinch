@@ -9,6 +9,8 @@ module Bootstrap.Dictionary where
 
   export resolve-dictionary-definition, resolve-dictionary-term
   export resolve-dictionary-definition-with, resolve-dictionary-term-with, resolve-ready-term, check-instance-coherence
+  export law-context-resolves
+  export check-law-term-evidence
 
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
@@ -55,6 +57,11 @@ module Bootstrap.Dictionary where
   resolve-dictionary-term-with kinds instances scope term st = case resolve-dictionary-term-in (MkResolution kinds instances False 64) scope term st of (out, done) -> (out, finish-numbers done)
   resolve-ready-term :: List (String, Kind) -> List (String, Scheme) -> List CoreGiven -> CoreTerm -> Store -> (CoreTerm, Store)
   resolve-ready-term kinds instances scope term st = resolve-dictionary-term-in (MkResolution kinds instances True 64) scope term st
+  -- Generic laws may assume a dictionary determined by their binders.
+  -- No evidence from this pass is used by the sampler or emitted as Core.
+  check-law-term-evidence :: List (String, Kind) -> List CoreGiven -> CoreTerm -> Store -> Store
+  check-law-term-evidence kinds scope term st = case resolve-dictionary-term-in (MkResolution kinds Nil False 64) scope term st of
+    (checked, done) -> done
   resolve-dictionary-definition :: List (String, Kind) -> CoreDefinition -> Store -> (CoreDefinition, Store)
   resolve-dictionary-definition kinds definition st = resolve-dictionary-definition-with kinds Nil definition st
   resolve-dictionary-definition-with :: List (String, Kind) -> List (String, Scheme) -> CoreDefinition -> Store -> (CoreDefinition, Store)
@@ -69,7 +76,11 @@ module Bootstrap.Dictionary where
   -- scope rather than from a copied annotation on a request.
   choose-given :: Resolution -> List CoreGiven -> Span -> UType -> List CoreGiven -> Store -> (CoreEvidence, Store)
   choose-given context allowed sp wanted candidates st = case candidates of
-    Nil -> choose-instance context allowed sp wanted st
+    Nil -> if store-law-scope st then
+      (case free-metas st wanted of
+        Nil -> (CENeeded sp (normalize st wanted) allowed, st)
+        other -> fail-evidence sp wanted "a law's dictionary arguments must be determined by its binders" st)
+      else choose-instance context allowed sp wanted st
     Cons candidate rest -> case find-given (given-symbol candidate) allowed of
       None -> fail-evidence sp wanted "dictionary evidence refers to an out-of-scope binder" st
       Some given ->
@@ -196,6 +207,10 @@ module Bootstrap.Dictionary where
     Cons requirement rest -> case resolve-evidence context allowed (CENeeded sp (requirement-type requirement) allowed) st of
       (first, sf) -> if not (clean sf) then (first, sf) else case instance-arguments context allowed sp rest sf of
         (more, done) -> (CEArgument sp first more, done)
+  law-context-resolves :: List (String, Kind) -> List (String, Scheme) -> Span -> List Requirement -> Store -> Bool
+  law-context-resolves kinds instances sp requirements st =
+    case instance-arguments (MkResolution kinds instances False 64) Nil sp requirements st of
+      (evidence, checked) -> clean checked
   -- A factory may retain a type variable already present in the wanted
   -- head. It cannot introduce an unaccounted existential type argument.
   meta-in :: Nat -> List Nat -> Bool

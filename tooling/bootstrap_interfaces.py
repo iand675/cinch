@@ -1,4 +1,4 @@
-"""Structural and dependency checks for genuine self-produced schema 9 files.
+"""Structural and dependency checks for genuine self-produced schema 10 files.
 
 These checks supplement the checked writer and independent compiler-consumer
 regressions. They do not infer type semantics from display strings.
@@ -99,13 +99,45 @@ def _resolved(row):
     _list(resolved["measures"])
 
 
+def _law_syntax(syntax):
+    parts = _list(syntax)
+    if not parts:
+        raise ValueError("empty law syntax")
+    tag, *items = parts
+    if tag == "LawForall" and len(items) == 2:
+        binders, body = items
+        names = set()
+        if not _list(binders):
+            raise ValueError("empty law quantifier")
+        for binder in binders:
+            name, implicit, kind = _list(binder)
+            _text(name)
+            if name in names or type(implicit) is not bool:
+                raise ValueError("invalid law binder")
+            names.add(name)
+            if kind is not None:
+                _list(kind)
+        _law_syntax(body)
+    elif tag == "LawArrow" and len(items) == 3:
+        name, carrier, body = items
+        if name is not None:
+            _text(name)
+        _list(carrier)
+        _law_syntax(body)
+    elif tag == "LawEquation" and len(items) == 2:
+        for operand in items:
+            _list(operand)
+    else:
+        raise ValueError("invalid class law syntax")
+
+
 def validate_contract(doc: dict, runtime_abi: int) -> None:
     fields = {"schema", "runtime_abi", "language", "compiler", "module", "source_hash",
               "imports", "params", "exports", "abi", "assumptions", "assertions",
               "contracts", "laws", "must_use", "upgrades", "units"}
     if set(doc) != fields:
         raise ValueError("incomplete or unknown interface fields")
-    if type(doc["schema"]) is not int or doc["schema"] != 9:
+    if type(doc["schema"]) is not int or doc["schema"] != 10:
         raise ValueError("wrong interface schema")
     if type(doc["runtime_abi"]) is not int or doc["runtime_abi"] != runtime_abi:
         raise ValueError("wrong runtime ABI")
@@ -166,6 +198,16 @@ def validate_contract(doc: dict, runtime_abi: int) -> None:
         _parameters(signature)
         _list(signature["exports"])
         public.update(signature["exports"])
+        law_names = set()
+        for law in _list(signature["laws"]):
+            if type(law) is not dict or set(law) != {"name", "syntax"}:
+                raise ValueError("invalid law declaration")
+            _text(law["name"])
+            if law["name"] in law_names:
+                raise ValueError("duplicate law declaration")
+            law_names.add(law["name"])
+            if law["syntax"] is not None:
+                _law_syntax(law["syntax"])
         slots = set()
         for method in _list(signature["methods"]):
             required = {"name", "slot", "exports", "scheme", "resolved"}
@@ -180,6 +222,9 @@ def validate_contract(doc: dict, runtime_abi: int) -> None:
                 raise ValueError("duplicate signature slot")
             slots.add(method["slot"])
             _resolved(method)
+            resolved = method["resolved"]
+            if resolved is not None and method["scheme"] != resolved["scheme"]:
+                raise ValueError("class method spelling disagrees with its checked scheme")
             if "default" in method:
                 clauses = _list(method["default"])
                 if not clauses or any(len(_list(clause)) != 2 or not all(isinstance(part, list) for part in clause)

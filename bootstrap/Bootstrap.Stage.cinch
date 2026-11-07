@@ -1,0 +1,265 @@
+-- Compile stage declarations in their local namespace, then check the
+-- generated declarations as ordinary source. Scalar quotations transport
+-- checked literals, with their original splice sites and carriers.
+module Bootstrap.Stage where
+  import Bootstrap.Ast
+  import Bootstrap.Check (CheckedProgram, check-and-retain)
+  import Bootstrap.Report (Diagnostic, MkDiagnostic)
+  import Bootstrap.StageEval
+  import Algebra.Semigroup
+  import Data.Int (int-neg)
+  import Text.Lex (Span, span-start)
+  import Text.Show (int-to-string, nat-to-string)
+
+  export expand-stages
+
+  stage-error :: forall a. Span -> String -> Result (List Diagnostic) a
+  stage-error site message = Err [MkDiagnostic "bootstrap.stage" site message]
+
+  same :: String -> String -> Bool
+  same a b = string-compare a b == 0
+
+  stage-work :: List Decl -> Bool
+  stage-work declarations = case declarations of
+    Nil -> False
+    Cons first rest -> case first of
+      DStage site body -> True
+      DGenerate site body -> True
+      other -> stage-work rest
+
+  probe-name :: Span -> String
+  probe-name site = string-concat "#stage-probe-" (nat-to-string (span-start site))
+
+  probe :: Span -> TypeExpr -> Expr -> List Decl
+  probe site ty body = let name = probe-name site in
+    [DSig site name ty, DFun site name [(Nil, body)]]
+
+  quote-type-name :: String
+  quote-type-name = "#StageCode"
+
+  quote-type :: Span -> String -> String -> TypeExpr
+  quote-type site name carrier = TApp site (TName site name) (type-arg-spine site [TName site carrier])
+
+  -- These are ordinary checked functions in a private compile-time module.
+  -- A same-spelled source binding still resolves according to normal scope.
+  quote-function :: Span -> String -> String -> List Decl
+  quote-function site name carrier =
+    [DSig site name (TFun site (TName site carrier) (quote-type site quote-type-name carrier)),
+     DFun site name [([PVar site "value"], ECon site stage-quotation-constructor (expr-spine site [EVar site "value"]))]]
+
+  quotation-declarations :: Span -> List Decl
+  quotation-declarations site =
+    [DExport site "" [ExportName site [quote-type-name], ExportName site ["quoteNat"], ExportName site ["quoteInt"], ExportName site ["quoteBool"]],
+     DData site quote-type-name [MkTypeParam site "a" None False]
+      [(stage-quotation-constructor, TFun site (TName site "a") (quote-type site quote-type-name "a"))]]
+    <> quote-function site "quoteNat" "Nat"
+    <> quote-function site "quoteInt" "Int"
+    <> quote-function site "quoteBool" "Bool"
+
+  quotation-scope :: Span -> Module
+  quotation-scope site = MkModule site stage-quotation-module (decl-spine site (quotation-declarations site))
+
+  quotation :: Span -> Expr -> Result (List Diagnostic) String
+  quotation site expression = case expression of
+    EApp at (EVar fn name) argument ->
+      if same name "quoteNat" then Ok "Nat"
+      else if same name "quoteInt" then Ok "Int"
+      else if same name "quoteBool" then Ok "Bool"
+      else stage-error site "this splice requires a checked scalar quotation"
+    other -> stage-error site "this splice requires a checked scalar quotation"
+
+  template-clause-probes :: List (List Pat, Expr) -> Result (List Diagnostic) (List Decl)
+  template-clause-probes clauses = case clauses of
+    Nil -> Ok Nil
+    Cons (patterns, body) rest -> case template-clause-probes rest of
+      Err errors -> Err errors
+      Ok tail -> case body of
+        ESplice site expression -> case quotation site expression of
+          Err errors -> Err errors
+          Ok carrier -> Ok (probe site (quote-type site (string-concat-all [stage-quotation-module, ".", quote-type-name]) carrier) expression <> tail)
+        other -> Ok tail
+
+  template-probes :: List Decl -> Result (List Diagnostic) (List Decl)
+  template-probes declarations = case declarations of
+    Nil -> Ok Nil
+    Cons first rest -> case template-probes rest of
+      Err errors -> Err errors
+      Ok more -> case first of
+        DFun site name clauses -> case template-clause-probes clauses of
+          Err errors -> Err errors
+          Ok found -> Ok (found <> more)
+        other -> Ok more
+
+  action-probes :: Decl -> Result (List Diagnostic) (List Decl)
+  action-probes action = case action of
+    DStageEmit site template -> template-probes (decls-of template)
+    DStageBranch site condition yes no -> case (action-probes yes, action-probes no) of
+      (Ok first, Ok second) -> Ok (probe site (TName site "Bool") condition <> first <> second)
+      (Err errors, other) -> Err errors
+      (other, Err errors) -> Err errors
+    other -> stage-error (decl-span action) "invalid compile-time generator action"
+
+  generator-probes :: List Decl -> Result (List Diagnostic) (List Decl)
+  generator-probes declarations = case declarations of
+    Nil -> Ok Nil
+    Cons first rest -> case (action-probes first, generator-probes rest) of
+      (Ok local, Ok more) -> Ok (local <> more)
+      (Err errors, other) -> Err errors
+      (other, Err errors) -> Err errors
+
+  runtime-value-names :: List Decl -> List String
+  runtime-value-names declarations = case declarations of
+    Nil -> Nil
+    Cons first rest -> case first of
+      DSig site name ty -> Cons name (runtime-value-names rest)
+      DFun site name body -> Cons name (runtime-value-names rest)
+      other -> runtime-value-names rest
+
+  runtime-value-name :: String -> List String -> Bool
+  runtime-value-name name names = case names of
+    Nil -> False
+    Cons first rest -> same name first || runtime-value-name name rest
+
+  stage-exports :: List String -> List ExportItem -> List ExportItem
+  stage-exports runtime items = case items of
+    Nil -> Nil
+    Cons first rest -> let tail = stage-exports runtime rest in case first of
+      ExportName site (Cons name Nil) -> if runtime-value-name name runtime then tail else Cons first tail
+      other -> Cons first tail
+
+  stage-declarations :: Bool -> List String -> List Decl -> Result (List Diagnostic) (List Decl)
+  stage-declarations owner runtime declarations = case declarations of
+    Nil -> Ok Nil
+    Cons first rest -> case stage-declarations owner runtime rest of
+      Err errors -> Err errors
+      Ok tail -> case first of
+        DStage site body -> if owner then Ok (Cons body tail) else Ok tail
+        DGenerate site actions -> if owner then (case generator-probes (decls-of actions) of
+          Err errors -> Err errors
+          Ok probes -> Ok (probes <> tail)) else Ok tail
+        DSig site name ty -> Ok tail
+        DFun site name body -> Ok tail
+        DExport site text items -> if owner then Ok tail else Ok (Cons (DExport site text (stage-exports runtime items)) tail)
+        other -> Ok (Cons first tail)
+
+  stage-modules :: String -> List Module -> Result (List Diagnostic) (List Module)
+  stage-modules owner modules = case modules of
+    Nil -> Ok Nil
+    Cons first rest -> let name = module-name first in let body = module-decls first in
+      case (stage-declarations (same owner name) (runtime-value-names body) body, stage-modules owner rest) of
+        (Ok declarations, Ok tail) -> let site = module-span first in
+          let visible = if same owner name then Cons (DImport site stage-quotation-module Nil None Nil Nil) declarations else declarations in
+          Ok (Cons (MkModule site name (decl-spine site visible)) tail)
+        (Err errors, other) -> Err errors
+        (other, Err errors) -> Err errors
+
+  evaluate-probe :: CheckedProgram -> String -> Span -> Nat -> Result (List Diagnostic) (StageValue, Nat)
+  evaluate-probe checked owner site fuel = evaluate-stage checked site (string-concat-all [owner, ".", probe-name site]) fuel
+
+  literal :: Span -> String -> StageValue -> Result (List Diagnostic) Expr
+  literal site carrier value = case value of
+    StageInteger number -> if (same carrier "Nat" && number >= 0) || same carrier "Int" then
+      let body = if number < 0 then ENeg site (ELitInt site (int-to-string (int-neg number))) else ELitInt site (int-to-string number) in
+      Ok (EAnn site body (TName site carrier))
+      else stage-error site "checked scalar quotation did not produce its declared carrier"
+    StageBoolean boolean -> if same carrier "Bool" then Ok (ECon site (if boolean then "True" else "False") (EArgsEnd site))
+      else stage-error site "checked scalar quotation did not produce its declared carrier"
+    other -> stage-error site "checked scalar quotation did not produce its declared carrier"
+
+  expand-clause :: CheckedProgram -> String -> Expr -> Nat -> Result (List Diagnostic) (Expr, Nat)
+  expand-clause checked owner body fuel = case body of
+    ESplice site expression -> case quotation site expression of
+      Err errors -> Err errors
+      Ok carrier -> case evaluate-probe checked owner site fuel of
+        Err errors -> Err errors
+        Ok (StageQuoted value, remaining) -> case literal site carrier value of
+          Err errors -> Err errors
+          Ok term -> Ok (term, remaining)
+        Ok other -> stage-error site "splice did not produce checked code"
+    other -> Ok (body, fuel)
+
+  expand-clauses :: CheckedProgram -> String -> List (List Pat, Expr) -> Nat -> Result (List Diagnostic) (List (List Pat, Expr), Nat)
+  expand-clauses checked owner clauses fuel = case clauses of
+    Nil -> Ok (Nil, fuel)
+    Cons (patterns, body) rest -> case expand-clause checked owner body fuel of
+      Err errors -> Err errors
+      Ok (term, remaining) -> case expand-clauses checked owner rest remaining of
+        Err errors -> Err errors
+        Ok (more, done) -> Ok (Cons (patterns, term) more, done)
+
+  expand-template-declaration :: CheckedProgram -> String -> Decl -> Nat -> Result (List Diagnostic) (Decl, Nat)
+  expand-template-declaration checked owner declaration fuel = case declaration of
+    DFun site name body -> case expand-clauses checked owner body fuel of
+      Err errors -> Err errors
+      Ok (value, remaining) -> Ok (DFun site name value, remaining)
+    other -> Ok (declaration, fuel)
+
+  expand-template :: CheckedProgram -> String -> List Decl -> Nat -> Result (List Diagnostic) (List Decl, Nat)
+  expand-template checked owner declarations fuel = case declarations of
+    Nil -> Ok (Nil, fuel)
+    Cons first rest -> case expand-template-declaration checked owner first fuel of
+      Err errors -> Err errors
+      Ok (value, remaining) -> case expand-template checked owner rest remaining of
+        Err errors -> Err errors
+        Ok (more, done) -> Ok (Cons value more, done)
+
+  expand-action :: CheckedProgram -> String -> Decl -> Nat -> Result (List Diagnostic) (List Decl, Nat)
+  expand-action checked owner action fuel = case action of
+    DStageEmit site template -> expand-template checked owner (decls-of template) fuel
+    DStageBranch site condition yes no -> case evaluate-probe checked owner site fuel of
+      Err errors -> Err errors
+      Ok (StageBoolean selected, remaining) -> expand-action checked owner (if selected then yes else no) remaining
+      Ok other -> stage-error site "checked generator branch did not produce Bool"
+    other -> stage-error (decl-span action) "invalid compile-time generator action"
+
+  expand-actions :: CheckedProgram -> String -> List Decl -> Nat -> Result (List Diagnostic) (List Decl, Nat)
+  expand-actions checked owner actions fuel = case actions of
+    Nil -> Ok (Nil, fuel)
+    Cons first rest -> case expand-action checked owner first fuel of
+      Err errors -> Err errors
+      Ok (generated, remaining) -> case expand-actions checked owner rest remaining of
+        Err errors -> Err errors
+        Ok (more, done) -> Ok (generated <> more, done)
+
+  expand-declaration :: CheckedProgram -> String -> Decl -> Nat -> Result (List Diagnostic) (List Decl, Nat)
+  expand-declaration checked owner declaration fuel = case declaration of
+    DStage site body -> Ok (Nil, fuel)
+    DGenerate site actions -> expand-actions checked owner (decls-of actions) fuel
+    other -> Ok ([declaration], fuel)
+
+  expand-declarations :: CheckedProgram -> String -> List Decl -> Nat -> Result (List Diagnostic) (List Decl, Nat)
+  expand-declarations checked owner declarations fuel = case declarations of
+    Nil -> Ok (Nil, fuel)
+    Cons first rest -> case expand-declaration checked owner first fuel of
+      Err errors -> Err errors
+      Ok (local, remaining) -> case expand-declarations checked owner rest remaining of
+        Err errors -> Err errors
+        Ok (more, done) -> Ok (local <> more, done)
+
+  expand-module :: (Program -> (Program, List Diagnostic)) -> Program -> Module -> Nat -> Result (List Diagnostic) (Module, Nat)
+  expand-module resolve program current fuel =
+    let declarations = module-decls current in
+    if not (stage-work declarations) then Ok (current, fuel) else
+      let owner = module-name current in case stage-modules owner (program-modules program) of
+        Err errors -> Err errors
+        Ok modules -> let site = program-span program in case resolve (MkProgram site (Cons (quotation-scope site) modules)) of
+          (resolved, Nil) -> case check-and-retain resolved of
+            Err errors -> Err errors
+            Ok checked -> case expand-declarations checked owner declarations fuel of
+              Err errors -> Err errors
+              Ok (body, remaining) -> let site = module-span current in Ok (MkModule site owner (decl-spine site body), remaining)
+          (resolved, errors) -> Err errors
+
+  expand-modules :: (Program -> (Program, List Diagnostic)) -> Program -> List Module -> Nat -> Result (List Diagnostic) (List Module, Nat)
+  expand-modules resolve program modules fuel = case modules of
+    Nil -> Ok (Nil, fuel)
+    Cons first rest -> case expand-module resolve program first fuel of
+      Err errors -> Err errors
+      Ok (expanded, remaining) -> case expand-modules resolve program rest remaining of
+        Err errors -> Err errors
+        Ok (tail, done) -> Ok (Cons expanded tail, done)
+
+  expand-stages :: (Program -> (Program, List Diagnostic)) -> Program -> Result (List Diagnostic) Program
+  expand-stages resolve program = case expand-modules resolve program (program-modules program) 8192 of
+    Err errors -> Err errors
+    Ok (modules, fuel) -> Ok (MkProgram (program-span program) modules)

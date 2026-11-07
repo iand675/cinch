@@ -113,7 +113,7 @@ module Algebra.Monoid where
   implicit instance Semigroup_All :: Semigroup All where
     (<>) x y = case x of
       All a -> case y of
-        All b -> All (and a b)
+        All b -> All (if a then b else False)
 
   implicit instance Monoid_All :: Monoid All where
     mempty = All True
@@ -126,7 +126,7 @@ module Algebra.Monoid where
   implicit instance Semigroup_Any :: Semigroup Any where
     (<>) x y = case x of
       Any a -> case y of
-        Any b -> Any (or a b)
+        Any b -> Any (if a then True else b)
 
   implicit instance Monoid_Any :: Monoid Any where
     mempty = Any False

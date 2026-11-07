@@ -322,7 +322,7 @@ def build_self(builder: Path, files: dict[str, bytes], directory: Path,
     inputs = {"protocol": PROTOCOL, "host": HOST, "source_sha256": source_hash(files),
               "builder_sha256": file_hash(builder), "built_by_stage": built_by_stage,
               "interface_set_sha256": digest(base_bytes), "frontend_mode": "typed-ir-objects",
-              "interface_output": "checked-schema9",
+              "interface_output": "checked-schema10",
               "library_provider": provider["identity"], "object_configuration_sha256": digest(configuration),
               "runtime_archive_sha256": file_hash(runtime)}
     if cached(directory, inputs):

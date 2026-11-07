@@ -463,12 +463,35 @@ module Main where
         other -> False) else False
     other -> False
 
+  staged-source :: String
+  staged-source = "module Main where\n  stage count :: Nat\n  stage count = 42\n  generate do\n    emit (quoteDecls where\n      result :: Nat\n      result = $(quoteNat count))\n  main :: Int\n  main = 0\n"
+
+  staged-template-ok :: Decl -> Bool
+  staged-template-ok template = case decls-of template of
+    Cons (DSig sp name (TName ty carrier)) (Cons (DFun at result (Cons (Nil, ESplice site expression) Nil)) Nil) ->
+      same name "result" && same carrier "Nat" && same result name &&
+        (case expression of
+          EApp call (EVar fn quote-name) (EVar arg value) -> same quote-name "quoteNat" && same value "count"
+          other -> False)
+    other -> False
+
+  stage-syntax-ok :: Bool
+  stage-syntax-ok = case parse-program "staging" (string-to-bytes staged-source) of
+    Parsed program Nil -> case program-modules program of
+      Cons owner Nil -> case module-decls owner of
+        Cons (DStage at (DSig sp name (TName ty carrier))) (Cons (DStage value-site (DFun def value clauses)) (Cons (DGenerate gen actions) rest)) ->
+          same name "count" && same carrier "Nat" && same value name && program-unmodeled-count program == 0 &&
+            (case decls-of actions of Cons (DStageEmit emit-site template) Nil -> staged-template-ok template; other -> False)
+        other -> False
+      other -> False
+    other -> False
+
   main :: Int
   main = case parse-program "types" (string-to-bytes source) of
     Failed errors -> 1
     Parsed program errors ->
       if program-unmodeled-count program == 0 && list-length errors == 0 then
         case program-modules program of
-          Cons m Nil -> if class-laws-ok && malformed-refused "module X where\n  signature Bad a where\n    law broken :: (x :: a) -> Eq x\n" then check-decls (module-decls m) else 21
+          Cons m Nil -> if not stage-syntax-ok then 22 else if class-laws-ok && malformed-refused "module X where\n  signature Bad a where\n    law broken :: (x :: a) -> Eq x\n" then check-decls (module-decls m) else 21
           other -> 2
       else 8

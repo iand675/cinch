@@ -3,25 +3,26 @@
 -- permission to erase its proofs, layouts, instances or assumptions.
 module Bootstrap.Load where
 
-  import Bootstrap.Ast (TypeExpr)
+  import Bootstrap.Ast (TypeExpr, portable-law-syntax)
   import Bootstrap.RuntimeAbi (runtime-abi)
   import Bootstrap.Total
   import Bootstrap.Interface (iface-parse, iface-schema-version, fnv-source-hash)
   import Bootstrap.Parse (parse-scheme)
-  import Bootstrap.Nominal (resolved-entry-valid, resolved-nominals, resolved-measures)
+  import Bootstrap.Nominal (interface-global, resolved-entry-valid, resolved-text, resolved-nominals, resolved-measures)
   import Data.Bytes (bytes-compare, bytes-get, bytes-len)
   import Data.Json
   import Text.Json (canonical-bytes)
   import Text.Parse (ParseOutcome, Parsed, Failed)
+  import Text.Lex (Span)
   import Algebra.Semigroup
 
   export ImportedValue, imported-name, imported-symbol, imported-arity, imported-scheme
   export imported-type
-  export LoadedInterface, loaded-module, loaded-hash, loaded-contract
+  export LoadedInterface, loaded-module, loaded-hash, loaded-contract, nominal-owner
   export loaded-values, loaded-fixities, loaded-imports
   export loaded-exports
   export load-interface, load-interface-set, validate-interface-set
-  export loaded-entry
+  export loaded-entry, loaded-private-methods
   export InterfaceSet, load-checked-interface-set, check-interface-set, interface-set-members, interface-set-body
 
   data ImportedValue where
@@ -174,6 +175,29 @@ module Bootstrap.Load where
       None -> method-entry identity rest
     other -> None
 
+  loaded-private-methods :: LoadedInterface -> List (String, String, String)
+  loaded-private-methods i =
+    private-signature-methods (loaded-module i) (field "signatures" (field "exports" (loaded-contract i)))
+
+  private-signature-methods :: String -> Json -> List (String, String, String)
+  private-signature-methods owner rows = case rows of
+    JArr row rest ->
+      let identity = text (field "identity" row) in
+      let inherited = private-signature-methods owner rest in
+      if same owner (nominal-owner identity) then private-method-identities identity (field "methods" row) <> inherited
+      else inherited
+    other -> Nil
+
+  private-method-identities :: String -> Json -> List (String, String, String)
+  private-method-identities owner rows = case rows of
+    JArr row rest ->
+      let more = private-method-identities owner rest in
+      (case field "exports" row of
+        JArrEnd -> let name = text (field "name" row) in
+          Cons (name, "method", string-concat-all [owner, ".", name]) more
+        other -> more)
+    other -> Nil
+
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
 
@@ -282,6 +306,10 @@ module Bootstrap.Load where
       && method-clauses-valid rest
     JArrEnd -> True
     other -> False
+  checked-scheme-spelling :: Json -> Bool
+  checked-scheme-spelling row = case resolved-text row of
+    Some scheme -> same scheme (text (field "scheme" row))
+    None -> True
   methods-valid :: Json -> List String -> Bool
   methods-valid rows seen = case rows of
     JArr row rest ->
@@ -290,8 +318,29 @@ module Bootstrap.Load where
       && string-length (text (field "scheme" row)) > 0 && strings-p (field "exports" row)
       && nat-p (field "slot" row) && number (field "slot" row) == list-length seen
       && resolved-entry-valid row && measure-bodies-valid (resolved-measures row)
+      && checked-scheme-spelling row
       && method-default-valid row
       && methods-valid rest (Cons name seen)
+    JArrEnd -> True
+    other -> False
+
+  law-fields-valid :: Json -> Bool
+  law-fields-valid row = case row of
+    JObj key value rest -> (same key "name" || same key "syntax") && law-fields-valid rest
+    JObjEnd -> True
+    other -> False
+
+  class-laws-valid :: Json -> List String -> Bool
+  class-laws-valid rows seen = case rows of
+    JArr row rest ->
+      let name = text (field "name" row) in
+      string-length name > 0 && not (member name seen) && has-field "syntax" row && law-fields-valid row
+      && (case field "syntax" row of
+        JNull -> True
+        syntax -> (case portable-law-syntax (Span 0 0 1 1) (\name -> Some name) syntax of
+          Some decoded -> True
+          None -> False))
+      && class-laws-valid rest (Cons name seen)
     JArrEnd -> True
     other -> False
 
@@ -302,7 +351,8 @@ module Bootstrap.Load where
       string-length identity > 0 && not (member identity seen) && string-length (text (field "name" row)) > 0
       && strings-p (field "exports" row)
       && parameters-valid (field "parameters" row) (field "params" row) Nil
-      && methods-valid (field "methods" row) Nil && signatures-valid rest (Cons identity seen)
+      && methods-valid (field "methods" row) Nil && class-laws-valid (field "laws" row) Nil
+      && signatures-valid rest (Cons identity seen)
     JArrEnd -> True
     other -> False
 
@@ -593,7 +643,38 @@ module Bootstrap.Load where
     other -> JArrEnd
   signature-contract :: Json -> Json
   signature-contract row = JObj "identity" (field "identity" row)
-    (JObj "parameters" (field "parameters" row) (JObj "methods" (method-contracts (field "methods" row)) JObjEnd))
+    (JObj "parameters" (field "parameters" row) (JObj "methods" (method-contracts (field "methods" row))
+      (JObj "laws" (field "laws" row) JObjEnd)))
+  law-export-present :: String -> List (String, String, String) -> Bool
+  law-export-present name exports = case exports of
+    Nil -> False
+    Cons (local, kind, identity) rest -> same name (interface-global identity) || law-export-present name rest
+
+  law-global-present :: String -> List String -> List LoadedInterface -> Bool
+  law-global-present name reachable all = case all of
+    Nil -> False
+    Cons i rest -> (member (loaded-module i) reachable &&
+      (law-export-present name (loaded-exports i) || law-export-present name (loaded-private-methods i)))
+      || law-global-present name reachable rest
+
+  law-global :: List String -> List LoadedInterface -> String -> Option String
+  law-global reachable all name = if law-kernel-name name || member name ["True", "False"]
+    || law-global-present name reachable all then Some name else None
+  law-kernel-name :: String -> Bool
+  law-kernel-name name = case unpack name of
+    Cons prefix (Cons dot rest) -> char-code prefix == 98 && char-code dot == 46
+    other -> False
+
+  class-law-references-owned :: Json -> List String -> List LoadedInterface -> Bool
+  class-law-references-owned rows reachable all = case rows of
+    JArr row rest -> (case field "syntax" row of
+      JNull -> True
+      syntax -> (case portable-law-syntax (Span 0 0 1 1) (law-global reachable all) syntax of
+        Some decoded -> True
+        None -> False)) && class-law-references-owned rest reachable all
+    JArrEnd -> True
+    other -> False
+
   verify-signature-contracts :: Json -> List String -> List LoadedInterface -> Result String Unit
   verify-signature-contracts rows reachable all = case rows of
     JArr row rest ->
@@ -605,7 +686,12 @@ module Bootstrap.Load where
         Some owner -> case entry-by "identity" identity (field "signatures" (field "exports" (loaded-contract owner))) of
           None -> Err (string-concat "signature identity has no defining contract: " identity)
           Some definition -> if bytes-compare (canonical-bytes (signature-contract row)) (canonical-bytes (signature-contract definition)) == 0
-            then verify-signature-contracts rest reachable all
+            then (case field "laws" definition of
+              JArr first more ->
+                if class-law-references-owned (JArr first more) (reachable-modules [owner-name] all Nil) all
+                then verify-signature-contracts rest reachable all
+                else Err (string-concat "class law references are outside the defining dependency closure: " identity)
+              other -> verify-signature-contracts rest reachable all)
             else Err (string-concat "conflicting defining signature contract: " identity)
     JArrEnd -> Ok ()
     other -> Err "invalid signature contract table"

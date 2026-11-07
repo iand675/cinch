@@ -21,10 +21,29 @@ module Main where
     let owner = interfaces.iter().find(|iface| iface.module == "ArrowMapping").unwrap();
     let artifact = Iface::from_json(&owner.to_json()).unwrap();
     let instance = artifact.exports.instances.iter().find(|item| item.id == "ArrowMapping.MapperArrow").unwrap();
+    assert_eq!(instance.class, "ArrowMapping.Mapper");
+    assert_eq!(instance.target, "ArrowMapping.Mapper ((->) r)");
     let resolved = instance.resolved.as_ref().expect("checked arrow former in the instance head");
     assert_eq!(resolved.scheme, "forall (r :: Type). ArrowMapping.Mapper ((->) r)");
     assert_eq!(resolved.nominals.iter().map(|nominal| nominal.identity.as_str()).collect::<Vec<_>>(),
         ["ArrowMapping.Mapper"]);
+}
+
+#[test]
+fn ordering_instances_publish_definition_owned_headers() {
+    let source = "module Main where\n  import Data.Ordering\n  main :: Int\n  main = 0\n";
+    let (_, interfaces) = cinch::driver::check_sources_ifaces(source, "ordering-instance-headers.cinch").unwrap();
+    cinch::interface::verify_chain(&interfaces).unwrap();
+    let owner = interfaces.iter().find(|iface| iface.module == "Data.Ordering").unwrap();
+    for name in ["Monoid", "Semigroup"] {
+        let id = format!("Data.Ordering.{name}_Ordering");
+        let instance = owner.exports.instances.iter().find(|item| item.id == id).unwrap();
+        let class = format!("Algebra.{name}.{name}");
+        let head = format!("{class} Data.Ordering.Ordering");
+        assert_eq!(instance.class, class, "the Ordering instance keeps its defining class");
+        assert_eq!(instance.target, head);
+        assert_eq!(instance.resolved.as_ref().unwrap().scheme, head);
+    }
 }
 
 #[test]
@@ -76,7 +95,15 @@ fn interfaces_preserve_indexed_constructors_and_method_visibility() {
     let mapper = contract.exports.signatures.iter().find(|s| s.identity == "Contract.Mapper").unwrap();
     assert_eq!(mapper.parameters[0].kind, "Type -> Type");
     assert!(mapper.methods[0].scheme.contains("f :: Type -> Type"), "{}", mapper.methods[0].scheme);
-    assert!(contract.exports.values.iter().find(|v| v.name == "lift").unwrap().scheme.contains("f :: Type -> Type"));
+    assert_eq!(mapper.methods[0].scheme, mapper.methods[0].resolved.as_ref().unwrap().scheme);
+    let mut mismatched = contract.clone();
+    mismatched.exports.signatures.iter_mut().find(|s| s.identity == "Contract.Mapper").unwrap()
+        .methods[0].scheme.push(' ');
+    let error = Iface::from_json(&mismatched.to_json()).unwrap_err();
+    assert!(error.to_string().contains("class method spelling disagrees with its checked scheme"));
+    let lift = contract.exports.values.iter().find(|v| v.name == "lift").unwrap();
+    assert!(lift.scheme.contains("f :: Type -> Type"));
+    assert_eq!(lift.scheme, lift.resolved.as_ref().unwrap().scheme);
     assert_eq!(mapper.exports, ["Mapper"]);
     assert!(mapper.methods[0].exports.is_empty(), "publishing a class does not publish its private method names");
     let hidden = contract.exports.signatures.iter().find(|s| s.identity == "Contract.Hidden").unwrap();

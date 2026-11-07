@@ -2,13 +2,15 @@
 
 ## Current development checkpoint (2026-11-07)
 
-Rust and Cinch use schema 9 for compiled interfaces. The pinned library
-producer rebuilt all 55 library interfaces, and all four bootstrap stages
-passed their smoke tests. Stage2 and Stage3 agree on the executable, LLVM IR,
-and all 44 compiler interfaces. A separate consumer checked the Stage3
-interfaces. The changed-source build produced the expected diagnostic.
-The independent audit passed for this pinned chain. All 105 frontend targets
-are now running, and complete suite verification remains open. See [the audit](../bootstrap/current-schema9-bootstrap-results.json),
+Rust and Cinch require schema 10 for compiled interfaces. The pinned
+producer rebuilt all 55 library interfaces. The first schema 10 chain
+passed all four stages and their smoke tests. Its Stage2 and Stage3 agree
+on the executable, LLVM IR and all 46 compiler interfaces. The audit also
+verified the separate consumer and changed-source build. The stricter
+schema 10 sources on `main` passed Stage1, the four original library-family
+checks and the format cutover checks. Their fixed point and complete suite
+verification remain open. See [the bootstrap audit](../bootstrap/current-schema10-bootstrap-results.json),
+[the cutover audit](../bootstrap/current-schema10-family-and-cutover-results.json),
 [next steps](next-steps.md), and the [numbered acceptance requirements](#acceptance).
 
 ## Typed C imports pass scoped gates; defining-owner gap remains (2026-11-06)

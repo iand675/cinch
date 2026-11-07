@@ -1,5 +1,14 @@
 # The bootstrap ladder
 
+Rust, Cinch and the bootstrap verifier require schema 10 for compiled
+interfaces. Rebuild older interfaces and their dependent objects from
+source. The pinned schema 10 library producer regenerated all 55 library
+interfaces. Run `tooling/bootstrap.sh check` to build the ladder and check
+the fixed point with the current pins. See [the cutover audit](current-schema10-family-and-cutover-results.json)
+and [the first schema 10 fixed point](current-schema10-bootstrap-results.json).
+
+## Earlier checkpoints
+
 Matching4f/NativeE5 auxiliary suites pass171 runtime,43 tooling and39 Native
 editor tests, independently audited with zero skipped or filtered cases. See
 [current auxiliary evidence](current-record-indexed-auxiliary-results.json).
@@ -249,8 +258,8 @@ The manifest is JSON: `{"schema":1,"interfaces":[["Module","hash","path"]]}`.
 Paths are absolute or relative to the process's working directory. The
 loader verifies the entire dependency set before source parsing, so
 operator fixities come from checked public interfaces. Resolution retains
-full contracts and defining identities. Schema 9 carries definition-site
-schemes, private nominal kinds, checked class defaults, Region and closed
+full contracts and defining identities. Schema 10 carries definition-site
+schemes, private nominal kinds, checked class laws and defaults, Region and closed
 effect contexts, exact value-index carriers, refinements and byte
 observations. Rebuild older interfaces from source.
 Pure polymorphic values and

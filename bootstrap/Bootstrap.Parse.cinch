@@ -755,10 +755,80 @@ module Bootstrap.Parse where
     else if string-compare w "foreign" == 0 then parse-foreign toks src
     else if string-compare w "instance" == 0 then parse-instance toks src fix False
     else if string-compare w "implicit" == 0 then parse-implicit toks src fix
+    else if string-compare w "stage" == 0 then parse-stage-decl toks src fix
+    else if string-compare w "generate" == 0 then parse-generate-decl toks src fix
     else if string-compare w "infix" == 0 then parse-fixity toks
     else if string-compare w "infixl" == 0 then parse-fixity toks
     else if string-compare w "infixr" == 0 then parse-fixity toks
     else PBad
+
+  parse-stage-decl :: List LToken -> Bytes -> List (String, Fix) -> Ps Decl
+  parse-stage-decl toks src fix = case toks of
+    Cons keyword rest -> case parse-sig-or-eq rest src fix of
+      POk body tail -> POk (DStage (span-join (sp-of keyword) (decl-span body)) body) tail
+      PBad -> PBad
+    Nil -> PBad
+
+  parse-generate-decl :: List LToken -> Bytes -> List (String, Fix) -> Ps Decl
+  parse-generate-decl toks src fix = case toks of
+    Cons keyword rest -> case expect-word-t rest "do" of
+      POk at body -> case expect-punct-t body "{" of
+        POk opened actions -> parse-stage-actions (sp-of keyword) actions src fix Nil
+        PBad -> PBad
+      PBad -> PBad
+    Nil -> PBad
+
+  parse-stage-actions :: Span -> List LToken -> Bytes -> List (String, Fix) -> List Decl -> Ps Decl
+  parse-stage-actions sp toks src fix previous = case toks of
+    Cons token rest ->
+      if is-punct-t (lt-token token) "}" then
+        POk (DGenerate (span-join sp (sp-of token)) (decl-spine sp (reverse previous))) rest
+      else if is-punct-t (lt-token token) ";" then parse-stage-actions sp rest src fix previous
+      else (case parse-stage-action toks src fix of
+        POk action remaining -> case remaining of
+          Cons separator tail -> if is-punct-t (lt-token separator) ";" || is-punct-t (lt-token separator) "}" then
+            parse-stage-actions sp remaining src fix (Cons action previous) else PBad
+          Nil -> PBad
+        PBad -> PBad)
+    Nil -> PBad
+
+  stage-word-t :: Token -> String -> Bool
+  stage-word-t token wanted = case token of
+    TWord name -> string-compare name wanted == 0
+    TVar name -> string-compare name wanted == 0
+    other -> False
+
+  parse-stage-action :: List LToken -> Bytes -> List (String, Fix) -> Ps Decl
+  parse-stage-action toks src fix = case toks of
+    Cons keyword rest -> if stage-word-t (lt-token keyword) "emit" then parse-stage-emit (sp-of keyword) rest src fix
+      else if is-word-t (lt-token keyword) "if" then parse-stage-branch (sp-of keyword) rest src fix else PBad
+    Nil -> PBad
+
+  parse-stage-emit :: Span -> List LToken -> Bytes -> List (String, Fix) -> Ps Decl
+  parse-stage-emit sp toks src fix = case expect-punct-t toks "(" of
+    POk opened (Cons quote rest) -> if stage-word-t (lt-token quote) "quoteDecls" then
+      (case expect-word-t rest "where" of
+        POk where-span body -> case parse-block body src fix of
+          POk declarations after-template -> case expect-punct-t after-template ")" of
+            POk close tail -> POk (DStageEmit (span-join sp close) (decl-spine where-span declarations)) tail
+            PBad -> PBad
+          PBad -> PBad
+        PBad -> PBad)
+      else PBad
+    other -> PBad
+
+  parse-stage-branch :: Span -> List LToken -> Bytes -> List (String, Fix) -> Ps Decl
+  parse-stage-branch sp toks src fix = case parse-expr toks src fix of
+    POk condition rest -> case expect-word-t rest "then" of
+      POk at first -> case parse-stage-action first src fix of
+        POk yes after-yes -> case expect-word-t after-yes "else" of
+          POk later second -> case parse-stage-action second src fix of
+            POk no tail -> POk (DStageBranch (span-join sp (decl-span no)) condition yes no) tail
+            PBad -> PBad
+          PBad -> PBad
+        PBad -> PBad
+      PBad -> PBad
+    PBad -> PBad
 
   parse-implicit :: List LToken -> Bytes -> List (String, Fix) -> Ps Decl
   parse-implicit toks src fix = case toks of
@@ -1537,6 +1607,7 @@ module Bootstrap.Parse where
       if string-compare p "(" == 0 then True
       else if string-compare p "[" == 0 then True
       else if string-compare p "[|" == 0 then True
+      else if string-compare p "$" == 0 then True
       else if string-compare p "\\" == 0 then True
       else False
     TWord w ->
@@ -1697,6 +1768,7 @@ module Bootstrap.Parse where
         if string-compare p "(" == 0 then parse-paren-expr (sp-of t) rest src fix
         else if string-compare p "[" == 0 then parse-list-expr (sp-of t) rest src fix
         else if string-compare p "[|" == 0 then parse-unmodeled-atom toks src "|]"
+        else if string-compare p "$" == 0 then parse-splice (sp-of t) rest src fix
         else if string-compare p "\\" == 0 then parse-lam (sp-of t) rest src fix
         else PBad
       TWord w ->
@@ -1709,6 +1781,20 @@ module Bootstrap.Parse where
         else if string-compare w "with" == 0 then parse-with (sp-of t) rest src fix
         else PBad
       _ -> PBad
+    Nil -> PBad
+
+  -- The lexer gives both tokens of `$(` the same span so layout can
+  -- see the parenthesis. A spaced `$ (` does not start a splice.
+  parse-splice :: Span -> List LToken -> Bytes -> List (String, Fix) -> Ps Expr
+  parse-splice start toks src fix = case toks of
+    Cons open rest -> let next = sp-of open in
+      if is-punct-t (lt-token open) "(" && span-start start == span-start next && span-end start == span-end next then
+        (case parse-expr rest src fix of
+          POk body after-body -> case expect-punct-t after-body ")" of
+            POk close tail -> POk (ESplice (span-join start close) body) tail
+            PBad -> PBad
+          PBad -> PBad)
+      else PBad
     Nil -> PBad
 
   parse-do :: Span -> List LToken -> Bytes -> List (String, Fix) -> Ps Expr

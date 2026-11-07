@@ -247,5 +247,154 @@ fn source_class_defaults_are_checked_at_the_owner_and_inherited_with_closed_cont
     std::fs::write(&interface, fingerprint_only).unwrap();
     assert_eq!(run(consumer).status.code(), Some(90), "the Cinch loader must reject the same malformed contract");
 
+    let packet_owner = "module Packets where\n  data Packet a where\n    Wrap :: a -> Packet a\nmodule PacketOps where\n  import Packets\n  signature Collect a where\n    collect :: a -> a\n    unpacked :: Packet a -> a\n    unpacked (Wrap x) = collect x\n";
+    write_manifest(&[]);
+    assert_eq!(run(packet_owner).status.code(), Some(0), "produce the default and nominal contracts: {}", common::read_output(&dir, "class-default-report.txt"));
+    let dependencies: Vec<_> = common::read_output(&dir, "class-default-interfaces.jsonl")
+        .lines().map(|line| Iface::from_json(line).unwrap()).collect();
+    cinch::interface::verify_chain(&dependencies).expect("checked owner and nominal dependency");
+    write_manifest(&dependencies.iter().collect::<Vec<_>>());
+    let packet_consumer = "module Main where\n  import PacketOps (Collect)\n  implicit instance CollectInt :: Collect Int where\n    collect x = x\n  main :: Int\n  main = 0\n";
+    assert_eq!(run(packet_consumer).status.code(), Some(0), "retain the inherited nominal contract: {}", common::read_output(&dir, "class-default-report.txt"));
+    let generated = common::read_output(&dir, "class-default-interfaces.jsonl");
+    let main = generated.lines().map(|line| Iface::from_json(line).unwrap())
+        .find(|iface| iface.module == "Main").unwrap();
+    let packets = dependencies.iter().find(|iface| iface.module == "Packets").unwrap();
+    assert!(main.imports.iter().any(|reference| reference.module == "Packets" && reference.iface_hash == packets.iface_hash()),
+        "the retained default's method mentions a nominal owned by the transitive module");
+    let mut chain = dependencies;
+    chain.push(main);
+    cinch::interface::verify_chain(&chain).expect("direct checked dependency identities");
+
+    let law_owner = r#"module LawOwner where
+  export Reverse, reverse-value
+  signature Reverse a where
+    reverse-value :: a -> a
+    private-reverse :: a -> a
+    law involution :: (x :: a) -> Eq (reverse-value (reverse-value x)) x
+    law private-involution :: (x :: a) -> Eq (private-reverse (private-reverse x)) x
+"#;
+    let law_client = r#"module Main where
+  import LawOwner (Reverse, reverse-value)
+  implicit instance ReverseBool :: Reverse Bool where
+    reverse-value x = if x then False else True
+    private-reverse x = if x then False else True
+  main :: Int
+  main = 0
+"#;
+    write_manifest(&[]);
+    assert_eq!(run(law_owner).status.code(), Some(0), "{}", common::read_output(&dir, "class-default-report.txt"));
+    let cinch_owner = common::read_output(&dir, "class-default-interfaces.jsonl").lines()
+        .map(|line| Iface::from_json(line).unwrap()).find(|iface| iface.module == "LawOwner").unwrap();
+    let law_source = format!("{law_owner}\nmodule Main where\n  import LawOwner\n  main :: Int\n  main = 0\n");
+    let rust_interfaces = cinch::driver::check_sources_ifaces(&law_source, "law-owner.cinch").unwrap().1;
+    cinch::interface::verify_chain(&rust_interfaces).unwrap();
+    let rust_owner = rust_interfaces.iter().find(|iface| iface.module == "LawOwner").unwrap();
+    assert_eq!(cinch_owner.exports.signatures[0].laws, rust_owner.exports.signatures[0].laws);
+    assert!(cinch_owner.exports.signatures[0].laws.iter().all(|law| law.syntax_json().is_some()));
+    assert!(cinch_owner.exports.signatures[0].methods.iter().find(|method| method.name == "private-reverse").unwrap().exports.is_empty());
+    let rust_manifest: Vec<_> = rust_interfaces.iter().filter(|iface| iface.module != "Main").collect();
+    for interfaces in [vec![&cinch_owner], rust_manifest] {
+        write_manifest(&interfaces);
+        assert_eq!(run(law_client).status.code(), Some(0), "{}", common::read_output(&dir, "class-default-report.txt"));
+        let checked = common::read_output(&dir, "class-default-interfaces.jsonl").lines()
+            .map(|line| Iface::from_json(line).unwrap()).find(|iface| iface.module == "Main").unwrap();
+        assert_eq!(checked.laws.len(), 2);
+        for (method, law) in [("reverse-value", "involution"), ("private-reverse", "private-involution")] {
+            let fact = checked.laws.iter().find(|fact| fact.law == law).unwrap();
+            assert_eq!(fact.instance, "Main.ReverseBool");
+            assert_eq!(fact.status, "checked (2 samples)");
+            let invalid = law_client.replace(&format!("{method} x = if x then False else True"), &format!("{method} x = False"));
+            assert_eq!(run(&invalid).status.code(), Some(4));
+            assert!(common::read_output(&dir, "class-default-report.txt").contains(&format!("class law {law} failed for ReverseBool")));
+            assert!(common::read_output(&dir, "class-default-interfaces.jsonl").is_empty());
+        }
+        let leaked = law_client.replace("main = 0", "main = if private-reverse True then 0 else 1");
+        assert_eq!(run(&leaked).status.code(), Some(4));
+        assert!(common::read_output(&dir, "class-default-report.txt").contains("name is not in scope: private-reverse"));
+    }
+
+    write_manifest(&[]);
+    let finite_fields = r#"module FiniteFields where
+  data Ticket where
+    Ticket :: Nat -> Ticket
+  signature Join a where
+    join :: a -> a -> a
+    law assoc :: (x :: a) -> (y :: a) -> (z :: a) -> Eq (join (join x y) z) (join x (join y z))
+  signature Empty a where
+    empty-value :: a
+    law left-unit :: (x :: a) -> Eq (join empty-value x) x
+  implicit instance JoinTicket :: Join Ticket where
+    join x y = case x of Ticket a -> case y of Ticket b -> Ticket (a + b)
+  implicit instance EmptyTicket :: Empty Ticket where
+    empty-value = Ticket 0
+  data Box a where
+    Box :: a -> Box a
+  signature Prefer a where
+    prefer :: a -> a -> a
+    law left-choice :: (x :: a) -> (y :: a) -> Eq (prefer x y) x
+  implicit instance PreferBox a :: Prefer (Box a) where
+    prefer x y = x
+"#;
+    let report = || common::read_output(&dir, "class-default-report.txt");
+    assert_eq!(run(finite_fields).status.code(), Some(0), "{}", report());
+    let checked = common::read_output(&dir, "class-default-interfaces.jsonl").lines()
+        .map(|line| Iface::from_json(line).unwrap()).find(|iface| iface.module == "FiniteFields").unwrap();
+    for (law, samples) in [("assoc", 8), ("left-unit", 2), ("left-choice", 4)] {
+        let observation = checked.laws.iter().find(|fact| fact.law == law).unwrap();
+        assert_eq!(observation.status, format!("checked ({samples} samples)"));
+    }
+    for (original, changed, law, dictionary) in [
+        ("empty-value = Ticket 0", "empty-value = Ticket 1", "left-unit", "EmptyTicket"),
+        ("prefer x y = x", "prefer x y = y", "left-choice", "PreferBox"),
+    ] {
+        assert_eq!(run(&finite_fields.replace(original, changed)).status.code(), Some(4), "{}", report());
+        assert!(report().contains(&format!("class law {law} failed for {dictionary}")), "{}", report());
+        assert!(common::read_output(&dir, "class-default-interfaces.jsonl").is_empty());
+    }
+
+    let unsampled = r#"module Unsampled where
+  signature Need a where
+    support :: a -> a
+  signature Keep a where
+    keep-value :: a -> a
+    law identity :: (x :: a) -> Eq (keep-value x) x
+  data Endo a where
+    Endo :: (a -> a) -> Endo a
+  implicit instance KeepEndo a :: Keep (Endo a) where
+    keep-value x = x
+  implicit instance KeepPair a b :: Keep (a, b) where
+    keep-value x = x
+  data Holder a where
+    Holder :: a -> Holder a
+  implicit instance KeepHolder a :: using (needed :: Need a) => Keep (Holder a) where
+    keep-value x = x
+  main :: Int
+  main = 0
+"#;
+    assert_eq!(run(unsampled).status.code(), Some(0), "{}", report());
+    let checked = common::read_output(&dir, "class-default-interfaces.jsonl").lines()
+        .map(|line| Iface::from_json(line).unwrap()).find(|iface| iface.module == "Unsampled").unwrap();
+    let native = cinch::driver::check_sources_ifaces(unsampled, "unsampled-laws.cinch").unwrap().1;
+    let expected = native.iter().find(|iface| iface.module == "Unsampled").unwrap();
+    let expected = Iface::from_json(&expected.to_json()).unwrap();
+    assert_eq!(checked.laws.len(), 3);
+    assert_eq!(checked.laws, expected.laws);
+    assert!(checked.laws.iter().all(|row| row.class == "Unsampled.Keep"));
+    assert!(checked.laws.iter().any(|row| row.status == "not checked (the instance's dictionaries do not resolve)"));
+    assert!(checked.laws.iter().any(|row| row.status == "not checked (no samples for the law binder `x :: Unsampled.Endo a`)"));
+
+    let recursive_law = r#"module RecursiveLaw where
+  signature Repeat a where
+    repeat-value :: a -> a
+    law identity :: (x :: a) -> Eq (repeat-value x) x
+  implicit instance RepeatBool :: Repeat Bool where
+    repeat-value x = repeat-value (repeat-value x)
+"#;
+    assert_eq!(run(recursive_law).status.code(), Some(0), "{}", report());
+    let checked = common::read_output(&dir, "class-default-interfaces.jsonl").lines()
+        .map(|line| Iface::from_json(line).unwrap()).find(|iface| iface.module == "RecursiveLaw").unwrap();
+    assert_eq!(checked.laws[0].status, "not checked (the checked finite equation exhausted the sample work budget)");
+
     common::cleanup(&dir);
 }

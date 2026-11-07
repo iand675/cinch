@@ -6127,6 +6127,8 @@ mod tests {
                 .arg("build")
                 .arg("--manifest-path")
                 .arg(runtime.join("Cargo.toml"))
+                .arg("--target-dir")
+                .arg(runtime.join("target"))
                 .output()
                 .expect("failed to run cargo for the runtime crate");
             assert!(
