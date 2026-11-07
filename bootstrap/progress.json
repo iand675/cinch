@@ -19355,8 +19355,8 @@
       {
         "title": "Bootstrap the consolidated compiler with named proofs",
         "status": "running",
-        "phase": "building stage3",
-        "passed": 3,
+        "phase": "checking fixed point and source change",
+        "passed": 4,
         "failed": 0,
         "total": 4,
         "source": "7e94e53cca26f1df764d79741a0fab9f8d4e8201c4d06d722b76a2790cd02454",
@@ -19575,5 +19575,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T16:32:16.548315+00:00"
+  "updatedAt": "2026-11-07T16:36:59.089406+00:00"
 }
