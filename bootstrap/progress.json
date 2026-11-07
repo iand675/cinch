@@ -19415,9 +19415,9 @@
       },
       {
         "title": "Verify both library targets with source-free fixtures on Rust",
-        "status": "running",
-        "phase": "lib_foldable",
-        "passed": 0,
+        "status": "passed-original-native-library-clients",
+        "phase": "lib_category",
+        "passed": 2,
         "failed": 0,
         "total": 2,
         "unit": "client cases",
@@ -19882,5 +19882,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T23:39:07.123495+00:00"
+  "updatedAt": "2026-11-07T23:40:09.308650+00:00"
 }
