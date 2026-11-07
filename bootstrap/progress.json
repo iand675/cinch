@@ -4,28 +4,28 @@
   "status": "Full bootstrap verification remains open",
   "stages": [
     {
-      "name": "Prior API Stage 0",
+      "name": "Stage 0",
       "state": "passed",
-      "label": "Verified",
-      "description": "Pinned Rust seed, independently revalidated and smoke-tested. Separate compiler snapshot; a matching published-source run remains required."
+      "label": "Smoke tests passed",
+      "description": "Verify the pinned Rust seed."
     },
     {
-      "name": "Prior API Stage 1",
+      "name": "Stage 1",
       "state": "passed",
-      "label": "Verified",
-      "description": "Fresh Cinch compiler built from the seed; all three smoke checks. Separate compiler snapshot; a matching published-source run remains required."
+      "label": "Smoke tests passed",
+      "description": "Build Cinch from source with the seed."
     },
     {
-      "name": "Prior API Stage 2",
+      "name": "Stage 2",
       "state": "passed",
-      "label": "Verified",
-      "description": "Every compiler module will be freshly rebuilt by Stage1 after all repair gates pass. Separate compiler snapshot; a matching published-source run remains required."
+      "label": "Smoke tests passed",
+      "description": "Build the same compiler sources with Stage1."
     },
     {
-      "name": "Prior API Stage 3",
+      "name": "Stage 3",
       "state": "passed",
-      "label": "Fixed point verified",
-      "description": "Fresh rebuild by Stage2, followed by code/interface matching and changed-source checks. Separate compiler snapshot; a matching published-source run remains required."
+      "label": "Fixed point audited",
+      "description": "Rebuild with Stage2 and check the fixed point."
     }
   ],
   "checks": [
@@ -547,7 +547,7 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "Main combines the strict schema 10 reader with checked named proofs and the consolidated library producer.",
-  "activity": "The matching bootstrap is passed chain awaiting independent audit. The preceding proof compiler passed independent audit. The full suite remains open.",
+  "activity": "The current compiler passed the fixed-point, separate-client and changed-source audit. The complete test suites remain open.",
   "checklist": {
     "version": 1,
     "target": {
@@ -18219,17 +18219,6 @@
     ],
     "active": [
       {
-        "title": "Bootstrap the combined strict-format and named-proof compiler",
-        "unit": "stages",
-        "status": "passed-chain-awaiting-independent-audit",
-        "phase": "passed chain awaiting independent audit",
-        "passed": 4,
-        "failed": 0,
-        "total": 4,
-        "source": "1c8e4305e070018121b087e47dd7572c3844617af7391841d74b1e8f2ed4c3d5",
-        "auditPending": true
-      },
-      {
         "title": "Bootstrap the stricter schema 10 candidate",
         "status": "failed",
         "phase": "failed",
@@ -19316,8 +19305,8 @@
       },
       {
         "title": "Replay the dependent constructor and diagnostic repairs",
-        "status": "waiting-worker",
-        "phase": "Waiting for a compiler rebuild and the original tactics, Html and Tensor cases",
+        "status": "running",
+        "phase": "build all 46 compiler modules and smoke-test Stage1",
         "passed": 0,
         "failed": 0,
         "total": 7,
@@ -19428,6 +19417,17 @@
         "total": 4,
         "source": "7e94e53cca26f1df764d79741a0fab9f8d4e8201c4d06d722b76a2790cd02454",
         "auditPending": true
+      },
+      {
+        "title": "Audit the combined strict-format and named-proof compiler",
+        "status": "passed",
+        "phase": "Stage2 and Stage3 match. Both interface readers, the separate client and the changed-source control passed.",
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "unit": "stages",
+        "source": "1c8e4305e070018121b087e47dd7572c3844617af7391841d74b1e8f2ed4c3d5",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-strict-named-proof-bootstrap-results.json"
       },
       {
         "title": "Audit the consolidated compiler with named proofs",
@@ -19542,7 +19542,7 @@
         "title": "Run the full original 105-target Stage3 frontend matrix",
         "status": "running",
         "phase": "3 disjoint runs share the same audited compiler and provider.",
-        "passed": 24,
+        "passed": 25,
         "failed": 0,
         "total": 105,
         "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a"
@@ -19662,5 +19662,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T18:16:36.014095+00:00"
+  "updatedAt": "2026-11-07T18:19:59.343841+00:00"
 }
