@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "180 of 235 complete groups passed; 2 running, 0 failed and 53 pending.Every group includes ignored tests. State: running.",
+      "detail": "181 of 235 complete groups passed; 2 running, 0 failed and 52 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -499,7 +499,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "180 of 235 complete groups passed; 2 running, 0 failed and 53 pending."
+      "detail": "181 of 235 complete groups passed; 2 running, 0 failed and 52 pending."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -803,10 +803,10 @@
         "unit": "targets",
         "total": 235,
         "counts": {
-          "verified": 181,
+          "verified": 182,
           "blocked": 0,
           "running": 2,
-          "pending": 52,
+          "pending": 51,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -1919,21 +1919,21 @@
           {
             "id": "native:bootstrap_infer",
             "title": "bootstrap_infer",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_infer.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "startedAt": "2026-11-07T02:47:30.602473+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T02:53:05.354216+00:00",
+              "exitCode": 0,
+              "logSha256": "17a48204e421e27499d1912e138a60d20bab4d51a326e163a376c65d0dd69f03",
               "cases": [
                 {
                   "name": "schemes_constructor_instantiation_and_scope_facts_are_checked_in_cinch",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -1942,21 +1942,21 @@
           {
             "id": "native:bootstrap_instance_resolution",
             "title": "bootstrap_instance_resolution",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_instance_resolution.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T18:51:12.205355+00:00",
-              "finishedAt": "2026-11-06T18:53:10.899639+00:00",
-              "exitCode": 0,
-              "logSha256": "e8f76a731caaec77e48f6e3e841c2ff8d7552b3fe127e328a2edcdb12f760db1",
+              "status": "running",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T02:53:05.356994+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "instance_factories_preserve_scope_coherence_and_actual_method_semantics",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -18767,9 +18767,9 @@
       {
         "title": "Cinch defaults: full replay with function factories",
         "status": "running",
-        "phase": "interface_preconditions",
-        "passed": 4,
-        "failed": 0,
+        "phase": "interface_refinements",
+        "passed": 6,
+        "failed": 1,
         "total": 10,
         "source": "286613ea3571aebd6747def34f7a8f9d8af0c84c78e5fee82f9ca65ff90fe7e1",
         "auditPending": false
@@ -18777,8 +18777,8 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "bootstrap_infer",
-        "passed": 180,
+        "phase": "bootstrap_instance_resolution",
+        "passed": 181,
         "failed": 0,
         "total": 235,
         "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
@@ -18796,10 +18796,10 @@
       }
     ],
     "counts": {
-      "verified": 435,
+      "verified": 436,
       "blocked": 3,
       "running": 9,
-      "pending": 79,
+      "pending": 78,
       "recheck": 142
     },
     "total": 668,
@@ -18808,5 +18808,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T02:52:57.667188+00:00"
+  "updatedAt": "2026-11-07T02:53:59.719900+00:00"
 }
