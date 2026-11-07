@@ -547,7 +547,7 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "Main combines the strict schema 10 reader with checked named proofs and the consolidated library producer.",
-  "activity": "The matching bootstrap is checking fixed point and source change. The preceding proof compiler passed independent audit. The full suite remains open.",
+  "activity": "The matching bootstrap is passed chain awaiting independent audit. The preceding proof compiler passed independent audit. The full suite remains open.",
   "checklist": {
     "version": 1,
     "target": {
@@ -18221,13 +18221,13 @@
       {
         "title": "Bootstrap the combined strict-format and named-proof compiler",
         "unit": "stages",
-        "status": "running",
-        "phase": "checking fixed point and source change",
+        "status": "passed-chain-awaiting-independent-audit",
+        "phase": "passed chain awaiting independent audit",
         "passed": 4,
         "failed": 0,
         "total": 4,
         "source": "1c8e4305e070018121b087e47dd7572c3844617af7391841d74b1e8f2ed4c3d5",
-        "auditPending": false
+        "auditPending": true
       },
       {
         "title": "Bootstrap the stricter schema 10 candidate",
@@ -19662,5 +19662,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T18:13:33.740753+00:00"
+  "updatedAt": "2026-11-07T18:16:36.014095+00:00"
 }
