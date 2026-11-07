@@ -155,7 +155,7 @@ rechecked Util
 rechecked Main
 ```
 
-The transcript illustrates the workflow; the actual affected set depends on the files and dependency changes. Loading follows source module identities and imports. A source-distributed library still needs its files available locally; loading a module is not a remote package installation operation. `:load` is transactional too: a missing import, parse error, or check error restores the previous workspace instead of leaving a partial project loaded.
+The transcript illustrates the workflow; the actual affected set depends on the files and dependency changes. Loading follows source module identities and imports. A source-distributed library still needs its files available locally; loading a module is not a remote package installation operation. `:load` is transactional too: a missing import, parse error, or check error restores the previous workspace instead of leaving a partial project loaded. The prepared session covers the loaded project's whole checked closure, not only the prelude. After a successful load, expression probes reuse those modules without rechecking them. A package from the registry still has to be materialized as source or checked interfaces first; the current CLI does not fetch remote packages.
 
 Reload is transactional. If the new revision has a type error, a broken import edge, or a missing loaded source, `:reload` reports the failure and restores the previous in-memory revision instead of leaving the session on a half-replaced interface chain. Evaluation continues against the last coherent project until the source is repaired and reloaded.
 

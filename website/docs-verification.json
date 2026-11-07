@@ -322,7 +322,7 @@
     "suites": [
       {
         "name": "repl",
-        "passed": 14,
+        "passed": 15,
         "failed": 0
       },
       {

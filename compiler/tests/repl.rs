@@ -230,6 +230,34 @@ fn warm_expressions_reuse_the_checked_session() {
 }
 
 #[test]
+fn loaded_project_expressions_reuse_the_checked_closure() {
+    let dir = std::env::temp_dir().join(format!("cinch-repl-loaded-warm-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("temp dir");
+    std::fs::write(
+        dir.join("Util.cinch"),
+        "module Util where\n  double :: Int -> Int\n  double n = n + n\n",
+    )
+    .expect("Util.cinch");
+    std::fs::write(
+        dir.join("Main.cinch"),
+        "module Main where\n  import Util\n  quad :: Int -> Int\n  quad n = double (double n)\n",
+    )
+    .expect("Main.cinch");
+    let mut repl = Repl::with_root(&dir);
+    assert!(out(repl.eval(":load Main.cinch")).contains("loaded"));
+    let start = std::time::Instant::now();
+    for _ in 0..20 {
+        assert!(out(repl.eval("quad 21")).contains("84 :: Int"));
+    }
+    let elapsed = start.elapsed();
+    assert!(
+        elapsed < std::time::Duration::from_secs(2),
+        "20 loaded-package expressions took {elapsed:?}; the checked closure was rechecked"
+    );
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
 fn a_failed_load_keeps_the_previous_session() {
     let base = std::env::temp_dir().join(format!("cinch-repl-load-fail-{}", std::process::id()));
     let project = base.join("project");
