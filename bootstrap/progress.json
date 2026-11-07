@@ -11894,9 +11894,9 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 15,
+          "verified": 16,
           "blocked": 4,
-          "running": 1,
+          "running": 0,
           "pending": 85,
           "recheck": 0
         },
@@ -12158,21 +12158,21 @@
           {
             "id": "stage3:bootstrap_array_float_bits",
             "title": "bootstrap_array_float_bits",
-            "state": "running",
+            "state": "verified",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_array_float_bits.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
               "startedAt": "2026-11-07T12:36:20.823199+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T12:46:53.023588+00:00",
+              "exitCode": 0,
+              "logSha256": "de0bf641fe21e2d4f0a74c180253088b7678359b05dffbd11a47b0a2561ff16b",
               "cases": [
                 {
                   "name": "cinch_packed_float_arrays_preserve_ieee_payloads",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -14019,8 +14019,7 @@
         ],
         "observedCounts": {
           "failed": 4,
-          "passed": 15,
-          "running": 1,
+          "passed": 16,
           "pending": 85
         },
         "observedSource": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854"
@@ -18188,9 +18187,9 @@
       },
       {
         "title": "Published schema 9 Stage3: all 105 frontend targets",
-        "status": "running",
+        "status": "waiting-disk-space",
         "phase": "bootstrap_array_float_bits",
-        "passed": 15,
+        "passed": 16,
         "failed": 4,
         "total": 105,
         "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854"
@@ -18784,16 +18783,6 @@
         "auditPending": false
       },
       {
-        "title": "Earlier Stage3: complete frontend sweep",
-        "status": "running",
-        "phase": "bootstrap_array_float_bits",
-        "passed": 15,
-        "failed": 4,
-        "total": 105,
-        "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-        "earlier": true
-      },
-      {
         "title": "Cinch task forwarding: six-case source replay",
         "status": "passed",
         "phase": "Unchanged Tasks program and refusal, unsafe capture, and interface boundary",
@@ -19160,9 +19149,9 @@
       }
     ],
     "counts": {
-      "verified": 191,
+      "verified": 192,
       "blocked": 9,
-      "running": 11,
+      "running": 10,
       "pending": 91,
       "recheck": 372
     },
@@ -19172,5 +19161,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T12:45:58.227285+00:00"
+  "updatedAt": "2026-11-07T12:47:00.522821+00:00"
 }
