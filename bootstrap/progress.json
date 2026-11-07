@@ -1,31 +1,31 @@
 {
   "schema": 2,
-  "commit": "4c5c8064ac3f04b66d8f6e3c52c0a86a014a9c75",
+  "commit": "9fb66f063608864127453af8f3667052001a8e75",
   "status": "Full bootstrap verification remains open",
   "stages": [
     {
-      "name": "Prior API Stage 0",
+      "name": "Stage 0",
       "state": "passed",
-      "label": "Verified",
-      "description": "Pinned Rust seed, independently revalidated and smoke-tested. Separate compiler snapshot; a matching published-source run remains required."
+      "label": "Smoke tests passed",
+      "description": "Verify the pinned Rust seed."
     },
     {
-      "name": "Prior API Stage 1",
+      "name": "Stage 1",
       "state": "passed",
-      "label": "Verified",
-      "description": "Fresh Cinch compiler built from the seed; all three smoke checks. Separate compiler snapshot; a matching published-source run remains required."
+      "label": "Smoke tests passed",
+      "description": "Build Cinch from source with the seed."
     },
     {
-      "name": "Prior API Stage 2",
-      "state": "passed",
-      "label": "Verified",
-      "description": "Every compiler module will be freshly rebuilt by Stage1 after all repair gates pass. Separate compiler snapshot; a matching published-source run remains required."
+      "name": "Stage 2",
+      "state": "running",
+      "label": "Building",
+      "description": "Build the same compiler sources with Stage1."
     },
     {
-      "name": "Prior API Stage 3",
-      "state": "passed",
-      "label": "Fixed point verified",
-      "description": "Fresh rebuild by Stage2, followed by code/interface matching and changed-source checks. Separate compiler snapshot; a matching published-source run remains required."
+      "name": "Stage 3",
+      "state": "pending",
+      "label": "Pending",
+      "description": "Rebuild with Stage2 and check the fixed point."
     }
   ],
   "checks": [
@@ -18219,6 +18219,18 @@
     ],
     "active": [
       {
+        "title": "Bootstrap the schema 10 compiler on main",
+        "status": "running",
+        "phase": "building stage2",
+        "passed": 2,
+        "failed": 0,
+        "total": 4,
+        "unit": "stages",
+        "source": "309a4f696ed5072050009e59562deabb2fc205731e47655662d1d8d69cd2d020",
+        "auditPending": false,
+        "evidence": null
+      },
+      {
         "title": "Integrated compiler: fresh bootstrap",
         "status": "passed-chain-awaiting-independent-audit",
         "phase": "Independent audit passed, including matching Stage2 and Stage3 and the changed-source control",
@@ -19141,15 +19153,6 @@
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-interface-controls-and-schema9-nonzero-results.json"
       },
       {
-        "title": "Bootstrap the schema 10 compiler on main",
-        "status": "building-stage2",
-        "phase": "building stage2",
-        "passed": 2,
-        "failed": 0,
-        "total": 4,
-        "source": "309a4f696ed5072050009e59562deabb2fc205731e47655662d1d8d69cd2d020"
-      },
-      {
         "title": "Replay the original library families with the rebuilt provider",
         "status": "passed-original-schema10-family-overlays",
         "phase": "interface_prelude_overrides",
@@ -19198,6 +19201,33 @@
         "total": 34,
         "source": "b59c4893c4214d1c94c624bf9ba3f9e99ee7eb9b9568c1f092b20e5080967b38",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-external-language-results.json"
+      },
+      {
+        "title": "Rebuild the libraries with five requested runtime variants",
+        "status": "passed-external-variant-extensions",
+        "phase": "strict",
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "source": null
+      },
+      {
+        "title": "First library replay of Html, Reactive and TensorAD",
+        "status": "completed-with-runtime-replay-failures",
+        "phase": "TensorAD",
+        "passed": 0,
+        "failed": 3,
+        "total": 3,
+        "source": "b59c4893c4214d1c94c624bf9ba3f9e99ee7eb9b9568c1f092b20e5080967b38"
+      },
+      {
+        "title": "Replay the same three programs with the additional method and zip variants",
+        "status": "waiting-library-variants",
+        "phase": "waiting library variants",
+        "passed": 0,
+        "failed": 0,
+        "total": 3,
+        "source": "b59c4893c4214d1c94c624bf9ba3f9e99ee7eb9b9568c1f092b20e5080967b38"
       },
       {
         "title": "Run the original 14 external acceptance checks on schema 10 Stage3",
@@ -19352,5 +19382,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T14:15:08.377774+00:00"
+  "updatedAt": "2026-11-07T14:18:11.294100+00:00"
 }
