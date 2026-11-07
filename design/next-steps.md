@@ -55,6 +55,18 @@ full suite remain open. The exact published combination has started a fresh
 four-stage rebuild with the corrected producer.
 See [the quantified law audit](../bootstrap/current-schema10-quantified-law-bootstrap-results.json).
 
+The pure function constructor now unifies with an inferred effect row
+only after the row resolves to empty. All four effect-type runs passed,
+including real-effect refusals. The runtime preserves the type former's
+word class in specialization vectors. The original function-family
+program ran against the expanded object with zero leaks. String equality
+now uses the authenticated private wrapper layout. Five focused client
+runs passed with zero leaks, including the original Foldable list
+combinator case. The expanded object retains all 55 checked library
+interface identities. These runs used the recorded development compiler
+snapshots. The full matching suite remains open.
+See [the function and String audit](../bootstrap/current-schema10-function-and-string-object-results.json).
+
 Set `CINCH_TEST_INVOCATIONS` to an evidence directory when running the
 selected frontend tests. Each record identifies the test case, selected
 compiler, input files and observed compiler exit code. It survives project

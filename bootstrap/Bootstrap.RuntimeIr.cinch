@@ -231,6 +231,10 @@ module Bootstrap.RuntimeIr where
     Cons binding rest -> (case checked-foreign-plan binding of
       Some plan -> opaque-foreign-params ty (foreign-parameters plan) || foreign-parameter-matches ty (foreign-result plan)
       None -> False) || opaque-foreign-word ty rest
+  checked-string-word :: String -> ProgramInfo -> Bool
+  checked-string-word name info = case program-object info of
+    Some provider -> case object-string-layout name provider of Some descriptor -> True; None -> False
+    None -> False
   word-class :: RuntimeContext -> UType -> Option Nat
   word-class context ty = case borrowed-carrier (base ty) of
     Some carrier -> word-class context carrier
@@ -252,8 +256,13 @@ module Bootstrap.RuntimeIr where
           else if (same name "Bytes" || same name "String") && kind-equal kind KType then Some 1 else
           (case data-declaration name (program-data datas) of
             Some d -> Some 1
-            None -> case find-class name (program-classes datas) of Some description -> Some 1; None -> None)
+            None -> if kind-equal kind KType && checked-string-word name datas then Some 1
+              else case find-class name (program-classes datas) of Some description -> Some 1; None -> None)
+        UBound id name kind -> applied-former-class ty kind (representation id bounds)
+        URigid id name level kind -> applied-former-class ty kind (representation id rigids)
         other -> None
+  applied-former-class :: UType -> Kind -> Option Nat -> Option Nat
+  applied-former-class ty kind code = if former-kind kind && kind-equal (type-kind ty) KType then code else None
   word-type :: RuntimeContext -> UType -> Bool
   word-type context ty = case word-class context ty of Some code -> True; None -> False
   field-types :: RuntimeContext -> UType -> Nat -> Bool
@@ -275,30 +284,40 @@ module Bootstrap.RuntimeIr where
   specialized-name name classes = case classes of Nil -> name; other -> cat [name, ".r", class-text classes]
   erased-kind :: Kind -> Bool
   erased-kind kind = case kind of KRegion -> True; KEffect -> True; KRow -> True; KProp -> True; other -> False
+  -- Native represents a type former and an abstract application of it
+  -- as Obj. Keep its position in the specialization vector.
+  former-kind :: Kind -> Bool
+  former-kind kind = case kind of
+    KFun input result -> kind-equal result KType || former-kind result
+    other -> False
+  quant-word-class :: RuntimeContext -> Kind -> UType -> Option Nat
+  quant-word-class context kind ty = if kind-equal kind KType then word-class context ty
+    else if former-kind kind && kind-equal kind (type-kind ty) then Some 1 else None
   scheme-classes :: RuntimeContext -> List Quant -> List UType -> Option (List Nat)
   scheme-classes context qs actuals = case (qs, actuals) of
     (Nil, Nil) -> Some Nil
-    (Cons q rest, Cons actual more) -> if kind-equal (quant-kind q) KType then
-      (case (word-class context actual, scheme-classes context rest more) of
+    (Cons q rest, Cons actual more) -> if erased-kind (quant-kind q) then scheme-classes context rest more else
+      (case (quant-word-class context (quant-kind q) actual, scheme-classes context rest more) of
         (Some code, Some tail) -> Some (Cons code tail)
         other -> None)
-      else if erased-kind (quant-kind q) then scheme-classes context rest more else None
     other -> None
   source-scheme-classes :: RuntimeContext -> List Quant -> List UType -> Option (List Nat)
   source-scheme-classes context qs actuals = case (qs, actuals) of
     (Nil, Nil) -> Some Nil
     (Cons q rest, Cons actual more) -> (case value-carrier (quant-kind q) of
       Some carrier -> if typed-index-admissible actual then source-scheme-classes context rest more else None
-      None -> if kind-equal (quant-kind q) KType then
-        (case (word-class context actual, source-scheme-classes context rest more) of (Some code, Some tail) -> Some (Cons code tail); other -> None)
-        else if erased-kind (quant-kind q) then source-scheme-classes context rest more else None)
+      None -> if erased-kind (quant-kind q) then source-scheme-classes context rest more else
+        (case (quant-word-class context (quant-kind q) actual, source-scheme-classes context rest more) of
+          (Some code, Some tail) -> Some (Cons code tail)
+          other -> None))
     other -> None
   class-bindings :: List Quant -> List Nat -> Option (List (Nat, Nat))
   class-bindings qs classes = case qs of
     Nil -> case classes of Nil -> Some Nil; other -> None
     Cons q rest -> if erased-kind (quant-kind q) || (case value-carrier (quant-kind q) of Some carrier -> True; None -> False) then class-bindings rest classes else
       (case classes of
-        Cons code more -> if kind-equal (quant-kind q) KType && code < 3 then
+        Cons code more -> let kind = quant-kind q in
+          if (kind-equal kind KType && code < 3) || (former-kind kind && code == 1) then
           (case class-bindings rest more of Some tail -> Some (Cons (quant-id q, code) tail); None -> None) else None
         Nil -> None)
   rigid-bindings :: List (Nat, UType) -> List (Nat, Nat) -> Option (List (Nat, Nat))
@@ -1184,7 +1203,8 @@ module Bootstrap.RuntimeIr where
               else (case expressions definitions locals ready (take-terms (list-length params) args) of
                 (next, values) -> case call next (llvm-object-symbol (unit-symbol unit)) (givens <> values) of
                   (called, value) -> apply-terms definitions locals called value (drop-terms (list-length params) args))
-            other -> unsupported w sp "external function lacks concrete checked word representations")
+            other -> unsupported w sp (cat ["external function lacks concrete checked word representations: ",
+              unit-symbol unit, " with checked type ", type-text (scheme-body sc)]))
           None -> unsupported w sp "external unit arity exceeds its checked function telescope")
         else unsupported w sp "external function context disagrees with its checked scheme"
   runtime-type-equal :: UType -> UType -> Bool

@@ -1,0 +1,160 @@
+{
+  "full_goal_complete": false,
+  "function_family": {
+    "compiler_sha256": "d7d7db83249260018bd7078a2186b1d80b4ecf31a1d3f05322f3455a079a2beb",
+    "compiler_source_sha256": "6567187a8aa8daf02d96211e37a54b3815647ba2cc8ea6e5242e9897a6800c4b",
+    "provider_sha256": "e55a71085c13beac98bb37b614f8bf11c79677861cf7a21c385486328f3a62af",
+    "rows": [
+      {
+        "artifact_exit": 0,
+        "diagnostics": "",
+        "exit_code": 0,
+        "link_exit": 0,
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "original-function-family-1",
+        "object_sha256": "18957c87674c0767585798ee31e1e4a7177e5e9d96dd6a15236edbec6ff57319",
+        "roots_sha256": "1f85e11b4afaf36d406fd03f1cfd4d8d3ae84c6830ebd9ea3d7e2d99c9bb6c1e",
+        "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "status": "passed",
+        "zero_leaks": true
+      }
+    ],
+    "source_sha256": "b8565b7e5969985fa33fc58d088c7cc5c4c5fe76a8b822937f9e92c6a3ace27d"
+  },
+  "higher_kinded_runtime": {
+    "compiler_source_sha256": "a4c38ccf3b7d741bbfe05d91eafbf2320ee2d48420c5e30e0da0d1513fc8e1aa",
+    "status": "passed-local-former-and-original-demands"
+  },
+  "new_roots": {
+    "dictionaries": 21,
+    "methods": 15,
+    "units": 31
+  },
+  "preserved_checked_library_interfaces": 55,
+  "pure_arrow": {
+    "compiler_source_sha256": "c62ea43ce546138d58eb8c3647cc09b013ac2252b0c12bcbb529b60d1c52fb10",
+    "exe_sha256": "e081db9fd9d55c634bd9a5ee847452d0c5e56eddf777470194a60b0a02c97678",
+    "rows": [
+      {
+        "compiler_sha256": "5af37be40fbdfabc4fc4a2f9f1500ed5a9162ef9b43ee524a2f76e679304b023",
+        "diagnostics": "",
+        "exit_code": 4,
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "original-category-reproduction",
+        "source_sha256": "b8565b7e5969985fa33fc58d088c7cc5c4c5fe76a8b822937f9e92c6a3ace27d",
+        "status": "observed"
+      },
+      {
+        "exit_code": 0,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "name": "build-effect-types",
+        "status": "passed"
+      },
+      {
+        "exit_code": 0,
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "effect-types-0",
+        "status": "passed"
+      },
+      {
+        "exit_code": 0,
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "effect-types-1",
+        "status": "passed"
+      },
+      {
+        "exit_code": 0,
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "effect-types-2",
+        "status": "passed"
+      },
+      {
+        "exit_code": 0,
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "effect-types-3",
+        "status": "passed"
+      }
+    ]
+  },
+  "status": "passed-original-function-and-string-object-clients",
+  "string_foldable": {
+    "compiler_source_sha256": "2152b7b447814f8cedbbeffeaa3bbd15079346a27f35fafca8aaa65bd35ee08a",
+    "emitter_sha256": "10168f28ab6900787003ef12f067c275271b1ed7e57351576d033a904392f08e",
+    "manifest_sha256": "83846d91671263e608ff9082d3f395739250ebbc16a4c2843346a92e861e43bf",
+    "object_sha256": "96ab75d241eac0d3ef703294858373822265d846e14d0cb2db1598b47baa2c05",
+    "rows": [
+      {
+        "exit_code": 0,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "name": "build-runtime-object-emitter",
+        "status": "passed"
+      },
+      {
+        "artifact_exit": 0,
+        "diagnostics": "",
+        "exit_code": 0,
+        "link_exit": 0,
+        "link_log_sha256": "6021f33487b85f8a9c5f9471588485ff4234e50e83be3e5c4c6e23dd0c32b455",
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "literal-equality",
+        "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "source_sha256": "53c23fac01305b54ecb304fb7044394e46f4afb568adb0a27e7bfa90168cde95",
+        "status": "passed",
+        "zero_leaks": true
+      },
+      {
+        "artifact_exit": 0,
+        "diagnostics": "",
+        "exit_code": 0,
+        "link_exit": 0,
+        "link_log_sha256": "6021f33487b85f8a9c5f9471588485ff4234e50e83be3e5c4c6e23dd0c32b455",
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "checked-string-compare",
+        "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "source_sha256": "0c85699ec95569b7d7fe4c57c10116c48202fa35818a784e7d62d45719c7230f",
+        "status": "passed",
+        "zero_leaks": true
+      },
+      {
+        "artifact_exit": 0,
+        "diagnostics": "",
+        "exit_code": 0,
+        "link_exit": 0,
+        "link_log_sha256": "6021f33487b85f8a9c5f9471588485ff4234e50e83be3e5c4c6e23dd0c32b455",
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "foldable-string-concat",
+        "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "source_sha256": "1ac44b9237855d4b4ac37190c91ca005dc33775476094cd1e33d1ff028df1b6b",
+        "status": "passed",
+        "zero_leaks": true
+      },
+      {
+        "artifact_exit": 199,
+        "diagnostics": "",
+        "exit_code": 0,
+        "link_exit": 0,
+        "link_log_sha256": "6021f33487b85f8a9c5f9471588485ff4234e50e83be3e5c4c6e23dd0c32b455",
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "unicode-equality-and-inequality",
+        "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "source_sha256": "137c3417c74c2da851f94a1f68f34c04ab7e45ae0c06bff61e756edd4b8d6b7f",
+        "status": "passed",
+        "zero_leaks": true
+      },
+      {
+        "artifact_exit": 0,
+        "diagnostics": "",
+        "exit_code": 0,
+        "link_exit": 0,
+        "link_log_sha256": "6021f33487b85f8a9c5f9471588485ff4234e50e83be3e5c4c6e23dd0c32b455",
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "original-foldable-free-list",
+        "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "source_sha256": "6565761ec35dc48d1e29321fd78f050659df97717341e53139b36f5a1932aa26",
+        "status": "passed",
+        "zero_leaks": true
+      }
+    ],
+    "runtime_sha256": "c4ab921147a8ea1055306428e0ba84859513888ac0188f4973b408c5c7b399f5"
+  }
+}

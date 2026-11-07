@@ -115,6 +115,22 @@ module Main where
       clean solved && equal (normalize solved joined) (row [io r, divergence])
         && not (clean (include-effects sp (normalize solved joined) (row [io r]) solved))
 
+  arrow-application :: Bool -> UType -> Bool
+  arrow-application reverse r = case fresh-meta (KFun KType KType) (empty-store "effect-types") of
+    (former, first) -> case fresh-meta KRow first of
+      (effects, start) ->
+        let unit = UCon "Unit" KType in
+        let nat = UCon "Nat" KType in
+        let application = UApp former nat in
+        let arrow = UFunEff unit effects nat in
+        let effectful = UFunEff unit (row [io r]) nat in
+        let solved = if reverse then unify sp arrow application start else unify sp application arrow start in
+        let refused = if reverse then unify sp effectful application start else unify sp application effectful start in
+        let partial = UApp (UCon "(->)" arrow-constructor-kind) unit in
+        clean solved && equal (normalize solved former) partial && equal (normalize solved effects) (row Nil)
+          && not (clean refused)
+          && (case normalize refused former of UMeta id (KFun KType KType) -> True; other -> False)
+
   open-rows :: Nat -> UType -> UType -> Bool
   open-rows id r s =
     let e = URigid (id + 2) "e" 0 KRow in
@@ -140,7 +156,8 @@ module Main where
   tests id =
     let r = URigid id "r" 0 KRegion in
     let s = URigid (id + 1) "s" 0 KRegion in
-    basic r s && transactional r s && coalescing r s && scope-check id && opening r && generalization && core-check r && joined-meta r && open-rows id r s
+    basic r s && transactional r s && coalescing r s && scope-check id && opening r && generalization
+      && core-check r && joined-meta r && arrow-application False r && arrow-application True r && open-rows id r s
 
   main :: Unit ->{IO r} Int
   main unit = with (io = newIO ()) in case fs-read (path-from-string "case.txt") of

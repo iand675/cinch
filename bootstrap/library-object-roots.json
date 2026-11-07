@@ -2,11 +2,63 @@
   "dictionaries": [
     {
       "classes": "",
+      "symbol": "Data.Identity.Applicative_Identity"
+    },
+    {
+      "classes": "",
+      "symbol": "Data.Identity.Functor_Identity"
+    },
+    {
+      "classes": "",
+      "symbol": "Data.Identity.Monad_Identity"
+    },
+    {
+      "classes": "",
+      "symbol": "Data.List.Alternative_List"
+    },
+    {
+      "classes": "",
+      "symbol": "Data.List.Applicative_List"
+    },
+    {
+      "classes": "",
+      "symbol": "Data.List.Foldable_List"
+    },
+    {
+      "classes": "",
       "symbol": "Data.List.Functor_List"
     },
     {
       "classes": "",
+      "symbol": "Data.List.Monad_List"
+    },
+    {
+      "classes": "",
+      "symbol": "Data.List.Traversable_List"
+    },
+    {
+      "classes": "",
       "symbol": "Data.Option.Alternative_Option"
+    },
+    {
+      "classes": "",
+      "symbol": "Data.Option.Applicative_Option"
+    },
+    {
+      "classes": "",
+      "symbol": "Data.Option.Foldable_Option"
+    },
+    {
+      "classes": "",
+      "symbol": "Data.Option.Functor_Option"
+    },
+    {
+      "classes": "",
+      "symbol": "Data.Option.Monad_Option"
+    },
+    {
+      "classes": "",
+      "symbol": "Data.Option.Traversable_Option"
     },
     {
       "classes": "O",
@@ -30,11 +82,43 @@
     },
     {
       "classes": "T",
+      "symbol": "Category.Applicative.Applicative_Function"
+    },
+    {
+      "classes": "T",
+      "symbol": "Category.Functor.Functor_Function"
+    },
+    {
+      "classes": "T",
+      "symbol": "Category.Monad.Monad_Function"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.Const.Functor_Const"
+    },
+    {
+      "classes": "T",
       "symbol": "Data.List.FromList_List"
     },
     {
       "classes": "T",
+      "symbol": "Data.List.Monoid_List"
+    },
+    {
+      "classes": "T",
       "symbol": "Data.List.Semigroup_List"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.Result.Applicative_Result"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.Result.Functor_Result"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.Result.Monad_Result"
     },
     {
       "classes": "T",
@@ -59,7 +143,52 @@
     {
       "class": "Category.Alternative.Alternative",
       "own": "T",
+      "slot": 0
+    },
+    {
+      "class": "Category.Alternative.Alternative",
+      "own": "T",
       "slot": 1
+    },
+    {
+      "class": "Category.Applicative.Applicative",
+      "own": "O",
+      "slot": 0
+    },
+    {
+      "class": "Category.Applicative.Applicative",
+      "own": "R",
+      "slot": 0
+    },
+    {
+      "class": "Category.Applicative.Applicative",
+      "own": "T",
+      "slot": 0
+    },
+    {
+      "class": "Category.Applicative.Applicative",
+      "own": "TO",
+      "slot": 1
+    },
+    {
+      "class": "Category.Applicative.Applicative",
+      "own": "TOO",
+      "slot": 2
+    },
+    {
+      "class": "Category.Applicative.Applicative",
+      "own": "TT",
+      "slot": 1
+    },
+    {
+      "class": "Category.Applicative.Applicative",
+      "own": "TTT",
+      "slot": 2
+    },
+    {
+      "class": "Category.Functor.Functor",
+      "own": "OO",
+      "slot": 0
     },
     {
       "class": "Category.Functor.Functor",
@@ -70,6 +199,36 @@
       "class": "Category.Functor.Functor",
       "own": "RO",
       "slot": 1
+    },
+    {
+      "class": "Category.Functor.Functor",
+      "own": "RR",
+      "slot": 0
+    },
+    {
+      "class": "Category.Functor.Functor",
+      "own": "TT",
+      "slot": 0
+    },
+    {
+      "class": "Category.Functor.Functor",
+      "own": "TT",
+      "slot": 1
+    },
+    {
+      "class": "Category.Monad.Monad",
+      "own": "O",
+      "slot": 1
+    },
+    {
+      "class": "Category.Monad.Monad",
+      "own": "T",
+      "slot": 1
+    },
+    {
+      "class": "Category.Monad.Monad",
+      "own": "TT",
+      "slot": 0
     }
   ],
   "schema": 1,
@@ -180,11 +339,23 @@
     },
     {
       "classes": "O",
+      "symbol": "Category.Applicative.unless"
+    },
+    {
+      "classes": "O",
+      "symbol": "Category.Applicative.when"
+    },
+    {
+      "classes": "O",
       "symbol": "Data.List.sort-by"
     },
     {
       "classes": "O",
       "symbol": "Data.Option.is-none"
+    },
+    {
+      "classes": "OO",
+      "symbol": "Category.Foldable.concat"
     },
     {
       "classes": "OO",
@@ -197,6 +368,82 @@
     {
       "classes": "OOO",
       "symbol": "Data.List.zip-with"
+    },
+    {
+      "classes": "OOT",
+      "symbol": "Category.Traversable.sequence-a"
+    },
+    {
+      "classes": "OOTT",
+      "symbol": "Category.Traversable.for"
+    },
+    {
+      "classes": "OOTT",
+      "symbol": "Category.Traversable.for-m"
+    },
+    {
+      "classes": "OOTT",
+      "symbol": "Category.Traversable.map-m"
+    },
+    {
+      "classes": "OT",
+      "symbol": "Category.Applicative.replicate-m"
+    },
+    {
+      "classes": "OT",
+      "symbol": "Category.Applicative.void"
+    },
+    {
+      "classes": "OT",
+      "symbol": "Category.Foldable.all"
+    },
+    {
+      "classes": "OT",
+      "symbol": "Category.Foldable.any"
+    },
+    {
+      "classes": "OT",
+      "symbol": "Category.Foldable.elem"
+    },
+    {
+      "classes": "OT",
+      "symbol": "Category.Foldable.find"
+    },
+    {
+      "classes": "OT",
+      "symbol": "Category.Foldable.fold-left1"
+    },
+    {
+      "classes": "OT",
+      "symbol": "Category.Foldable.fold-right1"
+    },
+    {
+      "classes": "OT",
+      "symbol": "Category.Foldable.maximum"
+    },
+    {
+      "classes": "OT",
+      "symbol": "Category.Foldable.maximum-by"
+    },
+    {
+      "classes": "OT",
+      "symbol": "Category.Foldable.minimum"
+    },
+    {
+      "classes": "OT",
+      "symbol": "Category.Foldable.minimum-by"
+    },
+    {
+      "classes": "OT",
+      "symbol": "Category.Foldable.not-elem"
+    },
+    {
+      "classes": "OT",
+      "symbol": "Category.Foldable.product"
+    },
+    {
+      "classes": "OT",
+      "symbol": "Category.Foldable.sum"
     },
     {
       "classes": "OT",
@@ -235,16 +482,36 @@
       "symbol": "Relation.Ord.comparing"
     },
     {
+      "classes": "OTO",
+      "symbol": "Category.Foldable.fold-map"
+    },
+    {
       "classes": "OTR",
       "symbol": "Function.Combinators.on"
+    },
+    {
+      "classes": "OTT",
+      "symbol": "Category.Applicative.ap"
     },
     {
       "classes": "OTT",
       "symbol": "Function.Combinators.on"
     },
     {
+      "classes": "OTTT",
+      "symbol": "Category.Monad.<=<"
+    },
+    {
+      "classes": "OTTT",
+      "symbol": "Category.Monad.>=>"
+    },
+    {
       "classes": "R",
       "symbol": "Data.Bool.bool"
+    },
+    {
+      "classes": "R",
+      "symbol": "Data.Identity.run-identity"
     },
     {
       "classes": "R",
@@ -253,6 +520,10 @@
     {
       "classes": "RR",
       "symbol": "Function.Combinators.apply-to"
+    },
+    {
+      "classes": "RT",
+      "symbol": "Data.Const.get-const"
     },
     {
       "classes": "RT",
@@ -273,6 +544,10 @@
     {
       "classes": "T",
       "symbol": "Data.Bool.bool"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.Identity.run-identity"
     },
     {
       "classes": "T",
@@ -461,6 +736,14 @@
     {
       "classes": "TOO",
       "symbol": "Data.List.zip-with"
+    },
+    {
+      "classes": "TR",
+      "symbol": "Data.Const.get-const"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.Const.get-const"
     },
     {
       "classes": "TT",

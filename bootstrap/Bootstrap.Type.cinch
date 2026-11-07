@@ -739,6 +739,13 @@ module Bootstrap.Type where
   mismatch sp a b st = add-error sp (mismatch-message a b) st
   mismatch-message :: UType -> UType -> String
   mismatch-message a b = string-concat-all ["type mismatch: expected ", type-text b, ", found ", type-text a]
+  -- The partial (->) constructor can represent an ordinary arrow only.
+  -- An inferred row may be solved to empty before matching its application.
+  unify-pure-arrow-application :: Span -> UType -> UType -> UType -> Store -> Store
+  unify-pure-arrow-application sp application arrow effects st =
+    let pure = unify sp effects (URow UEnd) st in
+    if list-length (store-errors pure) > list-length (store-errors st) then pure
+    else unify sp application arrow pure
   unify-structure :: Span -> UType -> UType -> Store -> Store
   unify-structure sp a b st = case a of
     UPropLit value -> case b of UPropLit other -> if (if value then other else not other) then st else mismatch sp a b st; other -> mismatch sp a b st
@@ -771,6 +778,7 @@ module Bootstrap.Type where
     UApp f x -> case b of
       UApp g y -> unify sp x y (unify sp f g st)
       UFun domain result -> unify sp x result (unify sp f (UApp arrow-constructor domain) st)
+      UFunEff domain effects result -> unify-pure-arrow-application sp a (UFun domain result) effects st
       other -> mismatch sp a b st
     UFun x y -> case b of
       UPi id name domain row result -> unify-pi sp (function-pi a) b st
@@ -782,6 +790,7 @@ module Bootstrap.Type where
       UPi id name domain effects result -> unify-pi sp (function-pi a) b st
       UFun u v -> unify sp y v (unify sp x u (unify sp row (URow UEnd) st))
       UFunEff u effects v -> unify sp y v (unify sp x u (unify sp row effects st))
+      UApp f result -> unify-pure-arrow-application sp b (UFun x y) row st
       other -> mismatch sp a b st
     UProofFun predicate row result -> case b of
       UProofFun condition effects output -> unify sp result output (unify sp row effects (unify sp predicate condition st))

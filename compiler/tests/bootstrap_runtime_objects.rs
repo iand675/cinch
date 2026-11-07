@@ -117,6 +117,7 @@ fn cinch_calls_actual_library_objects_with_checked_layout_authority() {
         ("method-families", "module Main where\n  import Library (Poly, keep)\n  data Box where\n    Box :: Int -> Box\n  main :: Int\n  main = let raw = keep (0 :: Int) True in let tagged = keep (0 :: Int) 18446744073709551616 in let object = keep (0 :: Int) (Box 18446744073709551616) in case (raw (), tagged (), object ()) of\n    (flag, n, Box m) -> if flag && n == m then 243 else 1\n", 243),
         ("string-literal", "module Main where\n  import Data.String (string-length)\n  main :: Int\n  main = if string-length \"hi λ🙂\" == 5 then 245 else 1\n", 245),
         ("empty-string", "module Main where\n  import Data.String (string-length)\n  main :: Int\n  main = if string-length \"\" == 0 then 247 else 1\n", 247),
+        ("literal-string-equality", "module Main where\n  import Data.String\n  main :: Int\n  main = if \"λ\" == \"λ\" && \"λ\" /= \"🙂\" then 199 else 1\n", 199),
         ("char-pattern", "module Main where\n  main :: Int\n  main = case 'λ' of\n    'λ' -> 249\n    _ -> 1\n", 249),
         ("machine-pattern", "module Main where\n  echo :: U64 -> U64\n  echo n = n\n  main :: Int\n  main = case echo (18446744073709551615 :: U64) of\n    18446744073709551615 -> 251\n    _ -> 1\n", 251),
         ("string-pattern", "module Main where\n  import Library (make-string)\n  main :: Int\n  main = case make-string () of\n    \"different\" -> 1\n    \"library-owned string\" -> 253\n    _ -> 2\n", 253),
