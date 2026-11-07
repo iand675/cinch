@@ -18491,8 +18491,8 @@
       {
         "title": "Cinch source-file diagnostics: complete groups",
         "status": "running",
-        "phase": "bootstrap_resolve",
-        "passed": 1,
+        "phase": "bootstrap_source_instances",
+        "passed": 2,
         "failed": 0,
         "total": 3,
         "source": "14a889472c7bf47867414410bba2b91bc059a77df5b20e7105eb7274e3cff134",
@@ -18709,5 +18709,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T01:56:01.053309+00:00"
+  "updatedAt": "2026-11-07T01:57:23.013279+00:00"
 }
