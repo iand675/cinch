@@ -710,9 +710,20 @@ def build_checklist(root, cfg, previous=None):
     schema10_production = read(cfg.get('schema10ProductionChain'))
     if schema10_production:
         status = schema10_production['status']
+        stage2_audit_path = 'bootstrap/current-schema10-stage2-and-source-laws-results.json'
+        stage2_audit = read(root/stage2_audit_path)
+        audited_source = stage2_audit.get('schema10_stage2', {}).get('compiler_source_sha256')
         active.append(dict(title='Schema 10: combined self-host chain', status=status, phase=status.replace('-', ' '),
             passed=sum(row.get('status') == 'passed' for row in schema10_production.get('stages', [])),
-            failed=int(status.startswith('failed')), total=4, source=schema10_production['compiler_source_sha256']))
+            failed=int(status.startswith('failed')), total=4, source=schema10_production['compiler_source_sha256'],
+            evidence=link(stage2_audit_path) if audited_source == schema10_production['compiler_source_sha256'] else None))
+        source_laws = stage2_audit.get('schema9_source_laws', {})
+        if source_laws:
+            passed_law_tests = sum(row['tests'] for row in source_laws['targets'].values())
+            active.append(dict(title='Finite laws and source-instance regression tests', status='passed',
+                phase='Both pipeline tests and all three source-instance tests passed on the audited schema 9 candidate.',
+                passed=passed_law_tests, failed=0, total=passed_law_tests, source=source_laws['compiler_source_sha256'],
+                evidence=link(stage2_audit_path)))
     remaining_family = read(cfg.get('schema10RemainingFamilyValidation'))
     if remaining_family:
         rows = remaining_family.get('rows', [])
@@ -732,6 +743,14 @@ def build_checklist(root, cfg, previous=None):
             failed=sum(row.get('status') == 'failed' for row in rows), total=5,
             source=canonical_laws.get('compiler_source_sha256'),
             evidence=link('bootstrap/current-schema10-law-identity-gap.json')))
+    envelope = read(cfg.get('schema10InterfaceEnvelopeValidation'))
+    if envelope:
+        rows = envelope.get('rows', [])
+        active.append(dict(title='Require complete schema 10 interfaces and preserve public type spelling',
+            status=envelope['status'], phase=(envelope.get('phase') or envelope['status']).replace('-', ' '),
+            passed=sum(row.get('status') == 'passed' for row in rows),
+            failed=sum(row.get('status') == 'failed' for row in rows), total=9,
+            source=envelope['compiler_source_sha256']))
     if combined_arrays:
         active.append(dict(title='Schema 9 Stage1: original arrays with staging and CopyOut', status='passed',
             phase='Fourteen tests passed in the full run and the remaining test passed with the matching runtime archive',

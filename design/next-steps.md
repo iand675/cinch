@@ -49,8 +49,18 @@ missing support for division and an early dependency on the Boolean facade.
 The combined law, interface and staging snapshot passed the pinned Rust
 seed's source check on all 46 modules. Its normal Git-pinned library
 reproduced all 55 interfaces and the development object byte for byte.
-The combined self-host chain is running.
+Stage1 compiled all 46 modules into Stage2. Stage2 ran Fibonacci and the
+precedence program and rejected the unknown-name control. The audit checked
+the dependency identities across the 46 compiler and 55 library interfaces.
+Stage3 is building on the same snapshot ahead of the fixed-point check.
 See [the audited inputs and Stage1 results](../bootstrap/current-schema10-stage1-and-integrated-input-results.json).
+See [the Stage2 and source-law audit](../bootstrap/current-schema10-stage2-and-source-laws-results.json).
+
+The separate schema 9 finite-law candidate also passed all three
+source-instance tests. The newer schema 10 work preserves positional
+proof names and flattened type applications in public value signatures.
+The checked contract still retains its scoped binders and canonical
+applications. The updated readers and writers are under regression tests.
 
 The staged declaration pipeline checked and emitted a generated `Nat` value
 through typed IR. The linked program returned 0 with zero leaks. The unchanged

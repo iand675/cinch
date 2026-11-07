@@ -1,0 +1,87 @@
+{
+  "checked_at": "2026-11-07T13:08:49.826354+00:00",
+  "full_goal_complete": false,
+  "schema10_stage2": {
+    "builder_sha256": "1bc54080788c570c00ea06191112cef27853ada28499f686807a4d0b2b3bcc22",
+    "compiler_interfaces": 46,
+    "compiler_ir_sha256": "30434e31d6d9be1a3cb6a2d3791e65d31f42867591ce5c1cd3f35f374a26f035",
+    "compiler_sha256": "db3ba254048bcf7e4d88d2e07053cb0528280886aa7fac8b4e774034d7f71395",
+    "compiler_source_sha256": "b59c4893c4214d1c94c624bf9ba3f9e99ee7eb9b9568c1f092b20e5080967b38",
+    "interface_sha256": {
+      "Bootstrap.Ast": "4a81206cd8ff14d97a844389733b22a7d41ea4e6b39bb2aca0c34f40294007cb",
+      "Bootstrap.BodyContract": "40bcd729db853f8c6c2cac6d9a018c0300bc050e92c2f25de34e407d658fd8ea",
+      "Bootstrap.Builtin": "5229c990302c67b1298a31d387a63e0581f42b974de4b93af94512ce626b0b37",
+      "Bootstrap.Check": "653b53ba899b708d1b5e740f776d0202cc8095dcaaf16203d97bf42384a46b38",
+      "Bootstrap.Contracts": "0240df65f91774a8682124c254d404cc697af65cb6a4f47d82ea09b85a610f78",
+      "Bootstrap.Core": "5e9bdc52189d7c7236b2341a6bad8036baec1545adf9f725608ebc10e60d7838",
+      "Bootstrap.Dictionary": "debcb4fb00a5ac11632e84b2bd28292db4ebb7229979b1143309b011880c1bd1",
+      "Bootstrap.Driver": "0e581da9db8e7561b4667b0d7449819cf08c3c5af0d503cd84189dfd4901a68d",
+      "Bootstrap.Eval": "f9b842f8a6991bd785737f890132dd08851eaf1b64096704a7153a24cc6eef41",
+      "Bootstrap.Export": "6502208ec7be643120ba55815167b3084fbeb39bcff79233d28ec8550e4e31fa",
+      "Bootstrap.ExportNominal": "901c99d3c19385e0b8f5076b2336754f509dff45af9ea31d58a1e19e5da5e3d0",
+      "Bootstrap.ExportType": "904e9383969bb7d0ceadd1819ee50e8413c621efc4efcc088e48bf9c180287b7",
+      "Bootstrap.Foreign": "e4d16b97b9a761470a4ee01965f6bbfd8dedbca939bbd98979d2c8674887b14f",
+      "Bootstrap.Global": "79ad29fbfa4977ef89fcd8d6be4839790d251480d332c6b2366737e814c77cf3",
+      "Bootstrap.Guarded": "07c2ca667d988350ae84f6889e9712e96e7b4b1f9b317bf82e1015bfcda2d837",
+      "Bootstrap.Index": "290302f155b74ea43dbd12e53f1f9d21a32c692b86ae6bb2d6a39f25bf9b2d14",
+      "Bootstrap.Infer": "f2e67ca89bb051d6b8affcb515b2416c33101b1b47effd9a318bb0b4f35e94ce",
+      "Bootstrap.Inputs": "cf8122789495e15787e0312c3d12f221618519dde4ee74c6da33b9af55ae9594",
+      "Bootstrap.Instance": "bec2d7ec1cbc4a8a88098c631430befa5561d60498804b4180c15d00254f185f",
+      "Bootstrap.Interface": "3773bfb933b7a006470f1cbdc433b70ba4e80d6e53f20d9327173502b019697c",
+      "Bootstrap.Ir": "a2dbc4a78c9a0f8b7234134b0c20cccb9cc3d9564e1c9cea98afda69b244c737",
+      "Bootstrap.Kinds": "c87a88183be753bea4fd182823856276b8bed6fc6a49375880ffbbbdb5a3a9b2",
+      "Bootstrap.Load": "beed11dbeb00fd84940f647a774627f9a4552a1632bc7161458717c9491b62cb",
+      "Bootstrap.Manifest": "5059d4c179cff8bcc3002de92fe6b73cd7881b780cfb5800bdedfa893046691e",
+      "Bootstrap.Nominal": "ea9237b4166ef184bb7bbe2f5b2c83f744baeb9a826d64dd82ce1236ac13b6bf",
+      "Bootstrap.Object": "0af78de1c28ed69318dde5683a9c1462b6848376e121c46098db9a1ee6ede5b4",
+      "Bootstrap.Parse": "0436783383dffc22c83fc0b22f19dbf16692e8a6819b3012dd6928d32e3e35b9",
+      "Bootstrap.Pipeline": "5fe7fa767d72db1b5e059d99a3204bd85c72db4eca1104a893cbda6e4abdd54d",
+      "Bootstrap.Proof": "5018cda31bda662a0ef9e78d32a4cc4a490a8e802163aba29db5fd9288680f5c",
+      "Bootstrap.Report": "4bc6ac469ea79ce8a4eb04d5d9157e54d5e632f8dac3ff0715e5d67b11e6240c",
+      "Bootstrap.Resolve": "137ffa388d25af612d7022414d47224043f404c22a12972764ff8451eaf74d96",
+      "Bootstrap.RuntimeAbi": "5a5ee98e4446810edfc3bf921cf34347e6e44a4123e8040116338d4df92b026a",
+      "Bootstrap.RuntimeIr": "1598379480d789031fd46d648fbff19294f81a9694be4e8a39b060ec32e97d73",
+      "Bootstrap.Stage": "cd003ededa2932abfe38fdb498b7640dbf0b88b9e8a1fcd4d34ae0b5769ba70f",
+      "Bootstrap.StageEval": "e77ea37859ae925b443b2de89bdbde211bc758f873b9946d0253e9d24f33f7f0",
+      "Bootstrap.Test": "27711f906d5f7ddd24c5e9134eafdc834ed30ad1f39005327db410b45f2c08bd",
+      "Bootstrap.Total": "cece926927969dc31a90f5a7807a305a9183accbf35287caffbe90f6417056ab",
+      "Bootstrap.TotalSemantics": "6f7eea578e7dc6b2481553836165466451ff2317c91683973e85a0bf0e095dab",
+      "Bootstrap.Type": "41745af1cf9b761a8f1f7dc79c23cc76b036e49cd1e072c3cccfe1b774934b87",
+      "Bootstrap.Typing": "a6f7f4569d789b0306b565f06491966e9b62ef256fdda686b4567b1421a1eeca",
+      "Main": "ddc6ffd4531cc23b6126db3428acd139b5fefcd9e6e818451ab1cb9e19e985cb",
+      "Text.Builder": "35b04e4e123141d15a7852d4d99c8e8c6509b3b17d2e923467e0ba00631ba8e8",
+      "Text.Json": "147db5a2fe24dbc483b3bb5df80add4d4acb0fd8701c5bb2fd603dba6339b780",
+      "Text.Lex": "e9ef5d7189df78652245a208bb6a0e867604943ccdfbfadd02ee087b4d008fab",
+      "Text.Parse": "bb55e25b294ef3c4863fb55d126b82bd24821e6354870faf42532031ea2c1861",
+      "Text.Scan": "b1bd0ee25725c1148384fb1440e2680371b9e8dd5fc292804cb4abd5aee363f0"
+    },
+    "library_interfaces": 55,
+    "native_source_sha256": "b938d9c27df7255c15067e1371adb293529d7b1682b9809ec4539caf15497ebf",
+    "provider_receipt_sha256": "0be5d86c3ec8348baa8499d8fdedfe8536b24dc800fe46689a6b9a365ba2e94b",
+    "receipt_sha256": "89f3628e4e55ff442aa9399a458a979eef6cffe238b7eab5d11dcbfde83a0114",
+    "revision": "201d8d8ff68149ecfc3845569850e9078a96c419",
+    "smokes": {
+      "fib": 0,
+      "precedence": 14,
+      "unknown-name": "refused"
+    },
+    "stage": 2,
+    "status": "passed"
+  },
+  "schema9_source_laws": {
+    "compiler_source_sha256": "c272860233cd944125805f27f3fb2521cd48f4c12f74fbc07b55f21f5a9ebb7f",
+    "native_rlib_sha256": "528c6109506905fb25d0e1a048d9bcaaf7704872a49628cf5fff64b3ac28d447",
+    "native_source_sha256": "dc2dd19280f2e51d07e7b2995d40ddc230a8265eeb1e6e75446249cd51e1e0f0",
+    "targets": {
+      "bootstrap_pipeline": {
+        "log_sha256": "b1c2c51de35cef06da87a757975a590119590e28b6bd66e08305194890d51c0b",
+        "tests": 2
+      },
+      "bootstrap_source_instances": {
+        "log_sha256": "3852818807193f22c228c2cc289134aca5185508a9f91d4773b8be48ebb57622",
+        "tests": 3
+      }
+    }
+  },
+  "status": "audited-schema10-stage2-and-schema9-source-law-targets"
+}
