@@ -1,0 +1,90 @@
+{
+  "checked_at": "2026-11-07T13:49:24.730888+00:00",
+  "compiler_sha256": "1f4426aa3bbdb1e31c25e150fa0f7b6b0176f7b2c9742913301c80c8e9fcf8bb",
+  "compiler_source_sha256": "309a4f696ed5072050009e59562deabb2fc205731e47655662d1d8d69cd2d020",
+  "format_cutover": {
+    "cases": [
+      {
+        "cinch_diagnostic": "",
+        "cinch_exit": 0,
+        "manifest_sha256": "0e4667761d97ce5a5c7808a20099b891772278d951d38c32b451702ab351c5c4",
+        "name": "current-schema10",
+        "python_diagnostic": "",
+        "rust_diagnostic": "",
+        "rust_exit": 0,
+        "schema": 10,
+        "source_sha256": "cb60199c9505bb3bf9e6f2e60dd981e7413ad7e7ada397dd9087235b4604dc01",
+        "status": "passed"
+      },
+      {
+        "cinch_diagnostic": "bootstrap.interfaces: Data.Core: unsupported interface schema",
+        "cinch_exit": 7,
+        "manifest_sha256": "e252cb3e8a2c5fefad95832edc8d8e16a329f8a15f12e53ae499a99b1f8703f3",
+        "name": "genuine-schema9",
+        "python_diagnostic": "wrong interface schema",
+        "rust_diagnostic": "Error: Custom { kind: InvalidData, error: \"Data.Core.cinchif: interface parse error: interface schema 9 is not supported (expected 10)\" }\n",
+        "rust_exit": 1,
+        "schema": 9,
+        "source_sha256": "dc7d2eb7769a12be4fe82d757892f9246b4bbb0df0cd38d0438a17db935de330",
+        "status": "passed"
+      },
+      {
+        "cinch_diagnostic": "bootstrap.interfaces: Data.Core: malformed interface contract envelope",
+        "cinch_exit": 7,
+        "manifest_sha256": "61c214a656ec500e76d4197108b8de2b4a7cdbc0d317b136cc0d3c74d1bc423e",
+        "name": "missing-required-laws",
+        "python_diagnostic": "incomplete or unknown interface fields",
+        "rust_diagnostic": "Error: Custom { kind: InvalidData, error: \"Data.Core.cinchif: interface parse error: missing key laws\" }\n",
+        "rust_exit": 1,
+        "schema": 10,
+        "source_sha256": "3f740812d52ed113e06ba19c18d2c77ad1a35c83d293af9334a9b45d838c9c30",
+        "status": "passed"
+      },
+      {
+        "cinch_diagnostic": "bootstrap.interfaces: Data.Core: malformed interface contract envelope",
+        "cinch_exit": 7,
+        "manifest_sha256": "ac1ee4521bddbe8c7840e71baeb129c97efad737ab57e4a84aa55bb9d43122c2",
+        "name": "invalid-calling-convention",
+        "python_diagnostic": "wrong calling convention",
+        "rust_diagnostic": "Error: Custom { kind: InvalidData, error: \"Data.Core.cinchif: interface parse error: unsupported interface calling convention\" }\n",
+        "rust_exit": 1,
+        "schema": 10,
+        "source_sha256": "09775ee3bb188955c7c205dddffe1b471d1535c469d67dfd3d6cda76606522ce",
+        "status": "passed"
+      },
+      {
+        "cinch_diagnostic": "bootstrap.interfaces: Algebra.Monoid: malformed interface contract envelope",
+        "cinch_exit": 7,
+        "manifest_sha256": "4fa8e3519303b0cd7d151e496b1879e8363ff1d489addbc6cc4a38bb5d6accc2",
+        "name": "fingerprint-only-default",
+        "python_diagnostic": "missing contract list",
+        "rust_diagnostic": "Error: Custom { kind: InvalidData, error: \"Algebra.Monoid.cinchif: interface parse error: expected array\" }\n",
+        "rust_exit": 1,
+        "schema": 10,
+        "source_sha256": "d72c3ea32928c1565e88f5f5be06ad1ae10bb82819c0bdb634660ae2bc1130cb",
+        "status": "passed"
+      }
+    ],
+    "native_reader_sha256": "50413cf2e7c552acb5419da90a2b3c65949f609a1f7c18d2d24f5bf59ad79c3d",
+    "status": "passed"
+  },
+  "full_goal_complete": false,
+  "native_rlib_sha256": "bea2d673055dad2e4f23186b22e6d36c0d1f0f158a7c45602c954520ba167995",
+  "native_source_sha256": "9022a54f85312db671f7ee14a89a7aa9b6dfcfa7c54010b6f304016ff3401f57",
+  "original_family_overlays": {
+    "families": [
+      "core",
+      "ordering",
+      "category",
+      "algebra"
+    ],
+    "log_sha256": "34087d12f7e93f95577bf11736c2b2161657a4a36c9e979922beb8ee6c59beb1",
+    "manifest_sha256": "7cf4994fc07acc58a858643cd1e1711ad967bd57e7e3fdde13f5918dda9e54b8",
+    "status": "passed",
+    "test_source_sha256": "1d0b1cc10f9d1788183686a742e455c0ddbccb40f8b46720050c857a07e86630"
+  },
+  "provider_receipt_sha256": "a662b175b9ba3b3049fafe7aa5c7562db7f20348f770bec1ee01fe859e80c08f",
+  "revision": "39caed14652aa336d29584ba98177d56e836472f",
+  "stage1_receipt_sha256": "19262d5df889b41c12acd638595a0246096a2abb031d68f70375ec5992e3c309",
+  "status": "audited-schema10-original-family-overlays-and-format-cutover"
+}

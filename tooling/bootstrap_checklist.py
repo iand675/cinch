@@ -710,15 +710,24 @@ def build_checklist(root, cfg, previous=None):
     schema10_production = read(cfg.get('schema10ProductionChain'))
     stage3_audit_path = 'bootstrap/current-schema10-stage3-and-library-replays-results.json'
     stage3_audit = read(root/stage3_audit_path)
+    production_audit_path = 'bootstrap/current-schema10-bootstrap-results.json'
+    production_audit = read(root/production_audit_path)
     if schema10_production:
         status = schema10_production['status']
+        phase = status.replace('-', ' ')
         stage2_audit_path = 'bootstrap/current-schema10-stage2-and-source-laws-results.json'
         stage2_audit = read(root/stage2_audit_path)
         audited_source = stage2_audit.get('schema10_stage2', {}).get('compiler_source_sha256')
         if stage3_audit.get('schema10_stage_agreement', {}).get('compiler_source_sha256') == schema10_production['compiler_source_sha256']:
             stage2_audit_path = stage3_audit_path
             audited_source = schema10_production['compiler_source_sha256']
-        active.append(dict(title='Schema 10: combined self-host chain', status=status, phase=status.replace('-', ' '),
+        if (production_audit.get('status') == 'passed-production-schema10-bootstrap-chain' and
+                production_audit.get('compiler_source_sha256') == schema10_production['compiler_source_sha256']):
+            stage2_audit_path = production_audit_path
+            audited_source = schema10_production['compiler_source_sha256']
+            status = 'passed'
+            phase = 'The fixed point, separate interface consumer and changed-source rebuild passed independent audit.'
+        active.append(dict(title='Schema 10: combined self-host chain', status=status, phase=phase,
             passed=sum(row.get('status') == 'passed' for row in schema10_production.get('stages', [])),
             failed=int(status.startswith('failed')), total=4, source=schema10_production['compiler_source_sha256'],
             evidence=link(stage2_audit_path) if audited_source == schema10_production['compiler_source_sha256'] else None))
@@ -772,12 +781,21 @@ def build_checklist(root, cfg, previous=None):
             passed=sum(row.get('status') == 'passed' for row in successor.get('stages', [])),
             failed=int(status.startswith('failed')), total=4, source=successor['compiler_source_sha256']))
     families = read(cfg.get('schema10SuccessorStage1Families'))
+    family_audit_path = 'bootstrap/current-schema10-family-and-cutover-results.json'
+    family_audit = read(root/family_audit_path)
     if families:
         status = families['status']
         active.append(dict(title='Replay the original library families with the rebuilt provider', status=status,
             phase=(families.get('phase') or status).replace('-', ' '),
             passed=int(status == 'passed-original-schema10-family-overlays'), failed=int(status.startswith('failed')),
-            total=1, source=families['compiler_source_sha256']))
+            total=1, source=families['compiler_source_sha256'],
+            evidence=link(family_audit_path) if family_audit.get('compiler_source_sha256') == families['compiler_source_sha256'] else None))
+    cutover = family_audit.get('format_cutover', {})
+    if cutover.get('status') == 'passed':
+        active.append(dict(title='Check the schema 10 cutover in Rust, Cinch and Python', status='passed',
+            phase='The real schema 9 file, the old default encoding and both malformed schema 10 files refused.',
+            passed=len(cutover['cases']), failed=0, total=len(cutover['cases']),
+            source=family_audit['compiler_source_sha256'], evidence=link(family_audit_path)))
     provider_replay = stage3_audit.get('schema10_successor_provider', {})
     if provider_replay.get('status') == 'passed-production-schema10-provider':
         active.append(dict(title='Rebuild the stricter schema 10 library', status='passed',
@@ -795,6 +813,27 @@ def build_checklist(root, cfg, previous=None):
         active.append(dict(title='Run all 34 original language examples with schema 10 Stage3', status=status,
             phase=status.replace('-', ' '), passed=34 if status == 'passed' else None,
             failed=0 if status == 'passed' else None, total=34, source=language['compiler_source_sha256']))
+    external_acceptance = read(cfg.get('schema10Stage3ExternalAcceptance'))
+    external_audit_path = 'bootstrap/current-schema10-external-acceptance-results.json'
+    external_audit = read(root/external_audit_path)
+    if external_acceptance:
+        status = external_acceptance['status']
+        rows = external_acceptance.get('rows', [])
+        active.append(dict(title='Run the original 14 external acceptance checks on schema 10 Stage3', status=status,
+            phase=(external_acceptance.get('active') or status).replace('-', ' '),
+            passed=sum(row.get('status') == 'passed' for row in rows),
+            failed=sum(row.get('status') == 'failed' for row in rows), total=14,
+            source=external_acceptance.get('compiler_source_sha256', production_audit.get('compiler_source_sha256')),
+            evidence=link(external_audit_path) if external_audit.get('result_sha256') and status == 'passed' else None))
+    extra_library = read(cfg.get('schema10AdditionalLibraryFrontend'))
+    if extra_library:
+        status = extra_library['status']
+        rows = extra_library.get('rows', [])
+        active.append(dict(title='Run four more original library and numeric targets with Stage3', status=status,
+            phase='Forty original tests retain their fixtures and assertions and use the selected frontend.',
+            passed=sum(row.get('status') == 'passed' for row in rows),
+            failed=sum(row.get('status') == 'failed' for row in rows), total=4,
+            source=extra_library['compiler_source_sha256']))
     arrays_audit_path = 'bootstrap/current-schema10-arrays-and-law-identity-results.json'
     arrays_audit = read(root/arrays_audit_path).get('original_arrays', {})
     if arrays_audit.get('passed') == 15:

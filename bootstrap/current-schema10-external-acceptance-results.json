@@ -1,0 +1,146 @@
+{
+  "all_original_checks_passed": true,
+  "checks": [
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "mixed",
+      "phase": "emit",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "mixed",
+      "phase": "link",
+      "status": "passed"
+    },
+    {
+      "exit_code": 2,
+      "expected": 2,
+      "name": "mixed",
+      "phase": "run",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "passing",
+      "phase": "emit",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "passing",
+      "phase": "link",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "passing",
+      "phase": "run",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "produce",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "separate-facade",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "direct",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "renamed-reexport",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "separate-renamed",
+      "status": "passed"
+    },
+    {
+      "exit_code": 3,
+      "expected": 3,
+      "name": "identical-redeclaration",
+      "status": "passed"
+    },
+    {
+      "exit_code": 3,
+      "expected": 3,
+      "name": "changed-redeclaration",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "class-identity",
+      "status": "passed"
+    }
+  ],
+  "class_identity_cinch_runtime_clients": 2,
+  "class_identity_direct_native_api_refusals": 1,
+  "class_identity_log_sha256": "c47dc5502e3720e691deaba669115bf20cf5cc7b18dee35a25d283264a67536e",
+  "class_identity_tests": 3,
+  "compiler_sha256": "db3ba254048bcf7e4d88d2e07053cb0528280886aa7fac8b4e774034d7f71395",
+  "compiler_source_sha256": "b59c4893c4214d1c94c624bf9ba3f9e99ee7eb9b9568c1f092b20e5080967b38",
+  "contracts": [
+    {
+      "interface_hash": "13479570871972051292",
+      "module": "A",
+      "sha256": "22225c1e91e3c5f2a4d59619cf9777cbb675d0fecbf3553a8ea34d29a5b2eb24"
+    },
+    {
+      "interface_hash": "15477016887112055332",
+      "module": "B",
+      "sha256": "8391eba46b21699eb9ea1bc1b7e2bf7243162e7e8c6f0fd1c19524c52d74dbce"
+    },
+    {
+      "interface_hash": "6560094705811321736",
+      "module": "Facade",
+      "sha256": "ca1617f4961b933b462405a19a3c2ec0d90e90f90c294271d4f167ece06f8f17"
+    }
+  ],
+  "definition_owned_fixities": true,
+  "full_goal_complete": false,
+  "identical_and_changed_imported_fixities_refused": true,
+  "native_rlib_sha256": "166d1a1152ebfcaf08389a9f9fe4f120428ef9b99991af921ca7d729654c06eb",
+  "original_acceptance_checks": 14,
+  "result_sha256": "6184ca88744c7739cb9f5c1fcfade29f4980f03dfe6692f5ec442f84f93ef61e",
+  "runtime_runs": [
+    {
+      "binary_sha256": "46f3b7b7aae3570726c82809f5742d4f9f96dae5f3a616da4fa1e41816682db7",
+      "exit_code": 2,
+      "ir_sha256": "9e75c986acb74149c1187d94b8d74a4cafd0f8002bfc75eb7f52ea98b2a7461b",
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "mixed",
+      "zero_leaks": true
+    },
+    {
+      "binary_sha256": "699944de74fc150088cf866ab2aa7b82cb5b395132152eee707ed12e7c18426d",
+      "exit_code": 0,
+      "ir_sha256": "e2d344c79e6289cd86a736d4feddad0480fa133d2bf53b0518622d387ca6e8f0",
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "passing",
+      "zero_leaks": true
+    }
+  ],
+  "scope": "All 14 original external checks used the audited schema 10 Stage3. Both original runner inputs match the retained sources. Both programs ran at 32 MiB with poisoning and zero leaks. The operator contracts preserve defining identity across re-exports. Both imported fixity declarations refused. The complete class identity target ran two Cinch clients and one direct Native API negative.",
+  "source_sha256": "a65f0c5dd9353445053ed4f0162f5417ce47eab3786aa569313578a4d2b5d6c3",
+  "status": "passed-independent-stage3-external-acceptance",
+  "verified_at": "2026-11-07T13:50:55.126905+00:00"
+}

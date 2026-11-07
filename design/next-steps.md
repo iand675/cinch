@@ -54,10 +54,15 @@ precedence program and rejected the unknown-name control. The audit checked
 the dependency identities across the 46 compiler and 55 library interfaces.
 Stage3 passed its smoke tests. Stage2 and Stage3 agree on the executable,
 LLVM IR and all 46 compiler interfaces. Stage3 checked a separate client
-using its own emitted interfaces. The changed-source build is running.
+using its own emitted interfaces. Stage2 rebuilt the changed source and
+produced the changed diagnostic. The independent audit confirmed acceptance
+checks 1 through 4. The combined Stage3 also passed all 14 original external
+acceptance checks, including both imported-fixity redeclarations.
 See [the audited inputs and Stage1 results](../bootstrap/current-schema10-stage1-and-integrated-input-results.json).
 See [the Stage2 and source-law audit](../bootstrap/current-schema10-stage2-and-source-laws-results.json).
 See [the Stage3 and library audit](../bootstrap/current-schema10-stage3-and-library-replays-results.json).
+See [the complete bootstrap audit](../bootstrap/current-schema10-bootstrap-results.json)
+and [the external acceptance audit](../bootstrap/current-schema10-external-acceptance-results.json).
 
 The separate schema 9 finite-law candidate also passed all three
 source-instance tests. The newer schema 10 work preserves positional
@@ -65,8 +70,11 @@ proof names and flattened type applications in public value signatures.
 The checked contract still retains its scoped binders and canonical
 applications. The updated readers and writers are under regression tests.
 The matching pinned library passed its 55-interface audit. All five Rust
-Applicative display signatures match the earlier Cinch output. The complete
-original library-family replay is queued for the matching Stage1.
+Applicative display signatures match the earlier Cinch output. The stricter
+Stage1 passed the original Core, Ordering, Category and Algebra replacement
+test. Rust, Cinch and Python accepted the schema 10 control and rejected an
+actual schema 9 file, fingerprint-only defaults and two malformed contracts.
+See [the original family and format checks](../bootstrap/current-schema10-family-and-cutover-results.json).
 The full 105-target Stage3 matrix is split into three groups of 35. Each
 group waits for the same audited Stage3, then takes a shared worker slot
 for one target at a time.
