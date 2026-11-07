@@ -18961,8 +18961,8 @@
       },
       {
         "title": "Schema 10: pinned Stage1 and original library replacement tests",
-        "status": "waiting-disk-space",
-        "phase": "pinned seed builds the 44 schema 10 sources",
+        "status": "running",
+        "phase": "interface_prelude_overrides",
         "passed": 1,
         "failed": 0,
         "total": 8,
@@ -19139,5 +19139,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T12:26:48.877113+00:00"
+  "updatedAt": "2026-11-07T12:28:51.092351+00:00"
 }
