@@ -12313,10 +12313,10 @@
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_checked_program.rs",
             "observed": {
-              "status": "running",
+              "status": "interrupted-superseded",
               "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
               "startedAt": "2026-11-07T13:53:35.352454+00:00",
-              "finishedAt": null,
+              "finishedAt": "2026-11-07T14:52:40.042514+00:00",
               "exitCode": null,
               "logSha256": null,
               "cases": [
@@ -14062,7 +14062,7 @@
         "observedCounts": {
           "failed": 6,
           "passed": 19,
-          "running": 1,
+          "interrupted-superseded": 1,
           "pending": 79
         },
         "observedSource": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854"
@@ -18242,8 +18242,8 @@
       },
       {
         "title": "Earlier schema 9 Stage3: all 105 frontend targets",
-        "status": "running",
-        "phase": "bootstrap_checked_program",
+        "status": "superseded-by-schema10",
+        "phase": "Historical sweep retained; all original targets are assigned to the current schema 10 sweep",
         "passed": 19,
         "failed": 6,
         "total": 105,
@@ -18836,16 +18836,6 @@
         "total": 10,
         "source": "286613ea3571aebd6747def34f7a8f9d8af0c84c78e5fee82f9ca65ff90fe7e1",
         "auditPending": false
-      },
-      {
-        "title": "Earlier Stage3: complete frontend sweep",
-        "status": "running",
-        "phase": "bootstrap_checked_program",
-        "passed": 19,
-        "failed": 6,
-        "total": 105,
-        "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-        "earlier": true
       },
       {
         "title": "Cinch task forwarding: six-case source replay",
@@ -19456,5 +19446,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T14:49:27.358943+00:00"
+  "updatedAt": "2026-11-07T14:52:49.529928+00:00"
 }
