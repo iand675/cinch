@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "226 of 235 complete groups passed; 2 running, 0 failed and 7 pending.Every group includes ignored tests. State: running.",
+      "detail": "227 of 235 complete groups passed; 2 running, 0 failed and 6 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -499,7 +499,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "226 of 235 complete groups passed; 2 running, 0 failed and 7 pending."
+      "detail": "227 of 235 complete groups passed; 2 running, 0 failed and 6 pending."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -803,10 +803,10 @@
         "unit": "targets",
         "total": 235,
         "counts": {
-          "verified": 226,
+          "verified": 227,
           "blocked": 0,
           "running": 2,
-          "pending": 7,
+          "pending": 6,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -3021,21 +3021,21 @@
           {
             "id": "native:bootstrap_total_indices",
             "title": "bootstrap_total_indices",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_total_indices.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "startedAt": "2026-11-07T04:55:37.781188+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T04:57:02.864600+00:00",
+              "exitCode": 0,
+              "logSha256": "17e32b4b232543c1d4b2e2469e0a675d31a4f4ed3d7866551c69833794558494",
               "cases": [
                 {
                   "name": "compiled_cinch_total_indices_preserve_body_authority_and_scoped_arguments",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -3044,29 +3044,21 @@
           {
             "id": "native:bootstrap_total_semantics",
             "title": "bootstrap_total_semantics",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_total_semantics.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T23:24:17.810571+00:00",
-              "finishedAt": "2026-11-06T23:26:01.404425+00:00",
-              "exitCode": 0,
-              "logSha256": "01dadc20252081444970b8bf35cbb65c183df7b14b145d61abbaf5bd0df34ce8",
+              "status": "running",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T04:57:02.867261+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "compiled_cinch_method_facts_require_the_actual_selected_implementation",
-                  "status": "passed"
-                },
-                {
-                  "name": "compiled_cinch_reads_closed_bodies_without_inventing_unknown_branch_results",
-                  "status": "passed"
-                },
-                {
-                  "name": "compiled_cinch_reflects_only_actual_numeric_equations",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -19232,8 +19224,8 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "bootstrap_total_indices",
-        "passed": 226,
+        "phase": "bootstrap_total_semantics",
+        "passed": 227,
         "failed": 0,
         "total": 235,
         "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
@@ -19250,10 +19242,10 @@
       }
     ],
     "counts": {
-      "verified": 480,
+      "verified": 481,
       "blocked": 4,
       "running": 10,
-      "pending": 13,
+      "pending": 12,
       "recheck": 162
     },
     "total": 669,
@@ -19262,5 +19254,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T04:56:23.792753+00:00"
+  "updatedAt": "2026-11-07T04:57:25.670741+00:00"
 }
