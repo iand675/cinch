@@ -185,6 +185,15 @@ and Rust sweeps remain separate. See
 `bootstrap/current-cinch-task-source-forwarder-results.json` and
 `bootstrap/current-native-task-source-forwarder-results.json`.
 
+All eleven follow-up patches reapply without fuzz over the verified 32ab
+compiler, retaining the typed FFI test and both producer pins. The combined
+44-module source has a new identity and requires a fresh bootstrap. On the
+unchanged 32ab executable, both original promotion pipeline tests pass with
+the corrected test-library object and a 512 MiB heap. The otherwise matching
+256 MiB run passed diagnostic origins and exhausted its heap during self-build.
+See `bootstrap/current-task-law-bootstrap-integration-results.json` and
+`bootstrap/current-stage3-promotion-pipeline-512-results.json`.
+
 The base constructor formatter matches the complete `Data.Core` interface
 hash against the Native writer and matches the three isolated `Data.Ordering`
 constructor contracts. A source-defined `Shadow.List` keeps its own identity.

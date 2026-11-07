@@ -1,0 +1,20 @@
+{
+  "compiler_heap_limit": "512M",
+  "compiler_sha256": "09af398222f987deb9b35ea8b20fafca82617e7d51b8d381ee6604436811ee8a",
+  "compiler_source_sha256": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+  "full_goal_complete": false,
+  "groups": 1,
+  "interfaces_manifest_sha256": "70d58b972dca1976027d1622c558576bb42872f24b20fd950b5dc1d1d9074a61",
+  "native_source_sha256": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+  "pipeline_log_sha256": "fe628c869204b346255694030833606f84628407a8fc570e9b13e2fac6c71fa7",
+  "pipeline_test_sha256": "bfaf17720fb5f679b991171ad16d0feb1ba2097b2f8823af29322c899dfbbdeb",
+  "previous_256m_exit": 101,
+  "previous_256m_log_sha256": "8a88ee55d15382785e72ea1c79ebf32cfe49bd98532a3bd955022b3b2cae53c5",
+  "provider_object_sha256": "dd6688205f4ae4e1356be594ac4d7c6cb462842ca373ad5fd163b9e265f460bd",
+  "scope": "Both complete promotion pipeline tests pass with the corrected library object and 512 MiB compiler heap. The matching 256 MiB attempt retains its heap exhaustion evidence. The full Stage3 matrix remains separate.",
+  "snapshot_sha256": "ad1f9862e9818df83f50b5f71fa0486e8b01fa4a853fea2ddb6db9a13e00325b",
+  "status": "verified-exact-stage3-promotion-pipeline",
+  "tests": 2,
+  "verified_at": "2026-11-07T06:20:53.038962+00:00",
+  "wrapper_sha256": "c560139adf4d0d85dcfc34ec31080433edc3901b27e169c6d9871045032dd006"
+}

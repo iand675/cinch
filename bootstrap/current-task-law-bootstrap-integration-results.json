@@ -1,0 +1,83 @@
+{
+  "base_compiler_source_sha256": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+  "base_snapshot_sha256": "ad1f9862e9818df83f50b5f71fa0486e8b01fa4a853fea2ddb6db9a13e00325b",
+  "changed_compiler_modules": [
+    "Bootstrap.Ast.cinch",
+    "Bootstrap.Check.cinch",
+    "Bootstrap.Contracts.cinch",
+    "Bootstrap.Eval.cinch",
+    "Bootstrap.Export.cinch",
+    "Bootstrap.ExportType.cinch",
+    "Bootstrap.Infer.cinch",
+    "Bootstrap.Inputs.cinch",
+    "Bootstrap.Instance.cinch",
+    "Bootstrap.Ir.cinch",
+    "Bootstrap.Parse.cinch",
+    "Bootstrap.Pipeline.cinch",
+    "Bootstrap.Resolve.cinch",
+    "Bootstrap.Type.cinch",
+    "Bootstrap.Typing.cinch"
+  ],
+  "compiler_source_sha256": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185",
+  "full_goal_complete": false,
+  "rows": [
+    {
+      "exit_code": 0,
+      "patch": "constructor-public-display-development.patch",
+      "sha256": "b1e5c3f1717fa5cb34a744c6271190a83b1a74ae4ae38126ca2342d6740fccbf"
+    },
+    {
+      "exit_code": 0,
+      "patch": "constructor-base-display-development.patch",
+      "sha256": "1676d8c04736e07a0ce3b3e30d9ee5bc0a48764bcb2e7d7968007a94ecbb085a"
+    },
+    {
+      "exit_code": 0,
+      "patch": "source-interface-overlay-development.patch",
+      "sha256": "e1a1726eecb2c0162278712e136eb2cab44e5a2aaae5f3ab16566452c84e96f0"
+    },
+    {
+      "exit_code": 0,
+      "patch": "source-overlay-base-scope-development.patch",
+      "sha256": "0f1761928f84117c5abff3dab3543ffe5f988a720ec402050a086c848dc0f0a8"
+    },
+    {
+      "exit_code": 0,
+      "patch": "source-class-law-carrier-development.patch",
+      "sha256": "d08f0bbf0be770a5a017db03f9136a7cbdb5270b7cf9ab2a21d9d95f9d7b2f01"
+    },
+    {
+      "exit_code": 0,
+      "patch": "external-refusal-diagnostics-development.patch",
+      "sha256": "aa59d15dd15124e911218acee3afb8a0db12bda266dadd646ba8fa073fc5aa01"
+    },
+    {
+      "exit_code": 0,
+      "patch": "task-effect-diagnostic-development.patch",
+      "sha256": "d5442a654e40a30838b0c6dd63ec1d11febaad4e55f699722d79b900b24ac024"
+    },
+    {
+      "exit_code": 0,
+      "patch": "task-trace-diagnostics-development.patch",
+      "sha256": "28073f5f54d528ee3352c36b9a2dd29a5e9009c3daa2d1b522932e466b2aacbd"
+    },
+    {
+      "exit_code": 0,
+      "patch": "source-class-law-instance-samples-development.patch",
+      "sha256": "1a95eec0cac04ac030edfd45a1254510ac537b4cb6caf2f47f8b4cb7667372f8"
+    },
+    {
+      "exit_code": 0,
+      "patch": "task-drop-diagnostic-development.patch",
+      "sha256": "eb18db72efa9a2525daf2fb9a2d99bd370129988975ce86fe7f5cc18730347fe"
+    },
+    {
+      "exit_code": 0,
+      "patch": "cinch-task-source-forwarder-development.patch",
+      "sha256": "7546613de6832ebdc3d09a5fec0a081a2dd07965d4a45fccad0236cca4e9f71c"
+    }
+  ],
+  "scope": "All eleven published development patches apply without fuzz over the exact 44-module self-bootstrapped revision. The current typed FFI test and pins are retained. Source admission and fresh bootstrap are separate.",
+  "status": "verified-eleven-development-patches-reapplied",
+  "verified_at": "2026-11-07T06:21:32.787681+00:00"
+}

@@ -432,6 +432,8 @@ def build_checklist(root, cfg, previous=None):
         ('taskDropDiagnostics','Cinch dropped-task diagnostic: complete runtime-IR suite',1,'compile-'),
         ('taskForwarderValidation','Cinch task forwarding: complete pipeline tests',1,'compile-'),
         ('stage3PromotionPipeline512','Current Stage3 original pipeline at 512 MiB',1,'compile-'),
+        ('integratedTaskLawAdmission','Integrated compiler: Stage3 source admission',1,'compile-'),
+        ('nativeTaskForwarderSweep','Rust task-forwarding candidate: complete Rust sweep',235,'compile-'),
         ('sourceInterfaceOverlay','Source-library replacement: complete pipeline and dependency checks',1,'compile-'),
         ('originalSourceOverlay','Original four-family source-library replacement test',1,'compile-'),
         ('functionDefaultProvider','Function defaults: fresh pinned library object',1,'compile-'),
@@ -464,6 +466,7 @@ def build_checklist(root, cfg, previous=None):
                 'taskEffectDiagnostic': 'taskEffectDiagnosticReceipt',
                 'taskTraceRuntimeReplay': 'taskTraceRuntimeReplayReceipt',
                 'taskDropDiagnostics': 'taskDropDiagnosticsReceipt',
+                'stage3PromotionPipeline512': 'stage3PromotionPipeline512Receipt',
                 'constructorBaseDisplay': 'constructorBaseDisplayReceipt',
                 'sourceInterfaceOverlay': 'sourceInterfaceOverlayReceipt',
             }
@@ -494,14 +497,23 @@ def build_checklist(root, cfg, previous=None):
                 failed=sum(r.get('status') == 'failed' for r in rows), total=total,
                 source=state.get('compiler_source_sha256'), earlier=title.startswith('Earlier')))
 
+    integrated_chain=read(cfg.get('integratedTaskLawChain'))
+    if integrated_chain:
+        state=integrated_chain.get('status','')
+        completed=sum(row['status']=='passed' for row in integrated_chain.get('stages',[]))
+        finished=state.startswith('passed')
+        active.append(dict(title='Integrated compiler: fresh bootstrap', status='running' if state.startswith(('building-', 'checking-')) else state,
+            phase=f"{completed}/4 stages. "+state.replace('-', ' '), passed=int(finished), failed=int(state.startswith('failed')), total=1,
+            source=integrated_chain.get('compiler_source_sha256'), auditPending=finished))
+
     if cinch_forwarder.get('status') == 'verified-task-forwarder-six-case-development-replay':
-        active.append(dict(title='Cinch task forwarding: exact source replay', status='passed',
+        active.append(dict(title='Cinch task forwarding: six-case source replay', status='passed',
             phase='Unchanged Tasks program and refusal, unsafe capture, and interface boundary',
-            passed=6, failed=0, total=6, unit='cases', source=cinch_forwarder['compiler_source_sha256']))
+            passed=1, failed=0, total=1, source=cinch_forwarder['compiler_source_sha256']))
     if native_forwarder.get('status') == 'verified-native-task-forwarder-development':
         active.append(dict(title='Rust task forwarding: complete focused tests', status='passed',
             phase='19 concurrency tests and 186 compiler unit tests',
-            passed=205, failed=0, total=205, unit='tests', source=None))
+            passed=2, failed=0, total=2, source=None))
 
     candidate_external = read(root/'bootstrap/current-partial-boolean-external-acceptance-results.json')
     if candidate_external.get('status') == 'passed-independent-stage3-external-acceptance':
