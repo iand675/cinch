@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "141 of 235 complete groups passed; 2 running, 0 failed and 92 pending.Every group includes ignored tests. State: running.",
+      "detail": "144 of 235 complete groups passed; 2 running, 0 failed and 89 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -499,7 +499,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "141 of 235 complete groups passed; 2 running, 0 failed and 92 pending."
+      "detail": "144 of 235 complete groups passed; 2 running, 0 failed and 89 pending."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -795,10 +795,10 @@
         "unit": "targets",
         "total": 235,
         "counts": {
-          "verified": 143,
+          "verified": 145,
           "blocked": 0,
-          "running": 1,
-          "pending": 91,
+          "running": 2,
+          "pending": 88,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -11085,6 +11085,102 @@
                 },
                 {
                   "name": "native_macro_arguments_retain_caller_values_in_type_annotations",
+                  "status": "passed"
+                },
+                {
+                  "name": "native_syntax_api_cannot_escape_staging_or_bypass_generated_typechecking",
+                  "status": "passed"
+                },
+                {
+                  "name": "native_syntax_api_capture_keeps_outer_binding_and_reference_uses_the_handle",
+                  "status": "passed"
+                },
+                {
+                  "name": "native_syntax_api_capture_preserves_nested_imported_fixities",
+                  "status": "passed"
+                },
+                {
+                  "name": "native_syntax_api_escaped_or_reintroduced_handles_are_refused",
+                  "status": "passed"
+                },
+                {
+                  "name": "native_syntax_api_generic_once_supports_nested_calls_and_distinct_types",
+                  "status": "passed"
+                },
+                {
+                  "name": "native_syntax_api_once_evaluates_allocating_rhs_once",
+                  "status": "passed"
+                },
+                {
+                  "name": "native_syntax_api_once_preserves_linear_use_and_rejects_duplication_and_drop",
+                  "status": "passed"
+                },
+                {
+                  "name": "native_syntax_api_once_preserves_rhs_and_intentional_body_binding",
+                  "status": "passed"
+                },
+                {
+                  "name": "native_syntax_api_operates_through_stage_values_and_declaration_splices",
+                  "status": "passed"
+                },
+                {
+                  "name": "native_syntax_api_scope_extension_retains_source_private_authority",
+                  "status": "passed"
+                },
+                {
+                  "name": "native_syntax_apply_accepts_typed_linear_arrows_and_preserves_linear_use",
+                  "status": "passed"
+                },
+                {
+                  "name": "native_syntax_apply_cannot_escape_staging_or_apply_ill_typed_code",
+                  "status": "passed"
+                },
+                {
+                  "name": "native_syntax_apply_does_not_retarget_captured_code_under_a_generated_binder",
+                  "status": "passed"
+                },
+                {
+                  "name": "native_syntax_apply_keeps_private_definition_helpers_and_caller_locals",
+                  "status": "passed"
+                },
+                {
+                  "name": "native_syntax_apply_preserves_latent_effects_and_requires_handlers",
+                  "status": "passed"
+                },
+                {
+                  "name": "native_syntax_apply_resolves_overloaded_helpers_after_operand_capture",
+                  "status": "passed"
+                },
+                {
+                  "name": "native_syntax_definition_uses_actual_macro_scope_without_private_name_forgery",
+                  "status": "passed"
+                },
+                {
+                  "name": "native_syntax_record_keeps_definition_constructor_and_source_fields",
+                  "status": "passed"
+                },
+                {
+                  "name": "native_token_capture_builtin_forms_ignore_insertion_site_shadowing",
+                  "status": "passed"
+                },
+                {
+                  "name": "native_token_capture_does_not_bind_an_unbound_name_at_insertion",
+                  "status": "passed"
+                },
+                {
+                  "name": "native_token_capture_keeps_imported_member_and_module_aliases",
+                  "status": "passed"
+                },
+                {
+                  "name": "native_token_capture_keeps_nested_macro_names_and_argument_scopes",
+                  "status": "passed"
+                },
+                {
+                  "name": "native_token_capture_keeps_private_source_global_under_caller_shadowing",
+                  "status": "passed"
+                },
+                {
+                  "name": "native_token_capture_keeps_private_type_and_constructor_authority",
                   "status": "running"
                 }
               ]
@@ -11280,12 +11376,12 @@
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-default-annotation-results.json",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "startedAt": "2026-11-07T00:43:34.173134+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T00:43:46.846023+00:00",
+              "exitCode": 0,
+              "logSha256": "e2ce2f7741d26aabfed5ee289c2f2fae76df06e6f39ab3180eb8306b3051eb51",
               "cases": [
                 {
                   "name": "a_caller_provider_cannot_discharge_a_different_same_shaped_private_signature",
@@ -11301,7 +11397,19 @@
                 },
                 {
                   "name": "a_quoted_declaration_using_head_keeps_its_private_signature",
-                  "status": "running"
+                  "status": "passed"
+                },
+                {
+                  "name": "a_quoted_helper_keeps_its_private_signature_and_provider_under_caller_decoys",
+                  "status": "passed"
+                },
+                {
+                  "name": "a_quoted_using_head_cannot_acquire_a_signature_missing_at_definition_site",
+                  "status": "passed"
+                },
+                {
+                  "name": "quoted_declaration_using_heads_retain_compiler_known_copy_constraints",
+                  "status": "passed"
                 }
               ]
             },
@@ -11310,17 +11418,17 @@
           {
             "id": "native:syntax_structural_builders",
             "title": "syntax_structural_builders",
-            "state": "pending",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/syntax_structural_builders.rs",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:42:48.363105+00:00",
-              "finishedAt": "2026-11-06T14:43:28.278224+00:00",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T00:43:46.848466+00:00",
+              "finishedAt": "2026-11-07T00:44:28.215974+00:00",
               "exitCode": 0,
-              "logSha256": "8560394343f11f6171ea9aed410065aa7ea4dc601271df432b4e82b225673851",
+              "logSha256": "050b1bea38e34217339c362b82ea6fc452529fa5b07e715c3a65dfde058a9c8c",
               "cases": [
                 {
                   "name": "adding_equations_retains_target_checks_and_cannot_discard_source_contracts",
@@ -11385,17 +11493,17 @@
           {
             "id": "native:tail_calls",
             "title": "tail_calls",
-            "state": "pending",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/tail_calls.rs",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:43:28.287673+00:00",
-              "finishedAt": "2026-11-06T14:43:41.089178+00:00",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T00:44:28.218201+00:00",
+              "finishedAt": "2026-11-07T00:44:41.281542+00:00",
               "exitCode": 0,
-              "logSha256": "9b44f60e955758ac2583fa4a7d0069148b87c168a66ea6d24fa5ce000c106e33",
+              "logSha256": "d7d15bd03cf7dbf12224a4f0ffb981ade8b5af238bf36bdac6c64481c77cbc4f",
               "cases": [
                 {
                   "name": "deep_recursion_without_a_tail_call_exhausts_the_stack",
@@ -11420,97 +11528,21 @@
           {
             "id": "native:temporal",
             "title": "temporal",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/temporal.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:43:41.097729+00:00",
-              "finishedAt": "2026-11-06T14:43:55.321108+00:00",
-              "exitCode": 0,
-              "logSha256": "3a13f58813ba98b492253c360ff87e6c4a6fa161b37cd283085f7b8a57541b34",
+              "status": "running",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T00:44:41.284009+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "contract_facts_hash_both_ways",
-                  "status": "passed"
-                },
-                {
-                  "name": "contract_formula_operator_matches_the_kind",
-                  "status": "passed"
-                },
-                {
-                  "name": "contract_names_no_definition",
-                  "status": "passed"
-                },
-                {
-                  "name": "liveness_bounded_claim_needs_a_spawn_scope",
-                  "status": "passed"
-                },
-                {
-                  "name": "liveness_cleanup_runs_within_the_spawn_scope",
-                  "status": "passed"
-                },
-                {
-                  "name": "liveness_join_completes_within_the_spawn_scope",
-                  "status": "passed"
-                },
-                {
-                  "name": "liveness_must_state_its_assumptions",
-                  "status": "passed"
-                },
-                {
-                  "name": "liveness_unbounded_claim_is_refused_naming_the_reason",
-                  "status": "passed"
-                },
-                {
-                  "name": "manifest_records_the_temporal_contracts_with_assumptions",
-                  "status": "passed"
-                },
-                {
-                  "name": "recurrence_is_bounded_over_structural_recursion",
-                  "status": "passed"
-                },
-                {
-                  "name": "recurrence_without_a_structural_bound_is_refused",
-                  "status": "passed"
-                },
-                {
-                  "name": "recurrence_without_a_witness_rejects_naming_the_call",
-                  "status": "passed"
-                },
-                {
-                  "name": "report_rows_name_the_verified_contracts",
-                  "status": "passed"
-                },
-                {
-                  "name": "safety_formula_must_read_borrowed_state",
-                  "status": "passed"
-                },
-                {
-                  "name": "safety_invariant_holds_across_a_mutating_loop",
-                  "status": "passed"
-                },
-                {
-                  "name": "safety_undecidable_step_is_refused_never_trusted",
-                  "status": "passed"
-                },
-                {
-                  "name": "safety_violating_write_rejects_naming_the_step",
-                  "status": "passed"
-                },
-                {
-                  "name": "safety_without_establishment_is_rejected_naming_the_fix",
-                  "status": "passed"
-                },
-                {
-                  "name": "stability_facts_die_on_a_touching_write",
-                  "status": "passed"
-                },
-                {
-                  "name": "stability_facts_survive_non_touching_transitions",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -18315,8 +18347,8 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "syntax_signature_scope",
-        "passed": 141,
+        "phase": "temporal",
+        "passed": 144,
         "failed": 0,
         "total": 235,
         "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
@@ -18334,10 +18366,10 @@
       }
     ],
     "counts": {
-      "verified": 315,
+      "verified": 317,
       "blocked": 4,
-      "running": 6,
-      "pending": 127,
+      "running": 7,
+      "pending": 124,
       "recheck": 215
     },
     "total": 667,
@@ -18346,5 +18378,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T00:43:41.494256+00:00"
+  "updatedAt": "2026-11-07T00:44:43.732734+00:00"
 }
