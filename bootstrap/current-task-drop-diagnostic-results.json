@@ -1,0 +1,15 @@
+{
+  "compiler_source_sha256": "f3faf4991a71782d12951b2951a0d1475bdafb768e714b927537add99aa27ab8",
+  "full_goal_complete": false,
+  "log_sha256": "4c899494520a115692314020be083f3139a1595c4e0c0a6a2a654f90bd7a41a4",
+  "native_source_sha256": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+  "original_group": "bootstrap_runtime_ir",
+  "patch_sha256": "eb18db72efa9a2525daf2fb9a2d99bd370129988975ce86fe7f5cc18730347fe",
+  "patched_files": {
+    "bootstrap/Bootstrap.Typing.cinch": "06437fa4c487daa982cddcd69bbb482a0d2a07212c6d033a409df83c32edf9ed",
+    "compiler/tests/bootstrap_runtime_ir.rs": "07ac482ff3326734cd9e1580cdf1e23d8b686729f05398271b5d2d67911134b4"
+  },
+  "scope": "The complete original runtime-IR group passes. Two dropped-handle controls require the joined diagnostic. Two other usage failures still require the consumed diagnostic. The task-forwarding repair and exact original language replay are separate.",
+  "status": "verified-task-drop-diagnostic-development",
+  "verified_at": "2026-11-07T05:59:46.060264+00:00"
+}

@@ -168,6 +168,12 @@ for the exact task-use, scope escape and sharing reasons. The same complete
 runtime-IR test executable passes after adding the missing shared runtime
 fixture. See `bootstrap/current-task-trace-diagnostic-results.json`.
 
+The combined development build also distinguishes a dropped handle from a
+duplicated or otherwise invalid use. The original runtime-IR target passes
+with the two drop cases requiring the join diagnostic. The original
+`Tasks` program and helper capture checks remain a separate replay. See
+`bootstrap/current-task-drop-diagnostic-results.json`.
+
 The base constructor formatter matches the complete `Data.Core` interface
 hash against the Native writer and matches the three isolated `Data.Ordering`
 constructor contracts. A source-defined `Shadow.List` keeps its own identity.

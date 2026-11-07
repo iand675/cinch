@@ -429,6 +429,7 @@ def build_checklist(root, cfg, previous=None):
         ('taskTraceRuntimeReplay','Cinch task refusals: retained emitter, runtime setup and whole suite',3,'compile-'),
         ('taskDropDiagnostics','Cinch dropped-task diagnostic: complete runtime-IR suite',1,'compile-'),
         ('taskForwarderValidation','Cinch task forwarding: complete pipeline tests',1,'compile-'),
+        ('stage3PromotionPipeline512','Current Stage3 original pipeline at 512 MiB',1,'compile-'),
         ('sourceInterfaceOverlay','Source-library replacement: complete pipeline and dependency checks',1,'compile-'),
         ('originalSourceOverlay','Original four-family source-library replacement test',1,'compile-'),
         ('functionDefaultProvider','Function defaults: fresh pinned library object',1,'compile-'),
@@ -460,6 +461,7 @@ def build_checklist(root, cfg, previous=None):
                 'nativeTaskLocalCapture': 'nativeTaskLocalCaptureReceipt',
                 'taskEffectDiagnostic': 'taskEffectDiagnosticReceipt',
                 'taskTraceRuntimeReplay': 'taskTraceRuntimeReplayReceipt',
+                'taskDropDiagnostics': 'taskDropDiagnosticsReceipt',
                 'constructorBaseDisplay': 'constructorBaseDisplayReceipt',
                 'sourceInterfaceOverlay': 'sourceInterfaceOverlayReceipt',
             }

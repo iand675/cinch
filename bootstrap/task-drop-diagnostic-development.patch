@@ -1,0 +1,88 @@
+--- a/bootstrap/Bootstrap.Typing.cinch
++++ b/bootstrap/Bootstrap.Typing.cinch
+@@ -317,6 +317,8 @@
+   require-task valid sp message = if valid then None else Some (sp, message)
+   task-use-error :: Span -> Option (Span, String)
+   task-use-error sp = Some (sp, "task handle must be consumed exactly once")
++  task-drop-error :: Span -> Option (Span, String)
++  task-drop-error sp = Some (sp, "task handle must be joined exactly once")
+   task-local :: Nat -> List TaskLocal -> Option TaskLocal
+   task-local id env = case env of Nil -> None; Cons (TaskLocal key ty regions shared) rest -> if id == key then Some (TaskLocal key ty regions shared) else task-local id rest
+   task-pattern-ids :: CorePattern -> List Nat
+@@ -416,17 +418,20 @@
+     CAlternative sp p body (CAlternativesEnd end) -> task-use-count id body
+     CAlternative sp p body rest -> if task-id-present id (task-pattern-ids p) then task-alternative-count id rest else if task-pattern-total p then task-row-count id body rest else task-count-same (task-row-count id body rest) (task-alternative-count id rest)
+     other -> None
+-  task-bound-once :: Nat -> UType -> CoreTerm -> Bool
+-  task-bound-once id ty body = not (task-handle-type ty) || (case task-use-count id body of Some 1 -> True; other -> False)
+-  task-pattern-once :: CorePattern -> CoreTerm -> Bool
+-  task-pattern-once p body = case p of
+-    CPVar sp ty id name -> task-bound-once id ty body
+-    CPWild sp ty -> not (task-handle-type ty)
+-    CPAs sp ty id name inner -> task-bound-once id ty body && task-pattern-once inner body
+-    CPConstructor sp ty name actuals constructor fields -> task-pattern-once fields body
+-    CPTuple sp ty fields -> task-pattern-once fields body
+-    CPField sp first rest -> task-pattern-once first body && task-pattern-once rest body
+-    other -> True
++  task-bound-error :: Span -> Nat -> UType -> CoreTerm -> Option (Span, String)
++  task-bound-error sp id ty body = if not (task-handle-type ty) then None else case task-use-count id body of
++    Some 1 -> None
++    Some 0 -> task-drop-error sp
++    other -> task-use-error sp
++  task-pattern-use-error :: CorePattern -> CoreTerm -> Option (Span, String)
++  task-pattern-use-error p body = case p of
++    CPVar sp ty id name -> task-bound-error sp id ty body
++    CPWild sp ty -> if task-handle-type ty then task-drop-error sp else None
++    CPAs sp ty id name inner -> first-task-error (task-bound-error sp id ty body) (task-pattern-use-error inner body)
++    CPConstructor sp ty name actuals constructor fields -> task-pattern-use-error fields body
++    CPTuple sp ty fields -> task-pattern-use-error fields body
++    CPField sp first rest -> first-task-error (task-pattern-use-error first body) (task-pattern-use-error rest body)
++    other -> None
+   task-traces-merge :: TaskTrace -> TaskTrace -> TaskTrace
+   task-traces-merge a b = TaskTrace (first-task-error (task-trace-error a) (task-trace-error b)) (task-trace-regions a <> task-trace-regions b) (task-trace-shared a && task-trace-shared b)
+   task-trace-list :: TypingContext -> List TaskLocal -> List UType -> Bool -> List CoreTerm -> TaskTrace
+@@ -462,7 +467,7 @@
+       let inside = task-trace context (task-pattern-env p Nil False env) scopes True body in
+       let valid-capture = not spawning || (task-free-sharing context free && task-types-property context True Nil 64 (task-free-evidence Nil body)) in
+       let capture-error = require-task valid-capture sp "a task capture crosses the task boundary without shareable evidence" in
+-      let failure = if task-pattern-once p body then first-task-error (task-trace-error inside) capture-error else task-use-error sp in
++      let failure = first-task-error (task-pattern-use-error p body) (first-task-error (task-trace-error inside) capture-error) in
+       TaskTrace failure (task-trace-regions inside) (task-trace-shared inside)
+     other -> let checked = task-trace context env scopes False callback in
+       let capture-error = require-task (not spawning || task-trace-shared checked) site "a task callback crosses the task boundary without shareable evidence" in
+@@ -492,11 +497,11 @@
+       CLambda sp ty p body -> let free = task-free (task-pattern-ids p) body in
+         let inside = task-trace context (task-pattern-env p Nil False env) scopes True body in
+         let escape = require-task (task-free-scopes env free) sp "region escape: a closure captures a value from a structured scope" in
+-        let failure = if task-pattern-once p body then first-task-error escape (task-trace-error inside) else task-use-error sp in
++        let failure = first-task-error (task-pattern-use-error p body) (first-task-error escape (task-trace-error inside)) in
+         TaskTrace failure (task-free-regions env free <> task-active-regions scopes (task-capture-types (task-free-evidence Nil body))) (task-free-sharing context free && task-types-property context True Nil 64 (task-free-evidence Nil body))
+       CLet sp ty id name sc rhs body -> let value = task-trace context env scopes True rhs in
+         let result = task-trace context (Cons (TaskLocal id (scheme-body sc) (task-trace-regions value) (task-trace-shared value)) env) scopes consuming body in
+-        let failure = if task-bound-once id (scheme-body sc) body then first-task-error (task-trace-error value) (task-trace-error result) else task-use-error sp in
++        let failure = first-task-error (task-bound-error sp id (scheme-body sc) body) (first-task-error (task-trace-error value) (task-trace-error result)) in
+         TaskTrace failure (task-trace-regions result) (task-trace-shared result)
+       CApply sp ty f x -> task-call-trace context env scopes ty f x
+       CApplyEff sp ty row f x -> task-call-trace context env scopes ty f x
+@@ -532,8 +537,7 @@
+   task-pattern-error :: TypingContext -> List TaskLocal -> Span -> List CorePattern -> CoreTerm -> Option (Span, String)
+   task-pattern-error context env sp patterns body = case patterns of
+     Nil -> task-trace-error (task-trace context env Nil True body)
+-    Cons p rest -> if task-pattern-once p body then task-pattern-error context (task-pattern-env p Nil False env) sp rest body
+-      else task-use-error sp
++    Cons p rest -> first-task-error (task-pattern-use-error p body) (task-pattern-error context (task-pattern-env p Nil False env) sp rest body)
+   task-definition-safe :: TypingContext -> CoreDefinition -> Bool
+   task-definition-safe context d = case task-definition-error context d of None -> True; Some error -> False
+   task-definition-error :: TypingContext -> CoreDefinition -> Option (Span, String)
+--- a/compiler/tests/bootstrap_runtime_ir.rs
++++ b/compiler/tests/bootstrap_runtime_ir.rs
+@@ -583,7 +583,8 @@
+         assert_eq!(common::read_output(&dir, &format!("output-{}.status", cases.len() + 2 + index)), "4", "invalid source signature {index}");
+         assert!(common::read_output(&dir, &format!("output-{}.ll", cases.len() + 2 + index)).is_empty());
+         let task_reason = match index {
+-            0..=3 => Some("task handle must be consumed exactly once"),
++            0..=1 => Some("task handle must be joined exactly once"),
++            2..=3 => Some("task handle must be consumed exactly once"),
+             6 => Some("region escape: a task capture does not outlive the destination scope"),
+             7 => Some("region escape: a scoped capture leaves its `withScope`"),
+             8 => Some("without shareable evidence"),
