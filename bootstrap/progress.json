@@ -19120,6 +19120,28 @@
         "auditPending": true
       },
       {
+        "title": "Structural function instances: pipeline, syntax and instance checks",
+        "status": "running",
+        "phase": "bootstrap_pipeline",
+        "passed": 0,
+        "failed": 0,
+        "total": 3,
+        "source": "b655a0a0d31a67be39ff71bc36b4434c4ca0bb9b6b991928f64329efc133bd63",
+        "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+        "auditPending": false
+      },
+      {
+        "title": "Stage3 anonymous refinements: explicit structural projection",
+        "status": "running",
+        "phase": "bootstrap_anonymous_contracts",
+        "passed": 0,
+        "failed": 0,
+        "total": 1,
+        "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+        "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+        "auditPending": false
+      },
+      {
         "title": "Rust task-forwarding candidate: complete Rust sweep",
         "status": "running",
         "phase": "interface_byte_observations",
@@ -19373,5 +19395,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T06:37:48.024725+00:00"
+  "updatedAt": "2026-11-07T06:40:01.397161+00:00"
 }
