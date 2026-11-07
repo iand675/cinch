@@ -282,7 +282,7 @@ def build_checklist(root, cfg, previous=None):
              'Candidate28d2 executes all11 positive clients, including the unchanged owned Box case, with zero leaks; all5 invalid-source controls refuse. Strict cycles refuse with empty IR. Independent interface-only and public-reader checks prove the fresh checked sidecars are valid; the invented no-sidecar-after-backend-refusal assertion was a runner mistake. Complete matching bootstrap and promotion remain.' if strict_runtime else 'Private8fce checks duplicate = value, then cannot lower its strict self-evidence dependency. Two original default runtime/build assertions also stop here.',
              'Initialize acyclic strict fields in dependency order while preserving checked self evidence, closure ownership and cycle refusals; execute all original default runtime cases with zero leaks.',link('bootstrap/current-source-class-default-runtime-results.json')),
         item('gap:default-diagnostics','Preserve original class/default diagnostic details and source files','blocked',
-             'Three original default refusal tests reject correctly but still fail their exact message, class/instance name or source-file assertions. These remain failures.',
+             'Three original refusal tests still need their exact names and source-file assertions proved. Private7ccd now retains the instance name and declaration span and the undeclared method owner; privatedc46 appends actual file/local-line labels already supplied by project bundles. Original assertions remain, and full source/pipeline/resolver groups are validating.',
              'Every original diagnostic and filename assertion passes with accurate attribution to the defining source; semantic rejection alone grants no pass.',link('bootstrap/current-source-class-default-self-values-api-results.json')),
         item('gap:inferred-case-coverage','Infer a constructor case before deciding coverage','running' if coverage_state else 'blocked',
              'Private28d2 now compiles the exact unchanged Box counterexample and executes7 at32M with poisoning and zero leaks. All9 full compiler/object tests and both exact44 source gates pass independent audit. The constructor, inference and typed-index whole groups pass; the remaining complete component groups are running. Published3268 still awaits validated promotion and a matching bootstrap.',
@@ -326,7 +326,9 @@ def build_checklist(root, cfg, previous=None):
         ('sourceClassDefaultScopeValidation','Cinch annotation namespace repair: complete groups',7,'compile-'),
         ('sourceClassDefaultSelfValuesValidation','Cinch strict-default repair: complete groups',7,'compile-'),
         ('inferredCaseCoverageValidation','Cinch constructor coverage: complete groups',8,'compile-'),
-        ('refinementContainerValidation','Cinch refined containers: complete groups',8,'compile-')]:
+        ('refinementContainerValidation','Cinch refined containers: complete groups',8,'compile-'),
+        ('sourceDefaultDiagnosticValidation','Cinch class/instance diagnostics: complete groups',2,'compile-'),
+        ('sourceDefaultOriginValidation','Cinch source-file diagnostics: complete groups',3,'compile-')]:
         state=read(cfg.get(key))
         if state:
             wanted={'proof_guarded_lets','evidence_invalidation','index_local_carriers','syntax_index_evidence','syntax_index_lambdas','syntax_signature_scope','staging'} if 'Followup'in key else None
@@ -351,11 +353,11 @@ def build_checklist(root, cfg, previous=None):
             audited=bool(receipt) and receipt.get('source')==state.get('source')
             active.append(dict(title=title,status=display_status,phase=display_phase,passed=sum(r['status']=='passed'for r in rows),failed=sum(r['status']=='failed'for r in rows),total=total,source=state.get('compiler_source_sha256'),nativeSource=state.get('native_source_sha256'), auditPending=state.get('status','').startswith('passed-') and not audited))
 
-    for key,title,total in [('sourceClassDefaultFullCompiler','Cinch defaults: full compiler/object gate',2), ('nativeDefaultAnnotationApi','Published Cinch: Rust reader/API replay',9), ('pipelineInterfaceDiagnosticValidation','Pipeline: complete FFI and mode checks',1), ('sourceClassDefaultApi','Cinch defaults: original API and default groups',10), ('inferredCaseCoverageFullCompiler','Cinch constructor coverage: full compiler/object gate',2)]:
+    for key,title,total in [('sourceClassDefaultFullCompiler','Cinch defaults: full compiler/object gate',2), ('nativeDefaultAnnotationApi','Published Cinch: Rust reader/API replay',9), ('pipelineInterfaceDiagnosticValidation','Pipeline: complete FFI and mode checks',1), ('sourceClassDefaultApi','Cinch defaults: original API and default groups',10), ('inferredCaseCoverageFullCompiler','Cinch constructor coverage: full compiler/object gate',2), ('refinementStructuralFullCompiler','Cinch structural refinements: full compiler/object gate',2), ('refinementStructuralApi','Cinch structural refinements: original API/default groups',10)]:
         state=read(cfg.get(key))
         if state:
             rows=[r for r in state.get('rows',[]) if not r['name'].startswith(('compile-','build-'))]
-            proof_key={'sourceClassDefaultFullCompiler':'sourceClassDefaultCompilerReceipt','nativeDefaultAnnotationApi':'interfaceApiReceipt','pipelineInterfaceDiagnosticValidation':'nativePipelineReceipt','sourceClassDefaultApi':'sourceClassDefaultApiReceipt','inferredCaseCoverageFullCompiler':'inferredCaseCoverageCompilerReceipt'}[key]
+            proof_key={'sourceClassDefaultFullCompiler':'sourceClassDefaultCompilerReceipt','nativeDefaultAnnotationApi':'interfaceApiReceipt','pipelineInterfaceDiagnosticValidation':'nativePipelineReceipt','sourceClassDefaultApi':'sourceClassDefaultApiReceipt','inferredCaseCoverageFullCompiler':'inferredCaseCoverageCompilerReceipt','refinementStructuralFullCompiler':'refinementStructuralCompilerReceipt','refinementStructuralApi':'refinementStructuralApiReceipt'}[key]
             proof=read(cfg.get(proof_key))
             audited=bool(proof) and proof.get('source_sha256')==state.get('source_sha256')
             active.append(dict(title=title,status=state.get('status'),phase=state.get('phase'),passed=sum(r['status']=='passed'for r in rows),failed=sum(r['status']=='failed'for r in rows),total=total,source=state.get('compiler_source_sha256'),auditPending=state.get('status')=='passed' and not audited))

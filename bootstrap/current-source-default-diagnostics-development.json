@@ -1,0 +1,27 @@
+{
+  "baseline_cinch_source_sha256": "a02936ace8ad72c00dcc957d92c3954422a5d2223d8e86c42a9d159061426756",
+  "files": [
+    {
+      "after_sha256": "b2f006461ca447fe963c241301c4a1d8497f00ad55c1ae2c7be107312f83ceb2",
+      "before_sha256": "823a13814dd83c23cbf625ae2c2b0110e65f0427d96216f10df85b08192aa45a",
+      "path": "bootstrap/Bootstrap.Infer.cinch"
+    },
+    {
+      "after_sha256": "07f5baacf7e0345972f30ba89fd41a016033656939c9440b7de047dc22f832f3",
+      "before_sha256": "b996a79df0457558069b5e472e229e08b6003d3faa04b85feadead498655c06f",
+      "path": "bootstrap/Bootstrap.Resolve.cinch"
+    },
+    {
+      "after_sha256": "501f6845eac1774117c00717b3bcfd983c96ac7ccee01399278f7648f855a648",
+      "before_sha256": "981aacdf877e70f27c96648c2fc14452efcc8cf70743d87b3dfc6752ad3a4abb",
+      "path": "compiler/tests/bootstrap_source_instances.rs"
+    }
+  ],
+  "full_goal_complete": false,
+  "patch": "bootstrap/source-default-diagnostics-development.patch",
+  "patch_application_independently_verified": true,
+  "patch_sha256": "cfb8b283646ac5426eddf739c1459993fb0da5fd6d002680a6cd09c66059d15d",
+  "private_cinch_source_sha256": "7ccd088f5a00fb1784fbfaee3b3888d7edc4ed531703925c3f78e670048f2cdf",
+  "scope": "Unapplied diagnostic-only development patch above a029. A missing method now names its source instance and uses its actual declaration span; encoded linkage identities remain unchanged. An undeclared default names its declaring class. Existing source controls retain their source text and expected status, and add name/location assertions. Both complete original source-instance and resolver targets validate the change. Accurate original file attribution and all unchanged original class-default/API assertions remain separate required work; no path is guessed from a module name and no fixture assertion is weakened. Published3268, pinned seed/library and matching final bootstrap scope remain unchanged.",
+  "status": "reviewable-private-default-diagnostic-repair-under-validation"
+}

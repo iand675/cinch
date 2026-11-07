@@ -1,0 +1,187 @@
+diff --git a/bootstrap/Bootstrap.Report.cinch b/bootstrap/Bootstrap.Report.cinch
+--- a/bootstrap/Bootstrap.Report.cinch
++++ b/bootstrap/Bootstrap.Report.cinch
+@@ -50,3 +50,43 @@
+   render-diagnostics ds = case ds of
+     Nil -> empty-string
+     Cons d rest -> string-concat (render-diagnostic d) (string-concat "\n" (render-diagnostics rest))
++
++  -- Project bundles label their actual input files with column-one
++  -- `-- source: <escaped path>` comments. These affect presentation only:
++  -- no source name or proof authority is obtained from a label. Preserve
++  -- the phase and bundled position, adding the original file and line.
++  origin-prefix :: List Char -> List Char -> Option String
++  origin-prefix prefix input = case prefix of
++    Nil -> if list-length input == 0 then None else Some (pack input)
++    Cons a rest -> (case input of
++      Cons b more -> if char-code a == char-code b then origin-prefix rest more else None
++      Nil -> None)
++  origin-line :: List Char -> List Char -> (List Char, List Char)
++  origin-line input seen = case input of
++    Nil -> (reverse seen, Nil)
++    Cons c rest -> if char-code c == 10 then (reverse seen, rest) else origin-line rest (Cons c seen)
++  origin-at :: Nat -> List Char -> Nat -> String -> Nat -> Option (String, Nat)
++  origin-at target input line label start =
++    if line == target then
++      if string-length label > 0 && target > start then Some (label, target - start) else None
++    else case input of
++      Nil -> None
++      other -> (case origin-line input Nil of
++        (text, rest) -> case origin-prefix (unpack "-- source: ") text of
++          Some path -> origin-at target rest (line + 1) path line
++          None -> origin-at target rest (line + 1) label start)
++  render-source-diagnostic :: List Char -> Diagnostic -> String
++  render-source-diagnostic source diagnostic = case origin-at (span-line (diagnostic-span diagnostic)) source 1 "" 0 of
++    None -> render-diagnostic diagnostic
++    Some (path, line) -> string-concat (render-diagnostic diagnostic)
++      (string-concat " (" (string-concat path (string-concat ":" (string-concat (nat-to-string line)
++        (string-concat ":" (string-concat (nat-to-string (span-col (diagnostic-span diagnostic))) ")"))))))
++  render-source-diagnostics-from :: List Char -> List Diagnostic -> String
++  render-source-diagnostics-from source diagnostics = case diagnostics of
++    Nil -> empty-string
++    Cons first rest -> string-concat (render-source-diagnostic source first)
++      (string-concat "\n" (render-source-diagnostics-from source rest))
++  render-source-diagnostics :: Bytes -> List Diagnostic -> String
++  render-source-diagnostics source diagnostics = case string-from-bytes source of
++    None -> render-diagnostics diagnostics
++    Some text -> render-source-diagnostics-from (unpack text) diagnostics
+diff --git a/bootstrap/Bootstrap.Pipeline.cinch b/bootstrap/Bootstrap.Pipeline.cinch
+--- a/bootstrap/Bootstrap.Pipeline.cinch
++++ b/bootstrap/Bootstrap.Pipeline.cinch
+@@ -28,7 +28,7 @@
+   import Bootstrap.Inputs (read-interfaces)
+   import Bootstrap.Contracts (interface-headers)
+   import Bootstrap.Resolve (resolve-program, resolve-program-with)
+-  import Bootstrap.Report (Diagnostic, render-diagnostics)
++  import Bootstrap.Report (Diagnostic, render-diagnostics, render-source-diagnostics)
+   import Bootstrap.Export (export-interfaces, interface-hash)
+   import Bootstrap.Interface (fnv-source-hash)
+   import Algebra.Semigroup
+@@ -155,13 +155,13 @@
+           Failed bundle -> write-failure ir (render-bundle bundle) pipeline-parse-failed
+           Parsed program Nil -> (case resolve-program-with program interfaces of
+             (resolved, Nil) -> case check-and-retain resolved of
+-              Err errors -> write-failure ir (render-diagnostics errors) pipeline-check-refused
++              Err errors -> write-failure ir (render-source-diagnostics src errors) pipeline-check-refused
+               Ok checked -> if publish then
+                 (case write-checked-interfaces ir checked interfaces src of
+                   0 -> write-runtime-module ir (emit-runtime-program-with-object checked (Some provider))
+                   code -> code)
+                 else write-runtime-module ir (emit-runtime-program-with-object checked (Some provider))
+-            (resolved, errors) -> write-failure ir (render-diagnostics errors) pipeline-check-refused)
++            (resolved, errors) -> write-failure ir (render-source-diagnostics src errors) pipeline-check-refused)
+           Parsed program errors -> write-failure ir (render-bundle (Bundle source src errors)) pipeline-parse-failed
+
+   -- The interface-only path shares the real parser, resolver and retained
+@@ -173,9 +173,9 @@
+       Failed bundle -> write-failure prefix (render-bundle bundle) pipeline-parse-failed
+       Parsed program Nil -> (case resolve-program-with program interfaces of
+         (resolved, Nil) -> case check-and-retain resolved of
+-          Err errors -> write-failure prefix (render-diagnostics errors) pipeline-check-refused
++          Err errors -> write-failure prefix (render-source-diagnostics src errors) pipeline-check-refused
+           Ok checked -> write-checked-interfaces prefix checked interfaces src
+-        (resolved, errors) -> write-failure prefix (render-diagnostics errors) pipeline-check-refused)
++        (resolved, errors) -> write-failure prefix (render-source-diagnostics src errors) pipeline-check-refused)
+       Parsed program errors -> write-failure prefix (render-bundle (Bundle source src errors)) pipeline-parse-failed
+   write-interface-files :: forall r. using (io :: Io r) => Path -> List (String, Json) ->{IO r} Result String Unit
+   write-interface-files prefix rows = case rows of
+@@ -200,31 +200,31 @@
+   after-parse :: forall r. using (io :: Io r) => PipelineMode -> String -> Bytes -> ParseOutcome Program -> Path -> Path -> Path ->{IO r, Diverge} Int
+   after-parse mode name src outcome ir exe report = case outcome of
+     Failed bundle -> write-failure ir (render-bundle bundle) pipeline-parse-failed
+-    Parsed prog Nil -> after-resolve mode prog ir exe report
++    Parsed prog Nil -> after-resolve mode src prog ir exe report
+     Parsed prog recoverable -> write-failure ir (render-bundle (Bundle name src recoverable)) pipeline-parse-failed
+
+   after-parse-with :: forall r. using (io :: Io r) => PipelineMode -> List LoadedInterface -> String -> Bytes -> ParseOutcome Program -> Path -> Path -> Path ->{IO r, Diverge} Int
+   after-parse-with mode interfaces name src outcome ir exe report = case outcome of
+     Failed bundle -> write-failure ir (render-bundle bundle) pipeline-parse-failed
+     Parsed prog Nil -> case resolve-program-with prog interfaces of
+-      (resolved, Nil) -> after-check mode (check-and-retain resolved) ir exe report
+-      (resolved, found) -> write-failure ir (render-diagnostics found) pipeline-check-refused
++      (resolved, Nil) -> after-check mode src (check-and-retain resolved) ir exe report
++      (resolved, found) -> write-failure ir (render-source-diagnostics src found) pipeline-check-refused
+     Parsed prog recoverable -> write-failure ir (render-bundle (Bundle name src recoverable)) pipeline-parse-failed
+
+-  after-resolve :: forall r. using (io :: Io r) => PipelineMode -> Program -> Path -> Path -> Path ->{IO r, Diverge} Int
+-  after-resolve mode prog ir exe report = case resolve-program prog of
+-    (resolved, Nil) -> after-check mode (check-and-retain resolved) ir exe report
+-    (resolved, found) -> write-failure ir (render-diagnostics found) pipeline-check-refused
+-
+-  after-check :: forall r. using (io :: Io r) => PipelineMode -> Result (List Diagnostic) CheckedProgram -> Path -> Path -> Path ->{IO r, Diverge} Int
+-  after-check mode result ir exe report = case result of
++  after-resolve :: forall r. using (io :: Io r) => PipelineMode -> Bytes -> Program -> Path -> Path -> Path ->{IO r, Diverge} Int
++  after-resolve mode src prog ir exe report = case resolve-program prog of
++    (resolved, Nil) -> after-check mode src (check-and-retain resolved) ir exe report
++    (resolved, found) -> write-failure ir (render-source-diagnostics src found) pipeline-check-refused
++
++  after-check :: forall r. using (io :: Io r) => PipelineMode -> Bytes -> Result (List Diagnostic) CheckedProgram -> Path -> Path -> Path ->{IO r, Diverge} Int
++  after-check mode src result ir exe report = case result of
+     Ok prog -> case mode of
+       CheckOnly -> case fs-write (refusal-path ir) (string-to-bytes "") of
+         Ok written -> pipeline-ok
+         Err e -> pipeline-write-failed
+       EmitOnly -> write-runtime-module ir (emit-runtime-program prog)
+       other -> after-emit mode (emit-checked-diagnostics prog) prog ir exe report
+-    Err found -> write-failure ir (render-diagnostics found) pipeline-check-refused
++    Err found -> write-failure ir (render-source-diagnostics src found) pipeline-check-refused
+
+   after-emit :: forall r. using (io :: Io r) => PipelineMode -> List Diagnostic -> CheckedProgram -> Path -> Path -> Path ->{IO r, Diverge} Int
+   after-emit mode found prog ir exe report = case found of
+@@ -365,9 +365,9 @@
+                     Failed bundle -> write-failure ir (render-bundle bundle) pipeline-parse-failed
+                     Parsed program Nil -> (case resolve-program-with program interfaces of
+                       (resolved, Nil) -> case check-and-retain resolved of
+-                        Err errors -> write-failure ir (render-diagnostics errors) pipeline-check-refused
++                        Err errors -> write-failure ir (render-source-diagnostics bytes errors) pipeline-check-refused
+                         Ok checked -> prepare-library-object checked interfaces bytes provider document provider-code ir object abi prefix
+-                      (resolved, errors) -> write-failure ir (render-diagnostics errors) pipeline-check-refused)
++                      (resolved, errors) -> write-failure ir (render-source-diagnostics bytes errors) pipeline-check-refused)
+                     Parsed program errors -> write-failure ir (render-bundle (Bundle source bytes errors)) pipeline-parse-failed
+   prepare-library-object :: forall r. using (io :: Io r) => CheckedProgram -> List LoadedInterface -> Bytes -> RuntimeObject -> Json -> Bytes -> Path -> Path -> Path -> String ->{IO r, Diverge} Int
+   prepare-library-object checked interfaces source provider document provider-code ir object abi prefix = case runtime-library-default-roots checked of
+diff --git a/bootstrap/programs/Run.DiagnosticOrigins.cinch b/bootstrap/programs/Run.DiagnosticOrigins.cinch
+new file mode 100644
+--- /dev/null
++++ b/bootstrap/programs/Run.DiagnosticOrigins.cinch
+@@ -0,0 +1,20 @@
++module Main where
++  import Bootstrap.Report
++  import Text.Lex (Span)
++
++  same :: String -> String -> Bool
++  same a b = string-compare a b == 0
++  check :: Bool -> Int -> Int
++  check yes bit = if yes then 0 else bit
++  rendered :: String -> Nat -> String
++  rendered source line = render-source-diagnostics (string-to-bytes source) [MkDiagnostic "bootstrap.check" (Span 0 0 line 9) "broken"]
++  main :: Int
++  main =
++    let a = check (same (rendered "module Main where\n  main = 0\n" 2) "bootstrap.check:2:9: broken\n") 1 in
++    let b = check (same (rendered "-- source: Shapes.cinch\nmodule Shapes where\n  broken = x\n" 3) "bootstrap.check:3:9: broken (Shapes.cinch:2:9)\n") 2 in
++    let c = check (same (rendered "-- source: Shapes.cinch\nmodule Shapes where\n\n-- source: Main.cinch\nmodule Main where\n  main = x\n" 6) "bootstrap.check:6:9: broken (Main.cinch:2:9)\n") 4 in
++    let d = check (same (rendered "-- source: Main.cinch\nmodule Main where\n  -- source: NotAFile.cinch\n  main = x\n" 4) "bootstrap.check:4:9: broken (Main.cinch:3:9)\n") 8 in
++    let e = check (same (rendered "-- source: Main.cinch\nmodule Main where\n" 10) "bootstrap.check:10:9: broken\n") 16 in
++    let f = check (same (rendered "-- source: odd\\nfile.cinch\nmodule Main where\n  main = x\n" 3) "bootstrap.check:3:9: broken (odd\\nfile.cinch:2:9)\n") 32 in
++    let g = check (same (rendered "-- source: \nmodule Main where\n  main = x\n" 3) "bootstrap.check:3:9: broken\n") 64 in
++    a + b + c + d + e + f + g
+diff --git a/compiler/tests/bootstrap_pipeline.rs b/compiler/tests/bootstrap_pipeline.rs
+--- a/compiler/tests/bootstrap_pipeline.rs
++++ b/compiler/tests/bootstrap_pipeline.rs
+@@ -427,3 +427,16 @@
+         assert!(!dir.join(format!("{name}.bin")).exists());
+     }
+ }
++
++#[test]
++fn diagnostic_origins_retain_actual_bundle_labels_and_local_lines() {
++    let dir = common::project("diagnostic_origins", &[
++        ("Bootstrap.Ast.cinch", include_str!("../../bootstrap/Bootstrap.Ast.cinch")),
++        ("Bootstrap.Report.cinch", include_str!("../../bootstrap/Bootstrap.Report.cinch")),
++        ("Main.cinch", include_str!("../../bootstrap/programs/Run.DiagnosticOrigins.cinch")),
++    ]);
++    let exe = common::build(&dir, "Main.cinch", "diagnostic-origins").expect("build actual Cinch diagnostic renderer");
++    let output = std::process::Command::new(exe).current_dir(&dir).output().unwrap();
++    assert_eq!(output.status.code(), Some(0), "diagnostic origin bitmask; project {}\n{}", dir.display(), String::from_utf8_lossy(&output.stderr));
++    common::cleanup(&dir);
++}

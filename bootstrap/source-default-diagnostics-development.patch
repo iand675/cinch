@@ -1,0 +1,110 @@
+diff --git a/bootstrap/Bootstrap.Infer.cinch b/bootstrap/Bootstrap.Infer.cinch
+--- a/bootstrap/Bootstrap.Infer.cinch
++++ b/bootstrap/Bootstrap.Infer.cinch
+@@ -3609,8 +3609,17 @@
+     None -> (expected, st)
+     Some syntax -> case member-annotation-scheme classes kinds (scheme-params factory) syntax st of
+       (annotated, checked) -> (annotated, if scheme-equivalent expected annotated then checked else add-error (type-expr-span syntax) "instance method signature disagrees with the specialized class contract" checked)
+-  source-instance-fields :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List Decl -> CoreClass -> String -> Scheme -> List Decl -> List CoreClassMethod -> Store -> (List CoreDictionaryField, Store)
+-  source-instance-fields classes kinds families env defaults description symbol factory declarations methods st = case methods of
++  -- Linkage identities stay encoded; diagnostics retain the source spelling.
++  instance-diagnostic-name :: String -> String
++  instance-diagnostic-name symbol = case export-global symbol of
++    Ok name -> pack (instance-diagnostic-chars (unpack name) Nil)
++    Err message -> symbol
++  instance-diagnostic-chars :: List Char -> List Char -> List Char
++  instance-diagnostic-chars input seen = case input of
++    Nil -> reverse seen
++    Cons c rest -> instance-diagnostic-chars rest (if char-code c == 46 then Nil else Cons c seen)
++  source-instance-fields :: Span -> List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List Decl -> CoreClass -> String -> Scheme -> List Decl -> List CoreClassMethod -> Store -> (List CoreDictionaryField, Store)
++  source-instance-fields instance-span classes kinds families env defaults description symbol factory declarations methods st = case methods of
+     Nil -> (Nil, st)
+     Cons member rest -> let name = class-method-name member in
+       case specialize-method description factory member of
+@@ -3623,12 +3632,12 @@
+           let clauses = if has-definition name declarations then Some (function-clauses name declarations) else inherited-default-clauses description member defaults actual in
+           let annotations = if has-definition name declarations then Some Nil else default-annotation-bindings description factory member actual in
+           case (clauses, annotations) of
+-            (None, other) -> (Nil, add-error zero (string-concat "instance is missing class method: " name) prepared)
++            (None, other) -> (Nil, add-error instance-span (string-concat-all ["instance ", instance-diagnostic-name symbol, " does not define method ", name]) prepared)
+             (Some body, None) -> (Nil, add-error zero "inherited default has no checked annotation-binder specialization" prepared)
+             (Some body, Some aliases) -> (case check-definition-with-annotations classes kinds families bound zero private-name body aliases prepared of
+               (None, failed) -> (Nil, failed)
+               (Some definition, checked) -> case resolve-dictionary-definition-with classes (env-instances env) definition checked of
+-                (resolved, final) -> case source-instance-fields classes kinds families env defaults description symbol factory declarations rest final of
++                (resolved, final) -> case source-instance-fields instance-span classes kinds families env defaults description symbol factory declarations rest final of
+                   (more, done) -> (Cons (MkCoreDictionaryField zero (class-method-slot member) (seal-definition-with-checked-contracts (env-body-context env) (env-guarded-bindings env) done resolved)) more, done))
+   checked-source-instances :: List Json -> List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List Decl -> List CoreClass -> Store -> (List CoreClass, List CoreInstance, Store)
+   checked-source-instances rows classes kinds families env ds descriptions st = checked-source-instances-with rows classes kinds families env ds ds descriptions st
+@@ -3641,7 +3650,7 @@
+           Some owner -> (case (case find-class owner descriptions of Some description -> (Some description, st); None -> typed-class sp owner rows classes kinds st) of
+             (Some description, checked) -> let members-list = decls-of members in
+               let prepared = instance-member-errors members-list (class-member-names (class-methods description)) Nil checked in
+-              (case source-instance-fields classes kinds families env all description name factory members-list (class-methods description) prepared of
++              (case source-instance-fields sp classes kinds families env all description name factory members-list (class-methods description) prepared of
+                 (fields, done) -> let constructor = MkCoreInstance sp name flag factory fields in
+                   let retained = case find-class owner descriptions of Some prior -> descriptions; None -> Cons description descriptions in
+                   let verified = if instance-closed (MkCoreClassContext classes retained) constructor then done else add-error sp "source dictionary constructor disagrees with its defining class or method contracts" done in
+diff --git a/bootstrap/Bootstrap.Resolve.cinch b/bootstrap/Bootstrap.Resolve.cinch
+--- a/bootstrap/Bootstrap.Resolve.cinch
++++ b/bootstrap/Bootstrap.Resolve.cinch
+@@ -644,7 +644,7 @@
+         (rename-record-fields visible (parameter-names params) fields)) Nil, Nil)
+     DClass s name params members ->
+       if same name "Copy" || same name "Share" then (Nil, fail s "Copy and Share are compiler-owned structural signatures and cannot be declared") else
+-        case rename-class-members home visible (parameter-names params) (decls-of members) of
++        case rename-class-members home name visible (parameter-names params) (decls-of members) of
+           (renamed, errors) -> ([DClass s (global-name home name) (rename-params visible Nil params) (decl-spine s renamed)], errors)
+     DRefine s name params binder predicate ->
+       let names = parameter-names params in
+@@ -665,24 +665,24 @@
+     DFixity s assoc prec ops -> (Nil, Nil)
+     other -> (Cons d Nil, fail (decl-span d) "this declaration requires further namespace elaboration")
+
+-  rename-class-members :: String -> List Binding -> List String -> List Decl -> (List Decl, List Diagnostic)
+-  rename-class-members home visible locals ds = rename-class-members-with home visible locals ds ds
++  rename-class-members :: String -> String -> List Binding -> List String -> List Decl -> (List Decl, List Diagnostic)
++  rename-class-members home owner visible locals ds = rename-class-members-with home owner visible locals ds ds
+   declared-class-method :: String -> List Decl -> Bool
+   declared-class-method name ds = case ds of
+     Nil -> False
+     Cons (DSig sp member ty) rest -> same name member || declared-class-method name rest
+     Cons other rest -> declared-class-method name rest
+-  rename-class-members-with :: String -> List Binding -> List String -> List Decl -> List Decl -> (List Decl, List Diagnostic)
+-  rename-class-members-with home visible locals all ds = case ds of
++  rename-class-members-with :: String -> String -> List Binding -> List String -> List Decl -> List Decl -> (List Decl, List Diagnostic)
++  rename-class-members-with home owner visible locals all ds = case ds of
+     Nil -> (Nil, Nil)
+-    Cons (DSig s name ty) rest -> case rename-class-members-with home visible locals all rest of
++    Cons (DSig s name ty) rest -> case rename-class-members-with home owner visible locals all rest of
+       (more, errors) -> (Cons (DMethod s name (global-name home name) (rename-type visible locals ty)) more, errors)
+-    Cons (DFun s name clauses) rest -> case rename-class-members-with home visible locals all rest of
++    Cons (DFun s name clauses) rest -> case rename-class-members-with home owner visible locals all rest of
+       (more, errors) -> if declared-class-method name all then
+         (case rename-member-clauses visible (instance-method-names name all <> locals) clauses of
+           (renamed, failures) -> (Cons (DFun s name renamed) more, failures <> errors))
+-        else (Cons (DFun s name clauses) more, fail s (cat ["default names an undeclared class method: ", name]) <> errors)
+-    Cons other rest -> case rename-class-members-with home visible locals all rest of
++        else (Cons (DFun s name clauses) more, fail s (cat ["`", name, "` is not a method of ", owner]) <> errors)
++    Cons other rest -> case rename-class-members-with home owner visible locals all rest of
+       (more, errors) -> (Cons other more, fail (decl-span other) "source signature member needs checked default or declaration elaboration" <> errors)
+
+   rename-decls :: String -> List Binding -> List Decl -> (List Decl, List Diagnostic)
+diff --git a/compiler/tests/bootstrap_source_instances.rs b/compiler/tests/bootstrap_source_instances.rs
+--- a/compiler/tests/bootstrap_source_instances.rs
++++ b/compiler/tests/bootstrap_source_instances.rs
+@@ -160,6 +160,14 @@
+         let result = std::process::Command::new(&exe).current_dir(&dir).output().unwrap();
+         let report = common::read_output(&dir, "class-default-report.txt");
+         assert_eq!(result.status.code(), Some(wanted), "{name}; project {}\n{source}\n{report}\n{}", dir.display(), String::from_utf8_lossy(&result.stderr));
++        if name == "missing nondefault method" {
++            assert!(report.contains("instance DescribeInt does not define method size"), "{report}");
++            let line = source.lines().position(|line| line.contains("implicit instance DescribeInt")).unwrap() + 1;
++            assert!(report.contains(&format!("bootstrap.check:{line}:")), "instance refusal lost its actual source declaration: {report}");
++        }
++        if name == "undeclared default" {
++            assert!(report.contains("`thrice` is not a method of Describe"), "{report}");
++        }
+         let text = common::read_output(&dir, "class-default-interfaces.jsonl");
+         if wanted == 0 {
+             let interfaces: Vec<_> = text.lines().map(|line| Iface::from_json(line).expect("independent public interface reader")).collect();
