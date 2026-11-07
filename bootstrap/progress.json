@@ -18842,8 +18842,8 @@
       {
         "title": "Schema 9: source admission, imported defaults, runtime and pipeline",
         "status": "running",
-        "phase": "checking all 44 schema 9 modules through exact Stage3",
-        "passed": 0,
+        "phase": "separate-imported-default",
+        "passed": 1,
         "failed": 0,
         "total": 5,
         "source": "8959030d54643c5c4c2898e4e1b389930f084753b1d7424c23d02f8c228dd918"
@@ -18898,5 +18898,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T09:21:59.186409+00:00"
+  "updatedAt": "2026-11-07T09:25:21.577431+00:00"
 }
