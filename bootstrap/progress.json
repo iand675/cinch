@@ -731,9 +731,9 @@
         "id": "gap:task-helper",
         "title": "Reject mutable task captures hidden by helpers",
         "state": "blocked",
-        "detail": "Published Rust still accepts an unsafe capture hidden by a helper. Current Stage3 refuses the valid Tasks example because the checked callback passed through Tasks.fork lacks transfer evidence.",
+        "detail": "Cinch development passes six controls including both unchanged Tasks examples and the unsafe Bytes refusal. Rust development passes the original helper regression, 19 concurrency tests and 186 unit tests. Portable transfer and replay on the matching compilers remain.",
         "doneWhen": "Capture requirements survive helpers, aliases and interfaces, with both bad and valid cases checked.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-task-capture-counterexample.json"
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-cinch-task-source-forwarder-results.json"
       },
       {
         "id": "gap:rust-annotations",
@@ -19088,14 +19088,14 @@
       },
       {
         "title": "Cinch task forwarding: complete pipeline tests",
-        "status": "running",
+        "status": "passed-task-forwarder-pipeline",
         "phase": "bootstrap_pipeline",
-        "passed": 0,
+        "passed": 1,
         "failed": 0,
         "total": 1,
         "source": "ca53ded9f0ea7eea94c34ad4ddfe329c2b7ce4bd54d5eb45dc97712aa287a7d9",
         "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
-        "auditPending": false
+        "auditPending": true
       },
       {
         "title": "Current Stage3 original pipeline at 512 MiB",
@@ -19283,6 +19283,26 @@
         "auditPending": false
       },
       {
+        "title": "Cinch task forwarding: exact source replay",
+        "status": "passed",
+        "phase": "Unchanged Tasks program and refusal, unsafe capture, and interface boundary",
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "unit": "cases",
+        "source": "ca53ded9f0ea7eea94c34ad4ddfe329c2b7ce4bd54d5eb45dc97712aa287a7d9"
+      },
+      {
+        "title": "Rust task forwarding: complete focused tests",
+        "status": "passed",
+        "phase": "19 concurrency tests and 186 compiler unit tests",
+        "passed": 205,
+        "failed": 0,
+        "total": 205,
+        "unit": "tests",
+        "source": null
+      },
+      {
         "title": "Current candidate: external Stage3 acceptance",
         "status": "passed",
         "phase": "Independently verified original runtime, fixity and class identity checks",
@@ -19323,5 +19343,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T06:12:01.174529+00:00"
+  "updatedAt": "2026-11-07T06:15:35.604177+00:00"
 }
