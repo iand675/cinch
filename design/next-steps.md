@@ -4,9 +4,11 @@ Schema 10 is the compiled-interface format on `main`. Rust, Cinch and the
 bootstrap verifier require it. The pinned library producer rebuilt all 55
 library interfaces. Rebuild old compiled interfaces and their dependent
 objects from source. The stricter Stage1 passed the original library-family
-checks and the format cutover checks. Its Stage2, Stage3 and full test sweep
-are tracked separately from the completed first schema 10 fixed point.
-See [the cutover checks](../bootstrap/current-schema10-family-and-cutover-results.json)
+checks and the format cutover checks. The current combined source passed
+the independent Stage2 and Stage3 agreement audit and the changed-source
+control. The complete matching test sweep remains open.
+See [the cutover checks](../bootstrap/current-schema10-family-and-cutover-results.json),
+[the current bootstrap audit](../bootstrap/current-schema10-strict-named-proof-bootstrap-results.json)
 and [the first schema 10 fixed point](../bootstrap/current-schema10-bootstrap-results.json).
 
 Schema 10 conditional method rows now require the checked implementation
@@ -53,10 +55,11 @@ location. Both original pipeline tests passed on that development snapshot.
 A separate four-stage ladder using the consolidated library and named proofs
 passed the independent fixed-point, consumer and changed-source audit.
 The named-proof implementation and consolidated producer are now integrated
-with the stricter interface reader. Stage1 built Stage2 from the combined
-source and emitted all 46 compiler interfaces. Stage2 passed its smoke
-checks and is building Stage3. Separately, the audited named-proof Stage3 ran both
-unchanged original Proof examples. The valid program ran with zero leaks at
+with the stricter interface reader. The combined Stage2 and Stage3 match on
+the executable, LLVM IR and all 46 compiler interfaces. Both independent
+interface readers agreed on the closures, and the separate client and
+changed-source checks passed. The earlier audited named-proof Stage3 also
+ran both unchanged original Proof examples. The valid program ran with zero leaks at
 32 MiB and the invalid proof reported the expected obligation at line 4,
 column 22.
 See [the Core proof replay](../bootstrap/current-schema10-reflexivity-core-results.json)

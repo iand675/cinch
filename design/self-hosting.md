@@ -7,9 +7,14 @@ producer rebuilt all 55 library interfaces. The first schema 10 chain
 passed all four stages and their smoke tests. Its Stage2 and Stage3 agree
 on the executable, LLVM IR and all 46 compiler interfaces. The audit also
 verified the separate consumer and changed-source build. The stricter
-schema 10 sources on `main` passed Stage1, the four original library-family
-checks and the format cutover checks. Their fixed point and complete suite
-verification remain open. See [the bootstrap audit](../bootstrap/current-schema10-bootstrap-results.json),
+schema 10 sources on `main` now pass Acceptance 1–4 with checked named
+proofs and the consolidated library producer. Stage2 and Stage3 match on
+the executable, LLVM IR and all 46 compiler interfaces. Rust and Python
+independently verified the compiler and library interface closures. The
+separate client and changed-source control passed. The complete suite
+required by Acceptance 5 remains open.
+See [the current bootstrap audit](../bootstrap/current-schema10-strict-named-proof-bootstrap-results.json),
+[the first schema 10 bootstrap audit](../bootstrap/current-schema10-bootstrap-results.json),
 [the cutover audit](../bootstrap/current-schema10-family-and-cutover-results.json),
 [next steps](next-steps.md), and the [numbered acceptance requirements](#acceptance).
 

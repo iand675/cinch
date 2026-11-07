@@ -1006,6 +1006,16 @@ def build_checklist(root, cfg, previous=None):
             phase=status.replace('-', ' '), passed=len(proof_chain['stages']),
             failed=int(status == 'failed'), total=4, source=proof_chain['compiler_source_sha256'],
             auditPending=status == 'passed-consolidated-proof-ladder-awaiting-independent-audit'))
+    strict_chain = read(cfg.get('schema10SingleInstanceFormatChain'))
+    strict_audit_path = 'bootstrap/current-schema10-strict-named-proof-bootstrap-results.json'
+    strict_audit = read(root / strict_audit_path)
+    if (strict_audit.get('status') == 'passed-strict-schema10-bootstrap-chain'
+            and strict_audit['compiler_source_sha256'] == strict_chain.get('compiler_source_sha256')
+            and strict_audit['native_source_sha256'] == strict_chain.get('native_source_sha256')):
+        active.append(dict(title='Audit the combined strict-format and named-proof compiler', status='passed',
+            phase='Stage2 and Stage3 match. Both interface readers, the separate client and the changed-source control passed.',
+            passed=4, failed=0, total=4, unit='stages', source=strict_audit['compiler_source_sha256'],
+            evidence=link(strict_audit_path)))
     proof_audit_path = 'bootstrap/current-schema10-consolidated-proof-bootstrap-results.json'
     proof_audit = read(root/proof_audit_path)
     if proof_audit.get('status') == 'passed-production-schema10-bootstrap-chain':
