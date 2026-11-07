@@ -193,6 +193,13 @@ produce the exact32ab compiler-module bytes and preserve the published FFI test
 correction. This is reproducibility evidence, not promotion or bootstrap proof:
 `bootstrap/current-development-patch-chain-results.json`.
 
+The current Native8ba8/Cinch3268 Rust sweep is complete. All 235 targets and
+1,647 tests pass without skips. The interrupted run's completed results were
+preserved, and the eight unfinished targets passed after resumption. The
+original arrays executable also passed all 15 tests once its runtime fixture
+was built. See `bootstrap/current-native-full-suite-results.json`. The
+matching Cinch-built Stage3 suite is tracked separately.
+
 Current Native8ba8/Cinch3268 also passes all43 tooling and39 syntax/editor tests
 under independent audit, with no skipped tests. These preserve their Native
 editor integration role and do not replace the separate final Cinch-built
