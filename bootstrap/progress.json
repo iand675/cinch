@@ -547,7 +547,7 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "Schema 10 is the sole compiled-interface format on main. Rust, Cinch and the bootstrap verifier passed the cutover checks. The library producer rebuilt all 55 interfaces.",
-  "activity": "Stage0 and Stage1 passed. The Stage2 probe found two conflicting spellings for the bytes-len type in the pinned library. Repair running.",
+  "activity": "The repaired library and a separate Stage1 client passed. The matching bootstrap ladder is running.",
   "checklist": {
     "version": 1,
     "target": {
@@ -19114,9 +19114,9 @@
       },
       {
         "title": "Match defining names in schema 10 law observations",
-        "status": "running",
+        "status": "passed-source-admission-laws-arrays-and-pipeline",
         "phase": "Rust and Cinch emitted different law names in the same schema. bootstrap pipeline",
-        "passed": 4,
+        "passed": 5,
         "failed": 0,
         "total": 5,
         "source": "9df59053b3dc0df7c8af55f7903bd252728427448ae03345b95a6b120efc584a",
@@ -19221,8 +19221,8 @@
       },
       {
         "title": "Replay the three programs with both required Functor variants",
-        "status": "waiting-worker",
-        "phase": "waiting worker",
+        "status": "running",
+        "phase": "Html",
         "passed": 0,
         "failed": 0,
         "total": 3,
@@ -19231,8 +19231,8 @@
       {
         "title": "Rust task capture, units and arrays on schema 10",
         "status": "running",
-        "phase": "all native unit tests",
-        "passed": 1,
+        "phase": "original arrays",
+        "passed": 2,
         "failed": 0,
         "total": 3,
         "source": "309a4f696ed5072050009e59562deabb2fc205731e47655662d1d8d69cd2d020"
@@ -19267,8 +19267,8 @@
       {
         "title": "Check closed named proofs and their original runtime example",
         "status": "running",
-        "phase": "bootstrap_proof_terms",
-        "passed": 0,
+        "phase": "bootstrap_pipeline",
+        "passed": 1,
         "failed": 0,
         "total": 2,
         "source": "24260202be869c703e19c4a7e23a7a51f35709742b143f3e968b0badababb8d8"
@@ -19291,7 +19291,17 @@
         "failed": 0,
         "total": 3,
         "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
-        "auditPending": false
+        "auditPending": false,
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-byte-observation-repair-results.json"
+      },
+      {
+        "title": "Run all original byte-observation tests with the repaired producer",
+        "status": "waiting-worker",
+        "phase": "bootstrap_byte_observations",
+        "passed": 0,
+        "failed": 0,
+        "total": 1,
+        "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a"
       },
       {
         "title": "Core checks erased Eq witnesses",
@@ -19476,5 +19486,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T15:32:38.779314+00:00"
+  "updatedAt": "2026-11-07T15:35:08.175960+00:00"
 }
