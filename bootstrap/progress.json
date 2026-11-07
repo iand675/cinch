@@ -17,8 +17,8 @@
     },
     {
       "name": "Stage 2",
-      "state": "running",
-      "label": "Building",
+      "state": "pending",
+      "label": "Pending",
       "description": "Build the same compiler sources with Stage1."
     },
     {
@@ -547,7 +547,7 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "Schema 10 is the sole compiled-interface format on main. Rust, Cinch and the bootstrap verifier passed the cutover checks. The library producer rebuilt all 55 interfaces.",
-  "activity": "Stage0 and Stage1 passed. The Stage2 probe found two conflicting spellings for the bytes-len type in the pinned library. Repair waiting worker.",
+  "activity": "Stage0 and Stage1 passed. The Stage2 probe found two conflicting spellings for the bytes-len type in the pinned library. Repair running.",
   "checklist": {
     "version": 1,
     "target": {
@@ -18220,10 +18220,10 @@
     "active": [
       {
         "title": "Bootstrap the schema 10 compiler on main",
-        "status": "running",
-        "phase": "building stage2",
+        "status": "failed",
+        "phase": "failed",
         "passed": 2,
-        "failed": 0,
+        "failed": 1,
         "total": 4,
         "unit": "stages",
         "source": "309a4f696ed5072050009e59562deabb2fc205731e47655662d1d8d69cd2d020",
@@ -19285,7 +19285,7 @@
       },
       {
         "title": "Rebuild the pinned library and rerun the ladder with one bytes-len type spelling",
-        "status": "waiting-worker",
+        "status": "running",
         "phase": "rebuild pinned library",
         "passed": 0,
         "failed": 0,
@@ -19335,7 +19335,7 @@
       },
       {
         "title": "Run four more original library and numeric targets with Stage3",
-        "status": "waiting-stage3",
+        "status": "failed-stage3",
         "phase": "Forty original tests retain their fixtures and assertions and use the selected frontend.",
         "passed": 0,
         "failed": 0,
@@ -19354,7 +19354,7 @@
       },
       {
         "title": "Run the full original 105-target Stage3 frontend matrix",
-        "status": "waiting-stage3-audit",
+        "status": "failed-prerequisite",
         "phase": "3 disjoint runs share the same audited compiler and provider.",
         "passed": 0,
         "failed": 0,
@@ -19476,5 +19476,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T15:27:30.113049+00:00"
+  "updatedAt": "2026-11-07T15:29:32.192754+00:00"
 }
