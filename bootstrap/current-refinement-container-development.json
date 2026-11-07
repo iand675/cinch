@@ -1,5 +1,6 @@
 {
   "baseline_cinch_source_sha256": "28d2abf7398291b1ecd4b905117858d454cabb8f5c217d7fc02a86993f51ad61",
+  "failed_validation_log_sha256": "e0e7866bc382e33560168b7a09eb9f95304f953881e3e091a218402a3d623f91",
   "files": [
     {
       "after_sha256": "065da3b55e3999f156700c8660a47607c299ee5fcc367732094928e70d300268",
@@ -20,6 +21,8 @@
   "private_cinch_source_sha256": "db9a6a54eac6badd12e2a6ca0f478a5ed01f0dd09d2f8a976c8600fe5ed30347",
   "required_complete_component_groups": 8,
   "scope": "Unapplied development patch above private28d2. An unsolved proper-type argument learns the full inferred type instead of eagerly forgetting a numeric refinement. Concrete carrier projection remains checked, and unknown values cannot gain a refinement without evidence. Six new Native-compared source controls retain every original named-refinement test. Eight complete refinement/inference/default/value-index/precondition groups validate this candidate. Actual full compiler, original mconcat refinement runtime test, source gates, latest matching bootstrap and complete original suites remain separate requirements. Published Cinch3268 and immutable seed/library pins are unchanged.",
-  "status": "reviewable-private-generic-refinement-repair-under-validation",
+  "status": "superseded-invalid-numeric-range-preservation-assumption",
+  "superseded_by": "bootstrap/current-refinement-structural-development.json",
+  "superseded_reason": "The design intentionally widens comparison-only refinements even at open generic expectations. The new Positive-container acceptance assumption was invalid and current Native correctly rejected it. The narrowed repair preserves structural NonZero without changing numeric-range behavior.",
   "verified_at": "2026-11-06T23:36:01.486051+00:00"
 }

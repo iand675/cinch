@@ -89,10 +89,12 @@ def build_checklist(root, cfg, previous=None):
     front = read(cfg['selected'])
     scope = read(cfg['coverage'])
     chain = read(Path(cfg['chain'])/'independent-verification.json')
+    earlier_full = read(cfg.get('previousNative')) or full
+    earlier_native = {r['name']: r for r in earlier_full.get('rows', [])}
     old_native = {r['name']: r for r in full.get('rows', [])}
     old_front = {r['name']: r for r in front.get('rows', [])}
     catalog = read(Path(cfg['native']).parent/'test-binaries.json')
-    native_names = sorted(set(catalog) | {'doc'} | {p.stem for p in (root/'compiler/tests').glob('*.rs')})
+    native_names = sorted(set(catalog) | set(old_native) | {'doc'} | {p.stem for p in (root/'compiler/tests').glob('*.rs')})
     front_names = scope['portable_targets'] + scope['interface_api_targets']
     assert len(native_names) >= 235
     assert len(front_names) == len(set(front_names)) >= 105
@@ -103,7 +105,7 @@ def build_checklist(root, cfg, previous=None):
     # their exact test source match the current published inputs. These receipts
     # do not satisfy the separate final-Stage3 frontend requirement.
     current_native = {}
-    for key in ('nativeQuotedReceipt', 'nativeDefaultAnnotationReceipt', 'nativePipelineReceipt', 'nativeLiteralContextReceipt', 'nativeIndexKindReceipt'):
+    for key in ('nativeQuotedReceipt', 'nativeDefaultAnnotationReceipt', 'nativePipelineReceipt', 'nativeLiteralContextReceipt', 'nativeIndexKindReceipt', 'nativeArrayFixtureReceipt'):
         receipt = read(cfg.get(key))
         if receipt.get('native_source_sha256') != native:
             continue
@@ -113,6 +115,9 @@ def build_checklist(root, cfg, previous=None):
             if name != 'lib':
                 relative = Path('compiler/tests')/(name+'.rs')
                 if not (source/relative).is_file() or digest(source/relative) != digest(root/relative):
+                    continue
+            if name.startswith('bootstrap_') or (name != 'lib' and '../../bootstrap/' in (source/relative).read_text()):
+                if receipt.get('compiler_source_sha256') != compiler:
                     continue
             current_native[name] = dict(run, evidence=link('bootstrap/'+Path(cfg[key]).name))
 
@@ -133,7 +138,7 @@ def build_checklist(root, cfg, previous=None):
         native_rows.append(item('native:'+name, name, state, detail,
             'Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.',
             current.get('evidence') if current else link('compiler/src/lib.rs' if name == 'lib' else 'compiler/tests/'+name+'.rs') if name not in ('doc','bin-cinch') else link('compiler/Cargo.toml'),
-            observed=observed(old, full.get('compiler_source_sha256'), Path(cfg['native']).parent),
+            observed=observed(old, full.get('compiler_source_sha256'), Path(cfg['native']).parent) if old and old.get('status') != 'pending' else observed(earlier_native.get(name), earlier_full.get('compiler_source_sha256'), Path(cfg.get('previousNative',cfg['native'])).parent),
             currentTests=current.get('tests') if current else None))
 
     front_rows = []
@@ -149,7 +154,7 @@ def build_checklist(root, cfg, previous=None):
 
     suites = [suite('native', 'Rust compiler suite', 'targets', native_rows,
         '235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.',
-        observedCounts=dict(collections.Counter(r.get('status') for r in full.get('rows', []))), observedSource=full.get('compiler_source_sha256')),
+        observedCounts=dict(collections.Counter(r.get('status') for r in earlier_full.get('rows', []))), observedSource=earlier_full.get('compiler_source_sha256')),
         suite('stage3', 'Cinch-built compiler suite', 'targets', front_rows,
         'All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.',
         observedCounts=dict(collections.Counter(r.get('status') for r in front.get('rows', []))), observedSource=front.get('compiler_source_sha256'))]
@@ -262,6 +267,7 @@ def build_checklist(root, cfg, previous=None):
     default_api=read(cfg.get('sourceClassDefaultApi'))
     default_full=read(cfg.get('sourceClassDefaultFullCompiler'))
     coverage_state=read(cfg.get('inferredCaseCoverageValidation'))
+    coverage_runtime=read(cfg.get('inferredCaseCoverageRuntimeReceipt'))
     default_detail='Latest75fb passes all seven complete default/dependent component groups (nine tests), all nine full compiler/object tests and both original strict-value runtime/build tests. Original API/default replay:16/21 tests pass; source-Prelude, three diagnostic assertions and the refinement runtime client remain failures. Imported checked default transport and matching final bootstrap remain required.'
     gaps=[
         item('gap:prelude','Replace source copies of library modules safely','blocked'if 'interface_prelude_overrides'in failed_api else'pending',
@@ -273,16 +279,16 @@ def build_checklist(root, cfg, previous=None):
              'Private8fce rejects identity a = (a :: a). Candidate00b5 separates proper type-head lookup from dependent value-index lookup. Both00b5 and75fb pass independent audit of all seven complete default/dependent groups (nine tests). Actual75fb executes the unchanged annotation client42. Published3268 still requires promotion and matching bootstrap.',
              'The unchanged source executes42 through the repaired actual compiler, all16 source default controls pass, and dependent indices retain their checked identities.',link('bootstrap/current-source-class-default-runtime-results.json')),
         item('gap:strict-defaults','Initialize nullary default fields from checked dependencies','running' if strict_runtime else 'blocked',
-             'Candidate75fb now executes nullary fields, reversed declaration order and transitive self-method dependencies. Its extended run passes15 controls; the owned constructor case and the cycle output-contract review remain before closure.' if strict_runtime else 'Private8fce checks duplicate = value, then cannot lower its strict self-evidence dependency. Two original default runtime/build assertions also stop here.',
+             'Candidate28d2 executes all11 positive clients, including the unchanged owned Box case, with zero leaks; all5 invalid-source controls refuse. Strict cycles refuse with empty IR. Independent interface-only and public-reader checks prove the fresh checked sidecars are valid; the invented no-sidecar-after-backend-refusal assertion was a runner mistake. Complete matching bootstrap and promotion remain.' if strict_runtime else 'Private8fce checks duplicate = value, then cannot lower its strict self-evidence dependency. Two original default runtime/build assertions also stop here.',
              'Initialize acyclic strict fields in dependency order while preserving checked self evidence, closure ownership and cycle refusals; execute all original default runtime cases with zero leaks.',link('bootstrap/current-source-class-default-runtime-results.json')),
         item('gap:default-diagnostics','Preserve original class/default diagnostic details and source files','blocked',
              'Three original default refusal tests reject correctly but still fail their exact message, class/instance name or source-file assertions. These remain failures.',
              'Every original diagnostic and filename assertion passes with accurate attribution to the defining source; semantic rejection alone grants no pass.',link('bootstrap/current-source-class-default-self-values-api-results.json')),
         item('gap:inferred-case-coverage','Infer a constructor case before deciding coverage','running' if coverage_state else 'blocked',
-             'Candidate75fb rejects case duplicate of Box result -> result as non-exhaustive. The exact unchanged program is accepted by current Native8ba8. Private28d2 learns a fresh nominal/tuple shape only in the coverage store. Eight added source cases and eight complete original component groups are validating; the owned runtime client and full compiler remain required.',
-             'Infer the checked constructor family without borrowing branch-local index equalities as global coverage proof; retain every existing indexed/GADT refusal and run the owned constructor client with zero leaks.',link('bootstrap/current-source-class-default-self-values-runtime-results.json')),
+             'Private28d2 now compiles the exact unchanged Box counterexample and executes7 at32M with poisoning and zero leaks. All9 full compiler/object tests and both exact44 source gates pass independent audit. The constructor, inference and typed-index whole groups pass; the remaining complete component groups are running. Published3268 still awaits validated promotion and a matching bootstrap.',
+             'Infer the checked constructor family without borrowing branch-local index equalities as global coverage proof; retain every existing indexed/GADT refusal and run the owned constructor client with zero leaks.',link('bootstrap/current-inferred-case-coverage-runtime-results.json')),
         item('gap:default-refinement','Preserve refinement carriers in the original default runtime program','running' if read(cfg.get('refinementContainerValidation')) else 'blocked',
-             'The unchanged original mconcat/refinement client still fails. A six-line let-bound list reproduces refinement loss: current Rust accepts it, actual Cinch75fb refuses. Private db9a preserves full refinements at unsolved generic arguments; six new cases and eight original groups are validating. The complete original runtime client remains required.',
+             'The unchanged original mconcat/refinement client still needs repair. Narrowed a029 preserves structural NonZero while retaining intentional numeric-range widening. All11 corrected self-contained controls pass actual Cinch and Native; eight complete original groups are validating. The superseded broad range-preservation assumption and subsequent fixture/cache-guard errors remain recorded. The original full runtime program remains required.',
              'The original function carrier, refined product and unit cases compile and execute their expected results without guessing an underlying carrier.',link('bootstrap/current-source-class-default-self-values-api-results.json')),
         item('gap:imported-defaults','Transport checked imported default implementations','pending','A default hash alone does not provide the checked implementation required by an inheriting source instance.',
              'Inherited imported defaults retain owner scope, private closure, actual method contracts and compiled behavior; missing or stale contracts refuse.',link('design/compiled-interface-metadata.md')),
@@ -354,14 +360,14 @@ def build_checklist(root, cfg, previous=None):
             audited=bool(proof) and proof.get('source_sha256')==state.get('source_sha256')
             active.append(dict(title=title,status=state.get('status'),phase=state.get('phase'),passed=sum(r['status']=='passed'for r in rows),failed=sum(r['status']=='failed'for r in rows),total=total,source=state.get('compiler_source_sha256'),auditPending=state.get('status')=='passed' and not audited))
 
-    for title, state, total in [('Earlier compiler: full Rust sweep', full, len(native_names)),
+    for title, state, total in [('Current compiler: full Rust sweep' if full.get('compiler_source_sha256')==compiler and full.get('native_source_sha256')==native else 'Earlier compiler: full Rust sweep', full, len(native_names)),
                                 ('Earlier Stage3: complete frontend sweep', front, len(front_names))]:
         rows = state.get('rows', [])
         if state.get('status') == 'running':
             active.append(dict(title=title, status=state['status'], phase=state.get('phase'),
                 passed=sum(r.get('status') == 'passed' for r in rows),
                 failed=sum(r.get('status') == 'failed' for r in rows), total=total,
-                source=state.get('compiler_source_sha256'), earlier=True))
+                source=state.get('compiler_source_sha256'), earlier=title.startswith('Earlier')))
 
     all_rows=acceptance+gaps+[r for s in suites for r in s['items']]
     assert len({r['id']for r in all_rows})==len(all_rows)

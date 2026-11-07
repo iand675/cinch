@@ -1,0 +1,47 @@
+diff --git a/bootstrap/Bootstrap.Infer.cinch b/bootstrap/Bootstrap.Infer.cinch
+--- a/bootstrap/Bootstrap.Infer.cinch
++++ b/bootstrap/Bootstrap.Infer.cinch
+@@ -2508,7 +2508,10 @@
+             (hint-application-result sp (core-type fun) args expected opened))
+     other -> infer classes kinds families env locals expr st
+   comparison-predicate :: UType -> Bool
+-  comparison-predicate predicate = case predicate of UCompare op a b -> True; UPropNonZero value -> valid-type predicate; UPropAnd a b -> comparison-predicate a && comparison-predicate b; other -> False
++  -- Only comparisons and their conjunctions widen to a carrier. Structural
++  -- predicates such as NonZero keep their own class instances and must be
++  -- projected explicitly, including at an unsolved generic argument.
++  comparison-predicate predicate = case predicate of UCompare op a b -> True; UPropAnd a b -> comparison-predicate a && comparison-predicate b; other -> False
+   comparison-refinement :: UType -> Bool
+   comparison-refinement ty = case ty of URefine id name carrier predicate -> (integer-carrier carrier || same-type carrier (primitive-type "Bytes")) && comparison-predicate predicate; other -> False
+   project-comparison :: Span -> CoreTerm -> Store -> CoreTerm
+diff --git a/compiler/tests/bootstrap_named_refinements.rs b/compiler/tests/bootstrap_named_refinements.rs
+--- a/compiler/tests/bootstrap_named_refinements.rs
++++ b/compiler/tests/bootstrap_named_refinements.rs
+@@ -24,6 +24,17 @@
+     let exe = common::build(&dir, "Main.cinch", "named-refinements").expect("build the named refinement checker");
+     std::fs::write(dir.join("interfaces.json"), "{\"schema\":1,\"interfaces\":[]}").unwrap();
+     let cases = [
++        ("generic structural list keeps NonZero", "data Sequence a where\n    SNil :: Sequence a\n    SCons :: a -> Sequence a -> Sequence a\n  type NZ = refine (x :: Int) with NonZero x\n  singleton :: NZ -> Sequence NZ\n  singleton value = let values = SCons value SNil in values", 0, ""),
++        ("generic structural identity keeps NonZero", "data Sequence a where\n    SNil :: Sequence a\n    SCons :: a -> Sequence a -> Sequence a\n  type NZ = refine (x :: Int) with NonZero x\n  identity :: forall a. a -> a\n  identity value = value\n  copy :: NZ -> NZ\n  copy value = let result = identity value in result", 0, ""),
++        ("generic structural list needs explicit projection", "data Sequence a where\n    SNil :: Sequence a\n    SCons :: a -> Sequence a -> Sequence a\n  type NZ = refine (x :: Int) with NonZero x\n  bad :: NZ -> Sequence Int\n  bad value = SCons value SNil", 4, ""),
++        ("generic structural list accepts explicit projection", "data Sequence a where\n    SNil :: Sequence a\n    SCons :: a -> Sequence a -> Sequence a\n  type NZ = refine (x :: Int) with NonZero x\n  plain :: NZ -> Sequence Int\n  plain value = SCons (unrefine value) SNil", 0, ""),
++        ("generic structural result needs explicit projection", "data Sequence a where\n    SNil :: Sequence a\n    SCons :: a -> Sequence a -> Sequence a\n  type NZ = refine (x :: Int) with NonZero x\n  bad :: NZ -> Int\n  bad value = value", 4, ""),
++        ("generic structural list cannot forge NonZero", "data Sequence a where\n    SNil :: Sequence a\n    SCons :: a -> Sequence a -> Sequence a\n  type NZ = refine (x :: Int) with NonZero x\n  bad :: Int -> Sequence NZ\n  bad value = let values = SCons value SNil in values", 4, ""),
++        ("generic structural identity cannot forge NonZero", "data Sequence a where\n    SNil :: Sequence a\n    SCons :: a -> Sequence a -> Sequence a\n  type NZ = refine (x :: Int) with NonZero x\n  identity :: forall a. a -> a\n  identity value = value\n  bad :: Int -> NZ\n  bad value = let copy = identity value in copy", 4, ""),
++        ("generic numeric range still widens an inferred list", "data Sequence a where\n    SNil :: Sequence a\n    SCons :: a -> Sequence a -> Sequence a\n  type Positive = refine (x :: Int) with x > 0\n  plain :: Positive -> Sequence Int\n  plain value = let values = SCons value SNil in values", 0, ""),
++        ("generic numeric range still widens an open identity", "data Sequence a where\n    SNil :: Sequence a\n    SCons :: a -> Sequence a -> Sequence a\n  type Positive = refine (x :: Int) with x > 0\n  identity :: forall a. a -> a\n  identity value = value\n  plain :: Positive -> Int\n  plain value = let copy = identity value in copy", 0, ""),
++        ("generic numeric inferred list cannot claim its former range", "data Sequence a where\n    SNil :: Sequence a\n    SCons :: a -> Sequence a -> Sequence a\n  type Positive = refine (x :: Int) with x > 0\n  bad :: Positive -> Sequence Positive\n  bad value = let values = SCons value SNil in values", 4, ""),
++        ("generic mixed structural predicate keeps its point", "data Sequence a where\n    SNil :: Sequence a\n    SCons :: a -> Sequence a -> Sequence a\n  type NZRange = refine (x :: Int) with NonZero x && x < 10\n  singleton :: NZRange -> Sequence NZRange\n  singleton value = let values = SCons value SNil in values", 0, ""),
+         ("zero parameter alias", "type Positive = refine (x :: Nat) with x > 0\n  one :: Positive\n  one = 1", 0, ""),
+         ("alias rejects zero", "type Positive = refine (x :: Nat) with x > 0\n  bad :: Positive\n  bad = 0", 4, "refinement predicate is not established"),
+         ("generic range over Nat", "type Window (lo :: Int) (hi :: Int) a = refine (x :: a) with lo <= x && x <= hi\n  one :: Window 0 10 Nat\n  one = 1", 0, ""),
+@@ -51,6 +62,10 @@
+     ];
+     for (name, body, wanted, diagnostic) in cases {
+         let source = format!("module Main where\n  {body}\n  main :: Int\n  main = 0\n");
++        if name.starts_with("generic ") {
++            let oracle = cinch::driver::check_sources(&source, "generic-refinement-oracle.cinch");
++            assert_eq!(oracle.is_ok(), wanted == 0, "Native generic refinement oracle: {name}\n{oracle:?}");
++        }
+         std::fs::write(dir.join("source.cinch"), &source).unwrap();
+         let output = std::process::Command::new(&exe).current_dir(&dir).output().unwrap();
+         let report = common::read_output(&dir, "refinement-report.txt");

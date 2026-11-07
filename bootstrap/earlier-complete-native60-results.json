@@ -1,0 +1,1430 @@
+{
+  "compiler_source_sha256": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+  "failed_groups": [
+    "bootstrap_pipeline"
+  ],
+  "failed_tests": 1,
+  "filtered": 0,
+  "full_goal_complete": false,
+  "ignored": 0,
+  "native_source_sha256": "e5a981ac7ba7545c618fb368458a0917c07bac3d1746c7f4aa612cf7c22e459b",
+  "passed_groups": 234,
+  "passed_tests": 1635,
+  "runs": [
+    {
+      "failed": 0,
+      "log_sha256": "08f6c9ff5a32937ff83431d61f96bc9b759f8db83a1c9d13c38782ce9a040fb8",
+      "name": "alloc_accounting",
+      "passed": 8
+    },
+    {
+      "failed": 0,
+      "log_sha256": "f579167f8fba4463286ae2b453e6687012ba3e9ceab03453e85139d67f515ff3",
+      "name": "argv",
+      "passed": 3
+    },
+    {
+      "failed": 0,
+      "log_sha256": "8b78d4c360d564f5ce664f21784da6450d9597ac844dd3ded692c4e6f7e1e7b7",
+      "name": "arrays",
+      "passed": 15
+    },
+    {
+      "failed": 0,
+      "log_sha256": "7627785c4c62f789d2dff0ac8464ce69677569093f85a02766581a60e06e7b9d",
+      "name": "attributes",
+      "passed": 24
+    },
+    {
+      "failed": 0,
+      "log_sha256": "df166913f47ff1f04202cae9b31df67ed272d692d99a0023a8117dc3029100dd",
+      "name": "bin-cinch",
+      "passed": 0
+    },
+    {
+      "failed": 0,
+      "log_sha256": "5cb1ee66fd13a38f462e2199ba488fe368c46e38a696b7c6d2bbd19a44fb0df4",
+      "name": "canonical_artifacts",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "b5fdc98b9d112d16469723650b438e3cd0d9ba26158dc3c0b4b8b5e989484d16",
+      "name": "case_evidence",
+      "passed": 17
+    },
+    {
+      "failed": 0,
+      "log_sha256": "1b3bc5675fdbe0647ba614353480275a887b0934096911c240cec9afd3dfe937",
+      "name": "class_defaults",
+      "passed": 6
+    },
+    {
+      "failed": 0,
+      "log_sha256": "1caa247767baf9ab5c5e0c1abd313a245a9049b7acacd2a73eda88b2b192f560",
+      "name": "class_identity",
+      "passed": 3
+    },
+    {
+      "failed": 0,
+      "log_sha256": "5437d991f49cec17504c51aac77365bf45a484d7e27d64a3362c392bdfcf52f2",
+      "name": "codata",
+      "passed": 10
+    },
+    {
+      "failed": 0,
+      "log_sha256": "583e35d302f1a8734a0581a223a685e27aac573d680c642a7346772f45c4ffcc",
+      "name": "comparison_method_facts",
+      "passed": 17
+    },
+    {
+      "failed": 0,
+      "log_sha256": "d4713a26cb9ed8881287e1c6a95e3739c220902bd45976a60d56de34a9c016b1",
+      "name": "concurrency",
+      "passed": 17
+    },
+    {
+      "failed": 0,
+      "log_sha256": "c7d582f5647665b74abd35bb8bbb59e9a6b9bb590142c4df4fe12fe540063ae3",
+      "name": "dependent",
+      "passed": 14
+    },
+    {
+      "failed": 0,
+      "log_sha256": "bd55441c82199d53b9b93d8dc8f240db2df6aafd18bb0353dabc6330b2df947b",
+      "name": "effects",
+      "passed": 18
+    },
+    {
+      "failed": 0,
+      "log_sha256": "7f539a3b20d68d14a80c98c44a3eab5a875f4d1877f8769d0b7086a264e9c3c0",
+      "name": "evidence_invalidation",
+      "passed": 12
+    },
+    {
+      "failed": 0,
+      "log_sha256": "d5ab29379fb3fe8d9825bfca0912953417d83b848bbf5a6adc02813bcdfe51f7",
+      "name": "evolution",
+      "passed": 12
+    },
+    {
+      "failed": 0,
+      "log_sha256": "b3b48a9c5959fdc3a453f72636461f784e6e35bf9b434ff541ced4b4be378546",
+      "name": "exhaustion",
+      "passed": 4
+    },
+    {
+      "failed": 0,
+      "log_sha256": "801ea784c345cfd648c6c09f202746ff6519f31da6dcb7c3e11028a0dcc9656e",
+      "name": "ffi",
+      "passed": 12
+    },
+    {
+      "failed": 0,
+      "log_sha256": "c6d8b9fd690002d0b2bcc11c9c068daac621ecf59a24403d02731020ac3c87ba",
+      "name": "fixity_interfaces",
+      "passed": 2
+    },
+    {
+      "failed": 0,
+      "log_sha256": "8e4a10bb20961f6bfefee28b45270af1cddb1a4dc72241d58be8293de9d643cb",
+      "name": "folded_literal_ownership",
+      "passed": 2
+    },
+    {
+      "failed": 0,
+      "log_sha256": "73945a3d8281712f156ad8d7a6558d6fbdc228a8d47c415a78b5196932eaeefd",
+      "name": "goal_tactics",
+      "passed": 13
+    },
+    {
+      "failed": 0,
+      "log_sha256": "39acb40bf0710122ee049dc75da7e8dd753b93522d16a3995b3bf42f119b26d8",
+      "name": "guard_coverage",
+      "passed": 4
+    },
+    {
+      "failed": 0,
+      "log_sha256": "e1a3e21e5bd8dc47ef39a1c3aff603f0904b046afe323f3a514c10769dd0d830",
+      "name": "hk",
+      "passed": 24
+    },
+    {
+      "failed": 0,
+      "log_sha256": "88aeab93cc6c827511a846f094335d698ebe8b45b5ae5a1fa72f7e88af33f852",
+      "name": "incremental",
+      "passed": 10
+    },
+    {
+      "failed": 0,
+      "log_sha256": "e818fedc79bb83ba7570ed22b2916d003bf5aa08a604ae8691373e88a7e2fa97",
+      "name": "index_local_carriers",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "00fb3182a4cb52d633eedcfbfe72fa10f43a70be80d5e5104c0542ceb3c7c9e3",
+      "name": "integration",
+      "passed": 39
+    },
+    {
+      "failed": 0,
+      "log_sha256": "c39f1223c6e1bfdeae73b56f64a3bc599f0f776733bc628f19565faf2365ea5e",
+      "name": "interface_anonymous_contracts",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "2e2f12f435f7c11a19439002ed66800032b60729fe2cdd3016d5a19f7ee12d03",
+      "name": "interface_byte_observations",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "6357940e85d2fa3b44671c0d5ddf80dc623b32bf267c07970a9c7a0920414be0",
+      "name": "interface_class_contracts",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "261b10939bbd19ce3f36f6cccf661c029b4d213301635457f4546ed515e858d1",
+      "name": "interface_conditional_methods",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "820a41b7ab0c552146f5d236a0f5d2b3a5cf9b9186a5a46a886cb69b0efd3dba",
+      "name": "interface_guarded_bodies",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "7eb3dbc0d868fc47654d8917312f1ffc2c39be991a3185d8275480ac7dc3b27a",
+      "name": "interface_kinds",
+      "passed": 2
+    },
+    {
+      "failed": 0,
+      "log_sha256": "48189339ab1ddff2907a840ed400b768cd9bb495c066bbb5de8448f8310fba1c",
+      "name": "interface_machine_contracts",
+      "passed": 2
+    },
+    {
+      "failed": 0,
+      "log_sha256": "a5ce52bc51c7456583c971007d671c95105ad99d5d899eff28d498ceb73185e1",
+      "name": "interface_method_bodies",
+      "passed": 7
+    },
+    {
+      "failed": 0,
+      "log_sha256": "4bc6ea3a8b193f7eb5cc47cfb29a136d9d2424a2e74c2099732e8b611ad19303",
+      "name": "interface_nominals",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "515e0b3467d63e84f42232f0d4e9fb38b9df2986c02e12d227c316b17cd44570",
+      "name": "interface_preconditions",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "6add062fb61db0592f8a81b6144dea452977dc79c1408c45c508fd65f7a208a7",
+      "name": "interface_prelude_overrides",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "e6fa9f7abaf0f2a1a98b6057f8e327abc91a4dc373e912be67fe205c59876f2d",
+      "name": "interface_primitive_bodies",
+      "passed": 2
+    },
+    {
+      "failed": 0,
+      "log_sha256": "ebd530551ef0595bd903f06118be642560d2c6373c45dad576b3bbf39cd5ce65",
+      "name": "interface_refinement_closure",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "8eba536d32f62e36be9fc246d9626eca89a4bedf4868273c52ce10b31d835fd0",
+      "name": "interface_refinements",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "172c25eccf29d9208283a4fb33b92ba8e92eb206acb2a25a5aad5d644c6082c3",
+      "name": "interface_region_effects",
+      "passed": 2
+    },
+    {
+      "failed": 0,
+      "log_sha256": "1a9d3ed91fb82b22dcbda8a57f10b114eb0d319e535a9263ffd77920978e1c2e",
+      "name": "interface_total_bodies",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "82ce4188c2a28bd833fe94c692ae3e440f17daf56ae382d34cf76f77a9c558fa",
+      "name": "intrinsic_objects",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "36a541239229d285ca2b9662da4597e7e43e030a297e2ed142c067118b74b535",
+      "name": "json",
+      "passed": 9
+    },
+    {
+      "failed": 0,
+      "log_sha256": "635b667c35940953ad37b55e043fa56bd52beff7e26a15fb94aba7a97944e315",
+      "name": "lattice",
+      "passed": 23
+    },
+    {
+      "failed": 0,
+      "log_sha256": "bd7a0a095fd6eec1d06acbdeb74ef1584b880aca25097040322f96a6a530250c",
+      "name": "laws",
+      "passed": 5
+    },
+    {
+      "failed": 0,
+      "log_sha256": "312503fb45bcf5db006c6e0ceab1bf2b8bc667106b9650ebc129fa90f6f9a55f",
+      "name": "letrec",
+      "passed": 11
+    },
+    {
+      "failed": 0,
+      "log_sha256": "c95f7928dfdb674fe7b94974a45be000ba9dce734614c197df5a75ae8df58d80",
+      "name": "lib",
+      "passed": 185
+    },
+    {
+      "failed": 0,
+      "log_sha256": "4a42ca76462e2b24dd638a2bcda505725742dcdb0be1995e61da73d30908741c",
+      "name": "lib_algebra",
+      "passed": 22
+    },
+    {
+      "failed": 0,
+      "log_sha256": "a5aa7f32030a43ba7dcebc4fa33450b3f2c696e6e439cf1306036f38587d322b",
+      "name": "lib_base64",
+      "passed": 7
+    },
+    {
+      "failed": 0,
+      "log_sha256": "26c4526caee6a830c5a31855de10a7d06d9bb4c64f6d1eb5527e5b3129bb2f37",
+      "name": "lib_benchmark",
+      "passed": 3
+    },
+    {
+      "failed": 0,
+      "log_sha256": "28a19ceb746563371c6588ba88c8a57910c69cba8ad073905636336f499f9c75",
+      "name": "lib_bigdecimal",
+      "passed": 10
+    },
+    {
+      "failed": 0,
+      "log_sha256": "4627e6ea1f2652399743627eb57295a73767b7f38be6907736f3b68a6fdca16e",
+      "name": "lib_builder",
+      "passed": 5
+    },
+    {
+      "failed": 0,
+      "log_sha256": "520c46a60a1d9a2bda1c3b9247470bebfe7838d39ce041565e19958fcfe8244b",
+      "name": "lib_category",
+      "passed": 12
+    },
+    {
+      "failed": 0,
+      "log_sha256": "afe6e615c8f3b8f7157e352d731b52bee556186461d91922b8dd5c2a8b1f2d1b",
+      "name": "lib_char_tuple",
+      "passed": 4
+    },
+    {
+      "failed": 0,
+      "log_sha256": "7ce3563a803f3037643441fb91d6b996068d0ed9b1a3f1f304a9c66929830400",
+      "name": "lib_civil_time",
+      "passed": 10
+    },
+    {
+      "failed": 0,
+      "log_sha256": "1d981ea66ec3982a42c8ebb4c5f65c08e23f581d825f1de8e9d1aa1226c2c21e",
+      "name": "lib_complex",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "689843a71f3a0e6d275dc0be055e43b8921237255edbc892b2c756c624da57fa",
+      "name": "lib_coverage",
+      "passed": 4
+    },
+    {
+      "failed": 0,
+      "log_sha256": "9b7601e05de9dddabcad947a7ae0d5ca4e8ea9fa6f87c96e6ca16150a2bd32b1",
+      "name": "lib_csv",
+      "passed": 5
+    },
+    {
+      "failed": 0,
+      "log_sha256": "2df3b7533b942f26f797befaa63f309a06b90ce6ee7078ac9ecefc3bee171d38",
+      "name": "lib_digest",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "bb4c2b2d3fba13d51b34d0c693966424d4896b2b7b496e5af63f15708868cfb7",
+      "name": "lib_file_utils",
+      "passed": 7
+    },
+    {
+      "failed": 0,
+      "log_sha256": "5fb4ea4021a1eaf3ebe3485c7b34ddb7e58b87b4e97298e4ff8dd0b9aaff2490",
+      "name": "lib_find",
+      "passed": 2
+    },
+    {
+      "failed": 0,
+      "log_sha256": "e626a37609a7fba581e094fb7d38c0900064ee5311c986ebde97c6a82110dc6f",
+      "name": "lib_foldable",
+      "passed": 15
+    },
+    {
+      "failed": 0,
+      "log_sha256": "876e48aeb365c09039acbce14ceecd9ef97bc8f5d32bda48deb9dc4217504a93",
+      "name": "lib_function_ord",
+      "passed": 9
+    },
+    {
+      "failed": 0,
+      "log_sha256": "9aae42be8bc26da9307d41a82a869508f96475366390a15b92c1fa6bb46baa01",
+      "name": "lib_hash_keys",
+      "passed": 5
+    },
+    {
+      "failed": 0,
+      "log_sha256": "1ecde2929462b56947f6093b54894eae54ee2c2d668f5ee46bf8cdb134456835",
+      "name": "lib_hashmap_real",
+      "passed": 2
+    },
+    {
+      "failed": 0,
+      "log_sha256": "c570e242617112cf59cc92d30c9e5190af7550b9f8a707a1a147a1ca18291c28",
+      "name": "lib_http",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "8298821a028aaec1afcbada1f2acba6f9d19842f62da8d185c65d8f496d83d18",
+      "name": "lib_list",
+      "passed": 8
+    },
+    {
+      "failed": 0,
+      "log_sha256": "c6a06dd39a9811d84733cefefa9bacce759d18613b3a3a448367545af4d5f1a1",
+      "name": "lib_map_set_ops",
+      "passed": 7
+    },
+    {
+      "failed": 0,
+      "log_sha256": "e4760bbb5edc754793625705adcdcc5a7b7f2725cf6e4581c488bffb08daaa0a",
+      "name": "lib_matrix",
+      "passed": 6
+    },
+    {
+      "failed": 0,
+      "log_sha256": "5634e8844ba3600a6c82bf6d960cc7ff534c9d751263ee4cd83647d3f273bd0d",
+      "name": "lib_option_parser",
+      "passed": 4
+    },
+    {
+      "failed": 0,
+      "log_sha256": "77abf608eccb42d3e1c189c5787d2d5e87a423f04357d6bc15209022815ef9bf",
+      "name": "lib_option_result",
+      "passed": 7
+    },
+    {
+      "failed": 0,
+      "log_sha256": "73a04d6ae20c203e53ed8f36a3727b9df305496480a7e56711ba638cd7714bd1",
+      "name": "lib_pty",
+      "passed": 2
+    },
+    {
+      "failed": 0,
+      "log_sha256": "cf270bcf57ed77a1daf53122e5623c4a647d7e8e08af492e67aaabf99b3fe9a8",
+      "name": "lib_random",
+      "passed": 4
+    },
+    {
+      "failed": 0,
+      "log_sha256": "d86bbd40a5b1e3d64bea794262593181d03ab5748ce889b285ac9cf9265ea13f",
+      "name": "lib_rational",
+      "passed": 4
+    },
+    {
+      "failed": 0,
+      "log_sha256": "a1d6f1476d9234d06544ad7390718367592e75ed0fe0f57bfc444118a1650407",
+      "name": "lib_resolv",
+      "passed": 3
+    },
+    {
+      "failed": 0,
+      "log_sha256": "8700f275ac2189c686f5661e63b7a2ee6d95c62d8b6d1a787c3c7ee090dd1556",
+      "name": "lib_shellwords",
+      "passed": 6
+    },
+    {
+      "failed": 0,
+      "log_sha256": "57b0f9ab9f4a30809a06d374ec01aa561c8b78d2775456c593a534a608a7f265",
+      "name": "lib_signal",
+      "passed": 3
+    },
+    {
+      "failed": 0,
+      "log_sha256": "86b6a7afcff5cc227544fb15c28d59925830af2849b15086c8083c7e0b9ff2b9",
+      "name": "lib_string_io",
+      "passed": 7
+    },
+    {
+      "failed": 0,
+      "log_sha256": "3674b9f5071e123d793b44bf7ac04b51c37bfcbb9a12eef030c38f217128701b",
+      "name": "lib_test_runner",
+      "passed": 7
+    },
+    {
+      "failed": 0,
+      "log_sha256": "2ed45df31a70ef444785f5233481661145112ad491fc530725f7fd85fdd1e861",
+      "name": "lib_text_ops",
+      "passed": 5
+    },
+    {
+      "failed": 0,
+      "log_sha256": "7eb6bcb5b8b0095ebaaf1b7aa391f7b7315bbf7d51ed5612ceb97c361977e0cb",
+      "name": "lib_toml",
+      "passed": 5
+    },
+    {
+      "failed": 0,
+      "log_sha256": "f8cc8140e2aaf69787210f5ba392b54995fd02acd87cb7ee279695e23b3041e9",
+      "name": "lib_uri_ipaddr",
+      "passed": 20
+    },
+    {
+      "failed": 0,
+      "log_sha256": "c97897f54050cbd488663c20fb6327edaa7f0f572e90a4bce075f34b711cd296",
+      "name": "lib_yaml",
+      "passed": 10
+    },
+    {
+      "failed": 0,
+      "log_sha256": "84a94cf05a2f0d694027261ee08304aea104f9c08fe310cf47cefc56966ce9f0",
+      "name": "lib_zlib",
+      "passed": 4
+    },
+    {
+      "failed": 0,
+      "log_sha256": "d5c427b60ae6186daeb9e4e6ec17ca75fbe49f58cdae5735e1c420559f4b7256",
+      "name": "linear_facts",
+      "passed": 9
+    },
+    {
+      "failed": 0,
+      "log_sha256": "2ee26565494a902dd8300821d6ad770fa5c772e1c0b25b3a5c82ed31194a2533",
+      "name": "llvm_contract",
+      "passed": 14
+    },
+    {
+      "failed": 0,
+      "log_sha256": "348011400575ea1a8dfb194c0ef342078c3d5764a6dcd638327490a388561c8d",
+      "name": "lsp",
+      "passed": 8
+    },
+    {
+      "failed": 0,
+      "log_sha256": "0519205da57935b36bd1c8ef445427c436e810a9ba4a5d6c9b1f4478fe76056b",
+      "name": "modules",
+      "passed": 12
+    },
+    {
+      "failed": 0,
+      "log_sha256": "1f6ae12359b2b9ce6292916c70dc06c929f5504937e7a7ae285ea6a2e416b194",
+      "name": "native_closure_checks",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "ff57a2249670a70ada6a09d0e00a57e505fc86707bade84a95f1c20b92460833",
+      "name": "native_dictionary_checks",
+      "passed": 3
+    },
+    {
+      "failed": 0,
+      "log_sha256": "ccd50d873ad61144fd0bf1f21843e42095cf34d4fcc0fbc3511f8b1508486182",
+      "name": "nominal_identity",
+      "passed": 7
+    },
+    {
+      "failed": 0,
+      "log_sha256": "b6cfee98449f4926ea5457ce258447e661338613a21680eccd0ffbb002364681",
+      "name": "observability",
+      "passed": 7
+    },
+    {
+      "failed": 0,
+      "log_sha256": "7a29e0f424b579967c1d18dd295e28d2473b7784de739dc40a9d29c485f77618",
+      "name": "optimizer",
+      "passed": 16
+    },
+    {
+      "failed": 0,
+      "log_sha256": "e7e7d3e990c8a94ed4e9c8607cf4d0c6b484674732881ed25bca0db22b863aab",
+      "name": "order_independence",
+      "passed": 5
+    },
+    {
+      "failed": 0,
+      "log_sha256": "6d417d245f315b2b2c586a7df36117dcbf6d5bb0cb7ec459c18751ca4ad8fbfd",
+      "name": "ownership",
+      "passed": 23
+    },
+    {
+      "failed": 0,
+      "log_sha256": "4cc4d12bfbb0364361c7612f779e3e47d7296f2ff5a48a308c6d5bd03be200ae",
+      "name": "package_manifest",
+      "passed": 6
+    },
+    {
+      "failed": 0,
+      "log_sha256": "98838e203d5e9de273eeb7582a8f79f39fb2bf0ebdce96c897800b9cd9bf7723",
+      "name": "package_store",
+      "passed": 10
+    },
+    {
+      "failed": 0,
+      "log_sha256": "27d6cf22921a316090d72b6c457f088948a184e1c8e4f685018a4f39f13ef496",
+      "name": "params",
+      "passed": 7
+    },
+    {
+      "failed": 0,
+      "log_sha256": "535d840d6d94554d6303132c2061f1610cae53c5da32dbe7082a70eaf5b35a44",
+      "name": "parsers",
+      "passed": 9
+    },
+    {
+      "failed": 0,
+      "log_sha256": "4d98fd575876c462ed5a5c6fed38f1f98259ed6122642222f9af7732611327da",
+      "name": "pattern_field_names",
+      "passed": 5
+    },
+    {
+      "failed": 0,
+      "log_sha256": "2b55374a5f0c6148aec65ecd09ee7f36ebffd91f751f6c49a2b79a4277be6a15",
+      "name": "platform",
+      "passed": 8
+    },
+    {
+      "failed": 0,
+      "log_sha256": "0569caba45c2997e998fe0fa2fc0265d3115d8b6469c5a519b85943c701b3d76",
+      "name": "prelude_lib",
+      "passed": 13
+    },
+    {
+      "failed": 0,
+      "log_sha256": "0356f97339689ba96fee6aec5f86bc7f7a0a2910289f5d2edd542e5ec90b5ec0",
+      "name": "prelude_split",
+      "passed": 16
+    },
+    {
+      "failed": 0,
+      "log_sha256": "7d5131e34247baee8a9e3bf8a7c8725deb672e00e6dce80801fbd78c2e6d5249",
+      "name": "prim",
+      "passed": 17
+    },
+    {
+      "failed": 0,
+      "log_sha256": "910556ebd0d8f855d38abc536f03226681138a6e4478a2566a29b5809a92ef0e",
+      "name": "primitive_length_identity",
+      "passed": 9
+    },
+    {
+      "failed": 0,
+      "log_sha256": "e086ab76f12f7ba80566bebc20579be2a849a35816ba5d3d1c07e29c25e713fa",
+      "name": "primitives",
+      "passed": 37
+    },
+    {
+      "failed": 0,
+      "log_sha256": "d228b58f8086b0c4fca55b51d4eaec01c9516ad47efcbf050ee9f01887e969f2",
+      "name": "proof_guarded_lets",
+      "passed": 7
+    },
+    {
+      "failed": 0,
+      "log_sha256": "3db2f8abfb88f68709622acae22e03b05c7b922728ec967c22b60696a5b1b8e4",
+      "name": "proof_value_identity",
+      "passed": 3
+    },
+    {
+      "failed": 0,
+      "log_sha256": "c0f6acf936746a81483d3e6231cd79dc0c93c6c6a00fdb83c4e3217157dee3a3",
+      "name": "range_facts",
+      "passed": 10
+    },
+    {
+      "failed": 0,
+      "log_sha256": "8feb1376902a426285df3f1512e8a2fab62b3130ecdb5612a007e0e9c943c3d2",
+      "name": "reclamation",
+      "passed": 18
+    },
+    {
+      "failed": 0,
+      "log_sha256": "b66c513bcf9178d5ae8f37b5c762d51c216c8d833bd669c26008b785854be35e",
+      "name": "reclamation_tasks",
+      "passed": 3
+    },
+    {
+      "failed": 0,
+      "log_sha256": "c8ea4962c3004208e362fb0fd8bedb43f062e8c1e2e6d69cac5383b463b679bf",
+      "name": "refinements",
+      "passed": 25
+    },
+    {
+      "failed": 0,
+      "log_sha256": "83c9c1249aaaa98cdf646c3bf929d066fbc343c3c8385fd9170b7878e59e16f6",
+      "name": "regex",
+      "passed": 5
+    },
+    {
+      "failed": 0,
+      "log_sha256": "e67d724ac398fb2a68049e2abf75273f7581824cb8afe56de938fbe6713f9761",
+      "name": "repl",
+      "passed": 7
+    },
+    {
+      "failed": 0,
+      "log_sha256": "6be7ae9cd047cef79dae4b61a119ca05350c0c8bd0363c67a2abd4cf0ea8b581",
+      "name": "repr_classes",
+      "passed": 3
+    },
+    {
+      "failed": 0,
+      "log_sha256": "2eefb5c3e113a171b428b91526b192064ac67dca6329523245b585aea722b56a",
+      "name": "runtime_net_prims",
+      "passed": 2
+    },
+    {
+      "failed": 0,
+      "log_sha256": "6bc1966c51e7da7ca6c692ec7486d3133fca51916a9a840131504ba5fbb3f9af",
+      "name": "runtime_prims",
+      "passed": 6
+    },
+    {
+      "failed": 0,
+      "log_sha256": "9f7e1128280a4e337fb30e3c658b7f878c58550aa5d9bfa29a0e0b7836022772",
+      "name": "safe_bytes",
+      "passed": 9
+    },
+    {
+      "failed": 0,
+      "log_sha256": "781ba46787c3ef223b057f618d4edb16500b391a9b49a3e180428d2bc3c0f3c3",
+      "name": "safe_division",
+      "passed": 7
+    },
+    {
+      "failed": 0,
+      "log_sha256": "4b9b35fe886485d64f1aeb7a08718b5c7d10f6c0a419e4d6b2f5c25a1b9da7c6",
+      "name": "safe_subtraction",
+      "passed": 10
+    },
+    {
+      "failed": 0,
+      "log_sha256": "dff9538ffbd77348415aac25be4146a8f19d428a7e00677550f27077cc2f7f2e",
+      "name": "safety",
+      "passed": 24
+    },
+    {
+      "failed": 0,
+      "log_sha256": "13c45ab1f8082865e8ff18abb2cdb505b1a2da1282f18264e4a21f04d474773a",
+      "name": "small_nats",
+      "passed": 6
+    },
+    {
+      "failed": 0,
+      "log_sha256": "a76d48633d23f4aafc1fbd0bcfe8741ef41aa423f3d93ea77e5b3b9411439781",
+      "name": "stage_code_expectations",
+      "passed": 11
+    },
+    {
+      "failed": 0,
+      "log_sha256": "11ca970fe39cbac1e82aa5cf4d3416c5e6190ac0e80f78ce73b73ac910c92127",
+      "name": "staging",
+      "passed": 24
+    },
+    {
+      "failed": 0,
+      "log_sha256": "80f612824a59c6efdc06089bc3c6fae57d88ae6ed1fd3a8d41c9ab7af86a8195",
+      "name": "string_literals",
+      "passed": 11
+    },
+    {
+      "failed": 0,
+      "log_sha256": "62771845a8fd51a12b912ba72f551b148177b7f41a4b82fc4c1ef4c79042b875",
+      "name": "surface",
+      "passed": 19
+    },
+    {
+      "failed": 0,
+      "log_sha256": "2dd0556c038d88bb3e8f7911f7c5bcec9f7a901b488f8a1946913ed45d3e5ca3",
+      "name": "sym",
+      "passed": 10
+    },
+    {
+      "failed": 0,
+      "log_sha256": "f01decf5be90d234cec1e6cd8ca5725bff620ecbd50ffb03135dd0f6ba0c5aa0",
+      "name": "syntax_choreography",
+      "passed": 8
+    },
+    {
+      "failed": 0,
+      "log_sha256": "ae214411261a76fbe0834b211209b987a86ac06fa5e756bc611a099fd778ad79",
+      "name": "syntax_declaration_composition",
+      "passed": 12
+    },
+    {
+      "failed": 0,
+      "log_sha256": "aa576eb1424f611a1cef35e28e9790800bb1221a5ddb80088ede7951b7819e9d",
+      "name": "syntax_declaration_groups",
+      "passed": 11
+    },
+    {
+      "failed": 0,
+      "log_sha256": "9501b3b8b504281d6beba4b6823251c3c12473354c68f39b2882d64a4243e9df",
+      "name": "syntax_declaration_namespaces",
+      "passed": 8
+    },
+    {
+      "failed": 0,
+      "log_sha256": "754b926d277bacaad2b86839afb26e5ad090615348ad2484bd0e752591fe25f7",
+      "name": "syntax_declarations",
+      "passed": 27
+    },
+    {
+      "failed": 0,
+      "log_sha256": "91fc531e9a786e7569a7c6cb8deeaa475d68f6a1b9beca9b1a6af884e41c58df",
+      "name": "syntax_effect_declarations",
+      "passed": 7
+    },
+    {
+      "failed": 0,
+      "log_sha256": "e40a9688cd422c972ab638dd2481d47579e8aeecae7febcfe8a29863b5ad026c",
+      "name": "syntax_index_evidence",
+      "passed": 14
+    },
+    {
+      "failed": 0,
+      "log_sha256": "588b8c0eb54aa49c12f78e47f3f2f4b2087092bdbe58dfa4014df5bebf119fc3",
+      "name": "syntax_index_lambdas",
+      "passed": 7
+    },
+    {
+      "failed": 0,
+      "log_sha256": "613554c464d41d1055d5e588aa85faa0dd49dbdabf21a00fa5580a4e5abf383b",
+      "name": "syntax_lambdas",
+      "passed": 8
+    },
+    {
+      "failed": 0,
+      "log_sha256": "f48fc83cfe8c3d183fefbe461a1dc71c3288b403959d599835632bc9773eaf45",
+      "name": "syntax_navigation",
+      "passed": 3
+    },
+    {
+      "failed": 0,
+      "log_sha256": "1316ce75a4e0b5dfe76d335fff667314d38725d08253513d74cc88650ec200b6",
+      "name": "syntax_objects",
+      "passed": 77
+    },
+    {
+      "failed": 0,
+      "log_sha256": "aacced73d8a84f0391aa297176497517141f9807a484bed5b786ec1d89ab11f8",
+      "name": "syntax_proof_patterns",
+      "passed": 17
+    },
+    {
+      "failed": 0,
+      "log_sha256": "daed827c026cdacb0a3d0d465897c05e44e16a864d8501dde6608b2dad6a5dd8",
+      "name": "syntax_quoted_macro_scope",
+      "passed": 2
+    },
+    {
+      "failed": 0,
+      "log_sha256": "1e23dadca1b6cfda271101efe9b16bcbbf77be9124a1bd3f89bd8ed8f32b262a",
+      "name": "syntax_runtime_proofs",
+      "passed": 12
+    },
+    {
+      "failed": 0,
+      "log_sha256": "a90eba2d92c7ffa69aa5ae647e5c9720817df85322b33f7681cddcff9d18de3e",
+      "name": "syntax_signature_scope",
+      "passed": 7
+    },
+    {
+      "failed": 0,
+      "log_sha256": "8560394343f11f6171ea9aed410065aa7ea4dc601271df432b4e82b225673851",
+      "name": "syntax_structural_builders",
+      "passed": 14
+    },
+    {
+      "failed": 0,
+      "log_sha256": "9b44f60e955758ac2583fa4a7d0069148b87c168a66ea6d24fa5ce000c106e33",
+      "name": "tail_calls",
+      "passed": 4
+    },
+    {
+      "failed": 0,
+      "log_sha256": "3a13f58813ba98b492253c360ff87e6c4a6fa161b37cd283085f7b8a57541b34",
+      "name": "temporal",
+      "passed": 20
+    },
+    {
+      "failed": 0,
+      "log_sha256": "a27bf1e5942e18ecaacacb2904be842f0160a6fe93b05ab7f980f169ef50562b",
+      "name": "total_bodies",
+      "passed": 8
+    },
+    {
+      "failed": 0,
+      "log_sha256": "023349223d30b2585be7f2736a30fab6c2d9dbdbb8e1a5a36b119fd4e972d08b",
+      "name": "wasm",
+      "passed": 11
+    },
+    {
+      "failed": 0,
+      "log_sha256": "78f0392136e2afa62d983446cdb2fd25411b4722a0f3fd4487541d9f6a0156bf",
+      "name": "bootstrap_abstract_nonzero_methods",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "d4a26568441ae0fcd210b20cdb46bf8d87e2daed506c8ac74b66f8c119a3608c",
+      "name": "bootstrap_abstract_nonzero_types",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "6dc47d66c2cd253c508b28f50e08f627e5113978da59add175e3650d1a915168",
+      "name": "bootstrap_anonymous_contracts",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "d88ee32f1c916f8a74e0034ec490fc93a183d624d1e0b10bf1736b8ec1c5fb13",
+      "name": "bootstrap_argument_scopes",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "72e142537bfc83da23a7d3d690e74166650a1b96dc53eba2bff554da6e60c6de",
+      "name": "bootstrap_array_float_bits",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "7897f61d46842ff117e57c442d43f50682569f579485ff92eb0ce3ca2a2500bd",
+      "name": "bootstrap_body_bindings",
+      "passed": 2
+    },
+    {
+      "failed": 0,
+      "log_sha256": "1bc8fa8d7dd0a91739846ddb89704e33b85fc78e2868b329d2885356bee89290",
+      "name": "bootstrap_boolean_branches",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "8b5b47eb38715461ee7bd5e8058734127d226011fadda33572fc1979c5ff1300",
+      "name": "bootstrap_buffer_aliases",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "22cd40da39f5cf364fb2b70f707828028c5c55c57b8ca7a6486087307f1141cc",
+      "name": "bootstrap_byte_observations",
+      "passed": 3
+    },
+    {
+      "failed": 0,
+      "log_sha256": "7fdb7c65b37536b2c1880e28b9569e3c03c6d649d5a35c41fd6133bead5a3224",
+      "name": "bootstrap_check",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "43a2534e0a8b36819e87bd5a32e9787522316fa548fcf662501cb03614060066",
+      "name": "bootstrap_checked_program",
+      "passed": 2
+    },
+    {
+      "failed": 0,
+      "log_sha256": "48b737b519f15a04d6b14a22bdad327516369fbe587660fa937aaf19622e12e0",
+      "name": "bootstrap_collections",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "45d8f5c0986e45c5b0cb41d0b6ba5adae7cb8562fe220658c5aeadd8d6f6e7e4",
+      "name": "bootstrap_conditional_methods",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "573e82cefc2fb04d613f0f13aba9f5b84831eb5f81eb8fe6f65167afd277432b",
+      "name": "bootstrap_contract",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "db9751747c32bb66e63a8d525ddba45bedaee6755052727267a41c023c6f2bef",
+      "name": "bootstrap_core",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "da0f1973fb351691adae26f355b85ea5529ebaaa1bc6f604d430753a889ca5e6",
+      "name": "bootstrap_decisions",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "5a956f66ea172ac32322ee8cf5cc87fe3641eafdd9ccb6037a5084ae7c508156",
+      "name": "bootstrap_driver",
+      "passed": 2
+    },
+    {
+      "failed": 0,
+      "log_sha256": "dbc377f937dca350769dbd343b45500f6c06830d178de3eba839a3c26e0c0272",
+      "name": "bootstrap_effect_types",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "b7ffc4e6c9095c17d29697ec52597b4144fae13e54a1e04d3d4d581bf86df7a0",
+      "name": "bootstrap_effects",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "32a3b3ef6f9b9f1f3da8674647472680f2cec8fd3edc2b8ddfd8b11a0dfe2b07",
+      "name": "bootstrap_eval",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "6100a1c704c9156013f424b46069118a81becf9bcf8c71f0d7e0ef1e5cbc9bda",
+      "name": "bootstrap_export_interfaces",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "48261b3b8f94fedb606f81bfa78745cb6faf0762e040e61474dd96375fffa63d",
+      "name": "bootstrap_export_types",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "7ca0d5007040335695fca779ca40762c2519e9925b616ccce3b2df37723054a5",
+      "name": "bootstrap_external_frontend",
+      "passed": 8
+    },
+    {
+      "failed": 0,
+      "log_sha256": "31158452cfdc3b8c6735db759b26fd785d3fb972a9b54ad134ba9e9a834e6053",
+      "name": "bootstrap_function_preconditions",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "9369bbccab1297da4999031812b13ea3db1655d2d879805cd64a7d24f22c16aa",
+      "name": "bootstrap_globals",
+      "passed": 2
+    },
+    {
+      "failed": 0,
+      "log_sha256": "65ac4b98bb4594e41e1e16d2850583c5cbd3ed4805ba994186ef89dacddc56f9",
+      "name": "bootstrap_guarded_arithmetic",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "f78ae30ffb8bd94aa1807a1aeb30624b545320b7aeef5983e168cb74b54d9b6f",
+      "name": "bootstrap_guarded_association",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "e0006e490421927c90c2c90c8d5515a4751112a164930db86c2d680fe367a050",
+      "name": "bootstrap_guarded_bodies",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "8704c9069721d2da49745357a81fbfcffad2797ce84a526aa6e27fd9068f17a9",
+      "name": "bootstrap_guarded_calls",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "17d0f3a5f378dff1dad07b78acfad439f2b12ec1d449cf74f0f632eb56cfe697",
+      "name": "bootstrap_handler_core",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "cff0a606b82f9bd5e51bcfb2d65aff012f98d7e881b3825a43aee1aa85b4a10f",
+      "name": "bootstrap_imported_nonzero",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "e31d566e7672940f50c2742003424e5bf6cb5fc817b5d2b2b35b6468ab06c675",
+      "name": "bootstrap_imported_preconditions",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "520a43480c3785fac6be7d834824f94a97e089c9f829f013167da03be848c521",
+      "name": "bootstrap_indices",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "7d4e378d62e08d3aeefe9718f8346f11ffcdd32591c6c36a85b6791fbae188d1",
+      "name": "bootstrap_infer",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "e8f76a731caaec77e48f6e3e841c2ff8d7552b3fe127e328a2edcdb12f760db1",
+      "name": "bootstrap_instance_resolution",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "bea63a32a977a93ef0ebe0b32ea714b2ed2400f8bab045146a295b910a7992ea",
+      "name": "bootstrap_interface",
+      "passed": 2
+    },
+    {
+      "failed": 0,
+      "log_sha256": "2ea33df1f0a7ad81d5b5c062d4315c83491dbfa1290bd2db7ec4f6fc4d28b03b",
+      "name": "bootstrap_intrinsics",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "c1674e202f22b0085b676a23e5f62e8fc4fdf5b1088a490c1b4fa8cae03574e1",
+      "name": "bootstrap_ir",
+      "passed": 2
+    },
+    {
+      "failed": 0,
+      "log_sha256": "c530ecf994906bbe0df945cbd2f7c05f92ab047cb1fc9fae69dee685d3e6cf71",
+      "name": "bootstrap_ladder",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "5fc97a6e588502dd274a69f9bb8c5065bf7b8c7a7027ace46f32eb72b66b26d2",
+      "name": "bootstrap_lexer",
+      "passed": 3
+    },
+    {
+      "failed": 0,
+      "log_sha256": "dbb602424d6d6ddb17546dd582531b855143456b0fa24fb5cba7d0f0272e0241",
+      "name": "bootstrap_library_object",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "d443408ae5a8fc10c3368c8dca8c8f6ca32ced8afe593ea0f9f1e6564ebea3a5",
+      "name": "bootstrap_load",
+      "passed": 2
+    },
+    {
+      "failed": 0,
+      "log_sha256": "6e34aabbb271a8f14c842f2b9e2a367affeedbb81f2c3ed5bca7333c0106f37c",
+      "name": "bootstrap_machine_values",
+      "passed": 2
+    },
+    {
+      "failed": 0,
+      "log_sha256": "40156487659477b121c59427fc59dad303dc1ae03fd3175aa33021d84cac7dc6",
+      "name": "bootstrap_manifest",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "1d2af44fe72bba64ad0c76a3f4f6d48f63d08d0610d40ccce214e409a7d41b5d",
+      "name": "bootstrap_measure_contracts",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "b69f0b823f095bd1cb042dbb4f02c2158845c303d613fa93e39183fd251b69a6",
+      "name": "bootstrap_module_scopes",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "67a45870981f83d84507579ddc52dbaf8dabc73c4f001e0cb692941620692990",
+      "name": "bootstrap_named_refinements",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "d02d1242ae775c0d515552dedbb4a969aabae677c20f103f46d40d4c99c0e2b4",
+      "name": "bootstrap_nominals",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "7bc09d902fa59afaea7bed254d38b11e20642bd11d9e984919f4eb338e82b63f",
+      "name": "bootstrap_nonzero_source",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "1d102782e51fbb4bde2d6dcc2f86d71cf15bb5df08c90813166e49c935a73aea",
+      "name": "bootstrap_nonzero_types",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "74c8cca1206499ac5d3596d5584e11c15a81dbaef94678c3d878d4bbd2041543",
+      "name": "bootstrap_parse",
+      "passed": 2
+    },
+    {
+      "failed": 0,
+      "log_sha256": "c0ee8ace45004731393ec36be4774d97f523bd6c81365505a21028152519e01c",
+      "name": "bootstrap_pi",
+      "passed": 1
+    },
+    {
+      "failed": 1,
+      "log_sha256": "275afa1206f527734d35d8acad89ef186b88a3e4faf41632983bb81e3c8b98d2",
+      "name": "bootstrap_pipeline",
+      "passed": 0
+    },
+    {
+      "failed": 0,
+      "log_sha256": "d9c8a8de38a6f87eeb2467970a160abe47cf586f9ef6ca341ff0bf40d36c5642",
+      "name": "bootstrap_proof",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "923a23265403e2917a19e87413f9722fba60016b2ae8fd9b14c244c01fd17194",
+      "name": "bootstrap_proof_arrows",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "e83b29278bd2fadaed648954681cd3791835f14d4b9cff6b6c531db40bf06cb4",
+      "name": "bootstrap_proof_terms",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "bb81f5bc67623c64f77b6426596d87c817b50f23ac3152fdcf551d818fb0ebd0",
+      "name": "bootstrap_proposition_types",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "3765a5c09d85612b39ecb9676a5d5e74ca024b81b4c0e9d17e785277c6649d49",
+      "name": "bootstrap_refinement_closure",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "bf6e62048a4c7533b23a5b8859177d19d06f6763187712a359c58fbefee6d6e6",
+      "name": "bootstrap_refinement_constructors",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "97285824ab6fe2d1061d8d5f851128adf6c0740732ef98483377b80fd5312259",
+      "name": "bootstrap_refinement_core",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "7636a41a9103caf48051718fcc11a04d82f8d797868096a6d719b42c8b013195",
+      "name": "bootstrap_refinement_types",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "dafdda5ea6dff1e50b18f556292718af6b1927995102eb3b48bfdc2131936cea",
+      "name": "bootstrap_resolve",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "e5323daa27109a89e72d5112beea23e61fa95d8fdf508496f66bd3f0b355dee8",
+      "name": "bootstrap_runtime_emit",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "abc6af26474b48cce7aa1fccd2dd0b79afcdae8f68dcc234756027aca4641b0b",
+      "name": "bootstrap_runtime_ir",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "5eadd7fc55e073850417e8d8c9473820cfb17bd8bb61285a0643b1dbe0bb0cae",
+      "name": "bootstrap_runtime_library",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "cd0e72f32df4e0e134f7982a8858702d2216c5c13dbdcc09147fa56052be7bb3",
+      "name": "bootstrap_runtime_library_abi",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "78163e43a67c4fd547f80e12e8ee8d92dc6a50566ddc9bce9b90ecdce71133b6",
+      "name": "bootstrap_runtime_objects",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "84974bc280e48ad13a4ae72519a5c3fcdfa89394512b4b113748a9af70a73d02",
+      "name": "bootstrap_source_constructors",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "df458efd1fb347efd0f83ea48c7adcfd7a9db358ffaa1aa7d15b77c2eaeefeaf",
+      "name": "bootstrap_source_decisions",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "e4bc8df8794ca281ce2c3ac8e61e1ad413bbf7d6f9b311158456599b606db6a3",
+      "name": "bootstrap_source_effects",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "206700a858e4c433202053d4d9310a164fbecac5fe0921eb5815156ceb214ef9",
+      "name": "bootstrap_source_handlers",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "bec08d99764c18a4b41fa159cfc523afb763c2cc985a576a8aa15c3059060ee4",
+      "name": "bootstrap_source_instances",
+      "passed": 2
+    },
+    {
+      "failed": 0,
+      "log_sha256": "219050039a8f5258fcb30641d76bf29282cb9bdd163182aca4dca2bbbb697e61",
+      "name": "bootstrap_source_paths",
+      "passed": 3
+    },
+    {
+      "failed": 0,
+      "log_sha256": "b775df00ea1b16f46ca52960655563590ca8d3e6d2e77bb61fcd97daeb82d3ef",
+      "name": "bootstrap_source_pi",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "f5d53b3f6bd3e7fd92800910de445f1cbf6efd7ef87a6e834f8e911203ee3313",
+      "name": "bootstrap_source_projection",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "ab54fb6eb80bf0f620c0bfe7547cd1b5e4067704444f678d5244d466858e74e8",
+      "name": "bootstrap_source_proofs",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "3fc4ce5fbfdce3119a9d64b6eaef3945af550113292a4efe9ab54e4be24f95d3",
+      "name": "bootstrap_source_refinements",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "252625419700966c790f39fa4f7a16d23672b9bd4210bd11621a5c64ab8a2eab",
+      "name": "bootstrap_test_runner",
+      "passed": 2
+    },
+    {
+      "failed": 0,
+      "log_sha256": "2c75addc6d28fcf5f04ba2ce0843545b3a8d34a2afc49e2ed73ec44f95ae5911",
+      "name": "bootstrap_total",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "683afdbb8cb1a4c68b7c325dab999202c7460cc242e5094d67e2c1c9d1e10236",
+      "name": "bootstrap_total_indices",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "01dadc20252081444970b8bf35cbb65c183df7b14b145d61abbaf5bd0df34ce8",
+      "name": "bootstrap_total_semantics",
+      "passed": 3
+    },
+    {
+      "failed": 0,
+      "log_sha256": "dea238f469ff3bc8402ae96959e7f7b1c11e69859123aa91c2f070d2ae13d827",
+      "name": "bootstrap_type_syntax",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "782023e33212eb80d67e085cf34a39d903b07874ad0d4a4e633586d640d7ed39",
+      "name": "bootstrap_typed_indices",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "9eec792191dcba1c0c44562ffe1ebceb8a5d19772057bbf3b7a1fbfb1daa7023",
+      "name": "bootstrap_typing",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "d760e8791d1245a0eabdaa72957310d20c0f86407499e0093fa46a48946d6679",
+      "name": "bootstrap_value_indices",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "8a5077672634b18fa3802bd093852a5960d72930113e31f505f2fd82d314fdb3",
+      "name": "bootstrap_value_kinds",
+      "passed": 1
+    },
+    {
+      "failed": 0,
+      "log_sha256": "be651a597bd457c9001971e34574afdad5ff5998af1faad933c943499d337d7c",
+      "name": "doc",
+      "passed": 0
+    }
+  ],
+  "scope": "Every original235 unit/integration/doc target ran on frozen earlier4f Cinch and NativeE5, including ignored tests. All terminal logs and frozen sources independently checked. The pipeline failure remains unchanged and visible; newer published pipeline evidence is separate. This is not a current Native8ba8/Cinch3268 sweep and grants no current acceptance sign-off.",
+  "source_sha256": "27a125018a923db1aa20f358fc4a43a5273abcbea48f8b1efdd806926fd969fe",
+  "status": "audited-complete-earlier-native-sweep-with-retained-pipeline-failure",
+  "verified_at": "2026-11-06T23:48:52.268040+00:00",
+  "whole_groups": 235
+}

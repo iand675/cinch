@@ -1,0 +1,307 @@
+{
+  "all17_source_texts_unchanged": true,
+  "builder_native_source_sha256": "22c91cf6c1855b049207612e9d94630850e880d5a49ea3e2c57c92aff7fdbe88",
+  "checked_backend_cycle_refusals": 1,
+  "client_heap_limit": "32M",
+  "client_poisoning": true,
+  "client_zero_leak_reports": 11,
+  "compiler_sha256": "7d249af1a21c29a32925533ab90b2686a5139be7cc354a1376c6c9c3efca664d",
+  "compiler_source_sha256": "28d2abf7398291b1ecd4b905117858d454cabb8f5c217d7fc02a86993f51ad61",
+  "cycle_contract": {
+    "child_pid": 65702,
+    "compiler_sha256": "7d249af1a21c29a32925533ab90b2686a5139be7cc354a1376c6c9c3efca664d",
+    "compiler_source_sha256": "28d2abf7398291b1ecd4b905117858d454cabb8f5c217d7fc02a86993f51ad61",
+    "correction": "The new runner assumed every failed combined invocation must delete checked interfaces. This source passes complete interface-only checking, produces byte-identical contracts, and the independent Native public reader validates the full57-contract closure. The backend refusal leaves empty IR and cannot produce an executable/object. These fresh typed interfaces are valid independent frontend-stage artifacts; they are not stale implementation output. Original parse/check refusal and object-manifest invalidation requirements remain unchanged.",
+    "fresh_interfaces": [
+      {
+        "module": "Defaults",
+        "sha256": "e2c673b77968b43e6ce5f321e2b62c4105d66659294fb22b85f60fb99cdff2d2"
+      },
+      {
+        "module": "Main",
+        "sha256": "1aa72f2b0ad08bf0565ac2d6cf176682ad6a4df37222d42390557adc3916b2cb"
+      }
+    ],
+    "full_goal_complete": false,
+    "ir_empty": true,
+    "library_contracts": 55,
+    "phase": "independent-reader",
+    "pid": 65014,
+    "rows": [
+      {
+        "exit_code": 0,
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "interface-only"
+      },
+      {
+        "exit_code": 0,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "name": "compile-independent-reader"
+      },
+      {
+        "exit_code": 0,
+        "log_sha256": "7ea623ef46522e8c2280a808f17225a8c09d854610f5a2eadbbea236729e1a3a",
+        "name": "independent-reader"
+      }
+    ],
+    "semantic_cycle_refusal": true,
+    "source_sha256": "6003451a43dc5bd9d6a6e6952bb5a8253acd7c48ced71046d793edce172ce16b",
+    "status": "proved-fresh-checked-interfaces-survive-backend-only-refusal",
+    "worker_slot": 4
+  },
+  "full_goal_complete": false,
+  "owned_case_fixed": true,
+  "positive_clients_passed": 11,
+  "raw_runner_artifact_assertion_failures": 1,
+  "raw_runner_passed_cases": 16,
+  "rows": [
+    {
+      "compile_exit": 0,
+      "compile_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "diagnostic": "",
+      "executable_sha256": "95c845c439415105338c05456d91a4c3852a3c46d6094193fb9cc67812e0b670",
+      "expected_compile_exit": 0,
+      "expected_run_exit": 42,
+      "ir_sha256": "4fb1db6cc8260190ed0a91b23d93e81a356969d55feca7ee0f806f4af7af91c3",
+      "link_exit": 0,
+      "name": "class-annotation",
+      "run_exit": 42,
+      "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "source_sha256": "bd5e4c80fb91b29ee6252302c86f228cedede78190a82274e0c56ea4e0ecd8cf",
+      "status": "passed",
+      "zero_leak_reports": 1
+    },
+    {
+      "compile_exit": 0,
+      "compile_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "diagnostic": "",
+      "executable_sha256": "3cb951e17e37ca399ff8a403943d517ac14693622e14603c4cbb58a6c52c5e35",
+      "expected_compile_exit": 0,
+      "expected_run_exit": 42,
+      "ir_sha256": "ff560e14de50cac34963c9cdb547dc2a19fe3d132ebd57c914a8f794da701c66",
+      "link_exit": 0,
+      "name": "method-annotation",
+      "run_exit": 42,
+      "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "source_sha256": "58d70973db6a3fc62ca7e08b79ac49a1518852fb3469c09f7ffa327624bfbc3f",
+      "status": "passed",
+      "zero_leak_reports": 1
+    },
+    {
+      "compile_exit": 0,
+      "compile_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "diagnostic": "",
+      "executable_sha256": "95c845c439415105338c05456d91a4c3852a3c46d6094193fb9cc67812e0b670",
+      "expected_compile_exit": 0,
+      "expected_run_exit": 42,
+      "ir_sha256": "4fb1db6cc8260190ed0a91b23d93e81a356969d55feca7ee0f806f4af7af91c3",
+      "link_exit": 0,
+      "name": "term-type-same-spelling",
+      "run_exit": 42,
+      "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "source_sha256": "568ce55011deb50b2fee11edcea7ec0c79d44ffa266fbd08e19234057a2777fa",
+      "status": "passed",
+      "zero_leak_reports": 1
+    },
+    {
+      "compile_exit": 0,
+      "compile_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "diagnostic": "",
+      "executable_sha256": "3f90c40640bd9ff4e1b607a49058b2daf392e2cfbf965281c6fbf985d76c211c",
+      "expected_compile_exit": 0,
+      "expected_run_exit": 42,
+      "ir_sha256": "e5140811cd077c14b0da640d6539a3851d88f3e9543355fa3dc33cdd53e6436c",
+      "link_exit": 0,
+      "name": "owner-private-helper",
+      "run_exit": 42,
+      "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "source_sha256": "c34f80597c058be6781fb49c773e947f3efe5d17eda4c308573a2c7cca1da7de",
+      "status": "passed",
+      "zero_leak_reports": 1
+    },
+    {
+      "compile_exit": 0,
+      "compile_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "diagnostic": "",
+      "executable_sha256": "3f90c40640bd9ff4e1b607a49058b2daf392e2cfbf965281c6fbf985d76c211c",
+      "expected_compile_exit": 0,
+      "expected_run_exit": 42,
+      "ir_sha256": "e5140811cd077c14b0da640d6539a3851d88f3e9543355fa3dc33cdd53e6436c",
+      "link_exit": 0,
+      "name": "caller-helper-does-not-capture",
+      "run_exit": 42,
+      "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "source_sha256": "cb201908d238b08c4589c453740e148ad14dc8800d790f10f7329f0532914272",
+      "status": "passed",
+      "zero_leak_reports": 1
+    },
+    {
+      "compile_exit": 0,
+      "compile_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "diagnostic": "",
+      "executable_sha256": "5de1ea288346cc0f457e7a3caadf097dd873c3e8384726ac2df22249f1945d45",
+      "expected_compile_exit": 0,
+      "expected_run_exit": 7,
+      "ir_sha256": "099640d34484da9e010ce4fa6720806c4258d587ec67e4a3203c511cdcf42190",
+      "link_exit": 0,
+      "name": "explicit-override",
+      "run_exit": 7,
+      "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "source_sha256": "ba36f2e8adecc8a36a63c9c337dde8c9c592a4b34cf295847d29175118f9f646",
+      "status": "passed",
+      "zero_leak_reports": 1
+    },
+    {
+      "compile_exit": 0,
+      "compile_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "diagnostic": "",
+      "executable_sha256": "0e393f5dd6deda0b40dd6795ca75d352b792249ff527c91d3bd904a05f71c4bf",
+      "expected_compile_exit": 0,
+      "expected_run_exit": 42,
+      "ir_sha256": "c77c08080b57ccb22b8a9a9e12de01d8589b13a8fe200a089287d21b0ebb3fa4",
+      "link_exit": 0,
+      "name": "function-carrier",
+      "run_exit": 42,
+      "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "source_sha256": "c2ebd8e78d81fdbd3bde80d1c1209e2159f171ee7a2043e41f18309fc424900f",
+      "status": "passed",
+      "zero_leak_reports": 1
+    },
+    {
+      "compile_exit": 0,
+      "compile_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "diagnostic": "",
+      "executable_sha256": "fea42f42494c10d3474ac8d5fa0953305951bf33e76e02f60527e34b048a53c1",
+      "expected_compile_exit": 0,
+      "expected_run_exit": 7,
+      "ir_sha256": "a5d327ea43973ebc6bfdfd9909075bea5b86c5589b902f0af4a03a30a6762a2b",
+      "link_exit": 0,
+      "name": "nullary-field",
+      "run_exit": 7,
+      "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "source_sha256": "4ce2d1e47fabb481cad3d8f47b9b68c3f9d1881053d34e0f99cb69ea7e8b9eb5",
+      "status": "passed",
+      "zero_leak_reports": 1
+    },
+    {
+      "compile_exit": 4,
+      "compile_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "diagnostic": "bootstrap.check:6:19: type mismatch: expected Int, found a\n",
+      "expected_compile_exit": 4,
+      "name": "unused-invalid-default",
+      "source_sha256": "9703292a64e78946529daec1d64bccf240603c8a54d76e486065efae706b8fab",
+      "status": "passed"
+    },
+    {
+      "compile_exit": 4,
+      "compile_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "diagnostic": "bootstrap.check:6:19: type mismatch: expected a, found Bool\nbootstrap.check:6:19: type mismatch: expected a, found Bool\n",
+      "expected_compile_exit": 4,
+      "name": "override-cannot-hide-invalid-default",
+      "source_sha256": "5aa1cd0e82ccc846fc39a98eca427c292d3c96b8406790cb01e5590e8d05952f",
+      "status": "passed"
+    },
+    {
+      "compile_exit": 4,
+      "compile_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "diagnostic": "bootstrap.check:1:1: instance is missing class method: seed\nbootstrap.check:9:12: source dictionary constructor disagrees with its defining class or method contracts\n",
+      "expected_compile_exit": 4,
+      "name": "missing-required-method",
+      "source_sha256": "90c47e0a1ea6d3e6cb1c7b77e58f0bd05d2fa824e8be6f9f57ab4f451ccea684",
+      "status": "passed"
+    },
+    {
+      "compile_exit": 4,
+      "compile_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "diagnostic": "bootstrap.resolve:14:10: name is not in scope: helper\n",
+      "expected_compile_exit": 4,
+      "name": "private-helper-inaccessible",
+      "source_sha256": "a3ae8ee336a2263c7ebbdac865a72f8d274319871540df7c917ec66a078fbc35",
+      "status": "passed"
+    },
+    {
+      "compile_exit": 4,
+      "compile_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "diagnostic": "bootstrap.check:5:23: type mismatch: expected b, found a\nbootstrap.check:5:23: type mismatch: expected b, found a\n",
+      "expected_compile_exit": 4,
+      "name": "distinct-method-binders",
+      "source_sha256": "5d98f48a7137b264da0c1c83d7b7f8bc3a11d9f21fba2034428fefa407a3fcc7",
+      "status": "passed"
+    },
+    {
+      "compile_exit": 0,
+      "compile_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "diagnostic": "",
+      "executable_sha256": "c99d9caa839208271e67d1c6d22cdde098cd8f650e3d53fa9beeaff83db7b4f1",
+      "expected_compile_exit": 0,
+      "expected_run_exit": 7,
+      "ir_sha256": "cfedb523110248c5f0513dcaff296b93801d2c8b4a3ade86835385b509517d90",
+      "link_exit": 0,
+      "name": "strict-values-reversed-order",
+      "run_exit": 7,
+      "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "source_sha256": "3799232231c3217b4b4aecd7c919803cb6b5cbc05849dfb144c1aa8e19cd036e",
+      "status": "passed",
+      "zero_leak_reports": 1
+    },
+    {
+      "compile_exit": 0,
+      "compile_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "diagnostic": "",
+      "executable_sha256": "00c36d460886c1d571afea262f0b78b2bec5474ef42710b38794dba49c0350c8",
+      "expected_compile_exit": 0,
+      "expected_run_exit": 7,
+      "ir_sha256": "bee64d36cb083b95924c261a348fe630d6a076581f0255f535f2b3358788e4fc",
+      "link_exit": 0,
+      "name": "strict-values-through-method",
+      "run_exit": 7,
+      "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "source_sha256": "38ce13b5e65354739a3e762467720f94873c1f3815c9a11a68d24c1dc349d7d9",
+      "status": "passed",
+      "zero_leak_reports": 1
+    },
+    {
+      "compile_exit": 0,
+      "compile_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "diagnostic": "",
+      "executable_sha256": "2ab78e2432a23aabfe79c5e725b7aa7ca3a02c69857d4fbd8ffa9619d66ed438",
+      "expected_compile_exit": 0,
+      "expected_run_exit": 7,
+      "ir_sha256": "04ebd3562be544ab03ea9ffc2bb7ad04210c2f7199115797d716c90b62f57c77",
+      "link_exit": 0,
+      "name": "strict-owned-constructor-field",
+      "run_exit": 7,
+      "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "source_sha256": "9e51448bf386e0910abb8635d8227f8cacf57b500382d27b9686f8a0667b760a",
+      "status": "passed",
+      "zero_leak_reports": 1
+    },
+    {
+      "compile_exit": 5,
+      "compile_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "diagnostic": "bootstrap.runtime-ir:1:1: cyclic strict dictionary values need recursive environment lowering\n",
+      "expected_compile_exit": 5,
+      "intended_backend_refusal_verified": true,
+      "interfaces": [
+        {
+          "name": "client.ll.Defaults.cinchif",
+          "sha256": "e2c673b77968b43e6ce5f321e2b62c4105d66659294fb22b85f60fb99cdff2d2"
+        },
+        {
+          "name": "client.ll.Main.cinchif",
+          "sha256": "1aa72f2b0ad08bf0565ac2d6cf176682ad6a4df37222d42390557adc3916b2cb"
+        }
+      ],
+      "name": "strict-value-cycle",
+      "new_runner_artifact_expectation_corrected_by": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/cycle-interface-contract-1/state.json",
+      "semantic_cycle_refusal_observed": true,
+      "source_sha256": "6003451a43dc5bd9d6a6e6952bb5a8253acd7c48ced71046d793edce172ce16b",
+      "status": "failed-new-runner-artifact-contract-needs-review"
+    }
+  ],
+  "scope": "All11 actual positive default clients execute their expected42/7 results at32M with poisoning and zero leaks; all5 invalid-source controls reject with no IR or checked sidecars. The unchanged owned Box counterexample now compiles and runs7. The seventeenth source is type-correct but its strict dictionary cycle remains conservatively refused by the backend with empty IR. Its fresh checked interfaces exactly match successful interface-only compilation and all57 contracts pass the independent Native public reader. The newly invented no-interface-after-backend-refusal assertion was mistaken; the raw16-pass/1-artifact-assertion result remains retained and is not rewritten. This does not claim cyclic runtime initialization support, a final matching bootstrap or full acceptance.",
+  "semantic_source_refusals_passed": 5,
+  "status": "audited-runtime-controls-and-corrected-backend-artifact-expectation",
+  "total_source_controls": 17,
+  "verified_at": "2026-11-07T00:08:21.792238+00:00"
+}

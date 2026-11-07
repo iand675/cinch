@@ -1,0 +1,219 @@
+{
+  "actual_cinch_checker_sha256": "a9a1c85575df77fed2414c8179d94d4e43a8682817e73715d2852dfcb9b07a7b",
+  "actual_cinch_controls": [
+    {
+      "diagnostic": "",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "generic structural list keeps NonZero",
+      "source_sha256": "0101b0879c246b3109874f81670feeb647825303a2b0cb4e1e73ee73d59dcf12",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "generic structural identity keeps NonZero",
+      "source_sha256": "4806a8c7306376942dc226c1032bc67c7e2580953ea84b97f8658a854d02d69a",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.check:7:21: type mismatch: expected Int, found refine (x :: Int) with NonZero x\n",
+      "exit_code": 4,
+      "expected_exit_code": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "generic structural list needs explicit projection",
+      "source_sha256": "1f4b8d35afe2215d1bdc8a4f64aa8234423b71fa13d17fe4b649331c8c09c8cc",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "generic structural list accepts explicit projection",
+      "source_sha256": "1526c0230de323aa1b94a0245754289ef29dd009e7e35dba301aa9eda0c2ee41",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.check:7:15: type mismatch: expected Int, found refine (x :: Int) with NonZero x\n",
+      "exit_code": 4,
+      "expected_exit_code": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "generic structural result needs explicit projection",
+      "source_sha256": "cfd7e95f27252690d9cabf953fff5036c1a0950f742f1999eda01aac1c96c269",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.check:7:48: type mismatch: expected refine (x :: Int) with NonZero x, found Int\n",
+      "exit_code": 4,
+      "expected_exit_code": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "generic structural list cannot forge NonZero",
+      "source_sha256": "66261956aa9988c59fb95d35f3e6463157a7697372faaf494f77e2a469248408",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.check:9:44: refinement predicate is not established for this value (undischarged refinement obligation)\n",
+      "exit_code": 4,
+      "expected_exit_code": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "generic structural identity cannot forge NonZero",
+      "source_sha256": "778f203a42b44fd58588542f069ab9bd4d8760085e1def17f6a3f6ba6b1506e3",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "generic numeric range still widens an inferred list",
+      "source_sha256": "89be8bd9fa8bec642d45c7a537c6adb6ddb2b3c9261a68748790694213a3ade7",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "generic numeric range still widens an open identity",
+      "source_sha256": "6b795011df13aaa909cfaae2b720b0d3ddffc93ade139c90323022be496fb254",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.check:7:48: type mismatch: expected refine (x :: Int) with (x > 0), found Int\n",
+      "exit_code": 4,
+      "expected_exit_code": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "generic numeric inferred list cannot claim its former range",
+      "source_sha256": "b7a40cc7d35d1b8e9900003530d93090a256299af20637a787d913eef12e4dfe",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "generic mixed structural predicate keeps its point",
+      "source_sha256": "f3fd17e0a169dbeaac0939b600604a836dba0c064a31f22433439735c030fa91",
+      "status": "passed"
+    }
+  ],
+  "baseline_cinch_source_sha256": "28d2abf7398291b1ecd4b905117858d454cabb8f5c217d7fc02a86993f51ad61",
+  "files": [
+    {
+      "after_sha256": "823a13814dd83c23cbf625ae2c2b0110e65f0427d96216f10df85b08192aa45a",
+      "before_sha256": "303ebdd22d59164a70abec82ab4678a44032d5005a1c56f18724c4c027867cf4",
+      "path": "bootstrap/Bootstrap.Infer.cinch"
+    },
+    {
+      "after_sha256": "ab1ece2534665a8f55da8d97cebcf618c86b20c851cfb4acd61b48ba5c1cf100",
+      "before_sha256": "f16e5b6dc7829341f27b060f14c84a991d1861d8a9ba1883c96f80973a368324",
+      "path": "compiler/tests/bootstrap_named_refinements.rs"
+    }
+  ],
+  "full_goal_complete": false,
+  "native_controls": [
+    {
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "generic structural list keeps NonZero",
+      "source_sha256": "0101b0879c246b3109874f81670feeb647825303a2b0cb4e1e73ee73d59dcf12",
+      "status": "passed",
+      "wanted_acceptance": true
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "generic structural identity keeps NonZero",
+      "source_sha256": "4806a8c7306376942dc226c1032bc67c7e2580953ea84b97f8658a854d02d69a",
+      "status": "passed",
+      "wanted_acceptance": true
+    },
+    {
+      "exit_code": 1,
+      "log_sha256": "9a26263071a899dfb569ec92487eb4d57f71505829d39b3d5f88a35174e7699e",
+      "name": "generic structural list needs explicit projection",
+      "source_sha256": "1f4b8d35afe2215d1bdc8a4f64aa8234423b71fa13d17fe4b649331c8c09c8cc",
+      "status": "passed",
+      "wanted_acceptance": false
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "generic structural list accepts explicit projection",
+      "source_sha256": "1526c0230de323aa1b94a0245754289ef29dd009e7e35dba301aa9eda0c2ee41",
+      "status": "passed",
+      "wanted_acceptance": true
+    },
+    {
+      "exit_code": 1,
+      "log_sha256": "47c48c208cf0d344355322a254d15000ea78cff1a53e1e3973236986d1f50268",
+      "name": "generic structural result needs explicit projection",
+      "source_sha256": "cfd7e95f27252690d9cabf953fff5036c1a0950f742f1999eda01aac1c96c269",
+      "status": "passed",
+      "wanted_acceptance": false
+    },
+    {
+      "exit_code": 1,
+      "log_sha256": "ba46551313c86ed41ac0e9a2573595375dc1f4fb2b53abfbf832e5d0bda417b2",
+      "name": "generic structural list cannot forge NonZero",
+      "source_sha256": "66261956aa9988c59fb95d35f3e6463157a7697372faaf494f77e2a469248408",
+      "status": "passed",
+      "wanted_acceptance": false
+    },
+    {
+      "exit_code": 1,
+      "log_sha256": "a4f03363c9d2ee3b34e0eb194f804378d2101172609816de5d90717e0c594038",
+      "name": "generic structural identity cannot forge NonZero",
+      "source_sha256": "778f203a42b44fd58588542f069ab9bd4d8760085e1def17f6a3f6ba6b1506e3",
+      "status": "passed",
+      "wanted_acceptance": false
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "generic numeric range still widens an inferred list",
+      "source_sha256": "89be8bd9fa8bec642d45c7a537c6adb6ddb2b3c9261a68748790694213a3ade7",
+      "status": "passed",
+      "wanted_acceptance": true
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "generic numeric range still widens an open identity",
+      "source_sha256": "6b795011df13aaa909cfaae2b720b0d3ddffc93ade139c90323022be496fb254",
+      "status": "passed",
+      "wanted_acceptance": true
+    },
+    {
+      "exit_code": 1,
+      "log_sha256": "0ab745febb63a6ca1225f2c45ecdaf7a2564dfa249d56671a698c7cf4334b6d5",
+      "name": "generic numeric inferred list cannot claim its former range",
+      "source_sha256": "b7a40cc7d35d1b8e9900003530d93090a256299af20637a787d913eef12e4dfe",
+      "status": "passed",
+      "wanted_acceptance": false
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "generic mixed structural predicate keeps its point",
+      "source_sha256": "f3fd17e0a169dbeaac0939b600604a836dba0c064a31f22433439735c030fa91",
+      "status": "passed",
+      "wanted_acceptance": true
+    }
+  ],
+  "original_named_refinement_build_path_retained": true,
+  "original_tests_and_assertions_retained": true,
+  "patch": "bootstrap/refinement-structural-development.patch",
+  "patch_application_independently_verified": true,
+  "patch_sha256": "988b12e3ea852cb8ddfb38f66501986256f7d55a68f6ee2ca6adff359477380d",
+  "private_cinch_source_sha256": "a02936ace8ad72c00dcc957d92c3954422a5d2223d8e86c42a9d159061426756",
+  "required_complete_component_groups": 8,
+  "scope": "Only comparison predicates and their conjunctions silently widen, as design/refinement-types.md requires. Structural NonZero and mixed structural predicates retain their carrier at open generic arguments and need explicit unrefine for projection. All11 self-contained controls pass both current Native8ba8 and the actual previously compiled exact a029 Cinch checker, including range widening and refusal controls. This is a direct checker replay, not a completed whole-group or full compiler/Stage3 gate. Every original NamedRefinements case/assertion and fresh-build path remains; eight whole original groups and exact-source gates are running. The earlier broad db9a hypothesis violated the intentional range rule and is superseded. Two subsequent setup errors (unavailable standard list constructors and an intentionally guarded different cached checker entry) are preserved. No cache guard or selected-frontend rule has been weakened. Full original mconcat runtime, API/diagnostic, matching bootstrap and complete suites remain required.",
+  "source_controls_use_self_contained_list_constructors": true,
+  "status": "reviewable-private-structural-refinement-repair-under-validation",
+  "verified_at": "2026-11-07T00:11:37.271853+00:00"
+}
