@@ -1,0 +1,55 @@
+{
+  "bootstrap_audit_sha256": "5cd010e1d80995d9a1e16fc3f9d674dc31849b1f38b6dfa357a7a96201e33e64",
+  "checked_at": "2026-11-07T17:36:27.020060+00:00",
+  "compiler_sha256": "5b4d36680e652bbfaddee007ec148592aabbdce34c12353ca6eb625d1ae189d0",
+  "compiler_source_sha256": "7e94e53cca26f1df764d79741a0fab9f8d4e8201c4d06d722b76a2790cd02454",
+  "full_goal_complete": false,
+  "invocations_sha256": "52df0178bc55ffa42088a3cd084def74ee7fe819b5b18a37c75205e1cfb1ea5f",
+  "manifest_sha256": "afd8f5cdaaf12ccc0028d02bf4e58da170274e35e38a6682053b426d594dd255",
+  "native_source_sha256": "1a7e275f0519f670012f993304a975446020a814dc62bad21ec9244117a64d25",
+  "objects_sha256": "6d86e39f81813fc48da8aaa1db2f966508ad2a995603c0176752e8c2615821e6",
+  "revision": "00f774f6b13fedaca913d513667464ea1bdc8bd2",
+  "rows": [
+    {
+      "compiler_leaks": 0,
+      "exit_code": 0,
+      "heap": "32M",
+      "leaks": 0,
+      "mode": "run",
+      "output_sha256": "528d53dbb4df8f5c45b9c525d34dea2b1ae4b6e9a6a6d6d292d2e29fa38481fa",
+      "poisoned": true,
+      "sections": [
+        [
+          "Main.cinch",
+          1,
+          9,
+          "e3b6037a188f5eeaa71beab3118800afcfbe4bd5d10f6abe8b714af8778a1b57"
+        ]
+      ],
+      "source_sha256": "518a1c82e22b98565d41e1b9716cb406a17163f8aee6bfc080400f70f90d2824",
+      "status": "passed"
+    },
+    {
+      "compiler_leaks": 0,
+      "diagnostic": "4:22: obligation disproved: (Eq 5 6)",
+      "exit_code": 4,
+      "mode": "check",
+      "output_sha256": "f912d6927fc3829cddacd844f777aa228bc6788b0bfd6cb676f842d39647d1e9",
+      "sections": [
+        [
+          "Main.cinch",
+          1,
+          9,
+          "9c60866bda2e9bb3d5102adbe0b187c631d7fb13fcaac193c59fa0673b32c213"
+        ]
+      ],
+      "source_location": "examples/negative/Proof.cinch",
+      "source_sha256": "f148e9a03a56e07434f8e56c381348219ce58689b93612aea7e14884b92408ee",
+      "status": "passed"
+    }
+  ],
+  "runtime_sha256": "2fab721751aa601f3ca72d7677f8520e5bdd37d93887275b5636fce478f959c6",
+  "scope": "Both unchanged original Proof fixtures on the exact Stage3 from the consolidated named-proof ladder.",
+  "stage": 3,
+  "status": "audited-original-Proof-on-consolidated-Stage3"
+}

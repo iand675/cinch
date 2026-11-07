@@ -919,6 +919,14 @@ def build_checklist(root, cfg, previous=None):
             status=library_replay['status'], phase=library_replay.get('phase', 'Waiting for the complete library object'),
             passed=sum(row['status']=='passed' for row in rows), failed=sum(row['status']=='failed' for row in rows),
             total=5, source=library_replay.get('compiler_source_sha256')))
+    local_number_scope = read(cfg.get('schema10LocalNumberScope'))
+    if local_number_scope:
+        rows = local_number_scope['rows']
+        active.append(dict(title='Preserve numeric inference through local bindings',
+            status=local_number_scope['status'],
+            phase=local_number_scope.get('phase', 'Waiting to rebuild and recheck the original map-key fixture'),
+            passed=sum(row['passed'] for row in rows), failed=sum(not row['passed'] for row in rows),
+            total=3, source=local_number_scope['compiler_source_sha256']))
     byte_repair = read(cfg.get('schema10ByteObservationRepair'))
     if byte_repair:
         status = byte_repair['status']
@@ -1003,6 +1011,13 @@ def build_checklist(root, cfg, previous=None):
             phase='The valid proof ran with zero leaks and the invalid proof reported the expected reason and source location.',
             passed=len(proof_replay['rows']), failed=0, total=2, source=proof_replay['compiler_source_sha256'],
             evidence=link(proof_replay_path)))
+    stage3_proof_path = 'bootstrap/current-schema10-consolidated-stage3-proof-results.json'
+    stage3_proof = read(root / stage3_proof_path)
+    if stage3_proof.get('status') == 'audited-original-Proof-on-consolidated-Stage3':
+        active.append(dict(title='Run both original Proof examples on the audited Stage3', status='passed',
+            phase='The valid program ran with zero leaks at 32 MiB. The invalid proof reported obligation disproved at 4:22.',
+            passed=len(stage3_proof['rows']), failed=0, total=2, source=stage3_proof['compiler_source_sha256'],
+            evidence=link(stage3_proof_path)))
     replay_path = 'bootstrap/current-schema10-external-replay-results.json'
     replay = read(root/replay_path)
     if replay.get('status') == 'audited-external-language-replays':

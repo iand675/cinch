@@ -53,11 +53,15 @@ location. Both original pipeline tests passed on that development snapshot.
 A separate four-stage ladder using the consolidated library and named proofs
 passed the independent fixed-point, consumer and changed-source audit.
 The named-proof implementation and consolidated producer are now integrated
-with the stricter interface reader. Their combined ladder and the original
-Proof example replay through the audited Stage3 are queued.
+with the stricter interface reader. Stage1 has built from the combined source
+and is building Stage2. Separately, the audited named-proof Stage3 ran both
+unchanged original Proof examples. The valid program ran with zero leaks at
+32 MiB and the invalid proof reported the expected obligation at line 4,
+column 22.
 See [the Core proof replay](../bootstrap/current-schema10-reflexivity-core-results.json)
 [the original Proof example audit](../bootstrap/current-schema10-original-proof-replay-results.json)
-and [the consolidated ladder audit](../bootstrap/current-schema10-consolidated-proof-bootstrap-results.json).
+[the consolidated ladder audit](../bootstrap/current-schema10-consolidated-proof-bootstrap-results.json)
+and [the original Proof replay on Stage3](../bootstrap/current-schema10-consolidated-stage3-proof-results.json).
 
 The repaired Stage3 ran all 34 original language cases. Nine of thirteen
 valid programs ran at 32 MiB with poisoned allocations and zero leaks.
@@ -79,6 +83,13 @@ pinned library object and rechecks each copied module's interface before
 reusing that object's code. All 203 copied files in the original Category
 and Foldable bundles match the pinned bytes. The real compiler replay and
 the edited-body refusal control are queued.
+
+The additional library sweep found 29 more missing List function variants
+and a local numeric inference failure in the original small Nat/Int tests.
+The map value defaulted to Int before the body of its let could constrain it
+to Nat. The candidate keeps unresolved literal carriers shared with their
+uses and validates them when the enclosing definition closes. Rechecking
+the original case and the valid and invalid literal controls is queued.
 
 The UTF-8 diagnostic renderer passed both original pipeline tests when
 replayed with the matching debug and release runtime archives. The stricter
