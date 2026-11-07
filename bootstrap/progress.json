@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "129 of 235 complete groups passed; 2 running, 0 failed and 104 pending.Every group includes ignored tests. State: running.",
+      "detail": "140 of 235 complete groups passed; 2 running, 0 failed and 93 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -380,6 +380,11 @@
       "state": "failed"
     },
     {
+      "title": "Privatea029: all9 full compiler/object tests pass",
+      "detail": "The narrowed structural-refinement compiler passes all9 complete compiler/object tests,17 actual C clients and50 zero-leak reports. The original API/default runtime replay is separately queued/running; no default/runtime or source-file assertion is waived. This executable is built by pinned Native22 and is not a matching self-built Stage3.",
+      "state": "passed"
+    },
+    {
       "title": "Privatea029: structural refinement distinction passes11 controls",
       "detail": "All11 corrected self-contained controls pass both actual compiled Cinch and current Native: structural NonZero stays refined, explicit projection works, numeric ranges still widen, and unknown values cannot acquire a refinement. The broad db9a range-preservation assumption was invalid and is superseded; the standalone list-fixture and guarded cached-entry setup errors remain retained. The original fresh-build path and cache guard remain. Eight whole original groups and exact source gates are validating; full original mconcat runtime is still required.",
       "state": "pending"
@@ -494,7 +499,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "129 of 235 complete groups passed; 2 running, 0 failed and 104 pending."
+      "detail": "140 of 235 complete groups passed; 2 running, 0 failed and 93 pending."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -658,7 +663,7 @@
         "id": "gap:default-diagnostics",
         "title": "Preserve original class/default diagnostic details and source files",
         "state": "blocked",
-        "detail": "Three original default refusal tests reject correctly but still fail their exact message, class/instance name or source-file assertions. These remain failures.",
+        "detail": "Three original refusal tests still need their exact names and source-file assertions proved. Private7ccd now retains the instance name and declaration span and the undeclared method owner; privatedc46 appends actual file/local-line labels already supplied by project bundles. Original assertions remain, and full source/pipeline/resolver groups are validating.",
         "doneWhen": "Every original diagnostic and filename assertion passes with accurate attribution to the defining source; semantic rejection alone grants no pass.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-source-class-default-self-values-api-results.json"
       },
@@ -790,10 +795,10 @@
         "unit": "targets",
         "total": 235,
         "counts": {
-          "verified": 133,
+          "verified": 142,
           "blocked": 0,
           "running": 2,
-          "pending": 100,
+          "pending": 91,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -10415,17 +10420,17 @@
           {
             "id": "native:syntax_declaration_composition",
             "title": "syntax_declaration_composition",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/syntax_declaration_composition.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "startedAt": "2026-11-07T00:38:58.238690+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T00:39:22.783854+00:00",
+              "exitCode": 0,
+              "logSha256": "3d9eca90597f6f52587fbdd57a45f29357dc1f855110ad8c9e60e24a8718f7f5",
               "cases": [
                 {
                   "name": "captured_type_constructors_specialize_higher_kinded_slots_under_forall",
@@ -10473,7 +10478,7 @@
                 },
                 {
                   "name": "syntax_sequence_readers_preserve_lexical_captures_and_nested_delimiters",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -10482,17 +10487,17 @@
           {
             "id": "native:syntax_declaration_groups",
             "title": "syntax_declaration_groups",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/syntax_declaration_groups.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "startedAt": "2026-11-07T00:39:00.170904+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T00:39:28.036077+00:00",
+              "exitCode": 0,
+              "logSha256": "c6cd3bb109cea7b1d575e1d92dbfc92ab1a56dc77a4fe9d0a79c38872720fac9",
               "cases": [
                 {
                   "name": "binary_format_is_a_native_group_with_definition_helpers_and_source_operands",
@@ -10532,7 +10537,11 @@
                 },
                 {
                   "name": "one_native_group_can_be_instantiated_twice_without_retargeting_the_first",
-                  "status": "running"
+                  "status": "passed"
+                },
+                {
+                  "name": "stage_body_macro_calls_share_nullary_and_unary_empty_argument_rules",
+                  "status": "passed"
                 }
               ]
             },
@@ -10541,17 +10550,17 @@
           {
             "id": "native:syntax_declaration_namespaces",
             "title": "syntax_declaration_namespaces",
-            "state": "pending",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/syntax_declaration_namespaces.rs",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:35:26.074130+00:00",
-              "finishedAt": "2026-11-06T14:35:49.807009+00:00",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T00:39:22.786064+00:00",
+              "finishedAt": "2026-11-07T00:39:46.466562+00:00",
               "exitCode": 0,
-              "logSha256": "9501b3b8b504281d6beba4b6823251c3c12473354c68f39b2882d64a4243e9df",
+              "logSha256": "6a7668267a82fa6c4c5ac3d8205cbc692c6da67522bf1ffa8a4709d9a5ace0f0",
               "cases": [
                 {
                   "name": "foreign_export_renames_its_cinch_definition_without_changing_the_c_entry",
@@ -10592,17 +10601,17 @@
           {
             "id": "native:syntax_declarations",
             "title": "syntax_declarations",
-            "state": "pending",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/syntax_declarations.rs",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:35:49.815860+00:00",
-              "finishedAt": "2026-11-06T14:36:44.095082+00:00",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T00:39:28.038520+00:00",
+              "finishedAt": "2026-11-07T00:40:20.974951+00:00",
               "exitCode": 0,
-              "logSha256": "754b926d277bacaad2b86839afb26e5ad090615348ad2484bd0e752591fe25f7",
+              "logSha256": "a6354d1eea494c6b192ea0e0e732dea789470aa9dd0ecddf525d2b11ad25f41e",
               "cases": [
                 {
                   "name": "declaration_generation_keeps_stage_and_macro_phase_barriers_under_attributes",
@@ -10719,17 +10728,17 @@
           {
             "id": "native:syntax_effect_declarations",
             "title": "syntax_effect_declarations",
-            "state": "pending",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/syntax_effect_declarations.rs",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:36:44.105180+00:00",
-              "finishedAt": "2026-11-06T14:36:57.140109+00:00",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T00:39:46.468973+00:00",
+              "finishedAt": "2026-11-07T00:40:00.453730+00:00",
               "exitCode": 0,
-              "logSha256": "91fc531e9a786e7569a7c6cb8deeaa475d68f6a1b9beca9b1a6af884e41c58df",
+              "logSha256": "60a86e28255590afc2527011ccf5f7befb5285129fd2c729ad8df92ba4c57c93",
               "cases": [
                 {
                   "name": "a_visible_owned_effect_can_be_selected_by_its_qualified_name",
@@ -10772,11 +10781,11 @@
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-default-annotation-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:36:57.148851+00:00",
-              "finishedAt": "2026-11-06T14:37:37.954357+00:00",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T00:40:00.456028+00:00",
+              "finishedAt": "2026-11-07T00:40:40.520849+00:00",
               "exitCode": 0,
-              "logSha256": "e40a9688cd422c972ab638dd2481d47579e8aeecae7febcfe8a29863b5ad026c",
+              "logSha256": "e05d74eeea2eaaa40420b1bcdcd04aea4756f04ce7435159fc6bb87364aa718f",
               "cases": [
                 {
                   "name": "captured_index_applications_accept_available_dictionary_evidence",
@@ -10847,11 +10856,11 @@
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-default-annotation-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:37:37.963308+00:00",
-              "finishedAt": "2026-11-06T14:37:57.343118+00:00",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T00:40:20.977369+00:00",
+              "finishedAt": "2026-11-07T00:40:40.702054+00:00",
               "exitCode": 0,
-              "logSha256": "588b8c0eb54aa49c12f78e47f3f2f4b2087092bdbe58dfa4014df5bebf119fc3",
+              "logSha256": "aee9a5bee82e47ac781db22cd9330cac8ac0a813764e8e437d422b70a9dfba49",
               "cases": [
                 {
                   "name": "an_index_lambda_cannot_capture_an_existing_outer_subject_by_spelling",
@@ -10888,17 +10897,17 @@
           {
             "id": "native:syntax_lambdas",
             "title": "syntax_lambdas",
-            "state": "pending",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/syntax_lambdas.rs",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:37:57.350875+00:00",
-              "finishedAt": "2026-11-06T14:38:17.533135+00:00",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T00:40:40.523239+00:00",
+              "finishedAt": "2026-11-07T00:41:01.262684+00:00",
               "exitCode": 0,
-              "logSha256": "613554c464d41d1055d5e588aa85faa0dd49dbdabf21a00fa5580a4e5abf383b",
+              "logSha256": "837748ed7a3e7cb869f0f17ba64e6b7546340ac3e1754c6c8104e3ac0251cf67",
               "cases": [
                 {
                   "name": "code_macro_result_types_are_checked_at_insertion",
@@ -10939,17 +10948,17 @@
           {
             "id": "native:syntax_navigation",
             "title": "syntax_navigation",
-            "state": "pending",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/syntax_navigation.rs",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:38:17.544539+00:00",
-              "finishedAt": "2026-11-06T14:38:21.154944+00:00",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T00:40:40.704584+00:00",
+              "finishedAt": "2026-11-07T00:40:45.247677+00:00",
               "exitCode": 0,
-              "logSha256": "f48fc83cfe8c3d183fefbe461a1dc71c3288b403959d599835632bc9773eaf45",
+              "logSha256": "2aaf8560505eda511597b8887353e45f70772b056cbc732790a1376fb5d2c688",
               "cases": [
                 {
                   "name": "captured_global_navigation_survives_a_generated_same_spelled_binder",
@@ -10970,17 +10979,17 @@
           {
             "id": "native:syntax_objects",
             "title": "syntax_objects",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/syntax_objects.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:38:21.163211+00:00",
-              "finishedAt": "2026-11-06T14:41:47.865795+00:00",
-              "exitCode": 0,
-              "logSha256": "1316ce75a4e0b5dfe76d335fff667314d38725d08253513d74cc88650ec200b6",
+              "status": "running",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T00:40:45.250089+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "binding_identity_scheduling_keeps_ordinary_recursive_components",
@@ -11052,243 +11061,7 @@
                 },
                 {
                   "name": "native_captured_index_keeps_its_global_definition",
-                  "status": "passed"
-                },
-                {
-                  "name": "native_captured_index_polymorphic_arguments_share_their_type_parameter",
-                  "status": "passed"
-                },
-                {
-                  "name": "native_captured_index_polymorphic_function_keeps_argument_carriers",
-                  "status": "passed"
-                },
-                {
-                  "name": "native_captured_index_quantified_value_shadows_same_named_global",
-                  "status": "passed"
-                },
-                {
-                  "name": "native_captured_index_unbound_name_cannot_acquire_caller_definition",
-                  "status": "passed"
-                },
-                {
-                  "name": "native_captured_index_uses_the_named_functions_argument_carrier",
-                  "status": "passed"
-                },
-                {
-                  "name": "native_macro_arguments_retain_caller_values_in_type_annotations",
-                  "status": "passed"
-                },
-                {
-                  "name": "native_syntax_api_cannot_escape_staging_or_bypass_generated_typechecking",
-                  "status": "passed"
-                },
-                {
-                  "name": "native_syntax_api_capture_keeps_outer_binding_and_reference_uses_the_handle",
-                  "status": "passed"
-                },
-                {
-                  "name": "native_syntax_api_capture_preserves_nested_imported_fixities",
-                  "status": "passed"
-                },
-                {
-                  "name": "native_syntax_api_escaped_or_reintroduced_handles_are_refused",
-                  "status": "passed"
-                },
-                {
-                  "name": "native_syntax_api_generic_once_supports_nested_calls_and_distinct_types",
-                  "status": "passed"
-                },
-                {
-                  "name": "native_syntax_api_once_evaluates_allocating_rhs_once",
-                  "status": "passed"
-                },
-                {
-                  "name": "native_syntax_api_once_preserves_linear_use_and_rejects_duplication_and_drop",
-                  "status": "passed"
-                },
-                {
-                  "name": "native_syntax_api_once_preserves_rhs_and_intentional_body_binding",
-                  "status": "passed"
-                },
-                {
-                  "name": "native_syntax_api_operates_through_stage_values_and_declaration_splices",
-                  "status": "passed"
-                },
-                {
-                  "name": "native_syntax_api_scope_extension_retains_source_private_authority",
-                  "status": "passed"
-                },
-                {
-                  "name": "native_syntax_apply_accepts_typed_linear_arrows_and_preserves_linear_use",
-                  "status": "passed"
-                },
-                {
-                  "name": "native_syntax_apply_cannot_escape_staging_or_apply_ill_typed_code",
-                  "status": "passed"
-                },
-                {
-                  "name": "native_syntax_apply_does_not_retarget_captured_code_under_a_generated_binder",
-                  "status": "passed"
-                },
-                {
-                  "name": "native_syntax_apply_keeps_private_definition_helpers_and_caller_locals",
-                  "status": "passed"
-                },
-                {
-                  "name": "native_syntax_apply_preserves_latent_effects_and_requires_handlers",
-                  "status": "passed"
-                },
-                {
-                  "name": "native_syntax_apply_resolves_overloaded_helpers_after_operand_capture",
-                  "status": "passed"
-                },
-                {
-                  "name": "native_syntax_definition_uses_actual_macro_scope_without_private_name_forgery",
-                  "status": "passed"
-                },
-                {
-                  "name": "native_syntax_record_keeps_definition_constructor_and_source_fields",
-                  "status": "passed"
-                },
-                {
-                  "name": "native_token_capture_builtin_forms_ignore_insertion_site_shadowing",
-                  "status": "passed"
-                },
-                {
-                  "name": "native_token_capture_does_not_bind_an_unbound_name_at_insertion",
-                  "status": "passed"
-                },
-                {
-                  "name": "native_token_capture_keeps_imported_member_and_module_aliases",
-                  "status": "passed"
-                },
-                {
-                  "name": "native_token_capture_keeps_nested_macro_names_and_argument_scopes",
-                  "status": "passed"
-                },
-                {
-                  "name": "native_token_capture_keeps_private_source_global_under_caller_shadowing",
-                  "status": "passed"
-                },
-                {
-                  "name": "native_token_capture_keeps_private_type_and_constructor_authority",
-                  "status": "passed"
-                },
-                {
-                  "name": "native_token_capture_nested_arguments_keep_the_sources_imported_fixity",
-                  "status": "passed"
-                },
-                {
-                  "name": "native_token_capture_provider_pure_ignores_insertion_site_shadowing",
-                  "status": "passed"
-                },
-                {
-                  "name": "native_token_capture_retains_type_directed_constructor_alternatives",
-                  "status": "passed"
-                },
-                {
-                  "name": "nullary_native_macros_keep_definition_scope_and_unary_empty_input",
-                  "status": "passed"
-                },
-                {
-                  "name": "ordinary_recursive_components_cannot_hide_a_staging_cycle",
-                  "status": "passed"
-                },
-                {
-                  "name": "private_type_annotations_stay_with_their_defining_module",
-                  "status": "passed"
-                },
-                {
-                  "name": "qualified_comparison_facts_follow_the_resolved_method_after_renaming",
-                  "status": "passed"
-                },
-                {
-                  "name": "qualified_effect_helpers_ignore_unrelated_caller_bindings",
-                  "status": "passed"
-                },
-                {
-                  "name": "quoted_handler_return_patterns_bind_their_own_bodies",
-                  "status": "passed"
-                },
-                {
-                  "name": "quoted_private_constructors_work_in_terms_and_patterns",
-                  "status": "passed"
-                },
-                {
-                  "name": "recursive_groups_prebind_all_names_and_pair_their_annotations",
-                  "status": "passed"
-                },
-                {
-                  "name": "same_spelled_qualified_user_operators_do_not_grant_arithmetic_facts",
-                  "status": "passed"
-                },
-                {
-                  "name": "scoped_syntax_capture_keeps_outer_binding_under_same_spelled_inner_binder",
-                  "status": "passed"
-                },
-                {
-                  "name": "scoped_syntax_captured_index_does_not_use_an_inner_values_facts",
-                  "status": "passed"
-                },
-                {
-                  "name": "scoped_syntax_deliberate_binding_uses_the_new_scope",
-                  "status": "passed"
-                },
-                {
-                  "name": "scoped_syntax_out_of_scope_handle_cannot_fall_back_to_a_spelling",
-                  "status": "passed"
-                },
-                {
-                  "name": "scoped_syntax_parsed_linear_captures_keep_usage_obligations",
-                  "status": "passed"
-                },
-                {
-                  "name": "scoped_syntax_parsing_respects_lexical_binders_and_sibling_scopes",
-                  "status": "passed"
-                },
-                {
-                  "name": "scoped_syntax_reintroducing_one_handle_as_two_binders_is_refused",
-                  "status": "passed"
-                },
-                {
-                  "name": "scoped_syntax_template_preparation_remaps_owned_binders_and_preserves_free_handles",
-                  "status": "passed"
-                },
-                {
-                  "name": "scoped_syntax_value_handles_are_not_reinterpreted_as_type_variables",
-                  "status": "passed"
-                },
-                {
-                  "name": "scoped_type_indices_check_kinds_and_expired_handles",
-                  "status": "passed"
-                },
-                {
-                  "name": "scoped_type_indices_keep_their_value_binding_after_shadowing",
-                  "status": "passed"
-                },
-                {
-                  "name": "scoped_type_indices_require_the_declared_refined_kind",
-                  "status": "passed"
-                },
-                {
-                  "name": "sharing_a_source_file_does_not_grant_macro_private_access",
-                  "status": "passed"
-                },
-                {
-                  "name": "spliced_syntax_keeps_native_linear_usage_checks",
-                  "status": "passed"
-                },
-                {
-                  "name": "syntax_objects_keep_definition_site_helpers_separate_from_captures",
-                  "status": "passed"
-                },
-                {
-                  "name": "syntax_objects_refuse_out_of_range_slots_and_wrong_capture_counts",
-                  "status": "passed"
-                },
-                {
-                  "name": "syntax_objects_splice_captured_trees_after_template_binders_are_fresh",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -11297,17 +11070,17 @@
           {
             "id": "native:syntax_proof_patterns",
             "title": "syntax_proof_patterns",
-            "state": "pending",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/syntax_proof_patterns.rs",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:41:47.873871+00:00",
-              "finishedAt": "2026-11-06T14:42:09.114883+00:00",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T00:41:01.265308+00:00",
+              "finishedAt": "2026-11-07T00:41:24.004537+00:00",
               "exitCode": 0,
-              "logSha256": "aacced73d8a84f0391aa297176497517141f9807a484bed5b786ec1d89ab11f8",
+              "logSha256": "9d44a884d412570c87555cd0673b35a752f57336d812372a65aa6ba3a3ccec3c",
               "cases": [
                 {
                   "name": "a_pattern_binder_cannot_retarget_an_outer_goal_to_make_refl_fit",
@@ -11384,17 +11157,17 @@
           {
             "id": "native:syntax_quoted_macro_scope",
             "title": "syntax_quoted_macro_scope",
-            "state": "pending",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/syntax_quoted_macro_scope.rs",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:42:09.124296+00:00",
-              "finishedAt": "2026-11-06T14:42:13.790076+00:00",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T00:41:24.007113+00:00",
+              "finishedAt": "2026-11-07T00:41:29.809330+00:00",
               "exitCode": 0,
-              "logSha256": "daed827c026cdacb0a3d0d465897c05e44e16a864d8501dde6608b2dad6a5dd8",
+              "logSha256": "8caf4c65b0e4713e92d8da40824470ef7125f86587f097a2819253cace282f4c",
               "cases": [
                 {
                   "name": "an_existing_caller_capture_does_not_acquire_a_quoted_sibling_by_spelling",
@@ -11411,17 +11184,17 @@
           {
             "id": "native:syntax_runtime_proofs",
             "title": "syntax_runtime_proofs",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/syntax_runtime_proofs.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:42:13.799042+00:00",
-              "finishedAt": "2026-11-06T14:42:37.111556+00:00",
-              "exitCode": 0,
-              "logSha256": "1e23dadca1b6cfda271101efe9b16bcbbf77be9124a1bd3f89bd8ed8f32b262a",
+              "status": "running",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T00:41:29.811616+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "captured_witness_survives_a_same_spelled_generated_boolean_binder",
@@ -11429,47 +11202,7 @@
                 },
                 {
                   "name": "erased_bindings_check_generic_data_and_actual_callback_bodies",
-                  "status": "passed"
-                },
-                {
-                  "name": "erased_destructuring_cannot_extract_evidence_from_a_looping_container",
-                  "status": "passed"
-                },
-                {
-                  "name": "erased_proof_lets_cannot_launder_a_linear_runtime_use",
-                  "status": "passed"
-                },
-                {
-                  "name": "erased_proof_lets_refuse_effects_even_when_the_caller_permits_them",
-                  "status": "passed"
-                },
-                {
-                  "name": "erased_runtime_bindings_need_checked_total_bodies_including_forward_references",
-                  "status": "passed"
-                },
-                {
-                  "name": "proof_admission_rejects_computational_bottom_and_stage_only_evidence",
-                  "status": "passed"
-                },
-                {
-                  "name": "proof_lets_cannot_retarget_evidence_to_another_runtime_value",
-                  "status": "passed"
-                },
-                {
-                  "name": "proof_local_scopes_keep_termination_and_ghost_boundaries",
-                  "status": "passed"
-                },
-                {
-                  "name": "proposition_results_require_termination_without_a_proof_modifier",
-                  "status": "passed"
-                },
-                {
-                  "name": "recursive_proof_locals_keep_existing_evidence_and_reject_eager_cycles",
-                  "status": "passed"
-                },
-                {
-                  "name": "runtime_decision_witnesses_keep_their_subject_across_group_instances",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -18431,6 +18164,28 @@
         "auditPending": false
       },
       {
+        "title": "Cinch class/instance diagnostics: complete groups",
+        "status": "running",
+        "phase": "bootstrap_source_instances",
+        "passed": 0,
+        "failed": 0,
+        "total": 2,
+        "source": "7ccd088f5a00fb1784fbfaee3b3888d7edc4ed531703925c3f78e670048f2cdf",
+        "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+        "auditPending": false
+      },
+      {
+        "title": "Cinch source-file diagnostics: complete groups",
+        "status": "waiting-optimized-host",
+        "phase": null,
+        "passed": 0,
+        "failed": 0,
+        "total": 3,
+        "source": "dc4651292a96fc2812a5f804b582af2905300b3d25b4dddc7767a9819ca9ee2a",
+        "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+        "auditPending": false
+      },
+      {
         "title": "Cinch defaults: full compiler/object gate",
         "status": "passed",
         "phase": "bootstrap_library_object",
@@ -18481,10 +18236,30 @@
         "auditPending": false
       },
       {
+        "title": "Cinch structural refinements: full compiler/object gate",
+        "status": "passed",
+        "phase": "bootstrap_library_object",
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "source": "a02936ace8ad72c00dcc957d92c3954422a5d2223d8e86c42a9d159061426756",
+        "auditPending": false
+      },
+      {
+        "title": "Cinch structural refinements: original API/default groups",
+        "status": "waiting-shared-worker",
+        "phase": null,
+        "passed": 0,
+        "failed": 0,
+        "total": 10,
+        "source": "a02936ace8ad72c00dcc957d92c3954422a5d2223d8e86c42a9d159061426756",
+        "auditPending": false
+      },
+      {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "syntax_declaration_groups",
-        "passed": 129,
+        "phase": "syntax_runtime_proofs",
+        "passed": 140,
         "failed": 0,
         "total": 235,
         "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
@@ -18502,10 +18277,10 @@
       }
     ],
     "counts": {
-      "verified": 305,
+      "verified": 314,
       "blocked": 4,
       "running": 7,
-      "pending": 137,
+      "pending": 128,
       "recheck": 214
     },
     "total": 667,
@@ -18514,5 +18289,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T00:39:20.790199+00:00"
+  "updatedAt": "2026-11-07T00:41:37.221112+00:00"
 }
