@@ -18864,9 +18864,9 @@
       },
       {
         "title": "Rust: preserve the structural arrow in instance contracts",
-        "status": "running",
+        "status": "passed-class-arrow-native-validation",
         "phase": "interface_kinds",
-        "passed": 1,
+        "passed": 2,
         "failed": 0,
         "total": 2,
         "source": "dc2dd19280f2e51d07e7b2995d40ddc230a8265eeb1e6e75446249cd51e1e0f0"
@@ -18930,5 +18930,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T09:30:19.233345+00:00"
+  "updatedAt": "2026-11-07T09:31:21.143017+00:00"
 }
