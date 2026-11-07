@@ -19125,8 +19125,8 @@
       {
         "title": "Match defining names in schema 10 law observations",
         "status": "running",
-        "phase": "Rust and Cinch emitted different law names in the same schema. bootstrap source instances",
-        "passed": 3,
+        "phase": "Rust and Cinch emitted different law names in the same schema. bootstrap pipeline",
+        "passed": 4,
         "failed": 0,
         "total": 5,
         "source": "9df59053b3dc0df7c8af55f7903bd252728427448ae03345b95a6b120efc584a",
@@ -19429,5 +19429,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T14:36:53.836262+00:00"
+  "updatedAt": "2026-11-07T14:39:56.447498+00:00"
 }
