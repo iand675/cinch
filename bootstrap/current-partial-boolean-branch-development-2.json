@@ -1,0 +1,15 @@
+{
+  "baseline_cinch_source_sha256": "286613ea3571aebd6747def34f7a8f9d8af0c84c78e5fee82f9ca65ff90fe7e1",
+  "correction": "Rename reserved opaque parameter to flag in all9 source fixtures. Core compiler source32ab is unchanged. Preserve the original failed preflight and count no parser refusal as semantic rejection proof.",
+  "failure_evidence": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/partial-boolean-branch-controls-native-1/state.json",
+  "full_goal_complete": false,
+  "negative_parser_refusals_not_semantic_evidence": true,
+  "new_native_compared_controls": 9,
+  "original_precondition_tests_and_diagnostics_retained": true,
+  "patch": "bootstrap/partial-boolean-branch-development-2.patch",
+  "patch_application_independently_verified": true,
+  "patch_sha256": "2c6bd4445b72cbd9932d9721da5d54c83b44794a56a24d8d6d5b76b1938cebea",
+  "private_cinch_source_sha256": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+  "scope": "For true short-circuit conjunction and false disjunction, combine sound branch implications from the test and selected operand, even if one is opaque. Exact condition readings remain unchanged and partial implications are never negated to describe the opposite branch. Nine new controls cover both operand orders, nested guards, correct call arguments, wrong branches and facts escaping scope. Native preflight and nine complete Cinch component groups are queued, followed by Native44 input and complete actual compiler/object gates. Matching current compiler self-admission, original runtime/API and Stage1/2/3 emission remain required. This patch is unapplied; no validation success is claimed yet.",
+  "status": "reviewable-Core-branch-implication-repair-corrected-fixtures-under-validation"
+}

@@ -47,11 +47,16 @@
     },
     {
       "compiler_source_sha256": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
-      "patch": "bootstrap/partial-boolean-branch-development.patch",
-      "patch_sha256": "60d84dfe8544874dea77fc79fe5bb83c2b271298cd7fd95fa0a16ce37383b0ba"
+      "patch": "bootstrap/partial-boolean-branch-development-2.patch",
+      "patch_sha256": "2c6bd4445b72cbd9932d9721da5d54c83b44794a56a24d8d6d5b76b1938cebea"
     }
   ],
-  "scope": "Nine reviewable development patches apply in order to a fresh current published-source snapshot and produce the exact development44 compiler-module bytes. The published FFI refusal correction and positive ABI check remain; the renderer test is appended. This proves patch reproducibility only. Production source remains3268; full compiler, runtime, all suites and matching final bootstrap remain required before promotion.",
+  "scope": "Nine reviewable development patches apply in order to a fresh current published-source snapshot and produce the exact development44 compiler-module bytes. The published FFI refusal correction and positive ABI check remain; the renderer test is appended. This proves patch reproducibility only. Production source remains3268; full compiler, runtime, all suites and matching final bootstrap remain required before promotion. The final patch fixture now uses flag rather than the reserved opaque parameter; the corrected patch is independently applied above the exact2866 baseline and compared byte for byte. Compiler32ab module bytes are unchanged. The first fixture failure remains preserved.",
   "status": "audited-nine-unapplied-development-patches-on-current-published-source",
+  "superseded_final_patch": {
+    "patch": "bootstrap/partial-boolean-branch-development.patch",
+    "patch_sha256": "60d84dfe8544874dea77fc79fe5bb83c2b271298cd7fd95fa0a16ce37383b0ba",
+    "compiler_source_sha256": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157"
+  },
   "verified_at": "2026-11-07T01:49:10.732568+00:00"
 }

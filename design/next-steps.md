@@ -53,8 +53,11 @@ earlier self-built4f refuses one guarded Nat subtraction and two pattern-coverag
 checks in the new helper. Cut-down differential probes are queued. The latest
 actual14a8 compiler now passes all9 complete compiler/object tests,17 C clients
 and50 zero-leak reports; see `bootstrap/current-source-origin-compiler-results.json`.
-Its own source-admission check and original API/default replay are queued, and a
-matching Stage1/2/3 build and every original API filename assertion remain required. See
+Its original API/default replay now passes19/21: all three original diagnostic
+name/file assertions pass, defaults6/7, with source-library replacement and the
+unchanged mconcat refinement runtime still failing. Its own source-admission
+check and matching Stage1/2/3 build remain required. See
+`bootstrap/current-source-origin-api-results.json`. See
 `bootstrap/current-source-origin-input-results.json`. No filename is guessed from a module name. See
 `bootstrap/current-source-default-diagnostic-component-results.json` and
 `bootstrap/current-source-default-origins-development-2.json`.
@@ -64,10 +67,12 @@ false disjunction retain valid implications from the selected operand even if
 the test operand is opaque. Exact condition readings remain unchanged, and
 partial implications are never negated for an opposite branch. Nine new controls
 cover operand order, nested guards, wrong identities, wrong branches and scope
-escape. Native preflight and nine complete Cinch groups are queued, followed by
-Native44 admission and the complete actual compiler/object gate. Matching current
+escape. The first fixtures used the reserved opaque parameter and failed
+parsing; these raw failures are retained and negative parser refusals grant no
+semantic credit. Corrected flag fixtures and nine complete Cinch groups are
+queued, followed by Native44 admission and the complete compiler/object gate. Matching current
 self-source admission and fresh Stage1/2/3 emission remain required. See
-`bootstrap/current-partial-boolean-branch-development.json`.
+`bootstrap/current-partial-boolean-branch-development-2.json`.
 
 All9 development patches apply in order to a fresh published-source snapshot,
 produce the exact32ab compiler-module bytes and preserve the published FFI test
@@ -86,6 +91,14 @@ is preserved; the identical binary subsequently passes all15 original array test
 The older NativeE5/4f complete sweep independently records234/235 groups and
 1635/1636 tests, retaining its stale pipeline-diagnostic assertion failure. Earlier
 results do not close current full-suite acceptance.
+
+A partial review covers10 of130 targets outside the historical105-target
+frontend matrix: two Native harness roles and eight source/mixed targets needing
+additional Cinch coverage, spanning124 Rust test functions. This is target-level
+classification, not a completed per-assertion audit;120 targets remain unreviewed.
+A dispatch-only adapter preserves both whole original fixity-interface tests
+for an actual2866 Cinch replay. See
+`bootstrap/current-outside-frontend-target-review.json`.
 
 Still required: every original default/runtime/diagnostic/path assertion,
 source-Prelude replacements and their checked dependency graph, imported default

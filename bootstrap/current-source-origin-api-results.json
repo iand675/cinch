@@ -1,0 +1,96 @@
+{
+  "compiler_sha256": "9858d32aa64f7986120902b4bb0227b39864c960c4185184e900a147b5315b1e",
+  "compiler_source_sha256": "14a889472c7bf47867414410bba2b91bc059a77df5b20e7105eb7274e3cff134",
+  "default_adapter_only_changes_outcome_dispatch": true,
+  "default_tests_failed": 1,
+  "default_tests_passed": 6,
+  "direct_native_annotation_controls": 11,
+  "failed_tests": 2,
+  "filtered": 0,
+  "full_goal_complete": false,
+  "groups": [
+    {
+      "failed_tests": 0,
+      "log_sha256": "11a6c32779d901d7a326c6293973c0834948f0158a6dbdaa1f9107bb3f9cb8b8",
+      "name": "interface_anonymous_contracts",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "43f10121a861c3a161e9753b24b8c607a12ce7a2a5361830294e80b39babbcda",
+      "name": "interface_class_contracts",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "0742b7f80af4128b28793e6edc0cdb9c7b0c07b4e33bd4e9208fe7a6d67b19f3",
+      "name": "interface_kinds",
+      "passed_tests": 2,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "921c4b9acfbf57c9816b161e8ccbbe8f1efbb1dc2338e45c48dc39ba6a32458a",
+      "name": "interface_nominals",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "6ac6c0154e7fe11ec8d883b24f9884aabfe6f5e4c73d0ff3fc1214834ba193f6",
+      "name": "interface_preconditions",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 1,
+      "log_sha256": "a3d34edaa4b6c0cd3cb8dc48c4d2c03b5ad400a48c2cb4572a2dfd29c328c92c",
+      "name": "interface_prelude_overrides",
+      "passed_tests": 0,
+      "status": "failed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "d9c4168634d4926ab2a72456956341940ad3f697f82d8192185a7fa85fe1fe59",
+      "name": "interface_refinement_closure",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "fb85339cd562dbcc7d56c7728a02f4db45a2f58991963e0bedef976ca0b087f1",
+      "name": "interface_refinements",
+      "passed_tests": 4,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "acba95ff911d057be260ea047dda0fc04468409ad0bc505b26021c085bccd536",
+      "name": "interface_region_effects",
+      "passed_tests": 2,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 1,
+      "log_sha256": "2ae2a26b6bb85064e7359ed3835b1929d9a0fc6481ed2e681035a3fb84c9614e",
+      "name": "class_defaults",
+      "passed_tests": 6,
+      "status": "failed"
+    }
+  ],
+  "ignored": 0,
+  "native_source_sha256": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+  "original_default_tests": 6,
+  "original_tests_and_assertions_retained": true,
+  "passed_groups": 8,
+  "passed_tests": 19,
+  "scope": "All9 original interface/API groups plus all7 class_defaults Rust tests execute with every original source and assertion. Outcome dispatch explicitly requires the actual14a8 Cinch frontend; no Native fallback. All three previously failing original class/instance-name and Shapes.cinch source-file assertions now pass. Defaults are6/7 (five of six original tests plus the seventh mixed Native annotation/Cinch runtime test). Its11 direct Native annotation checks remain separately classified; its actual inherited runtime42 uses Cinch. Original API is8/9 groups13/14 tests, and combined replay is19/21. The unchanged source-library override and original mconcat refinement runtime remain failures. The latter still expects a generic refined result as plain Int; the2866 result-hint compiler has passed all9 full compiler/object tests and its original replay is queued. These are development checks, not matching finalStage3 acceptance.",
+  "source": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/source-default-origins-interface-api-1/source",
+  "source_sha256": "398dfd568b5b10130205c4099786055cb04ad03e49c0314ac2e6ccd7a06a6dde",
+  "status": "audited-original-api-and-defaults-with-failures",
+  "total_tests": 21,
+  "verified_at": "2026-11-07T02:10:06.108160+00:00",
+  "whole_groups": 10
+}
