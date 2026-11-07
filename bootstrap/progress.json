@@ -19316,7 +19316,7 @@
       },
       {
         "title": "Replay the dependent constructor and diagnostic repairs",
-        "status": "waiting-disk-space",
+        "status": "waiting-worker",
         "phase": "Waiting for a compiler rebuild and the original tactics, Html and Tensor cases",
         "passed": 0,
         "failed": 0,
@@ -19325,7 +19325,7 @@
       },
       {
         "title": "Recheck copied library source before executable linking",
-        "status": "waiting-disk-space",
+        "status": "waiting-worker",
         "phase": "build all 46 compiler modules and smoke-test Stage1",
         "passed": 0,
         "failed": 0,
@@ -19334,7 +19334,7 @@
       },
       {
         "title": "Replay the five original library targets with the expanded object",
-        "status": "waiting-disk-space",
+        "status": "waiting-worker",
         "phase": "Waiting for the complete library object",
         "passed": 0,
         "failed": 0,
@@ -19343,7 +19343,7 @@
       },
       {
         "title": "Preserve numeric inference through local bindings",
-        "status": "waiting-disk-space",
+        "status": "waiting-worker",
         "phase": "build all 46 compiler modules and smoke-test Stage1",
         "passed": 0,
         "failed": 0,
@@ -19412,8 +19412,8 @@
       },
       {
         "title": "Run every Rust compiler target on the combined fixes",
-        "status": "waiting-disk-space",
-        "phase": "bootstrap_checked_program",
+        "status": "running",
+        "phase": "bootstrap_collections",
         "passed": 17,
         "failed": 0,
         "total": 235,
@@ -19542,7 +19542,7 @@
         "title": "Run the full original 105-target Stage3 frontend matrix",
         "status": "running",
         "phase": "3 disjoint runs share the same audited compiler and provider.",
-        "passed": 23,
+        "passed": 24,
         "failed": 0,
         "total": 105,
         "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a"
@@ -19662,5 +19662,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T18:10:49.574130+00:00"
+  "updatedAt": "2026-11-07T18:11:51.628530+00:00"
 }
