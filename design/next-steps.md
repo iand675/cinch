@@ -31,6 +31,13 @@ a named law argument because the decoder reconstructed the wrong terminator.
 The corrected decoder parses. Its source-instance replay will also check
 Nat-backed and generic constructor fields with lawful and unlawful examples.
 
+Rust now supplies a typed `Nat` or `Int` sample to its evaluator. The
+previous sampler accepted a wrong Nat-backed identity after skipping
+evaluation. The corrected compiler rejects it and checks the lawful
+identity and associativity samples. All 19 tests in the three affected Rust
+targets passed. The schema 10 library rebuild uses this compiler.
+See [the Rust sampler receipt](../bootstrap/current-native-mathematical-law-sampling-results.json).
+
 The staged declaration pipeline checked and emitted a generated `Nat` value
 through typed IR. The linked program returned 0 with zero leaks. The unchanged
 array input refuses `arrayReplicate` at its original source location.

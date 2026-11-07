@@ -368,6 +368,7 @@ def build_checklist(root, cfg, previous=None):
     finite_law_pipeline = read(root/'bootstrap/current-schema9-finite-law-pipeline-results.json')
     typed_law = read(cfg.get('typedLawSampling'))
     native_typed_law = read(cfg.get('nativeTypedLawSampling'))
+    native_typed_law_proof = read(root/'bootstrap/current-native-mathematical-law-sampling-results.json')
     portable_law = read(cfg.get('portableLawCinch'))
     family_replay = read(cfg.get('arrowFamilyReplay'))
     gaps=[
@@ -658,7 +659,7 @@ def build_checklist(root, cfg, previous=None):
         ('Cinch: finite class laws and inherited default closure', finite_law, 2),
         ('Schema 10: original separate class-law replay', portable_law, 1),
         ('Schema 10: corrected law decoder and typed constructor samples', typed_law, 1),
-        ('Rust: Nat-backed law counterexample and interface tests', native_typed_law, 1),
+        ('Rust: Nat-backed law counterexample and interface tests', native_typed_law if not native_typed_law_proof else {}, 1),
         ('Schema 9 Stage1: initial arrays run before the runtime fixture retry', read(cfg.get('schema9StagingCopyOutArrays')), 2),
         ('Schema 10: pinned Stage1 and original library replacement tests', read(cfg.get('schema10OrderingStage1')), 8),
         ('Schema 9: rebuild and check the Git-pinned provider', schema9_pinned_provider, 1),
@@ -674,6 +675,24 @@ def build_checklist(root, cfg, previous=None):
         active.append(dict(title='Schema 10: rebuild the library with checked class laws', status=status,
             phase=status.replace('-', ' '), passed=int(status.startswith('passed')), failed=int(status.startswith('failed')),
             total=1, source=schema10_provider.get('producer_source_sha256')))
+    corrected_provider = read(cfg.get('schema10CorrectedLibraryProvider'))
+    if corrected_provider:
+        status = corrected_provider['status']
+        active.append(dict(title='Schema 10: rebuild the library after the Rust numeric-law fix', status=status,
+            phase=status.replace('-', ' '), passed=int(status.startswith('passed')), failed=int(status.startswith('failed')),
+            total=1, source=corrected_provider.get('producer_source_sha256')))
+    if native_typed_law_proof.get('status') == 'passed-native-mathematical-law-sampling':
+        active.append(dict(title='Rust: Nat-backed law counterexample and interface tests', status='passed',
+            phase='Reject the wrong identity and evaluate the lawful Nat-backed samples',
+            passed=native_typed_law_proof['passed'], failed=0, total=native_typed_law_proof['total'],
+            source=native_typed_law_proof['native_source_sha256'], evidence=link('bootstrap/current-native-mathematical-law-sampling-results.json')))
+    typed_admission = read(cfg.get('schema10TypedLawAdmission'))
+    if typed_admission:
+        checked = next((row for row in typed_admission.get('rows', []) if row['name'] == 'check-44-compiler-modules'), {})
+        status = checked.get('status', typed_admission['status'])
+        active.append(dict(title='Schema 10: check all 44 compiler modules with the pinned Rust seed', status=status,
+            phase=status.replace('-', ' '), passed=int(status == 'passed'), failed=int(status == 'failed'), total=1,
+            source=typed_admission['compiler_source_sha256']))
     if combined_arrays:
         active.append(dict(title='Schema 9 Stage1: original arrays with staging and CopyOut', status='passed',
             phase='Fourteen tests passed in the full run and the remaining test passed with the matching runtime archive',

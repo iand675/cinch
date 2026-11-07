@@ -1,0 +1,48 @@
+--- a/compiler/src/check_decls.rs
++++ b/compiler/src/check_decls.rs
+@@ -9133,7 +9133,10 @@
+         match ty {
+             Ty::Prim(s) => scalar_samples(s),
+             Ty::Bool => vec![Value::Bool(false), Value::Bool(true)],
+-            Ty::Nat | Ty::Int => vec![Value::Word(0), Value::Word(1), Value::Word(2)],
++            Ty::Nat | Ty::Int => (0..3).map(|sample| Value::Big {
++                nat: matches!(ty, Ty::Nat),
++                digits: sample.to_string(),
++            }).collect(),
+             Ty::Param(_) => vec![Value::Word(0), Value::Word(1)],
+             Ty::Bytes => vec![
+                 Value::Bytes(std::rc::Rc::new(std::cell::RefCell::new(Vec::new()))),
+--- a/compiler/tests/laws.rs
++++ b/compiler/tests/laws.rs
+@@ -58,6 +58,31 @@
+ use cinch::driver::Mode;
+ 
+ // ------------------------------------- the shipped classes' equations
++
++#[test]
++fn mathematical_law_samples_use_the_checked_numeric_representation() {
++    let bad = r#"module Main where
++  import Algebra.Semigroup
++  import Algebra.Monoid
++  data Ticket where
++    Ticket :: Nat -> Ticket
++  implicit instance Semigroup_Ticket :: Semigroup Ticket where
++    (<>) x y = case x of Ticket a -> case y of Ticket b -> Ticket (a + b)
++  implicit instance Monoid_Ticket :: Monoid Ticket where
++    mempty = Ticket 1
++  main :: Int
++  main = 0
++"#;
++    expect_err("nat-law-counterexample.cinch", bad, "breaks class law `Monoid.left-unit`");
++
++    let lawful = bad.replace("mempty = Ticket 1", "mempty = Ticket 0");
++    let (_, interfaces) = cinch::driver::check_sources_ifaces(&lawful, "nat-lawful.cinch").unwrap();
++    let main = interfaces.iter().find(|iface| iface.module == "Main").unwrap();
++    let observations: Vec<_> = main.laws.iter().map(|law| (law.law.as_str(), law.status.as_str())).collect();
++    assert!(observations.contains(&("assoc", "checked (8 samples)")));
++    assert!(observations.contains(&("left-unit", "checked (2 samples)")));
++    assert!(observations.contains(&("right-unit", "checked (2 samples)")));
++}
+ 
+ #[test]
+ fn checked_class_laws_travel_with_the_defining_interfaces() {

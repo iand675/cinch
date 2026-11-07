@@ -1,0 +1,55 @@
+{
+  "baseline_native_source_sha256": "172f44e5b060d48f30666d1b2d0339d566766c2f1054fcd574da5b1681b891f9",
+  "corrected_counterexample": "The wrong Nat-backed identity fails Monoid.left-unit. The corrected identity verifies two samples per unit law and eight associativity samples.",
+  "full_goal_complete": false,
+  "native_binary_sha256": "f1403fec51848d2290918df436f8ad3d6e0628be62b6881c72cfdc12d594b532",
+  "native_source_sha256": "4a35981acf7133c8caad196ee65e02a68d75b114da66c437975ee965eeff2c64",
+  "original_counterexample_observations": [
+    {
+      "class": "Monoid",
+      "instance": "Main.Monoid_Ticket",
+      "law": "left-unit",
+      "status": "not checked (the samples did not evaluate: expected `Nat` at compile time, found a machine word)"
+    },
+    {
+      "class": "Monoid",
+      "instance": "Main.Monoid_Ticket",
+      "law": "right-unit",
+      "status": "not checked (the samples did not evaluate: expected `Nat` at compile time, found a machine word)"
+    },
+    {
+      "class": "Semigroup",
+      "instance": "Main.Semigroup_Ticket",
+      "law": "assoc",
+      "status": "not checked (the samples did not evaluate: expected `Nat` at compile time, found a machine word)"
+    }
+  ],
+  "original_counterexample_sha256": "8442a941d6ee056afe8c5aa9499b628e9dc4dbedc228681f3b6fee1c568a72da",
+  "passed": 19,
+  "patch_sha256": "a7809833e5550a515a9add643d41c206e228efc86b314f05a122f76cf720e6a0",
+  "rows": [
+    {
+      "name": "interface_kinds",
+      "passed": 4,
+      "status": "passed",
+      "total": 4
+    },
+    {
+      "name": "interface_method_bodies",
+      "passed": 8,
+      "status": "passed",
+      "total": 8
+    },
+    {
+      "name": "laws",
+      "passed": 7,
+      "status": "passed",
+      "total": 7
+    }
+  ],
+  "scope": "All 19 tests in laws, interface_kinds and interface_method_bodies on the corrected schema 10 Rust candidate. The Cinch replay and matching stages remain required.",
+  "status": "passed-native-mathematical-law-sampling",
+  "test_log_sha256": "54995e4293d7382b07732ca1ac10827072641094209e4f94a755d2444c539b0c",
+  "total": 19,
+  "verified_at": "2026-11-07T12:03:39.364409+00:00"
+}
