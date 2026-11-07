@@ -61,6 +61,36 @@ fn the_loader_checks_emitted_interfaces_and_dependency_identities() {
     let mut cases = vec![(original.clone(), String::new())];
     let nat = ifaces.iter().find(|i| i.module == "Data.Nat").unwrap();
     cases.push((row(&dir, "nat-proof-contracts.cinchif", nat), String::new()));
+    let mut no_body = nat.clone();
+    let subtraction = no_body.exports.instances.iter_mut().find(|i| i.id == "Data.Nat.Sub_Nat").unwrap();
+    let method = &mut subtraction.method_contracts[0];
+    method.checked.body = None;
+    let implementation = format!("\"implementation\":{{\"identity\":{}", quote(&method.checked.implementation));
+    let display = format!("{{\"name\":{},\"scheme\":{},\"slot\":{}}}",
+                          quote(&method.name), quote(&method.scheme), method.slot);
+    let no_body_json = no_body.to_json();
+    assert!(Iface::from_json(&no_body_json).is_ok(), "omit an unavailable body");
+    cases.push((row(&dir, "no-guarded-body.cinchif", &no_body), String::new()));
+
+    no_body.exports.instances.iter_mut().find(|i| i.id == "Data.Nat.Sub_Nat").unwrap().method_contracts.clear();
+    let empty = no_body.to_json();
+    let contract = "\"id\":\"Data.Nat.Sub_Nat\",\"implicit\":true,\"method_contracts\":[]";
+    let (prefix, _) = contract.rsplit_once("[]").unwrap();
+    let mut malformed = vec![
+        ("empty-method-bodies", empty.replace(contract, &format!("{contract},\"method_bodies\":[]")), &empty),
+        ("display-only-method", empty.replace(contract, &format!("{prefix}[{display}]")), &empty),
+        ("null-guarded-body", no_body_json.replace(&implementation, &implementation.replace("{", "{\"body\":null,")), &no_body_json),
+    ];
+    let null_checked = display.replacen('{', "{\"checked\":null,", 1);
+    malformed.push(("null-checked-method", empty.replace(contract, &format!("{prefix}[{null_checked}]")), &empty));
+    for (name, invalid, original_json) in malformed {
+        assert_ne!(&invalid, original_json, "{name} fixture must be mutated");
+        assert!(Iface::from_json(&invalid).is_err(), "Rust accepted {name}");
+        let path = dir.join(format!("{name}.cinchif"));
+        std::fs::write(&path, invalid).unwrap();
+        cases.push((vec![nat.module.clone(), nat.iface_hash(), path.display().to_string()],
+                    "malformed interface contract envelope".into()));
+    }
     let mut erased_proof = nat.clone();
     let unrestricted = lib.exports.instances.iter().find(|i| i.id == "Lib.Secret_Int").unwrap().resolved.clone();
     erased_proof.exports.instances.iter_mut().find(|i| i.id == "Data.Nat.Sub_Nat").unwrap().resolved = unrestricted;
@@ -130,8 +160,12 @@ fn the_loader_checks_emitted_interfaces_and_dependency_identities() {
     let conflict = vec![row(&dir, "conflict.cinchif", &conflict)];
     let facade = ifaces.iter().find(|i| i.module == "Facade").unwrap();
     let mut overridden = facade.clone();
-    overridden.exports.signatures.iter_mut().find(|s| s.identity == "Lib.Hidden").unwrap()
-        .methods[0].scheme.push_str(" changed");
+    let method = &mut overridden.exports.signatures.iter_mut()
+        .find(|s| s.identity == "Lib.Hidden").unwrap().methods[0];
+    let changed = method.scheme.replace("(a -> a)", "(a -> Int)");
+    assert_ne!(changed, method.scheme);
+    method.scheme = changed.clone();
+    method.resolved.as_mut().unwrap().scheme = changed;
     let overridden_row = row(&dir, "overridden-class.cinchif", &overridden);
     let override_set: Vec<_> = full.iter().filter(|r| r[0] != "Main").map(|r|
         if r[0] == "Facade" { overridden_row.clone() } else { r.clone() }).collect();

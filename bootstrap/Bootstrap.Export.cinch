@@ -1,4 +1,4 @@
--- Checked schema9 interface production. Every public spelling is matched
+-- Checked schema 10 interface production. Every public spelling is matched
 -- against a retained checked binding or defining data declaration.
 module Bootstrap.Export where
   import Bootstrap.Builtin (array-plan)
@@ -158,7 +158,7 @@ module Bootstrap.Export where
     (JObj "identity" (field "identity" nominal) (JObj "kind" (field "kind" nominal)
       (JObj "params" (field "params" nominal) (JObj "parameters" (field "parameters" nominal)
         (JObj "ctors" JArrEnd (JObj "fields" JArrEnd (JObj "refinement" (field "refinement" nominal) JObjEnd)))))))
-  -- Schema8 value arity counts source arrows, dictionaries and hidden
+  -- Interface value arity counts source arrows, dictionaries and hidden
   -- value parameters. Proof arrows remain in this contract even though
   -- executable Core erases their runtime slots.
   quantified-value-arity :: List Quant -> Nat

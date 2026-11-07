@@ -406,10 +406,8 @@ pub struct InstanceMethodContract {
     /// Retains positional binders and proof preconditions. This remains a
     /// display contract until dependent occurrence identities are ported.
     pub scheme: String,
-    /// Optional checked closed implementation declaration. It supplies a
-    /// callable preconditioned function, never an unrestricted dictionary
-    /// or a mathematical equation for the implementation body.
-    pub checked: Option<CheckedInstanceMethod>,
+    /// Checked implementation declaration for a callable preconditioned function.
+    pub checked: CheckedInstanceMethod,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -813,35 +811,30 @@ impl Iface {
                         ("target", (&inst.target).into()),
                         ("resolved", resolved_scheme_json(inst.resolved.as_ref())),
                         ("method_contracts", JsonValue::arr(&method_contracts, |method| {
-                            let mut fields = vec![
-                                ("slot", method.slot.into()), ("name", (&method.name).into()), ("scheme", (&method.scheme).into()),
-                            ];
-                            // Omitted optional authority preserves the exact
-                            // encoding/hash of older opaque display records.
-                            if let Some(checked) = &method.checked {
-                                fields.push(("checked", JsonValue::obj([
+                            let checked = &method.checked;
+                            let mut implementation = BTreeMap::from([
+                                ("identity".into(), (&checked.implementation).into()),
+                                ("resolved".into(), resolved_scheme_json(Some(&checked.resolved))),
+                            ]);
+                            if let Some(body) = &checked.body {
+                                implementation.insert("body".into(), guarded_nat_body_json(body));
+                            }
+                            JsonValue::obj([
+                                ("slot", method.slot.into()),
+                                ("name", (&method.name).into()),
+                                ("scheme", (&method.scheme).into()),
+                                ("checked", JsonValue::obj([
                                     ("schema", 1u64.into()),
                                     ("head", JsonValue::obj([("resolved", resolved_scheme_json(Some(&checked.head)))])),
-                                    ("implementation", {
-                                        let mut declaration = JsonValue::obj([
-                                            ("identity", (&checked.implementation).into()),
-                                            ("resolved", resolved_scheme_json(Some(&checked.resolved))),
-                                        ]);
-                                        if let (Some(body), JsonValue::Obj(fields)) = (&checked.body, &mut declaration) {
-                                            fields.insert("body".into(), guarded_nat_body_json(body));
-                                        }
-                                        declaration
-                                    }),
-                                ])));
-                            }
-                            JsonValue::Obj(fields.into_iter().map(|(key, value)| (key.to_string(), value)).collect())
+                                    ("implementation", JsonValue::Obj(implementation)),
+                                ])),
+                            ])
                         })),
                         ("ctx", (&inst.ctx).into()),
                         ("methods", (&inst.methods).into()),
                         ("implicit", inst.implicit.into()),
                     ]);
-                    // Absence grants no body authority and preserves the
-                    // exact canonical identity of older opaque records.
+                    // Omit the field when the instance supplies no body authority.
                     if !inst.method_bodies.is_empty() {
                         let mut bodies = inst.method_bodies.clone(); bodies.sort();
                         if let JsonValue::Obj(fields) = &mut row {
@@ -1195,25 +1188,22 @@ impl Iface {
             let mut method_contracts: Vec<InstanceMethodContract> = Vec::new();
             for row in o.get("method_contracts").ok_or_else(|| ParseError("instance method contracts".into()))?.as_array()? {
                 let row = row.as_object()?;
-                let checked = match row.get("checked") {
-                    None | Some(JsonValue::Null) => None,
-                    Some(value) => {
-                        let value = value.as_object()?;
-                        if field_num(value, "schema")? != 1 { return Err(ParseError("conditional method schema".into())) }
-                        let head = value.get("head").ok_or_else(|| ParseError("conditional method head".into()))?.as_object()?;
-                        let implementation = value.get("implementation").ok_or_else(|| ParseError("conditional method implementation".into()))?.as_object()?;
-                        let identity = field_str(implementation, "identity")?;
-                        if identity.is_empty() { return Err(ParseError("empty conditional implementation".into())) }
-                        Some(CheckedInstanceMethod {
-                            head: field_resolved_scheme(head)?.ok_or_else(|| ParseError("unresolved conditional head".into()))?,
-                            implementation: identity,
-                            resolved: field_resolved_scheme(implementation)?.ok_or_else(|| ParseError("unresolved conditional implementation".into()))?,
-                            body: match implementation.get("body") {
-                                None | Some(JsonValue::Null) => None,
-                                Some(value) => Some(read_guarded_nat_body(value)?),
-                            },
-                        })
-                    }
+                let checked = row.get("checked")
+                    .ok_or_else(|| ParseError("missing checked conditional method".into()))?.as_object()?;
+                if field_num(checked, "schema")? != 1 {
+                    return Err(ParseError("conditional method schema".into()));
+                }
+                let head = checked.get("head").ok_or_else(|| ParseError("conditional method head".into()))?.as_object()?;
+                let implementation = checked.get("implementation").ok_or_else(|| ParseError("conditional method implementation".into()))?.as_object()?;
+                let identity = field_str(implementation, "identity")?;
+                if identity.is_empty() {
+                    return Err(ParseError("empty conditional implementation".into()));
+                }
+                let checked = CheckedInstanceMethod {
+                    head: field_resolved_scheme(head)?.ok_or_else(|| ParseError("unresolved conditional head".into()))?,
+                    implementation: identity,
+                    resolved: field_resolved_scheme(implementation)?.ok_or_else(|| ParseError("unresolved conditional implementation".into()))?,
+                    body: implementation.get("body").map(read_guarded_nat_body).transpose()?,
                 };
                 let contract = InstanceMethodContract { slot: field_num(row, "slot")?, name: field_str(row, "name")?, scheme: field_str(row, "scheme")?, checked };
                 if contract.name.is_empty() || contract.scheme.is_empty()
@@ -1248,10 +1238,8 @@ impl Iface {
                 }
             }
             for method in &instance.method_contracts {
-                if let Some(checked) = &method.checked {
-                    if instance.methods.get(method.slot as usize) != Some(&checked.implementation) {
-                        return Err(ParseError("conditional implementation does not match actual dictionary slot".into()));
-                    }
+                if instance.methods.get(method.slot as usize) != Some(&method.checked.implementation) {
+                    return Err(ParseError("conditional implementation does not match actual dictionary slot".into()));
                 }
             }
         }
@@ -1696,8 +1684,12 @@ pub(crate) fn total_declaration(definition: &crate::total::Definition) -> String
 
 fn read_instance_method_bodies(object: &BTreeMap<String, JsonValue>) -> Result<Vec<InstanceMethodBody>, ParseError> {
     let Some(rows) = object.get("method_bodies") else { return Ok(Vec::new()) };
+    let rows = rows.as_array()?;
+    if rows.is_empty() {
+        return Err(ParseError("empty method_bodies must be omitted".into()));
+    }
     let mut bodies: Vec<InstanceMethodBody> = Vec::new();
-    for row in rows.as_array()? {
+    for row in rows {
         let row = row.as_object()?;
         let slot = field_num(row, "slot")?;
         let implementation = field_str(row, "implementation")?;

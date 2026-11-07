@@ -4739,14 +4739,12 @@ module Bootstrap.Infer where
   closed-conditional-scheme sc = contract-scheme-closed sc && (case (scheme-params sc, scheme-requirements sc) of (Nil, Nil) -> True; other -> False)
   register-conditional-methods :: List Json -> List (String, Kind) -> TypeContext -> Span -> String -> Json -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   register-conditional-methods descriptions classes kinds sp dictionary methods env st = case methods of
-    JArr row rest -> case field "checked" row of
-      JNull -> register-conditional-methods descriptions classes kinds sp dictionary rest env st
-      checked -> case (field "slot" row, field "identity" (field "implementation" checked)) of
+    JArr row rest -> let checked = field "checked" row in
+      case (field "slot" row, field "identity" (field "implementation" checked)) of
         (JNum number, JStr native) -> if number < 0 then (env, add-error sp "conditional method slot is negative" st) else
           let slot = nat-from-int number in let name = interface-global native in
           let (head, sh) = imported-scheme sp classes kinds (TUnmodeled sp "conditional head") (field "head" checked) st in
-          -- The legacy class field is display text. Only the checked head
-          -- carries the declaring class's actual canonical identity.
+          -- The checked head carries the declaring class's canonical identity.
           let owner = case root-name (scheme-body head) of Some canonical -> canonical; None -> "" in
           let (actual, sa) = imported-scheme sp classes kinds (TUnmodeled sp "conditional implementation") (field "implementation" checked) sh in
           (case typed-class sp owner descriptions classes kinds sa of

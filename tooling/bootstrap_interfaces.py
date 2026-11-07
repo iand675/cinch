@@ -237,6 +237,22 @@ def validate_contract(doc: dict, runtime_abi: int) -> None:
             _list(instance[key])
         if type(instance["implicit"]) is not bool or "resolved" not in instance:
             raise ValueError("missing checked instance contract")
+        for method in instance["method_contracts"]:
+            if type(method) is not dict:
+                raise ValueError("invalid conditional method")
+            checked = method.get("checked")
+            if type(checked) is not dict or type(checked.get("schema")) is not int or checked["schema"] != 1:
+                raise ValueError("missing checked conditional method")
+            head, implementation = checked["head"], checked["implementation"]
+            for declaration in (head, implementation):
+                _resolved(declaration)
+                if declaration["resolved"] is None:
+                    raise ValueError("unresolved conditional method")
+            _text(implementation["identity"])
+            if "body" in implementation and type(implementation["body"]) is not dict:
+                raise ValueError("invalid guarded body")
+        if "method_bodies" in instance and not _list(instance["method_bodies"]):
+            raise ValueError("empty method_bodies must be omitted")
     operators = set()
     for fixity in exports["fixities"]:
         _text(fixity["op"])
