@@ -1,0 +1,296 @@
+--- a/compiler/src/check.rs
++++ b/compiler/src/check.rs
+@@ -3126,6 +3126,10 @@
+     task_captures: Vec<TaskCapture>,
+     /// Free locals of known closures before local aliases erase their shape.
+     local_closure_captures: HashMap<LocalId, Vec<LocalId>>,
++    /// Source definitions whose entire body directly forwards its parameters
++    /// to the task kernel. The call site checks their capture obligation.
++    task_forwarders: HashSet<GlobalId>,
++    checking_task_forwarder: bool,
+     /// Record-projection path accumulated for a `Proj` operand place.
+     place_path: Vec<String>,
+     /// User-declared effects by name (`effect L where ...`).
+@@ -3710,6 +3714,8 @@
+             scope_frames: Vec::new(),
+             task_captures: Vec::new(),
+             local_closure_captures: HashMap::new(),
++            task_forwarders: HashSet::new(),
++            checking_task_forwarder: false,
+             place_path: Vec::new(),
+             effects: HashMap::new(),
+             effect_bindings: HashMap::new(),
+--- a/compiler/src/check_decls.rs
++++ b/compiler/src/check_decls.rs
+@@ -5116,6 +5116,59 @@
+         Ok(())
+     }
+ 
++    fn prepare_task_forwarders(&mut self) {
++        let candidates: Vec<_> = self.top_eqs.iter().filter_map(|(module, name, eq)| {
++            let [ast::Pat::Var(token, _), ast::Pat::Var(callback, _)] = eq.pats.as_slice() else {
++                return None;
++            };
++            let ast::Term::App(head, args, _) = &eq.body else { return None };
++            let [ast::Term::Var(scope), ast::Term::Var(body)] = args.as_slice() else {
++                return None;
++            };
++            let ast::Term::Var(callee) = &**head else { return None };
++            let bound = |use_: &ast::VarPath, param: &ast::Name| {
++                use_.quals.is_empty() && use_.name.text == param.text
++                    && use_.name.local_binding() == param.local_binding()
++                    && use_.name.resolved_binding().is_none()
++                    && use_.name.scoped_reference().is_none()
++                    && use_.name.declaration_binding().is_none()
++            };
++            if !eq.locals.is_empty() || callee.name.text == token.text || callee.name.text == callback.text
++                || !bound(scope, token) || !bound(body, callback)
++                || self.top_eqs.iter().filter(|(m, n, _)| m == module && n == name).count() != 1
++            {
++                return None;
++            }
++            let scheme = self.top_schemes.get(&(module.clone(), name.clone()))?;
++            let Ty::Fun(domain, _, effects, rest) = &scheme.ty else { return None };
++            let Ty::Fun(callback, _, _, result) = &**rest else { return None };
++            if !scheme.val_params.is_empty() || !scheme.ctx.is_empty() || !scheme.obligs.is_empty()
++                || !effects.is_pure()
++                || !matches!(&**domain, Ty::Adt(name, _) if name == "Scope")
++                || !matches!(&**callback, Ty::Fun(..))
++                || !matches!(&**result, Ty::Adt(name, _) if name == "Task")
++            {
++                return None;
++            }
++            Some((module.clone(), fn_id(module, name), (**head).clone()))
++        }).collect();
++        let current = self.current_module.clone();
++        let visible = self.visible.clone();
++        let views = self.scope_views.clone();
++        self.task_forwarders.clear();
++        for (module, id, head) in candidates {
++            self.build_scope(&module, true);
++            if self.conc_builtin(&Env::default(), &head)
++                .is_some_and(|value| matches!(value.kind, ValueKind::Prim(PrimOp::Conc(ConcOp::Spawn))))
++            {
++                self.task_forwarders.insert(id);
++            }
++        }
++        self.current_module = current;
++        self.visible = visible;
++        self.scope_views = views;
++    }
++
+     fn check_bodies(&mut self, module: &str, prelude_name: &str) -> Result<()> {
+         self.build_scope(module, true);
+         let _ = prelude_name;
+@@ -6749,12 +6802,15 @@
+         let saved = self.code_quantifiers.clone();
+         let saved_annotations = std::mem::take(&mut self.body_annotation_scope);
+         let annotation_aliases = self.method_annotation_aliases.take();
++        let saved_forwarder = self.checking_task_forwarder;
++        self.checking_task_forwarder = self.task_forwarders.contains(id);
+         if self.compile_time {
+             self.stage_definition_scopes.insert(id.0.clone(), (scheme.clone(), Scheme::mono(Ty::Unit)));
+         }
+         let result = self.check_equations_inner(name, id, scheme, eqs, extra_dicts, annotation_aliases);
+         self.code_quantifiers = saved;
+         self.body_annotation_scope = saved_annotations;
++        self.checking_task_forwarder = saved_forwarder;
+         result
+     }
+ 
+@@ -16279,6 +16335,11 @@
+         };
+         surface.sort_by(|a, b| a.0.cmp(&b.0));
+         for (local, d) in &surface {
++            // Until the interface carries checked transfer obligations, a
++            // direct forwarding helper is callable only from source.
++            if !self.task_forwarders.is_empty() && self.task_forwarders.contains(&fn_id(&d.module, &d.name)) {
++                continue;
++            }
+             if let Some(v) = self.qualified.get(&(d.module.clone(), d.name.clone())) {
+                 match &v.kind {
+                     ValueKind::TopFn | ValueKind::Prim(_) | ValueKind::PrimDecl { .. } | ValueKind::Foreign { .. } | ValueKind::EffectOp { .. } => {
+@@ -17148,6 +17209,7 @@
+     // recorded layouts (foreign function interface specification
+     // section 2).
+     c.build_foreign_contracts()?;
++    c.prepare_task_forwarders();
+     // The prelude family compiles first: its functions and instances run
+     // during compile-time evaluation.
+     for p in &family {
+@@ -17178,6 +17240,7 @@
+     // Generated declarations may declare types with representations.
+     c.compute_layouts()?;
+     c.build_foreign_contracts()?;
++    c.prepare_task_forwarders();
+     for m in modules {
+         c.check_bodies(&m.name.text, &prelude_name)
+             .map_err(|e| in_named_module(&c.module_files, &m.name.text, e))?;
+--- a/compiler/src/check_terms.rs
++++ b/compiler/src/check_terms.rs
+@@ -315,7 +315,8 @@
+                 }
+                 let bcore = bcore?;
+                 if !lam {
+-                    self.note_spawned_closure(&bcore, &s, &outer, args[1].span(), &env.dicts);
++                    self.note_spawned_closure(&bcore, &s, &outer, args[1].span(), &env.dicts,
++                                              self.checking_task_forwarder)?;
+                 }
+                 // Spawning makes the body's effects the spawning scope's
+                 // responsibility (section 3).
+@@ -552,7 +553,7 @@
+ 
+     /// Direct calls receive preconditions from the exact instantiation that
+     /// produced their callee, including type, index, row and evidence bindings.
+-    fn infer_variable(&mut self, env: &mut Env, p: &ast::VarPath) -> Result<(ECore, Ty, Vec<PropOblig>)> {
++    fn infer_variable(&mut self, env: &mut Env, p: &ast::VarPath, call_arity: usize) -> Result<(ECore, Ty, Vec<PropOblig>)> {
+         if p.quals.is_empty()
+             && self.is_builtin_form(env, &p.name)
+         {
+@@ -606,6 +607,14 @@
+             }
+         }
+         let v = self.resolve_var(p, p.span())?;
++        if matches!(v.kind, ValueKind::Prim(PrimOp::Conc(ConcOp::Spawn))) {
++            return Err(Error::at(p.span(), "spawn must be applied directly to check the task callback"));
++        }
++        if call_arity != 2 && !self.task_forwarders.is_empty()
++            && self.task_forwarders.contains(&fn_id(&v.module, &v.name))
++        {
++            return Err(Error::at(p.span(), "a task forwarding helper must be fully applied in its source compilation"));
++        }
+         if matches!(v.kind, ValueKind::EffectOp { .. }) {
+             return self.operation_function_value(env, p, &v, p.span()).map(|(core, ty)| (core, ty, Vec::new()));
+         }
+@@ -694,7 +703,7 @@
+                 *span,
+                 "typed holes are not supported in the bootstrap slice",
+             )),
+-            ast::Term::Var(p) => self.infer_variable(env, p).map(|(core, ty, _)| (core, ty)),
++            ast::Term::Var(p) => self.infer_variable(env, p, 0).map(|(core, ty, _)| (core, ty)),
+             ast::Term::Con(p) => {
+                 // A capitalized module parameter (`Seq :: ResultSequencing
+                 // ConfigError`) is an ordinary binding of the module scope:
+@@ -778,20 +787,22 @@
+                 let inferred = match &**f {
+                     ast::Term::Var(path) => {
+                         let scope = self.compile_time.then(|| self.code_quantifiers.clone());
+-                        self.infer_variable(env, path).map(|(core, ty, obligations)|
+-                            (self.code_expectation(core, &ty, path.span(), scope), ty, obligations))
+-                    }
+-                    _ => self.infer(env, f).map(|(core, ty)| (core, ty, Vec::new())),
++                        self.infer_variable(env, path, args.len()).map(|(core, ty, obligations)| {
++                            let forwarder = matches!(&core, ECore::Global(id, _) if self.task_forwarders.contains(id));
++                            (self.code_expectation(core, &ty, path.span(), scope), ty, obligations, forwarder)
++                        })
++                    }
++                    _ => self.infer(env, f).map(|(core, ty)| (core, ty, Vec::new(), false)),
+                 };
+                 self.app_callee_depth = saved_depth;
+-                let (mut core, mut ty, callee_obligs) = inferred?;
++                let (mut core, mut ty, callee_obligs, forwarder) = inferred?;
+                 // A callee that writes memory at an unknown target (a
+                 // foreign call, `eval`, a mutating `Bytes` primitive) is an
+                 // opaque write that invalidates all mutable-location
+                 // evidence (evidence invalidation over mutable state).
+                 self.note_opaque_write_from(&core, *span);
+                 let mut call_args: Vec<(Option<ITerm>, Ty, ast::Span)> = Vec::new();
+-                for a in args {
++                for (position, a) in args.iter().enumerate() {
+                     ty = self.uni.zonk(&ty);
+                     let prefix_ty = ty.clone();
+                     // Only a direct global carries a temporal call-step identity.
+@@ -859,6 +870,29 @@
+                             ));
+                         }
+                     };
++                    if forwarder && position == 1 {
++                        let Some((_, scope_ty, _)) = call_args.first() else {
++                            return Err(Error::at(*span, "task forwarding requires a checked scope argument"));
++                        };
++                        let scope_ty = self.uni.zonk(scope_ty);
++                        let Ty::Adt(owner, regions) = &scope_ty else {
++                            return Err(Error::at(*span, "task forwarding requires a checked scope argument"));
++                        };
++                        let [Ty::Region(_), Ty::Region(scope)] = regions.as_slice() else {
++                            return Err(Error::at(*span, "task forwarding requires a checked scope argument"));
++                        };
++                        let Some(callback) = &arg_core else {
++                            return Err(Error::at(a.span(), "task forwarding requires an executable callback"));
++                        };
++                        if owner != "Scope" {
++                            return Err(Error::at(*span, "task forwarding requires a checked scope argument"));
++                        }
++                        let scope = self.uni.resolve_region(scope);
++                        let outer = self.scope_frames.iter().rev()
++                            .find(|frame| frame.region == scope)
++                            .map(|frame| frame.outer.clone()).unwrap_or_default();
++                        self.note_spawned_closure(callback, &scope, &outer, a.span(), &env.dicts, false)?;
++                    }
+                     if let Some(c) = arg_core {
+                         core = app_spine(core, vec![c]);
+                     }
+@@ -4231,17 +4265,20 @@
+ 
+     fn note_spawned_closure(
+         &mut self, core: &ECore, scope: &str, outer: &[String], span: ast::Span,
+-        dicts: &[(LocalId, ClassApp)],
+-    ) {
++        dicts: &[(LocalId, ClassApp)], forwarded_parameter: bool,
++    ) -> Result<()> {
++        let unknown = || Error::at(span, "a task callback crosses the task boundary without shareable evidence");
+         let mut captures = Vec::new();
+         match core {
+             ECore::Lam { .. } => free_locals(core, &mut Vec::new(), &mut captures),
+             ECore::Var(local) => {
+                 let origin = self.value_aliases.get(local).unwrap_or(local);
+-                let Some(known) = self.local_closure_captures.get(origin) else { return };
++                let Some(known) = self.local_closure_captures.get(origin) else {
++                    return if forwarded_parameter { Ok(()) } else { Err(unknown()) };
++                };
+                 captures.extend(known);
+             }
+-            _ => return,
++            _ => return Err(unknown()),
+         }
+         let mut seen = HashSet::new();
+         while let Some(local) = captures.pop() {
+@@ -4265,6 +4302,7 @@
+                 transfer_allowed: false,
+             });
+         }
++        Ok(())
+     }
+ 
+     /// Give equal runtime values the same current lexical spelling while
+--- a/compiler/tests/concurrency.rs
++++ b/compiler/tests/concurrency.rs
+@@ -359,6 +359,28 @@
+ }
+ 
+ #[test]
++fn source_task_forwarders_check_actual_captures() {
++    let bad = include_str!("../../bootstrap/programs/task-capture-counterexamples/wrapped-mutable-capture.cinch");
++    expect_err("forwarded-bytes-capture", bad, "without shareable evidence");
++    let safe = include_str!("../../bootstrap/programs/task-capture-counterexamples/wrapper-safe.cinch");
++    let run = safe.replace("Bytes ->", "Unit ->").replace(
++        "  main :: Int\n  main = 0",
++        "  main :: Unit ->{Async r, Cancel r, Diverge} Int\n  main u = with (io = newIO ()) in case work () of\n    Ok n -> if n == 42 then 0 else 1\n    Err e -> 2",
++    );
++    expect_ok("forwarded-closed-callback", &run, 0);
++    let (_, interfaces) = cinch::driver::check_sources_ifaces(safe, "source-forwarder.cinch").unwrap();
++    let main = interfaces.iter().find(|iface| iface.module == "Main").unwrap();
++    assert!(!main.exports.values.iter().any(|value| value.name == "fork"));
++    let escaped = safe.replace(
++        "  main :: Int",
++        "  alias :: forall r s x a e. Scope r s -> (Unit ->{|e} Result x a) ->{Async r | e} Task s x a\n  alias = fork\n  main :: Int",
++    );
++    expect_err("first-class-source-forwarder", &escaped, "must be fully applied");
++    let kernel = escaped.replace("alias = fork", "alias = spawn");
++    expect_err("first-class-spawn", &kernel, "spawn must be applied directly");
++}
++
++#[test]
+ fn a_thread_shared_memo_cell_is_rejected() {
+     // The lazy specification's required rejection case (section 9): a
+     // `Lazy` cell is single-threaded by construction and does not cross

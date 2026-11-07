@@ -298,6 +298,8 @@ def build_checklist(root, cfg, previous=None):
     function_defaults=read(cfg.get('functionDefaultApiReceipt'))
     source_overlay=read(cfg.get('sourceInterfaceOverlayReceipt'))
     early_base=read(cfg.get('sourceOverlayBaseScopeReceipt'))
+    cinch_forwarder=read(root/'bootstrap/current-cinch-task-source-forwarder-results.json')
+    native_forwarder=read(root/'bootstrap/current-native-task-source-forwarder-results.json')
     stage3_failure_path='bootstrap/current-stage3-arrays-and-library-overrides-results.json'
     stage3_failures=read(root/stage3_failure_path)
     latest_chain=read(cfg.get('partialBooleanBootstrapChain'))
@@ -340,8 +342,8 @@ def build_checklist(root, cfg, previous=None):
         item('gap:task-callback','Reject mutable task captures hidden by callbacks','blocked',
              'A Rust development patch rejects the original unsafe local callback, keeps safe aliases accepted, and passes all concurrency and unit tests. The published compiler still accepts the counterexample.',
              'The callback carries checked capture, transfer and lifetime facts. The published Rust and Cinch compilers refuse the unsafe capture and accept safe callbacks.',link('bootstrap/current-native-local-task-capture-results.json')),
-        item('gap:task-helper','Reject mutable task captures hidden by helpers','blocked','Published Rust still accepts an unsafe capture hidden by a helper. Current Stage3 refuses the valid Tasks example because the checked callback passed through Tasks.fork lacks transfer evidence.',
-             'Capture requirements survive helpers, aliases and interfaces, with both bad and valid cases checked.',link('bootstrap/current-native-task-capture-counterexample.json')),
+        item('gap:task-helper','Reject mutable task captures hidden by helpers','blocked','Cinch development passes six controls including both unchanged Tasks examples and the unsafe Bytes refusal. Rust development passes the original helper regression, 19 concurrency tests and 186 unit tests. Portable transfer and replay on the matching compilers remain.',
+             'Capture requirements survive helpers, aliases and interfaces, with both bad and valid cases checked.',link('bootstrap/current-cinch-task-source-forwarder-results.json' if cinch_forwarder else 'bootstrap/current-native-task-capture-counterexample.json')),
         item('gap:rust-annotations','Preserve Rust class/default annotation binders','verified' if annotation_published else 'blocked','Published8ba8 passes independent audit: all21 complete groups,332 tests, both44-module projects, actual inherited execution42 and three old/new CLI comparisons. Original refusal controls remain.' if annotation_published else 'The published995f compiler rejects three valid annotation examples. The private8ba8 repair has finished execution of its affected groups and both44-module checks; independent audit and publication remain required.',
              'Complete the affected proof/syntax/interface groups and both compiler-source projects, retain kind/scope refusals, then publish the validated repair.',link('bootstrap/current-native-default-annotation-results.json') if annotation_published else link('design/next-steps.md')),
         item('gap:records','Finish record interface transport','recheck','A known earlier compiler gap; latest exact behavior still needs a complete check.',
@@ -491,6 +493,15 @@ def build_checklist(root, cfg, previous=None):
                 passed=sum(r.get('status') == 'passed' for r in rows),
                 failed=sum(r.get('status') == 'failed' for r in rows), total=total,
                 source=state.get('compiler_source_sha256'), earlier=title.startswith('Earlier')))
+
+    if cinch_forwarder.get('status') == 'verified-task-forwarder-six-case-development-replay':
+        active.append(dict(title='Cinch task forwarding: exact source replay', status='passed',
+            phase='Unchanged Tasks program and refusal, unsafe capture, and interface boundary',
+            passed=6, failed=0, total=6, unit='cases', source=cinch_forwarder['compiler_source_sha256']))
+    if native_forwarder.get('status') == 'verified-native-task-forwarder-development':
+        active.append(dict(title='Rust task forwarding: complete focused tests', status='passed',
+            phase='19 concurrency tests and 186 compiler unit tests',
+            passed=205, failed=0, total=205, unit='tests', source=None))
 
     candidate_external = read(root/'bootstrap/current-partial-boolean-external-acceptance-results.json')
     if candidate_external.get('status') == 'passed-independent-stage3-external-acceptance':

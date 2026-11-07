@@ -1,0 +1,43 @@
+{
+  "base_native_source_sha256": "1fd2ac475c28b4798b5026d66562f401dd2ce0d62cec22abde5268a8272d4813",
+  "full_goal_complete": false,
+  "groups": {
+    "all-native-unit-tests": 186,
+    "concurrency": 19,
+    "forwarder-controls": 1,
+    "local-capture-controls": 1
+  },
+  "native_source_sha256": "471f25e411f941c541140a708d5527304cfa9093ea9e66168bd9602548ac8f10",
+  "patch_sha256": "d54ae82cfc6bea6e9b1e9c596c66f6465db77a6da03d0bba9be5ee88947db4ec",
+  "rlib_sha256": "5867334d276fd0245705f6bc9e236ec45ebad01e0bcb95ff4de06ff6a9b2fc85",
+  "rows": [
+    {
+      "exit_code": 0,
+      "log_sha256": "1610f5b87508bfe3df448ff94b40524176c95d8985f201cf3586e5acef2ffb7f",
+      "name": "forwarder-controls",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "406c52aac91be5c750c0cce5756437098250ff3e5e8d51f22b183d868f3ce9ee",
+      "name": "local-capture-controls",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "8b9dec9e727e7c49a8d52eb3ebf8ba8d6b682ad2a2043f01540b77383461f434",
+      "name": "concurrency",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "c03aabece86d4a7f4bc480aac7fc58243996e9aefe366def887a78c410763873",
+      "name": "all-native-unit-tests",
+      "status": "passed"
+    }
+  ],
+  "scope": "The Rust compiler refuses the original unsafe helper, runs a closed callback through the same direct helper, refuses untracked first-class uses, and withholds the helper from interface values. All original concurrency and unit tests pass; full Rust regression and portable transfer remain separate.",
+  "source_sha256": "1a403f3ca25c80ec4992c4ec4b1bfc7c5ba0513ac4e23b222236d6753e7287a3",
+  "status": "verified-native-task-forwarder-development",
+  "verified_at": "2026-11-07T06:14:04.986864+00:00"
+}

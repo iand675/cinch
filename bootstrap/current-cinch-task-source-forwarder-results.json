@@ -1,0 +1,66 @@
+{
+  "base_compiler_source_sha256": "f3faf4991a71782d12951b2951a0d1475bdafb768e714b927537add99aa27ab8",
+  "cases": [
+    {
+      "diagnostic": "bootstrap.check:6:5: task handle must be joined exactly once\n",
+      "exit_code": 4,
+      "mapped_diagnostic": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/stage3-32ab-external-language-1/work/experiments/malleable-syntax/examples/negative/Tasks.cinch: 6:5: task handle must be joined exactly once\n",
+      "name": "original-check",
+      "passed": true,
+      "source_sha256": "e797a531b69fec4e599cb48f3670ec3120fa712df5ee4a9f19e0f9c50cc380c2",
+      "usable_ir": false
+    },
+    {
+      "diagnostic": "",
+      "exit_code": 0,
+      "link_exit_code": 0,
+      "name": "original-run",
+      "passed": true,
+      "run_exit_code": 0,
+      "source_sha256": "fc690adf0889855be798f826a2d117ba095de99c279ff47888fe7fb82f425407",
+      "usable_ir": true,
+      "zero_leaks": true
+    },
+    {
+      "diagnostic": "",
+      "exit_code": 0,
+      "name": "wrapper-safe",
+      "passed": true,
+      "source_sha256": "e3826799080011e177bb3f76da71600cd34ca06b9a3ebd362fb7129b655363c5",
+      "usable_ir": false
+    },
+    {
+      "diagnostic": "bootstrap.check:4:19: a task capture crosses the task boundary without shareable evidence\n",
+      "exit_code": 4,
+      "name": "wrapped-mutable-capture",
+      "passed": true,
+      "source_sha256": "a4833dab9adae08967971d6d9854f0397157bbccfdbaf24cc34c2c6d65618a67",
+      "usable_ir": false
+    },
+    {
+      "diagnostic": "bootstrap.check:9:11: a task forwarding helper must be fully applied in its source compilation\n",
+      "exit_code": 4,
+      "name": "unsaturated-forwarder",
+      "passed": true,
+      "source_sha256": "f63e9133f31511b964a3cc97c754dcd69b05940cbe3fab8a06f587ad67d8eda6",
+      "usable_ir": false
+    },
+    {
+      "diagnostic": "bootstrap.export: Main: a task forwarding helper requires a portable checked transfer contract to be exported: fork",
+      "exit_code": 5,
+      "name": "export-forwarder",
+      "passed": true,
+      "source_sha256": "387100089848dd0f4a343b58573e23f2f9229df6aaa8569819e468795ee55706",
+      "usable_ir": false
+    }
+  ],
+  "compiler_sha256": "7d1039b9acc148776e969b111f5f50360de984fed00629e0ba612d11d333cfb6",
+  "compiler_source_sha256": "ca53ded9f0ea7eea94c34ad4ddfe329c2b7ce4bd54d5eb45dc97712aa287a7d9",
+  "full_goal_complete": false,
+  "native_source_sha256": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+  "patch_sha256": "7546613de6832ebdc3d09a5fec0a081a2dd07965d4a45fccad0236cca4e9f71c",
+  "replay_sha256": "0541a90c9564e6a80ec590dfdcf57f14d1828fd532e9791f845d47f2b6b7f5d6",
+  "scope": "One checked source compilation can use saturated direct spawn forwarders. The original Tasks runs with zero leaks, the original dropped-handle reason is mapped, and unsafe captures and escaping helpers are refused. A portable transfer contract and exact final Stage3 replay are still required.",
+  "status": "verified-task-forwarder-six-case-development-replay",
+  "verified_at": "2026-11-07T06:12:53.911181+00:00"
+}

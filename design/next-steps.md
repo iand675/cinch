@@ -174,6 +174,17 @@ with the two drop cases requiring the join diagnostic. The original
 `Tasks` program and helper capture checks remain a separate replay. See
 `bootstrap/current-task-drop-diagnostic-results.json`.
 
+Both development compilers now check the actual callback and scope for
+a saturated source helper whose entire body forwards to the task kernel.
+The Cinch build passes six controls, including the unchanged Tasks runtime
+and refusal examples, the unsafe Bytes capture, and two helper escape
+checks. The Rust build passes the original unsafe capture regression,
+all 19 concurrency tests and 186 unit tests. Separately compiled helpers
+still require a portable transfer contract. The complete matching Stage3
+and Rust sweeps remain separate. See
+`bootstrap/current-cinch-task-source-forwarder-results.json` and
+`bootstrap/current-native-task-source-forwarder-results.json`.
+
 The base constructor formatter matches the complete `Data.Core` interface
 hash against the Native writer and matches the three isolated `Data.Ordering`
 constructor contracts. A source-defined `Shadow.List` keeps its own identity.

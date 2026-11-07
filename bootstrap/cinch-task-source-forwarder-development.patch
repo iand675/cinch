@@ -1,0 +1,212 @@
+--- a/bootstrap/Bootstrap.Typing.cinch
++++ b/bootstrap/Bootstrap.Typing.cinch
+@@ -18,22 +18,25 @@
+   export close-typing-context-with-effects, close-typing-context-with-data, context-effects, task-definition-safe, task-definition-error
+   export TypingContext, close-typing-context, typing-definition-closed, context-bodies, context-guarded-bodies
+   export context-body-context, close-typing-context-with-definitions
++  export task-source-forwarder, task-forwarder-type
+   data TypingContext where
+-    CheckedTypingContext :: List (String, Kind) -> CoreGlobals -> List CoreEffect -> List CoreData -> TypingContext
++    CheckedTypingContext :: List (String, Kind) -> CoreGlobals -> List CoreEffect -> List CoreData -> List String -> TypingContext
+   context-data :: TypingContext -> List CoreData
+-  context-data context = case context of CheckedTypingContext kinds globals effects datas -> datas
++  context-data context = case context of CheckedTypingContext kinds globals effects datas forwarders -> datas
+   context-declarations :: TypingContext -> List CoreGlobal
+-  context-declarations context = case context of CheckedTypingContext kinds globals effects datas -> globals-declarations globals
++  context-declarations context = case context of CheckedTypingContext kinds globals effects datas forwarders -> globals-declarations globals
+   context-effects :: TypingContext -> List CoreEffect
+-  context-effects context = case context of CheckedTypingContext kinds globals effects datas -> effects
++  context-effects context = case context of CheckedTypingContext kinds globals effects datas forwarders -> effects
+   context-bodies :: TypingContext -> List BodyBinding
+-  context-bodies context = case context of CheckedTypingContext kinds globals effects datas -> globals-bodies globals
++  context-bodies context = case context of CheckedTypingContext kinds globals effects datas forwarders -> globals-bodies globals
+   context-body-context :: TypingContext -> BodyBindings
+-  context-body-context context = case context of CheckedTypingContext kinds globals effects datas -> globals-body-context globals
++  context-body-context context = case context of CheckedTypingContext kinds globals effects datas forwarders -> globals-body-context globals
+   context-guarded-bodies :: TypingContext -> List GuardedBinding
+-  context-guarded-bodies context = case context of CheckedTypingContext kinds globals effects datas -> globals-guarded-bodies globals
++  context-guarded-bodies context = case context of CheckedTypingContext kinds globals effects datas forwarders -> globals-guarded-bodies globals
+   context-kinds :: TypingContext -> List (String, Kind)
+-  context-kinds context = case context of CheckedTypingContext kinds globals effects datas -> kinds
++  context-kinds context = case context of CheckedTypingContext kinds globals effects datas forwarders -> kinds
++  context-task-forwarder :: TypingContext -> String -> Bool
++  context-task-forwarder context name = case context of CheckedTypingContext kinds globals effects datas forwarders -> has name forwarders
+   same :: String -> String -> Bool
+   same a b = string-compare a b == 0
+   equal-type :: UType -> UType -> Bool
+@@ -91,7 +94,7 @@
+   close-typing-context-with-definitions :: List (String, Kind) -> List CoreGlobal -> List CoreEffect -> List CoreData -> List CoreDefinition -> Option TypingContext
+   close-typing-context-with-definitions kinds declarations effects datas definitions = let all = kernel-effect-kinds <> kinds in
+     if nominal-kinds-closed all && global-types all declarations && effects-registered all declarations Nil effects && task-data-closed all datas then
+-      (case close-globals-with-definitions declarations definitions of Some globals -> Some (CheckedTypingContext all globals effects datas); None -> None)
++      (case close-globals-with-definitions declarations definitions of Some globals -> Some (CheckedTypingContext all globals effects datas (task-forwarder-names definitions)); None -> None)
+     else None
+   wf :: TypingContext -> TypeScope -> UType -> Bool
+   wf context scope ty = body-type-authorized (context-bodies context) ty && type-well-formed (context-kinds context) scope ty
+@@ -461,6 +464,37 @@
+   task-capture-types types = case types of Nil -> Nil; Cons ty rest -> task-regions ty <> task-capture-types rest
+   task-active-regions :: List UType -> List UType -> List UType
+   task-active-regions scopes regions = case regions of Nil -> Nil; Cons region rest -> if task-region-present region scopes then Cons region (task-active-regions scopes rest) else task-active-regions scopes rest
++  -- A checked source forwarder delegates its capture and lifetime checks to
++  -- a saturated call in the same compilation. It cannot escape as a value.
++  task-arrow-output :: UType -> UType
++  task-arrow-output ty = case ty of UFun domain output -> output; UFunEff domain row output -> output; UPi id name domain row output -> output; other -> UError
++  task-forwarder-type :: UType -> Bool
++  task-forwarder-type ty = task-handle-type (task-arrow-output (task-arrow-output ty))
++  task-source-forwarder :: CoreDefinition -> Bool
++  task-source-forwarder definition =
++    case (opening-value-types (core-openings definition), core-givens definition, core-clauses definition) of
++      (Nil, Nil, [MkCoreClause sp [CPVar token-at token-ty token-id token-name, CPVar body-at body-ty body-id body-name] (CSpawn spawn-at result (CLocal token-use scope key scope-name Nil) (CLocal body-use callback body-key callback-name Nil))]) ->
++        token-id == key && body-id == body-key && token-id /= body-id
++          && task-forwarder-type (scheme-body (core-scheme definition)) && checked-spawn result (CLocal token-use scope key scope-name Nil) (CLocal body-use callback body-key callback-name Nil)
++      other -> False
++  task-forwarder-names :: List CoreDefinition -> List String
++  task-forwarder-names definitions = case definitions of
++    Nil -> Nil
++    Cons definition rest -> if task-source-forwarder definition then Cons (core-name definition) (task-forwarder-names rest) else task-forwarder-names rest
++  task-reference-forwarder :: TypingContext -> CoreTerm -> Bool
++  task-reference-forwarder context term = case term of
++    CUse sp ty name role actuals -> context-task-forwarder context name
++    CQualifiedUse sp ty name role actuals Nil -> context-task-forwarder context name
++    other -> False
++  task-forwarded-scope :: TypingContext -> CoreTerm -> Option CoreTerm
++  task-forwarded-scope context partial = case partial of
++    CApply sp ty callee token -> if task-reference-forwarder context callee then Some token else None
++    CApplyEff sp ty row callee token -> if task-reference-forwarder context callee then Some token else None
++    other -> None
++  task-global-trace :: TypingContext -> List TaskLocal -> List UType -> Span -> UType -> CoreTerm -> List CoreEvidence -> TaskTrace
++  task-global-trace context env scopes sp ty term evidence =
++    let required = require-task (not (task-reference-forwarder context term)) sp "a task forwarding helper must be fully applied in its source compilation" in
++    task-result-trace context ty (task-traces-merge (TaskTrace required (task-evidences-regions evidence) True) (task-trace-list context env scopes False (term-children term)))
+   task-callable :: TypingContext -> List TaskLocal -> List UType -> Bool -> Span -> CoreTerm -> TaskTrace
+   task-callable context env scopes spawning site callback = case callback of
+     CLambda sp ty p body -> let free = task-free (task-pattern-ids p) body in
+@@ -484,13 +518,7 @@
+         let escape = require-task (not (task-region-present region (task-trace-regions inside))) sp "region escape: a scoped capture leaves its `withScope`" in
+         let failure = first-task-error (task-trace-error inside) escape in
+         TaskTrace failure (task-trace-regions inside) (task-trace-shared inside)
+-      CSpawn sp ty token callback -> let scope-value = task-trace context env scopes False token in
+-        let inside = task-callable context env scopes True sp callback in
+-        let regions = (case callback of CLambda sp ft p body -> task-free-regions env (task-free (task-pattern-ids p) body) <> task-capture-types (task-free-evidence Nil body); other -> task-trace-regions (task-trace context env scopes False callback)) in
+-        let lifetime = case scope-parameters (core-type token) of Some (owner, destination) -> task-capture-regions scopes owner destination regions; None -> False in
+-        let escape = require-task lifetime sp "region escape: a task capture does not outlive the destination scope" in
+-        let failure = first-task-error (task-trace-error scope-value) (first-task-error (task-trace-error inside) escape) in
+-        TaskTrace failure (task-trace-regions inside) True
++      CSpawn sp ty token callback -> task-spawn-trace context env scopes sp token callback
+       CJoin sp ty token handles -> let scope-value = task-trace context env scopes False token in
+         let consumed = task-trace-list context env scopes True (case handles of CArgument sp first rest -> task-argument-values handles; other -> Nil) in
+         task-result-trace context ty (task-traces-merge scope-value consumed)
+@@ -503,26 +531,37 @@
+         let result = task-trace context (Cons (TaskLocal id (scheme-body sc) (task-trace-regions value) (task-trace-shared value)) env) scopes consuming body in
+         let failure = first-task-error (task-bound-error sp id (scheme-body sc) body) (first-task-error (task-trace-error value) (task-trace-error result)) in
+         TaskTrace failure (task-trace-regions result) (task-trace-shared result)
+-      CApply sp ty f x -> task-call-trace context env scopes ty f x
+-      CApplyEff sp ty row f x -> task-call-trace context env scopes ty f x
++      CApply sp ty f x -> task-call-trace context env scopes sp ty f x
++      CApplyEff sp ty row f x -> task-call-trace context env scopes sp ty f x
+       CIf sp ty condition yes no -> let test = task-trace context env scopes False condition in
+         let result = task-traces-merge (task-trace context env scopes consuming yes) (task-trace context env scopes consuming no) in
+         TaskTrace (first-task-error (task-trace-error test) (task-trace-error result)) (task-trace-regions result) (task-trace-shared result)
+       CCase sp ty value alts -> let input = task-trace context env scopes False value in
+         let result = task-alternatives-trace context env scopes consuming input alts in
+         TaskTrace (first-task-error (task-trace-error input) (task-trace-error result)) (task-trace-regions result) (task-trace-shared result)
+-      CQualifiedUse sp ty name role actuals evidence -> task-result-trace context ty (task-traces-merge (TaskTrace None (task-evidences-regions evidence) True) (task-trace-list context env scopes False (term-children term)))
++      CUse sp ty name role actuals -> task-global-trace context env scopes sp ty term Nil
++      CQualifiedUse sp ty name role actuals evidence -> task-global-trace context env scopes sp ty term evidence
+       CMethod sp ty name owner slot actuals evidence -> task-result-trace context ty (task-traces-merge (TaskTrace None (task-evidences-regions evidence) True) (task-trace-list context env scopes False (term-children term)))
+       CWith sp ty given value body -> let supplied = task-trace context env scopes False value in
+         let result = task-trace context env scopes consuming body in
+         TaskTrace (first-task-error (task-trace-error supplied) (task-trace-error result)) (task-trace-regions result) (task-trace-shared result)
+       other -> task-result-trace context (core-type term) (task-trace-list context env scopes False (term-children term))
+-  task-call-trace :: TypingContext -> List TaskLocal -> List UType -> UType -> CoreTerm -> CoreTerm -> TaskTrace
+-  task-call-trace context env scopes result f x = let function = task-trace context env scopes False f in
+-    let input = task-trace context env scopes False x in
+-    task-result-trace context result (TaskTrace (first-task-error (task-trace-error function) (task-trace-error input))
+-      (task-trace-regions function <> task-trace-regions input <> task-regions (core-type x))
+-      (task-trace-shared function && task-trace-shared input && task-shareable context Nil 64 (core-type x)))
++  task-spawn-trace :: TypingContext -> List TaskLocal -> List UType -> Span -> CoreTerm -> CoreTerm -> TaskTrace
++  task-spawn-trace context env scopes sp token callback = let scope-value = task-trace context env scopes False token in
++    let inside = task-callable context env scopes True sp callback in
++    let regions = (case callback of CLambda at ft p body -> task-free-regions env (task-free (task-pattern-ids p) body) <> task-capture-types (task-free-evidence Nil body); other -> task-trace-regions (task-trace context env scopes False callback)) in
++    let lifetime = case scope-parameters (core-type token) of Some (owner, destination) -> task-capture-regions scopes owner destination regions; None -> False in
++    let escape = require-task lifetime sp "region escape: a task capture does not outlive the destination scope" in
++    let failure = first-task-error (task-trace-error scope-value) (first-task-error (task-trace-error inside) escape) in
++    TaskTrace failure (task-trace-regions inside) True
++  task-call-trace :: TypingContext -> List TaskLocal -> List UType -> Span -> UType -> CoreTerm -> CoreTerm -> TaskTrace
++  task-call-trace context env scopes sp result f x = case task-forwarded-scope context f of
++    Some token -> task-spawn-trace context env scopes sp token x
++    None -> let function = task-trace context env scopes False f in
++      let input = task-trace context env scopes False x in
++      task-result-trace context result (TaskTrace (first-task-error (task-trace-error function) (task-trace-error input))
++        (task-trace-regions function <> task-trace-regions input <> task-regions (core-type x))
++        (task-trace-shared function && task-trace-shared input && task-shareable context Nil 64 (core-type x)))
+   task-argument-values :: CoreTerm -> List CoreTerm
+   task-argument-values terms = case terms of CArgumentsEnd sp -> Nil; CArgument sp first rest -> Cons first (task-argument-values rest); other -> Nil
+   task-alternatives-trace :: TypingContext -> List TaskLocal -> List UType -> Bool -> TaskTrace -> CoreTerm -> TaskTrace
+@@ -530,10 +569,16 @@
+     CAlternativesEnd sp -> TaskTrace None Nil True
+     CAlternative sp p body rest -> task-traces-merge (task-trace context (task-pattern-env p (task-trace-regions input) (task-trace-shared input) env) scopes consuming body) (task-alternatives-trace context env scopes consuming input rest)
+     other -> TaskTrace (Some (Span 0 0 1 1, "malformed task case alternatives")) Nil False
+-  task-code-present :: CoreTerm -> Bool
+-  task-code-present term = task-scoped-type (core-type term) || (case term of CScope sp ty region evidence callback -> True; CSpawn sp ty token callback -> True; CJoin sp ty token handles -> True; other -> task-code-list (term-children term))
+-  task-code-list :: List CoreTerm -> Bool
+-  task-code-list terms = case terms of Nil -> False; Cons first rest -> task-code-present first || task-code-list rest
++  task-code-present :: TypingContext -> CoreTerm -> Bool
++  task-code-present context term = task-scoped-type (core-type term) || (case term of
++    CScope sp ty region evidence callback -> True
++    CSpawn sp ty token callback -> True
++    CJoin sp ty token handles -> True
++    CUse sp ty name role actuals -> task-reference-forwarder context term || task-code-list context (term-children term)
++    CQualifiedUse sp ty name role actuals evidence -> task-reference-forwarder context term || task-code-list context (term-children term)
++    other -> task-code-list context (term-children term))
++  task-code-list :: TypingContext -> List CoreTerm -> Bool
++  task-code-list context terms = case terms of Nil -> False; Cons first rest -> task-code-present context first || task-code-list context rest
+   task-pattern-error :: TypingContext -> List TaskLocal -> Span -> List CorePattern -> CoreTerm -> Option (Span, String)
+   task-pattern-error context env sp patterns body = case patterns of
+     Nil -> task-trace-error (task-trace context env Nil True body)
+@@ -541,12 +586,13 @@
+   task-definition-safe :: TypingContext -> CoreDefinition -> Bool
+   task-definition-safe context d = case task-definition-error context d of None -> True; Some error -> False
+   task-definition-error :: TypingContext -> CoreDefinition -> Option (Span, String)
+-  task-definition-error context d = task-clauses-error context (opening-value-patterns (Span 0 0 1 1) (core-openings d)) (core-clauses d)
++  task-definition-error context d = if context-task-forwarder context (core-name d) && task-source-forwarder d then None
++    else task-clauses-error context (opening-value-patterns (Span 0 0 1 1) (core-openings d)) (core-clauses d)
+   task-clauses-error :: TypingContext -> List CorePattern -> List CoreClause -> Option (Span, String)
+   task-clauses-error context prefix clauses = case clauses of
+     Nil -> None
+     Cons (MkCoreClause sp patterns body) rest -> let bound = prefix <> patterns in
+-      let failure = if task-code-present body || task-patterns-present bound then task-pattern-error context Nil sp bound body else None in
++      let failure = if task-code-present context body || task-patterns-present bound then task-pattern-error context Nil sp bound body else None in
+       case failure of Some error -> failure; None -> task-clauses-error context prefix rest
+   task-patterns-present :: List CorePattern -> Bool
+   task-patterns-present patterns = case patterns of Nil -> False; Cons p rest -> task-scoped-type (pattern-type p) || task-patterns-present rest
+@@ -659,7 +705,7 @@
+     Nil -> True
+     Cons (MkCoreClause sp patterns body) rest -> clause-typed context scope (with-guarded-bindings (context-guarded-bodies context) (with-checked-body-bindings (context-body-context context) (make-proof-scope values Nil))) expected empty-row patterns body && clauses-typed-with context scope values expected rest
+   typing-definition-closed :: TypingContext -> CoreDefinition -> Bool
+-  typing-definition-closed context definition = (case context of CheckedTypingContext kinds globals effects datas -> global-definition-closed globals definition)
++  typing-definition-closed context definition = (case context of CheckedTypingContext kinds globals effects datas forwarders -> global-definition-closed globals definition)
+     && core-definition-checked-contracts-closed (context-body-context context) (context-guarded-bodies context) definition
+     && task-definition-safe context definition
+     && (case openings-scope context empty-type-scope (core-openings definition) of
+--- a/bootstrap/Bootstrap.Export.cinch
++++ b/bootstrap/Bootstrap.Export.cinch
+@@ -7,6 +7,7 @@
+   import Bootstrap.Ast (Program, Module, Decl, module-decls, program-modules, DClass, DInstance, DForeign, DRefine, DRecord, DEffect, source-clauses-document)
+   import Bootstrap.Infer (Elaboration, elaboration-bindings, elaboration-core, elaboration-data, elaboration-contexts, elaboration-classes, elaboration-instances, elaboration-declarations, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-body-binding, checked-foreign-plan, source-class-default-symbol, source-class-default-clauses)
+   import Bootstrap.Core (CoreData, CoreConstructor, CoreDefinition, core-data-name, core-data-params, core-data-constructors, core-constructor-name, core-constructor-scheme, core-name, core-scheme, core-method-total-function, core-definition-closed)
++  import Bootstrap.Typing (task-source-forwarder, task-forwarder-type)
+   import Bootstrap.Instance
+   import Bootstrap.Type
+   import Bootstrap.Total (TotalFunction, total-identity, total-function-document, total-function-equal, total-parameters, total-result)
+@@ -174,7 +175,9 @@
+     else if same (checked-role binding) "function" || same (checked-role binding) "value" || same (checked-role binding) "intrinsic" || same (checked-role binding) "instance" || same (checked-role binding) "implicit-instance" then
+       let scheme = checked-scheme binding in
+       let arity = interface-value-arity scheme in
+-      if row-quantified (scheme-params scheme) then opaque-value-row name symbol binding else
++      if task-forwarder-type (scheme-body scheme) && (case default-definition symbol (elaboration-core typed) of Some definition -> task-source-forwarder definition; None -> False) then
++        Err (string-concat "a task forwarding helper requires a portable checked transfer contract to be exported: " name)
++      else if row-quantified (scheme-params scheme) then opaque-value-row name symbol binding else
+       case (export-global symbol, resolved-value-scheme typed interfaces symbol scheme, export-display-scheme scheme) of
+         (Ok identity, Ok resolved, Ok spelling) -> Ok (JObj "name" (JStr name)
+           (JObj "symbol" (JStr identity) (JObj "scheme" (JStr spelling)
