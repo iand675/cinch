@@ -40,6 +40,18 @@ interface difference. All 21 tests in the four affected Rust targets
 passed across the original run and an exact replay of the law target.
 See [the Rust contract receipt](../bootstrap/current-native-numeric-and-class-method-contract-results.json).
 
+The schema 10 Stage1 compiler matched the original Core, Ordering, and
+Functor interfaces. The unchanged replacement test now reaches
+Applicative. A separate diagnostic run isolated five value spellings that
+differed while their checked schemes agreed. The other Algebra checks found
+missing support for division and an early dependency on the Boolean facade.
+
+The combined law, interface and staging snapshot passed the pinned Rust
+seed's source check on all 46 modules. Its normal Git-pinned library
+reproduced all 55 interfaces and the development object byte for byte.
+The combined self-host chain is running.
+See [the audited inputs and Stage1 results](../bootstrap/current-schema10-stage1-and-integrated-input-results.json).
+
 The staged declaration pipeline checked and emitted a generated `Nat` value
 through typed IR. The linked program returned 0 with zero leaks. The unchanged
 array input refuses `arrayReplicate` at its original source location.

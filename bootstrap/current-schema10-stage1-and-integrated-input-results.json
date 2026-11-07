@@ -1,0 +1,59 @@
+{
+  "applicative_diagnostic": {
+    "different_fields": [
+      "exports.values[].scheme"
+    ],
+    "matching_checked_schemes": true,
+    "original_source_sha256": "430133dda538b4758b3f4c24dc2b0ceb162a3573a44b50a596a7b3e2696ca18a",
+    "probe_source_sha256": "d807f34ccf1bf84fc2c0b1b87fb8eea2cb410914bf8673a745f33e4aee83a404",
+    "scope": "Explicit List, Nil and Cons from the defining Data.Core dependency",
+    "value_names": [
+      "ap",
+      "replicate-m",
+      "unless",
+      "void",
+      "when"
+    ]
+  },
+  "combined_candidate": {
+    "compiler_modules": 46,
+    "compiler_source_sha256": "b59c4893c4214d1c94c624bf9ba3f9e99ee7eb9b9568c1f092b20e5080967b38",
+    "library_interfaces": 55,
+    "library_metadata_sha256": "5239a271b31dd64e02664ea333b33b91e81972f538d173f445c8f333ae5f0f00",
+    "library_object_sha256": "dd6688205f4ae4e1356be594ac4d7c6cb462842ca373ad5fd163b9e265f460bd",
+    "library_roots_sha256": "8cc976d260deaa47ff6d3510194ad6f63a4b15963d4464fce6e6565b470b89c8",
+    "native_source_sha256": "b938d9c27df7255c15067e1371adb293529d7b1682b9809ec4539caf15497ebf",
+    "production_revision": "201d8d8ff68149ecfc3845569850e9078a96c419",
+    "provider_pin": "ec51712e43d5e0223dc9c7c71d427ee9761e98f2",
+    "seed_sha256": "746ceb2b78f8ea3343b02a6020813f22b4fe7146425cf47c737c5cffd5ca6265",
+    "source_admission": "passed"
+  },
+  "full_goal_complete": false,
+  "stage1": {
+    "compiler_sha256": "b6a74447c1d6f11b86681a625e4bbed473b1bfc88f21f0def7baef9ef42616ca",
+    "compiler_source_sha256": "7779280734c485942b9fe5c009c686f0719c8b3bcad7e224dccd4c32c7690f8c",
+    "matching_interfaces": [
+      "Data.Core",
+      "Data.Ordering",
+      "Category.Functor"
+    ],
+    "original_replacement_log_sha256": "b618c389b0478fc0ed99a16caa6786d310de6e6babbb4a15b0fecd1b272e7337",
+    "original_replacement_status": "failed",
+    "remaining": [
+      {
+        "diagnostic": "bootstrap.interfaces: Category.Alternative: stale interface dependency: Category.Applicative",
+        "name": "Category.Applicative"
+      },
+      {
+        "diagnostic": "bootstrap.check:101:18: operator needs dictionary or NonZero proof elaboration\nbootstrap.check:104:25: type mismatch: expected Int, found Nat\n",
+        "name": "Algebra.Semigroup"
+      },
+      {
+        "diagnostic": "bootstrap.resolve:116:23: name is not in scope: and\nbootstrap.resolve:129:23: name is not in scope: or\n",
+        "name": "Algebra.Monoid"
+      }
+    ]
+  },
+  "status": "audited-schema10-stage1-parity-and-integrated-inputs",
+  "verified_at": "2026-11-07T12:40:43.615946+00:00"
+}

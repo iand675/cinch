@@ -371,6 +371,7 @@ def build_checklist(root, cfg, previous=None):
     native_typed_law = read(cfg.get('nativeTypedLawSampling'))
     native_typed_law_proof = read(root/'bootstrap/current-native-mathematical-law-sampling-results.json')
     native_numeric_method_proof = read(root/'bootstrap/current-native-numeric-and-class-method-contract-results.json')
+    schema10_integrated_proof = read(root/'bootstrap/current-schema10-stage1-and-integrated-input-results.json')
     portable_law = read(cfg.get('portableLawCinch'))
     family_replay = read(cfg.get('arrowFamilyReplay'))
     gaps=[
@@ -700,6 +701,25 @@ def build_checklist(root, cfg, previous=None):
         active.append(dict(title='Schema 10: check all 44 compiler modules with the pinned Rust seed', status=status,
             phase=status.replace('-', ' '), passed=int(status == 'passed'), failed=int(status == 'failed'), total=1,
             source=typed_admission['compiler_source_sha256']))
+    if schema10_integrated_proof.get('status') == 'audited-schema10-stage1-parity-and-integrated-inputs':
+        proven = schema10_integrated_proof['combined_candidate']
+        active.append(dict(title='Schema 10: combined source check and Git-pinned library', status='passed',
+            phase=f"The pinned seed accepted all {proven['compiler_modules']} modules and the normal library build matched all {proven['library_interfaces']} interfaces",
+            passed=2, failed=0, total=2, source=proven['compiler_source_sha256'],
+            evidence=link('bootstrap/current-schema10-stage1-and-integrated-input-results.json')))
+    schema10_production = read(cfg.get('schema10ProductionChain'))
+    if schema10_production:
+        status = schema10_production['status']
+        active.append(dict(title='Schema 10: combined self-host chain', status=status, phase=status.replace('-', ' '),
+            passed=sum(row.get('status') == 'passed' for row in schema10_production.get('stages', [])),
+            failed=int(status.startswith('failed')), total=4, source=schema10_production['compiler_source_sha256']))
+    remaining_family = read(cfg.get('schema10RemainingFamilyValidation'))
+    if remaining_family:
+        rows = remaining_family.get('rows', [])
+        active.append(dict(title='Schema 10: division and canonical value schemes', status=remaining_family['status'],
+            phase=remaining_family.get('phase') or remaining_family['status'].replace('-', ' '),
+            passed=sum(row.get('status') == 'passed' for row in rows),
+            failed=sum(row.get('status') == 'failed' for row in rows), total=2, source=remaining_family['compiler_source_sha256']))
     if combined_arrays:
         active.append(dict(title='Schema 9 Stage1: original arrays with staging and CopyOut', status='passed',
             phase='Fourteen tests passed in the full run and the remaining test passed with the matching runtime archive',
