@@ -19271,7 +19271,7 @@
         "passed": 0,
         "failed": 0,
         "total": 2,
-        "source": "ec9636b574b952667895503822d2d797f58b0def71803ed721bfee15b4682abd"
+        "source": "7cc5f684cd40c0c19b301ae6e24c2fe1680a4b4deefbbf7fe27536422a26df98"
       },
       {
         "title": "Probe the original Stage2 source with faster diagnostics",
@@ -19465,5 +19465,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T15:02:20.266326+00:00"
+  "updatedAt": "2026-11-07T15:04:42.378956+00:00"
 }
