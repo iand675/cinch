@@ -19364,9 +19364,9 @@
       {
         "title": "Replay original Foldable and Category with the compiled library",
         "status": "running",
-        "phase": "round 1 lib_foldable",
+        "phase": "round 1 lib_category",
         "passed": 0,
-        "failed": 0,
+        "failed": 1,
         "total": 2,
         "unit": "original test targets",
         "source": "12ad4294369122399c47d9c40ada62259b507ff23e1c34dcb4aacc7ba812dc73"
@@ -19782,5 +19782,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T22:39:50.620754+00:00"
+  "updatedAt": "2026-11-07T22:49:33.945943+00:00"
 }
