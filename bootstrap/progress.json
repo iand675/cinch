@@ -19258,8 +19258,8 @@
       {
         "title": "Check erased Eq witnesses in Core and the source pipeline",
         "status": "running",
-        "phase": "bootstrap_proof_terms",
-        "passed": 0,
+        "phase": "bootstrap_pipeline",
+        "passed": 1,
         "failed": 0,
         "total": 2,
         "source": "27b293abb19983b96b74a2fed57fcdc298e93989dd2fd7958a73f7f0cf4384aa"
@@ -19446,5 +19446,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T14:53:51.643538+00:00"
+  "updatedAt": "2026-11-07T14:54:53.606016+00:00"
 }
