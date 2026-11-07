@@ -19342,9 +19342,9 @@
       },
       {
         "title": "Build and test the missing library specializations",
-        "status": "running",
+        "status": "passed-both-consumer-targets",
         "phase": "lib_foldable",
-        "passed": 1,
+        "passed": 2,
         "failed": 0,
         "total": 2
       },
@@ -19379,8 +19379,8 @@
       },
       {
         "title": "Evaluate the original Const law and two controls",
-        "status": "waiting-worker",
-        "phase": "Waiting to build the Stage1 law sampler and compare the pinned interface",
+        "status": "running",
+        "phase": "build all 46 compiler modules and smoke-test Stage1",
         "passed": 0,
         "failed": 0,
         "total": 3,
@@ -19448,8 +19448,8 @@
       },
       {
         "title": "Run every Rust compiler target on the combined fixes",
-        "status": "waiting-worker",
-        "phase": "bootstrap_abstract_nonzero_methods",
+        "status": "running",
+        "phase": "bootstrap_abstract_nonzero_types",
         "passed": 7,
         "failed": 0,
         "total": 235,
@@ -19709,5 +19709,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T19:17:09.068110+00:00"
+  "updatedAt": "2026-11-07T19:18:11.275482+00:00"
 }
