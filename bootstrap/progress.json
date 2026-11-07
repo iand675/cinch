@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "103 of 235 complete groups passed; 1 running, 0 failed and 131 pending.Every group includes ignored tests. State: running.",
+      "detail": "105 of 235 complete groups passed; 1 running, 0 failed and 129 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -494,7 +494,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "103 of 235 complete groups passed; 1 running, 0 failed and 131 pending."
+      "detail": "105 of 235 complete groups passed; 1 running, 0 failed and 129 pending."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -790,10 +790,10 @@
         "unit": "targets",
         "total": 235,
         "counts": {
-          "verified": 111,
+          "verified": 113,
           "blocked": 0,
           "running": 1,
-          "pending": 123,
+          "pending": 121,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -8752,17 +8752,17 @@
           {
             "id": "native:prim",
             "title": "prim",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/prim.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "startedAt": "2026-11-07T00:29:53.704129+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T00:30:25.214390+00:00",
+              "exitCode": 0,
+              "logSha256": "f65a2ee756dcfee14792738d658dbb912a6210411df727f3cb9d68f180415418",
               "cases": [
                 {
                   "name": "assumed_prim_identity_is_the_body_hash",
@@ -8770,7 +8770,67 @@
                 },
                 {
                   "name": "capability_scoped_selection_is_manifest_only",
-                  "status": "running"
+                  "status": "passed"
+                },
+                {
+                  "name": "clr_and_jvm_body_slots_are_reserved",
+                  "status": "passed"
+                },
+                {
+                  "name": "conditional_only_prims_reject_naming_the_missing_platform",
+                  "status": "passed"
+                },
+                {
+                  "name": "containment_rejects_a_pure_row_with_stores_even_unsafe",
+                  "status": "passed"
+                },
+                {
+                  "name": "effectful_body_fails_containment_naming_effects",
+                  "status": "passed"
+                },
+                {
+                  "name": "effectful_prim_calls_invalidate_per_row",
+                  "status": "passed"
+                },
+                {
+                  "name": "escaping_body_fails_containment_naming_no_escape",
+                  "status": "passed"
+                },
+                {
+                  "name": "extra_parameters_fail_containment_naming_signature_discipline",
+                  "status": "passed"
+                },
+                {
+                  "name": "intrinsic_families_migrate_onto_prim_bodies",
+                  "status": "passed"
+                },
+                {
+                  "name": "justified_prim_records_its_law_identity",
+                  "status": "passed"
+                },
+                {
+                  "name": "platform_gated_asm_bodies_select_per_arch",
+                  "status": "passed"
+                },
+                {
+                  "name": "prim_with_llvm_and_asm_bodies_checks_and_compiles",
+                  "status": "passed"
+                },
+                {
+                  "name": "pure_prim_calls_leave_evidence_intact_and_carry_memory_none",
+                  "status": "passed"
+                },
+                {
+                  "name": "unsafe_pure_prim_records_its_assumption_and_stays_scan_gated",
+                  "status": "passed"
+                },
+                {
+                  "name": "unverifiable_bodies_without_unsafe_are_rejected",
+                  "status": "passed"
+                },
+                {
+                  "name": "unwinding_body_fails_containment_naming_no_unwind",
+                  "status": "passed"
                 }
               ]
             },
@@ -8779,17 +8839,17 @@
           {
             "id": "native:primitive_length_identity",
             "title": "primitive_length_identity",
-            "state": "pending",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/primitive_length_identity.rs",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:23:25.326019+00:00",
-              "finishedAt": "2026-11-06T14:23:34.922178+00:00",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T00:30:25.216509+00:00",
+              "finishedAt": "2026-11-07T00:30:35.856289+00:00",
               "exitCode": 0,
-              "logSha256": "910556ebd0d8f855d38abc536f03226681138a6e4478a2566a29b5809a92ef0e",
+              "logSha256": "b273215dec66110d184131b93ece455849f3abe32d3540da6c08bb205ca5f9a9",
               "cases": [
                 {
                   "name": "allocation_promise_agrees_with_an_actual_primitive_alias",
@@ -8834,17 +8894,17 @@
           {
             "id": "native:primitives",
             "title": "primitives",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/primitives.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:23:34.931227+00:00",
-              "finishedAt": "2026-11-06T14:24:40.868052+00:00",
-              "exitCode": 0,
-              "logSha256": "e086ab76f12f7ba80566bebc20579be2a849a35816ba5d3d1c07e29c25e713fa",
+              "status": "running",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T00:30:35.858489+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "bignum_arithmetic_through_the_language",
@@ -8904,95 +8964,7 @@
                 },
                 {
                   "name": "float_nan_behavior",
-                  "status": "passed"
-                },
-                {
-                  "name": "int_and_nat_comparison_instances",
-                  "status": "passed"
-                },
-                {
-                  "name": "int_beyond_i64_computed_and_compared",
-                  "status": "passed"
-                },
-                {
-                  "name": "literal_patterns_are_range_checked",
-                  "status": "passed"
-                },
-                {
-                  "name": "literal_patterns_at_nat_and_int_fall_through",
-                  "status": "passed"
-                },
-                {
-                  "name": "literal_range_checking",
-                  "status": "passed"
-                },
-                {
-                  "name": "literal_ranges_at_machine_and_mathematical_types",
-                  "status": "passed"
-                },
-                {
-                  "name": "min_and_max_bounds",
-                  "status": "passed"
-                },
-                {
-                  "name": "minimum_maximum_propagate_nan",
-                  "status": "passed"
-                },
-                {
-                  "name": "nat_subtraction_requires_its_operands_in_order",
-                  "status": "passed"
-                },
-                {
-                  "name": "neg_and_conversions_at_int",
-                  "status": "passed"
-                },
-                {
-                  "name": "negative_nat_literal_is_rejected",
-                  "status": "passed"
-                },
-                {
-                  "name": "rejects_arith_on_machine_integers",
-                  "status": "passed"
-                },
-                {
-                  "name": "rejects_eq_and_ord_on_floats",
-                  "status": "passed"
-                },
-                {
-                  "name": "rejects_neg_on_non_literal_machine_numbers",
-                  "status": "passed"
-                },
-                {
-                  "name": "retired_int_family_no_longer_resolves",
-                  "status": "passed"
-                },
-                {
-                  "name": "rotates_are_total",
-                  "status": "passed"
-                },
-                {
-                  "name": "saturating_clamps_to_bounds",
-                  "status": "passed"
-                },
-                {
-                  "name": "shifts_distinguish_invalid_counts",
-                  "status": "passed"
-                },
-                {
-                  "name": "sub_word_canonicalization",
-                  "status": "passed"
-                },
-                {
-                  "name": "total_order_orders_neg_zero_and_nan",
-                  "status": "passed"
-                },
-                {
-                  "name": "u32_to_char_rejects_non_scalars",
-                  "status": "passed"
-                },
-                {
-                  "name": "unconstrained_literal_is_an_error",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -18332,8 +18304,8 @@
       {
         "title": "Cinch refined containers: complete groups",
         "status": "running",
-        "phase": "bootstrap_refinement_constructors",
-        "passed": 3,
+        "phase": "bootstrap_infer",
+        "passed": 4,
         "failed": 0,
         "total": 8,
         "source": "a02936ace8ad72c00dcc957d92c3954422a5d2223d8e86c42a9d159061426756",
@@ -18393,8 +18365,8 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "prim",
-        "passed": 103,
+        "phase": "primitives",
+        "passed": 105,
         "failed": 0,
         "total": 235,
         "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
@@ -18412,10 +18384,10 @@
       }
     ],
     "counts": {
-      "verified": 283,
+      "verified": 285,
       "blocked": 4,
       "running": 6,
-      "pending": 162,
+      "pending": 160,
       "recheck": 212
     },
     "total": 667,
@@ -18424,5 +18396,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T00:30:00.373384+00:00"
+  "updatedAt": "2026-11-07T00:31:02.558383+00:00"
 }
