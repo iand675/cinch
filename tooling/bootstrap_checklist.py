@@ -116,6 +116,13 @@ def build_checklist(root, cfg, previous=None):
         chain = strict_audit
     elif chain is not repaired_audit and schema10_audit.get('status') == 'passed-production-schema10-bootstrap-chain':
         chain = schema10_audit
+    published_audit_path = 'bootstrap/current-schema10-published-bootstrap-results.json'
+    published_audit = read(root / published_audit_path)
+    if (published_audit.get('status') == 'passed-published-schema10-bootstrap-chain'
+            and published_audit.get('compiler_source_sha256') == compiler
+            and published_audit.get('native_source_sha256') == native
+            and published_audit.get('provider_pin') == read(root / 'bootstrap/library-provider.lock.json')):
+        chain = published_audit
     earlier_full = read(cfg.get('previousNative')) or full
     earlier_native = {r['name']: r for r in earlier_full.get('rows', [])}
     old_native = {r['name']: r for r in full.get('rows', [])}
@@ -302,7 +309,7 @@ def build_checklist(root, cfg, previous=None):
     acceptance=[]
     for i,(title,requirement)in enumerate(acceptance_text,1):
         proven = i < 5 and chain.get('status') in ('passed-bootstrap-chain-only', 'passed-production-schema9-bootstrap-chain',
-                                                  'passed-production-schema10-bootstrap-chain')
+                                                  'passed-production-schema10-bootstrap-chain', 'passed-published-schema10-bootstrap-chain')
         state = 'verified' if chain_matches and proven else 'recheck' if proven else 'pending'
         if state == 'verified':
             detail = 'The independent audit passed for the published compiler.'
@@ -312,7 +319,9 @@ def build_checklist(root, cfg, previous=None):
             detail = 'Complete matching verification is pending.'
         receipt = 'design/self-hosting.md#acceptance'
         if proven:
-            if chain is strict_audit:
+            if chain is published_audit:
+                receipt = published_audit_path
+            elif chain is strict_audit:
                 receipt = strict_audit_path
             elif chain is repaired_audit:
                 receipt = repaired_audit_path

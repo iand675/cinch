@@ -4,7 +4,7 @@ Schema 10 is the compiled-interface format on `main`. Rust, Cinch and the
 bootstrap verifier require it. The pinned library producer rebuilt all 55
 library interfaces. Rebuild old compiled interfaces and their dependent
 objects from source. The stricter Stage1 passed the original library-family
-checks and the format cutover checks. The current combined source passed
+checks and the format cutover checks. The audited named-proof snapshot passed
 the independent Stage2 and Stage3 agreement audit and the changed-source
 control. The complete matching test sweep remains open.
 See [the cutover checks](../bootstrap/current-schema10-family-and-cutover-results.json),
@@ -51,7 +51,8 @@ checked interfaces and the refusal. The audited ladder used the preceding
 pinned provider and matched Stage2 and Stage3 on the executable, LLVM IR and
 all 46 compiler interfaces. The separate consumer and changed-source
 rebuild passed. Rechecking with the new producer and completing the
-full suite remain open.
+full suite remain open. The exact published combination has started a fresh
+four-stage rebuild with the corrected producer.
 See [the quantified law audit](../bootstrap/current-schema10-quantified-law-bootstrap-results.json).
 
 Set `CINCH_TEST_INVOCATIONS` to an evidence directory when running the
