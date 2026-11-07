@@ -18685,10 +18685,10 @@
       },
       {
         "title": "Cinch copyOut: pipeline and runtime IR",
-        "status": "running",
+        "status": "failed",
         "phase": "bootstrap_pipeline",
         "passed": 0,
-        "failed": 0,
+        "failed": 1,
         "total": 2,
         "source": "a5c263abb412b0a509ed690506633f47d4a6da8e0716736030c6d6f7039e704c"
       },
@@ -18733,5 +18733,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T08:39:32.452717+00:00"
+  "updatedAt": "2026-11-07T08:40:34.428119+00:00"
 }
