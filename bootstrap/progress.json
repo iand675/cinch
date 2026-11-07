@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "144 of 235 complete groups passed; 2 running, 0 failed and 89 pending.Every group includes ignored tests. State: running.",
+      "detail": "147 of 235 complete groups passed; 2 running, 0 failed and 86 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -499,7 +499,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "144 of 235 complete groups passed; 2 running, 0 failed and 89 pending."
+      "detail": "147 of 235 complete groups passed; 2 running, 0 failed and 86 pending."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -795,10 +795,10 @@
         "unit": "targets",
         "total": 235,
         "counts": {
-          "verified": 145,
+          "verified": 148,
           "blocked": 0,
           "running": 2,
-          "pending": 88,
+          "pending": 85,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -1100,21 +1100,21 @@
           {
             "id": "native:bootstrap_abstract_nonzero_methods",
             "title": "bootstrap_abstract_nonzero_methods",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_abstract_nonzero_methods.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:44:33.440050+00:00",
-              "finishedAt": "2026-11-06T14:57:41.267739+00:00",
-              "exitCode": 0,
-              "logSha256": "78f0392136e2afa62d983446cdb2fd25411b4722a0f3fd4487541d9f6a0156bf",
+              "status": "running",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T00:45:37.171940+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "real_div_and_rem_contracts_keep_abstract_carriers_until_specialization",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -11181,6 +11181,110 @@
                 },
                 {
                   "name": "native_token_capture_keeps_private_type_and_constructor_authority",
+                  "status": "passed"
+                },
+                {
+                  "name": "native_token_capture_nested_arguments_keep_the_sources_imported_fixity",
+                  "status": "passed"
+                },
+                {
+                  "name": "native_token_capture_provider_pure_ignores_insertion_site_shadowing",
+                  "status": "passed"
+                },
+                {
+                  "name": "native_token_capture_retains_type_directed_constructor_alternatives",
+                  "status": "passed"
+                },
+                {
+                  "name": "nullary_native_macros_keep_definition_scope_and_unary_empty_input",
+                  "status": "passed"
+                },
+                {
+                  "name": "ordinary_recursive_components_cannot_hide_a_staging_cycle",
+                  "status": "passed"
+                },
+                {
+                  "name": "private_type_annotations_stay_with_their_defining_module",
+                  "status": "passed"
+                },
+                {
+                  "name": "qualified_comparison_facts_follow_the_resolved_method_after_renaming",
+                  "status": "passed"
+                },
+                {
+                  "name": "qualified_effect_helpers_ignore_unrelated_caller_bindings",
+                  "status": "passed"
+                },
+                {
+                  "name": "quoted_handler_return_patterns_bind_their_own_bodies",
+                  "status": "passed"
+                },
+                {
+                  "name": "quoted_private_constructors_work_in_terms_and_patterns",
+                  "status": "passed"
+                },
+                {
+                  "name": "recursive_groups_prebind_all_names_and_pair_their_annotations",
+                  "status": "passed"
+                },
+                {
+                  "name": "same_spelled_qualified_user_operators_do_not_grant_arithmetic_facts",
+                  "status": "passed"
+                },
+                {
+                  "name": "scoped_syntax_capture_keeps_outer_binding_under_same_spelled_inner_binder",
+                  "status": "passed"
+                },
+                {
+                  "name": "scoped_syntax_captured_index_does_not_use_an_inner_values_facts",
+                  "status": "passed"
+                },
+                {
+                  "name": "scoped_syntax_deliberate_binding_uses_the_new_scope",
+                  "status": "passed"
+                },
+                {
+                  "name": "scoped_syntax_out_of_scope_handle_cannot_fall_back_to_a_spelling",
+                  "status": "passed"
+                },
+                {
+                  "name": "scoped_syntax_parsed_linear_captures_keep_usage_obligations",
+                  "status": "passed"
+                },
+                {
+                  "name": "scoped_syntax_parsing_respects_lexical_binders_and_sibling_scopes",
+                  "status": "passed"
+                },
+                {
+                  "name": "scoped_syntax_reintroducing_one_handle_as_two_binders_is_refused",
+                  "status": "passed"
+                },
+                {
+                  "name": "scoped_syntax_template_preparation_remaps_owned_binders_and_preserves_free_handles",
+                  "status": "passed"
+                },
+                {
+                  "name": "scoped_syntax_value_handles_are_not_reinterpreted_as_type_variables",
+                  "status": "passed"
+                },
+                {
+                  "name": "scoped_type_indices_check_kinds_and_expired_handles",
+                  "status": "passed"
+                },
+                {
+                  "name": "scoped_type_indices_keep_their_value_binding_after_shadowing",
+                  "status": "passed"
+                },
+                {
+                  "name": "scoped_type_indices_require_the_declared_refined_kind",
+                  "status": "passed"
+                },
+                {
+                  "name": "sharing_a_source_file_does_not_grant_macro_private_access",
+                  "status": "passed"
+                },
+                {
+                  "name": "spliced_syntax_keeps_native_linear_usage_checks",
                   "status": "running"
                 }
               ]
@@ -11528,21 +11632,97 @@
           {
             "id": "native:temporal",
             "title": "temporal",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/temporal.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "startedAt": "2026-11-07T00:44:41.284009+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T00:44:56.233719+00:00",
+              "exitCode": 0,
+              "logSha256": "fd49d89b33d6609b901a962d4ca925ea818486d629fe271331ba6e4681b00a25",
               "cases": [
                 {
                   "name": "contract_facts_hash_both_ways",
-                  "status": "running"
+                  "status": "passed"
+                },
+                {
+                  "name": "contract_formula_operator_matches_the_kind",
+                  "status": "passed"
+                },
+                {
+                  "name": "contract_names_no_definition",
+                  "status": "passed"
+                },
+                {
+                  "name": "liveness_bounded_claim_needs_a_spawn_scope",
+                  "status": "passed"
+                },
+                {
+                  "name": "liveness_cleanup_runs_within_the_spawn_scope",
+                  "status": "passed"
+                },
+                {
+                  "name": "liveness_join_completes_within_the_spawn_scope",
+                  "status": "passed"
+                },
+                {
+                  "name": "liveness_must_state_its_assumptions",
+                  "status": "passed"
+                },
+                {
+                  "name": "liveness_unbounded_claim_is_refused_naming_the_reason",
+                  "status": "passed"
+                },
+                {
+                  "name": "manifest_records_the_temporal_contracts_with_assumptions",
+                  "status": "passed"
+                },
+                {
+                  "name": "recurrence_is_bounded_over_structural_recursion",
+                  "status": "passed"
+                },
+                {
+                  "name": "recurrence_without_a_structural_bound_is_refused",
+                  "status": "passed"
+                },
+                {
+                  "name": "recurrence_without_a_witness_rejects_naming_the_call",
+                  "status": "passed"
+                },
+                {
+                  "name": "report_rows_name_the_verified_contracts",
+                  "status": "passed"
+                },
+                {
+                  "name": "safety_formula_must_read_borrowed_state",
+                  "status": "passed"
+                },
+                {
+                  "name": "safety_invariant_holds_across_a_mutating_loop",
+                  "status": "passed"
+                },
+                {
+                  "name": "safety_undecidable_step_is_refused_never_trusted",
+                  "status": "passed"
+                },
+                {
+                  "name": "safety_violating_write_rejects_naming_the_step",
+                  "status": "passed"
+                },
+                {
+                  "name": "safety_without_establishment_is_rejected_naming_the_fix",
+                  "status": "passed"
+                },
+                {
+                  "name": "stability_facts_die_on_a_touching_write",
+                  "status": "passed"
+                },
+                {
+                  "name": "stability_facts_survive_non_touching_transitions",
+                  "status": "passed"
                 }
               ]
             },
@@ -11551,17 +11731,17 @@
           {
             "id": "native:total_bodies",
             "title": "total_bodies",
-            "state": "pending",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/total_bodies.rs",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:43:55.329893+00:00",
-              "finishedAt": "2026-11-06T14:44:15.885620+00:00",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T00:44:56.235907+00:00",
+              "finishedAt": "2026-11-07T00:45:18.692188+00:00",
               "exitCode": 0,
-              "logSha256": "a27bf1e5942e18ecaacacb2904be842f0160a6fe93b05ab7f980f169ef50562b",
+              "logSha256": "88250618f751bdb4b64ded776c67e84422de264796a4788bc0876382c8b0510c",
               "cases": [
                 {
                   "name": "a_caller_retypes_changed_body_contracts_and_loses_cyclic_authority",
@@ -11602,17 +11782,17 @@
           {
             "id": "native:wasm",
             "title": "wasm",
-            "state": "pending",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/wasm.rs",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:44:15.894249+00:00",
-              "finishedAt": "2026-11-06T14:44:33.430741+00:00",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T00:45:18.694754+00:00",
+              "finishedAt": "2026-11-07T00:45:37.169213+00:00",
               "exitCode": 0,
-              "logSha256": "023349223d30b2585be7f2736a30fab6c2d9dbdbb8e1a5a36b119fd4e972d08b",
+              "logSha256": "d2fb82e35d31220202ea46ff19a8697272eee26b99085f9616ed57652a6b2252",
               "cases": [
                 {
                   "name": "boundary_error_vocabulary_has_the_documented_shape",
@@ -18347,8 +18527,8 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "temporal",
-        "passed": 144,
+        "phase": "bootstrap_abstract_nonzero_methods",
+        "passed": 147,
         "failed": 0,
         "total": 235,
         "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
@@ -18366,10 +18546,10 @@
       }
     ],
     "counts": {
-      "verified": 317,
+      "verified": 320,
       "blocked": 4,
       "running": 7,
-      "pending": 124,
+      "pending": 121,
       "recheck": 215
     },
     "total": 667,
@@ -18378,5 +18558,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T00:44:43.732734+00:00"
+  "updatedAt": "2026-11-07T00:45:45.996894+00:00"
 }
