@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "status": "passed",
+  "scope": "Evaluate the compiler’s checked Core at compile time",
+  "verified_at": "2026-11-07T10:05:18.018939+00:00",
+  "compiler_source_sha256": "c8d933aad9fad3d77f6e3bf089ee19cb048dcc3bce81118331f7a34958472308",
+  "source_snapshot_sha256": "925847109f87ba2d61f4343a7b131a6acf04553cbd8096f471d326d0ef24e8c5",
+  "native_rlib_sha256": "2366d4c0b580131ea5b04ff3a26780c6ffb7a4b01efffa17ae5aad86446765ad",
+  "test": {
+    "exit_code": 0,
+    "log_sha256": "ec6ecfc8f6e9aba1ca7eb563222c8109d16bd7dfcb3f6a05ed8921d53bbef9ea",
+    "name": "bootstrap_stage_eval",
+    "status": "passed"
+  },
+  "verified_controls": [
+    "returns 42 through a stage function and the selected branch",
+    "refuses the inner runtime array primitive by its checked identity",
+    "enforces a shared compile-time work budget"
+  ],
+  "patch": "staging-evaluation-development.patch",
+  "patch_sha256": "234741cdac67033b65800d31347b2220cbf1d63e60b048319f72d27c9dfda227",
+  "patch_replays_exactly": true,
+  "generated_source_verified": false,
+  "original_arrays_group_verified": false,
+  "full_goal_complete": false
+}

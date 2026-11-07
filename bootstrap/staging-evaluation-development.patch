@@ -1,0 +1,242 @@
+--- /dev/null
++++ b/bootstrap/Bootstrap.StageEval.cinch
+@@ -0,0 +1,187 @@
++-- Evaluate checked compile-time computations with a shared work budget.
++-- The caller supplies a program checked in its compile-time namespace.
++module Bootstrap.StageEval where
++  import Bootstrap.Check (CheckedProgram, checked-elaboration)
++  import Bootstrap.Core
++  import Bootstrap.ExportType (export-global)
++  import Bootstrap.Infer (elaboration-core)
++  import Bootstrap.Report (Diagnostic, MkDiagnostic)
++  import Bootstrap.Total (total-decimal-value)
++  import Bootstrap.Type (UType, UCon, KType, mono, scheme-runtime-arity)
++  import Data.Int (int-add, int-sub, int-mul, int-neg)
++  import Text.Lex (Span)
++
++  export StageValue, StageInteger, StageBoolean, StageString, StageUnit, evaluate-stage
++
++  data StageValue where
++    StageInteger :: Int -> StageValue
++    StageBoolean :: Bool -> StageValue
++    StageString :: String -> StageValue
++    StageUnit :: StageValue
++
++  data StageMatch where
++    Match :: List (Nat, StageValue) -> StageMatch
++    NoMatch :: StageMatch
++    UnavailablePattern :: Span -> StageMatch
++
++  same :: String -> String -> Bool
++  same left right = string-compare left right == 0
++
++  stage-error :: forall a. Span -> String -> Result (List Diagnostic) a
++  stage-error site message = Err [MkDiagnostic "bootstrap.stage" site message]
++
++  definition-for :: String -> List CoreDefinition -> Option CoreDefinition
++  definition-for name definitions = case definitions of
++    Nil -> None
++    Cons definition rest -> if same (core-name definition) name then Some definition else definition-for name rest
++
++  exported-definition :: String -> List CoreDefinition -> Option CoreDefinition
++  exported-definition name definitions = case definitions of
++    Nil -> None
++    Cons definition rest -> case export-global (core-name definition) of
++      Ok identity -> if same identity name then Some definition else exported-definition name rest
++      Err message -> exported-definition name rest
++
++  evaluate-stage :: CheckedProgram -> Span -> String -> Nat -> Result (List Diagnostic) (StageValue, Nat)
++  evaluate-stage checked site name fuel = let definitions = elaboration-core (checked-elaboration checked) in
++    case exported-definition name definitions of
++      Some definition -> evaluate-definition definitions site definition Nil fuel
++      None -> stage-error site (string-concat "missing checked compile-time definition: " name)
++
++  match-stage-pattern :: CorePattern -> StageValue -> List (Nat, StageValue) -> StageMatch
++  match-stage-pattern pattern value locals = case pattern of
++    CPVar site ty id name -> Match (Cons (id, value) locals)
++    CPAs site ty id name nested -> match-stage-pattern nested value (Cons (id, value) locals)
++    CPWild site ty -> Match locals
++    CPInt site ty text -> case (total-decimal-value text, value) of
++      (Some expected, StageInteger actual) -> if expected == actual then Match locals else NoMatch
++      other -> NoMatch
++    CPString site ty text -> case value of
++      StageString actual -> if same text actual then Match locals else NoMatch
++      other -> NoMatch
++    CPConstructor site (UCon carrier KType) name actuals ty (CPDone end) ->
++      if same carrier "Bool" && (same name "True" || same name "False") then (case value of
++        StageBoolean actual -> if actual == same name "True" then Match locals else NoMatch
++        other -> NoMatch)
++      else UnavailablePattern site
++    other -> UnavailablePattern (Span 0 0 0 0)
++
++  match-stage-patterns :: List CorePattern -> List StageValue -> List (Nat, StageValue) -> StageMatch
++  match-stage-patterns patterns values locals = case (patterns, values) of
++    (Nil, Nil) -> Match locals
++    (Cons pattern rest, Cons value more) -> case match-stage-pattern pattern value locals of
++      Match found -> match-stage-patterns rest more found
++      NoMatch -> NoMatch
++      UnavailablePattern site -> UnavailablePattern site
++    other -> NoMatch
++
++  stage-local :: Nat -> List (Nat, StageValue) -> Option StageValue
++  stage-local id locals = case locals of
++    Nil -> None
++    Cons (key, value) rest -> if id == key then Some value else stage-local id rest
++
++  evaluate-definition :: List CoreDefinition -> Span -> CoreDefinition -> List StageValue -> Nat -> Result (List Diagnostic) (StageValue, Nat)
++  evaluate-definition definitions site definition values fuel = case core-givens definition of
++    Nil -> evaluate-clauses definitions site (core-clauses definition) values fuel
++    other -> stage-error site "dictionary arguments are unavailable in compile-time evaluation"
++
++  evaluate-clauses :: List CoreDefinition -> Span -> List CoreClause -> List StageValue -> Nat -> Result (List Diagnostic) (StageValue, Nat)
++  evaluate-clauses definitions site clauses values fuel = if fuel == 0 then stage-error site "compile-time evaluation exhausted its work budget" else
++    case clauses of
++      Nil -> stage-error site "no checked compile-time clause matches this call"
++      Cons (MkCoreClause clause-site patterns body) rest -> case match-stage-patterns patterns values Nil of
++        Match locals -> evaluate-term definitions locals clause-site body (fuel - 1)
++        NoMatch -> evaluate-clauses definitions site rest values (fuel - 1)
++        UnavailablePattern pattern-site -> stage-error pattern-site "pattern is unavailable in compile-time evaluation"
++
++  -- Calls evaluate operands before invoking the checked target. A refused
++  -- inner intrinsic is reported even when the outer call is also unavailable.
++  evaluate-terms :: List CoreDefinition -> List (Nat, StageValue) -> Span -> List CoreTerm -> Nat -> Result (List Diagnostic) (List StageValue, Nat)
++  evaluate-terms definitions locals site arguments fuel = case arguments of
++    Nil -> Ok (Nil, fuel)
++    Cons first rest -> case evaluate-term definitions locals site first fuel of
++      Err errors -> Err errors
++      Ok (value, remaining) -> case evaluate-terms definitions locals site rest remaining of
++        Err errors -> Err errors
++        Ok (values, done) -> Ok (Cons value values, done)
++
++  evaluate-use :: List CoreDefinition -> Span -> UType -> String -> String -> List StageValue -> Nat -> Result (List Diagnostic) (StageValue, Nat)
++  evaluate-use definitions site ty name role values fuel =
++    if same role "intrinsic" || same role "foreign" then
++      if list-length values == scheme-runtime-arity (mono ty) then
++        stage-error site (string-concat-all ["primitive `", name, "` is not available at compile time"])
++      else stage-error site "partial primitive application is unavailable in compile-time evaluation"
++    else if same role "constructor" then (case (ty, values) of
++      (UCon carrier KType, Nil) -> if same carrier "Bool" && (same name "True" || same name "False") then Ok (StageBoolean (same name "True"), fuel)
++        else stage-error site "constructor is unavailable in compile-time evaluation"
++      other -> stage-error site "constructor is unavailable in compile-time evaluation")
++    else case definition-for name definitions of
++      Some definition -> evaluate-definition definitions site definition values fuel
++      None -> stage-error site (string-concat "definition is not available at compile time: " name)
++
++  evaluate-application :: List CoreDefinition -> List (Nat, StageValue) -> Span -> CoreTerm -> List CoreTerm -> Nat -> Result (List Diagnostic) (StageValue, Nat)
++  evaluate-application definitions locals site term arguments fuel = if fuel == 0 then stage-error site "compile-time evaluation exhausted its work budget" else
++    case term of
++      CApply at ty f x -> evaluate-application definitions locals at f (Cons x arguments) (fuel - 1)
++      CUse at ty name role actuals -> case evaluate-terms definitions locals site arguments (fuel - 1) of
++        Err errors -> Err errors
++        Ok (values, remaining) -> evaluate-use definitions at ty name role values remaining
++      other -> stage-error site "indirect application is unavailable in compile-time evaluation"
++
++  primitive-arguments :: CoreTerm -> List CoreTerm
++  primitive-arguments term = case term of
++    CArgument site first rest -> Cons first (primitive-arguments rest)
++    other -> Nil
++
++  evaluate-numeric-primitive :: Span -> String -> Int -> Int -> Nat -> Result (List Diagnostic) (StageValue, Nat)
++  evaluate-numeric-primitive site operation left right fuel =
++    if same operation "+" then Ok (StageInteger (int-add left right), fuel)
++    else if same operation "-" then Ok (StageInteger (int-sub left right), fuel)
++    else if same operation "*" then Ok (StageInteger (int-mul left right), fuel)
++    else if same operation "==" then Ok (StageBoolean (left == right), fuel)
++    else if same operation "/=" then Ok (StageBoolean (left /= right), fuel)
++    else if same operation "<" then Ok (StageBoolean (left < right), fuel)
++    else if same operation "<=" then Ok (StageBoolean (left <= right), fuel)
++    else if same operation ">" then Ok (StageBoolean (left > right), fuel)
++    else if same operation ">=" then Ok (StageBoolean (left >= right), fuel)
++    else stage-error site (string-concat "operation is unavailable in compile-time evaluation: " operation)
++
++  evaluate-primitive :: Span -> String -> List StageValue -> Nat -> Result (List Diagnostic) (StageValue, Nat)
++  evaluate-primitive site operation values fuel = case values of
++    Nil -> if same operation "decision-true" || same operation "decision-false" then Ok (StageBoolean (same operation "decision-true"), fuel)
++      else stage-error site (string-concat "operation is unavailable in compile-time evaluation: " operation)
++    Cons (StageInteger value) Nil -> if same operation "negate" then Ok (StageInteger (int-neg value), fuel)
++      else stage-error site (string-concat "operation is unavailable in compile-time evaluation: " operation)
++    Cons (StageInteger left) (Cons (StageInteger right) Nil) -> evaluate-numeric-primitive site operation left right fuel
++    other -> stage-error site (string-concat "operation is unavailable in compile-time evaluation: " operation)
++
++  evaluate-term :: List CoreDefinition -> List (Nat, StageValue) -> Span -> CoreTerm -> Nat -> Result (List Diagnostic) (StageValue, Nat)
++  evaluate-term definitions locals site term fuel = if fuel == 0 then stage-error site "compile-time evaluation exhausted its work budget" else
++    let remaining = fuel - 1 in case term of
++      CInt at (UCon carrier KType) text -> if same carrier "Nat" || same carrier "Int" then (case total-decimal-value text of
++        Some value -> Ok (StageInteger value, remaining)
++        None -> stage-error at "invalid checked compile-time integer")
++        else stage-error at "machine arithmetic is unavailable in compile-time evaluation"
++      CString at ty text -> Ok (StageString text, remaining)
++      CUnit at ty -> Ok (StageUnit, remaining)
++      CLocal at ty id name actuals -> case stage-local id locals of
++        Some value -> Ok (value, remaining)
++        None -> stage-error at "missing checked compile-time local binding"
++      CUse at ty name role actuals -> evaluate-use definitions at ty name role Nil remaining
++      CApply at ty f x -> evaluate-application definitions locals at f [x] remaining
++      CApplyEff at ty row f x -> stage-error at "effectful call is unavailable in compile-time evaluation"
++      CLet at ty id name sc rhs body -> case evaluate-term definitions locals at rhs remaining of
++        Err errors -> Err errors
++        Ok (value, next) -> evaluate-term definitions (Cons (id, value) locals) at body next
++      CIf at ty condition yes no -> case evaluate-term definitions locals at condition remaining of
++        Err errors -> Err errors
++        Ok (StageBoolean branch, next) -> evaluate-term definitions locals at (if branch then yes else no) next
++        Ok other -> stage-error at "checked compile-time branch requires Bool"
++      CProved at ty certificate body -> evaluate-term definitions locals at body remaining
++      CRefine at ty certificate body -> evaluate-term definitions locals at body remaining
++      CForget at ty body -> evaluate-term definitions locals at body remaining
++      CDischarge at ty proofs body -> evaluate-term definitions locals at body remaining
++      CPrimitive at ty operation arguments -> case evaluate-terms definitions locals at (primitive-arguments arguments) remaining of
++        Err errors -> Err errors
++        Ok (values, next) -> evaluate-primitive at operation values next
++      other -> stage-error site "expression is unavailable in compile-time evaluation"
+--- /dev/null
++++ b/bootstrap/programs/Run.StageEval.cinch
+@@ -0,0 +1,31 @@
++module Main where
++  import Bootstrap.Ast (program-span)
++  import Bootstrap.Check (check-and-retain)
++  import Bootstrap.Parse (parse-program)
++  import Bootstrap.Report (MkDiagnostic)
++  import Bootstrap.Resolve (resolve-program)
++  import Bootstrap.StageEval
++  import Text.Parse (Parsed)
++
++  source :: String
++  source = "module StageInput where\n  foreign import ccall \"cinch.runtime.arrayReplicate\" copies :: forall a. Nat -> a -> Array a\n  foreign import ccall \"cinch.runtime.arrayLen\" size :: forall a. Array a -> Nat\n  add-two :: Nat -> Nat\n  add-two n = n + 2\n  unavailable :: Nat\n  unavailable = size (copies 2 (1 :: Int))\n  selected :: Nat\n  selected = if True then add-two 40 else unavailable\n"
++
++  main :: Int
++  main = case parse-program "checked-stage-evaluation" (string-to-bytes source) of
++    Parsed program Nil -> case resolve-program program of
++      (resolved, Nil) -> case check-and-retain resolved of
++        Err errors -> 3
++        Ok checked -> let site = program-span program in
++          case evaluate-stage checked site "StageInput.selected" 512 of
++            Ok (StageInteger value, fuel) -> if value /= 42 || fuel >= 512 then 5 else
++              (case evaluate-stage checked site "StageInput.unavailable" 512 of
++                Err (Cons (MkDiagnostic rung at message) Nil) ->
++                  if string-compare message "primitive `cinch.runtime.arrayReplicate` is not available at compile time" /= 0 then 6 else
++                    (case evaluate-stage checked site "StageInput.selected" 1 of
++                      Err (Cons (MkDiagnostic name where-at limited) Nil) ->
++                        if string-compare limited "compile-time evaluation exhausted its work budget" == 0 then 0 else 7
++                      other -> 7)
++                other -> 6)
++            other -> 4
++      other -> 2
++    other -> 1
+--- /dev/null
++++ b/compiler/tests/bootstrap_stage_eval.rs
+@@ -0,0 +1,15 @@
++mod common;
++
++#[test]
++fn compile_time_evaluation_runs_checked_core_with_a_shared_budget() {
++    let dir = common::project("stage_eval", &[
++        ("Bootstrap.Check.cinch", include_str!("../../bootstrap/Bootstrap.Check.cinch")),
++        ("Bootstrap.Resolve.cinch", include_str!("../../bootstrap/Bootstrap.Resolve.cinch")),
++        ("Bootstrap.ExportType.cinch", include_str!("../../bootstrap/Bootstrap.ExportType.cinch")),
++        ("Bootstrap.StageEval.cinch", include_str!("../../bootstrap/Bootstrap.StageEval.cinch")),
++        ("Main.cinch", include_str!("../../bootstrap/programs/Run.StageEval.cinch")),
++    ]);
++    let code = common::run(&dir, "Main.cinch");
++    assert_eq!(code, 0, "checked stage evaluation failed: 1 parse, 2 scope, 3 checking, 4 value, 5 work accounting, 6 primitive refusal, 7 exhausted budget; project: {}", dir.display());
++    common::cleanup(&dir);
++}

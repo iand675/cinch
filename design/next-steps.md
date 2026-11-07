@@ -1,5 +1,17 @@
 # Next steps (as of 2026-11-07)
 
+The normal Git-pinned schema 9 provider rebuilt and verified all 55 library
+interfaces. It includes the raw `list-length` variant requested when the
+development Stage2 stopped. The failed attempt still emitted 44 checked
+compiler interfaces, which the independent Rust reader validated with their
+dependencies. The new pinned chain and original library replacement suite
+remain open. See `bootstrap/current-schema9-pinned-provider-results.json`.
+
+The checked compile-time evaluator returns 42 through a stage function,
+refuses the inner array primitive by its checked name, and enforces a shared
+work budget. The complete pipeline and original arrays group still need their
+matching results. See `bootstrap/current-staging-evaluation-results.json`.
+
 The staging parser now retains stage signatures and equations, generator
 blocks, declaration quotations and expression splices. The complete
 syntax target passed with zero leaks. Checked compile-time execution and

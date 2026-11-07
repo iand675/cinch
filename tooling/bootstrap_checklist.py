@@ -341,16 +341,22 @@ def build_checklist(root, cfg, previous=None):
     class_arrow_native = read(cfg.get('classArrowNative'))
     class_arrow_proof = read(root/'bootstrap/current-native-arrow-contract-results.json')
     schema9_original_overlays = read(cfg.get('schema9OriginalOverlays'))
+    schema9_pinned_provider = read(cfg.get('schema9PinnedProvider'))
+    schema9_pinned_chain = read(cfg.get('schema9PinnedChain'))
+    schema9_pinned_proof = read(root/'bootstrap/current-schema9-pinned-provider-results.json')
+    schema9_ordering_contracts = read(cfg.get('schema9OrderingContracts'))
     stage_evaluation = read(cfg.get('stageEvaluation'))
+    stage_evaluation_proof = read(root/'bootstrap/current-staging-evaluation-results.json')
     stage_expansion = read(cfg.get('stageExpansion'))
     family_replay = read(cfg.get('arrowFamilyReplay'))
     gaps=[
         item('gap:prelude','Replace source copies of library modules safely','blocked' if integrated_overlay or stage3_failures_current or 'interface_prelude_overrides' in failed_api else 'pending',
+             'The original test passed Core and rechecked Ordering with the inherited default. Relation.Ord still records a different Ordering interface hash. An exact source/interface comparison is in progress.' if schema9_pinned_proof.get('original_source_family_replay') else
              'The Core family passed. Schema 9 transports the inherited Ordering default. The rebuilt Rust provider verifies all 55 interfaces and preserves both Category arrow instances. The exact four-family test is queued with this provider. Display scheme parity remains open.' if class_arrow_proof else
              'The Core family passed. Schema 9 transports the inherited Ordering default. The Cinch writer now matches Rust on class type and layout rows and keeps instance factories in the instance table. The Category instance head and display scheme still need matching output.' if class_interface_proof else
              'The integrated Stage3 passed the original Core family and reached Ordering, where the inherited mconcat implementation is unavailable. Category and Algebra still need matching results.' if integrated_overlay else
              'The earlier Stage3 refuses the original Data.Core source as a conflicting loaded interface. Development Data.Core emits the matching contract. Ordering, Category and Algebra still need their original replacement checks.' if stage3_failures_current else 'Data.Core emits the matching contract. Data.Ordering stops at the imported mconcat default. Category rejects the class laws and structural function instance. Algebra now resolves Nil, None, Cons and Some and stops at the class law.' if early_base else 'The development pipeline checks each original source family separately. Data.Core emits the matching contract. Data.Ordering stops at the imported mconcat default. Category rejects the class laws and structural function instance. Algebra rejects the class law and cannot resolve Nil, None, Cons or Some.' if source_overlay else 'The current interface/API run fails when source Data.Core is supplied alongside its cached interface. All four original families remain required.',
-             'Core, Ordering, Category and Algebra replacements pass with fresh checked provider hashes, valid consumer chains and no Prelude back-edge.',link('bootstrap/current-native-arrow-contract-results.json' if class_arrow_proof else 'bootstrap/current-class-interface-exports-results.json' if class_interface_proof else stage3_failure_path if stage3_failures_current else 'bootstrap/current-source-overlay-family-probes.json' if source_overlay else 'bootstrap/current-source-prelude-counterexample.json')),
+             'Core, Ordering, Category and Algebra replacements pass with fresh checked provider hashes, valid consumer chains and no Prelude back-edge.',link('bootstrap/current-schema9-pinned-provider-results.json' if schema9_pinned_proof.get('original_source_family_replay') else 'bootstrap/current-native-arrow-contract-results.json' if class_arrow_proof else 'bootstrap/current-class-interface-exports-results.json' if class_interface_proof else stage3_failure_path if stage3_failures_current else 'bootstrap/current-source-overlay-family-probes.json' if source_overlay else 'bootstrap/current-source-prelude-counterexample.json')),
         item('gap:source-defaults','Check and inherit source class defaults','running',default_detail if default_receipt else 'Development compiler8fce passes all15 controls in a retained-checker replay with the corrected Rust oracle; complete groups and runtime integration remain separate.',
              'All source default controls, unused errors, generic scopes, metadata stability, runtime and original class-default behavior pass.',link('bootstrap/current-source-class-default-development.json')),
         item('gap:type-term-scope','Keep term and type annotation names separate','running',
@@ -401,8 +407,9 @@ def build_checklist(root, cfg, previous=None):
              'The earlier Stage3 fails to resolve copyOut before checking Copy evidence for Array (Thunk {} Int).',
              'The original ownership case reaches and passes its required semantic checks and runtime behavior.',link('bootstrap/current-copy-out-development-results.json' if copyout_proof else stage3_failure_path)),
         item('gap:staging','Finish staging and namespace behavior','running' if stage_syntax else 'blocked' if stage3_failures_current else 'recheck',
+             'The checked evaluator computes a stage function, refuses arrayReplicate by its resolved identity and enforces a shared work budget. The full pipeline and original arrays group still need their matching results.' if stage_evaluation_proof else
              'The development parser passes the complete syntax target with checked staging nodes and splices. The evaluator still needs to issue the named arrayReplicate refusal and expand valid generators.' if stage_syntax else 'Exact candidate Stage3 reports an unsupported declaration before checking whether arrayReplicate is available at compile time.' if stage3_failures_current else 'The original array and language cases require staging and declaration behavior.',
-             'Preserve original sources and expected named refusals; execute the matching staging and language suites.',link('bootstrap/current-staging-surface-results.json' if stage_syntax else stage3_failure_path if stage3_failures_current else 'bootstrap/current-original-array-suite-results.json')),
+             'Preserve original sources and expected named refusals; execute the matching staging and language suites.',link('bootstrap/current-staging-evaluation-results.json' if stage_evaluation_proof else 'bootstrap/current-staging-surface-results.json' if stage_syntax else stage3_failure_path if stage3_failures_current else 'bootstrap/current-original-array-suite-results.json')),
         item('gap:hidden-types','Stop choosing a concrete hidden constructor type','pending','Native existential/hidden-type introduction remains a required investigation and repair.',
              'Hidden types remain existential, with correct construction, scoped elimination, kind checks and no guessed Nat carrier.',link('design/next-steps.md')),
         item('gap:fixities','Reverify defining-module-only fixities','recheck','The earlier self-built controls prove that both identical and changed importer declarations refuse.',
@@ -619,6 +626,7 @@ def build_checklist(root, cfg, previous=None):
         ('Schema 9 Stage1: original four-family replacement test', schema9_original_overlays, 1),
         ('Cinch: checked compile-time evaluation', stage_evaluation, 1),
         ('Cinch: staged generation through the full pipeline', stage_expansion, 1),
+        ('Schema 9: rebuild and check the Git-pinned provider', schema9_pinned_provider, 1),
     ):
         if run:
             rows = [r for r in run.get('rows', []) if not r['name'].startswith(('compile-', 'build-'))]
@@ -641,9 +649,20 @@ def build_checklist(root, cfg, previous=None):
             source=schema9_provider.get('producer_source_sha256')))
     if schema9_chain:
         status = schema9_chain['status']
-        active.append(dict(title='Schema 9 development bootstrap', status=status, phase='Fresh Stage1, Stage2 and Stage3 with the checked development provider',
+        phase = 'Stage2 required the missing Data.List.list-length [R] variant from the older development provider' if schema9_pinned_proof else 'Fresh Stage1, Stage2 and Stage3 with the checked development provider'
+        active.append(dict(title='Schema 9 development bootstrap', status=status, phase=phase,
             passed=sum(row.get('status') == 'passed' for row in schema9_chain.get('stages', [])),
             failed=int(status.startswith('failed')), total=4, source=schema9_chain.get('compiler_source_sha256')))
+    if schema9_pinned_chain:
+        status = schema9_pinned_chain['status']
+        active.append(dict(title='Schema 9 bootstrap with the production pin', status=status,
+            phase=status.replace('-', ' '), passed=sum(row.get('status') == 'passed' for row in schema9_pinned_chain.get('stages', [])),
+            failed=int(status.startswith('failed')), total=4, source=schema9_pinned_chain.get('compiler_source_sha256')))
+    if schema9_ordering_contracts:
+        rows = schema9_ordering_contracts.get('rows', [])
+        active.append(dict(title='Ordering: compare interfaces from the same source', status=schema9_ordering_contracts['status'],
+            phase='Cinch and Rust check the original module with the same dependency closure',
+            passed=sum(row['exit_code'] == 0 for row in rows), failed=sum(row['exit_code'] != 0 for row in rows), total=1))
     if family_replay:
         rows = family_replay.get('rows', [])
         active.append(dict(title='Unchanged source-library families: structural arrow candidate',
