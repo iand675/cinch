@@ -19073,8 +19073,8 @@
       },
       {
         "title": "Schema 10: combined self-host chain",
-        "status": "checking-fixed-point-and-source-change",
-        "phase": "checking fixed point and source change",
+        "status": "passed-production-schema10-chain-awaiting-independent-audit",
+        "phase": "passed production schema10 chain awaiting independent audit",
         "passed": 4,
         "failed": 0,
         "total": 4,
@@ -19141,8 +19141,8 @@
       },
       {
         "title": "Replay the original library families with the rebuilt provider",
-        "status": "waiting-worker",
-        "phase": "waiting worker",
+        "status": "running",
+        "phase": "interface_prelude_overrides",
         "passed": 0,
         "failed": 0,
         "total": 1,
@@ -19311,5 +19311,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T13:42:47.928836+00:00"
+  "updatedAt": "2026-11-07T13:45:50.494124+00:00"
 }
