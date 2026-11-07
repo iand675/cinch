@@ -19729,8 +19729,8 @@
       {
         "title": "Rerun the full Native suite after the clean-build fix",
         "status": "running",
-        "phase": "jit",
-        "passed": 2,
+        "phase": "bootstrap_source_instances",
+        "passed": 3,
         "failed": 0,
         "total": 236,
         "source": "f1bfdca8c79e4299effd20057114ed2e17072108b4fbe6940847c4b208b6eeb1"
@@ -19749,5 +19749,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T21:58:31.616767+00:00"
+  "updatedAt": "2026-11-07T21:59:33.519090+00:00"
 }
