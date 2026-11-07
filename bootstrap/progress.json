@@ -23,8 +23,8 @@
     },
     {
       "name": "Stage 3",
-      "state": "running",
-      "label": "Building",
+      "state": "passed",
+      "label": "Smoke tests passed",
       "description": "Rebuild with Stage2 and audit the fixed point."
     }
   ],
@@ -547,7 +547,7 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "Main includes the higher-kinded runtime, pure arrow inference and checked String layout.",
-  "activity": "Building stage3. The full suite remains open.",
+  "activity": "Checking the fixed point and changed-source rebuild. The full suite remains open.",
   "checklist": {
     "version": 1,
     "target": {
@@ -18231,8 +18231,8 @@
       {
         "title": "Bootstrap the exact published compiler and corrected library",
         "status": "running",
-        "phase": "Building stage3",
-        "passed": 3,
+        "phase": "Checking the fixed point and changed-source rebuild",
+        "passed": 4,
         "failed": 0,
         "total": 4,
         "unit": "stages",
@@ -19836,6 +19836,37 @@
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-function-and-string-object-results.json"
       },
       {
+        "title": "Bootstrap the candidate with the pinned NonEmpty library",
+        "status": "running",
+        "phase": "Rebuilding the compiled library from the exact Native commit.",
+        "passed": 0,
+        "failed": 0,
+        "total": 4,
+        "unit": "stages",
+        "source": "64ee1c52436a3b37cb0217cec1e54de0d9dfbbf5161e577971bb1f9e4feb412e",
+        "auditPending": false
+      },
+      {
+        "title": "Replay full Foldable and Category with the NonEmpty object",
+        "status": "running",
+        "phase": "round 1 lib_foldable",
+        "passed": 0,
+        "failed": 0,
+        "total": 2,
+        "unit": "original test targets",
+        "source": "64ee1c52436a3b37cb0217cec1e54de0d9dfbbf5161e577971bb1f9e4feb412e"
+      },
+      {
+        "title": "Check executable NotNull with scoped witness controls",
+        "status": "running",
+        "phase": "build and smoke-test 46 compiler modules with executable NotNull",
+        "passed": 0,
+        "failed": 0,
+        "total": 3,
+        "unit": "client cases",
+        "source": "bb2d475412fab71620ecf9e0d982f87ebe11b1d988592d6e7f1328c68b2adbdf"
+      },
+      {
         "title": "Check original NonEmpty clients against compiled contracts",
         "status": "completed-with-structural-refinement-failures",
         "phase": "reject-empty-forgery",
@@ -19884,8 +19915,8 @@
       {
         "title": "Rerun the full Native suite after the clean-build fix",
         "status": "running",
-        "phase": "bootstrap_byte_observations",
-        "passed": 19,
+        "phase": "bootstrap_check",
+        "passed": 20,
         "failed": 0,
         "total": 236,
         "source": "f1bfdca8c79e4299effd20057114ed2e17072108b4fbe6940847c4b208b6eeb1"
@@ -19904,5 +19935,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T23:47:36.680806+00:00"
+  "updatedAt": "2026-11-07T23:54:34.236582+00:00"
 }
