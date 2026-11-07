@@ -19191,8 +19191,8 @@
       },
       {
         "title": "Run all 34 original language examples with schema 10 Stage3",
-        "status": "running",
-        "phase": "running",
+        "status": "completed-with-failures",
+        "phase": "completed with failures",
         "passed": null,
         "failed": null,
         "total": 34,
@@ -19351,5 +19351,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T13:54:41.043919+00:00"
+  "updatedAt": "2026-11-07T14:02:04.686151+00:00"
 }
