@@ -19109,6 +19109,28 @@
         "auditPending": true
       },
       {
+        "title": "Integrated compiler: Stage3 source admission",
+        "status": "running",
+        "phase": "checking all 44 integrated modules through exact Stage3",
+        "passed": 0,
+        "failed": 0,
+        "total": 1,
+        "source": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185",
+        "nativeSource": null,
+        "auditPending": false
+      },
+      {
+        "title": "Rust task-forwarding candidate: complete Rust sweep",
+        "status": "running",
+        "phase": "arrays",
+        "passed": 2,
+        "failed": 0,
+        "total": 235,
+        "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+        "nativeSource": "471f25e411f941c541140a708d5527304cfa9093ea9e66168bd9602548ac8f10",
+        "auditPending": false
+      },
+      {
         "title": "Source-library replacement: complete pipeline and dependency checks",
         "status": "passed-source-interface-overlay-pipeline",
         "phase": "bootstrap_pipeline",
@@ -19283,23 +19305,31 @@
         "auditPending": false
       },
       {
-        "title": "Cinch task forwarding: exact source replay",
+        "title": "Integrated compiler: fresh bootstrap",
+        "status": "waiting-exact-integrated-source-admission",
+        "phase": "0/4 stages. waiting exact integrated source admission",
+        "passed": 0,
+        "failed": 0,
+        "total": 1,
+        "source": null,
+        "auditPending": false
+      },
+      {
+        "title": "Cinch task forwarding: six-case source replay",
         "status": "passed",
         "phase": "Unchanged Tasks program and refusal, unsafe capture, and interface boundary",
-        "passed": 6,
+        "passed": 1,
         "failed": 0,
-        "total": 6,
-        "unit": "cases",
+        "total": 1,
         "source": "ca53ded9f0ea7eea94c34ad4ddfe329c2b7ce4bd54d5eb45dc97712aa287a7d9"
       },
       {
         "title": "Rust task forwarding: complete focused tests",
         "status": "passed",
         "phase": "19 concurrency tests and 186 compiler unit tests",
-        "passed": 205,
+        "passed": 2,
         "failed": 0,
-        "total": 205,
-        "unit": "tests",
+        "total": 2,
         "source": null
       },
       {
@@ -19343,5 +19373,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T06:18:39.781677+00:00"
+  "updatedAt": "2026-11-07T06:22:39.184857+00:00"
 }
