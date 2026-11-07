@@ -11894,10 +11894,10 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 12,
+          "verified": 13,
           "blocked": 3,
           "running": 1,
-          "pending": 89,
+          "pending": 88,
           "recheck": 0
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
@@ -11956,17 +11956,17 @@
           {
             "id": "stage3:argv",
             "title": "argv",
-            "state": "running",
+            "state": "verified",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/argv.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
               "startedAt": "2026-11-07T12:01:57.978528+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T12:02:59.551754+00:00",
+              "exitCode": 0,
+              "logSha256": "b4bd059c8ac29462d614db2d17949c50b49b4b9b803da6331c315f8bc41f9acf",
               "cases": [
                 {
                   "name": "a_program_reads_its_own_command_line",
@@ -11978,7 +11978,7 @@
                 },
                 {
                   "name": "the_cli_forwards_arguments_after_the_entry_file",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -12066,18 +12066,23 @@
           {
             "id": "stage3:bootstrap_abstract_nonzero_methods",
             "title": "bootstrap_abstract_nonzero_methods",
-            "state": "pending",
+            "state": "running",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_abstract_nonzero_methods.rs",
             "observed": {
-              "status": "pending",
+              "status": "running",
               "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": null,
+              "startedAt": "2026-11-07T12:03:00.909659+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "real_div_and_rem_contracts_keep_abstract_carriers_until_specialization",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -13999,9 +14004,9 @@
         ],
         "observedCounts": {
           "failed": 3,
-          "passed": 12,
+          "passed": 13,
           "running": 1,
-          "pending": 89
+          "pending": 88
         },
         "observedSource": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854"
       },
@@ -18169,8 +18174,8 @@
       {
         "title": "Published schema 9 Stage3: all 105 frontend targets",
         "status": "running",
-        "phase": "argv",
-        "passed": 12,
+        "phase": "bootstrap_abstract_nonzero_methods",
+        "passed": 13,
         "failed": 3,
         "total": 105,
         "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854"
@@ -18766,8 +18771,8 @@
       {
         "title": "Earlier Stage3: complete frontend sweep",
         "status": "running",
-        "phase": "argv",
-        "passed": 12,
+        "phase": "bootstrap_abstract_nonzero_methods",
+        "passed": 13,
         "failed": 3,
         "total": 105,
         "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
@@ -18936,15 +18941,6 @@
         "source": "24718a6babdacf7c42e7af1d5238b078d45eef768977a88f6e8335ea90623f04"
       },
       {
-        "title": "Rust: Nat-backed law counterexample and interface tests",
-        "status": "passed-native-mathematical-law-sampling",
-        "phase": "complete Rust class-law and interface groups",
-        "passed": 1,
-        "failed": 0,
-        "total": 1,
-        "source": "4a35981acf7133c8caad196ee65e02a68d75b114da66c437975ee965eeff2c64"
-      },
-      {
         "title": "Schema 9 Stage1: initial arrays run before the runtime fixture retry",
         "status": "failed",
         "phase": "arrays",
@@ -18955,10 +18951,10 @@
       },
       {
         "title": "Schema 10: pinned Stage1 and original library replacement tests",
-        "status": "running",
-        "phase": "pinned seed builds the 44 schema 10 sources",
-        "passed": 0,
-        "failed": 0,
+        "status": "completed-with-original-overlay-failures",
+        "phase": "Algebra.Monoid",
+        "passed": 2,
+        "failed": 6,
         "total": 8,
         "source": "7c3cd20cf324bed6ece95c9d945718d5e036e52851d1eb5666e64e71a82fe886"
       },
@@ -18979,6 +18975,34 @@
         "failed": 0,
         "total": 1,
         "source": "172f44e5b060d48f30666d1b2d0339d566766c2f1054fcd574da5b1681b891f9"
+      },
+      {
+        "title": "Schema 10: rebuild the library after the Rust numeric-law fix",
+        "status": "passed-library-only-schema10-development-provider",
+        "phase": "passed library only schema10 development provider",
+        "passed": 1,
+        "failed": 0,
+        "total": 1,
+        "source": "4a35981acf7133c8caad196ee65e02a68d75b114da66c437975ee965eeff2c64"
+      },
+      {
+        "title": "Rust: Nat-backed law counterexample and interface tests",
+        "status": "passed",
+        "phase": "Reject the wrong identity and evaluate the lawful Nat-backed samples",
+        "passed": 19,
+        "failed": 0,
+        "total": 19,
+        "source": "4a35981acf7133c8caad196ee65e02a68d75b114da66c437975ee965eeff2c64",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-mathematical-law-sampling-results.json"
+      },
+      {
+        "title": "Schema 10: check all 44 compiler modules with the pinned Rust seed",
+        "status": "running",
+        "phase": "running",
+        "passed": 0,
+        "failed": 0,
+        "total": 1,
+        "source": "c64f3946fa59cfd51aed549b8790b8cce514a92cf50b4f445f0118f749f99bb2"
       },
       {
         "title": "Schema 9 Stage1: original arrays with staging and CopyOut",
@@ -19073,10 +19097,10 @@
       }
     ],
     "counts": {
-      "verified": 188,
+      "verified": 189,
       "blocked": 8,
       "running": 11,
-      "pending": 95,
+      "pending": 94,
       "recheck": 372
     },
     "total": 674,
@@ -19085,5 +19109,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T12:02:51.983907+00:00"
+  "updatedAt": "2026-11-07T12:06:52.599421+00:00"
 }
