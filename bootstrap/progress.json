@@ -712,6 +712,14 @@
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-source-overlay-base-scope-results.json"
       },
       {
+        "id": "gap:refusal-diagnostics",
+        "title": "Replay record and index diagnostics on Stage3",
+        "state": "recheck",
+        "detail": "The four original Query, Audio, Circuit and TensorADShape refusals now match the expected reason and source location in a development build. The pipeline and typed-index tests pass.",
+        "doneWhen": "Integrate the repair and replay all four unchanged cases through the matching Stage3.",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-external-refusal-diagnostics-results.json"
+      },
+      {
         "id": "gap:task-callback",
         "title": "Reject mutable task captures hidden by callbacks",
         "state": "blocked",
@@ -723,7 +731,7 @@
         "id": "gap:task-helper",
         "title": "Reject mutable task captures hidden by helpers",
         "state": "blocked",
-        "detail": "Reproduced on the current published Rust compiler; helper indirection still hides a mutable capture.",
+        "detail": "Published Rust still accepts an unsafe capture hidden by a helper. Current Stage3 refuses the valid Tasks example because the checked callback passed through Tasks.fork lacks transfer evidence.",
         "doneWhen": "Capture requirements survive helpers, aliases and interfaces, with both bad and valid cases checked.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-task-capture-counterexample.json"
       },
@@ -19274,13 +19282,13 @@
       "blocked": 4,
       "running": 9,
       "pending": 7,
-      "recheck": 162
+      "recheck": 163
     },
-    "total": 671,
+    "total": 672,
     "acceptanceVerified": 0,
     "acceptanceTotal": 5,
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T05:41:07.064587+00:00"
+  "updatedAt": "2026-11-07T05:46:18.337070+00:00"
 }
