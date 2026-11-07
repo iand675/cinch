@@ -19814,7 +19814,7 @@
       {
         "title": "Check NotNull in Core and both original visitor refusals",
         "status": "running",
-        "phase": "build and smoke-test all 46 combined compiler modules",
+        "phase": "foldable-nonempty",
         "passed": 0,
         "failed": 0,
         "total": 4,
@@ -19862,5 +19862,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T23:18:55.252443+00:00"
+  "updatedAt": "2026-11-07T23:22:37.978374+00:00"
 }
