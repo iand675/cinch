@@ -19275,7 +19275,7 @@
       },
       {
         "title": "Probe the original Stage2 source with faster diagnostics",
-        "status": "waiting-worker",
+        "status": "running",
         "phase": "emit original stage2 with byte scan",
         "passed": 1,
         "failed": 0,
@@ -19465,5 +19465,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T15:05:59.126124+00:00"
+  "updatedAt": "2026-11-07T15:09:41.730650+00:00"
 }
