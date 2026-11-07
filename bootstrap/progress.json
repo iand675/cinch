@@ -19222,9 +19222,9 @@
       },
       {
         "title": "Replay the same three programs with the additional method and zip variants",
-        "status": "running",
+        "status": "completed-with-runtime-replay-failures",
         "phase": "TensorAD",
-        "passed": 0,
+        "passed": 1,
         "failed": 2,
         "total": 3,
         "source": "b59c4893c4214d1c94c624bf9ba3f9e99ee7eb9b9568c1f092b20e5080967b38"
@@ -19382,5 +19382,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T14:23:18.262646+00:00"
+  "updatedAt": "2026-11-07T14:24:20.255491+00:00"
 }
