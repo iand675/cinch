@@ -16610,7 +16610,16 @@ impl Checker {
         let mut trusted = Vec::new();
         for (m, f) in &self.module_foreign {
             if m == module {
-                iface.exports.foreign.push(f.clone());
+                let mut foreign = f.clone();
+                if f.kind == "intrinsic" && f.external == "cinch.runtime.bytesLen" {
+                    let identity = format!("{m}.{}", f.symbol);
+                    // The importer matches this observation to the defining
+                    // value. Use its checked spelling, including nominal owners.
+                    if let Some(value) = iface.exports.values.iter().find(|v| v.symbol == identity) {
+                        foreign.ty.clone_from(&value.scheme);
+                    }
+                }
+                iface.exports.foreign.push(foreign);
                 if f.kind == "intrinsic" {
                     prims.push(f.external.clone());
                 } else if f.kind == "import" {
