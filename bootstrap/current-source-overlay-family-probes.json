@@ -1,0 +1,61 @@
+{
+  "compiler_sha256": "9009ed189852d047764d3554101b2985e3d8f1f5c8e76a6fb1e543c6f5a9c22c",
+  "manifest_sha256": "a7ac0f57551f20186ec2901683fb63b1c4465bf9f540a7abdf1e61a5485d9085",
+  "test_sha256": "1d0b1cc10f9d1788183686a742e455c0ddbccb40f8b46720050c857a07e86630",
+  "rows": [
+    {
+      "family": "core",
+      "sources": {
+        "Data/Core.cinch": "3ee42eb9b63a1cffe608355914e5c8295561ca8b17bea4d3b39b87f3e2f2a106"
+      },
+      "bundle_sha256": "f7593a172d5c975a0ae110cd6d44e2421c1b3a3446570ffd57985151149ca846",
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "exit_code": 0,
+      "diagnostic": "",
+      "interfaces": {
+        "core.Data.Core.cinchif": "c16acaf1ce988878a16a1fa0540fb0e45841a22fc435bbbf37d5a3cad41d9aec",
+        "core.Main.cinchif": "468690959df03e61f43714306f3952bad5f7a1eb07a704f044b5a89d87ed3e11"
+      }
+    },
+    {
+      "family": "ordering",
+      "sources": {
+        "Data/Ordering.cinch": "7157a1cbcc1e708ab1800e1e48c42e83aca986ee496d29b1f8d9392a708df537"
+      },
+      "bundle_sha256": "7a40472e889b1bcc241190489b32679b1277eda57c1d710669235648fcdeed69",
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "exit_code": 4,
+      "diagnostic": "bootstrap.check:28:12: instance Monoid_Ordering does not define method mconcat\nbootstrap.check:28:12: source dictionary constructor disagrees with its defining class or method contracts\n",
+      "interfaces": {}
+    },
+    {
+      "family": "category",
+      "sources": {
+        "Category/Functor.cinch": "2b1b8078f2abdf140b110074f4f80f22ba2b6ea54d72baf15125ea8311639ba1",
+        "Category/Applicative.cinch": "430133dda538b4758b3f4c24dc2b0ceb162a3573a44b50a596a7b3e2696ca18a"
+      },
+      "bundle_sha256": "f0bebf1f5a067186d12b9916ed63f7046e90beee0e2579194cef4ee7ca32b412",
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "exit_code": 4,
+      "diagnostic": "bootstrap.resolve:43:5: source signature member needs checked default or declaration elaboration\nbootstrap.resolve:44:5: source signature member needs checked default or declaration elaboration\nbootstrap.resolve:49:3: this declaration requires further namespace elaboration\n",
+      "interfaces": {}
+    },
+    {
+      "family": "algebra",
+      "sources": {
+        "Algebra/Semigroup.cinch": "f932fc5a9425e91a4823c988d6196b7e8afea0c5c2d23066e9d8bd2ae8fef68e",
+        "Algebra/Monoid.cinch": "7f71172956f30dbc67374308cbb6a582b905921936183ff366d2a05c56e05258"
+      },
+      "bundle_sha256": "af8b4b66ee0622528048a55d59c942fcd5a5297e84f19302ead76b707223cad5",
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "exit_code": 4,
+      "diagnostic": "bootstrap.resolve:34:5: source signature member needs checked default or declaration elaboration\nbootstrap.resolve:73:5: name is not in scope: Nil\nbootstrap.resolve:73:12: name is not in scope: None\nbootstrap.resolve:74:5: name is not in scope: Cons\nbootstrap.resolve:75:7: name is not in scope: Nil\nbootstrap.resolve:75:14: name is not in scope: Some\nbootstrap.resolve:76:7: name is not in scope: Cons\nbootstrap.resolve:83:5: name is not in scope: Nil\nbootstrap.resolve:83:12: name is not in scope: Nil\nbootstrap.resolve:84:5: name is not in scope: Cons\nbootstrap.resolve:85:7: name is not in scope: Nil\nbootstrap.resolve:85:14: name is not in scope: Cons\nbootstrap.resolve:85:21: name is not in scope: Nil\nbootstrap.resolve:86:7: name is not in scope: Cons\nbootstrap.resolve:86:22: name is not in scope: Cons\n",
+      "interfaces": {}
+    }
+  ],
+  "scope": "Unchanged original source and Main text for each family in a separate invocation of the actual Cinch source overlay pipeline. Uses the full authenticated 55-interface manifest. These are compiler probes; the original Native reader checks are a separate gate.",
+  "full_goal_complete": false,
+  "status": "verified-original-family-source-probes-with-failures",
+  "matching_core_contract_hash": "3420315651835929958",
+  "interpretation": "The unchanged Core family succeeds with matching public contract and a fresh source consumer. The three remaining family invocations fail separately before interface emission. The complete original Rust integration test is still red."
+}
