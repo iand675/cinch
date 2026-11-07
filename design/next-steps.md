@@ -35,6 +35,15 @@ The package design calls for materializing missing variants from checked
 polymorphic IR and caching them by representation vector.
 See [the specialization design](layouts-and-specialization.md#2-words-specialization-over-three-representation-classes-option-c).
 
+The compiled library exports the checked `Data.Core.List` carrier and
+`NotNull` predicate for the `NonEmpty` refinement. Cinch checks that former
+at higher kind, preserves the erased list representation, and refuses a
+plain list without evidence. The original Foldable, Semigroup and
+Traversable clients linked and ran against the expanded object with zero
+leaks. All 55 library interface identities were preserved across the object
+expansion. The full selected-frontend replay remains open.
+See [the NonEmpty object audit](../bootstrap/current-schema10-compiled-nonempty-results.json).
+
 The runtime assigns Unit's word representation to private, unconstrained
 type variables after Core has checked their scope. The original `Result`
 client now requests the concrete `from-result [RT]` variant. The expanded

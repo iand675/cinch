@@ -1,7 +1,7 @@
 {
-  "description": "ABI 6 Native library producer with scoped class member kinds and schema 10 interfaces.",
-  "revision": "7d7acaf63c6233263f1e10feac5c020b8443ed0f",
+  "description": "ABI 6 Native library producer with checked structural List and NotNull refinement contracts.",
+  "revision": "de5c023fb800ebe9a46269ed694fb614279e61c8",
   "runtime_abi": 6,
   "schema": 1,
-  "source_sha256": "ca7a6231fa497ca0c6b016fed5aaefc0d9ecb32fa3c41b10617e944ed8af1009"
+  "source_sha256": "881cff5557ca7b805e9aa98a094fa0c45fcccb5f14368453a04abdabeff3fafe"
 }
