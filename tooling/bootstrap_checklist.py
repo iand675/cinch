@@ -943,8 +943,8 @@ def build_checklist(root, cfg, previous=None):
     ambient = read(cfg.get('schema10LibraryCopyAmbient'))
     if ambient:
         rows = ambient['rows']
-        active.append(dict(title='Check source rebuilds that depend on facade exports',
-            status=ambient['status'], phase=ambient.get('phase', 'Waiting to rebuild and replay the original copied-module cases'),
+        active.append(dict(title='Check explicit source rebuilds that depend on facade exports',
+            status=ambient['status'], phase=ambient.get('phase', 'Waiting for the source override regression tests'),
             passed=sum(row['status']=='passed' for row in rows), failed=sum(row['status']=='failed' for row in rows),
             total=6, source=ambient['compiler_source_sha256']))
     foldable_consumer = read(cfg.get('schema10FoldableObjectConsumer'))
@@ -955,6 +955,24 @@ def build_checklist(root, cfg, previous=None):
             status='passed' if completed == 0 else foldable_consumer['status'],
             phase='The single-module fixture passed through Native. The Stage3 replay is tracked separately.',
             passed=int(completed == 0), failed=int(completed is not None and completed != 0), total=1))
+    scoped_provider_path = 'bootstrap/current-schema10-scoped-member-kind-provider-results.json'
+    scoped_provider = read(root / scoped_provider_path)
+    if scoped_provider.get('provider') == read(root / 'bootstrap/library-provider.lock.json'):
+        provider_rows = {row['name']: row for row in scoped_provider.get('rows', [])}
+        checked = provider_rows.get('pinned-provider', {})
+        if checked.get('status') == 'passed':
+            active.append(dict(title='Verify the pinned library with corrected higher-kinded contracts',
+                status='passed', phase='The original List-to-Option probe now resolves the declaring class. The earlier Stage3 still refuses its runtime representation.',
+                passed=checked['interfaces'], failed=0, total=checked['interfaces'], unit='interfaces',
+                source=scoped_provider['provider']['source_sha256'], evidence=link(scoped_provider_path)))
+    integrated = read(cfg.get('schema10IntegratedLibraryConsumers'))
+    if integrated:
+        rows = integrated['rows']
+        active.append(dict(title='Replay original Foldable and Category with the compiled library',
+            status=integrated['status'], phase=integrated.get('phase') or 'Waiting for the Stage1 build',
+            passed=sum(row['status']=='passed' for row in rows),
+            failed=sum(row['status']=='failed' for row in rows), total=2, unit='original test targets',
+            source=integrated['compiler_source_sha256']))
     private_runtime_path = 'bootstrap/current-schema10-private-runtime-library-results.json'
     private_runtime = read(root / private_runtime_path)
     if private_runtime.get('status') == 'audited-private-representation-and-compiled-library':
