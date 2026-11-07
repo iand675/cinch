@@ -1,5 +1,11 @@
 # Next steps (as of 2026-11-07)
 
+The staged declaration pipeline checked and emitted a generated `Nat` value
+through typed IR. The linked program returned 0 with zero leaks. The unchanged
+array input refuses `arrayReplicate` at its original source location. The
+complete staging pipeline and matching full arrays target are separate checks.
+See `bootstrap/current-staging-expansion-results.json`.
+
 The normal Git-pinned schema 9 provider rebuilt and verified all 55 library
 interfaces. It includes the raw `list-length` variant requested when the
 development Stage2 stopped. The failed attempt still emitted 44 checked

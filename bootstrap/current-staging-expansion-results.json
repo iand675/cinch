@@ -1,0 +1,85 @@
+{
+  "schema": 1,
+  "status": "passed",
+  "scope": "Checked stage expansion, typed runtime and original array refusal",
+  "verified_at": "2026-11-07T10:28:08.105071+00:00",
+  "compiler_source_sha256": "4ab4a3dd3dc5018c01125756b25d6431ea746d445ae7510073d7b5d5c0075ff9",
+  "compiler_sha256": "a39428be3054d5ff3e6cbb11cde00fce21ede84866e74cf7314ae7622b9744a4",
+  "tested_snapshot_sha256": "9bda1a3e71a2127fd28f6e69f3e4bc65676540a8fe9f84494f361b5208148818",
+  "regression_snapshot_sha256": "de78b819a8691d2ea50c7df6be11da41c7b2e680222dcd68c4737ab1dafbac5b",
+  "base_snapshot_sha256": "fe846f7ec0f61b6faba82a312be7f38a18a65eec1a6c34321355c4e6da941bf4",
+  "runtime_sha256": "2fab721751aa601f3ca72d7677f8520e5bdd37d93887275b5636fce478f959c6",
+  "interfaces_sha256": "23301d8f36ab8b600e04881af38c8bd29cb757a91608c6f9b71758b7f8b8ca4d",
+  "controls": [
+    {
+      "diagnostic": "",
+      "exit_code": 0,
+      "expected_exit": 0,
+      "name": "checked-generated-nat",
+      "source_sha256": "790546cd26f0f92e41df748246df92f38ab28893f77540803f4f6d420a6e9640",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "",
+      "exit_code": 0,
+      "expected_exit": 0,
+      "name": "emitted-generated-nat",
+      "source_sha256": "790546cd26f0f92e41df748246df92f38ab28893f77540803f4f6d420a6e9640",
+      "status": "passed"
+    },
+    {
+      "artifact_sha256": "913ef17b933c71df345dbab45aa675a6febdb8c2a6a9d79eb464255962629ab2",
+      "exit_code": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "generated-nat-runtime",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.check:11:18: type mismatch: expected (m.35_115_116_97_103_101_45_113_117_111_116_97_116_105_111_110_.35_83_116_97_103_101_67_111_100_101_ Nat), found Nat\n",
+      "exit_code": 4,
+      "expected_exit": 4,
+      "name": "shadowed-quotation",
+      "source_sha256": "2800309c927c751f96fb78edb715632b4d109e142ab0c1412970203738164b86",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.resolve:5:10: name is not in scope: count\n",
+      "exit_code": 4,
+      "expected_exit": 4,
+      "name": "stage-leak",
+      "source_sha256": "fc606e805a3b50f8fa06f94479fcd2a8849a7b2ee1853d0a4d45980a5e41ae55",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.resolve:5:17: name is not in scope: runtime-value\n",
+      "exit_code": 4,
+      "expected_exit": 4,
+      "name": "runtime-capture",
+      "source_sha256": "d24bfa28a9c6a6f7067ed7ad959a8de963a8e14089635f1078168f2c5be31e48",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.stage:5:23: primitive `cinch.runtime.arrayReplicate` is not available at compile time\n",
+      "exit_code": 4,
+      "expected_exit": 4,
+      "name": "local-array-primitive",
+      "source_sha256": "0b1b5118b6619e3af0a8086f9218d4b809a257eb046452460ceefd6cf9f8866e",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.stage:43:30: primitive `cinch.runtime.arrayReplicate` is not available at compile time (Main.cinch:4:30)\n",
+      "exit_code": 4,
+      "expected_exit": 4,
+      "name": "original-array-primitive",
+      "source_sha256": "46235e690f872e88e184e258901c478c5665c3c3fd420af20f42da3ef7b1eeb3",
+      "status": "passed"
+    }
+  ],
+  "patch": "staging-expansion-development.patch",
+  "patch_sha256": "ed95d64b38fb6e1e14d6a156e48888b4c54c8799fd8c768e1a91dbd9aff3ce4a",
+  "patch_replays_exactly": true,
+  "earlier_fragment_failure_sha256": "e85c6dee014c758b4b92c3f9f8804e534edbff41627aa3fe942284d062d1b43f",
+  "full_pipeline_verified": false,
+  "original_arrays_group_verified": false,
+  "full_goal_complete": false
+}

@@ -1,0 +1,702 @@
+--- a/bootstrap/Bootstrap.Pipeline.cinch
++++ b/bootstrap/Bootstrap.Pipeline.cinch
+@@ -28,6 +28,7 @@
+   import Bootstrap.Inputs (read-interfaces, embedded-library-home)
+   import Bootstrap.Contracts (interface-headers)
+   import Bootstrap.Resolve (resolve-program, resolve-program-with, resolve-overlay-with)
++  import Bootstrap.Stage (expand-stages)
+   import Bootstrap.Report (Diagnostic, render-diagnostics, render-source-diagnostics)
+   import Bootstrap.Export (export-interfaces, interface-hash)
+   import Bootstrap.Interface (fnv-source-hash)
+@@ -153,21 +154,23 @@
+         Err error -> write-failure ir "bootstrap.object: cannot read source" pipeline-read-failed
+         Ok src -> case parse-program-with source src (interface-headers interfaces) of
+           Failed bundle -> write-failure ir (render-bundle bundle) pipeline-parse-failed
+-          Parsed program Nil -> (case resolve-program-with program interfaces of
+-            (resolved, Nil) -> case check-and-retain resolved of
+-              Err errors -> write-failure ir (render-source-diagnostics src errors) pipeline-check-refused
+-              Ok checked -> if publish then
+-                (case write-checked-interfaces ir checked interfaces src of
+-                  0 -> write-runtime-module ir (emit-runtime-program-with-object checked (Some provider))
+-                  code -> code)
+-                else write-runtime-module ir (emit-runtime-program-with-object checked (Some provider))
+-            (resolved, errors) -> write-failure ir (render-source-diagnostics src errors) pipeline-check-refused)
++          Parsed program Nil -> (case checked-source program interfaces of
++            Err errors -> write-failure ir (render-source-diagnostics src errors) pipeline-check-refused
++            Ok checked -> if publish then
++              (case write-checked-interfaces ir checked interfaces src of
++                0 -> write-runtime-module ir (emit-runtime-program-with-object checked (Some provider))
++                code -> code)
++              else write-runtime-module ir (emit-runtime-program-with-object checked (Some provider)))
+           Parsed program errors -> write-failure ir (render-bundle (Bundle source src errors)) pipeline-parse-failed
+ 
+   -- The interface-only path shares the real parser, resolver and retained
+   -- checker. It never asks another compiler to manufacture source contracts.
+   checked-source :: Program -> List LoadedInterface -> Result (List Diagnostic) CheckedProgram
+-  checked-source program interfaces = retain-resolved-source (resolve-program-with program interfaces)
++  checked-source program interfaces = check-source-phase (\input -> resolve-program-with input interfaces) program
++  check-source-phase :: (Program -> (Program, List Diagnostic)) -> Program -> Result (List Diagnostic) CheckedProgram
++  check-source-phase resolve program = case expand-stages resolve program of
++    Err errors -> Err errors
++    Ok expanded -> retain-resolved-source (resolve expanded)
+   retain-resolved-source :: (Program, List Diagnostic) -> Result (List Diagnostic) CheckedProgram
+   retain-resolved-source result = case result of
+     (resolved, Nil) -> check-and-retain resolved
+@@ -196,7 +199,7 @@
+       else Cons previous (replace-overlay-interface fresh rest)
+   checked-overlay-source :: Program -> List LoadedInterface -> Option LoadedInterface -> Result (List Diagnostic) CheckedProgram
+   checked-overlay-source program dependencies facade = case facade of
+-    Some entry -> retain-resolved-source (resolve-overlay-with program dependencies entry)
++    Some entry -> check-source-phase (\input -> resolve-overlay-with input dependencies entry) program
+     None -> checked-source program dependencies
+   rebuild-source-interface :: Bytes -> Program -> String -> List LoadedInterface -> Option LoadedInterface -> Result String (LoadedInterface, Json)
+   rebuild-source-interface source program name dependencies facade = case checked-overlay-source program dependencies facade of
+@@ -286,9 +289,7 @@
+     Parsed prog recoverable -> write-failure ir (render-bundle (Bundle name src recoverable)) pipeline-parse-failed
+ 
+   after-resolve :: forall r. using (io :: Io r) => PipelineMode -> Bytes -> Program -> Path -> Path -> Path ->{IO r, Diverge} Int
+-  after-resolve mode src prog ir exe report = case resolve-program prog of
+-    (resolved, Nil) -> after-check mode src (check-and-retain resolved) ir exe report
+-    (resolved, found) -> write-failure ir (render-source-diagnostics src found) pipeline-check-refused
++  after-resolve mode src prog ir exe report = after-check mode src (check-source-phase resolve-program prog) ir exe report
+ 
+   after-check :: forall r. using (io :: Io r) => PipelineMode -> Bytes -> Result (List Diagnostic) CheckedProgram -> Path -> Path -> Path ->{IO r, Diverge} Int
+   after-check mode src result ir exe report = case result of
+@@ -437,11 +438,9 @@
+                   Err error -> write-failure ir "bootstrap.object: cannot read source" pipeline-read-failed
+                   Ok bytes -> case parse-program-with source bytes (interface-headers interfaces) of
+                     Failed bundle -> write-failure ir (render-bundle bundle) pipeline-parse-failed
+-                    Parsed program Nil -> (case resolve-program-with program interfaces of
+-                      (resolved, Nil) -> case check-and-retain resolved of
+-                        Err errors -> write-failure ir (render-source-diagnostics bytes errors) pipeline-check-refused
+-                        Ok checked -> prepare-library-object checked interfaces bytes provider document provider-code ir object abi prefix
+-                      (resolved, errors) -> write-failure ir (render-source-diagnostics bytes errors) pipeline-check-refused)
++                    Parsed program Nil -> (case checked-source program interfaces of
++                      Err errors -> write-failure ir (render-source-diagnostics bytes errors) pipeline-check-refused
++                      Ok checked -> prepare-library-object checked interfaces bytes provider document provider-code ir object abi prefix)
+                     Parsed program errors -> write-failure ir (render-bundle (Bundle source bytes errors)) pipeline-parse-failed
+   prepare-library-object :: forall r. using (io :: Io r) => CheckedProgram -> List LoadedInterface -> Bytes -> RuntimeObject -> Json -> Bytes -> Path -> Path -> Path -> String ->{IO r, Diverge} Int
+   prepare-library-object checked interfaces source provider document provider-code ir object abi prefix = case runtime-library-default-roots checked of
+--- a/bootstrap/Bootstrap.Resolve.cinch
++++ b/bootstrap/Bootstrap.Resolve.cinch
+@@ -231,6 +231,12 @@
+       DExport s text items -> items <> export-items rest
+       other -> export-items rest
+ 
++  has-export-declaration :: List Decl -> Bool
++  has-export-declaration declarations = case declarations of
++    Nil -> False
++    Cons (DExport site text items) rest -> True
++    Cons other rest -> has-export-declaration rest
++
+   lookup-view :: String -> List View -> Option View
+   lookup-view name views = case views of
+     Nil -> None
+@@ -289,7 +295,7 @@
+     let home = module-name m in
+     let (declared, visible, views, visibility-errors) = module-visibility m done base in
+     let (surface, export-errors) = case export-items (module-decls m) of
+-          Nil -> (declared, Nil)
++          Nil -> (if has-export-declaration (module-decls m) then Nil else declared, Nil)
+           Cons first rest -> build-exports (Cons first rest) visible views Nil in
+     let (body, body-errors) = rename-decls home visible (module-decls m) in
+     (MkScoped home surface body, visibility-errors <> export-errors <> body-errors)
+--- /dev/null
++++ b/bootstrap/Bootstrap.Stage.cinch
+@@ -0,0 +1,265 @@
++-- Compile stage declarations in their local namespace, then check the
++-- generated declarations as ordinary source. Scalar quotations transport
++-- checked literals, with their original splice sites and carriers.
++module Bootstrap.Stage where
++  import Bootstrap.Ast
++  import Bootstrap.Check (CheckedProgram, check-and-retain)
++  import Bootstrap.Report (Diagnostic, MkDiagnostic)
++  import Bootstrap.StageEval
++  import Algebra.Semigroup
++  import Data.Int (int-neg)
++  import Text.Lex (Span, span-start)
++  import Text.Show (int-to-string, nat-to-string)
++
++  export expand-stages
++
++  stage-error :: forall a. Span -> String -> Result (List Diagnostic) a
++  stage-error site message = Err [MkDiagnostic "bootstrap.stage" site message]
++
++  same :: String -> String -> Bool
++  same a b = string-compare a b == 0
++
++  stage-work :: List Decl -> Bool
++  stage-work declarations = case declarations of
++    Nil -> False
++    Cons first rest -> case first of
++      DStage site body -> True
++      DGenerate site body -> True
++      other -> stage-work rest
++
++  probe-name :: Span -> String
++  probe-name site = string-concat "#stage-probe-" (nat-to-string (span-start site))
++
++  probe :: Span -> TypeExpr -> Expr -> List Decl
++  probe site ty body = let name = probe-name site in
++    [DSig site name ty, DFun site name [(Nil, body)]]
++
++  quote-type-name :: String
++  quote-type-name = "#StageCode"
++
++  quote-type :: Span -> String -> String -> TypeExpr
++  quote-type site name carrier = TApp site (TName site name) (type-arg-spine site [TName site carrier])
++
++  -- These are ordinary checked functions in a private compile-time module.
++  -- A same-spelled source binding still resolves according to normal scope.
++  quote-function :: Span -> String -> String -> List Decl
++  quote-function site name carrier =
++    [DSig site name (TFun site (TName site carrier) (quote-type site quote-type-name carrier)),
++     DFun site name [([PVar site "value"], ECon site stage-quotation-constructor (expr-spine site [EVar site "value"]))]]
++
++  quotation-declarations :: Span -> List Decl
++  quotation-declarations site =
++    [DExport site "" [ExportName site [quote-type-name], ExportName site ["quoteNat"], ExportName site ["quoteInt"], ExportName site ["quoteBool"]],
++     DData site quote-type-name [MkTypeParam site "a" None False]
++      [(stage-quotation-constructor, TFun site (TName site "a") (quote-type site quote-type-name "a"))]]
++    <> quote-function site "quoteNat" "Nat"
++    <> quote-function site "quoteInt" "Int"
++    <> quote-function site "quoteBool" "Bool"
++
++  quotation-scope :: Span -> Module
++  quotation-scope site = MkModule site stage-quotation-module (decl-spine site (quotation-declarations site))
++
++  quotation :: Span -> Expr -> Result (List Diagnostic) String
++  quotation site expression = case expression of
++    EApp at (EVar fn name) argument ->
++      if same name "quoteNat" then Ok "Nat"
++      else if same name "quoteInt" then Ok "Int"
++      else if same name "quoteBool" then Ok "Bool"
++      else stage-error site "this splice requires a checked scalar quotation"
++    other -> stage-error site "this splice requires a checked scalar quotation"
++
++  template-clause-probes :: List (List Pat, Expr) -> Result (List Diagnostic) (List Decl)
++  template-clause-probes clauses = case clauses of
++    Nil -> Ok Nil
++    Cons (patterns, body) rest -> case template-clause-probes rest of
++      Err errors -> Err errors
++      Ok tail -> case body of
++        ESplice site expression -> case quotation site expression of
++          Err errors -> Err errors
++          Ok carrier -> Ok (probe site (quote-type site (string-concat-all [stage-quotation-module, ".", quote-type-name]) carrier) expression <> tail)
++        other -> Ok tail
++
++  template-probes :: List Decl -> Result (List Diagnostic) (List Decl)
++  template-probes declarations = case declarations of
++    Nil -> Ok Nil
++    Cons first rest -> case template-probes rest of
++      Err errors -> Err errors
++      Ok more -> case first of
++        DFun site name clauses -> case template-clause-probes clauses of
++          Err errors -> Err errors
++          Ok found -> Ok (found <> more)
++        other -> Ok more
++
++  action-probes :: Decl -> Result (List Diagnostic) (List Decl)
++  action-probes action = case action of
++    DStageEmit site template -> template-probes (decls-of template)
++    DStageBranch site condition yes no -> case (action-probes yes, action-probes no) of
++      (Ok first, Ok second) -> Ok (probe site (TName site "Bool") condition <> first <> second)
++      (Err errors, other) -> Err errors
++      (other, Err errors) -> Err errors
++    other -> stage-error (decl-span action) "invalid compile-time generator action"
++
++  generator-probes :: List Decl -> Result (List Diagnostic) (List Decl)
++  generator-probes declarations = case declarations of
++    Nil -> Ok Nil
++    Cons first rest -> case (action-probes first, generator-probes rest) of
++      (Ok local, Ok more) -> Ok (local <> more)
++      (Err errors, other) -> Err errors
++      (other, Err errors) -> Err errors
++
++  runtime-value-names :: List Decl -> List String
++  runtime-value-names declarations = case declarations of
++    Nil -> Nil
++    Cons first rest -> case first of
++      DSig site name ty -> Cons name (runtime-value-names rest)
++      DFun site name body -> Cons name (runtime-value-names rest)
++      other -> runtime-value-names rest
++
++  runtime-value-name :: String -> List String -> Bool
++  runtime-value-name name names = case names of
++    Nil -> False
++    Cons first rest -> same name first || runtime-value-name name rest
++
++  stage-exports :: List String -> List ExportItem -> List ExportItem
++  stage-exports runtime items = case items of
++    Nil -> Nil
++    Cons first rest -> let tail = stage-exports runtime rest in case first of
++      ExportName site (Cons name Nil) -> if runtime-value-name name runtime then tail else Cons first tail
++      other -> Cons first tail
++
++  stage-declarations :: Bool -> List String -> List Decl -> Result (List Diagnostic) (List Decl)
++  stage-declarations owner runtime declarations = case declarations of
++    Nil -> Ok Nil
++    Cons first rest -> case stage-declarations owner runtime rest of
++      Err errors -> Err errors
++      Ok tail -> case first of
++        DStage site body -> if owner then Ok (Cons body tail) else Ok tail
++        DGenerate site actions -> if owner then (case generator-probes (decls-of actions) of
++          Err errors -> Err errors
++          Ok probes -> Ok (probes <> tail)) else Ok tail
++        DSig site name ty -> Ok tail
++        DFun site name body -> Ok tail
++        DExport site text items -> if owner then Ok tail else Ok (Cons (DExport site text (stage-exports runtime items)) tail)
++        other -> Ok (Cons first tail)
++
++  stage-modules :: String -> List Module -> Result (List Diagnostic) (List Module)
++  stage-modules owner modules = case modules of
++    Nil -> Ok Nil
++    Cons first rest -> let name = module-name first in let body = module-decls first in
++      case (stage-declarations (same owner name) (runtime-value-names body) body, stage-modules owner rest) of
++        (Ok declarations, Ok tail) -> let site = module-span first in
++          let visible = if same owner name then Cons (DImport site stage-quotation-module Nil None Nil Nil) declarations else declarations in
++          Ok (Cons (MkModule site name (decl-spine site visible)) tail)
++        (Err errors, other) -> Err errors
++        (other, Err errors) -> Err errors
++
++  evaluate-probe :: CheckedProgram -> String -> Span -> Nat -> Result (List Diagnostic) (StageValue, Nat)
++  evaluate-probe checked owner site fuel = evaluate-stage checked site (string-concat-all [owner, ".", probe-name site]) fuel
++
++  literal :: Span -> String -> StageValue -> Result (List Diagnostic) Expr
++  literal site carrier value = case value of
++    StageInteger number -> if (same carrier "Nat" && number >= 0) || same carrier "Int" then
++      let body = if number < 0 then ENeg site (ELitInt site (int-to-string (int-neg number))) else ELitInt site (int-to-string number) in
++      Ok (EAnn site body (TName site carrier))
++      else stage-error site "checked scalar quotation did not produce its declared carrier"
++    StageBoolean boolean -> if same carrier "Bool" then Ok (ECon site (if boolean then "True" else "False") (EArgsEnd site))
++      else stage-error site "checked scalar quotation did not produce its declared carrier"
++    other -> stage-error site "checked scalar quotation did not produce its declared carrier"
++
++  expand-clause :: CheckedProgram -> String -> Expr -> Nat -> Result (List Diagnostic) (Expr, Nat)
++  expand-clause checked owner body fuel = case body of
++    ESplice site expression -> case quotation site expression of
++      Err errors -> Err errors
++      Ok carrier -> case evaluate-probe checked owner site fuel of
++        Err errors -> Err errors
++        Ok (StageQuoted value, remaining) -> case literal site carrier value of
++          Err errors -> Err errors
++          Ok term -> Ok (term, remaining)
++        Ok other -> stage-error site "splice did not produce checked code"
++    other -> Ok (body, fuel)
++
++  expand-clauses :: CheckedProgram -> String -> List (List Pat, Expr) -> Nat -> Result (List Diagnostic) (List (List Pat, Expr), Nat)
++  expand-clauses checked owner clauses fuel = case clauses of
++    Nil -> Ok (Nil, fuel)
++    Cons (patterns, body) rest -> case expand-clause checked owner body fuel of
++      Err errors -> Err errors
++      Ok (term, remaining) -> case expand-clauses checked owner rest remaining of
++        Err errors -> Err errors
++        Ok (more, done) -> Ok (Cons (patterns, term) more, done)
++
++  expand-template-declaration :: CheckedProgram -> String -> Decl -> Nat -> Result (List Diagnostic) (Decl, Nat)
++  expand-template-declaration checked owner declaration fuel = case declaration of
++    DFun site name body -> case expand-clauses checked owner body fuel of
++      Err errors -> Err errors
++      Ok (value, remaining) -> Ok (DFun site name value, remaining)
++    other -> Ok (declaration, fuel)
++
++  expand-template :: CheckedProgram -> String -> List Decl -> Nat -> Result (List Diagnostic) (List Decl, Nat)
++  expand-template checked owner declarations fuel = case declarations of
++    Nil -> Ok (Nil, fuel)
++    Cons first rest -> case expand-template-declaration checked owner first fuel of
++      Err errors -> Err errors
++      Ok (value, remaining) -> case expand-template checked owner rest remaining of
++        Err errors -> Err errors
++        Ok (more, done) -> Ok (Cons value more, done)
++
++  expand-action :: CheckedProgram -> String -> Decl -> Nat -> Result (List Diagnostic) (List Decl, Nat)
++  expand-action checked owner action fuel = case action of
++    DStageEmit site template -> expand-template checked owner (decls-of template) fuel
++    DStageBranch site condition yes no -> case evaluate-probe checked owner site fuel of
++      Err errors -> Err errors
++      Ok (StageBoolean selected, remaining) -> expand-action checked owner (if selected then yes else no) remaining
++      Ok other -> stage-error site "checked generator branch did not produce Bool"
++    other -> stage-error (decl-span action) "invalid compile-time generator action"
++
++  expand-actions :: CheckedProgram -> String -> List Decl -> Nat -> Result (List Diagnostic) (List Decl, Nat)
++  expand-actions checked owner actions fuel = case actions of
++    Nil -> Ok (Nil, fuel)
++    Cons first rest -> case expand-action checked owner first fuel of
++      Err errors -> Err errors
++      Ok (generated, remaining) -> case expand-actions checked owner rest remaining of
++        Err errors -> Err errors
++        Ok (more, done) -> Ok (generated <> more, done)
++
++  expand-declaration :: CheckedProgram -> String -> Decl -> Nat -> Result (List Diagnostic) (List Decl, Nat)
++  expand-declaration checked owner declaration fuel = case declaration of
++    DStage site body -> Ok (Nil, fuel)
++    DGenerate site actions -> expand-actions checked owner (decls-of actions) fuel
++    other -> Ok ([declaration], fuel)
++
++  expand-declarations :: CheckedProgram -> String -> List Decl -> Nat -> Result (List Diagnostic) (List Decl, Nat)
++  expand-declarations checked owner declarations fuel = case declarations of
++    Nil -> Ok (Nil, fuel)
++    Cons first rest -> case expand-declaration checked owner first fuel of
++      Err errors -> Err errors
++      Ok (local, remaining) -> case expand-declarations checked owner rest remaining of
++        Err errors -> Err errors
++        Ok (more, done) -> Ok (local <> more, done)
++
++  expand-module :: (Program -> (Program, List Diagnostic)) -> Program -> Module -> Nat -> Result (List Diagnostic) (Module, Nat)
++  expand-module resolve program current fuel =
++    let declarations = module-decls current in
++    if not (stage-work declarations) then Ok (current, fuel) else
++      let owner = module-name current in case stage-modules owner (program-modules program) of
++        Err errors -> Err errors
++        Ok modules -> let site = program-span program in case resolve (MkProgram site (Cons (quotation-scope site) modules)) of
++          (resolved, Nil) -> case check-and-retain resolved of
++            Err errors -> Err errors
++            Ok checked -> case expand-declarations checked owner declarations fuel of
++              Err errors -> Err errors
++              Ok (body, remaining) -> let site = module-span current in Ok (MkModule site owner (decl-spine site body), remaining)
++          (resolved, errors) -> Err errors
++
++  expand-modules :: (Program -> (Program, List Diagnostic)) -> Program -> List Module -> Nat -> Result (List Diagnostic) (List Module, Nat)
++  expand-modules resolve program modules fuel = case modules of
++    Nil -> Ok (Nil, fuel)
++    Cons first rest -> case expand-module resolve program first fuel of
++      Err errors -> Err errors
++      Ok (expanded, remaining) -> case expand-modules resolve program rest remaining of
++        Err errors -> Err errors
++        Ok (tail, done) -> Ok (Cons expanded tail, done)
++
++  expand-stages :: (Program -> (Program, List Diagnostic)) -> Program -> Result (List Diagnostic) Program
++  expand-stages resolve program = case expand-modules resolve program (program-modules program) 8192 of
++    Err errors -> Err errors
++    Ok (modules, fuel) -> Ok (MkProgram (program-span program) modules)
+--- /dev/null
++++ b/bootstrap/Bootstrap.StageEval.cinch
+@@ -0,0 +1,202 @@
++-- Evaluate checked compile-time computations with a shared work budget.
++-- The caller supplies a program checked in its compile-time namespace.
++module Bootstrap.StageEval where
++  import Bootstrap.Check (CheckedProgram, checked-elaboration)
++  import Bootstrap.Core
++  import Bootstrap.ExportType (export-global)
++  import Bootstrap.Infer (elaboration-core)
++  import Bootstrap.Report (Diagnostic, MkDiagnostic)
++  import Bootstrap.Total (total-decimal-value)
++  import Bootstrap.Type (UType, UCon, KType, mono, scheme-runtime-arity)
++  import Data.Int (int-add, int-sub, int-mul, int-neg)
++  import Text.Lex (Span)
++
++  export StageValue, StageInteger, StageBoolean, StageString, StageUnit, StageQuoted, evaluate-stage
++  export stage-quotation-module, stage-quotation-constructor
++
++  stage-quotation-module :: String
++  stage-quotation-module = "#stage-quotation"
++
++  stage-quotation-constructor :: String
++  stage-quotation-constructor = "#stage-value"
++
++  data StageValue where
++    StageInteger :: Int -> StageValue
++    StageBoolean :: Bool -> StageValue
++    StageString :: String -> StageValue
++    StageUnit :: StageValue
++    StageQuoted :: StageValue -> StageValue
++
++  data StageMatch where
++    Match :: List (Nat, StageValue) -> StageMatch
++    NoMatch :: StageMatch
++    UnavailablePattern :: Span -> StageMatch
++
++  same :: String -> String -> Bool
++  same left right = string-compare left right == 0
++
++  stage-error :: forall a. Span -> String -> Result (List Diagnostic) a
++  stage-error site message = Err [MkDiagnostic "bootstrap.stage" site message]
++
++  definition-for :: String -> List CoreDefinition -> Option CoreDefinition
++  definition-for name definitions = case definitions of
++    Nil -> None
++    Cons definition rest -> if same (core-name definition) name then Some definition else definition-for name rest
++
++  exported-definition :: String -> List CoreDefinition -> Option CoreDefinition
++  exported-definition name definitions = case definitions of
++    Nil -> None
++    Cons definition rest -> case export-global (core-name definition) of
++      Ok identity -> if same identity name then Some definition else exported-definition name rest
++      Err message -> exported-definition name rest
++
++  evaluate-stage :: CheckedProgram -> Span -> String -> Nat -> Result (List Diagnostic) (StageValue, Nat)
++  evaluate-stage checked site name fuel = let definitions = elaboration-core (checked-elaboration checked) in
++    case exported-definition name definitions of
++      Some definition -> evaluate-definition definitions site definition Nil fuel
++      None -> stage-error site (string-concat "missing checked compile-time definition: " name)
++
++  match-stage-pattern :: CorePattern -> StageValue -> List (Nat, StageValue) -> StageMatch
++  match-stage-pattern pattern value locals = case pattern of
++    CPVar site ty id name -> Match (Cons (id, value) locals)
++    CPAs site ty id name nested -> match-stage-pattern nested value (Cons (id, value) locals)
++    CPWild site ty -> Match locals
++    CPInt site ty text -> case (total-decimal-value text, value) of
++      (Some expected, StageInteger actual) -> if expected == actual then Match locals else NoMatch
++      other -> NoMatch
++    CPString site ty text -> case value of
++      StageString actual -> if same text actual then Match locals else NoMatch
++      other -> NoMatch
++    CPConstructor site (UCon carrier KType) name actuals ty (CPDone end) ->
++      if same carrier "Bool" && (same name "True" || same name "False") then (case value of
++        StageBoolean actual -> if actual == same name "True" then Match locals else NoMatch
++        other -> NoMatch)
++      else UnavailablePattern site
++    other -> UnavailablePattern (Span 0 0 0 0)
++
++  match-stage-patterns :: List CorePattern -> List StageValue -> List (Nat, StageValue) -> StageMatch
++  match-stage-patterns patterns values locals = case (patterns, values) of
++    (Nil, Nil) -> Match locals
++    (Cons pattern rest, Cons value more) -> case match-stage-pattern pattern value locals of
++      Match found -> match-stage-patterns rest more found
++      NoMatch -> NoMatch
++      UnavailablePattern site -> UnavailablePattern site
++    other -> NoMatch
++
++  stage-local :: Nat -> List (Nat, StageValue) -> Option StageValue
++  stage-local id locals = case locals of
++    Nil -> None
++    Cons (key, value) rest -> if id == key then Some value else stage-local id rest
++
++  evaluate-definition :: List CoreDefinition -> Span -> CoreDefinition -> List StageValue -> Nat -> Result (List Diagnostic) (StageValue, Nat)
++  evaluate-definition definitions site definition values fuel = case core-givens definition of
++    Nil -> evaluate-clauses definitions site (core-clauses definition) values fuel
++    other -> stage-error site "dictionary arguments are unavailable in compile-time evaluation"
++
++  evaluate-clauses :: List CoreDefinition -> Span -> List CoreClause -> List StageValue -> Nat -> Result (List Diagnostic) (StageValue, Nat)
++  evaluate-clauses definitions site clauses values fuel = if fuel == 0 then stage-error site "compile-time evaluation exhausted its work budget" else
++    case clauses of
++      Nil -> stage-error site "no checked compile-time clause matches this call"
++      Cons (MkCoreClause clause-site patterns body) rest -> case match-stage-patterns patterns values Nil of
++        Match locals -> evaluate-term definitions locals clause-site body (fuel - 1)
++        NoMatch -> evaluate-clauses definitions site rest values (fuel - 1)
++        UnavailablePattern pattern-site -> stage-error pattern-site "pattern is unavailable in compile-time evaluation"
++
++  -- Calls evaluate operands before invoking the checked target. A refused
++  -- inner intrinsic is reported even when the outer call is also unavailable.
++  evaluate-terms :: List CoreDefinition -> List (Nat, StageValue) -> Span -> List CoreTerm -> Nat -> Result (List Diagnostic) (List StageValue, Nat)
++  evaluate-terms definitions locals site arguments fuel = case arguments of
++    Nil -> Ok (Nil, fuel)
++    Cons first rest -> case evaluate-term definitions locals site first fuel of
++      Err errors -> Err errors
++      Ok (value, remaining) -> case evaluate-terms definitions locals site rest remaining of
++        Err errors -> Err errors
++        Ok (values, done) -> Ok (Cons value values, done)
++
++  evaluate-use :: List CoreDefinition -> Span -> UType -> String -> String -> List StageValue -> Nat -> Result (List Diagnostic) (StageValue, Nat)
++  evaluate-use definitions site ty name role values fuel =
++    if same role "intrinsic" || same role "foreign" then
++      if list-length values == scheme-runtime-arity (mono ty) then
++        stage-error site (string-concat-all ["primitive `", name, "` is not available at compile time"])
++      else stage-error site "partial primitive application is unavailable in compile-time evaluation"
++    else if same role "constructor" then evaluate-constructor site ty name values fuel
++    else case definition-for name definitions of
++      Some definition -> evaluate-definition definitions site definition values fuel
++      None -> stage-error site (string-concat "definition is not available at compile time: " name)
++
++  evaluate-constructor :: Span -> UType -> String -> List StageValue -> Nat -> Result (List Diagnostic) (StageValue, Nat)
++  evaluate-constructor site ty name values fuel = case (ty, values) of
++    (UCon carrier KType, Nil) -> if same carrier "Bool" && (same name "True" || same name "False") then Ok (StageBoolean (same name "True"), fuel)
++      else stage-error site "constructor is unavailable in compile-time evaluation"
++    (other, Cons value Nil) -> case export-global name of
++      Ok identity -> if same identity (string-concat-all [stage-quotation-module, ".", stage-quotation-constructor]) then Ok (StageQuoted value, fuel)
++        else stage-error site "constructor is unavailable in compile-time evaluation"
++      Err message -> stage-error site "constructor is unavailable in compile-time evaluation"
++    other -> stage-error site "constructor is unavailable in compile-time evaluation"
++
++  evaluate-application :: List CoreDefinition -> List (Nat, StageValue) -> Span -> CoreTerm -> List CoreTerm -> Nat -> Result (List Diagnostic) (StageValue, Nat)
++  evaluate-application definitions locals site term arguments fuel = if fuel == 0 then stage-error site "compile-time evaluation exhausted its work budget" else
++    case term of
++      CApply at ty f x -> evaluate-application definitions locals at f (Cons x arguments) (fuel - 1)
++      CUse at ty name role actuals -> case evaluate-terms definitions locals site arguments (fuel - 1) of
++        Err errors -> Err errors
++        Ok (values, remaining) -> evaluate-use definitions at ty name role values remaining
++      other -> stage-error site "indirect application is unavailable in compile-time evaluation"
++
++  primitive-arguments :: CoreTerm -> List CoreTerm
++  primitive-arguments term = case term of
++    CArgument site first rest -> Cons first (primitive-arguments rest)
++    other -> Nil
++
++  evaluate-numeric-primitive :: Span -> String -> Int -> Int -> Nat -> Result (List Diagnostic) (StageValue, Nat)
++  evaluate-numeric-primitive site operation left right fuel =
++    if same operation "+" then Ok (StageInteger (int-add left right), fuel)
++    else if same operation "-" then Ok (StageInteger (int-sub left right), fuel)
++    else if same operation "*" then Ok (StageInteger (int-mul left right), fuel)
++    else if same operation "==" then Ok (StageBoolean (left == right), fuel)
++    else if same operation "/=" then Ok (StageBoolean (left /= right), fuel)
++    else if same operation "<" then Ok (StageBoolean (left < right), fuel)
++    else if same operation "<=" then Ok (StageBoolean (left <= right), fuel)
++    else if same operation ">" then Ok (StageBoolean (left > right), fuel)
++    else if same operation ">=" then Ok (StageBoolean (left >= right), fuel)
++    else stage-error site (string-concat "operation is unavailable in compile-time evaluation: " operation)
++
++  evaluate-primitive :: Span -> String -> List StageValue -> Nat -> Result (List Diagnostic) (StageValue, Nat)
++  evaluate-primitive site operation values fuel = case values of
++    Nil -> if same operation "decision-true" || same operation "decision-false" then Ok (StageBoolean (same operation "decision-true"), fuel)
++      else stage-error site (string-concat "operation is unavailable in compile-time evaluation: " operation)
++    Cons (StageInteger value) Nil -> if same operation "negate" then Ok (StageInteger (int-neg value), fuel)
++      else stage-error site (string-concat "operation is unavailable in compile-time evaluation: " operation)
++    Cons (StageInteger left) (Cons (StageInteger right) Nil) -> evaluate-numeric-primitive site operation left right fuel
++    other -> stage-error site (string-concat "operation is unavailable in compile-time evaluation: " operation)
++
++  evaluate-term :: List CoreDefinition -> List (Nat, StageValue) -> Span -> CoreTerm -> Nat -> Result (List Diagnostic) (StageValue, Nat)
++  evaluate-term definitions locals site term fuel = if fuel == 0 then stage-error site "compile-time evaluation exhausted its work budget" else
++    let remaining = fuel - 1 in case term of
++      CInt at (UCon carrier KType) text -> if same carrier "Nat" || same carrier "Int" then (case total-decimal-value text of
++        Some value -> Ok (StageInteger value, remaining)
++        None -> stage-error at "invalid checked compile-time integer")
++        else stage-error at "machine arithmetic is unavailable in compile-time evaluation"
++      CString at ty text -> Ok (StageString text, remaining)
++      CUnit at ty -> Ok (StageUnit, remaining)
++      CLocal at ty id name actuals -> case stage-local id locals of
++        Some value -> Ok (value, remaining)
++        None -> stage-error at "missing checked compile-time local binding"
++      CUse at ty name role actuals -> evaluate-use definitions at ty name role Nil remaining
++      CApply at ty f x -> evaluate-application definitions locals at f [x] remaining
++      CApplyEff at ty row f x -> stage-error at "effectful call is unavailable in compile-time evaluation"
++      CLet at ty id name sc rhs body -> case evaluate-term definitions locals at rhs remaining of
++        Err errors -> Err errors
++        Ok (value, next) -> evaluate-term definitions (Cons (id, value) locals) at body next
++      CIf at ty condition yes no -> case evaluate-term definitions locals at condition remaining of
++        Err errors -> Err errors
++        Ok (StageBoolean branch, next) -> evaluate-term definitions locals at (if branch then yes else no) next
++        Ok other -> stage-error at "checked compile-time branch requires Bool"
++      CProved at ty certificate body -> evaluate-term definitions locals at body remaining
++      CRefine at ty certificate body -> evaluate-term definitions locals at body remaining
++      CForget at ty body -> evaluate-term definitions locals at body remaining
++      CDischarge at ty proofs body -> evaluate-term definitions locals at body remaining
++      CPrimitive at ty operation arguments -> case evaluate-terms definitions locals at (primitive-arguments arguments) remaining of
++        Err errors -> Err errors
++        Ok (values, next) -> evaluate-primitive at operation values next
++      other -> stage-error site "expression is unavailable in compile-time evaluation"
+--- /dev/null
++++ b/bootstrap/programs/Run.StageEval.cinch
+@@ -0,0 +1,31 @@
++module Main where
++  import Bootstrap.Ast (program-span)
++  import Bootstrap.Check (check-and-retain)
++  import Bootstrap.Parse (parse-program)
++  import Bootstrap.Report (MkDiagnostic)
++  import Bootstrap.Resolve (resolve-program)
++  import Bootstrap.StageEval
++  import Text.Parse (Parsed)
++
++  source :: String
++  source = "module StageInput where\n  foreign import ccall \"cinch.runtime.arrayReplicate\" copies :: forall a. Nat -> a -> Array a\n  foreign import ccall \"cinch.runtime.arrayLen\" size :: forall a. Array a -> Nat\n  add-two :: Nat -> Nat\n  add-two n = n + 2\n  unavailable :: Nat\n  unavailable = size (copies 2 (1 :: Int))\n  selected :: Nat\n  selected = if True then add-two 40 else unavailable\n"
++
++  main :: Int
++  main = case parse-program "checked-stage-evaluation" (string-to-bytes source) of
++    Parsed program Nil -> case resolve-program program of
++      (resolved, Nil) -> case check-and-retain resolved of
++        Err errors -> 3
++        Ok checked -> let site = program-span program in
++          case evaluate-stage checked site "StageInput.selected" 512 of
++            Ok (StageInteger value, fuel) -> if value /= 42 || fuel >= 512 then 5 else
++              (case evaluate-stage checked site "StageInput.unavailable" 512 of
++                Err (Cons (MkDiagnostic rung at message) Nil) ->
++                  if string-compare message "primitive `cinch.runtime.arrayReplicate` is not available at compile time" /= 0 then 6 else
++                    (case evaluate-stage checked site "StageInput.selected" 1 of
++                      Err (Cons (MkDiagnostic name where-at limited) Nil) ->
++                        if string-compare limited "compile-time evaluation exhausted its work budget" == 0 then 0 else 7
++                      other -> 7)
++                other -> 6)
++            other -> 4
++      other -> 2
++    other -> 1
+--- a/compiler/tests/bootstrap_pipeline.rs
++++ b/compiler/tests/bootstrap_pipeline.rs
+@@ -143,10 +143,60 @@
+     assert_eq!(std::process::Command::new(dir.join("modules.bin")).status().unwrap().code(), Some(0));
+ 
+     frontend_modes(&dir, &exe);
++    staged_sources(&dir, &exe);
+     interface_output(&dir, &exe);
+     refused_source(&dir, &exe);
+     checked_interfaces(&dir, &exe);
+     common::cleanup(&dir);
++}
++
++fn staged_sources(dir: &Path, exe: &Path) {
++    let source = dir.join("staged.cinch");
++    let prefix = dir.join("staged.ll");
++    let run = |mode: &str, text: &str| {
++        std::fs::write(&source, text).unwrap();
++        let args = vec![mode.into(), source.display().to_string(), prefix.display().to_string()];
++        let (exit, stderr) = run_built(exe, dir, &args);
++        let diagnostic = std::fs::read_to_string(dir.join("staged.ll.diagnostics")).unwrap_or_default();
++        (exit, format!("{diagnostic}{stderr}"))
++    };
++    let generated = "module Main where\n  stage bump :: Nat -> Nat\n  stage bump n = n + 2\n  stage count :: Nat\n  stage count = bump 40\n  generate do\n    emit (quoteDecls where\n      result :: Nat\n      result = $(quoteNat count))\n  main :: Int\n  main = if result == 42 then 0 else 1\n";
++    let (exit, diagnostic) = run("--check", generated);
++    assert_eq!(exit, Some(0), "stage-checked generation: {diagnostic}");
++    let (exit, diagnostic) = run("--emit-ir", generated);
++    assert_eq!(exit, Some(0), "emit the checked generated declaration through typed IR: {diagnostic}");
++    let runtime = Path::new(env!("CARGO_MANIFEST_DIR")).join("runtime/target/debug/libcinchruntime.a");
++    let artifact = dir.join("staged.bin");
++    let mut clang = std::process::Command::new("clang");
++    clang.arg(&prefix).arg(runtime).arg("-o").arg(&artifact);
++    if cfg!(target_os = "linux") { clang.args(["-ldl", "-lpthread", "-lm"]); }
++    let linked = clang.output().expect("link the staged program");
++    assert!(linked.status.success(), "{}", String::from_utf8_lossy(&linked.stderr));
++    let ran = std::process::Command::new(&artifact).env("CINCH_LEAK_CHECK", "1")
++        .output().expect("run the staged program");
++    let report = String::from_utf8_lossy(&ran.stderr);
++    assert_eq!(ran.status.code(), Some(0), "execute the checked generated declaration: {report}");
++    assert!(report.contains("live=0 immortal=0 leaked=0"), "{report}");
++
++    let shadowed = generated.replacen("  stage bump ::", "  stage quoteNat :: Nat -> Nat\n  stage quoteNat n = n\n  stage bump ::", 1);
++    let (exit, diagnostic) = run("--check", &shadowed);
++    assert_eq!(exit, Some(4), "a stage function returned a number in a code splice: {diagnostic}");
++    assert!(diagnostic.contains("type mismatch"), "{diagnostic}");
++
++    let leaked = "module Main where\n  stage count :: Int\n  stage count = 42\n  main :: Int\n  main = count\n";
++    let (exit, diagnostic) = run("--check", leaked);
++    assert_eq!(exit, Some(4), "stage-only binding escaped: {diagnostic}");
++    assert!(diagnostic.contains("name is not in scope: count"), "{diagnostic}");
++
++    let runtime_capture = "module Main where\n  runtime-value :: Nat\n  runtime-value = 42\n  stage count :: Nat\n  stage count = runtime-value\n  main :: Int\n  main = 0\n";
++    let (exit, diagnostic) = run("--check", runtime_capture);
++    assert_eq!(exit, Some(4), "runtime-only binding used by stage code: {diagnostic}");
++    assert!(diagnostic.contains("name is not in scope: runtime-value"), "{diagnostic}");
++
++    let unavailable = "module Main where\n  foreign import ccall \"cinch.runtime.arrayReplicate\" copies :: forall a. Nat -> a -> Array a\n  foreign import ccall \"cinch.runtime.arrayLen\" size :: forall a. Array a -> Nat\n  stage count :: Nat\n  stage count = size (copies 2 (1 :: Int))\n  generate do\n    emit (quoteDecls where\n      result :: Nat\n      result = $(quoteNat count))\n  main :: Int\n  main = 0\n";
++    let (exit, diagnostic) = run("--check", unavailable);
++    assert_eq!(exit, Some(4), "compile-time array use: {diagnostic}");
++    assert!(diagnostic.contains("arrayReplicate") && diagnostic.contains("not available at compile time"), "{diagnostic}");
+ }
+ 
+ fn interface_output(dir: &Path, exe: &Path) {
+--- /dev/null
++++ b/compiler/tests/bootstrap_stage_eval.rs
+@@ -0,0 +1,15 @@
++mod common;
++
++#[test]
++fn compile_time_evaluation_runs_checked_core_with_a_shared_budget() {
++    let dir = common::project("stage_eval", &[
++        ("Bootstrap.Check.cinch", include_str!("../../bootstrap/Bootstrap.Check.cinch")),
++        ("Bootstrap.Resolve.cinch", include_str!("../../bootstrap/Bootstrap.Resolve.cinch")),
++        ("Bootstrap.ExportType.cinch", include_str!("../../bootstrap/Bootstrap.ExportType.cinch")),
++        ("Bootstrap.StageEval.cinch", include_str!("../../bootstrap/Bootstrap.StageEval.cinch")),
++        ("Main.cinch", include_str!("../../bootstrap/programs/Run.StageEval.cinch")),
++    ]);
++    let code = common::run(&dir, "Main.cinch");
++    assert_eq!(code, 0, "checked stage evaluation failed: 1 parse, 2 scope, 3 checking, 4 value, 5 work accounting, 6 primitive refusal, 7 exhausted budget; project: {}", dir.display());
++    common::cleanup(&dir);
++}
+--- a/compiler/tests/common/mod.rs
++++ b/compiler/tests/common/mod.rs
+@@ -79,6 +79,8 @@
+             ("Bootstrap.Export.cinch", include_str!("../../../bootstrap/Bootstrap.Export.cinch")),
+             ("Bootstrap.ExportType.cinch", include_str!("../../../bootstrap/Bootstrap.ExportType.cinch")),
+             ("Bootstrap.ExportNominal.cinch", include_str!("../../../bootstrap/Bootstrap.ExportNominal.cinch")),
++            ("Bootstrap.Stage.cinch", include_str!("../../../bootstrap/Bootstrap.Stage.cinch")),
++            ("Bootstrap.StageEval.cinch", include_str!("../../../bootstrap/Bootstrap.StageEval.cinch")),
+         ] {
+             std::fs::write(dir.join(name), source).expect("checked pipeline interface dependency");
+         }
