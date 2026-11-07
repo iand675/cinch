@@ -5,9 +5,8 @@
 //! (compiler/prelude/Data/Identity.cinch, Data/Const.cinch), and the law
 //! groups the classes must satisfy, checked over sample values.
 //!
-//! Each test compiles a real multi-file project: the class modules,
-//! the visitor modules, and a `Main` exercising them, driven through
-//! the CLI pipeline like modules.rs and lib_foldable.rs. The law
+//! Each test compiles a client of the standard library through the
+//! CLI pipeline. The law
 //! statements are the polymorphic ones: quantified over the container
 //! and decided through their `Eq` constraints, with `pure` stated
 //! under an added `Applicative` constraint (decision D152) so a bare
@@ -26,16 +25,11 @@
 //! and the `((->) r)` family runs the same groups pointwise (there is
 //! no `Eq` of functions).
 
-use cinch::driver::{driver, Mode};
+mod common;
+
+use cinch::driver::Mode;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
-
-const FUNCTOR: &str = include_str!("../prelude/Category/Functor.cinch");
-const APPLICATIVE: &str = include_str!("../prelude/Category/Applicative.cinch");
-const MONAD: &str = include_str!("../prelude/Category/Monad.cinch");
-const ALTERNATIVE: &str = include_str!("../prelude/Category/Alternative.cinch");
-const IDENTITY: &str = include_str!("../prelude/Data/Identity.cinch");
-const CONST: &str = include_str!("../prelude/Data/Const.cinch");
 
 /// The shared `Main` prefix: the imports, the structural equality
 /// helpers and `Eq` instances the law statements need, and the law
@@ -142,18 +136,8 @@ fn compile(name: &str, main_src: &str, mode: Mode) -> Result<i32, String> {
     ));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("temp project dir");
-    for (file, src) in [
-        ("Functor.cinch", FUNCTOR),
-        ("Applicative.cinch", APPLICATIVE),
-        ("Monad.cinch", MONAD),
-        ("Alternative.cinch", ALTERNATIVE),
-        ("Identity.cinch", IDENTITY),
-        ("Const.cinch", CONST),
-        ("Main.cinch", main_src),
-    ] {
-        std::fs::write(dir.join(file), src).expect("write module");
-    }
-    driver(mode, &dir.join("Main.cinch"), None).map_err(|e| e.to_string())
+    std::fs::write(dir.join("Main.cinch"), main_src).expect("write Main.cinch");
+    common::drive(mode, &dir, "Main.cinch", None)
 }
 
 fn source(body: &str) -> String {

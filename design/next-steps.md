@@ -14,9 +14,12 @@ and [the first schema 10 fixed point](../bootstrap/current-schema10-bootstrap-re
 The staged compiler links the pinned standard-library object and runtime
 archive. It reads the library's checked interfaces separately. The executable
 source-rebuild checks verify interface dependencies and refuse changed bodies
-when only the old object is available. The Foldable test now writes a
-single client module. All 15 cases passed through Native with zero leaks.
-The Stage3 replay requires the external frontend harness. The pinned
+when only the old object is available. The Foldable and Category fixtures now write only a client module. All 15
+Foldable and 12 Category cases passed through Native. All 26 executed
+programs reported zero leaks. Both fixtures use the shared frontend harness
+for the pending Stage3 replay.
+See [the Native fixture audit](../bootstrap/current-schema10-source-free-library-fixtures-results.json).
+The pinned
 library object preserves all 55 checked interfaces and includes
 `both [TTT]` and `swap [TT]`. All nine
 Function.Combinators cases passed against that object with zero leaks.

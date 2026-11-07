@@ -1,0 +1,46 @@
+{
+  "frontend": "Rust",
+  "full_goal_complete": false,
+  "native_rlib_sha256": "8a4d96b51294c8f7679cb9e20ff053b45666bd7acde49b6396aa306c607a45fc",
+  "native_source_sha256": "ca7a6231fa497ca0c6b016fed5aaefc0d9ecb32fa3c41b10617e944ed8af1009",
+  "rows": [
+    {
+      "exit_code": 0,
+      "log_sha256": "d86594b29f47a780220b18945f31e08ff5cb7194636404db6a7cf8cdc1bb8629",
+      "name": "build-lib_foldable",
+      "status": "passed"
+    },
+    {
+      "cases": 15,
+      "exit_code": 0,
+      "leak_reports": 15,
+      "log_sha256": "e5327bfacb4aafa67d44e8707e0020c657191a00edd93b859a5976503eb70f51",
+      "name": "lib_foldable",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "d86594b29f47a780220b18945f31e08ff5cb7194636404db6a7cf8cdc1bb8629",
+      "name": "build-lib_category",
+      "status": "passed"
+    },
+    {
+      "cases": 12,
+      "exit_code": 0,
+      "leak_reports": 11,
+      "log_sha256": "5e480f9470eb0ae7575e1435aa8667cce7e9b4177cd2800899e3e05851905d52",
+      "name": "lib_category",
+      "status": "passed"
+    }
+  ],
+  "runtime_sha256": "c4ab921147a8ea1055306428e0ba84859513888ac0188f4973b408c5c7b399f5",
+  "schema": 1,
+  "scope": "Both complete original library targets with client-only temporary projects. The Category rejection case does not run a linked program.",
+  "source_files": {
+    "compiler/tests/common/mod.rs": "12d371410924d4c805b9d175211741e040073010051b0bff9ffbb3f40134e206",
+    "compiler/tests/fixtures/hk/lib_category_check.cinch": "4ea0691043743708fcca65e3e9ca9752055265908a86e5690e72e0584eecfcd6",
+    "compiler/tests/lib_category.rs": "a12a2bd7980a7785eaddeec251ff7773fa039c0d0ff7051c92f059996782fa5e",
+    "compiler/tests/lib_foldable.rs": "417f18ca0e2de54c0e70534557b66bc66d82a5574b9f9176d97fa4ffc01dbc47"
+  },
+  "status": "passed-original-native-library-clients"
+}
