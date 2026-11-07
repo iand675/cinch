@@ -19722,8 +19722,8 @@
       {
         "title": "Rebuild the pinned library with corrected Traversable kinds",
         "status": "running",
-        "phase": "build exact Native provider with scoped member kinds",
-        "passed": 0,
+        "phase": "probe original traversal against the new provider",
+        "passed": 1,
         "failed": 0,
         "total": 2,
         "source": "ca7a6231fa497ca0c6b016fed5aaefc0d9ecb32fa3c41b10617e944ed8af1009"
@@ -19769,5 +19769,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T22:20:25.851407+00:00"
+  "updatedAt": "2026-11-07T22:21:28.017311+00:00"
 }
