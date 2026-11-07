@@ -25,6 +25,14 @@ The package design calls for materializing missing variants from checked
 polymorphic IR and caching them by representation vector.
 See [the specialization design](layouts-and-specialization.md#2-words-specialization-over-three-representation-classes-option-c).
 
+The runtime assigns Unit's word representation to private, unconstrained
+type variables after Core has checked their scope. The original `Result`
+client now requests the concrete `from-result [RT]` variant. The expanded
+object preserves the two required Alternative method vectors and all 55
+checked interface identities. All 23 original Option, Result, function, Map
+and Set cases ran through the repaired Stage1 with zero leaks.
+See [the selected runtime audit](../bootstrap/current-schema10-private-runtime-library-results.json).
+
 Set `CINCH_TEST_INVOCATIONS` to an evidence directory when running the
 selected frontend tests. Each record identifies the test case, selected
 compiler, input files and observed compiler exit code. It survives project

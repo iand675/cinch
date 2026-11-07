@@ -955,6 +955,13 @@ def build_checklist(root, cfg, previous=None):
             status='passed' if completed == 0 else foldable_consumer['status'],
             phase='The single-module fixture passed through Native. The Stage3 replay is tracked separately.',
             passed=int(completed == 0), failed=int(completed is not None and completed != 0), total=1))
+    private_runtime_path = 'bootstrap/current-schema10-private-runtime-library-results.json'
+    private_runtime = read(root / private_runtime_path)
+    if private_runtime.get('status') == 'audited-private-representation-and-compiled-library':
+        active.append(dict(title='Run the original library clients with concrete representations',
+            status='passed', phase='The selected Stage1 ran all 23 Option, Result, function, Map and Set cases with zero leaks.',
+            passed=private_runtime['original_cases'], failed=0, total=private_runtime['original_cases'],
+            unit='Stage1 cases', source=private_runtime['compiler_source_sha256'], evidence=link(private_runtime_path)))
     compiled_consumers_path = 'bootstrap/current-schema10-compiled-library-consumer-results.json'
     consumer_audit = read(root / compiled_consumers_path)
     compiled_consumers = read(cfg.get('schema10CompiledLibraryConsumers'))

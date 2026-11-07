@@ -310,6 +310,17 @@ module Bootstrap.RuntimeIr where
         other -> None)
     Cons (key, UIndex carrier (IRigid id name level)) rest -> rigid-bindings rest bounds
     other -> None
+  -- Unconstrained body-local Type variables are sealed by Core typing.
+  -- Choose Unit's word class for their internal specializations.
+  private-word-classes :: List (Nat, Kind) -> List (Nat, Nat)
+  private-word-classes entries = case entries of
+    Nil -> Nil
+    Cons (id, KType) rest -> Cons (id, 0) (private-word-classes rest)
+    Cons other rest -> private-word-classes rest
+  definition-rigids :: CoreDefinition -> List (Nat, Nat) -> Option (List (Nat, Nat))
+  definition-rigids d bounds = case rigid-bindings (core-openings d) bounds of
+    None -> None
+    Some opened -> Some (opened <> private-word-classes (core-private-types d))
   with-representations :: List (Nat, Nat) -> List (Nat, Nat) -> Writer -> Writer
   with-representations bounds rigids w = case w of
     Writer next globals code errors layouts (RuntimeContext datas old-bound old-rigid pending done) ->
@@ -841,7 +852,7 @@ module Bootstrap.RuntimeIr where
   definition-context :: CoreDefinition -> List Nat -> Writer -> Option RuntimeContext
   definition-context d classes w = case class-bindings (scheme-params (core-scheme d)) classes of
     None -> None
-    Some bounds -> case rigid-bindings (core-openings d) bounds of
+    Some bounds -> case definition-rigids d bounds of
       None -> None
       Some rigids -> Some (RuntimeContext (writer-program w) bounds rigids Nil Nil)
   constructor-context :: CoreData -> List Nat -> Writer -> Option RuntimeContext
@@ -1996,7 +2007,7 @@ module Bootstrap.RuntimeIr where
   worker definitions classes w d = case d of
     MkCoreDefinition sp name sc openings givens private clauses -> case class-bindings (scheme-params sc) classes of
       None -> refuse w sp "definition needs first-order runtime representation specialization"
-      Some bounds -> case rigid-bindings openings bounds of
+      Some bounds -> case definition-rigids d bounds of
         None -> refuse w sp "definition runtime representation openings are invalid"
         Some rigids -> let scoped = with-representations bounds rigids w in
           if not (scheme-supported (writer-context scoped) sc) then refuse scoped sp (cat ["definition needs dictionary or unsupported runtime lowering: ", name])

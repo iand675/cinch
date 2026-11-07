@@ -47,6 +47,21 @@
   ],
   "methods": [
     {
+      "class": "Category.Alternative.Alternative",
+      "own": "O",
+      "slot": 0
+    },
+    {
+      "class": "Category.Alternative.Alternative",
+      "own": "O",
+      "slot": 1
+    },
+    {
+      "class": "Category.Alternative.Alternative",
+      "own": "T",
+      "slot": 1
+    },
+    {
       "class": "Category.Functor.Functor",
       "own": "OO",
       "slot": 1
@@ -252,6 +267,10 @@
       "symbol": "Data.HashMap.hash-map-lookup"
     },
     {
+      "classes": "RT",
+      "symbol": "Data.Result.from-result"
+    },
+    {
       "classes": "T",
       "symbol": "Data.Bool.bool"
     },
@@ -397,6 +416,10 @@
     },
     {
       "classes": "T",
+      "symbol": "Data.Set.set-filter"
+    },
+    {
+      "classes": "T",
       "symbol": "Data.Set.set-from-list"
     },
     {
@@ -422,6 +445,10 @@
     {
       "classes": "T",
       "symbol": "Data.Set.set-to-list"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.Set.set-union"
     },
     {
       "classes": "T",
@@ -521,6 +548,14 @@
     },
     {
       "classes": "TT",
+      "symbol": "Data.Map.map-empty"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.Map.map-filter"
+    },
+    {
+      "classes": "TT",
       "symbol": "Data.Map.map-from-pairs"
     },
     {
@@ -601,6 +636,10 @@
     },
     {
       "classes": "TT",
+      "symbol": "Data.Set.set-map"
+    },
+    {
+      "classes": "TT",
       "symbol": "Function.Combinators.apply-to"
     },
     {
@@ -633,11 +672,19 @@
     },
     {
       "classes": "TTT",
+      "symbol": "Data.HashMap.hash-map-map"
+    },
+    {
+      "classes": "TTT",
       "symbol": "Data.List.zip-with"
     },
     {
       "classes": "TTT",
       "symbol": "Data.Map.map-fold"
+    },
+    {
+      "classes": "TTT",
+      "symbol": "Data.Map.map-map"
     },
     {
       "classes": "TTT",

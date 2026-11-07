@@ -1,0 +1,66 @@
+{
+  "checked_at": "2026-11-07T22:09:47.506369+00:00",
+  "compiler_sha256": "bd58edbf4038e1009f1078e44e2f7745245a76290fdb7869d17222b51f42c212",
+  "compiler_source_sha256": "4656d5dee16c00122deddd87a48e92b5b5708eed8d63c1fe25a6a63970e5c1f2",
+  "full_goal_complete": false,
+  "interfaces": 55,
+  "metadata_sha256": "92bcbd2453258fa04762c0499e418e48ff682d95fcd9f0152489470fb590904f",
+  "native_source_sha256": "3f4110a6687a9b200d15b372602f7331f3f6594a984ed1d310c34f88fc566e2f",
+  "object_sha256": "44ec237d5bf7c289ce9103e5e4fd1a7df1b5cd9343e78d46a026f79d9f830505",
+  "original_cases": 23,
+  "request": {
+    "demanded": {
+      "dictionaries": [],
+      "methods": [],
+      "schema": 1,
+      "units": [
+        {
+          "classes": "RT",
+          "symbol": "Data.Result.from-result"
+        }
+      ]
+    },
+    "diagnostic_sha256": "827983bfcf7511281be6b07fb98dbd3b389a6ae9388e94eaa5639f58d82400ea",
+    "exit_code": 5,
+    "input_sha256": "8c8051f4e5cee382672b7bbf96d12b5e6f0bcb88e6138b16b20a1113a55ee1fe",
+    "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+    "name": "request-result-variant",
+    "status": "passed"
+  },
+  "roots_sha256": "c3168d896d0fa7f52a31df627eb54fe52fce5d706e715a26791dba6fe7029a18",
+  "rows": [
+    {
+      "exit_code": 0,
+      "invocations": 7,
+      "log_sha256": "b323815782f5e84c12a5a22ed1208a7ce08cc3e27d6f20a8eeb0ec1cfebedbf2",
+      "name": "lib_option_result",
+      "original_cases": 7,
+      "runner_sha256": "b28b98598f8fedfe90cbdd68bb0140a1c4f0bab001e2e9354b56c2aa6f2aa536",
+      "status": "passed",
+      "zero_leak_reports": 7
+    },
+    {
+      "exit_code": 0,
+      "invocations": 9,
+      "log_sha256": "b46a895cfec10c9abbdd58dc7b8ca13ebb5db2d76024c015dfe600832ca8f6a6",
+      "name": "lib_function_ord",
+      "original_cases": 9,
+      "runner_sha256": "c2a41a20c512658851378ea1986390ae74d32a1a83383695cd0e04d682a633f0",
+      "status": "passed",
+      "zero_leak_reports": 9
+    },
+    {
+      "exit_code": 0,
+      "invocations": 7,
+      "log_sha256": "8246db7be9c9f70d67d6929e2bfa16912ea0a7dedae6e566ac874374d5e228f1",
+      "name": "lib_map_set_ops",
+      "original_cases": 7,
+      "runner_sha256": "8cf897478ed6d59f47d1f79776dc20b0a123faa7b0835fbdcafcc66b6e28fd39",
+      "status": "passed",
+      "zero_leak_reports": 7
+    }
+  ],
+  "runtime_sha256": "2fab721751aa601f3ca72d7677f8520e5bdd37d93887275b5636fce478f959c6",
+  "stage1_receipt_sha256": "a587900ee0c406d4d671ed34be2ee9a4f483e0db74c92e57b774639d2f81d3aa",
+  "status": "audited-private-representation-and-compiled-library"
+}
