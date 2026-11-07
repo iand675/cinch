@@ -19231,8 +19231,8 @@
       },
       {
         "title": "Replay the three programs with both required Functor variants",
-        "status": "waiting-disk-space",
-        "phase": "waiting disk space",
+        "status": "waiting-worker",
+        "phase": "waiting worker",
         "passed": 0,
         "failed": 0,
         "total": 3,
@@ -19240,7 +19240,7 @@
       },
       {
         "title": "Rust task capture, units and arrays on schema 10",
-        "status": "waiting-disk-space",
+        "status": "waiting-worker",
         "phase": "original concurrency",
         "passed": 0,
         "failed": 0,
@@ -19429,5 +19429,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T14:45:19.075396+00:00"
+  "updatedAt": "2026-11-07T14:48:21.727204+00:00"
 }
