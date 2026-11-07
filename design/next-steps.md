@@ -16,9 +16,11 @@ the scan is hiding a refusal. The original build is still running.
 
 The development checker passed the complete Core proof test with an erased
 `refl` witness for `Eq`. The added checks reject false equalities,
-comparison-only propositions, mismatched goals and runtime use. The same
-source pipeline is running. A separate candidate checks closed named proof
-declarations at their definitions before using them as erased evidence.
+comparison-only propositions, mismatched goals and runtime use. The source
+pipeline emitted IR for a valid equality and refused an unequal one. Its
+comparison-only case reached the simpler checker and missed the intended
+diagnostic. The next candidate routes predicate syntax through typed checking
+and validates closed named proof declarations before erasing their uses.
 See [the Core proof replay](../bootstrap/current-schema10-reflexivity-core-results.json).
 
 The first schema 10 Stage3 passed 6 of 13 original valid language examples.

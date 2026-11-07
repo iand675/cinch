@@ -12,6 +12,23 @@
   "proof_runner_sha256": "bea29cc6380fae75cd2a6e77ffda942eae56311b0775633aafe24c07c95b452c",
   "schema": 1,
   "scope": "The original complete Core proof target ran with all five runtime-fed nonces. Each execution also checks a true Eq witness and rejects false Eq, a mismatched proposition, True, a comparison-only predicate and runtime use of the erased witness. Source pipeline and named proofs are separate validations.",
+  "source_pipeline": {
+    "diagnostic": [
+      "unsupported type: predicate or index operation",
+      "unbound variable: b.refl"
+    ],
+    "failing_assertion": "The comparison-only case should reach the erased witness check and produce its diagnostic.",
+    "followup_candidate": "05ed3f2377c3b00a7b6db434ef6a53b95166d46a",
+    "log_sha256": "8bbaac5c77562463ea27d0ac92b4a3d55bd6614e117374532c6215c0f4b6b051",
+    "prior_assertions": [
+      "valid Eq emitted IR",
+      "unequal Eq refused with the expected reason",
+      "comparison-only use refused"
+    ],
+    "status": "failed-at-comparison-diagnostic",
+    "test_binary_sha256": "0c77757d83d7dead8254f2d96a1635608b03fec1feca65c88d73763922f24e41",
+    "test_source_sha256": "1b2b2b2994d6f58e2f628c8f858ace6f0642e0e843185ec08b33960669eda3fe"
+  },
   "status": "passed-development-reflexivity-core",
   "test_binary_sha256": "3d35d417f8f0541cb3c77db0e9c5f1810eb0f018bafc806c939773fbfe84058d"
 }
