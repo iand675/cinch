@@ -19439,9 +19439,9 @@
       },
       {
         "title": "Run every Rust compiler target on the combined fixes",
-        "status": "running",
+        "status": "waiting-worker",
         "phase": "arrays",
-        "passed": 4,
+        "passed": 5,
         "failed": 0,
         "total": 235,
         "source": "a4bc2344653dc50ef044ba7a0e4661cf589a91dbf2b12907e279869f7586632b"
@@ -19700,5 +19700,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T18:53:33.722778+00:00"
+  "updatedAt": "2026-11-07T18:54:55.783730+00:00"
 }
