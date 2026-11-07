@@ -116,7 +116,11 @@ and the exact executable. Stage1 emitted all 44 checked Stage2 interfaces,
 then stopped in code generation because the library object lacked the
 `Data.List.list-length` variant for raw elements. A fresh object built with
 that exact root retains all 55 interface files and the runtime archive bytes.
-Stage2 is retrying with the verified Stage0 and Stage1 artifacts. See
+Stage1 used that object to rebuild all 44 Cinch modules into runnable Stage2.
+Stage2 passed the Fibonacci, precedence and named-refusal smoke tests. The
+independent receipt verifies the 44 interface files, exact inputs, generated
+IR and executable hashes. Stage3 is building. See
+`bootstrap/current-partial-boolean-stage2-results.json`. See also
 `bootstrap/current-partial-boolean-precondition-results.json` and
 `bootstrap/current-partial-boolean-input-results.json`. See also
 `bootstrap/current-partial-boolean-native-controls.json`,

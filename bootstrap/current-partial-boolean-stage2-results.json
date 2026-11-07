@@ -1,0 +1,29 @@
+{
+  "checked_stage2_interfaces": 44,
+  "compiler_modules": 44,
+  "compiler_source_sha256": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+  "full_goal_complete": false,
+  "library_object_sha256": "c00554f3d47aac3088b3f70a1ccd7ad3cc01637af5c568f3d5c17f1c65e155d8",
+  "runtime_archive_sha256": "2fab721751aa601f3ca72d7677f8520e5bdd37d93887275b5636fce478f959c6",
+  "scope": "The independently audited Cinch Stage1 compiled all 44 exact compiler source modules into runnable Stage2 using the pinned library-only provider. Stage2 passed both executable smoke inputs and the named refusal. Stage3 reproducibility, changed source, and full matching suite acceptance are separate gates.",
+  "stage1_compiler_sha256": "a03aa73643988c855f4565fd092b25d1429222219ce949de8ae68bfc3818cb68",
+  "stage2_compiler_sha256": "09af398222f987deb9b35ea8b20fafca82617e7d51b8d381ee6604436811ee8a",
+  "stage2_ir_sha256": "068644b6fd926cc80ea093e256bd732a3b2f6742062d39a1e7a58db2910cf892",
+  "stage2_manifest_sha256": "e0745d0d4cadd5f96e71719b7303495cd095c8b5e01dce1b6cb54789ed77b46a",
+  "status": "verified-fresh-stage2",
+  "verified_at": "2026-11-07T04:26:30.347919+00:00",
+  "verified_smokes": {
+    "fib": {
+      "expected_exit": 0,
+      "program_sha256": "7f1fb4ee23908540e97929a491b811df99946c0f0eea1b7c22a0347be2874e4f"
+    },
+    "precedence": {
+      "expected_exit": 14,
+      "program_sha256": "907e323c345ff6008178545aba969e4175463edff68efef88aacff47a178c9cd"
+    },
+    "refusal": {
+      "diagnostic_sha256": "b698294553190462cdca3e4b6cef0939809d4f510c780ceb825d08ebeac903e0",
+      "result": "named refusal"
+    }
+  }
+}
