@@ -11894,10 +11894,10 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 8,
+          "verified": 10,
           "blocked": 2,
           "running": 1,
-          "pending": 94,
+          "pending": 92,
           "recheck": 0
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
@@ -13822,18 +13822,23 @@
           {
             "id": "stage3:interface_preconditions",
             "title": "interface_preconditions",
-            "state": "running",
+            "state": "verified",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_preconditions.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": null,
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
-              "cases": []
+              "startedAt": "2026-11-07T11:56:39.503287+00:00",
+              "finishedAt": "2026-11-07T11:56:55.613092+00:00",
+              "exitCode": 0,
+              "logSha256": "977f805fd9a4da3226dc9f84c6045d6a453a7f8092ddddad19ffc10b03286a70",
+              "cases": [
+                {
+                  "name": "numeric_conditions_keep_checked_argument_positions_and_reexports",
+                  "status": "passed"
+                }
+              ]
             },
             "category": "interface / API"
           },
@@ -13863,36 +13868,50 @@
           {
             "id": "stage3:interface_refinement_closure",
             "title": "interface_refinement_closure",
-            "state": "pending",
+            "state": "verified",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_refinement_closure.rs",
             "observed": {
-              "status": "pending",
+              "status": "passed",
               "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": null,
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
-              "cases": []
+              "startedAt": "2026-11-07T11:56:57.370191+00:00",
+              "finishedAt": "2026-11-07T11:57:13.869995+00:00",
+              "exitCode": 0,
+              "logSha256": "5536b3fec48839b487b4b2b1fbf79becca91423590343fc7963ef252b102c9f4",
+              "cases": [
+                {
+                  "name": "private_refinement_contracts_survive_value_only_facades",
+                  "status": "passed"
+                }
+              ]
             },
             "category": "interface / API"
           },
           {
             "id": "stage3:interface_refinements",
             "title": "interface_refinements",
-            "state": "pending",
+            "state": "running",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_refinements.rs",
             "observed": {
-              "status": "pending",
+              "status": "running",
               "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": null,
+              "startedAt": "2026-11-07T11:57:15.786423+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "interfaces_publish_preconditions_and_named_refinement_definitions",
+                  "status": "passed"
+                },
+                {
+                  "name": "literal_preconditions_keep_checked_truth_and_facade_contract_identity",
+                  "status": "running"
+                }
+              ]
             },
             "category": "interface / API"
           },
@@ -13917,9 +13936,9 @@
         ],
         "observedCounts": {
           "failed": 2,
-          "passed": 8,
+          "passed": 10,
           "running": 1,
-          "pending": 94
+          "pending": 92
         },
         "observedSource": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854"
       },
@@ -18087,8 +18106,8 @@
       {
         "title": "Published schema 9 Stage3: all 105 frontend targets",
         "status": "running",
-        "phase": "interface_preconditions",
-        "passed": 8,
+        "phase": "interface_refinements",
+        "passed": 10,
         "failed": 2,
         "total": 105,
         "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854"
@@ -18684,8 +18703,8 @@
       {
         "title": "Earlier Stage3: complete frontend sweep",
         "status": "running",
-        "phase": "interface_preconditions",
-        "passed": 8,
+        "phase": "interface_refinements",
+        "passed": 10,
         "failed": 2,
         "total": 105,
         "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
@@ -18873,8 +18892,8 @@
       },
       {
         "title": "Schema 10: pinned Stage1 and original library replacement tests",
-        "status": "waiting-provider",
-        "phase": "waiting provider",
+        "status": "running",
+        "phase": "pinned seed builds the 44 schema 10 sources",
         "passed": 0,
         "failed": 0,
         "total": 8,
@@ -18991,10 +19010,10 @@
       }
     ],
     "counts": {
-      "verified": 184,
+      "verified": 186,
       "blocked": 7,
       "running": 11,
-      "pending": 100,
+      "pending": 98,
       "recheck": 372
     },
     "total": 674,
@@ -19003,5 +19022,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T11:56:38.868384+00:00"
+  "updatedAt": "2026-11-07T11:57:40.951255+00:00"
 }
