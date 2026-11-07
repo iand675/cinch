@@ -18441,8 +18441,8 @@
       {
         "title": "Cinch refined containers: complete groups",
         "status": "running",
-        "phase": "bootstrap_source_instances",
-        "passed": 5,
+        "phase": "bootstrap_value_indices",
+        "passed": 6,
         "failed": 0,
         "total": 8,
         "source": "a02936ace8ad72c00dcc957d92c3954422a5d2223d8e86c42a9d159061426756",
@@ -18575,5 +18575,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T00:58:13.797888+00:00"
+  "updatedAt": "2026-11-07T00:59:15.827238+00:00"
 }
