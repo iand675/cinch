@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "92 of 235 complete groups passed; 1 running, 0 failed and 142 pending.Every group includes ignored tests. State: running.",
+      "detail": "94 of 235 complete groups passed; 1 running, 0 failed and 140 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -494,7 +494,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "92 of 235 complete groups passed; 1 running, 0 failed and 142 pending."
+      "detail": "94 of 235 complete groups passed; 1 running, 0 failed and 140 pending."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -790,10 +790,10 @@
         "unit": "targets",
         "total": 235,
         "counts": {
-          "verified": 101,
+          "verified": 103,
           "blocked": 0,
           "running": 1,
-          "pending": 133,
+          "pending": 131,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -8071,17 +8071,17 @@
           {
             "id": "native:optimizer",
             "title": "optimizer",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/optimizer.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "startedAt": "2026-11-07T00:24:01.354687+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T00:25:35.780325+00:00",
+              "exitCode": 0,
+              "logSha256": "49f1276f79ea60f9bfb2ec38e348c1900cf822bb01b98ecc5d52bf281091a302",
               "cases": [
                 {
                   "name": "blocked_fusion_names_the_blocker",
@@ -8117,7 +8117,35 @@
                 },
                 {
                   "name": "map_fusion_preserves_values_and_effect_order",
-                  "status": "running"
+                  "status": "passed"
+                },
+                {
+                  "name": "map_headed_fusion_composes_every_stage",
+                  "status": "passed"
+                },
+                {
+                  "name": "rewrite_rule_fires_and_report_names_it",
+                  "status": "passed"
+                },
+                {
+                  "name": "rewrites_do_not_extend_conversion",
+                  "status": "passed"
+                },
+                {
+                  "name": "rule_that_would_change_definitional_equality_is_rejected",
+                  "status": "passed"
+                },
+                {
+                  "name": "scalable_profile_does_not_pin_a_width",
+                  "status": "passed"
+                },
+                {
+                  "name": "target_rewrite_applies_in_capability_scope_only",
+                  "status": "passed"
+                },
+                {
+                  "name": "weights_survive_optimization",
+                  "status": "passed"
                 }
               ]
             },
@@ -8126,17 +8154,17 @@
           {
             "id": "native:order_independence",
             "title": "order_independence",
-            "state": "pending",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/order_independence.rs",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:18:39.613622+00:00",
-              "finishedAt": "2026-11-06T14:18:47.944718+00:00",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T00:25:35.782298+00:00",
+              "finishedAt": "2026-11-07T00:25:44.349105+00:00",
               "exitCode": 0,
-              "logSha256": "e7e7d3e990c8a94ed4e9c8607cf4d0c6b484674732881ed25bca0db22b863aab",
+              "logSha256": "5d7eee4fd9b8b89fb11fe0a37936691babb0a361b8f6118a87fdf138b607ede2",
               "cases": [
                 {
                   "name": "a_genuinely_unknown_type_is_still_rejected",
@@ -8165,17 +8193,17 @@
           {
             "id": "native:ownership",
             "title": "ownership",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/ownership.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:18:47.954712+00:00",
-              "finishedAt": "2026-11-06T14:19:33.902609+00:00",
-              "exitCode": 0,
-              "logSha256": "6d417d245f315b2b2c586a7df36117dcbf6d5bb0cb7ec459c18751ca4ad8fbfd",
+              "status": "running",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T00:25:44.351114+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "affine_double_use_is_rejected",
@@ -8187,87 +8215,7 @@
                 },
                 {
                   "name": "annotated_linear_lambda_owns_its_parameter_inside_its_body",
-                  "status": "passed"
-                },
-                {
-                  "name": "borrow_escape_is_rejected",
-                  "status": "passed"
-                },
-                {
-                  "name": "borrow_matching_yields_field_borrows",
-                  "status": "passed"
-                },
-                {
-                  "name": "copy_class_from_the_vector_filter_shape_works",
-                  "status": "passed"
-                },
-                {
-                  "name": "copy_class_is_structural_and_not_user_extensible",
-                  "status": "passed"
-                },
-                {
-                  "name": "copy_out_coheres_with_multiplicity",
-                  "status": "passed"
-                },
-                {
-                  "name": "erased_use_is_rejected_and_non_use_is_accepted",
-                  "status": "passed"
-                },
-                {
-                  "name": "exclusive_borrows_are_lexically_unique",
-                  "status": "passed"
-                },
-                {
-                  "name": "linear_double_use_is_rejected",
-                  "status": "passed"
-                },
-                {
-                  "name": "linear_dropped_on_one_path_is_rejected",
-                  "status": "passed"
-                },
-                {
-                  "name": "linear_lambda_parameter_still_cannot_be_captured_duplicated_or_dropped",
-                  "status": "passed"
-                },
-                {
-                  "name": "linear_record_disjoint_projections_split_once",
-                  "status": "passed"
-                },
-                {
-                  "name": "linear_thunk_forced_once_per_branch_is_accepted",
-                  "status": "passed"
-                },
-                {
-                  "name": "linear_thunk_is_forced_exactly_once",
-                  "status": "passed"
-                },
-                {
-                  "name": "linear_use_once_per_case_branch_is_accepted",
-                  "status": "passed"
-                },
-                {
-                  "name": "linear_use_once_per_if_branch_is_accepted",
-                  "status": "passed"
-                },
-                {
-                  "name": "scoped_borrow_is_accepted",
-                  "status": "passed"
-                },
-                {
-                  "name": "strict_aliases_preserve_linear_and_affine_usage",
-                  "status": "passed"
-                },
-                {
-                  "name": "unannotated_binders_default_to_unrestricted",
-                  "status": "passed"
-                },
-                {
-                  "name": "unannotated_thunk_defaults_to_affine",
-                  "status": "passed"
-                },
-                {
-                  "name": "unrestricted_use_is_free",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -18425,8 +18373,8 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "optimizer",
-        "passed": 92,
+        "phase": "ownership",
+        "passed": 94,
         "failed": 0,
         "total": 235,
         "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
@@ -18444,10 +18392,10 @@
       }
     ],
     "counts": {
-      "verified": 273,
+      "verified": 275,
       "blocked": 4,
       "running": 6,
-      "pending": 172,
+      "pending": 170,
       "recheck": 212
     },
     "total": 667,
@@ -18456,5 +18404,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T00:24:48.978129+00:00"
+  "updatedAt": "2026-11-07T00:25:51.207212+00:00"
 }
