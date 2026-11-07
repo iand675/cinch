@@ -19315,8 +19315,8 @@
       },
       {
         "title": "Recheck copied library source before executable linking",
-        "status": "waiting-worker",
-        "phase": "Waiting for Stage1 and the original Category and Foldable fixtures",
+        "status": "running",
+        "phase": "build all 46 compiler modules and smoke-test Stage1",
         "passed": 0,
         "failed": 0,
         "total": 4,
@@ -19633,5 +19633,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T17:32:15.115259+00:00"
+  "updatedAt": "2026-11-07T17:33:17.090244+00:00"
 }
