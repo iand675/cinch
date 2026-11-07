@@ -1,0 +1,36 @@
+{
+  "compiler_source_sha256": "56f015c0195ec3ce4864634156c5884ea6a0f9599b0257cab77a77a96b9b1e26",
+  "files": [
+    "bootstrap/Bootstrap.Builtin.cinch",
+    "bootstrap/Bootstrap.Contracts.cinch",
+    "bootstrap/Bootstrap.Core.cinch",
+    "bootstrap/Bootstrap.Infer.cinch",
+    "bootstrap/Bootstrap.Nominal.cinch",
+    "bootstrap/Bootstrap.Resolve.cinch",
+    "bootstrap/Bootstrap.RuntimeIr.cinch",
+    "bootstrap/Bootstrap.Typing.cinch",
+    "compiler/tests/bootstrap_pipeline.rs",
+    "compiler/tests/bootstrap_runtime_ir.rs"
+  ],
+  "full_goal_complete": false,
+  "native_source_sha256": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+  "patch_reapplies": true,
+  "patch_sha256": "44781344b37abbe1a8f036f251b3a73147ef143b0a5d0bd1be52040a58b9c61f",
+  "rows": [
+    {
+      "exit_code": 0,
+      "log_sha256": "c407bf87c2fef91c5277bab616ffeb1e4f647f5f2b0f0811a2815af3356f9e63",
+      "name": "bootstrap_pipeline",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "d5713dd3707334825e3045ab1b2def9e030934df036ed7769bc72cb6ceb1e939",
+      "name": "bootstrap_runtime_ir",
+      "status": "passed"
+    }
+  ],
+  "scope": "Complete two-test pipeline and one-test runtime IR groups. A shared immutable Array Int is accepted, an Array of affine Thunk elements refuses with Copy evidence, and owned tuple execution returns 42 with zero leaks. The change covers operations on already checked borrow carriers.",
+  "status": "passed-copyout-development",
+  "verified_at": "2026-11-07T09:05:48.550715+00:00"
+}

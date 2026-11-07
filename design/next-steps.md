@@ -1,5 +1,13 @@
 # Next steps (as of 2026-11-07)
 
+The checked `copyOut` development patch passes both complete pipeline
+tests and the full runtime IR group. It checks Copy evidence for elements
+of an immutable array and retains the original refusal for affine
+`Thunk` elements. The tuple runtime case returns 42 with zero leaks.
+The patch reapplies to the integrated base without fuzz. The combined
+Stage3 still needs its own replay. See
+`bootstrap/current-copy-out-development-results.json`.
+
 ## Development checkpoint for function constructors and class-law observations
 
 The structural function constructor candidate `b655a0a0` adds kind-checked

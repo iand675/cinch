@@ -1,0 +1,327 @@
+--- a/bootstrap/Bootstrap.Builtin.cinch
++++ b/bootstrap/Bootstrap.Builtin.cinch
+@@ -43,7 +43,7 @@
+     , ("Scope", "b.Scope"), ("Task", "b.Task")
+     , ("ioWrite", "b.ioWrite"), ("ioRead", "b.ioRead")
+     , ("ioSleep", "b.ioSleep"), ("pollCancel", "b.pollCancel")
+-    , ("unrefine", "b.unrefine")
++    , ("unrefine", "b.unrefine"), ("copyOut", "b.copyOut")
+     , ("decide", "b.decide"), ("Yes", "b.Yes"), ("No", "b.No"), ("Dec", "b.Dec")
+     ]
+ 
+@@ -98,6 +98,7 @@
+     , task-rule "spawn" "Spawn" 2 False
+     , task-rule "joinAllOrCancel" "JoinAllOrCancel" 2 True
+     , task-rule "unrefine" "Unrefine" 1 False
++    , task-rule "copyOut" "CopyOut" 1 False
+     , decision-rule
+     , decision-constructor "Yes" 0 "forall (p :: Prop). (h :: p) -> Dec p"
+     , decision-constructor "No" 1 "forall (p :: Prop). (h :: Not p) -> Dec p"
+--- a/bootstrap/Bootstrap.Contracts.cinch
++++ b/bootstrap/Bootstrap.Contracts.cinch
+@@ -120,7 +120,7 @@
+     -- Projection and scope/task syntax inspect their actual arguments;
+     -- they have no first-class imported function scheme.
+     -- Infer validates the complete metadata against the owned kernel rule.
+-    if same kind "builtin-syntax" && (same name "b.unrefine" || same name "b.withScope" || same name "b.spawn" || same name "b.joinAllOrCancel") then (None, Nil)
++    if same kind "builtin-syntax" && (same name "b.unrefine" || same name "b.copyOut" || same name "b.withScope" || same name "b.spawn" || same name "b.joinAllOrCancel") then (None, Nil)
+     else if same kind "value" || same kind "constructor" || same kind "method" || same kind "builtin" || same kind "builtin-syntax" || same kind "builtin-constructor" then case field "scheme" metadata of
+       JStr text -> case parse-scheme name (string-to-bytes text) of
+         Parsed ty Nil -> (Some ty, Nil)
+--- a/bootstrap/Bootstrap.Core.cinch
++++ b/bootstrap/Bootstrap.Core.cinch
+@@ -26,6 +26,7 @@
+   export CApplyEff, CWith, core-effects
+   export CScope, CSpawn, CJoin, scope-kind, scope-type, scope-callback-parts, scope-region-closed
+   export task-kind, task-type, task-result-type, task-parts, task-body-parts, scope-parameters, task-join-result
++  export ownership-type-kinds, borrowed-carrier, copy-out-type
+   export CHandler, CHandle, CHandlerOperation, CHandlerEnd
+   export handler-kind, handler-type, handler-parts, handler-residual, handler-operation-scheme, handler-clause-type, handler-resumption-safe, handler-body-direct
+   export CProofRef, CErasedApply, scope-erased, scoped-proof-reference
+@@ -552,6 +553,19 @@
+ 
+   core-givens :: CoreDefinition -> List CoreGiven
+   core-givens d = case d of MkCoreDefinition s name sc openings givens private clauses -> givens
++
++  borrow-kind :: Kind
++  borrow-kind = KFun KRegion (KFun KType KType)
++  ownership-type-kinds :: List (String, Kind)
++  ownership-type-kinds = [("Ref", borrow-kind), ("Mut", borrow-kind), ("Thunk", KFun KRow (KFun KType KType))]
++  borrowed-carrier :: UType -> Option UType
++  borrowed-carrier ty = case ty of
++    UApp (UApp (UCon name kind) region) carrier ->
++      if (string-compare name "Ref" == 0 || string-compare name "Mut" == 0)
++        && kind-equal kind borrow-kind && kind-equal (type-kind region) KRegion && kind-equal (type-kind carrier) KType then Some carrier else None
++    other -> None
++  copy-out-type :: UType -> UType
++  copy-out-type input = case borrowed-carrier input of Some carrier -> carrier; None -> input
+ 
+   -- Sequence nodes have no value type. They only appear in the matching
+   -- tuple, primitive, pattern or alternative positions, never as values.
+--- a/bootstrap/Bootstrap.Infer.cinch
++++ b/bootstrap/Bootstrap.Infer.cinch
+@@ -264,7 +264,7 @@
+       other -> primitive-type name)
+     else primitive-type name
+   primitive-kinds :: TypeContext
+-  primitive-kinds = MkTypeContext (foreign-pointer-kinds <> array-kinds <> Cons ("b.Scope", scope-kind) (Cons ("b.Task", task-kind) (Cons ("b.Io", KFun KRegion KType) (Cons ("b.Dec", KFun KProp KType) (map-primitive ["Int", "Nat", "Bool", "Unit", "()", "String", "Char", "Bytes", "Sym", "Isize", "Usize", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "F32", "F64"])) ))) Nil Nil [ByteObservation "#kernel.bytes-length" None] Nil Nil
++  primitive-kinds = MkTypeContext (ownership-type-kinds <> foreign-pointer-kinds <> array-kinds <> Cons ("b.Scope", scope-kind) (Cons ("b.Task", task-kind) (Cons ("b.Io", KFun KRegion KType) (Cons ("b.Dec", KFun KProp KType) (map-primitive ["Int", "Nat", "Bool", "Unit", "()", "String", "Char", "Bytes", "Sym", "Isize", "Usize", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "F32", "F64"])) ))) Nil Nil [ByteObservation "#kernel.bytes-length" None] Nil Nil
+   foreign-pointer-kinds :: List (String, Kind)
+   foreign-pointer-kinds = [("RawPtr", KFun KType KType), ("Borrowed", KFun KType KType), ("MaybeNull", KFun KType KType)]
+   array-kinds :: List (String, Kind)
+@@ -470,6 +470,8 @@
+       Some found -> (found, st)
+       None -> if same name "Io" || same name "b.Io" then (UCon "b.Io" (KFun KRegion KType), st)
+         else if same name "Dec" || same name "b.Dec" then (case context-kind name kinds of Some kind -> (UCon name kind, st); None -> (UCon "b.Dec" (KFun KProp KType), st))
++        else if has name ["Ref", "Mut", "Thunk"] then
++          (case context-kind name primitive-kinds of Some kind -> (UCon name kind, st); None -> bad s "unknown kernel ownership type" st)
+         else if external && same name "String" then bad s (string-concat "imported nominal scheme needs defining-module type identities: " name) st
+         else if primitive name then (literal-type kinds name, st)
+         else if external then bad s (string-concat "imported nominal scheme needs defining-module type identities: " name) st
+@@ -482,6 +484,7 @@
+     TForall s qs body -> bad s "higher-rank forall needs explicit elaboration" st
+     TUsing s bounds body -> bad s "using contexts need dictionary and proof elaboration" st
+     TFunEff s a row b -> convert-arrow external kinds locals s a (Some row) b st
++    TRow s labels tail -> convert-row kinds locals ty st
+     TRefined s predicate carrier -> convert-refined external kinds locals s predicate carrier st
+     TIndex s literal -> bad s "kind mismatch: a numeric index cannot be used as a proper type" st
+     TBound s name kind rest -> bad s "dependent argument binders need index elaboration" st
+@@ -1026,7 +1029,11 @@
+     Cons p rest -> Cons (case p of MkTypeParam s name None only -> if has name regions then MkTypeParam s name (Some (TName s "Region")) only else p; other -> p) (region-parameters rest regions)
+   region-names :: TypeExpr -> List String
+   region-names ty = case ty of
+-    TApp s (TName h name) (TArg a (TName r owner) (TArg b (TName t region) (TArgsEnd end))) -> if has name ["Scope", "b.Scope"] then [owner, region] else Nil
++    TApp s (TName h name) (TArg a (TName r region) (TArg b carrier (TArgsEnd end))) ->
++      if has name ["Ref", "Mut"] then Cons region (region-names carrier)
++      else if has name ["Scope", "b.Scope"] then
++        (case carrier of TName t inner -> [region, inner]; other -> region-names carrier)
++      else region-names carrier
+     TApp s (TName h name) (TArg a (TName r region) (TArg b error (TArg c value (TArgsEnd end)))) -> if has name ["Task", "b.Task"] then [region] else region-names error <> region-names value
+     TApp s (TName h name) (TArg a (TName r region) (TArgsEnd end)) -> if has name ["Io", "b.Io", "IO", "Async", "Cancel", "Eval", "Foreign"] then [region] else Nil
+     TApp s f xs -> region-names f <> region-names xs
+@@ -2009,7 +2016,7 @@
+     Cons (DExternal sp symbol category syntax metadata) rest -> if same name symbol && same category "builtin-syntax" then Some metadata else kernel-syntax-metadata name rest
+     Cons other rest -> kernel-syntax-metadata name rest
+   register-decision-syntax :: Span -> String -> Json -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+-  register-decision-syntax sp name metadata env st = if same name "b.unrefine" then register-projection-syntax sp name metadata env st else if task-syntax-name name then register-task-syntax sp name metadata env st
++  register-decision-syntax sp name metadata env st = if has name ["b.unrefine", "b.copyOut"] then register-projection-syntax sp name metadata env st else if task-syntax-name name then register-task-syntax sp name metadata env st
+     else if not (same name "b.decide") then (env, add-error sp "unknown kernel predicate syntax" st) else
+     case kernel-syntax-metadata name builtin-declarations of
+       Some trusted -> if same-kernel-fields ["name", "operation", "runtime_abi", "first_class", "predicate_kind", "scheme"] metadata trusted then
+@@ -2024,17 +2031,22 @@
+       (case lookup-binding name env of None -> (Cons (MkSyntaxBinding name) env, st); Some prior -> (env, add-error sp "duplicate kernel projection syntax" st))
+       else (env, add-error sp "projection syntax disagrees with its owned kernel contract" st)
+     None -> (env, add-error sp "missing kernel projection syntax contract" st)
+-  projection-syntax-head :: List CheckedBinding -> Expr -> Bool
++  projection-syntax-head :: List CheckedBinding -> Expr -> Option String
+   projection-syntax-head env expr = case expr of
+-    EVar sp name -> same name "b.unrefine" && (case lookup-binding name env of Some (MkSyntaxBinding symbol) -> same symbol name; other -> False)
+-    other -> False
++    EVar sp name -> if has name ["b.unrefine", "b.copyOut"] then
++      (case lookup-binding name env of Some (MkSyntaxBinding symbol) -> if same symbol name then Some name else None; other -> None)
++      else None
++    other -> None
+   projection-syntax-spine :: List CheckedBinding -> Expr -> Bool
+-  projection-syntax-spine env expr = case application-spine expr Nil of (head, args) -> projection-syntax-head env head
+-  infer-projection :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Store -> (CoreTerm, Store)
+-  infer-projection classes kinds families env locals sp input st = case infer classes kinds families env locals input st of
+-    (body, checked) -> case normalize checked (core-type body) of
+-      URefine id name carrier predicate -> (CForget sp carrier body, checked)
+-      other -> term-error sp "unrefine projects a refinement to its container" checked
++  projection-syntax-spine env expr = case application-spine expr Nil of
++    (head, args) -> case projection-syntax-head env head of Some operation -> True; None -> False
++  infer-projection :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> String -> Expr -> Store -> (CoreTerm, Store)
++  infer-projection classes kinds families env locals sp operation input st = case infer classes kinds families env locals input st of
++    (body, checked) -> let carrier = normalize checked (core-type body) in
++      if same operation "b.copyOut" then (CPrimitive sp (copy-out-type carrier) "copy-out" (CArgument sp body (CArgumentsEnd sp)), checked)
++      else case carrier of
++        URefine id name base predicate -> (CForget sp base body, checked)
++        other -> term-error sp "unrefine projects a refinement to its container" checked
+   task-syntax-name :: String -> Bool
+   task-syntax-name name = has name ["b.withScope", "b.spawn", "b.joinAllOrCancel"]
+   register-task-syntax :: Span -> String -> Json -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+@@ -2386,9 +2398,11 @@
+     ELitStr s text -> (CString s (literal-type kinds "String") text, st)
+     ELitChar s text -> (CChar s (primitive-type "Char") text, st)
+     EUnit s -> (CUnit s (primitive-type "Unit"), st)
+-    EApp s f x -> if projection-syntax-head env f then infer-projection classes kinds families env locals s x st else if task-syntax-head env expr then infer-task-application classes kinds families env locals s expr None st else if decision-syntax-head env f then infer-decision classes kinds families env locals s x st else
+-      (case infer classes kinds families env locals f st of
+-        (fun, sf) -> apply-argument classes kinds families env locals s fun x sf)
++    EApp s f x -> case projection-syntax-head env f of
++      Some operation -> infer-projection classes kinds families env locals s operation x st
++      None -> if task-syntax-head env expr then infer-task-application classes kinds families env locals s expr None st else if decision-syntax-head env f then infer-decision classes kinds families env locals s x st else
++        (case infer classes kinds families env locals f st of
++          (fun, sf) -> apply-argument classes kinds families env locals s fun x sf)
+     ELam s ps body -> case infer-lambda classes kinds families env locals ps body (duplicate-names s (patterns-names ps) Nil st) of
+       (term, ss) -> (term, ensure-coverage s families env (take-types (list-length ps) (domains (normalize ss (core-type term)))) [ps] ss)
+     EDo sp statements -> (case fresh-meta KType st of (result, ready) -> check-do classes kinds families env locals sp statements result ready)
+--- a/bootstrap/Bootstrap.Nominal.cinch
++++ b/bootstrap/Bootstrap.Nominal.cinch
+@@ -27,7 +27,7 @@
+   interface-global :: String -> String
+   interface-global identity = string-concat "i." (encode (unpack identity))
+   kernel-type-name :: String -> Bool
+-  kernel-type-name name = array-type-name name || has name ["Int", "Nat", "Bool", "Unit", "()", "Bytes", "Sym", "Char", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "F32", "F64"]
++  kernel-type-name name = array-type-name name || has name ["Int", "Nat", "Bool", "Unit", "()", "Bytes", "Sym", "Char", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "F32", "F64", "Ref", "Mut", "Thunk"]
+   nonempty :: Json -> Bool
+   nonempty doc = case doc of JStr value -> string-length value > 0; other -> False
+   unique-strings :: Json -> List String -> Bool
+--- a/bootstrap/Bootstrap.Resolve.cinch
++++ b/bootstrap/Bootstrap.Resolve.cinch
+@@ -636,10 +636,13 @@
+     DOpaque s name params kind -> if opaque-name-reserved name then (Nil, fail s "an opaque declaration cannot redefine a builtin type") else
+       (Cons (DOpaque s (global-name home name) (rename-params visible Nil params)
+         (rename-type visible (parameter-names params) kind)) Nil, Nil)
+-    DData s name params ctors -> if has-name name ["Array", "Tensor", "Columnar"] then (Nil, fail s "a builtin array primitive cannot be redefined") else (Cons (DData s (global-name home name) (rename-params visible Nil params)
++    DData s name params ctors -> if has-name name ["Array", "Tensor", "Columnar"] then (Nil, fail s "a builtin array primitive cannot be redefined")
++      else if has-name name ["Ref", "Mut", "Thunk"] then (Nil, fail s "a builtin ownership type cannot be redefined")
++      else (Cons (DData s (global-name home name) (rename-params visible Nil params)
+       (rename-ctors home visible (parameter-names params) ctors)) Nil, Nil)
+     DRecord s name params fields -> if has-name name ["Array", "Tensor", "Columnar"] then
+       (Nil, fail s "a builtin array primitive cannot be redefined as a record")
++      else if has-name name ["Ref", "Mut", "Thunk"] then (Nil, fail s "a builtin ownership type cannot be redefined")
+       else (Cons (DRecord s (global-name home name) (rename-params visible Nil params)
+         (rename-record-fields visible (parameter-names params) fields)) Nil, Nil)
+     DClass s name params members ->
+--- a/bootstrap/Bootstrap.RuntimeIr.cinch
++++ b/bootstrap/Bootstrap.RuntimeIr.cinch
+@@ -232,8 +232,12 @@
+       Some plan -> opaque-foreign-params ty (foreign-parameters plan) || foreign-parameter-matches ty (foreign-result plan)
+       None -> False) || opaque-foreign-word ty rest
+   word-class :: RuntimeContext -> UType -> Option Nat
++  word-class context ty = case borrowed-carrier (base ty) of
++    Some carrier -> word-class context carrier
++    None -> value-word-class context ty
+   -- Sym is an immortal runtime handle, classified Raw by the object ABI.
+-  word-class context ty = if foreign-pointer ty || opaque-foreign-word ty (program-bindings (program-info context)) then Some 0 else if decision-word-type ty then Some 1 else if number ty then Some 2 else if named ty "Bool" || named ty "Unit" || raw-integer ty || named ty "Char" || named ty "Sym" || named ty "F32" || named ty "F64" then Some 0 else case context of
++  value-word-class :: RuntimeContext -> UType -> Option Nat
++  value-word-class context ty = if foreign-pointer ty || opaque-foreign-word ty (program-bindings (program-info context)) then Some 0 else if decision-word-type ty then Some 1 else if number ty then Some 2 else if named ty "Bool" || named ty "Unit" || raw-integer ty || named ty "Char" || named ty "Sym" || named ty "F32" || named ty "F64" then Some 0 else case context of
+     RuntimeContext datas bounds rigids pending done -> case base ty of
+       UBound id name KType -> representation id bounds
+       URigid id name level KType -> representation id rigids
+@@ -1932,7 +1936,8 @@
+     (line ready (cat ["  ", result, " = load i64, ptr ", slot]), result)
+   primitive :: List CoreDefinition -> List Local -> Writer -> Span -> UType -> String -> CoreTerm -> (Writer, String)
+   primitive definitions locals w sp ty op args = case args of
+-    CArgument at input (CArgumentsEnd end) -> if same op "negate" && named (core-type input) "Int" then
++    CArgument at input (CArgumentsEnd end) -> if same op "copy-out" then expression definitions locals w input
++      else if same op "negate" && named (core-type input) "Int" then
+       (case expression definitions locals w input of
+         (ready, value) -> case call ready "@cinch_int_neg" [value] of (done, result) -> (count-op False (core-type input) value done, result))
+       else unsupported w sp "unary primitive needs runtime lowering"
+--- a/bootstrap/Bootstrap.Typing.cinch
++++ b/bootstrap/Bootstrap.Typing.cinch
+@@ -12,6 +12,7 @@
+   import Bootstrap.Kinds
+   import Bootstrap.Proof (Proposition, PNegate)
+   import Bootstrap.Nominal (interface-global)
++  import Bootstrap.Builtin (array-type-name)
+   import Text.Lex (Span)
+   import Algebra.Semigroup
+ 
+@@ -236,7 +237,8 @@
+       && checked-term context scope gamma facts condition && checked-term context scope gamma (branch-facts gamma facts condition True) yes && checked-term context scope gamma (branch-facts gamma facts condition False) no
+     CCase sp ty value alternatives -> checked-term context scope gamma facts value && alternatives-typed context scope gamma facts value ty alternatives
+     CTuple sp ty fields -> (case tuple-fields ty of Some types -> tuple-terms context scope gamma facts types fields; None -> False)
+-    CPrimitive sp ty name args -> primitive-types ty name args && argument-terms context scope gamma facts args
++    CPrimitive sp ty name args -> (if same name "copy-out" then copy-out-checked context ty args else primitive-types ty name args)
++      && argument-terms context scope gamma facts args
+     CProved sp ty certificate body -> equal-type ty (core-type body) && checked-term context scope gamma facts body
+     CRefine sp ty certificate body -> (case ty of URefine id name carrier predicate -> equal-type carrier (core-type body) && checked-term context scope gamma facts body; other -> False)
+     CRefineProof sp ty witness body -> wf context scope (core-type witness) && checked-term context scope gamma facts body && scoped-refinement-proof gamma facts ty witness body
+@@ -259,6 +261,46 @@
+   task-actuals qs args = case (qs, args) of (Cons q rest, Cons a more) -> Cons (quant-id q, a) (task-actuals rest more); other -> Nil
+   task-seen-type :: UType -> List UType -> Bool
+   task-seen-type ty seen = case seen of Nil -> False; Cons old rest -> equal-type ty old || task-seen-type ty rest
++  -- A partial imported constructor table or an opaque resource supplies no
++  -- structural Copy evidence.
++  copyable-type :: TypingContext -> List UType -> Nat -> UType -> Bool
++  copyable-type context seen fuel ty = if fuel == 0 then False else let remaining = fuel - 1 in case task-base ty of
++    UTuple fields -> copyable-tuple context seen remaining fields
++    UApp (UCon name (KFun KType KType)) element -> if array-type-name name then copyable-type context seen remaining element
++      else copyable-data context seen remaining ty
++    UApp (UApp (UCon name kind) region) carrier -> if same name "Ref" then
++      (case borrowed-carrier (task-base ty) of Some payload -> True; None -> False)
++      else copyable-data context seen remaining ty
++    UCon name KType -> has name ["Int", "Nat", "Bool", "Unit", "Char", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "F32", "F64"]
++      || copyable-data context seen remaining ty
++    other -> copyable-data context seen remaining ty
++  copyable-tuple :: TypingContext -> List UType -> Nat -> UType -> Bool
++  copyable-tuple context seen fuel fields = case fields of
++    UEnd -> True
++    UArg first rest -> copyable-type context seen fuel first && copyable-tuple context seen fuel rest
++    other -> False
++  copyable-data :: TypingContext -> List UType -> Nat -> UType -> Bool
++  copyable-data context seen fuel ty = if task-seen-type ty seen then True else case task-type-spine ty Nil of
++    (UCon name kind, args) -> (case task-data name (context-data context) of
++      Some d -> (case core-data-constructors d of
++        Nil -> False
++        constructors -> list-length args == list-length (core-data-params d)
++          && copyable-constructors context (Cons ty seen) fuel (task-actuals (core-data-params d) args) constructors)
++      None -> False)
++    other -> False
++  copyable-constructors :: TypingContext -> List UType -> Nat -> List (Nat, UType) -> List CoreConstructor -> Bool
++  copyable-constructors context seen fuel pairs constructors = case constructors of
++    Nil -> True
++    Cons constructor rest -> copyable-fields context seen fuel pairs (core-constructor-fields constructor)
++      && copyable-constructors context seen fuel pairs rest
++  copyable-fields :: TypingContext -> List UType -> Nat -> List (Nat, UType) -> List UType -> Bool
++  copyable-fields context seen fuel pairs fields = case fields of
++    Nil -> True
++    Cons first rest -> copyable-type context seen fuel (substitute-bound pairs first) && copyable-fields context seen fuel pairs rest
++  copy-out-checked :: TypingContext -> UType -> CoreTerm -> Bool
++  copy-out-checked context result args = case args of
++    CArgument sp value (CArgumentsEnd end) -> equal-type result (copy-out-type (core-type value)) && copyable-type context Nil 64 result
++    other -> False
+   task-signature :: String -> List CoreGlobal -> Bool
+   task-signature owner declarations = case declarations of
+     Nil -> False
+@@ -522,6 +564,10 @@
+       CJoin sp ty token handles -> let scope-value = task-trace context env scopes False token in
+         let consumed = task-trace-list context env scopes True (case handles of CArgument sp first rest -> task-argument-values handles; other -> Nil) in
+         task-result-trace context ty (task-traces-merge scope-value consumed)
++      CPrimitive sp ty op args -> let checked = task-trace context env scopes False args in
++        if same op "copy-out" && not (copy-out-checked context ty args) then
++          TaskTrace (Some (sp, string-concat "copyOut requires structural Copy evidence for " (type-text ty))) Nil False
++        else task-result-trace context ty checked
+       CLambda sp ty p body -> let free = task-free (task-pattern-ids p) body in
+         let inside = task-trace context (task-pattern-env p Nil False env) scopes True body in
+         let escape = require-task (task-free-scopes env free) sp "region escape: a closure captures a value from a structured scope" in
+@@ -574,6 +620,7 @@
+     CScope sp ty region evidence callback -> True
+     CSpawn sp ty token callback -> True
+     CJoin sp ty token handles -> True
++    CPrimitive sp ty op args -> same op "copy-out" || task-code-present context args
+     CUse sp ty name role actuals -> task-reference-forwarder context term || task-code-list context (term-children term)
+     CQualifiedUse sp ty name role actuals evidence -> task-reference-forwarder context term || task-code-list context (term-children term)
+     other -> task-code-list context (term-children term))
+--- a/compiler/tests/bootstrap_pipeline.rs
++++ b/compiler/tests/bootstrap_pipeline.rs
+@@ -412,6 +412,17 @@
+     assert_eq!(status, Some(4), "{diagnostics}");
+     assert!(diagnostics.contains("unknown type constructor or unbound type variable: Data.Core.List"), "{diagnostics}");
+ 
++    let copy_array = r#"module CopyExample where
++  from-shared :: forall r. Ref r (Array Int) -> Array Int
++  from-shared value = copyOut value
++"#;
++    let (status, diagnostics) = invoke("--check", copy_array, "copy-immutable-array");
++    assert_eq!(status, Some(0), "{diagnostics}");
++    let affine_elements = copy_array.replace("Array Int", "Array (Thunk {} Int)");
++    let (status, diagnostics) = invoke("--check", &affine_elements, "refuse-affine-array-copy");
++    assert_eq!(status, Some(4), "{diagnostics}");
++    assert!(diagnostics.contains("copyOut requires structural Copy evidence"), "{diagnostics}");
++
+     let class_law = "module LawExample where\n  signature Restore a where\n    restore :: a -> a\n    law identity :: (x :: a) -> Eq (restore x) x\n";
+     let (status, diagnostics) = invoke("--emit-interfaces", class_law, "unchecked-class-law");
+     assert_eq!(status, Some(4), "{diagnostics}");
+--- a/compiler/tests/bootstrap_runtime_ir.rs
++++ b/compiler/tests/bootstrap_runtime_ir.rs
+@@ -385,6 +385,7 @@
+         ("nested-escaping-closures", "  make :: Int -> Int -> Int -> Int\n  make x = \\y -> \\z -> x + y + z\n  main :: Int\n  main = if make 18446744073709551616 2 3 == 18446744073709551621 then 213 else 1\n", 213),
+         ("unused-capture", "  ignore :: Int -> Int -> Int\n  ignore outer = \\inner -> inner\n  main :: Int\n  main = if ignore 18446744073709551616 9 == 9 then 215 else 1\n", 215),
+         ("shadowed-capture", "  make :: Int -> Int -> Int -> Int\n  make x = \\x -> let y = x + 1 in \\z -> y + z\n  main :: Int\n  main = if make 18446744073709551616 2 3 == 6 then 217 else 1\n", 217),
++        ("copy-out-owned-tuple", "  values :: (Int, Int)\n  values = (20, 22)\n  main :: Int\n  main = case copyOut values of (a, b) -> a + b\n", 42),
+         ("generic-capture-classes", "  constant :: forall a b. a -> b -> a\n  constant x = \\y -> x\n  main :: Int\n  main = if constant True (18446744073709551616 :: Int) && constant 18446744073709551616 True == 18446744073709551616 then 219 else 1\n", 219),
+         ("higher-order-generic-map", "  data Seq a where\n    End :: Seq a\n    Link :: a -> Seq a -> Seq a\n  mapSeq :: forall a b. (a -> b) -> Seq a -> Seq b\n  mapSeq f End = End\n  mapSeq f (Link x rest) = Link (f x) (mapSeq f rest)\n  total :: Seq Int -> Int\n  total End = 0\n  total (Link x rest) = x + total rest\n  main :: Int\n  main = if total (mapSeq (\\x -> x + 18446744073709551616) (Link (2 :: Int) (Link 3 End))) == 36893488147419103237 then 221 else 1\n", 221),
+         ("borrowed-field-capture", "  data Box where\n    Box :: Int -> Box\n  get :: Box -> Int -> Int\n  get box = case box of Box n -> \\x -> n + x\n  main :: Int\n  main = if get (Box 18446744073709551616) 3 == 18446744073709551619 then 223 else 1\n", 223),

@@ -325,6 +325,7 @@ def build_checklist(root, cfg, previous=None):
     projection = read(cfg.get('structuralProjectionCases'))
     projection_proof = read(cfg.get('structuralProjectionReceipt'))
     copyout = read(cfg.get('copyoutValidation'))
+    copyout_proof = read(root/'bootstrap/current-copy-out-development-results.json')
     laws = read(cfg.get('classLawObservationValidation'))
     arrow_receipt = read(cfg.get('arrowFormerReceipt'))
     law_receipt = read(cfg.get('classLawObservationReceipt'))
@@ -382,8 +383,10 @@ def build_checklist(root, cfg, previous=None):
              'Complete the affected proof/syntax/interface groups and both compiler-source projects, retain kind/scope refusals, then publish the validated repair.',link('bootstrap/current-native-default-annotation-results.json') if annotation_published else link('design/next-steps.md')),
         item('gap:records','Finish record interface transport','recheck','A known earlier compiler gap; latest exact behavior still needs a complete check.',
              'The original record construction, projection, privacy, layout and interface assertions pass on the matching compiler.',link('design/next-steps.md')),
-        item('gap:copyout','Finish Copy / borrow / Thunk ownership','blocked' if stage3_failures_current else 'recheck','Exact candidate Stage3 fails to resolve copyOut before checking Copy evidence for Array (Thunk {} Int).' if stage3_failures_current else 'The previous original array target had 13 of 15 passing cases.',
-             'The original ownership case reaches and passes its required semantic checks and runtime behavior.',link(stage3_failure_path if stage3_failures_current else 'bootstrap/current-original-array-suite-results.json')),
+        item('gap:copyout','Finish Copy / borrow / Thunk ownership','recheck' if copyout_proof else 'blocked' if stage3_failures_current else 'recheck',
+             'The development pipeline and runtime groups pass. A shared immutable array is accepted, affine Thunk elements refuse for Copy, and the tuple case returns 42 with zero leaks. The combined compiler still needs its own Stage3 replay.' if copyout_proof else
+             'The earlier Stage3 fails to resolve copyOut before checking Copy evidence for Array (Thunk {} Int).',
+             'The original ownership case reaches and passes its required semantic checks and runtime behavior.',link('bootstrap/current-copy-out-development-results.json' if copyout_proof else stage3_failure_path)),
         item('gap:staging','Finish staging and namespace behavior','blocked' if stage3_failures_current else 'recheck','Exact candidate Stage3 reports an unsupported declaration before checking whether arrayReplicate is available at compile time.' if stage3_failures_current else 'The original array and language cases require staging and declaration behavior.',
              'Preserve original sources and expected named refusals; execute the matching staging and language suites.',link(stage3_failure_path if stage3_failures_current else 'bootstrap/current-original-array-suite-results.json')),
         item('gap:hidden-types','Stop choosing a concrete hidden constructor type','pending','Native existential/hidden-type introduction remains a required investigation and repair.',
@@ -599,7 +602,7 @@ def build_checklist(root, cfg, previous=None):
         ('Schema 9: source admission, imported defaults and pipeline', schema9_validation, 4),
     ):
         if run:
-            rows = [r for r in run.get('rows', []) if not r['name'].startswith('compile-')]
+            rows = [r for r in run.get('rows', []) if not r['name'].startswith(('compile-', 'build-'))]
             active.append(dict(title=title, status=run['status'], phase=run.get('phase') or run['status'].replace('-', ' '),
                 passed=sum(r['status'] == 'passed' for r in rows), failed=sum(r['status'] == 'failed' for r in rows),
                 total=total, source=run.get('compiler_source_sha256')))
