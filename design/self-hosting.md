@@ -1,5 +1,14 @@
 # Self-hosting
 
+## Current development checkpoint (2026-11-07)
+
+Published Cinch3268/Native8ba8 and the immutable Native22 pins remain unchanged.
+Private28d2 and a029 each pass their full9-test compiler/object gate; these are
+Native22-built development compilers, not a matching final self-built Stage3.
+The exact source/runtime proofs, pending diagnostic/API validations and preserved
+failures are recorded at the top of [next steps](next-steps.md). Every numbered
+[acceptance requirement](#acceptance) below remains required and unclosed.
+
 ## Typed C imports pass scoped gates; defining-owner gap remains (2026-11-06)
 
 Compiler93fc supports typed C scalar/float/unit and recorded opaque/pointer

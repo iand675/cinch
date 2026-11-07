@@ -1,5 +1,56 @@
 # Next steps (as of 2026-11-06)
 
+## Development checkpoint: checked defaults, coverage and structural refinements (2026-11-07)
+
+The published compiler remains Cinch3268 with Native8ba8. Immutable Native22
+seed/library pins and defining-module-only fixities remain unchanged. The
+reviewable development patches below are not applied to the published compiler.
+
+Private28d2 fixes inferred constructor-family coverage without using branch-local
+index equations to eliminate other constructors. Both exact44 source gates and
+all9 full compiler/object tests pass independent audit, including17 C clients and
+50 zero-leak reports. All11 positive default runtime clients execute their expected
+results at32M with poisoning and zero leaks; the original owned Box counterexample
+now runs7. Five invalid-source controls refuse. Strict cycles still refuse during
+backend lowering with empty IR. Their fresh interfaces match successful
+interface-only output byte for byte and all57 contracts pass the independent
+reader; the new runner's no-interface-after-backend-refusal assertion was mistaken.
+The raw failure remains retained. See
+the three `bootstrap/current-inferred-case-coverage-*-results.json` receipts.
+
+Privatea029 preserves structural NonZero while retaining the designed widening
+of comparison-only refinements. Eleven self-contained source controls agree
+between actual compiled Cinch and Native. Its complete9-test compiler/object gate
+also passes17 C clients and50 zero-leak reports. Complete component groups and all
+original API/default-method tests remain separate validation requirements. The
+superseded broad range-preservation assumption and subsequent fixture/cache-guard
+setup errors remain recorded; no original assertion or cache guard was weakened.
+See `bootstrap/current-refinement-structural-development.json` and
+`bootstrap/current-refinement-structural-compiler-results.json`.
+
+Private7ccd/dc46 add source instance/class names and declaration locations to
+refusals and append original file/local-line labels already supplied by project
+bundles. Their complete source-instance, resolver and pipeline validations,
+seven renderer controls and exact44 source checks remain under validation.
+No source filename is guessed from a module name. See
+`bootstrap/current-source-default-diagnostics-development.json` and
+`bootstrap/current-source-default-origins-development.json`.
+
+The fresh full235-target Native8ba8/Cinch3268 sweep retains every original target
+and assertion, with shared worker leases, one codegen unit/test thread per job,
+and checked optimized runtime support. Its missing-runtime-fixture array failure
+is preserved; the identical binary subsequently passes all15 original array tests.
+The older NativeE5/4f complete sweep independently records234/235 groups and
+1635/1636 tests, retaining its stale pipeline-diagnostic assertion failure. Earlier
+results do not close current full-suite acceptance.
+
+Still required: every original default/runtime/diagnostic/path assertion,
+source-Prelude replacements and their checked dependency graph, imported default
+implementation transport, remaining source laws/base names and language/runtime
+gaps, opaque mutable task captures, the matching latest Stage1/2/3 fixed point,
+changed-source rebuilding and every original compiler/runtime/tool/editor/external
+acceptance item. No completion percentage or final bootstrap sign-off is claimed.
+
 ## Strict defaults execute; constructor-case inference remains a real gap (2026-11-07)
 
 Candidate75fb passes the independently audited full44-module compiler/object gate:
