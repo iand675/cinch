@@ -19306,7 +19306,7 @@
       },
       {
         "title": "Check finite-index tactics on the original programs",
-        "status": "running",
+        "status": "waiting-disk-space",
         "phase": "build all 46 compiler modules and smoke-test Stage1",
         "passed": 0,
         "failed": 0,
@@ -19615,5 +19615,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T17:12:08.047229+00:00"
+  "updatedAt": "2026-11-07T17:13:10.847683+00:00"
 }
