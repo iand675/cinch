@@ -11,6 +11,22 @@ See [the cutover checks](../bootstrap/current-schema10-family-and-cutover-result
 [the current bootstrap audit](../bootstrap/current-schema10-strict-named-proof-bootstrap-results.json)
 and [the first schema 10 fixed point](../bootstrap/current-schema10-bootstrap-results.json).
 
+The staged compiler links the pinned standard-library object and runtime
+archive. It reads the library's checked interfaces separately. The executable
+source-rebuild checks verify interface dependencies and refuse changed bodies
+when only the old object is available. Library behavior tests are consumers.
+The Foldable fixture is being replayed as a single client module against
+compiled artifacts, with all 16 cases preserved. The Function.Combinators
+replay identified two absent representation variants, `both [TTT]` and
+`swap [TT]`. The package design calls for materializing missing variants
+from checked polymorphic IR and caching them by representation vector.
+See [the specialization design](layouts-and-specialization.md#2-words-specialization-over-three-representation-classes-option-c).
+
+Native `run` now creates a fresh scratch directory and removes it after
+the executable exits. The CLI and both library run helpers passed the
+cleanup checks. The explicit build and linker failure checks preserved
+their artifacts. See [the scratch audit](../bootstrap/current-native-run-scratch-results.json).
+
 Schema 10 conditional method rows now require the checked implementation
 declaration. The producer omits optional bodies when they are unavailable.
 The Rust reader, Cinch loader and bootstrap verifier refuse display-only rows,

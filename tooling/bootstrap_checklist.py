@@ -401,7 +401,7 @@ def build_checklist(root, cfg, previous=None):
     portable_law = read(cfg.get('portableLawCinch'))
     family_replay = read(cfg.get('arrowFamilyReplay'))
     gaps=[
-        item('gap:prelude','Replace source copies of library modules safely','blocked' if integrated_overlay or stage3_failures_current or 'interface_prelude_overrides' in failed_api else 'pending',
+        item('gap:prelude','Check interface hashes when rebuilding library source','blocked' if integrated_overlay or stage3_failures_current or 'interface_prelude_overrides' in failed_api else 'pending',
              'The Ordering comparison found differences in instance headers, the direct Data.Core dependency and law observations. The focused nominal dependency regression passed. Matching the complete original library chain remains open.' if any(row.get('name') == 'bootstrap_source_instances' and row.get('status') == 'passed' for row in nominal_dependency.get('rows', [])) else
              'The original test passed Core and rechecked Ordering with the inherited default. Relation.Ord still records a different Ordering interface hash. An exact source/interface comparison is in progress.' if schema9_pinned_proof.get('original_source_family_replay') else
              'The Core family passed. Schema 9 transports the inherited Ordering default. The rebuilt Rust provider verifies all 55 interfaces and preserves both Category arrow instances. The exact four-family test is queued with this provider. Display scheme parity remains open.' if class_arrow_proof else
@@ -931,7 +931,7 @@ def build_checklist(root, cfg, previous=None):
         audited = (copy_audit.get('status') == 'audited-executable-source-spans-with-two-fixture-failures'
                    and copy_audit['compiler_sha256'] == overlay_validation.get('compiler_sha256'))
         rows = copy_audit['rows'] if audited else overlay_validation['rows']
-        active.append(dict(title='Recheck copied library source before executable linking',
+        active.append(dict(title='Verify when a source rebuild can reuse the library object',
             status=overlay_validation['status'],
             phase=('Core, Algebra and both edit refusals passed. Category differs on one law observation and Foldable cannot see a checked facade value.'
                    if audited else overlay_validation.get('phase', 'Waiting for Stage1 and the original Category and Foldable fixtures')),
@@ -941,10 +941,27 @@ def build_checklist(root, cfg, previous=None):
     ambient = read(cfg.get('schema10LibraryCopyAmbient'))
     if ambient:
         rows = ambient['rows']
-        active.append(dict(title='Recheck late library copies with checked facade values',
+        active.append(dict(title='Check source rebuilds that depend on facade exports',
             status=ambient['status'], phase=ambient.get('phase', 'Waiting to rebuild and replay the original copied-module cases'),
             passed=sum(row['status']=='passed' for row in rows), failed=sum(row['status']=='failed' for row in rows),
             total=6, source=ambient['compiler_source_sha256']))
+    foldable_consumer = read(cfg.get('schema10FoldableObjectConsumer'))
+    if foldable_consumer:
+        rows = {row['name']: row['exit_code'] for row in foldable_consumer['rows']}
+        completed = rows.get('stage3')
+        active.append(dict(title='Run Foldable as a client of the compiled library',
+            status=foldable_consumer['status'],
+            phase=('The fixture writes only Main.cinch and retains all 16 cases. '
+                   'The replay uses the audited Stage3 and pinned library interfaces and object.'),
+            passed=int(completed == 0), failed=int(completed is not None and completed != 0), total=1))
+    compiled_consumers = read(cfg.get('schema10CompiledLibraryConsumers'))
+    if compiled_consumers:
+        rows = [row for row in compiled_consumers['rows'] if row['name'] in ('lib_function_ord', 'lib_foldable')]
+        active.append(dict(title='Build and test the missing library specializations',
+            status=compiled_consumers['status'],
+            phase=compiled_consumers.get('phase', 'Waiting for checked Foldable and Function.Combinators requests'),
+            passed=sum(row['exit_code']==0 for row in rows),
+            failed=sum(row['exit_code']!=0 for row in rows), total=2))
     library_replay = read(cfg.get('schema10LibraryDispatchVariantReplay'))
     if library_replay:
         rows = library_replay['rows']
