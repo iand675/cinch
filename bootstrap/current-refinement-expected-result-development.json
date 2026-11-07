@@ -1,12 +1,16 @@
 {
+  "actual_cinch_structural_controls": 17,
   "all_native_compared_structural_controls": 17,
   "baseline_cinch_source_sha256": "14a889472c7bf47867414410bba2b91bc059a77df5b20e7105eb7274e3cff134",
+  "complete_original_named_refinements_passed": true,
   "full_goal_complete": false,
+  "named_refinement_evidence": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/refinement-expected-result-validation-1/bootstrap_named_refinements.log",
+  "named_refinement_group_log_sha256": "f495fa7c0797ab837bdd609b218c1b1691d0a93f1dbe376e4bc17e9a82a7ee87",
   "new_native_compared_controls": 6,
   "patch": "bootstrap/refinement-expected-result-development.patch",
   "patch_application_independently_verified": true,
   "patch_sha256": "79f29b05174960e6794451f9f1e7d0f6fe3aa2ff72ee49b187d255133be24bfd",
   "private_cinch_source_sha256": "286613ea3571aebd6747def34f7a8f9d8af0c84c78e5fee82f9ca65ff90fe7e1",
-  "scope": "Generic calls checked against structural refinements receive the full expected result carrier before their arguments are checked. Comparison-only expected refinements still hint their container and re-enter by evidence. All17 Native controls pass, including direct/nested/extracted and mixed structural results, no forged NonZero and preserved numeric projection. All original sources and assertions remain. Actual Cinch eight-group validation is running; the unchanged original mconcat runtime and matching final self-built compiler remain required.",
+  "scope": "Generic calls checked against structural refinements receive the full expected result carrier before their arguments are checked. Comparison-only expected refinements still hint their container and re-enter by evidence. All17 Native controls pass, including direct/nested/extracted and mixed structural results, no forged NonZero and preserved numeric projection. All original sources and assertions remain. Actual Cinch eight-group validation is running; the unchanged original mconcat runtime and matching final self-built compiler remain required. The complete original NamedRefinements target now passes with all17 added structural controls. The other seven complete groups, original mconcat runtime and matching final bootstrap remain required.",
   "status": "reviewable-private-structural-refinement-result-hint-under-validation"
 }

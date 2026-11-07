@@ -1,4 +1,4 @@
-# Next steps (as of 2026-11-06)
+# Next steps (as of 2026-11-07)
 
 ## Development checkpoint: checked defaults, coverage and structural refinements (2026-11-07)
 
@@ -8,7 +8,8 @@ reviewable development patches below are not applied to the published compiler.
 
 Private28d2 fixes inferred constructor-family coverage without using branch-local
 index equations to eliminate other constructors. Both exact44 source gates and
-all9 full compiler/object tests pass independent audit, including17 C clients and
+all8 complete component groups (10 Rust tests) and all9 full compiler/object tests
+pass independent audit, including17 C clients and
 50 zero-leak reports. All11 positive default runtime clients execute their expected
 results at32M with poisoning and zero leaks; the original owned Box counterexample
 now runs7. Five invalid-source controls refuse. Strict cycles still refuse during
@@ -21,20 +22,39 @@ the three `bootstrap/current-inferred-case-coverage-*-results.json` receipts.
 Privatea029 preserves structural NonZero while retaining the designed widening
 of comparison-only refinements. Eleven self-contained source controls agree
 between actual compiled Cinch and Native. Its complete9-test compiler/object gate
-also passes17 C clients and50 zero-leak reports. Complete component groups and all
-original API/default-method tests remain separate validation requirements. The
+also passes17 C clients and50 zero-leak reports. All8 complete component groups
+(10 Rust tests) pass independent audit. The original API/default replay is still
+16/21: three diagnostic/path assertions, source-Prelude replacement and the
+original mconcat runtime remain failures. The runtime now gets past inferred
+containers but exposes generic-call result inference forcing NonZero to Int.
+Candidate2866 preserves a structural expected result when hinting a call, while
+comparison-only refinements still hint their container. All17 Native controls
+and the complete original Cinch NamedRefinements target pass; the remaining
+seven whole groups and original runtime replay remain required. Its patch and
+evidence are in `bootstrap/current-refinement-expected-result-development.json`. The
 superseded broad range-preservation assumption and subsequent fixture/cache-guard
 setup errors remain recorded; no original assertion or cache guard was weakened.
 See `bootstrap/current-refinement-structural-development.json` and
 `bootstrap/current-refinement-structural-compiler-results.json`.
 
-Private7ccd/dc46 add source instance/class names and declaration locations to
-refusals and append original file/local-line labels already supplied by project
-bundles. Their complete source-instance, resolver and pipeline validations,
-seven renderer controls and exact44 source checks remain under validation.
-No source filename is guessed from a module name. See
-`bootstrap/current-source-default-diagnostics-development.json` and
-`bootstrap/current-source-default-origins-development.json`.
+Private7ccd retains source instance/class names and declaration locations; its
+complete source-instance and resolver targets pass independent audit (4 Rust
+tests, all16 default controls). Source-origin candidate14a8 appends actual file
+and local-line labels already supplied by project bundles, preserving the phase
+and bundled position. Seven renderer controls pass. The first candidate's
+reserved-word parse error and the second run's inherited stale FFI diagnostic
+assertions remain recorded. The third complete pipeline/resolver/source-instance
+run retains the already-published fa405 FFI diagnostic correction, its positive
+ABI control and all original refusal sources. Both exact44 source checks, the
+complete actual compiler/object gate and every original API filename assertion
+remain separate requirements. No filename is guessed from a module name. See
+`bootstrap/current-source-default-diagnostic-component-results.json` and
+`bootstrap/current-source-default-origins-development-2.json`.
+
+All8 development patches apply in order to a fresh published-source snapshot,
+produce the exact2866 compiler-module bytes and preserve the published FFI test
+correction. This is reproducibility evidence, not promotion or bootstrap proof:
+`bootstrap/current-development-patch-chain-results.json`.
 
 The fresh full235-target Native8ba8/Cinch3268 sweep retains every original target
 and assertion, with shared worker leases, one codegen unit/test thread per job,
