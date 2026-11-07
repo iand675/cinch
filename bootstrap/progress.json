@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "commit": "d280976a212c95b9bd36cdce72abe0c05a7870c0",
+  "commit": "f4ab92c579e9bb88fb4878a4f34157ac358b763b",
   "status": "Full bootstrap verification remains open",
   "stages": [
     {
@@ -552,7 +552,7 @@
     "version": 1,
     "target": {
       "compiler": "9f1d93da35d7ee94f974cc2ff76ddb85bcadf8cf4a8dcac50c954fa609ce0ac0",
-      "native": "2d4c256c2681bd69a16009d5333957a94999e49ea20a7b4a11f5431ef263792e"
+      "native": "f1bfdca8c79e4299effd20057114ed2e17072108b4fbe6940847c4b208b6eeb1"
     },
     "acceptance": [
       {
@@ -19343,20 +19343,20 @@
         "source": "4b9cc96eb7228d6d8fe8c18b4f4ca3b33519b6f7617763a3a54199fa30ff427f"
       },
       {
-        "title": "Run Foldable as a client of the compiled library",
-        "status": "passed-stage3",
-        "phase": "The fixture writes only Main.cinch and retains all 15 cases. The replay uses the audited Stage3 and pinned library interfaces and object.",
+        "title": "Run Foldable as a client of the standard library",
+        "status": "passed",
+        "phase": "The single-module fixture passed through Native. The Stage3 replay is tracked separately.",
         "passed": 1,
         "failed": 0,
         "total": 1
       },
       {
-        "title": "Verify the rebuilt library with the original consumers",
+        "title": "Verify the rebuilt library with the original function consumers",
         "status": "passed",
-        "phase": "All 55 interface identities match. Stage3 passed nine function cases and 15 Foldable cases. Native passed all 15 Foldable cases.",
-        "passed": 24,
+        "phase": "All 55 interface identities match. Stage3 passed all nine function cases. Native passed all 15 Foldable cases.",
+        "passed": 9,
         "failed": 0,
-        "total": 24,
+        "total": 9,
         "unit": "Stage3 cases",
         "source": "1c8e4305e070018121b087e47dd7572c3844617af7391841d74b1e8f2ed4c3d5",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-compiled-library-consumer-results.json"
@@ -19389,6 +19389,15 @@
         "total": 3,
         "source": "9f1d93da35d7ee94f974cc2ff76ddb85bcadf8cf4a8dcac50c954fa609ce0ac0",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-local-numeric-check-results.json"
+      },
+      {
+        "title": "Evaluate the original Const law and two controls",
+        "status": "passed-const-and-quantified-law-controls",
+        "phase": "counterexample-control",
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "source": "e3bb55095234f4daed2ea57198b25879a19fc0273492a09ca951ebb94a743c77"
       },
       {
         "title": "Rebuild the pinned library and rerun the ladder with one bytes-len type spelling",
@@ -19713,5 +19722,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T21:39:50.943073+00:00"
+  "updatedAt": "2026-11-07T21:49:29.615568+00:00"
 }
