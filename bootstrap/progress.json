@@ -547,8 +547,8 @@
   "candidateSource": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
   "candidatePublished": true,
   "fullGoalComplete": false,
-  "summary": "The current Cinch compiler passes all9 compiler/object tests and 13 of 14 interface/API tests. Source-library replacement still fails. The latest matching bootstrap and complete-suite verification remain open.",
-  "activity": "Candidate repairs are being validated before promotion. Earlier full sweeps continue with their original inputs and retain every failure.",
+  "summary": "Cinch 32abdfb8 rebuilt itself to matching Stage2 and Stage3 and passed the changed-source check. Its original frontend sweep has 18 of 105 targets passing, 3 failed and 84 still running or queued.",
+  "activity": "The newer integrated compiler has completed 3 of four build stages. Its matching fixed-point audit and full test replay are separate checklist requirements.",
   "checklist": {
     "version": 1,
     "target": {
@@ -560,12 +560,12 @@
         "id": "acceptance:1",
         "title": "1. Pinned seed builds Stage1",
         "state": "recheck",
-        "detail": "Proven for earlier 4f0a2535; must be repeated for the latest compiler.",
+        "detail": "Proven for earlier 32abdfb8; must be repeated for the latest compiler.",
         "doneWhen": "The pinned Rust seed builds all latest compiler sources; Stage1 is runnable and passes its executable smoke checks.",
         "evidence": "https://github.com/iand675/cinch/blob/main/design/self-hosting.md#acceptance",
         "observed": {
           "status": "passed",
-          "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+          "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
           "cases": []
         }
       },
@@ -573,12 +573,12 @@
         "id": "acceptance:2",
         "title": "2. Stage1 builds Stage2",
         "state": "recheck",
-        "detail": "Proven for earlier 4f0a2535; must be repeated for the latest compiler.",
+        "detail": "Proven for earlier 32abdfb8; must be repeated for the latest compiler.",
         "doneWhen": "Stage1 freshly rebuilds every compiler module from those same inputs, without a Rust frontend or prebuilt compiler substitution.",
         "evidence": "https://github.com/iand675/cinch/blob/main/design/self-hosting.md#acceptance",
         "observed": {
           "status": "passed",
-          "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+          "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
           "cases": []
         }
       },
@@ -586,12 +586,12 @@
         "id": "acceptance:3",
         "title": "3. Stage2 builds matching Stage3",
         "state": "recheck",
-        "detail": "Proven for earlier 4f0a2535; must be repeated for the latest compiler.",
+        "detail": "Proven for earlier 32abdfb8; must be repeated for the latest compiler.",
         "doneWhen": "Build and run Stage3; Stage2/Stage3 emitted IR, executable and every canonical interface agree.",
         "evidence": "https://github.com/iand675/cinch/blob/main/design/self-hosting.md#acceptance",
         "observed": {
           "status": "passed",
-          "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+          "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
           "cases": []
         }
       },
@@ -599,12 +599,12 @@
         "id": "acceptance:4",
         "title": "4. Changed-source bootstrap works",
         "state": "recheck",
-        "detail": "Proven for earlier 4f0a2535; must be repeated for the latest compiler.",
+        "detail": "Proven for earlier 32abdfb8; must be repeated for the latest compiler.",
         "doneWhen": "Change actual compiler source, rebuild it through the chain, and prove that its changed behavior reaches the consumer.",
         "evidence": "https://github.com/iand675/cinch/blob/main/design/self-hosting.md#acceptance",
         "observed": {
           "status": "passed",
-          "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+          "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
           "cases": []
         }
       },
@@ -617,7 +617,7 @@
         "evidence": "https://github.com/iand675/cinch/blob/main/design/self-hosting.md#acceptance",
         "observed": {
           "status": "pending",
-          "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+          "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
           "cases": []
         }
       }
@@ -690,8 +690,8 @@
       {
         "id": "gap:imported-defaults",
         "title": "Transport checked imported default implementations",
-        "state": "pending",
-        "detail": "A default hash alone does not provide the checked implementation required by an inheriting source instance.",
+        "state": "running",
+        "detail": "The original Ordering bundle cannot inherit mconcat from the pinned Monoid interface. Its default hash authenticates a body but carries no implementation. Owner-scoped body transport and fresh typechecking are in development.",
         "doneWhen": "Inherited imported defaults retain owner scope, private closure, actual method contracts and compiled behavior; missing or stale contracts refuse.",
         "evidence": "https://github.com/iand675/cinch/blob/main/design/compiled-interface-metadata.md"
       },
@@ -790,6 +790,14 @@
         "detail": "130 Rust targets are outside the preserved Stage3 matrix. 13 have a target-level review and 117 still need one. The original law, prim and concurrency source checks remain required.",
         "doneWhen": "Review all remaining targets and assertions, retain direct Rust API roles explicitly, and add every missing portable behavior case to final Stage3 execution.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-outside-frontend-target-review.json"
+      },
+      {
+        "id": "gap:structural-projection",
+        "title": "Replay anonymous refinement contracts",
+        "state": "recheck",
+        "detail": "The original sweep stops on an implicit projection from a structural refinement. Both compilers refuse that expression and accept explicit unrefine. The full replay includes both controls and retains the stronger-predicate refusal.",
+        "doneWhen": "The complete anonymous-contract target passes through matching Stage3, including explicit projection and the exact refusal reasons.",
+        "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_anonymous_contracts.rs"
       },
       {
         "id": "gap:final-audit",
@@ -11882,8 +11890,8 @@
           "verified": 0,
           "blocked": 0,
           "running": 0,
-          "pending": 0,
-          "recheck": 105
+          "pending": 83,
+          "recheck": 22
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
         "items": [
@@ -11896,11 +11904,11 @@
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/alloc_accounting.rs",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:53:30.723390+00:00",
-              "finishedAt": "2026-11-06T14:55:55.622232+00:00",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": "2026-11-07T05:52:15.122546+00:00",
+              "finishedAt": "2026-11-07T05:54:40.158311+00:00",
               "exitCode": 0,
-              "logSha256": "6e444ecde0f53e46af1a6866bcdb5c9f8f9ad0357f182f685e882f31e28581ec",
+              "logSha256": "ad2da6630d4b312f28853434ae15f9ccc4ecc43bc722e560ffd46588273d2c9e",
               "cases": [
                 {
                   "name": "a_compiled_structure_drops_back_to_the_immortal_baseline",
@@ -11947,11 +11955,11 @@
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/argv.rs",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:55:55.635071+00:00",
-              "finishedAt": "2026-11-06T14:56:50.559939+00:00",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": "2026-11-07T05:54:41.166064+00:00",
+              "finishedAt": "2026-11-07T05:56:13.646411+00:00",
               "exitCode": 0,
-              "logSha256": "d3c726427f8a8067b984690fc9648dc9f0ccc9b323097e4347654de2bf1d9da9",
+              "logSha256": "1b10162b24fc0b604b074f550b947c8cfe005729dc7288c347d38d5da77c4870",
               "cases": [
                 {
                   "name": "a_program_reads_its_own_command_line",
@@ -11978,11 +11986,11 @@
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/arrays.rs",
             "observed": {
               "status": "failed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:32:32.609901+00:00",
-              "finishedAt": "2026-11-06T14:51:04.777184+00:00",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": "2026-11-07T05:31:24.103983+00:00",
+              "finishedAt": "2026-11-07T05:48:36.252570+00:00",
               "exitCode": 101,
-              "logSha256": "e097c1dd7cc42c90e56b58aba30d99b31e0d2f70c1ea8ebf010b6d656f4bf4a7",
+              "logSha256": "1021ae99e27fa2c13bb105c81b8452625e7b7251bb1c533ceb337549c75a399b",
               "cases": [
                 {
                   "name": "array_copy_evidence_depends_on_the_element_type",
@@ -12057,11 +12065,11 @@
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_abstract_nonzero_methods.rs",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:56:50.573157+00:00",
-              "finishedAt": "2026-11-06T15:13:43.758046+00:00",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": "2026-11-07T05:56:14.746630+00:00",
+              "finishedAt": "2026-11-07T06:11:58.769892+00:00",
               "exitCode": 0,
-              "logSha256": "0fa37bb0755d0850dbc8080000bc4cfee49c1a6039703b8b6650468aa963cdb6",
+              "logSha256": "b0b1f0f21fad7f7090dabe236b14be3df5c88dd3a2f32d016717e9fdf9bd8981",
               "cases": [
                 {
                   "name": "real_div_and_rem_contracts_keep_abstract_carriers_until_specialization",
@@ -12080,11 +12088,11 @@
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_abstract_nonzero_types.rs",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T15:13:43.770429+00:00",
-              "finishedAt": "2026-11-06T15:18:55.667778+00:00",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": "2026-11-07T06:11:59.718245+00:00",
+              "finishedAt": "2026-11-07T06:16:37.148192+00:00",
               "exitCode": 0,
-              "logSha256": "c1be10579ce9a4b30adc08dd5aa33cc79015953b68293bb9e7afa4d79193221c",
+              "logSha256": "8926a4a2132d8483ad11be7ecba9491daed83c78ceb79f20304d8da15916bae8",
               "cases": [
                 {
                   "name": "abstract_abstract_nonzero_types_and_core_preserve_scope_and_evidence",
@@ -12102,16 +12110,16 @@
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_anonymous_contracts.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T15:18:55.680219+00:00",
-              "finishedAt": "2026-11-06T15:34:47.985874+00:00",
-              "exitCode": 0,
-              "logSha256": "f3009387898e546c2bd8f9f2a9229e06146739399e5d66fb5a4c7815e3f8e97e",
+              "status": "failed",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": "2026-11-07T06:16:38.329773+00:00",
+              "finishedAt": "2026-11-07T06:27:30.582307+00:00",
+              "exitCode": 101,
+              "logSha256": "323f7250e1c3a4e1b6db1bfb9ed3d4c0571087498abbc88068ec5568aa0021ae",
               "cases": [
                 {
                   "name": "imported_anonymous_results_and_arguments_keep_their_meaning",
-                  "status": "passed"
+                  "status": "failed"
                 }
               ]
             },
@@ -12126,11 +12134,11 @@
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_argument_scopes.rs",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T15:34:47.998330+00:00",
-              "finishedAt": "2026-11-06T15:48:11.382287+00:00",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": "2026-11-07T06:27:32.251830+00:00",
+              "finishedAt": "2026-11-07T06:42:11.288700+00:00",
               "exitCode": 0,
-              "logSha256": "458088239cfc8d4fff1e01939f5799fead64f796c9bdda3879cc9bbf916aad02",
+              "logSha256": "e0fb340ddbcd33505e251a1b961f1342047f047830df99a6626f776f4adb6e53",
               "cases": [
                 {
                   "name": "compiled_cinch_keeps_argument_witness_scopes_and_effects",
@@ -12149,11 +12157,11 @@
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_array_float_bits.rs",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T15:48:11.393781+00:00",
-              "finishedAt": "2026-11-06T15:59:24.208459+00:00",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": "2026-11-07T06:42:12.769814+00:00",
+              "finishedAt": "2026-11-07T06:53:18.274940+00:00",
               "exitCode": 0,
-              "logSha256": "43dc7a5bb8cab31630430f25efd5314428073f31edf1871482c03fec36a63318",
+              "logSha256": "74e94892c9f455ae34276ca504a57ed6d5380c9bc9e1288a7cc88ac651f31f3d",
               "cases": [
                 {
                   "name": "cinch_packed_float_arrays_preserve_ieee_payloads",
@@ -12172,11 +12180,11 @@
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_body_bindings.rs",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T15:59:24.223057+00:00",
-              "finishedAt": "2026-11-06T16:09:49.582772+00:00",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": "2026-11-07T06:53:20.349262+00:00",
+              "finishedAt": "2026-11-07T07:04:25.224967+00:00",
               "exitCode": 0,
-              "logSha256": "24a8afe3a0cc555cb9d134f84dbd528324040fde7e5d94a9787423fd7776994c",
+              "logSha256": "7518e4ae8d486be6fa4b02e9c65341317128ef518d766fa1f9de04b16be2ece5",
               "cases": [
                 {
                   "name": "compiled_cinch_rechecks_body_bindings_refinements_and_changed_callees",
@@ -12198,16 +12206,16 @@
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_boolean_branches.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T16:09:49.594691+00:00",
-              "finishedAt": "2026-11-06T16:26:11.983321+00:00",
-              "exitCode": 0,
-              "logSha256": "d4799803f513443d703e18650f9a75d178b5c03a30ff9969c713b45770149e81",
+              "status": "running",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": "2026-11-07T07:04:27.198703+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "compiled_cinch_retains_only_valid_one_way_boolean_facts",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -12216,1428 +12224,1080 @@
           {
             "id": "stage3:bootstrap_buffer_aliases",
             "title": "bootstrap_buffer_aliases",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_buffer_aliases.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T16:26:11.995747+00:00",
-              "finishedAt": "2026-11-06T16:34:22.325691+00:00",
-              "exitCode": 0,
-              "logSha256": "16ace9b03188c17bfbff9ea051bf0debe55787cae283909527164875c0362841",
-              "cases": [
-                {
-                  "name": "buffer_aliases_keep_identity_and_do_not_borrow_other_buffer_facts",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_byte_observations",
             "title": "bootstrap_byte_observations",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_byte_observations.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T16:34:22.337365+00:00",
-              "finishedAt": "2026-11-06T16:59:16.972789+00:00",
-              "exitCode": 0,
-              "logSha256": "37688589a8f04c414b8bb235a28a677a6d91895d8bf973e350a313eb84c36dc5",
-              "cases": [
-                {
-                  "name": "byte_observations_recheck_typed_input_scope_and_runtime_identity",
-                  "status": "passed"
-                },
-                {
-                  "name": "imported_observation_identity_survives_a_renamed_facade",
-                  "status": "passed"
-                },
-                {
-                  "name": "source_observations_use_declared_primitive_identity_and_actual_buffer",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_check",
             "title": "bootstrap_check",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_check.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T16:59:16.985592+00:00",
-              "finishedAt": "2026-11-06T17:08:41.888418+00:00",
-              "exitCode": 0,
-              "logSha256": "40f35a405669bb345c714c8e0a23631ab711e531a69798f65d8191bda305b358",
-              "cases": [
-                {
-                  "name": "the_fragment_checker_accepts_fib_and_names_every_refusal",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_checked_program",
             "title": "bootstrap_checked_program",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_checked_program.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T17:08:41.901526+00:00",
-              "finishedAt": "2026-11-06T17:18:26.556631+00:00",
-              "exitCode": 0,
-              "logSha256": "980f78ca800787bbfd58f4520f72bee18cf7c14545eb3a2f6cbc79fb04e41c27",
-              "cases": [
-                {
-                  "name": "checked_program_constructor_is_not_an_external_authority_bypass",
-                  "status": "passed"
-                },
-                {
-                  "name": "checked_program_retains_runtime_source_core_and_its_typed_emitter_boundary",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_collections",
             "title": "bootstrap_collections",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_collections.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T17:18:26.572743+00:00",
-              "finishedAt": "2026-11-06T17:36:39.668477+00:00",
-              "exitCode": 0,
-              "logSha256": "754f87e345d8d2b0477656605d978ff9bb9fcf66e2b4ee83b5e6348116b20dc6",
-              "cases": [
-                {
-                  "name": "compiled_cinch_elaborates_collection_literals_and_preserves_actual_dictionaries",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_conditional_methods",
             "title": "bootstrap_conditional_methods",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_conditional_methods.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T17:36:39.683991+00:00",
-              "finishedAt": "2026-11-06T17:51:32.247974+00:00",
-              "exitCode": 0,
-              "logSha256": "6f275428949dc44f7fe5392e265393491a7dcb3ca51a41f3a66b3202acb390e9",
-              "cases": [
-                {
-                  "name": "compiled_cinch_selects_checked_conditional_methods_with_call_proofs",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_contract",
             "title": "bootstrap_contract",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_contract.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T17:51:32.262927+00:00",
-              "finishedAt": "2026-11-06T17:53:02.301456+00:00",
-              "exitCode": 0,
-              "logSha256": "175b2eda24f1c5af253bdb6db22a5932a4aa094bcf6f0b29eb751edcfb1318d8",
-              "cases": [
-                {
-                  "name": "the_shared_contract_compiles_and_answers",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_core",
             "title": "bootstrap_core",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_core.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T17:53:02.313916+00:00",
-              "finishedAt": "2026-11-06T18:02:17.026152+00:00",
-              "exitCode": 0,
-              "logSha256": "d5398f955b4f1d41649daa2a3526e3b1badb6e80e0240d662aa7ac9abecfea2c",
-              "cases": [
-                {
-                  "name": "typed_terms_retain_instantiation_patterns_and_polymorphic_scope",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_decisions",
             "title": "bootstrap_decisions",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_decisions.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T18:02:17.043726+00:00",
-              "finishedAt": "2026-11-06T18:08:00.731015+00:00",
-              "exitCode": 0,
-              "logSha256": "9c7248bdbdc7a18969a63ac30af20da0d659af1a59750d8669b6af9d869e604f",
-              "cases": [
-                {
-                  "name": "core_decisions_recheck_tests_constructor_authority_and_branch_evidence",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_driver",
             "title": "bootstrap_driver",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_driver.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T18:08:00.743157+00:00",
-              "finishedAt": "2026-11-06T18:09:04.486170+00:00",
-              "exitCode": 0,
-              "logSha256": "3dac3dc3107c4804fdcd0add96fa5c5d26f3d9fa49205d2c095274fd752c8d59",
-              "cases": [
-                {
-                  "name": "driver_links_a_fixed_ir_module_and_reports_both_exit_codes",
-                  "status": "passed"
-                },
-                {
-                  "name": "driver_refuses_incomplete_arguments_with_its_named_exit_code",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_effect_types",
             "title": "bootstrap_effect_types",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_effect_types.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T18:09:04.498887+00:00",
-              "finishedAt": "2026-11-06T18:14:36.071693+00:00",
-              "exitCode": 0,
-              "logSha256": "6c6d3c2cc1b1e1a784fc2e67ac0f46469ba1627f8f467d734d2e16c88b4cee14",
-              "cases": [
-                {
-                  "name": "closed_effect_rows_regions_and_scope_are_checked_in_cinch",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_effects",
             "title": "bootstrap_effects",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_effects.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T18:14:36.084259+00:00",
-              "finishedAt": "2026-11-06T18:23:59.036822+00:00",
-              "exitCode": 0,
-              "logSha256": "d2068690a8455cc90ac7be3fdadaa2f7e57816138a57e85bc271d4696ab4a222",
-              "cases": [
-                {
-                  "name": "source_effects_and_lexical_io_capabilities_are_checked_in_cinch",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_eval",
             "title": "bootstrap_eval",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_eval.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T18:23:59.050522+00:00",
-              "finishedAt": "2026-11-06T18:26:11.455832+00:00",
-              "exitCode": 0,
-              "logSha256": "431501a3ec3da8444b47f1a6d09abc95ae4a4e2aed1af91f32ad3d187cdc2804",
-              "cases": [
-                {
-                  "name": "the_oracle_evaluates_fib_and_refuses_by_name",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_export_interfaces",
             "title": "bootstrap_export_interfaces",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_export_interfaces.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T18:26:11.471784+00:00",
-              "finishedAt": "2026-11-06T18:39:30.727080+00:00",
-              "exitCode": 0,
-              "logSha256": "4ce76b3793e181c6689d6e8c4cc438432825c18342546df09f3195d131487d92",
-              "cases": [
-                {
-                  "name": "source_interfaces_preserve_private_nominals_and_defining_fixities",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_export_types",
             "title": "bootstrap_export_types",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_export_types.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T18:39:30.745094+00:00",
-              "finishedAt": "2026-11-06T18:40:59.465325+00:00",
-              "exitCode": 0,
-              "logSha256": "0f55aff4326e540c79cab03ae44c2ddc478b2f10cc1c633203df5fbbb069c66c",
-              "cases": [
-                {
-                  "name": "checked_schemes_have_portable_definition_owned_syntax",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_function_preconditions",
             "title": "bootstrap_function_preconditions",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_function_preconditions.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T18:40:59.482275+00:00",
-              "finishedAt": "2026-11-06T18:50:40.868226+00:00",
-              "exitCode": 0,
-              "logSha256": "dc67db1c8e1b45dfb1ba08c929872eb3c18389f76bff90feb4ca3712458617bc",
-              "cases": [
-                {
-                  "name": "function_preconditions_use_actual_arguments_and_cannot_be_ignored",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_globals",
             "title": "bootstrap_globals",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_globals.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T18:50:40.881329+00:00",
-              "finishedAt": "2026-11-06T19:02:12.615443+00:00",
-              "exitCode": 0,
-              "logSha256": "17963687343e628c81175c4bb376b1ac04568419c9cfb0675b80350a70c61acb",
-              "cases": [
-                {
-                  "name": "globals_recheck_instantiations_roles_slots_and_lexical_dictionaries",
-                  "status": "passed"
-                },
-                {
-                  "name": "hidden_constructor_parameters_cannot_be_chosen_by_a_pattern_annotation",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_guarded_arithmetic",
             "title": "bootstrap_guarded_arithmetic",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_guarded_arithmetic.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T19:02:12.629070+00:00",
-              "finishedAt": "2026-11-06T19:12:14.454839+00:00",
-              "exitCode": 0,
-              "logSha256": "a09f983fa6daa5395d5ea37288a9574c0acc39fae780268b27cbe39396ff260c",
-              "cases": [
-                {
-                  "name": "guarded_nat_subtraction_uses_actual_branch_facts",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_guarded_association",
             "title": "bootstrap_guarded_association",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_guarded_association.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T19:12:14.473867+00:00",
-              "finishedAt": "2026-11-06T19:18:25.930336+00:00",
-              "exitCode": 0,
-              "logSha256": "2fef2c5ea7e8ea262ef9d2d48df72f2775d177a7ee280e49f8d86018c248c381",
-              "cases": [
-                {
-                  "name": "guarded_calls_recheck_actual_body_declarations_and_stale_aliases",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_guarded_bodies",
             "title": "bootstrap_guarded_bodies",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_guarded_bodies.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T19:18:25.944812+00:00",
-              "finishedAt": "2026-11-06T19:19:33.632165+00:00",
-              "exitCode": 0,
-              "logSha256": "e330db5dbf93ada242b35579b55f65607b169097519c327a155d42f5443d014d",
-              "cases": [
-                {
-                  "name": "guarded_nat_bodies_need_actual_preconditions_and_formal_scope",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_guarded_calls",
             "title": "bootstrap_guarded_calls",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_guarded_calls.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T19:19:33.645985+00:00",
-              "finishedAt": "2026-11-06T19:48:22.727151+00:00",
-              "exitCode": 0,
-              "logSha256": "0f1a8744d0e03d1c804829ee365d3fbb3d54db63093f0a9dac436048f51efd72",
-              "cases": [
-                {
-                  "name": "compiled_cinch_uses_actual_guarded_bodies_for_dependent_bounds",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_handler_core",
             "title": "bootstrap_handler_core",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_handler_core.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T19:48:22.740311+00:00",
-              "finishedAt": "2026-11-06T19:54:07.587625+00:00",
-              "exitCode": 0,
-              "logSha256": "f4e0f89b2eb4a2177bac2cc138458954761dfcbd7fdbed1af8b989f329ddb023",
-              "cases": [
-                {
-                  "name": "handlers_recheck_actual_slots_rows_and_one_shot_resumptions",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_imported_nonzero",
             "title": "bootstrap_imported_nonzero",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_imported_nonzero.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T19:54:07.602338+00:00",
-              "finishedAt": "2026-11-06T20:18:05.669636+00:00",
-              "exitCode": 0,
-              "logSha256": "7408c4d2f2c6dee69d5f6791442994270b09f10b7f7563b5fa03d7b2738bfe43",
-              "cases": [
-                {
-                  "name": "imported_structural_nonzero_uses_checked_argument_identity",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_imported_preconditions",
             "title": "bootstrap_imported_preconditions",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_imported_preconditions.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T20:18:05.683005+00:00",
-              "finishedAt": "2026-11-06T20:32:43.546295+00:00",
-              "exitCode": 0,
-              "logSha256": "7ba31999983351d1b47d34d2eba8d8227b55347fd0a592018b3a368e91034e60",
-              "cases": [
-                {
-                  "name": "imported_conditions_use_actual_caller_arguments",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_indices",
             "title": "bootstrap_indices",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_indices.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T20:32:43.557334+00:00",
-              "finishedAt": "2026-11-06T20:33:22.044083+00:00",
-              "exitCode": 0,
-              "logSha256": "aaee0ba964f58e04957f6814a3f4db0c68767b9ce65f81a84f47d7d31d01381f",
-              "cases": [
-                {
-                  "name": "index_substitution_preserves_scope_and_binding_identity",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_infer",
             "title": "bootstrap_infer",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_infer.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T20:33:22.057099+00:00",
-              "finishedAt": "2026-11-06T20:41:42.961063+00:00",
-              "exitCode": 0,
-              "logSha256": "9c9082a761a535288e85af4abad9622d67ec9f26fc7b0876f94aab67011ed8bf",
-              "cases": [
-                {
-                  "name": "schemes_constructor_instantiation_and_scope_facts_are_checked_in_cinch",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_instance_resolution",
             "title": "bootstrap_instance_resolution",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_instance_resolution.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T20:41:42.972300+00:00",
-              "finishedAt": "2026-11-06T20:46:42.821102+00:00",
-              "exitCode": 0,
-              "logSha256": "6ce642b91f83fb918f1651e705185cf61810b310e119ff02e38ad296c01a9b37",
-              "cases": [
-                {
-                  "name": "instance_factories_preserve_scope_coherence_and_actual_method_semantics",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_interface",
             "title": "bootstrap_interface",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_interface.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T20:46:42.834315+00:00",
-              "finishedAt": "2026-11-06T20:49:54.349828+00:00",
-              "exitCode": 0,
-              "logSha256": "a70dd66e18283820f44e718963807cc23844c9f3a7669400f50303de5beb053b",
-              "cases": [
-                {
-                  "name": "sha256_is_sha256",
-                  "status": "passed"
-                },
-                {
-                  "name": "the_interface_reader_answers_a_real_artifact",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_intrinsics",
             "title": "bootstrap_intrinsics",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_intrinsics.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T20:49:54.362706+00:00",
-              "finishedAt": "2026-11-06T20:58:50.036906+00:00",
-              "exitCode": 0,
-              "logSha256": "0d8d9ef44564b6b11331995a67ab0ad016a1bd9dd4254ad1f7c92ec5e2ac32d1",
-              "cases": [
-                {
-                  "name": "runtime_intrinsics_check_their_contract_and_retain_canonical_symbols",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_ir",
             "title": "bootstrap_ir",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_ir.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T20:58:50.067054+00:00",
-              "finishedAt": "2026-11-06T21:13:57.382945+00:00",
-              "exitCode": 0,
-              "logSha256": "4428c7854e822b19704597267885b906ad207375963d8e8985668fd9de66f32a",
-              "cases": [
-                {
-                  "name": "a_two_parameter_function_defines_one_symbol_and_its_call_carries_both_arguments",
-                  "status": "passed"
-                },
-                {
-                  "name": "the_emitted_ir_assembles_and_runs_to_the_fragments_meaning",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_ladder",
             "title": "bootstrap_ladder",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_ladder.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T21:13:57.396876+00:00",
-              "finishedAt": "2026-11-06T21:29:39.498055+00:00",
-              "exitCode": 0,
-              "logSha256": "7634f7bc78a888fc23f8433688fa86cad5a59ad5d74f60a1855125f0b359be9f",
-              "cases": [
-                {
-                  "name": "every_ladder_module_checks_together",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_lexer",
             "title": "bootstrap_lexer",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_lexer.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T21:29:39.513177+00:00",
-              "finishedAt": "2026-11-06T21:31:15.323402+00:00",
-              "exitCode": 0,
-              "logSha256": "df90e18d6b386ca9ef13d49fe67189222e83acc6a71ac957ee1ac998b373c0f2",
-              "cases": [
-                {
-                  "name": "lexer_reads_the_corpus_and_agrees_with_the_compiler",
-                  "status": "passed"
-                },
-                {
-                  "name": "the_self_hosting_forms_lex_to_carrying_tokens",
-                  "status": "passed"
-                },
-                {
-                  "name": "the_whole_prelude_lexes_and_agrees_with_the_compiler",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_library_object",
             "title": "bootstrap_library_object",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_library_object.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T21:31:15.339041+00:00",
-              "finishedAt": "2026-11-06T21:53:48.432858+00:00",
-              "exitCode": 0,
-              "logSha256": "5a1696a01576e4911be7c2ad04f2df176ab66fc8f10915d91b424cb90ca1e5cd",
-              "cases": [
-                {
-                  "name": "cinch_cli_emits_a_closed_object_that_another_cinch_invocation_can_consume",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_load",
             "title": "bootstrap_load",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_load.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T21:53:48.446447+00:00",
-              "finishedAt": "2026-11-06T22:00:57.897474+00:00",
-              "exitCode": 0,
-              "logSha256": "67c5fd5589d098c1d4b0c3da3012eab1f42727922918b478455394aad02fb5d1",
-              "cases": [
-                {
-                  "name": "body_owners_keep_longest_dot_boundary_prefixes_for_utf8_identities",
-                  "status": "passed"
-                },
-                {
-                  "name": "the_loader_checks_emitted_interfaces_and_dependency_identities",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_machine_values",
             "title": "bootstrap_machine_values",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_machine_values.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T22:00:57.914249+00:00",
-              "finishedAt": "2026-11-06T22:14:13.475314+00:00",
-              "exitCode": 0,
-              "logSha256": "5154af55e2d840fdcb5af7f37678dd1c93b8b06ba3e6757f2dcdb22417dbf116",
-              "cases": [
-                {
-                  "name": "source_machine_literals_and_refinements_keep_range_and_carrier",
-                  "status": "passed"
-                },
-                {
-                  "name": "type_and_core_recheck_machine_ranges_and_actual_typed_scope",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_manifest",
             "title": "bootstrap_manifest",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_manifest.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T22:14:13.489087+00:00",
-              "finishedAt": "2026-11-06T22:17:09.106422+00:00",
-              "exitCode": 0,
-              "logSha256": "9a929692ae6b7312c0a0f315198dd9bb9448ae342a57524ebfda0a91760074b1",
-              "cases": [
-                {
-                  "name": "manifest_round_trips_and_answers_package_facts",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_measure_contracts",
             "title": "bootstrap_measure_contracts",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_measure_contracts.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T22:17:09.118879+00:00",
-              "finishedAt": "2026-11-06T22:31:59.182440+00:00",
-              "exitCode": 0,
-              "logSha256": "5f5c221a84b0ef72f7f07138c66a0f375426ecc38b51d4e7e23d7a5ce40b6e7d",
-              "cases": [
-                {
-                  "name": "compiled_cinch_checks_actual_imported_measures_and_changed_bodies",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_module_scopes",
             "title": "bootstrap_module_scopes",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_module_scopes.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T22:31:59.194689+00:00",
-              "finishedAt": "2026-11-06T22:40:52.305848+00:00",
-              "exitCode": 0,
-              "logSha256": "c245599bc5f9e9365529c2356f25b2e52a63cca73e3ecd7a4462bdff364bded8",
-              "cases": [
-                {
-                  "name": "module_registries_do_not_collide_or_leak_private_values",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_named_refinements",
             "title": "bootstrap_named_refinements",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_named_refinements.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T22:40:52.319506+00:00",
-              "finishedAt": "2026-11-06T22:52:41.618918+00:00",
-              "exitCode": 0,
-              "logSha256": "6dfbbfd41c9d8b77bfaeef858555e2a5621bf0a9c5227661e7a62fc6c5540a32",
-              "cases": [
-                {
-                  "name": "named_refinements_preserve_scope_bounds_and_proof_obligations",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_nominals",
             "title": "bootstrap_nominals",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_nominals.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T22:52:41.634809+00:00",
-              "finishedAt": "2026-11-06T23:09:30.645023+00:00",
-              "exitCode": 0,
-              "logSha256": "684145d37e24488976fe9a39e6ce4401009dddbdacd80888c969e535975c339e",
-              "cases": [
-                {
-                  "name": "imported_nominals_are_checked_with_defining_identities_in_cinch",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_nonzero_source",
             "title": "bootstrap_nonzero_source",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_nonzero_source.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T23:09:30.661698+00:00",
-              "finishedAt": "2026-11-06T23:21:53.068584+00:00",
-              "exitCode": 0,
-              "logSha256": "3fc13aebe2779aa2ecab06ec92a627a3fd73c15ff0add5a2ad3b6ef56b119394",
-              "cases": [
-                {
-                  "name": "structural_nonzero_source_preserves_value_identity_and_contracts",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_nonzero_types",
             "title": "bootstrap_nonzero_types",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_nonzero_types.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T23:21:53.083876+00:00",
-              "finishedAt": "2026-11-06T23:26:42.402714+00:00",
-              "exitCode": 0,
-              "logSha256": "5a64534af4acbb0b05b90978ba7290171c906e193281ab3015daacbb5b017bd1",
-              "cases": [
-                {
-                  "name": "structural_nonzero_types_and_core_preserve_scope_and_evidence",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_parse",
             "title": "bootstrap_parse",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_parse.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T23:26:42.417429+00:00",
-              "finishedAt": "2026-11-06T23:28:10.077908+00:00",
-              "exitCode": 0,
-              "logSha256": "a257aae67397453a5b0e15e457e096a6879c56f1347561916971326675d54d6d",
-              "cases": [
-                {
-                  "name": "record_syntax_keeps_labels_order_patterns_and_nested_values",
-                  "status": "passed"
-                },
-                {
-                  "name": "the_parser_reads_the_examples_and_agrees_on_the_corpus",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_pi",
             "title": "bootstrap_pi",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_pi.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T23:28:10.091102+00:00",
-              "finishedAt": "2026-11-06T23:34:09.524041+00:00",
-              "exitCode": 0,
-              "logSha256": "70928f6a3d8f111dacf9f6049fed4174895d20307bdcffd59da126670298d25c",
-              "cases": [
-                {
-                  "name": "dependent_functions_preserve_binding_scope_effects_and_application",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_pipeline",
             "title": "bootstrap_pipeline",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_pipeline.rs",
             "observed": {
-              "status": "failed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T23:34:09.537013+00:00",
-              "finishedAt": "2026-11-06T23:49:26.383606+00:00",
-              "exitCode": 101,
-              "logSha256": "39aade7115389521274bb728124517a7489ab4a911a7c808f6021da3e8035651",
-              "cases": [
-                {
-                  "name": "the_ladder_compiles_the_fib_example_with_itself",
-                  "status": "failed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_proof",
             "title": "bootstrap_proof",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_proof.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T23:49:26.394470+00:00",
-              "finishedAt": "2026-11-06T23:50:03.715876+00:00",
-              "exitCode": 0,
-              "logSha256": "31ae0a56fa120f97260ab0ab35255ec7330008bc175c6509a8ce40d162fce656",
-              "cases": [
-                {
-                  "name": "arithmetic_search_requires_independently_rechecked_evidence",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_proof_arrows",
             "title": "bootstrap_proof_arrows",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_proof_arrows.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T23:50:03.728343+00:00",
-              "finishedAt": "2026-11-06T23:55:51.346232+00:00",
-              "exitCode": 0,
-              "logSha256": "7a839ddb5de5253f144501dc1e197db2f1871b537073584e12c87df7ce804f7b",
-              "cases": [
-                {
-                  "name": "erased_arrows_preserve_scope_effects_and_reject_runtime_proof_arguments",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_proof_terms",
             "title": "bootstrap_proof_terms",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_proof_terms.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T23:55:51.359125+00:00",
-              "finishedAt": "2026-11-07T00:01:21.921557+00:00",
-              "exitCode": 0,
-              "logSha256": "3f6b47b323aaa36d402ecc7a91d7ff78bd5fd3030fb5731d6f9e6d33b0934164",
-              "cases": [
-                {
-                  "name": "core_proof_scopes_preserve_effects_and_refuse_runtime_elimination",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_proposition_types",
             "title": "bootstrap_proposition_types",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_proposition_types.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-07T00:01:21.933684+00:00",
-              "finishedAt": "2026-11-07T00:06:16.622444+00:00",
-              "exitCode": 0,
-              "logSha256": "b8456ea97ee821042d4f41790b8e3b3f505c47b335bb6bf99c854aedeb105737",
-              "cases": [
-                {
-                  "name": "proposition_contract_types_preserve_scope_and_runtime_separation",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_refinement_closure",
             "title": "bootstrap_refinement_closure",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_refinement_closure.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-07T00:06:16.635942+00:00",
-              "finishedAt": "2026-11-07T00:18:01.530795+00:00",
-              "exitCode": 0,
-              "logSha256": "c88eda57e6501aef57444358768e144a7a996a9023056b69740f76e746613fcd",
-              "cases": [
-                {
-                  "name": "private_refinements_keep_checked_bounds_without_exporting_names",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_refinement_constructors",
             "title": "bootstrap_refinement_constructors",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_refinement_constructors.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-07T00:18:01.542713+00:00",
-              "finishedAt": "2026-11-07T00:33:00.243890+00:00",
-              "exitCode": 0,
-              "logSha256": "063b8808a2917e5103c46174f366e5fc950111129fd091ab96bed4330488ef8f",
-              "cases": [
-                {
-                  "name": "compiled_cinch_checks_explicit_refinement_proofs_and_payload_identity",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_refinement_core",
             "title": "bootstrap_refinement_core",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_refinement_core.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-07T00:33:00.256212+00:00",
-              "finishedAt": "2026-11-07T00:37:43.579963+00:00",
-              "exitCode": 0,
-              "logSha256": "92d4013d9b1652c7a690f1302b2c3f61177188273d1ac312839b614e4957873b",
-              "cases": [
-                {
-                  "name": "refinement_core_rechecks_actual_values_and_contexts",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_refinement_types",
             "title": "bootstrap_refinement_types",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_refinement_types.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-07T00:37:43.591374+00:00",
-              "finishedAt": "2026-11-07T00:42:32.518263+00:00",
-              "exitCode": 0,
-              "logSha256": "02629451365c5196a702f7277869ff241e38ba5283a157ae45e2b8950285b565",
-              "cases": [
-                {
-                  "name": "refinement_types_preserve_binders_and_require_evidence",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_resolve",
             "title": "bootstrap_resolve",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_resolve.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-07T00:42:32.530679+00:00",
-              "finishedAt": "2026-11-07T00:52:43.503207+00:00",
-              "exitCode": 0,
-              "logSha256": "980578db2723cd461c435a98ac0a7335073c9dcbcf026cb8afc79ddad1eae398",
-              "cases": [
-                {
-                  "name": "source_module_imports_exports_and_lexical_scopes_resolve",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_runtime_emit",
             "title": "bootstrap_runtime_emit",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_runtime_emit.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-07T00:52:43.516332+00:00",
-              "finishedAt": "2026-11-07T01:09:31.941404+00:00",
-              "exitCode": 0,
-              "logSha256": "adc2d2a0212e5776d5fb31fa24297c3dc51c5645012dabba8ed7da63f5a49afa",
-              "cases": [
-                {
-                  "name": "compiler_emit_mode_uses_the_typed_runtime_backend_and_preserves_refusals",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_runtime_ir",
             "title": "bootstrap_runtime_ir",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_runtime_ir.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-07T01:09:31.961626+00:00",
-              "finishedAt": "2026-11-07T01:21:42.059636+00:00",
-              "exitCode": 0,
-              "logSha256": "9322f022df4a3e5a7182a9ee079f5e7c3701c825c0f61ea31385fa0babf64e8d",
-              "cases": [
-                {
-                  "name": "typed_runtime_numbers_preserve_exact_values_and_reclaim_owned_words",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_runtime_library",
             "title": "bootstrap_runtime_library",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_runtime_library.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-07T01:21:42.073617+00:00",
-              "finishedAt": "2026-11-07T01:32:53.715072+00:00",
-              "exitCode": 0,
-              "logSha256": "f62e50b281badb9d0117353d017b34bcc1c7dd3791edd0005f309d18137c64c2",
-              "cases": [
-                {
-                  "name": "checked_library_roots_emit_linkable_owned_and_specialized_workers",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_runtime_library_abi",
             "title": "bootstrap_runtime_library_abi",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_runtime_library_abi.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-07T01:32:53.728868+00:00",
-              "finishedAt": "2026-11-07T01:44:01.994598+00:00",
-              "exitCode": 0,
-              "logSha256": "f0fb651d0eeba130924399508881a37ae634f0fafc42714a21d875086a5549ac",
-              "cases": [
-                {
-                  "name": "library_abi_entries_describe_actual_workers_and_owned_closure_accessors",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_runtime_objects",
             "title": "bootstrap_runtime_objects",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_runtime_objects.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-07T01:44:02.007249+00:00",
-              "finishedAt": "2026-11-07T02:05:49.546609+00:00",
-              "exitCode": 0,
-              "logSha256": "a1feb6e147a0249a0c2cd4e9a3dfc428b384be4b72e83264445bb6989b8bfaed",
-              "cases": [
-                {
-                  "name": "cinch_calls_actual_library_objects_with_checked_layout_authority",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_source_constructors",
             "title": "bootstrap_source_constructors",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_source_constructors.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-07T02:05:49.562816+00:00",
-              "finishedAt": "2026-11-07T02:15:11.000569+00:00",
-              "exitCode": 0,
-              "logSha256": "1fc70c6a734398bf173c5ec2c6b6d3b4a99f6de9099ddfb8be195675e8d3a9c5",
-              "cases": [
-                {
-                  "name": "decision_constructors_check_erasure_metadata_and_source_evidence",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
@@ -13650,11 +13310,11 @@
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_source_decisions.rs",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:07:12.422610+00:00",
-              "finishedAt": "2026-11-06T14:17:02.101319+00:00",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": "2026-11-07T05:09:07.372550+00:00",
+              "finishedAt": "2026-11-07T05:17:06.217282+00:00",
               "exitCode": 0,
-              "logSha256": "4a16e093218e671b83e3ebc9b5c6002ba507e792d12d22f65a618715d489da33",
+              "logSha256": "67994d528d714cf159fd6f955a4d53b49f1f49604ed4fa54ecd5a99415745386",
               "cases": [
                 {
                   "name": "source_decisions_preserve_predicates_and_check_authority",
@@ -13667,238 +13327,180 @@
           {
             "id": "stage3:bootstrap_source_effects",
             "title": "bootstrap_source_effects",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_source_effects.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-07T02:15:11.013626+00:00",
-              "finishedAt": "2026-11-07T02:24:17.316866+00:00",
-              "exitCode": 0,
-              "logSha256": "2da26192b3a8737dafcbb588558e9af4c50f697b9dbd5ba057e87c072f19f6ba",
-              "cases": [
-                {
-                  "name": "source_effect_declarations_and_calls_retain_checked_contracts",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_source_handlers",
             "title": "bootstrap_source_handlers",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_source_handlers.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-07T02:24:17.329115+00:00",
-              "finishedAt": "2026-11-07T02:33:01.053978+00:00",
-              "exitCode": 0,
-              "logSha256": "88d8777275b883491bb31026e9dba8394e99690b8e99d3dd42786361bf8347f9",
-              "cases": [
-                {
-                  "name": "source_handlers_preserve_declarations_effects_and_resumptions",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_source_instances",
             "title": "bootstrap_source_instances",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_source_instances.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-07T02:33:01.066899+00:00",
-              "finishedAt": "2026-11-07T02:56:10.096657+00:00",
-              "exitCode": 0,
-              "logSha256": "159ac77397ccbba26b5f271b3263febefef84bfc8c40e067172263dc969294f7",
-              "cases": [
-                {
-                  "name": "instance_contracts_recheck_slots_captures_and_method_specialization",
-                  "status": "passed"
-                },
-                {
-                  "name": "source_instances_build_checked_dictionaries_from_defining_class_interfaces",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_source_pi",
             "title": "bootstrap_source_pi",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_source_pi.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-07T02:56:10.111733+00:00",
-              "finishedAt": "2026-11-07T03:04:40.691745+00:00",
-              "exitCode": 0,
-              "logSha256": "a52819e9e53cfb7f059eeb18c3026b49c66e9631cef2f1cd1d298eb15e4bda04",
-              "cases": [
-                {
-                  "name": "source_dependent_functions_use_checked_argument_values",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_source_projection",
             "title": "bootstrap_source_projection",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_source_projection.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-07T03:04:40.705521+00:00",
-              "finishedAt": "2026-11-07T03:13:39.400160+00:00",
-              "exitCode": 0,
-              "logSha256": "6b70c6683573ba9fe7b5512de3b2d3483a900524699ef60175f4281c51327956",
-              "cases": [
-                {
-                  "name": "source_projection_preserves_carriers_and_kernel_authority",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_source_proofs",
             "title": "bootstrap_source_proofs",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_source_proofs.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-07T03:13:39.413873+00:00",
-              "finishedAt": "2026-11-07T03:22:03.335322+00:00",
-              "exitCode": 0,
-              "logSha256": "f33b59c873c2f9e0a3563f435b5e5354632b4bc137382cf9eadf3669c0a9525c",
-              "cases": [
-                {
-                  "name": "source_proofs_stay_erased_scoped_and_distinct_from_runtime_values",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_source_refinements",
             "title": "bootstrap_source_refinements",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_source_refinements.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-07T03:22:03.349366+00:00",
-              "finishedAt": "2026-11-07T03:30:44.682057+00:00",
-              "exitCode": 0,
-              "logSha256": "9a4bba8d3b5e7ba93196f93c1b1f57652028bd0a79d479a31d3e9bdb4bf0c6f2",
-              "cases": [
-                {
-                  "name": "source_refinements_check_actual_values_and_preserve_effects",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_test_runner",
             "title": "bootstrap_test_runner",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_test_runner.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-07T03:30:44.694675+00:00",
-              "finishedAt": "2026-11-07T03:31:41.102757+00:00",
-              "exitCode": 0,
-              "logSha256": "2235ac880887afce3d2d0d34ebfd3f3355eb980fa0d59e428aae48431f9df052",
-              "cases": [
-                {
-                  "name": "an_all_passing_suite_exits_zero_with_a_zero_failure_summary",
-                  "status": "passed"
-                },
-                {
-                  "name": "the_runner_reports_failures_and_encodes_the_failure_count",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_total",
             "title": "bootstrap_total",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_total.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-07T03:31:41.115830+00:00",
-              "finishedAt": "2026-11-07T03:32:25.721985+00:00",
-              "exitCode": 0,
-              "logSha256": "db220a2b06710108d4fd91f5354ed4b989f8ed60a48da47fdc04536411d3f684",
-              "cases": [
-                {
-                  "name": "compiled_cinch_checks_actual_total_body_graphs_and_forged_variants",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_total_indices",
             "title": "bootstrap_total_indices",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_total_indices.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-07T03:32:25.734707+00:00",
-              "finishedAt": "2026-11-07T03:37:18.125028+00:00",
-              "exitCode": 0,
-              "logSha256": "bd957709f377a62cf8290b19a4e0b585ff02216fba6b9a6f32c198c48595b104",
-              "cases": [
-                {
-                  "name": "compiled_cinch_total_indices_preserve_body_authority_and_scoped_arguments",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
@@ -13911,11 +13513,11 @@
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_total_semantics.rs",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:26:07.186564+00:00",
-              "finishedAt": "2026-11-06T14:32:32.595282+00:00",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": "2026-11-07T05:25:34.533758+00:00",
+              "finishedAt": "2026-11-07T05:31:21.949394+00:00",
               "exitCode": 0,
-              "logSha256": "a0affb3a00ede31d5ed71d5ee020eba6c082249397dbb8cbbb1d45d6392272ac",
+              "logSha256": "a44e0c608573b3125f6b7fc3f3eb5c30a18453c6e589905db3db84ab6b6af22a",
               "cases": [
                 {
                   "name": "compiled_cinch_method_facts_require_the_actual_selected_implementation",
@@ -13942,11 +13544,11 @@
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_type_syntax.rs",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:17:02.117871+00:00",
-              "finishedAt": "2026-11-06T14:26:07.173255+00:00",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": "2026-11-07T05:17:07.200471+00:00",
+              "finishedAt": "2026-11-07T05:25:32.436773+00:00",
               "exitCode": 0,
-              "logSha256": "7023685bc1df741fed4bfb223b509ed745030149c9135a021ea4907adaf8228f",
+              "logSha256": "2c3e33af13472ca83a9071f15182de7eb4c519d92a308641cd9658851679f825",
               "cases": [
                 {
                   "name": "predicates_indices_and_refined_results_keep_their_structure",
@@ -13959,427 +13561,234 @@
           {
             "id": "stage3:bootstrap_typed_indices",
             "title": "bootstrap_typed_indices",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_typed_indices.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-07T03:37:18.139060+00:00",
-              "finishedAt": "2026-11-07T03:42:11.323979+00:00",
-              "exitCode": 0,
-              "logSha256": "57c57f37d5299882093a88a3ff9ebabc27bfdf18d73242e54edd412cb601e95c",
-              "cases": [
-                {
-                  "name": "typed_indices_preserve_sorts_scope_and_numeric_conversion",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_typing",
             "title": "bootstrap_typing",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_typing.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-07T03:42:11.337669+00:00",
-              "finishedAt": "2026-11-07T03:47:59.416452+00:00",
-              "exitCode": 0,
-              "logSha256": "84a1b26ba565673c1f38ed655e8191f287be77e5017fff2e8789629f60d0ee62",
-              "cases": [
-                {
-                  "name": "core_typing_rechecks_annotations_with_actual_declarations_and_scopes",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_value_indices",
             "title": "bootstrap_value_indices",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_value_indices.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-07T03:47:59.429916+00:00",
-              "finishedAt": "2026-11-07T03:54:14.630575+00:00",
-              "exitCode": 0,
-              "logSha256": "91ae800a8a88898e84b8fef9b6059e44ddc0779ab5f047418bbb8b2815f58064",
-              "cases": [
-                {
-                  "name": "typed_indices_preserve_carriers_scope_and_runtime_witnesses",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:bootstrap_value_kinds",
             "title": "bootstrap_value_kinds",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_value_kinds.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-07T03:54:14.643154+00:00",
-              "finishedAt": "2026-11-07T04:00:19.474109+00:00",
-              "exitCode": 0,
-              "logSha256": "307b8067da7407642f3f47de5817f3b756bbc0567b0ff822cb68286ae7d9bff3",
-              "cases": [
-                {
-                  "name": "value_kinds_retain_carriers_and_do_not_invent_runtime_witnesses",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:canonical_artifacts",
             "title": "canonical_artifacts",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/canonical_artifacts.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-07T04:00:19.491364+00:00",
-              "finishedAt": "2026-11-07T04:00:58.786046+00:00",
-              "exitCode": 0,
-              "logSha256": "ee7c8b02488471e837380eae10553334147a43ebf9b9bf98c2bf8933490a9415",
-              "cases": [
-                {
-                  "name": "written_artifacts_are_canonical_json_for_the_cinch_printer",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:case_evidence",
             "title": "case_evidence",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/case_evidence.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-07T04:00:58.804007+00:00",
-              "finishedAt": "2026-11-07T04:03:49.895018+00:00",
-              "exitCode": 0,
-              "logSha256": "82e4c84c45c37e769f8617803f71330bc937e7aa458961ee7d0727af060961d4",
-              "cases": [
-                {
-                  "name": "a_write_between_test_and_use_invalidates_the_fact",
-                  "status": "passed"
-                },
-                {
-                  "name": "case_facts_go_stale_on_the_path_only",
-                  "status": "passed"
-                },
-                {
-                  "name": "case_on_a_comparison_binds_its_rows",
-                  "status": "passed"
-                },
-                {
-                  "name": "case_on_a_list_binds_non_emptiness",
-                  "status": "passed"
-                },
-                {
-                  "name": "case_on_a_three_way_comparison_binds_its_constructors",
-                  "status": "passed"
-                },
-                {
-                  "name": "case_on_a_value_binds_literal_and_default_rows",
-                  "status": "passed"
-                },
-                {
-                  "name": "conditions_in_handled_computations_carry_facts",
-                  "status": "passed"
-                },
-                {
-                  "name": "else_branch_of_a_zero_test_discharges_non_zero",
-                  "status": "passed"
-                },
-                {
-                  "name": "fact_bearing_matches_allocate_what_a_plain_if_does",
-                  "status": "passed"
-                },
-                {
-                  "name": "guards_carry_their_fact_and_their_refutation",
-                  "status": "passed"
-                },
-                {
-                  "name": "less_than_discharges_in_then_and_its_negation_in_else",
-                  "status": "passed"
-                },
-                {
-                  "name": "nested_conditions_contribute_together",
-                  "status": "passed"
-                },
-                {
-                  "name": "obligations_the_condition_does_not_imply_are_refused",
-                  "status": "passed"
-                },
-                {
-                  "name": "prelude_division_takes_its_divisor_from_a_zero_test",
-                  "status": "passed"
-                },
-                {
-                  "name": "reading_a_condition_never_changes_how_it_typechecks",
-                  "status": "passed"
-                },
-                {
-                  "name": "short_circuit_operands_carry_the_left_outcome",
-                  "status": "passed"
-                },
-                {
-                  "name": "structural_predicate_as_a_condition",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:class_identity",
             "title": "class_identity",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/class_identity.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-07T04:03:49.907828+00:00",
-              "finishedAt": "2026-11-07T04:04:38.551428+00:00",
-              "exitCode": 0,
-              "logSha256": "2e71024cdd09a5b5642dc829b9de838a749f7dae601e0cafecd200e63f3f23f9",
-              "cases": [
-                {
-                  "name": "a_local_data_type_can_shadow_a_legacy_signature_spelling",
-                  "status": "passed"
-                },
-                {
-                  "name": "distinct_declaring_classes_with_the_same_name_select_their_own_instances",
-                  "status": "passed"
-                },
-                {
-                  "name": "evidence_for_another_declaring_class_is_rejected",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:exhaustion",
             "title": "exhaustion",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/exhaustion.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-07T04:04:38.565514+00:00",
-              "finishedAt": "2026-11-07T04:05:51.232033+00:00",
-              "exitCode": 0,
-              "logSha256": "e62cc974bce78020ebbab55ce84baf252781b942c83992cd01bcf537a7533b27",
-              "cases": [
-                {
-                  "name": "deep_recursion_inside_a_task_exits_exhausted_stack",
-                  "status": "passed"
-                },
-                {
-                  "name": "deep_recursion_within_the_limit_still_succeeds",
-                  "status": "passed"
-                },
-                {
-                  "name": "unbounded_allocation_exits_exhausted_heap",
-                  "status": "passed"
-                },
-                {
-                  "name": "unbounded_non_tail_recursion_exits_exhausted_stack",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:folded_literal_ownership",
             "title": "folded_literal_ownership",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/folded_literal_ownership.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-07T04:05:51.244911+00:00",
-              "finishedAt": "2026-11-07T04:06:38.979390+00:00",
-              "exitCode": 0,
-              "logSha256": "97709ef7e33ba5566c158d216dfa5858188dd63e60c398d706363bfff927e048",
-              "cases": [
-                {
-                  "name": "folded_integer_lists_reclaim_small_and_bignum_tagged_heads",
-                  "status": "passed"
-                },
-                {
-                  "name": "folded_object_lists_keep_constructor_instantiations_and_reclaim_their_fields",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:interface_byte_observations",
             "title": "interface_byte_observations",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_byte_observations.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-07T04:06:38.991576+00:00",
-              "finishedAt": "2026-11-07T04:16:41.335793+00:00",
-              "exitCode": 0,
-              "logSha256": "03f4159bd6223793fd934e74ed9cfd1440cf50204a6d927f46084b9d5b1bef07",
-              "cases": [
-                {
-                  "name": "private_observations_close_over_the_kernel_and_actual_buffer_identity",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:interface_machine_contracts",
             "title": "interface_machine_contracts",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_machine_contracts.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-07T04:16:41.348982+00:00",
-              "finishedAt": "2026-11-07T04:28:19.858645+00:00",
-              "exitCode": 0,
-              "logSha256": "235f2769aa06e3adaec77f67a96eaaa3ef2fdb4008a7d1d80b9baf85d15a9484",
-              "cases": [
-                {
-                  "name": "checked_machine_comparisons_export_but_machine_arithmetic_stays_opaque",
-                  "status": "passed"
-                },
-                {
-                  "name": "compiled_cinch_consumer_rechecks_conversion_bounds_and_result_carriers",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:lib_hashmap_real",
             "title": "lib_hashmap_real",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/lib_hashmap_real.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-07T04:28:19.873128+00:00",
-              "finishedAt": "2026-11-07T04:29:01.742580+00:00",
-              "exitCode": 0,
-              "logSha256": "66eea22ca6832177abd47d5bc2fabd6f44e2bd770f47b89089bf21bb9f3e3470",
-              "cases": [
-                {
-                  "name": "measured_spans_bound_growth_and_report_collision_costs",
-                  "status": "passed"
-                },
-                {
-                  "name": "the_map_answers_over_more_keys_than_the_fixed_table_indexed",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
           {
             "id": "stage3:primitive_length_identity",
             "title": "primitive_length_identity",
-            "state": "recheck",
+            "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/primitive_length_identity.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-07T04:29:01.755159+00:00",
-              "finishedAt": "2026-11-07T04:33:39.322866+00:00",
-              "exitCode": 0,
-              "logSha256": "ca91491f5b93b1b05959e76626074adf25cea50cd35ecc14ad3b70801722f4f9",
-              "cases": [
-                {
-                  "name": "allocation_promise_agrees_with_an_actual_primitive_alias",
-                  "status": "passed"
-                },
-                {
-                  "name": "fresh_primitive_declaration_supplies_stable_length_facts",
-                  "status": "passed"
-                },
-                {
-                  "name": "index_operands_use_forall_and_nested_application_carriers",
-                  "status": "passed"
-                },
-                {
-                  "name": "length_indices_reject_non_byte_carriers",
-                  "status": "passed"
-                },
-                {
-                  "name": "named_observation_refinements_check_the_defining_carrier_even_when_unused",
-                  "status": "passed"
-                },
-                {
-                  "name": "primitive_index_witness_executes_the_operation_not_a_missing_global",
-                  "status": "passed"
-                },
-                {
-                  "name": "primitive_indices_check_result_carriers_and_arity",
-                  "status": "passed"
-                },
-                {
-                  "name": "refined_byte_operands_and_polymorphic_helpers_keep_their_carriers",
-                  "status": "passed"
-                },
-                {
-                  "name": "same_spelled_ordinary_reader_cannot_supply_immutable_facts",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
@@ -14392,11 +13801,11 @@
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_anonymous_contracts.rs",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:51:04.787770+00:00",
-              "finishedAt": "2026-11-06T14:51:21.880092+00:00",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": "2026-11-07T05:48:37.694457+00:00",
+              "finishedAt": "2026-11-07T05:48:53.038387+00:00",
               "exitCode": 0,
-              "logSha256": "83e5c3d3133e36476ff20849b582f665d64188db6d8588b0e3b6fee813f406eb",
+              "logSha256": "220504ff47170d46f2af2dfe18f2f40c39d5c4d5252effef08120d5e4e4aae6a",
               "cases": [
                 {
                   "name": "checked_anonymous_contracts_survive_facades",
@@ -14415,11 +13824,11 @@
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_class_contracts.rs",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:51:21.891859+00:00",
-              "finishedAt": "2026-11-06T14:51:39.302035+00:00",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": "2026-11-07T05:48:54.382154+00:00",
+              "finishedAt": "2026-11-07T05:49:10.132004+00:00",
               "exitCode": 0,
-              "logSha256": "f495b48de6d20410ee476574dd15c4b6282d04a1959e5784431a4212635d3134",
+              "logSha256": "6e573dff624191e3d5271779901f5395cf0347f68863d57a3734e310e6df98b9",
               "cases": [
                 {
                   "name": "class_contexts_methods_and_private_contracts_keep_their_definitions",
@@ -14438,11 +13847,11 @@
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_kinds.rs",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:51:39.314041+00:00",
-              "finishedAt": "2026-11-06T14:51:56.343359+00:00",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": "2026-11-07T05:49:11.721800+00:00",
+              "finishedAt": "2026-11-07T05:49:27.937203+00:00",
               "exitCode": 0,
-              "logSha256": "ae7a11e6eef9e9df996c5e521ec293428cbd29d22dc3404e6fa17d51ca91a62c",
+              "logSha256": "e4555a834a7af033a1030d5f0d1bb2276b5655adffc90d5552471b8134a73b3e",
               "cases": [
                 {
                   "name": "interfaces_preserve_indexed_constructors_and_method_visibility",
@@ -14465,11 +13874,11 @@
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_nominals.rs",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:51:56.355348+00:00",
-              "finishedAt": "2026-11-06T14:52:12.512472+00:00",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": "2026-11-07T05:49:29.153825+00:00",
+              "finishedAt": "2026-11-07T05:49:44.528202+00:00",
               "exitCode": 0,
-              "logSha256": "b4d538adad23a977c0ea2752a9f9135a277f52a4ad7d124e61acb00cde573eac",
+              "logSha256": "68d08494f4f585fd266c6d8ca96f56aadd119519d33bd840e2f80777b24c103b",
               "cases": [
                 {
                   "name": "resolved_schemes_preserve_definition_sites_and_private_contracts",
@@ -14488,11 +13897,11 @@
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_preconditions.rs",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:52:12.524824+00:00",
-              "finishedAt": "2026-11-06T14:52:29.456713+00:00",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": "2026-11-07T05:49:45.790272+00:00",
+              "finishedAt": "2026-11-07T05:50:01.012181+00:00",
               "exitCode": 0,
-              "logSha256": "f7353270cba9bc4ee19e5d19271387a81943ff9a69cf560080b5deb53de66e2f",
+              "logSha256": "8f1fa678e77b0e431dd79cccd7e9c1624488174dc38ea72721280c16b7bc65e3",
               "cases": [
                 {
                   "name": "numeric_conditions_keep_checked_argument_positions_and_reexports",
@@ -14511,11 +13920,11 @@
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_prelude_overrides.rs",
             "observed": {
               "status": "failed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:52:29.470686+00:00",
-              "finishedAt": "2026-11-06T14:52:35.246326+00:00",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": "2026-11-07T05:50:02.018051+00:00",
+              "finishedAt": "2026-11-07T05:50:07.473415+00:00",
               "exitCode": 101,
-              "logSha256": "4ee59f5acb324eeeb7f8c7b277f98b1aed7348705be2cc4655270f7f9e91a739",
+              "logSha256": "deb71ee90d83afadf106ab004c5f7ac5752318daafee07ad0ad0abd0c5fa3e52",
               "cases": [
                 {
                   "name": "source_family_homes_precede_embedded_consumers_with_checked_hashes",
@@ -14534,11 +13943,11 @@
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_refinement_closure.rs",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:52:35.259384+00:00",
-              "finishedAt": "2026-11-06T14:52:52.503221+00:00",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": "2026-11-07T05:50:08.766740+00:00",
+              "finishedAt": "2026-11-07T05:50:24.932755+00:00",
               "exitCode": 0,
-              "logSha256": "111ebafa05b6d0989eab0377a04e644d4d85d98f14f1e74b46ff53df8013e2c8",
+              "logSha256": "1ea77c912c6dbf45db8232aeec853a259be149b0e60c04e1d173be0268497326",
               "cases": [
                 {
                   "name": "private_refinement_contracts_survive_value_only_facades",
@@ -14557,14 +13966,26 @@
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_refinements.rs",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:52:52.515714+00:00",
-              "finishedAt": "2026-11-06T14:53:14.146504+00:00",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": "2026-11-07T05:50:26.644487+00:00",
+              "finishedAt": "2026-11-07T05:51:56.164440+00:00",
               "exitCode": 0,
-              "logSha256": "cd13e6b8e444477ad6bed74bdc4f146be39b7c29699a661cff69914aaa05197a",
+              "logSha256": "8b14035c73198359a11d7af82e6330adcca3020bffb45ae5d6185c448ce821bb",
               "cases": [
                 {
                   "name": "interfaces_publish_preconditions_and_named_refinement_definitions",
+                  "status": "passed"
+                },
+                {
+                  "name": "literal_preconditions_keep_checked_truth_and_facade_contract_identity",
+                  "status": "passed"
+                },
+                {
+                  "name": "logical_literal_proof_contracts_round_trip_without_becoming_boolean_values",
+                  "status": "passed"
+                },
+                {
+                  "name": "portable_proof_arrows_keep_kinds_effects_erasure_and_type_owners",
                   "status": "passed"
                 }
               ]
@@ -14580,11 +14001,11 @@
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_region_effects.rs",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:53:14.158690+00:00",
-              "finishedAt": "2026-11-06T14:53:30.709522+00:00",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "startedAt": "2026-11-07T05:51:57.488995+00:00",
+              "finishedAt": "2026-11-07T05:52:14.043157+00:00",
               "exitCode": 0,
-              "logSha256": "743404b390826c1a63903c6b5cd428a9a281383782e3a1323077ca35d3e10f49",
+              "logSha256": "2a8a750f009abdd97f007a38c3564cce7eb7ecd9207adf981962d1d7b8ae27e4",
               "cases": [
                 {
                   "name": "resolved_contracts_keep_region_binders_and_closed_kernel_effects",
@@ -14600,10 +14021,12 @@
           }
         ],
         "observedCounts": {
-          "passed": 102,
-          "failed": 3
+          "passed": 18,
+          "failed": 3,
+          "running": 1,
+          "pending": 83
         },
-        "observedSource": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2"
+        "observedSource": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157"
       },
       {
         "id": "runtime",
@@ -18757,6 +18180,25 @@
     ],
     "active": [
       {
+        "title": "Integrated compiler: fresh bootstrap",
+        "status": "running",
+        "phase": "building stage3",
+        "passed": 3,
+        "failed": 0,
+        "total": 4,
+        "source": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185",
+        "auditPending": false
+      },
+      {
+        "title": "Earlier self-built Stage3: complete frontend sweep",
+        "status": "running",
+        "phase": "bootstrap_boolean_branches",
+        "passed": 18,
+        "failed": 3,
+        "total": 105,
+        "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157"
+      },
+      {
         "title": "Fresh Stage0 through Stage3 rebuild",
         "status": "passed-bootstrap-chain-only",
         "phase": "Independent audit passed, including changed compiler source",
@@ -19327,14 +18769,14 @@
         "auditPending": false
       },
       {
-        "title": "Integrated compiler: fresh bootstrap",
+        "title": "Earlier Stage3: complete frontend sweep",
         "status": "running",
-        "phase": "3/4 stages. building stage3",
-        "passed": 0,
-        "failed": 0,
-        "total": 1,
-        "source": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185",
-        "auditPending": false
+        "phase": "bootstrap_boolean_branches",
+        "passed": 18,
+        "failed": 3,
+        "total": 105,
+        "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+        "earlier": true
       },
       {
         "title": "Cinch task forwarding: six-case source replay",
@@ -19373,27 +18815,36 @@
         "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157"
       },
       {
-        "title": "Current candidate: complete Stage3 frontend sweep",
+        "title": "Cinch copyOut: pipeline and runtime IR",
+        "status": "waiting-for-an-existing-worker",
+        "phase": "waiting for an existing worker",
+        "passed": 0,
+        "failed": 0,
+        "total": 2,
+        "source": "0307593852998f6cf4179ee5685069033a0aad51fe673a877727777ae3884bd5"
+      },
+      {
+        "title": "Cinch class-law samples and counterexamples",
         "status": "running",
-        "phase": "bootstrap_boolean_branches",
-        "passed": 18,
-        "failed": 3,
-        "total": 105,
-        "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157"
+        "phase": "bootstrap_export_interfaces",
+        "passed": 1,
+        "failed": 0,
+        "total": 2,
+        "source": "390867a97984998d814b051dea60c193e7c1d551032160da9302bb6c13b7f5ac"
       }
     ],
     "counts": {
       "verified": 489,
       "blocked": 6,
-      "running": 9,
-      "pending": 7,
-      "recheck": 161
+      "running": 10,
+      "pending": 89,
+      "recheck": 79
     },
-    "total": 672,
+    "total": 673,
     "acceptanceVerified": 0,
     "acceptanceTotal": 5,
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T07:04:25.814912+00:00"
+  "updatedAt": "2026-11-07T07:07:37.902581+00:00"
 }
