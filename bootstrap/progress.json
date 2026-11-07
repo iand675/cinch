@@ -11894,10 +11894,10 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 3,
+          "verified": 8,
           "blocked": 2,
           "running": 1,
-          "pending": 99,
+          "pending": 94,
           "recheck": 0
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
@@ -13434,17 +13434,17 @@
           {
             "id": "stage3:bootstrap_total_semantics",
             "title": "bootstrap_total_semantics",
-            "state": "running",
+            "state": "verified",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_total_semantics.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
               "startedAt": "2026-11-07T11:48:53.050859+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T11:55:21.329661+00:00",
+              "exitCode": 0,
+              "logSha256": "42883735ae4a095869c4190be42a69bb5f2b63573ad9b33f215f7a5198b2230f",
               "cases": [
                 {
                   "name": "compiled_cinch_method_facts_require_the_actual_selected_implementation",
@@ -13452,7 +13452,11 @@
                 },
                 {
                   "name": "compiled_cinch_reads_closed_bodies_without_inventing_unknown_branch_results",
-                  "status": "running"
+                  "status": "passed"
+                },
+                {
+                  "name": "compiled_cinch_reflects_only_actual_numeric_equations",
+                  "status": "passed"
                 }
               ]
             },
@@ -13718,84 +13722,112 @@
           {
             "id": "stage3:interface_anonymous_contracts",
             "title": "interface_anonymous_contracts",
-            "state": "pending",
+            "state": "verified",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_anonymous_contracts.rs",
             "observed": {
-              "status": "pending",
+              "status": "passed",
               "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": null,
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
-              "cases": []
+              "startedAt": "2026-11-07T11:55:23.260137+00:00",
+              "finishedAt": "2026-11-07T11:55:40.310541+00:00",
+              "exitCode": 0,
+              "logSha256": "5a3947a6c05285d78c5f7f5f149309ab2e8cfa1fe1ae5ddec231d6e787462207",
+              "cases": [
+                {
+                  "name": "checked_anonymous_contracts_survive_facades",
+                  "status": "passed"
+                }
+              ]
             },
             "category": "interface / API"
           },
           {
             "id": "stage3:interface_class_contracts",
             "title": "interface_class_contracts",
-            "state": "pending",
+            "state": "verified",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_class_contracts.rs",
             "observed": {
-              "status": "pending",
+              "status": "passed",
               "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": null,
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
-              "cases": []
+              "startedAt": "2026-11-07T11:55:41.834506+00:00",
+              "finishedAt": "2026-11-07T11:56:00.020871+00:00",
+              "exitCode": 0,
+              "logSha256": "3b787e65936d043dc5f703b59d9f8c2fdf01092c37535aa2a7952a03baf69506",
+              "cases": [
+                {
+                  "name": "class_contexts_methods_and_private_contracts_keep_their_definitions",
+                  "status": "passed"
+                }
+              ]
             },
             "category": "interface / API"
           },
           {
             "id": "stage3:interface_kinds",
             "title": "interface_kinds",
-            "state": "pending",
+            "state": "verified",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_kinds.rs",
             "observed": {
-              "status": "pending",
+              "status": "passed",
               "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": null,
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
-              "cases": []
+              "startedAt": "2026-11-07T11:56:02.027230+00:00",
+              "finishedAt": "2026-11-07T11:56:20.220386+00:00",
+              "exitCode": 0,
+              "logSha256": "07debfa0bcb7130817dc7188fc0a92a2af9c9d96c102a093cbdf39dd38bb4cb2",
+              "cases": [
+                {
+                  "name": "interfaces_preserve_indexed_constructors_and_method_visibility",
+                  "status": "passed"
+                },
+                {
+                  "name": "opaque_parameter_kinds_survive_checked_interfaces_and_facades",
+                  "status": "passed"
+                },
+                {
+                  "name": "partial_arrow_former_survives_a_checked_instance_interface",
+                  "status": "passed"
+                }
+              ]
             },
             "category": "interface / API"
           },
           {
             "id": "stage3:interface_nominals",
             "title": "interface_nominals",
-            "state": "pending",
+            "state": "verified",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_nominals.rs",
             "observed": {
-              "status": "pending",
+              "status": "passed",
               "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": null,
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
-              "cases": []
+              "startedAt": "2026-11-07T11:56:21.609525+00:00",
+              "finishedAt": "2026-11-07T11:56:38.038626+00:00",
+              "exitCode": 0,
+              "logSha256": "f9dee63e7b3bab3dcde903dc7f242fb355f8312ea766a2bcb2dd34c58f851581",
+              "cases": [
+                {
+                  "name": "resolved_schemes_preserve_definition_sites_and_private_contracts",
+                  "status": "passed"
+                }
+              ]
             },
             "category": "interface / API"
           },
           {
             "id": "stage3:interface_preconditions",
             "title": "interface_preconditions",
-            "state": "pending",
+            "state": "running",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_preconditions.rs",
             "observed": {
-              "status": "pending",
+              "status": "running",
               "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
               "startedAt": null,
               "finishedAt": null,
@@ -13885,9 +13917,9 @@
         ],
         "observedCounts": {
           "failed": 2,
-          "passed": 3,
+          "passed": 8,
           "running": 1,
-          "pending": 99
+          "pending": 94
         },
         "observedSource": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854"
       },
@@ -18055,15 +18087,15 @@
       {
         "title": "Published schema 9 Stage3: all 105 frontend targets",
         "status": "running",
-        "phase": "bootstrap_total_semantics",
-        "passed": 3,
+        "phase": "interface_preconditions",
+        "passed": 8,
         "failed": 2,
         "total": 105,
         "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854"
       },
       {
         "title": "Integrated self-built Stage3: complete frontend sweep",
-        "status": "running",
+        "status": "superseded-yielded-worker",
         "phase": "bootstrap_checked_program",
         "passed": 22,
         "failed": 3,
@@ -18466,7 +18498,7 @@
       },
       {
         "title": "Rust task-forwarding candidate: complete Rust sweep",
-        "status": "running",
+        "status": "superseded-yielded-worker",
         "phase": "bootstrap_boolean_branches",
         "passed": 154,
         "failed": 0,
@@ -18652,8 +18684,8 @@
       {
         "title": "Earlier Stage3: complete frontend sweep",
         "status": "running",
-        "phase": "bootstrap_total_semantics",
-        "passed": 3,
+        "phase": "interface_preconditions",
+        "passed": 8,
         "failed": 2,
         "total": 105,
         "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
@@ -18823,8 +18855,8 @@
       },
       {
         "title": "Rust: Nat-backed law counterexample and interface tests",
-        "status": "waiting-worker",
-        "phase": "waiting worker",
+        "status": "running",
+        "phase": "complete Rust class-law and interface groups",
         "passed": 0,
         "failed": 0,
         "total": 1,
@@ -18859,9 +18891,9 @@
       },
       {
         "title": "Schema 10: rebuild the library with checked class laws",
-        "status": "waiting-worker",
-        "phase": "waiting worker",
-        "passed": 0,
+        "status": "passed-library-only-schema10-development-provider",
+        "phase": "passed library only schema10 development provider",
+        "passed": 1,
         "failed": 0,
         "total": 1,
         "source": "172f44e5b060d48f30666d1b2d0339d566766c2f1054fcd574da5b1681b891f9"
@@ -18875,6 +18907,16 @@
         "total": 15,
         "source": "7ccaf9ce68cc9464492c088db8a8ababa1fc19fa44bbc20515e7ba276a52d277",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-stage1-combined-arrays-results.json"
+      },
+      {
+        "title": "Schema 9: complete original pipeline and finite-law controls",
+        "status": "passed",
+        "phase": "Both original tests passed with additional lawful and unlawful finite-constructor instances",
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "source": "c272860233cd944125805f27f3fb2521cd48f4c12f74fbc07b55f21f5a9ebb7f",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema9-finite-law-pipeline-results.json"
       },
       {
         "title": "Cinch staging: typed runtime and original array case",
@@ -18949,10 +18991,10 @@
       }
     ],
     "counts": {
-      "verified": 179,
+      "verified": 184,
       "blocked": 7,
       "running": 11,
-      "pending": 105,
+      "pending": 100,
       "recheck": 372
     },
     "total": 674,
@@ -18961,5 +19003,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T11:54:08.480789+00:00"
+  "updatedAt": "2026-11-07T11:56:38.868384+00:00"
 }
