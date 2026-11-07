@@ -19306,7 +19306,7 @@
       },
       {
         "title": "Check finite-index tactics on the original programs",
-        "status": "waiting-disk-space",
+        "status": "waiting-worker",
         "phase": "build all 46 compiler modules and smoke-test Stage1",
         "passed": 0,
         "failed": 0,
@@ -19474,7 +19474,7 @@
       },
       {
         "title": "Run four more original library and numeric targets with Stage3",
-        "status": "waiting-disk-space",
+        "status": "waiting-worker",
         "phase": "Forty original tests retain their fixtures and assertions and use the selected frontend.",
         "passed": 1,
         "failed": 2,
@@ -19495,7 +19495,7 @@
         "title": "Run the full original 105-target Stage3 frontend matrix",
         "status": "running",
         "phase": "3 disjoint runs share the same audited compiler and provider.",
-        "passed": 8,
+        "passed": 9,
         "failed": 0,
         "total": 105,
         "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a"
@@ -19615,5 +19615,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T17:13:10.847683+00:00"
+  "updatedAt": "2026-11-07T17:14:12.925091+00:00"
 }
