@@ -671,7 +671,7 @@
         "id": "gap:boolean-implications",
         "title": "Retain valid facts from either short-circuit operand",
         "state": "running",
-        "detail": "A true opaque && ordered condition must retain ordered; a false opaque || unordered condition must retain not unordered. Core currently retains only a readable test operand when the entire condition is opaque. Candidate32ab combines sound selected-branch implications without changing exact condition readings. The first new fixtures used reserved opaque as a parameter; their parser failures are preserved and grant no semantic rejection credit. All nine corrected flag fixtures pass independent Native audit: five valid checks and four actual ordering/precondition refusals. The complete Cinch precondition target is running; eight further whole groups and matching self-source/bootstrap checks remain.",
+        "detail": "A true opaque && ordered condition must retain ordered; a false opaque || unordered condition must retain not unordered. Core currently retains only a readable test operand when the entire condition is opaque. Candidate32ab combines sound selected-branch implications without changing exact condition readings. The first new fixtures used reserved opaque as a parameter; their parser failures are preserved and grant no semantic rejection credit. All nine corrected flag fixtures pass independent Native audit: five valid checks and four actual ordering/precondition refusals. The complete original Cinch precondition target passes with all nine controls and all original assertions retained; all44 modules pass Native admission. Eight further whole groups and matching own-source/bootstrap checks remain.",
         "doneWhen": "Run the original precondition, Boolean, Core and refinement groups, preserve all negative controls, and prove the repaired compiler reads its own44 source modules and freshly bootstraps.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-partial-boolean-branch-development-2.json"
       },
@@ -687,7 +687,7 @@
         "id": "gap:default-refinement",
         "title": "Preserve refinement carriers in the original default runtime program",
         "state": "running",
-        "detail": "The unchanged original mconcat runtime still fails: a029 now preserves inferred containers, but generic calls expected to return a structural refinement are hinted as plain Int too early. Its full original API/default replay remains16/21. Candidate2866 hints the full structural result; all17 Native controls and the complete original Cinch NamedRefinements target pass. All eight whole Cinch groups (ten Rust tests) now pass independent audit; the original mconcat runtime is still being replayed. The a029 eleven controls and eight original groups (ten Rust tests) remain audited. The superseded broad range-preservation assumption and subsequent fixture/cache-guard errors remain recorded. The original full runtime program remains required.",
+        "detail": "The2866 whole original replay remains19/21, but mconcat now passes frontend checking. Backend lowering requests genuine Semigroup_Function and Monoid_Function OO factory variants missing from the test library object. A fresh exact pinnedNative22 library-only provider now supplies both with ten checked physical symbols, all55 interface files and runtime bytes unchanged. The unchanged original full21 replay is queued against that new object. All8 component groups and all9 full compiler/object tests remain audited.",
         "doneWhen": "The original function carrier, refined product and unit cases compile and execute their expected results without guessing an underlying carrier.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-source-class-default-self-values-api-results.json"
       },
@@ -18587,7 +18587,7 @@
         "total": 1,
         "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
         "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
-        "auditPending": true
+        "auditPending": false
       },
       {
         "title": "Diagnostic compiler: its own44 source modules",
@@ -18597,6 +18597,28 @@
         "failed": 0,
         "total": 1,
         "source": "14a889472c7bf47867414410bba2b91bc059a77df5b20e7105eb7274e3cff134",
+        "nativeSource": null,
+        "auditPending": false
+      },
+      {
+        "title": "Core branch compiler: its own44 source modules",
+        "status": "waiting-complete-actual-compiler-gate",
+        "phase": null,
+        "passed": 0,
+        "failed": 0,
+        "total": 1,
+        "source": null,
+        "nativeSource": null,
+        "auditPending": false
+      },
+      {
+        "title": "Function defaults: fresh pinned library object",
+        "status": "passed-library-only-provider",
+        "phase": null,
+        "passed": 1,
+        "failed": 0,
+        "total": 1,
+        "source": null,
         "nativeSource": null,
         "auditPending": false
       },
@@ -18732,6 +18754,16 @@
         "auditPending": false
       },
       {
+        "title": "Cinch defaults: full replay with function factories",
+        "status": "waiting-shared-worker",
+        "phase": null,
+        "passed": 0,
+        "failed": 0,
+        "total": 10,
+        "source": "286613ea3571aebd6747def34f7a8f9d8af0c84c78e5fee82f9ca65ff90fe7e1",
+        "auditPending": false
+      },
+      {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
         "phase": "bootstrap_imported_nonzero",
@@ -18765,5 +18797,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T02:38:14.504654+00:00"
+  "updatedAt": "2026-11-07T02:42:09.536836+00:00"
 }
