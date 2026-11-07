@@ -547,7 +547,7 @@
   "candidateSource": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
   "candidatePublished": true,
   "fullGoalComplete": false,
-  "summary": "Cinch 5bf127d9 rebuilt itself to matching Stage2 and Stage3 and passed the changed-source check. Its original frontend sweep has 19 of 105 targets passing, 3 failed and 83 still running or queued.",
+  "summary": "Cinch 5bf127d9 rebuilt itself to matching Stage2 and Stage3 and passed the changed-source check. Its original frontend sweep has 20 of 105 targets passing, 3 failed and 82 still running or queued.",
   "activity": "The independently audited integrated build is running all 105 frontend targets. Open the test inventory for live failures and the repairs being replayed.",
   "checklist": {
     "version": 1,
@@ -11898,8 +11898,8 @@
           "verified": 0,
           "blocked": 0,
           "running": 0,
-          "pending": 82,
-          "recheck": 23
+          "pending": 81,
+          "recheck": 24
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
         "items": [
@@ -12237,16 +12237,16 @@
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_buffer_aliases.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185",
               "startedAt": "2026-11-07T10:02:10.237385+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T10:10:08.908973+00:00",
+              "exitCode": 0,
+              "logSha256": "69081082ae816825ffc21606144a377355810944ed22bc3f93d63759b94c56e3",
               "cases": [
                 {
                   "name": "buffer_aliases_keep_identity_and_do_not_borrow_other_buffer_facts",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -12255,18 +12255,23 @@
           {
             "id": "stage3:bootstrap_byte_observations",
             "title": "bootstrap_byte_observations",
-            "state": "pending",
+            "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_byte_observations.rs",
             "observed": {
-              "status": "pending",
+              "status": "running",
               "source": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185",
-              "startedAt": null,
+              "startedAt": "2026-11-07T10:10:10.370474+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "byte_observations_recheck_typed_input_scope_and_runtime_identity",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -14035,9 +14040,9 @@
         ],
         "observedCounts": {
           "failed": 3,
-          "passed": 19,
+          "passed": 20,
           "running": 1,
-          "pending": 82
+          "pending": 81
         },
         "observedSource": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185"
       },
@@ -18205,8 +18210,8 @@
       {
         "title": "Integrated self-built Stage3: complete frontend sweep",
         "status": "running",
-        "phase": "bootstrap_buffer_aliases",
-        "passed": 19,
+        "phase": "bootstrap_byte_observations",
+        "passed": 20,
         "failed": 3,
         "total": 105,
         "source": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185"
@@ -18793,8 +18798,8 @@
       {
         "title": "Earlier Stage3: complete frontend sweep",
         "status": "running",
-        "phase": "bootstrap_buffer_aliases",
-        "passed": 19,
+        "phase": "bootstrap_byte_observations",
+        "passed": 20,
         "failed": 3,
         "total": 105,
         "source": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185",
@@ -18993,8 +18998,8 @@
       "verified": 489,
       "blocked": 4,
       "running": 11,
-      "pending": 88,
-      "recheck": 82
+      "pending": 87,
+      "recheck": 83
     },
     "total": 674,
     "acceptanceVerified": 0,
@@ -19002,5 +19007,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T10:08:04.851739+00:00"
+  "updatedAt": "2026-11-07T10:10:27.233376+00:00"
 }
