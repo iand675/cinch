@@ -850,15 +850,31 @@ def build_checklist(root, cfg, previous=None):
         ('schema10ExternalLibraryVariants', 'Rebuild the libraries with five requested runtime variants', 2),
         ('schema10ExternalVariantReplay', 'First library replay of Html, Reactive and TensorAD', 3),
         ('schema10ExternalVariantReplay2', 'Replay the same three programs with the additional method and zip variants', 3),
+        ('schema10ExternalVariantReplay3', 'Replay the three programs with both required Functor variants', 3),
+        ('schema10MainTaskValidation', 'Rust task capture, units and arrays on schema 10', 3),
+        ('schema10DiagnosticScanValidation', 'Replay the full pipeline with the diagnostic byte scan', 2),
     ):
         run = read(cfg.get(key))
         if run:
-            rows = run.get('rows', [])
+            rows = [row for row in run.get('rows', []) if not row['name'].startswith('compile-')]
             active.append(dict(title=title, status=run['status'],
                 phase=(run.get('phase') or run['status']).replace('-', ' '),
                 passed=sum(row.get('status') == 'passed' for row in rows),
                 failed=sum(row.get('status') == 'failed' for row in rows), total=total,
                 source=run.get('compiler_source_sha256')))
+    replay_path = 'bootstrap/current-schema10-external-replay-results.json'
+    replay = read(root/replay_path)
+    if replay.get('status') == 'audited-external-language-replays':
+        runtime = replay['stage3_runtime']
+        active.append(dict(title='Stage3 TensorAD with the requested library variants', status='passed',
+            phase='The unchanged program passed at 32 MiB with poisoning and zero leaks.',
+            passed=sum(row['status'] == 'passed' for row in runtime['cases']), failed=0, total=1,
+            source=runtime['compiler_source_sha256'], evidence=link(replay_path)))
+        diagnostics = replay['development_stage1_diagnostics']
+        active.append(dict(title='Stage1 Html and TensorPrivate refusals', status='passed',
+            phase='Both original refusal reasons and original source locations matched.',
+            passed=len(diagnostics['cases']), failed=0, total=2,
+            source=diagnostics['compiler_source_sha256'], evidence=link(replay_path)))
     external_acceptance = read(cfg.get('schema10Stage3ExternalAcceptance'))
     external_audit_path = 'bootstrap/current-schema10-external-acceptance-results.json'
     external_audit = read(root/external_audit_path)

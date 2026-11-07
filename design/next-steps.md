@@ -16,6 +16,14 @@ and requested missing library variants. A library rebuild and exact replay
 are in progress. The other four stopped during source checking.
 See [the original language-suite audit](../bootstrap/current-schema10-external-language-results.json).
 
+TensorAD now runs on that same Stage3 with the expanded library object.
+The replay kept the original source, runtime and all 55 interface identities.
+The program exited with zero leaks. Html and Reactive now request the
+`OO` variant of Functor method slot 1. A separate development Stage1
+matched the original Html and TensorPrivate refusal reasons and source
+locations. The positive Html and Reactive replays remain open.
+See [the scoped runtime and diagnostic replays](../bootstrap/current-schema10-external-replay-results.json).
+
 The schema 9 chain remains a historical checkpoint. Its four stages and
 smoke tests passed, including the Stage2 and Stage3 fixed point, separate
 interface consumer and changed-source test.
