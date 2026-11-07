@@ -18547,8 +18547,8 @@
     "active": [
       {
         "title": "Fresh Stage0 through Stage3 rebuild",
-        "status": "waiting-matching-development-gates",
-        "phase": "Waiting for the compiler/object tests, the own-source check, and the nine component targets",
+        "status": "waiting-worker",
+        "phase": "waiting worker",
         "passed": 0,
         "failed": 0,
         "total": 4,
@@ -18701,14 +18701,14 @@
       },
       {
         "title": "Cinch partial Boolean implications: complete groups",
-        "status": "running",
+        "status": "passed-refinement-container-components",
         "phase": "bootstrap_named_refinements",
-        "passed": 8,
+        "passed": 9,
         "failed": 0,
         "total": 9,
         "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
         "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
-        "auditPending": false
+        "auditPending": true
       },
       {
         "title": "Core branch repair: complete Native44 source check",
@@ -18984,5 +18984,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T03:32:43.272121+00:00"
+  "updatedAt": "2026-11-07T03:36:45.713565+00:00"
 }
