@@ -11,6 +11,13 @@ See [the cutover checks](../bootstrap/current-schema10-family-and-cutover-result
 [the current bootstrap audit](../bootstrap/current-schema10-strict-named-proof-bootstrap-results.json)
 and [the first schema 10 fixed point](../bootstrap/current-schema10-bootstrap-results.json).
 
+The preceding published snapshot (`0b518fbd`) passed the independent
+fixed-point audit with the corrected library provider. Stage2 and Stage3
+match on the executable, LLVM IR and all 46 compiler interfaces. The audit
+also checked all 55 library interfaces, a separate compiled-interface
+client and a changed-source rebuild.
+See [the preceding published audit](../bootstrap/current-schema10-preceding-published-bootstrap-results.json).
+
 The staged compiler links the pinned standard-library object and runtime
 archive. It reads the library's checked interfaces separately. The executable
 source-rebuild checks verify interface dependencies and refuse changed bodies
