@@ -19858,9 +19858,9 @@
       },
       {
         "title": "Check executable NotNull with scoped witness controls",
-        "status": "running",
-        "phase": "wrong-local-witness",
-        "passed": 1,
+        "status": "passed-scoped-notnull-decisions",
+        "phase": "wrong-carrier",
+        "passed": 3,
         "failed": 0,
         "total": 3,
         "unit": "client cases",
@@ -19935,5 +19935,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T23:56:58.468547+00:00"
+  "updatedAt": "2026-11-07T23:58:00.718407+00:00"
 }
