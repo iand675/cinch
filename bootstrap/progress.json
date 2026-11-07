@@ -18959,10 +18959,10 @@
       },
       {
         "title": "Cinch: sample class laws over finite constructors",
-        "status": "running",
+        "status": "failed",
         "phase": "bootstrap_pipeline",
         "passed": 0,
-        "failed": 0,
+        "failed": 1,
         "total": 1,
         "source": "0946cfda33cdb8572577d530492b792ae5d9b17fede89d59e17e29593917090d"
       },
@@ -19060,5 +19060,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T10:44:24.502222+00:00"
+  "updatedAt": "2026-11-07T10:45:46.796853+00:00"
 }
