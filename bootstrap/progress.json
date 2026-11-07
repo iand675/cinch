@@ -18956,12 +18956,12 @@
       },
       {
         "title": "Schema 10: pinned Stage1 and original library replacement tests",
-        "status": "completed-with-original-overlay-failures",
-        "phase": "Algebra.Monoid",
-        "passed": 2,
-        "failed": 6,
+        "status": "running",
+        "phase": "pinned seed builds the 44 schema 10 sources",
+        "passed": 0,
+        "failed": 0,
         "total": 8,
-        "source": "7c3cd20cf324bed6ece95c9d945718d5e036e52851d1eb5666e64e71a82fe886"
+        "source": "7779280734c485942b9fe5c009c686f0719c8b3bcad7e224dccd4c32c7690f8c"
       },
       {
         "title": "Schema 9: rebuild and check the Git-pinned provider",
@@ -19134,5 +19134,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T12:21:02.499810+00:00"
+  "updatedAt": "2026-11-07T12:22:04.447170+00:00"
 }
