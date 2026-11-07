@@ -180,6 +180,14 @@ Algebra source now reaches its class law without missing constructor names.
 See `bootstrap/current-source-overlay-base-scope-results.json` and the
 reapplied patch receipt `bootstrap/current-source-overlay-base-scope-pipeline-results.json`.
 
+The class-law parser retains quantifiers, arrow binders and the two term
+operands. The law carrier patch opens the class dictionary and binders in the
+ordinary checker, then checks both operands against one carrier with an
+empty effect row. The complete syntax and pipeline tests pass. A mismatched
+carrier produces a type refusal, and a well-typed law still awaits checked
+instance evidence. The original Category syntax probe reaches the structural
+function instance. See `bootstrap/current-source-class-law-carrier-results.json`.
+
 All9 development patches apply in order to a fresh published-source snapshot,
 produce the exact32ab compiler-module bytes and preserve the published FFI test
 correction. This is reproducibility evidence, not promotion or bootstrap proof:

@@ -1,0 +1,384 @@
+--- a/bootstrap/Bootstrap.Ast.cinch
++++ b/bootstrap/Bootstrap.Ast.cinch
+@@ -370,6 +370,14 @@
+     ExportName :: Span -> List String -> ExportItem
+     ExportModule :: Span -> String -> ExportItem
+ 
++  -- A law equation contains terms, including the declaring class's methods.
++  -- Keeping them distinct from its binder types preserves both scopes.
++  data LawSyntax where
++    LawForall :: List TypeParam -> LawSyntax -> LawSyntax
++    LawArrow :: TypeExpr -> LawSyntax -> LawSyntax
++    LawEquation :: Expr -> Expr -> LawSyntax
++    LawProposition :: TypeExpr -> LawSyntax
++
+   data Decl where
+     DSource :: Span -> String -> Json -> Decl
+     DInterface :: Span -> String -> String -> Json -> Decl
+@@ -377,6 +385,7 @@
+     DSig :: Span -> String -> TypeExpr -> Decl
+     -- Resolved source method: slot label and actual module binding.
+     DMethod :: Span -> String -> String -> TypeExpr -> Decl
++    DLaw :: Span -> String -> LawSyntax -> Decl
+     DFun :: Span -> String -> List (List Pat, Expr) -> Decl
+     DData :: Span -> String -> List TypeParam -> List (String, TypeExpr) -> Decl
+     DOpaque :: Span -> String -> List TypeParam -> TypeExpr -> Decl
+@@ -411,6 +420,7 @@
+     DExternal s name kind scheme metadata -> s
+     DSig s n t -> s
+     DMethod s label name t -> s
++    DLaw s name syntax -> s
+     DFun s n clauses -> s
+     DData s n params ctors -> s
+     DOpaque s n params kind -> s
+@@ -435,6 +445,7 @@
+     DExternal s name kind scheme metadata -> Some name
+     DSig s n t -> Some n
+     DMethod s label name t -> Some name
++    DLaw s name syntax -> None
+     DFun s n clauses -> Some n
+     DData s n params ctors -> Some n
+     DOpaque s n params kind -> Some n
+@@ -630,6 +641,7 @@
+     DExternal s name kind scheme metadata -> 0
+     DSig s n t -> type-unmodeled-count t
+     DMethod s label name t -> type-unmodeled-count t
++    DLaw s name syntax -> law-unmodeled-count syntax
+     DFun s n clauses -> clauses-unmodeled clauses
+     DData s n params ctors -> params-unmodeled params + ctors-unmodeled ctors
+     DOpaque s n params kind -> params-unmodeled params + type-unmodeled-count kind
+@@ -645,6 +657,13 @@
+     DDecl s x rest -> decl-unmodeled-count x + decl-unmodeled-count rest
+     DDeclsEnd s -> 0
+     DUnmodeled s text -> 1
++
++  law-unmodeled-count :: LawSyntax -> Nat
++  law-unmodeled-count syntax = case syntax of
++    LawForall parameters rest -> params-unmodeled parameters + law-unmodeled-count rest
++    LawArrow domain rest -> type-unmodeled-count domain + law-unmodeled-count rest
++    LawEquation left right -> expr-unmodeled-count left + expr-unmodeled-count right
++    LawProposition ty -> type-unmodeled-count ty
+ 
+   decls-unmodeled :: List Decl -> Nat
+   decls-unmodeled ds = case ds of
+--- a/bootstrap/Bootstrap.Check.cinch
++++ b/bootstrap/Bootstrap.Check.cinch
+@@ -923,6 +923,7 @@
+         None -> fail s "imported value has no parsed type metadata"
+       else fail s (string-concat-all ["imported ", kind, " needs kind, constructor or dictionary elaboration: ", name])
+     DSig s n t -> Nil
++    DLaw s name syntax -> fail s "class laws require checked proposition elaboration"
+     DMethod s label name t -> fail s "resolved signature methods require typed elaboration"
+     DFun s n clauses -> check-fun tops s n clauses
+     DData s n params ctors -> case params of
+--- a/bootstrap/Bootstrap.Contracts.cinch
++++ b/bootstrap/Bootstrap.Contracts.cinch
+@@ -207,10 +207,18 @@
+   -- Keep the recursive list frame small. Putting this declaration match
+   -- inside the traversal reserves every branch's native slots for every
+   -- declaration still on the stack while collecting the following ones.
++  law-references :: LawSyntax -> List String
++  law-references syntax = case syntax of
++    LawForall parameters rest -> param-references parameters <> law-references rest
++    LawArrow domain rest -> type-references domain <> law-references rest
++    LawEquation left right -> expr-references left <> expr-references right
++    LawProposition ty -> type-references ty
++
+   declaration-reference :: Decl -> List String
+   declaration-reference d = case d of
+     DSig s name ty -> type-references ty
+     DMethod s label name ty -> type-references ty
++    DLaw s name syntax -> law-references syntax
+     DClass s name params members -> param-references params <> declaration-references (decls-of members)
+     DFun s name clauses -> clause-references clauses
+     DOpaque s name params kind -> param-references params <> type-references kind
+--- a/bootstrap/Bootstrap.Eval.cinch
++++ b/bootstrap/Bootstrap.Eval.cinch
+@@ -653,6 +653,7 @@
+   decl-unmodeleds d = case d of
+     DOpaque s name params kind -> Cons (MkDiagnostic rung s "opaque declarations require checked nominal elaboration") Nil
+     DRefine s n params binder predicate -> Cons (MkDiagnostic rung s "named refinement declarations need proof checking, which is not supported in this rung") Nil
++    DLaw s name syntax -> Cons (MkDiagnostic rung s "class laws require checked proposition elaboration") Nil
+     DUnmodeled s text -> Cons (MkDiagnostic rung s (string-concat "unmodeled declaration: " text)) Nil
+     other -> Nil
+ 
+--- a/bootstrap/Bootstrap.Infer.cinch
++++ b/bootstrap/Bootstrap.Infer.cinch
+@@ -1701,6 +1701,7 @@
+         case source-class-methods owner ps classes kinds (slot + 1) rest checked of
+           (more, done) -> (Cons (MkCoreClassMethod sp label slot actual) more, done)
+     Cons (DFun sp name clauses) rest -> source-class-methods owner ps classes kinds slot rest st
++    Cons (DLaw sp name syntax) rest -> source-class-methods owner ps classes kinds slot rest st
+     Cons other rest -> source-class-methods owner ps classes kinds slot rest (add-error (decl-span other) "source signature member needs checked method elaboration" st)
+   collect-source-classes :: List Decl -> List (String, Kind) -> TypeContext -> Store -> (TypeContext, Store)
+   collect-source-classes ds classes kinds st = case ds of
+@@ -1727,6 +1728,7 @@
+           None -> register-source-methods description rest (Cons (MkCheckedBinding name (class-method-scheme member) "value") env) st
+           Some previous -> register-source-methods description rest env (if scheme-equivalent (checked-scheme previous) (class-method-scheme member) then st else add-error sp "conflicting class default contract" st))
+       None -> register-source-methods description rest env (add-error sp "default names an undeclared class method" st)
++    Cons (DLaw sp name syntax) rest -> register-source-methods description rest env st
+     Cons other rest -> register-source-methods description rest env (add-error (decl-span other) "invalid resolved source method declaration" st)
+   source-class-default-symbol :: CoreClass -> CoreClassMethod -> String
+   source-class-default-symbol description member = string-concat-all ["#class-default:", class-name description, ":", class-method-name member]
+@@ -3663,6 +3665,64 @@
+           None -> checked-source-instances-with rows classes kinds families env all rest descriptions (add-error sp "instance target has no defining signature identity" st))
+       None -> checked-source-instances-with rows classes kinds families env all rest descriptions (add-error sp "source instance has no registered dictionary head" st)
+     Cons other rest -> checked-source-instances-with rows classes kinds families env all rest descriptions st
++  -- Use the same quantified openings and dependent argument patterns as
++  -- ordinary checked functions. The terminal Unit is only a binder-spine
++  -- sentinel. The equation's carrier comes from the checked terms.
++  law-input-type :: Span -> LawSyntax -> TypeExpr
++  law-input-type sp syntax = case syntax of
++    LawForall parameters body -> TForall sp (forall-param-spine sp parameters) (law-input-type sp body)
++    LawArrow domain body -> TFun (type-expr-span domain) domain (law-input-type sp body)
++    other -> TName sp "Unit"
++
++  law-operand-check :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> UType -> LawSyntax -> Store -> Store
++  law-operand-check classes kinds families env locals inputs syntax st = case syntax of
++    LawForall parameters body -> law-operand-check classes kinds families env locals inputs body st
++    LawArrow domain body ->
++      let pattern = case domain of TBound sp name ty tail -> PVar sp name; other -> PWild (type-expr-span domain) in
++      (case bind-arrow-pattern classes kinds families env locals pattern inputs st of
++        (bound, checked, effects, result, ready) -> law-operand-check classes kinds families bound locals result body ready)
++    LawEquation left right -> case infer classes kinds families env locals left st of
++      (first, checked) -> case check-required classes kinds families env locals right (normalize checked (core-type first)) checked of
++        (second, done) -> include-effects (expr-span right) (core-effects second) (URow UEnd)
++          (include-effects (expr-span left) (core-effects first) (URow UEnd) done)
++    LawProposition ty -> add-error (type-expr-span ty) "class law proposition form needs checked elaboration" st
++
++  check-class-law :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> CoreClass -> Span -> String -> LawSyntax -> Store -> Store
++  check-class-law classes kinds families env description sp name syntax st =
++    let parameters = class-params description in
++    case make-scheme False classes kinds parameters (law-input-type sp syntax) st of
++      (sc, header) -> if list-length (store-errors header) /= list-length (store-errors st) then header else
++        let self = applied-family (class-name description) (class-kind description) parameters in
++        let scheme = qualified (scheme-params sc) [MkRequirement "#self" self] (scheme-body sc) in
++        let level = store-level header in
++        case open-qualified True scheme (enter-level header) of
++          (inputs, requirements, pairs, opened) ->
++            let locals = opened-locals (scheme-params scheme) pairs in
++            case bind-value-parameters (scheme-params scheme) pairs env opened of
++              (value-env, value-store) -> case bind-requirements sp requirements value-env value-store of
++                (bound, givens, ready) -> let checked = law-operand-check classes kinds families bound locals inputs syntax ready in
++                  let finished = restore-level level checked in
++                  if list-length (store-errors finished) == list-length (store-errors st) then
++                    add-error sp (string-concat "class law needs checked instance evidence: " name) finished
++                  else finished
++
++  check-class-laws :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> CoreClass -> List Decl -> List String -> Store -> Store
++  check-class-laws classes kinds families env description members seen st = case members of
++    Nil -> st
++    Cons (DLaw sp name syntax) rest -> check-class-laws classes kinds families env description rest (Cons name seen)
++      (if has name seen then add-error sp (string-concat "duplicate class law: " name) st
++       else check-class-law classes kinds families env description sp name syntax st)
++    Cons other rest -> check-class-laws classes kinds families env description rest seen st
++
++  check-source-laws :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List Decl -> Store -> Store
++  check-source-laws classes kinds families env ds st = case ds of
++    Nil -> st
++    Cons (DClass sp name parameters members) rest -> check-source-laws classes kinds families env rest
++      (case find-class name (context-source-classes kinds) of
++        Some description -> check-class-laws classes kinds families env description (decls-of members) Nil st
++        None -> st)
++    Cons other rest -> check-source-laws classes kinds families env rest st
++
+   elaborate-module :: String -> Module -> Elaboration
+   elaborate-module label m = elaborate-module-with-source-bodies True label m
+   elaborate-module-with-source-bodies :: Bool -> String -> Module -> Elaboration
+@@ -3690,7 +3750,8 @@
+     let se = check-instance-coherence (env-instances env <> conditional-heads env Nil) conditional-store in
+     let families = Cons ("Bool", ["True", "False"]) (Cons ("b.Dec", ["b.Yes", "b.No"]) (families-of ds <> imported-families ds)) in
+     let default-decls = source-default-definitions ds (context-source-classes kinds) in
+-    let (defaults, default-store) = case store-errors se of Nil -> check-bodies classes kinds families env Nil (default-decls <> ds) default-decls se; other -> (Nil, se) in
++    let law-store = case store-errors se of Nil -> check-source-laws classes kinds families env ds se; other -> se in
++    let (defaults, default-store) = case store-errors law-store of Nil -> check-bodies classes kinds families env Nil (default-decls <> ds) default-decls law-store; other -> (Nil, law-store) in
+     let (effects, sx) = case store-errors default-store of Nil -> checked-effects kinds env ds default-store; other -> (Nil, default-store) in
+     let linked-kinds = context-with-effects effects kinds in
+     let (descriptions, instances, sm) = case store-errors sx of Nil -> checked-source-instances rows classes linked-kinds families env ds (context-source-classes linked-kinds) sx; other -> (Nil, Nil, sx) in
+--- a/bootstrap/Bootstrap.Ir.cinch
++++ b/bootstrap/Bootstrap.Ir.cinch
+@@ -547,6 +547,7 @@
+     DSig s name t -> sig-refusal s name t
+     DFun s name clauses -> fun-refusal fns ds s name clauses
+     DClass s name params members -> Cons (diag s (cat ["class `", name, "` is not in the fragment"])) Nil
++    DLaw s name syntax -> Cons (diag s "class laws require checked proposition elaboration") Nil
+     DMethod s label name ty -> Cons (diag s "resolved signature methods require the typed backend") Nil
+     DInstance s i name params t members -> Cons (diag s "an instance declaration is not in the fragment") Nil
+     DEffect s name params ops -> Cons (diag s (cat ["effect `", name, "` is not in the fragment"])) Nil
+--- a/bootstrap/Bootstrap.Parse.cinch
++++ b/bootstrap/Bootstrap.Parse.cinch
+@@ -746,6 +746,7 @@
+     if string-compare w "import" == 0 then parse-import toks src fix
+     else if string-compare w "export" == 0 then parse-export toks src
+     else if string-compare w "signature" == 0 then parse-signature toks src fix
++    else if string-compare w "law" == 0 then parse-law toks src fix
+     else if string-compare w "data" == 0 then parse-data toks src fix
+     else if string-compare w "type" == 0 then parse-refinement toks src
+     else if string-compare w "opaque" == 0 then parse-opaque toks src
+@@ -1028,6 +1029,50 @@
+           PBad -> PBad
+       else PBad
+     Nil -> PBad
++
++  parse-law :: List LToken -> Bytes -> List (String, Fix) -> Ps Decl
++  parse-law toks src fix = case expect-word-t toks "law" of
++    POk sp rest -> case parse-value-name rest of
++      POk name tail -> case expect-punct-t tail "::" of
++        POk separator body -> case law-syntax body src fix of
++          POk syntax more -> POk (DLaw sp name syntax) more
++          PBad -> PBad
++        PBad -> PBad
++      PBad -> PBad
++    PBad -> PBad
++
++  law-syntax :: List LToken -> Bytes -> List (String, Fix) -> Ps LawSyntax
++  law-syntax toks src fix = case toks of
++    Cons t rest -> if is-word-t (lt-token t) "forall" then law-forall rest src fix
++      else case lt-token t of
++        TCon name -> if string-compare name "Eq" == 0 then law-equation rest src fix else law-arrow toks src fix
++        other -> law-arrow toks src fix
++    Nil -> PBad
++
++  law-forall :: List LToken -> Bytes -> List (String, Fix) -> Ps LawSyntax
++  law-forall toks src fix = case parse-params toks src Nil of
++    POk (Cons parameter more) rest -> case expect-punct-t rest "." of
++      POk dot body -> case law-syntax body src fix of
++        POk syntax tail -> POk (LawForall (Cons parameter more) syntax) tail
++        PBad -> PBad
++      PBad -> PBad
++    other -> PBad
++
++  law-equation :: List LToken -> Bytes -> List (String, Fix) -> Ps LawSyntax
++  law-equation toks src fix = case parse-atom toks src fix of
++    POk left rest -> case parse-atom rest src fix of
++      POk right tail -> POk (LawEquation left right) tail
++      PBad -> PBad
++    PBad -> PBad
++
++  law-arrow :: List LToken -> Bytes -> List (String, Fix) -> Ps LawSyntax
++  law-arrow toks src fix = case parse-type-infix toks src 0 of
++    POk domain rest -> case expect-punct-t rest "->" of
++      POk arrow body -> case law-syntax body src fix of
++        POk syntax tail -> POk (LawArrow domain syntax) tail
++        PBad -> PBad
++      PBad -> POk (LawProposition domain) rest
++    PBad -> PBad
+ 
+   parse-ctor-name :: List LToken -> Ps String
+   parse-ctor-name toks = case toks of
+--- a/bootstrap/Bootstrap.Resolve.cinch
++++ b/bootstrap/Bootstrap.Resolve.cinch
+@@ -677,6 +677,9 @@
+     Nil -> (Nil, Nil)
+     Cons (DSig s name ty) rest -> case rename-class-members-with home owner visible locals all rest of
+       (more, errors) -> (Cons (DMethod s name (global-name home name) (rename-type visible locals ty)) more, errors)
++    Cons (DLaw s name syntax) rest -> case rename-law visible locals syntax of
++      (checked, failures) -> case rename-class-members-with home owner visible locals all rest of
++        (more, errors) -> (Cons (DLaw s name checked) more, failures <> errors)
+     Cons (DFun s name clauses) rest -> case rename-class-members-with home owner visible locals all rest of
+       (more, errors) -> if declared-class-method name all then
+         (case rename-member-clauses visible (instance-method-names name all <> locals) clauses of
+@@ -684,6 +687,17 @@
+         else (Cons (DFun s name clauses) more, fail s (cat ["`", name, "` is not a method of ", owner]) <> errors)
+     Cons other rest -> case rename-class-members-with home owner visible locals all rest of
+       (more, errors) -> (Cons other more, fail (decl-span other) "source signature member needs checked default or declaration elaboration" <> errors)
++
++  rename-law :: List Binding -> List String -> LawSyntax -> (LawSyntax, List Diagnostic)
++  rename-law visible locals syntax = case syntax of
++    LawForall parameters rest -> case rename-law visible (parameter-names parameters <> locals) rest of
++      (renamed, errors) -> (LawForall (rename-params visible locals parameters) renamed, errors)
++    LawArrow domain rest -> case rename-law visible (bound-names domain <> locals) rest of
++      (renamed, errors) -> (LawArrow (rename-type visible locals domain) renamed, errors)
++    LawEquation left right -> case rename-expr visible locals left of
++      (first, errors) -> case rename-expr visible locals right of
++        (second, more) -> (LawEquation first second, errors <> more)
++    LawProposition ty -> (LawProposition (rename-type visible locals ty), Nil)
+ 
+   rename-decls :: String -> List Binding -> List Decl -> (List Decl, List Diagnostic)
+   rename-decls home visible ds = rename-decls-with home visible ds ds
+--- a/bootstrap/programs/Run.TypeSyntax.cinch
++++ b/bootstrap/programs/Run.TypeSyntax.cinch
+@@ -417,12 +417,58 @@
+       else 4
+     else function-code ds
+ 
++  class-law-source :: String
++  class-law-source = "module LawExample where\n  infixr 6 <>\n  signature Semigroup a where\n    (<>) :: a -> a -> a\n    law assoc :: (x :: a) -> (y :: a) -> (z :: a) -> Eq ((x <> y) <> z) (x <> (y <> z))\n  signature Functor (f :: Type -> Type) where\n    map :: forall a b. (a -> b) -> f a -> f b\n    law map-identity :: forall a. (x :: f a) -> Eq (map identity x) x\n"
++
++  law-value-binder :: String -> TypeExpr -> Bool
++  law-value-binder expected domain = case domain of
++    TBound sp name ty tail -> same name expected
++    other -> False
++
++  associative-sides-ok :: Expr -> Expr -> Bool
++  associative-sides-ok left right = case (left, right) of
++    (EBin ls first (EBin li second (EVar xsp x) (EVar ysp y)) (EVar zsp z),
++      EBin rs third (EVar a first-right) (EBin ri fourth (EVar b second-right) (EVar c third-right))) ->
++      same first "<>" && same second "<>" && same third "<>" && same fourth "<>"
++      && same x "x" && same y "y" && same z "z" && same x first-right && same y second-right && same z third-right
++    other -> False
++
++  associative-law-ok :: Decl -> Bool
++  associative-law-ok declaration = case declaration of
++    DLaw sp name (LawArrow x (LawArrow y (LawArrow z (LawEquation left right)))) ->
++      same name "assoc" && law-value-binder "x" x && law-value-binder "y" y && law-value-binder "z" z
++      && associative-sides-ok left right
++    other -> False
++
++  functor-law-ok :: Decl -> Bool
++  functor-law-ok declaration = case declaration of
++    DLaw sp name (LawForall (Cons parameter Nil) (LawArrow x (LawEquation left right))) -> case (left, right) of
++      (EApp at (EApp apply (EVar m map) (EVar i identity)) (EVar lhs first), EVar rhs second) ->
++        same name "map-identity" && same (param-name parameter) "a" && law-value-binder "x" x
++        && same map "map" && same identity "identity" && same first "x" && same second "x"
++      other -> False
++    other -> False
++
++  class-laws-ok :: Bool
++  class-laws-ok = case parse-program "laws" (string-to-bytes class-law-source) of
++    Parsed program Nil -> if program-unmodeled-count program == 0 then
++      (case program-modules program of
++        Cons m Nil -> (case module-decls m of
++          Cons (DFixity sp assoc precedence names) (Cons (DClass at semigroup p members) (Cons (DClass pos functor q next) Nil)) ->
++            case (decls-of members, decls-of next) of
++              (Cons (DSig sig op ty) (Cons equation Nil), Cons (DSig site method scheme) (Cons identity Nil)) ->
++                associative-law-ok equation && functor-law-ok identity
++              other -> False
++          other -> False)
++        other -> False) else False
++    other -> False
++
+   main :: Int
+   main = case parse-program "types" (string-to-bytes source) of
+     Failed errors -> 1
+     Parsed program errors ->
+       if program-unmodeled-count program == 0 && list-length errors == 0 then
+         case program-modules program of
+-          Cons m Nil -> check-decls (module-decls m)
++          Cons m Nil -> if class-laws-ok && malformed-refused "module X where\n  signature Bad a where\n    law broken :: (x :: a) -> Eq x\n" then check-decls (module-decls m) else 21
+           other -> 2
+       else 8
+--- a/compiler/tests/bootstrap_pipeline.rs
++++ b/compiler/tests/bootstrap_pipeline.rs
+@@ -412,6 +412,21 @@
+     assert_eq!(status, Some(4), "{diagnostics}");
+     assert!(diagnostics.contains("unknown type constructor or unbound type variable: Data.Core.List"), "{diagnostics}");
+ 
++    let class_law = "module LawExample where\n  signature Restore a where\n    restore :: a -> a\n    law identity :: (x :: a) -> Eq (restore x) x\n";
++    let (status, diagnostics) = invoke("--emit-interfaces", class_law, "unchecked-class-law");
++    assert_eq!(status, Some(4), "{diagnostics}");
++    assert!(diagnostics.contains("class law needs checked instance evidence: identity"), "{diagnostics}");
++    assert!(!dir.join("unchecked-class-law.LawExample.cinchif").exists());
++    let different = class_law.replace("Eq (restore x) x", "Eq (restore x) True");
++    let (status, diagnostics) = invoke("--emit-interfaces", &different, "wrong-law-carrier");
++    assert_eq!(status, Some(4), "{diagnostics}");
++    assert!(diagnostics.contains("type mismatch"), "{diagnostics}");
++    assert!(!dir.join("wrong-law-carrier.LawExample.cinchif").exists());
++    let unresolved = class_law.replace("restore x", "not-in-law-scope x");
++    let (status, diagnostics) = invoke("--check", &unresolved, "unresolved-class-law");
++    assert_eq!(status, Some(4), "{diagnostics}");
++    assert!(diagnostics.contains("name is not in scope: not-in-law-scope"), "{diagnostics}");
++
+     let incompatible = edited.replace("Option, None, Some", "Option, None, Some, Missing")
+         .replace("    None :: Option a", "    None :: Option a\n    Missing :: Option a");
+     let (status, diagnostics) = invoke("--emit-interfaces", &format!("{incompatible}\n{main}"), "stale-core-source");
