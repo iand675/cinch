@@ -19122,8 +19122,8 @@
       {
         "title": "Rust task-forwarding candidate: complete Rust sweep",
         "status": "running",
-        "phase": "attributes",
-        "passed": 3,
+        "phase": "case_evidence",
+        "passed": 6,
         "failed": 0,
         "total": 235,
         "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
@@ -19373,5 +19373,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T06:25:01.501357+00:00"
+  "updatedAt": "2026-11-07T06:26:03.752822+00:00"
 }
