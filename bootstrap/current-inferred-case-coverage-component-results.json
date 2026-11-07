@@ -1,0 +1,66 @@
+{
+  "additional_native_compared_controls": 8,
+  "bootstrap_seed_and_library_pins_unchanged": true,
+  "compiler_source_sha256": "28d2abf7398291b1ecd4b905117858d454cabb8f5c217d7fc02a86993f51ad61",
+  "full_goal_complete": false,
+  "native_rlib_sha256": "28fc6a79877135149049c3ac8ab2519f22d509a4fe3ecf6c82c992fe5f751709",
+  "native_source_sha256": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+  "original_compiler_test_sources_and_assertions_retained": true,
+  "runs": [
+    {
+      "log_sha256": "67b85de6c7b4e883cef6bdfcede05deaddf70b6d685149e15565614588504914",
+      "name": "bootstrap_source_constructors",
+      "observed_zero_leak_reports": 0,
+      "tests": 1
+    },
+    {
+      "log_sha256": "09da32a1411f7845ca97d3552e1ee2e002f3a343ebc0404e1b5aeb903e610edb",
+      "name": "bootstrap_infer",
+      "observed_zero_leak_reports": 0,
+      "tests": 1
+    },
+    {
+      "log_sha256": "d541395b02b996175a1c4b15abc2fbd8423789c587f9c24b6e27964eac9e92aa",
+      "name": "bootstrap_typed_indices",
+      "observed_zero_leak_reports": 0,
+      "tests": 1
+    },
+    {
+      "log_sha256": "fb7553e9112b27c9ec1a9b38eb82b6fe7a6bed639f0077770a20c3dabe02fc78",
+      "name": "bootstrap_source_instances",
+      "observed_zero_leak_reports": 0,
+      "tests": 3
+    },
+    {
+      "log_sha256": "fcb0ec99ccbc4df56b739cee8f60137109b5752ef713cd3b591671c836eb0b1f",
+      "name": "bootstrap_source_pi",
+      "observed_zero_leak_reports": 0,
+      "tests": 1
+    },
+    {
+      "log_sha256": "b6d6c4c48ddd3538efbba9022eacb560b702b57c295505b8ee82c178c30beac8",
+      "name": "bootstrap_core",
+      "observed_zero_leak_reports": 0,
+      "tests": 1
+    },
+    {
+      "log_sha256": "1c209131b7ce17aacb8ad9583e19e6df20267281f9ae9d7497718664964166ad",
+      "name": "bootstrap_value_indices",
+      "observed_zero_leak_reports": 0,
+      "tests": 1
+    },
+    {
+      "log_sha256": "58227c541ea8d874b5c080e0fc55b1bb96ff505e53abaa829f2869faf4c6bf45",
+      "name": "bootstrap_function_preconditions",
+      "observed_zero_leak_reports": 0,
+      "tests": 1
+    }
+  ],
+  "rust_tests": 10,
+  "scope": "Whole original component targets with zero ignored or filtered Rust tests. This is development compiler evidence, not a matching final self-built compiler or complete-suite signoff.",
+  "source": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/inferred-case-coverage-validation-1/source",
+  "source_sha256": "39d51eec263aba2e6fb510fb8f81893c9f366e1a58475fed9d9282282ecdf3f5",
+  "status": "audited-complete-development-component-groups",
+  "verified_at": "2026-11-07T01:09:47.746714+00:00",
+  "whole_groups": 8
+}

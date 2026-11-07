@@ -14,5 +14,7 @@
   "private_cinch_source_sha256": "dc4651292a96fc2812a5f804b582af2905300b3d25b4dddc7767a9819ca9ee2a",
   "scope": "Unapplied development patch above the class/instance diagnostic repair. Existing project bundles supply escaped column-one source-file labels. Rendering preserves the original phase, bundle position and message and appends the labelled original path and local line; labels grant no source names or proof authority. Seven added controls cover first/second files, local positions, escaped labels and fallback. All original pipeline, resolver, source-instance, exact44 source and actual default/path assertions remain required before promotion. Parse-bundle and backend-only formatting remain distinct existing paths.",
   "source_origin_controls": 7,
-  "status": "reviewable-private-source-origin-renderer-under-validation"
+  "status": "superseded-reserved-parameter-parse-error",
+  "failure_evidence": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/source-default-origins-validation-1/bootstrap_pipeline.log",
+  "superseded_by": "bootstrap/current-source-default-origins-development-2.json"
 }

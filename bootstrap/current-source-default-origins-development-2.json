@@ -1,0 +1,21 @@
+{
+  "baseline_cinch_source_sha256": "7ccd088f5a00fb1784fbfaee3b3888d7edc4ed531703925c3f78e670048f2cdf",
+  "files": [
+    "bootstrap/Bootstrap.Report.cinch",
+    "bootstrap/Bootstrap.Pipeline.cinch",
+    "bootstrap/programs/Run.DiagnosticOrigins.cinch",
+    "compiler/tests/bootstrap_pipeline.rs"
+  ],
+  "full_goal_complete": false,
+  "original_pipeline_test_and_assertions_retained": true,
+  "patch": "bootstrap/source-default-origins-development-2.patch",
+  "patch_application_independently_verified": true,
+  "patch_sha256": "6cdbf38624bafb3debf8a3acf8c926bb47e96e3d6e9c07c3ab0135215e463258",
+  "private_cinch_source_sha256": "14a889472c7bf47867414410bba2b91bc059a77df5b20e7105eb7274e3cff134",
+  "scope": "Unapplied development patch above the class/instance diagnostic repair. Existing project bundles supply escaped column-one source-file labels. Rendering preserves the original phase, bundle position and message and appends the labelled original path and local line; labels grant no source names or proof authority. Seven added controls cover first/second files, local positions, escaped labels and fallback. All original pipeline, resolver, source-instance, exact44 source and actual default/path assertions remain required before promotion. Parse-bundle and backend-only formatting remain distinct existing paths.",
+  "source_origin_controls": 7,
+  "status": "reviewable-corrected-source-origin-renderer-under-validation",
+  "failure_evidence": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/source-default-origins-validation-1/bootstrap_pipeline.log",
+  "previous_candidate": "dc4651292a96fc2812a5f804b582af2905300b3d25b4dddc7767a9819ca9ee2a",
+  "correction": "Reserved target parameter renamed wanted-line; seven renderer controls now pass. All original pipeline/resolver/source-instance groups and both44 input gates remain required."
+}
