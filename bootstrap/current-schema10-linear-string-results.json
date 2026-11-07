@@ -1,0 +1,44 @@
+{
+  "checked_at": "2026-11-07T15:49:23.496805+00:00",
+  "compiler_binaries": {
+    "linear_sha256": "4b31da8195c833ea977f4bb918580f5b8f4c84792c58088c6c200fd4958e4782",
+    "original_sha256": "bc37ccf11ef145d745f62c65fd34f91c43b53577b4e83e5f600a542660378f6e"
+  },
+  "complete_targets_log_sha256": "6373fb5aba264fbc5d48bfe77458908d4ab6c3eb51f5c6b32389e6accdcb5459",
+  "full_goal_complete": false,
+  "long_regression_codepoints": 16384,
+  "measurement": "One process run per compiler and size, including launch, with identical program sources.",
+  "native_source_sha256": "e4fbc7483174cb881d4f909c4a445a2e86eae2e1dc11e9f836a93d97a7557146",
+  "paired_runs": [
+    {
+      "codepoints": 1024,
+      "elapsed_seconds": {
+        "baseline": 1.3312548339999921,
+        "linear": 0.2584164590000029
+      },
+      "source_sha256": "d5a250ecd1524397127edd285ba3011bc451599770024a9345676a2ef9ab78b0"
+    },
+    {
+      "codepoints": 2048,
+      "elapsed_seconds": {
+        "baseline": 4.5723643339999995,
+        "linear": 0.2614535000000018
+      },
+      "source_sha256": "ec53998268cca36c97ec45c94efd00d77420ba0943b420dee2b806e7cb7db9f9"
+    },
+    {
+      "codepoints": 4096,
+      "elapsed_seconds": {
+        "baseline": 17.761767917,
+        "linear": 0.25866854200000944
+      },
+      "source_sha256": "b58bdd5a521b7e3e5fcc2cca68f935026683e4f204f7460ea38b1acf9292c5d1"
+    }
+  ],
+  "revision": "a2b1a88aa7044f0456459d766a50ff4e0c2059e6",
+  "status": "audited-linear-string-targets-and-paired-runtime",
+  "targets": {
+    "lib_string_io": 7,
+    "string_literals": 12
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "checked_at": "2026-11-07T15:47:56.214583+00:00",
+  "compiler_role": "retained Native-built Cinch pipeline test compiler",
+  "compiler_sha256": "77b06a997924de68c64f56694d8a5c245160f82a0f3cd0909ae1a20e0d4ff4bf",
+  "compiler_source_sha256": "24260202be869c703e19c4a7e23a7a51f35709742b143f3e968b0badababb8d8",
+  "complete_core_test": {
+    "exit_code": 0,
+    "log_sha256": "c459cd1e1f7c5f7dd530641f11abbfdf08b3df8f11167cc80dd46295d7db5c6b",
+    "name": "bootstrap_proof_terms",
+    "status": "passed"
+  },
+  "full_goal_complete": false,
+  "manifest_sha256": "7cf4994fc07acc58a858643cd1e1711ad967bd57e7e3fdde13f5918dda9e54b8",
+  "native_source_sha256": "9022a54f85312db671f7ee14a89a7aa9b6dfcfa7c54010b6f304016ff3401f57",
+  "original_stage3_behavior_audit_sha256": "54fa4e9cf0d4666238ebe4f2fbe33b80c59cc0d8016bc7d5ace9e95755362fa2",
+  "revision": "5a78ee28579027b1c7b97a659eefef601a235207",
+  "rows": [
+    {
+      "exit_code": 0,
+      "heap": "32M",
+      "leaks": 0,
+      "mode": "run",
+      "poisoned": true,
+      "previous_output_sha256": "85ff2fd179c1199c5a229c72a16cf60dc46f9e4b6ef9b0b5fa9ce576ace0168f",
+      "program_sha256": "ebf4ee09042b622b691d110d8b2b8be21df161840e5d45e7b037269c3107be80",
+      "result_sha256": "fb98619b48ddc5d07766f57a574b9e00967cea86f4970005fde76de46df5c779",
+      "sections": [
+        [
+          "Main.cinch",
+          1,
+          9,
+          "e3b6037a188f5eeaa71beab3118800afcfbe4bd5d10f6abe8b714af8778a1b57"
+        ]
+      ],
+      "source_sha256": "518a1c82e22b98565d41e1b9716cb406a17163f8aee6bfc080400f70f90d2824"
+    },
+    {
+      "diagnostic": "4:22: obligation disproved: (Eq 5 6)",
+      "exit_code": 4,
+      "mode": "check",
+      "previous_output_sha256": "fdf8fc3e8b601f0410609ff79f9924c01386493cb397a2d1711848b69fbe5bb2",
+      "result_sha256": "25ffc14832580d66fc25c571f438d621330dc6f9cf65c4e20b6bc4e7f0b8895e",
+      "sections": [
+        [
+          "Main.cinch",
+          1,
+          9,
+          "9c60866bda2e9bb3d5102adbe0b187c631d7fb13fcaac193c59fa0673b32c213"
+        ]
+      ],
+      "source_sha256": "f148e9a03a56e07434f8e56c381348219ce58689b93612aea7e14884b92408ee"
+    }
+  ],
+  "runtime_sha256": "2fab721751aa601f3ca72d7677f8520e5bdd37d93887275b5636fce478f959c6",
+  "status": "audited-original-proof-examples-on-development-compiler"
+}

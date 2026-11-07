@@ -520,6 +520,28 @@ module Main where
     );
 }
 
+#[test]
+fn unpack_preserves_long_mixed_width_input() {
+    let text = "a¢€😀".repeat(4096);
+    let source = format!(r#"
+module Main where
+  matches :: List Char -> Nat -> Bool
+  matches chars remaining = case chars of
+    Nil -> remaining == 0
+    Cons a (Cons b (Cons c (Cons d rest))) ->
+      if remaining == 0 then False
+      else if eq-u32 (char-to-u32 a) 97 && eq-u32 (char-to-u32 b) 162
+        && eq-u32 (char-to-u32 c) 8364 && eq-u32 (char-to-u32 d) 128512 then
+        matches rest (remaining - 1)
+      else False
+    _ -> False
+
+  main :: Int
+  main = if matches (unpack "{text}") 4096 then 0 else 1
+"#);
+    expect_ok("unpack long UTF-8", &source, 0);
+}
+
 // --------------------------------------------------------------- Show family
 
 /// `Show Bool` and `Show Ordering` render their fixed text through

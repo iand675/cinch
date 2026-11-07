@@ -17,19 +17,24 @@ Rust repair uses the checked exported value's spelling for both records.
 The rebuilt provider passed readback of all 55 interfaces. The 14 changed
 identities follow from the corrected `Data.Bytes` contract and its dependants.
 The library object, LLVM IR and runtime archive are byte-identical. Stage1
-accepted a separate client using the renamed observation in a proof. The
-matching four-stage check and complete byte-observation target are underway.
+accepted a separate client using the renamed observation in a proof. Stage2
+then built all 46 compiler modules and passed its smoke tests. Stage3 is
+rebuilding the same sources. The complete byte-observation target is underway.
 See [the Stage2 refusal and exact inputs](../bootstrap/current-schema10-stage2-byte-observation-results.json)
-and [the provider and consumer audit](../bootstrap/current-schema10-byte-observation-repair-results.json).
+and [the repaired Stage2 audit](../bootstrap/current-schema10-repaired-stage2-results.json).
 
 The development checker passed the complete Core proof test with an erased
 `refl` witness for `Eq`. The added checks reject false equalities,
 comparison-only propositions, mismatched goals and runtime use. The source
 pipeline emitted IR for a valid equality and refused an unequal one. Its
 comparison-only case reached the simpler checker and missed the intended
-diagnostic. The next candidate routes predicate syntax through typed checking
-and validates closed named proof declarations before erasing their uses.
-See [the Core proof replay](../bootstrap/current-schema10-reflexivity-core-results.json).
+diagnostic. The corrected development compiler routes predicate syntax
+through typed checking and sends named proof declarations to the dedicated
+proof pass. The unchanged valid Proof example ran without leaks and the
+invalid example reported `obligation disproved` at its original source
+location. Its full pipeline and matching Stage3 replay remain open.
+See [the Core proof replay](../bootstrap/current-schema10-reflexivity-core-results.json)
+and [the original Proof example audit](../bootstrap/current-schema10-original-proof-replay-results.json).
 
 The first schema 10 Stage3 passed 6 of 13 original valid language examples
 in the full run. All 21 invalid examples were refused, with 8 meeting their
@@ -38,8 +43,8 @@ TensorAD then passed on the same compiler with the expanded library object.
 The replays kept the original expanded source, runtime and all 55 interface
 identities. All three had zero leaks at 32 MiB with poisoning. A separate
 development Stage1 ran Html and matched the original Html and TensorPrivate
-refusals. Proof, Protocol, Tactics and Choreography still need source checker
-work. The repaired Stage3 still needs its full suite.
+refusals. Protocol, Tactics and Choreography still need source checker work.
+The repaired Stage3 still needs its full suite, including Proof.
 See [the original language-suite audit](../bootstrap/current-schema10-external-language-results.json)
 and [the expanded runtime and diagnostic replays](../bootstrap/current-schema10-expanded-runtime-replays-results.json).
 
@@ -58,6 +63,12 @@ and direct calls to checked forwarding helpers. All 19 concurrency tests,
 cases, the fix refused both hidden mutable captures and preserved the other
 three outcomes. The matching Cinch Stage3 replay remains a separate check.
 See [the Rust task-capture audit](../bootstrap/current-schema10-native-task-capture-results.json).
+
+String `unpack` now advances by the decoded byte width. All 19 string and
+string-I/O tests passed, including a 16,384-character mixed-width regression.
+In the 4,096-character paired runtime probe, elapsed time fell from 17.8
+seconds to 0.26 seconds. The running ladder retains its pinned library inputs.
+See [the string tests and timing measurements](../bootstrap/current-schema10-linear-string-results.json).
 
 The schema 9 chain remains a historical checkpoint. Its four stages and
 smoke tests passed, including the Stage2 and Stage3 fixed point, separate

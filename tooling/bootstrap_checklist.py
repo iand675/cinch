@@ -900,6 +900,13 @@ def build_checklist(root, cfg, previous=None):
             status='passed' if status == 'passed-complete-byte-observation-target' else status,
             phase=byte_tests['phase'], passed=int(status == 'passed-complete-byte-observation-target'),
             failed=int(status.startswith('failed')), total=1, source=byte_tests.get('compiler_source_sha256')))
+    repaired_stage2_path = 'bootstrap/current-schema10-repaired-stage2-results.json'
+    repaired_stage2 = read(root / repaired_stage2_path)
+    if repaired_stage2.get('status') == 'audited-repaired-schema10-stage2':
+        active.append(dict(title='Build and smoke-test Stage2 with the repaired library', status='passed',
+            phase='Stage1 rebuilt all 46 compiler modules and Stage2 passed all three smoke cases.',
+            passed=1, failed=0, total=1, source=repaired_stage2['compiler_source_sha256'],
+            evidence=link(repaired_stage2_path)))
     reflexivity_path = 'bootstrap/current-schema10-reflexivity-core-results.json'
     reflexivity = read(root/reflexivity_path)
     if reflexivity.get('status') == 'passed-development-reflexivity-core':
@@ -907,6 +914,13 @@ def build_checklist(root, cfg, previous=None):
             phase='The full original Core target passed with six additional assertions across all five runtime nonces.',
             passed=1, failed=0, total=1, source=reflexivity['compiler_source_sha256'],
             evidence=link(reflexivity_path)))
+    proof_replay_path = 'bootstrap/current-schema10-original-proof-replay-results.json'
+    proof_replay = read(root / proof_replay_path)
+    if proof_replay.get('status') == 'audited-original-proof-examples-on-development-compiler':
+        active.append(dict(title='Run both original Proof examples on the development compiler', status='passed',
+            phase='The valid proof ran with zero leaks and the invalid proof reported the expected reason and source location.',
+            passed=len(proof_replay['rows']), failed=0, total=2, source=proof_replay['compiler_source_sha256'],
+            evidence=link(proof_replay_path)))
     replay_path = 'bootstrap/current-schema10-external-replay-results.json'
     replay = read(root/replay_path)
     if replay.get('status') == 'audited-external-language-replays':
