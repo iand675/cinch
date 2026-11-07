@@ -19075,7 +19075,7 @@
         "failed": 0,
         "total": 4,
         "source": "b59c4893c4214d1c94c624bf9ba3f9e99ee7eb9b9568c1f092b20e5080967b38",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-stage2-and-source-laws-results.json"
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-stage3-and-library-replays-results.json"
       },
       {
         "title": "Finite laws and source-instance regression tests",
@@ -19085,7 +19085,7 @@
         "failed": 0,
         "total": 5,
         "source": "c272860233cd944125805f27f3fb2521cd48f4c12f74fbc07b55f21f5a9ebb7f",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-stage2-and-source-laws-results.json"
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-stage3-and-library-replays-results.json"
       },
       {
         "title": "Schema 10: division and canonical value schemes",
@@ -19128,21 +19128,50 @@
       },
       {
         "title": "Bootstrap the stricter schema 10 candidate",
-        "status": "failed",
-        "phase": "failed",
+        "status": "waiting-disk-space",
+        "phase": "waiting disk space",
         "passed": 0,
-        "failed": 1,
+        "failed": 0,
         "total": 4,
         "source": "309a4f696ed5072050009e59562deabb2fc205731e47655662d1d8d69cd2d020"
       },
       {
         "title": "Replay the original library families with the rebuilt provider",
-        "status": "failed-stage1",
-        "phase": "failed stage1",
+        "status": "waiting-stage1",
+        "phase": "waiting stage1",
         "passed": 0,
-        "failed": 1,
+        "failed": 0,
         "total": 1,
         "source": "309a4f696ed5072050009e59562deabb2fc205731e47655662d1d8d69cd2d020"
+      },
+      {
+        "title": "Rebuild the stricter schema 10 library",
+        "status": "passed",
+        "phase": "Verified 55 library interfaces and matched all five Applicative display spellings.",
+        "passed": 55,
+        "failed": 0,
+        "total": 55,
+        "source": "309a4f696ed5072050009e59562deabb2fc205731e47655662d1d8d69cd2d020",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-stage3-and-library-replays-results.json"
+      },
+      {
+        "title": "Stage3 body binding with the missing library factory",
+        "status": "passed",
+        "phase": "Both original assertions passed with the same compiler, runtime and 55 interface identities.",
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-stage3-and-library-replays-results.json"
+      },
+      {
+        "title": "Run all 34 original language examples with schema 10 Stage3",
+        "status": "waiting-matching-stage3-audit",
+        "phase": "waiting matching stage3 audit",
+        "passed": null,
+        "failed": null,
+        "total": 34,
+        "source": "b59c4893c4214d1c94c624bf9ba3f9e99ee7eb9b9568c1f092b20e5080967b38"
       },
       {
         "title": "Schema 9 Stage1: original arrays with staging and CopyOut",
@@ -19259,5 +19288,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T13:27:06.393984+00:00"
+  "updatedAt": "2026-11-07T13:30:13.678466+00:00"
 }
