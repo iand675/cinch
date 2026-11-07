@@ -18726,9 +18726,9 @@
       },
       {
         "title": "Rust: emit definition-owned instance headers",
-        "status": "waiting-worker",
-        "phase": "waiting worker",
-        "passed": 0,
+        "status": "running",
+        "phase": "interface_kinds",
+        "passed": 1,
         "failed": 0,
         "total": 2,
         "source": "25a7dcbb994410f18d5313bd3b742ba9fa544267e0be9089cee5229fb90bd1ad"
@@ -18807,8 +18807,8 @@
       },
       {
         "title": "Schema 9 bootstrap with the production pin",
-        "status": "checking-fixed-point-and-source-change",
-        "phase": "checking fixed point and source change",
+        "status": "passed-production-schema9-chain-awaiting-independent-audit",
+        "phase": "passed production schema9 chain awaiting independent audit",
         "passed": 4,
         "failed": 0,
         "total": 4,
@@ -18845,5 +18845,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T11:06:16.762493+00:00"
+  "updatedAt": "2026-11-07T11:07:18.858954+00:00"
 }
