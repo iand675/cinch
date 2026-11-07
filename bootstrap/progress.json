@@ -547,7 +547,7 @@
   "candidateSource": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
   "candidatePublished": true,
   "fullGoalComplete": false,
-  "summary": "Cinch 5bf127d9 rebuilt itself to matching Stage2 and Stage3 and passed the changed-source check. Its original frontend sweep has 7 of 105 targets passing, 3 failed and 95 still running or queued.",
+  "summary": "Cinch 5bf127d9 rebuilt itself to matching Stage2 and Stage3 and passed the changed-source check. Its original frontend sweep has 9 of 105 targets passing, 3 failed and 93 still running or queued.",
   "activity": "The independently audited integrated build is running all 105 frontend targets. Open the test inventory for live failures and the repairs being replayed.",
   "checklist": {
     "version": 1,
@@ -11898,8 +11898,8 @@
           "verified": 0,
           "blocked": 0,
           "running": 0,
-          "pending": 94,
-          "recheck": 11
+          "pending": 92,
+          "recheck": 13
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
         "items": [
@@ -13824,16 +13824,16 @@
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_preconditions.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185",
               "startedAt": "2026-11-07T08:46:45.821575+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T08:47:03.256867+00:00",
+              "exitCode": 0,
+              "logSha256": "0ae3180a8d6501a15bf3d47bedc3d9306f2e3a2094b640a835a0f3d6983aaa2c",
               "cases": [
                 {
                   "name": "numeric_conditions_keep_checked_argument_positions_and_reexports",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -13865,36 +13865,50 @@
           {
             "id": "stage3:interface_refinement_closure",
             "title": "interface_refinement_closure",
-            "state": "pending",
+            "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_refinement_closure.rs",
             "observed": {
-              "status": "pending",
+              "status": "passed",
               "source": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185",
-              "startedAt": null,
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
-              "cases": []
+              "startedAt": "2026-11-07T08:47:04.965848+00:00",
+              "finishedAt": "2026-11-07T08:47:22.030980+00:00",
+              "exitCode": 0,
+              "logSha256": "1adc1f382e73801eac1a3aaf060e502d9bd0d3f31f8a1bde8223fbd80377912a",
+              "cases": [
+                {
+                  "name": "private_refinement_contracts_survive_value_only_facades",
+                  "status": "passed"
+                }
+              ]
             },
             "category": "interface / API"
           },
           {
             "id": "stage3:interface_refinements",
             "title": "interface_refinements",
-            "state": "pending",
+            "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_refinements.rs",
             "observed": {
-              "status": "pending",
+              "status": "running",
               "source": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185",
-              "startedAt": null,
+              "startedAt": "2026-11-07T08:47:24.048439+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "interfaces_publish_preconditions_and_named_refinement_definitions",
+                  "status": "passed"
+                },
+                {
+                  "name": "literal_preconditions_keep_checked_truth_and_facade_contract_identity",
+                  "status": "running"
+                }
+              ]
             },
             "category": "interface / API"
           },
@@ -13919,9 +13933,9 @@
         ],
         "observedCounts": {
           "failed": 3,
-          "passed": 7,
+          "passed": 9,
           "running": 1,
-          "pending": 94
+          "pending": 92
         },
         "observedSource": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185"
       },
@@ -18089,8 +18103,8 @@
       {
         "title": "Integrated self-built Stage3: complete frontend sweep",
         "status": "running",
-        "phase": "interface_preconditions",
-        "passed": 7,
+        "phase": "interface_refinements",
+        "passed": 9,
         "failed": 3,
         "total": 105,
         "source": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185"
@@ -18677,8 +18691,8 @@
       {
         "title": "Earlier Stage3: complete frontend sweep",
         "status": "running",
-        "phase": "interface_preconditions",
-        "passed": 7,
+        "phase": "interface_refinements",
+        "passed": 9,
         "failed": 3,
         "total": 105,
         "source": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185",
@@ -18761,8 +18775,8 @@
       "verified": 489,
       "blocked": 6,
       "running": 10,
-      "pending": 100,
-      "recheck": 69
+      "pending": 98,
+      "recheck": 71
     },
     "total": 674,
     "acceptanceVerified": 0,
@@ -18770,5 +18784,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T08:47:02.844464+00:00"
+  "updatedAt": "2026-11-07T08:48:04.806730+00:00"
 }
