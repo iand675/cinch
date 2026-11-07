@@ -19266,9 +19266,9 @@
       },
       {
         "title": "Check closed named proofs and their original runtime example",
-        "status": "running",
+        "status": "passed-reflexivity-core-and-source-pipeline",
         "phase": "bootstrap_pipeline",
-        "passed": 1,
+        "passed": 2,
         "failed": 0,
         "total": 2,
         "source": "24260202be869c703e19c4a7e23a7a51f35709742b143f3e968b0badababb8d8"
@@ -19565,5 +19565,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T16:27:35.416136+00:00"
+  "updatedAt": "2026-11-07T16:28:37.645860+00:00"
 }
