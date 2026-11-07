@@ -19128,9 +19128,9 @@
       },
       {
         "title": "Bootstrap the stricter schema 10 candidate",
-        "status": "building-stage0",
-        "phase": "building stage0",
-        "passed": 0,
+        "status": "building-stage1",
+        "phase": "building stage1",
+        "passed": 1,
         "failed": 0,
         "total": 4,
         "source": "309a4f696ed5072050009e59562deabb2fc205731e47655662d1d8d69cd2d020"
@@ -19288,5 +19288,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T13:32:17.855511+00:00"
+  "updatedAt": "2026-11-07T13:33:19.719583+00:00"
 }
