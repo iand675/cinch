@@ -19064,17 +19064,17 @@
       },
       {
         "title": "Schema 10: division and canonical value schemes",
-        "status": "running",
+        "status": "failed",
         "phase": "native-schemes-laws-and-arrays",
         "passed": 1,
-        "failed": 0,
+        "failed": 1,
         "total": 2,
         "source": "fd96d8d21894bdb3d578caeddcbff3f48b5bd54867f541634f5121e92efc0f00"
       },
       {
         "title": "Match defining names in schema 10 law observations",
-        "status": "waiting-worker",
-        "phase": "Rust and Cinch emitted different law names in the same schema. waiting worker",
+        "status": "running",
+        "phase": "Rust and Cinch emitted different law names in the same schema. check 46 compiler modules",
         "passed": 0,
         "failed": 0,
         "total": 5,
@@ -19196,5 +19196,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T12:59:53.940728+00:00"
+  "updatedAt": "2026-11-07T13:00:56.220509+00:00"
 }
