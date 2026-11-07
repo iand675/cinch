@@ -5,6 +5,17 @@
   "full_goal_complete": false,
   "interface_manifest_sha256": "112b5bafcd61b3bbdddd1f2df929ebab43bacc769ecc7bd3ca1e2ec142eb9941",
   "native_source_sha256": "a4bc2344653dc50ef044ba7a0e4661cf589a91dbf2b12907e279869f7586632b",
+  "original_runtime_group": {
+    "compiler_sha256": "5bb3bd07aeb8c73bc3f76e3b24b15a05181ac11c933427907161a34c1cfffe47",
+    "compiler_source_sha256": "9f1d93da35d7ee94f974cc2ff76ddb85bcadf8cf4a8dcac50c954fa609ce0ac0",
+    "exit_code": 0,
+    "log_sha256": "ae01649ae09f6d3a5843347c61dc6649f97536fe33f53602524b5aab29909f66",
+    "name": "small_nats",
+    "original_group_tests": 6,
+    "provider_object_sha256": "06f991090818190871f00101f12c20cb4e7e5826cbc748aad7d7929727f98d60",
+    "runner_sha256": "33a79d1310550c1922eb2265c3fcdf809773bfdc413bafb08121d99351809331",
+    "status": "passed"
+  },
   "original_state_sha256": "21bc093d8fb498943123a87802ed736ec2596289216a757a44bd45827b137559",
   "rows": [
     {

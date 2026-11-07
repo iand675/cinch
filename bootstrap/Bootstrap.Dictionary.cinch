@@ -54,7 +54,7 @@ module Bootstrap.Dictionary where
   resolve-dictionary-term :: List (String, Kind) -> List CoreGiven -> CoreTerm -> Store -> (CoreTerm, Store)
   resolve-dictionary-term kinds scope term st = resolve-dictionary-term-in (MkResolution kinds Nil False 64) scope term st
   resolve-dictionary-term-with :: List (String, Kind) -> List (String, Scheme) -> List CoreGiven -> CoreTerm -> Store -> (CoreTerm, Store)
-  resolve-dictionary-term-with kinds instances scope term st = case resolve-dictionary-term-in (MkResolution kinds instances False 64) scope term st of (out, done) -> (out, finish-numbers done)
+  resolve-dictionary-term-with kinds instances scope term st = resolve-dictionary-term-in (MkResolution kinds instances False 64) scope term st
   resolve-ready-term :: List (String, Kind) -> List (String, Scheme) -> List CoreGiven -> CoreTerm -> Store -> (CoreTerm, Store)
   resolve-ready-term kinds instances scope term st = resolve-dictionary-term-in (MkResolution kinds instances True 64) scope term st
   -- Generic laws may assume a dictionary determined by their binders.

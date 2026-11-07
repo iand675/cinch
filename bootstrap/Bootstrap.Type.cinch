@@ -1022,7 +1022,10 @@ module Bootstrap.Type where
   generalize-at current level blocked ty st = case ordered-metas (free-metas st ty) st of
     None -> (mono UError, Nil)
     Some ids -> let local = pi-escaping-metas (type-pi-ids (normalize st ty)) ids st Nil in
-      case generalized current level (merge-ids blocked local) ids 0 st of
+      -- A strict let shares each unresolved literal carrier with its uses.
+      -- Default and validate the carrier when the enclosing definition closes.
+      let monomorphic = merge-ids local (number-meta-ids (pending-numbers st) st) in
+      case generalized current level (merge-ids blocked monomorphic) ids 0 st of
         (qs, pairs) -> let closed = close-pairs Nil pairs in
           (MkScheme (map-quant-kinds (replace-metas closed) qs) (replace-metas closed (normalize st ty)), closed)
   -- Generalize kind dependencies first. A value parameter's carrier may

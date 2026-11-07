@@ -3837,7 +3837,8 @@ module Bootstrap.Infer where
           (patterns, Some (first, second), checked) -> if list-length (store-errors checked) /= list-length (store-errors st) then ("", restore-level level checked) else
             (case resolve-dictionary-term-with classes (env-instances env) givens first checked of
               (left, checked-left) -> case resolve-dictionary-term-with classes (env-instances env) givens second checked-left of
-                (right, checked-right) -> let done = restore-level level checked-right in
+                (right, resolved-right) -> let checked-right = finish-numbers resolved-right in
+                  let done = restore-level level checked-right in
                   if list-length (store-errors done) /= list-length (store-errors st) then ("", done) else
                     report-finite-law-samples sp name families env instances dictionary givens
                       (law-normalize-patterns checked-right patterns) (map-term-types (normalize checked-right) left) (map-term-types (normalize checked-right) right) done)
