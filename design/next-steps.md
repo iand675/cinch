@@ -1,5 +1,19 @@
 # Next steps (as of 2026-11-07)
 
+Schema 9 is on `main` with the matching library pin. Stage0 through Stage3
+passed their smoke tests. Stage2 and Stage3 agree on the executable, LLVM IR,
+and all 44 compiler interfaces. The separate consumer accepted the Stage3
+interfaces. The changed-source check and the full 105-target frontend sweep
+are running. See [the format switch](../bootstrap/current-interface-format-switch-results.json).
+
+The 105-target Stage3 run reproduced the unchanged Ordering replacement
+failure. `Relation.Ord` rejects the stale dependency on `Data.Ordering` after
+Ordering inherits `mconcat`. Its interface still differs from the pinned producer
+in instance names, the retained `Data.Core` dependency, and law observations.
+The defining-nominal repair passed the focused imported-default regression
+and the whole interface writer group. Class-law declarations still need to
+travel from their owners to separate instance checks.
+
 The staged declaration pipeline checked and emitted a generated `Nat` value
 through typed IR. The linked program returned 0 with zero leaks. The unchanged
 array input refuses `arrayReplicate` at its original source location. The

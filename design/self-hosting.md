@@ -2,12 +2,13 @@
 
 ## Current development checkpoint (2026-11-07)
 
-Published Cinch3268/Native8ba8 and the immutable Native22 pins remain unchanged.
-Private28d2 and a029 each pass their full9-test compiler/object gate; these are
-Native22-built development compilers, not a matching final self-built Stage3.
-The exact source/runtime proofs, pending diagnostic/API validations and preserved
-failures are recorded at the top of [next steps](next-steps.md). Every numbered
-[acceptance requirement](#acceptance) below remains required and unclosed.
+Rust and Cinch use schema 9 for compiled interfaces. The pinned library
+producer rebuilt all 55 library interfaces, and all four bootstrap stages
+passed their smoke tests. Stage2 and Stage3 agree on the executable, LLVM IR,
+and all 44 compiler interfaces. A separate consumer checked the Stage3
+interfaces. The changed-source check, independent audit, and all 105 frontend
+targets are in progress. See [next steps](next-steps.md) and the
+[numbered acceptance requirements](#acceptance).
 
 ## Typed C imports pass scoped gates; defining-owner gap remains (2026-11-06)
 

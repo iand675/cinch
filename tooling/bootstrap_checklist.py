@@ -87,7 +87,7 @@ def build_checklist(root, cfg, previous=None):
     native = cfg.get('publishedNativeSource')
     full = read(cfg['native'])
     front_path = cfg['selected']
-    for key in ('currentStage3FrontendValidation', 'integratedStage3FrontendValidation'):
+    for key in ('currentStage3FrontendValidation', 'integratedStage3FrontendValidation', 'schema9Stage3FrontendValidation'):
         candidate_front = read(cfg.get(key))
         if candidate_front.get('compiler_source_sha256') and candidate_front.get('rows'):
             front_path = cfg[key]
@@ -615,6 +615,7 @@ def build_checklist(root, cfg, previous=None):
     for key, title in (
         ('currentStage3FrontendValidation', 'Earlier self-built Stage3: complete frontend sweep'),
         ('integratedStage3FrontendValidation', 'Integrated self-built Stage3: complete frontend sweep'),
+        ('schema9Stage3FrontendValidation', 'Published schema 9 Stage3: all 105 frontend targets'),
     ):
         candidate_frontend = read(cfg.get(key))
         if not candidate_frontend:
@@ -637,9 +638,10 @@ def build_checklist(root, cfg, previous=None):
         ('Schema 9 Stage1: original four-family replacement test', schema9_original_overlays, 1),
         ('Cinch: checked compile-time evaluation', stage_evaluation, 1),
         ('Cinch: staged generation through the full pipeline', stage_expansion, 1),
-        ('Cinch: retain defining nominal dependencies', nominal_dependency, 2),
+        ('Cinch: retain defining nominal dependencies in inherited defaults and interface exports', nominal_dependency, 2),
         ('Rust: emit definition-owned instance headers', instance_header, 2),
-        ('Cinch: sample class laws over finite constructors', finite_law, 1),
+        ('Cinch: finite class laws and inherited default closure', finite_law, 2),
+        ('Schema 9 Stage1: original arrays group with staging and CopyOut', read(cfg.get('schema9StagingCopyOutArrays')), 1),
         ('Schema 9: rebuild and check the Git-pinned provider', schema9_pinned_provider, 1),
     ):
         if run:
