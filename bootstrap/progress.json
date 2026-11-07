@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "commit": "a00b46f4a23e3b1b1c0f062affeee4ca43cd223e",
+  "commit": "4c5c8064ac3f04b66d8f6e3c52c0a86a014a9c75",
   "status": "Full bootstrap verification remains open",
   "stages": [
     {
@@ -698,7 +698,7 @@
         "id": "gap:laws",
         "title": "Elaborate source class laws and declarations",
         "state": "running",
-        "detail": "The pipeline and interface-writer groups passed audit. A lawful Boolean implementation reports two checked samples, an unlawful one refuses by name, and the unsampled function carrier is explicitly reported as unchecked. General sampling and imported law declarations remain open.",
+        "detail": "The separate imported-law replay reached the checker and exposed an incorrect terminator on a named law binder. The corrected candidate parses and is queued with Nat and generic constructor-field counterexamples.",
         "doneWhen": "Retain and check the original class laws and namespace declarations; pass all original family and law assertions.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-class-law-observations-results.json"
       },
@@ -18795,6 +18795,33 @@
         "source": "c272860233cd944125805f27f3fb2521cd48f4c12f74fbc07b55f21f5a9ebb7f"
       },
       {
+        "title": "Schema 10: original separate class-law replay",
+        "status": "running",
+        "phase": "bootstrap_source_instances",
+        "passed": 0,
+        "failed": 0,
+        "total": 1,
+        "source": "7c3cd20cf324bed6ece95c9d945718d5e036e52851d1eb5666e64e71a82fe886"
+      },
+      {
+        "title": "Schema 10: corrected law decoder and typed constructor samples",
+        "status": "waiting-native-validation",
+        "phase": "waiting native validation",
+        "passed": 0,
+        "failed": 0,
+        "total": 1,
+        "source": "24718a6babdacf7c42e7af1d5238b078d45eef768977a88f6e8335ea90623f04"
+      },
+      {
+        "title": "Rust: Nat-backed law counterexample and interface tests",
+        "status": "waiting-worker",
+        "phase": "waiting worker",
+        "passed": 0,
+        "failed": 0,
+        "total": 1,
+        "source": "4a35981acf7133c8caad196ee65e02a68d75b114da66c437975ee965eeff2c64"
+      },
+      {
         "title": "Schema 9 Stage1: initial arrays run before the runtime fixture retry",
         "status": "failed",
         "phase": "arrays",
@@ -18925,5 +18952,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T11:38:51.480235+00:00"
+  "updatedAt": "2026-11-07T11:46:01.158492+00:00"
 }
