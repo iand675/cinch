@@ -6,25 +6,25 @@
     {
       "name": "Stage 0",
       "state": "pending",
-      "label": "Recheck required",
+      "label": "Pending",
       "description": "Verify the pinned Rust seed."
     },
     {
       "name": "Stage 1",
       "state": "pending",
-      "label": "Recheck required",
-      "description": "Build the current compiler from source."
+      "label": "Pending",
+      "description": "Build all 46 compiler modules with the Rust seed."
     },
     {
       "name": "Stage 2",
       "state": "pending",
-      "label": "Recheck required",
-      "description": "Rebuild the current compiler with Stage1."
+      "label": "Pending",
+      "description": "Rebuild the compiler with Stage1."
     },
     {
       "name": "Stage 3",
       "state": "pending",
-      "label": "Recheck required",
+      "label": "Pending",
       "description": "Rebuild with Stage2 and audit the fixed point."
     }
   ],
@@ -547,7 +547,7 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "Main includes the higher-kinded runtime, pure arrow inference and checked String layout.",
-  "activity": "The original function-family and Foldable list cases ran on the development snapshots. The published combination needs its matching ladder and full suite.",
+  "activity": "Waiting for a worker. The full suite remains open.",
   "checklist": {
     "version": 1,
     "target": {
@@ -18229,6 +18229,18 @@
     ],
     "active": [
       {
+        "title": "Bootstrap the exact published compiler and corrected library",
+        "status": "waiting-worker",
+        "phase": "Waiting for a worker",
+        "passed": 0,
+        "failed": 0,
+        "total": 4,
+        "unit": "stages",
+        "source": "d7a456f87570d877f3698b3d09a44bb85dc1ad7928ffb11c4dd493f3f7825a2e",
+        "auditPending": false,
+        "evidence": null
+      },
+      {
         "title": "Bootstrap the stricter schema 10 candidate",
         "status": "failed",
         "phase": "failed",
@@ -19800,6 +19812,15 @@
         "source": "c62ea43ce546138d58eb8c3647cc09b013ac2252b0c12bcbb529b60d1c52fb10"
       },
       {
+        "title": "Check NotNull in Core and both original visitor refusals",
+        "status": "running",
+        "phase": "build and smoke-test all 46 combined compiler modules",
+        "passed": 0,
+        "failed": 0,
+        "total": 4,
+        "source": "f34deb5ffbc3bc02847b773bdc99744331cc7a086994187eaf07d3955bcb3279"
+      },
+      {
         "title": "Audit the quantified-law fixed point and original law controls",
         "status": "passed",
         "phase": "Stage2 and Stage3 match. The separate client, changed-source rebuild and all three Stage3 law checks passed with the preceding provider.",
@@ -19841,5 +19862,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T23:14:16.051112+00:00"
+  "updatedAt": "2026-11-07T23:16:30.943653+00:00"
 }
