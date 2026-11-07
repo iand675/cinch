@@ -18,9 +18,11 @@ travel from their owners to separate instance checks.
 
 The staged declaration pipeline checked and emitted a generated `Nat` value
 through typed IR. The linked program returned 0 with zero leaks. The unchanged
-array input refuses `arrayReplicate` at its original source location. The
-complete staging pipeline and matching full arrays target are separate checks.
-See `bootstrap/current-staging-expansion-results.json`.
+array input refuses `arrayReplicate` at its original source location.
+All 15 original array cases passed on the Stage1 candidate with staging and
+CopyOut. Fourteen passed in the complete run. The remaining case passed
+on an exact retry after supplying the matching runtime archive. The
+matching Stage3 replay remains open. See [the arrays receipt](../bootstrap/current-stage1-combined-arrays-results.json).
 
 The normal Git-pinned schema 9 provider rebuilt and verified all 55 library
 interfaces. It includes the raw `list-length` variant requested when the

@@ -360,6 +360,7 @@ def build_checklist(root, cfg, previous=None):
     stage_evaluation = read(cfg.get('stageEvaluation'))
     stage_evaluation_proof = read(root/'bootstrap/current-staging-evaluation-results.json')
     stage_expansion_proof = read(root/'bootstrap/current-staging-expansion-results.json')
+    combined_arrays = read(root/'bootstrap/current-stage1-combined-arrays-results.json')
     stage_expansion = read(cfg.get('stageExpansion'))
     nominal_dependency = read(cfg.get('schema9NominalDependencies'))
     instance_header = read(cfg.get('schema9InstanceHeader'))
@@ -650,7 +651,8 @@ def build_checklist(root, cfg, previous=None):
         ('Cinch: retain defining nominal dependencies in inherited defaults and interface exports', nominal_dependency, 2),
         ('Rust: emit definition-owned instance headers', instance_header, 2),
         ('Cinch: finite class laws and inherited default closure', finite_law, 2),
-        ('Schema 9 Stage1: original arrays group with staging and CopyOut', read(cfg.get('schema9StagingCopyOutArrays')), 1),
+        ('Schema 9 Stage1: initial arrays run before the runtime fixture retry', read(cfg.get('schema9StagingCopyOutArrays')), 2),
+        ('Schema 10: pinned Stage1 and original library replacement tests', read(cfg.get('schema10OrderingStage1')), 8),
         ('Schema 9: rebuild and check the Git-pinned provider', schema9_pinned_provider, 1),
     ):
         if run:
@@ -658,6 +660,17 @@ def build_checklist(root, cfg, previous=None):
             active.append(dict(title=title, status=run['status'], phase=run.get('phase') or run['status'].replace('-', ' '),
                 passed=sum(r['status'] == 'passed' for r in rows), failed=sum(r['status'] == 'failed' for r in rows),
                 total=total, source=run.get('native_source_sha256' if run is class_arrow_native or run is instance_header else 'compiler_source_sha256')))
+    schema10_provider = read(cfg.get('schema10LibraryProvider'))
+    if schema10_provider:
+        status = schema10_provider['status']
+        active.append(dict(title='Schema 10: rebuild the library with checked class laws', status=status,
+            phase=status.replace('-', ' '), passed=int(status.startswith('passed')), failed=int(status.startswith('failed')),
+            total=1, source=schema10_provider.get('producer_source_sha256')))
+    if combined_arrays:
+        active.append(dict(title='Schema 9 Stage1: original arrays with staging and CopyOut', status='passed',
+            phase='Fourteen tests passed in the full run and the remaining test passed with the matching runtime archive',
+            passed=combined_arrays['passed'], failed=0, total=combined_arrays['total'],
+            source=combined_arrays['compiler_source_sha256'], evidence=link('bootstrap/current-stage1-combined-arrays-results.json')))
     if stage_expansion_proof:
         controls = stage_expansion_proof['controls']
         active.append(dict(title='Cinch staging: typed runtime and original array case', status=stage_expansion_proof['status'],

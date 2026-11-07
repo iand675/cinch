@@ -1,0 +1,99 @@
+{
+  "compiler_modules": 46,
+  "compiler_source_sha256": "7ccaf9ce68cc9464492c088db8a8ababa1fc19fa44bbc20515e7ba276a52d277",
+  "debug_runtime_sha256": "e51edc2a5bb58008a00761b5ca5efff6df5db7c84146778443168710ca56c053",
+  "executed_with_zero_leaks": 30,
+  "full_goal_complete": false,
+  "library_interfaces_sha256": "07aef422031247bd11418aac228bfc3cd6c8b5cbb172a7927773c5d8a38a599e",
+  "library_object_sha256": "7adc36dd53729405c187e9af1ca1788473f23d950fabd104aa644fa4384749d0",
+  "native_source_sha256": "dc2dd19280f2e51d07e7b2995d40ddc230a8265eeb1e6e75446249cd51e1e0f0",
+  "original_fixture_failure": "The test harness expected the ABI 6 debug runtime archive at its own package root.",
+  "original_log_sha256": "8dd41147804285189ccfbbd172337d8a9fc6eaa736fa3ae8211f8c5f11ed6bd2",
+  "passed": 15,
+  "refused_layout_mismatches_without_execution": 3,
+  "replay_log_sha256": "df210d3af524e350726b6ee726f026750da3a551c193a3fb74f98a6d0e47afe1",
+  "rows": [
+    {
+      "evidence": "original complete group run",
+      "name": "array_copy_evidence_depends_on_the_element_type",
+      "status": "passed"
+    },
+    {
+      "evidence": "original complete group run",
+      "name": "array_intrinsic_signatures_and_primitive_kinds_cannot_be_forged",
+      "status": "passed"
+    },
+    {
+      "evidence": "original complete group run",
+      "name": "array_library_objects_stamp_matching_abi_and_owned_types",
+      "status": "passed"
+    },
+    {
+      "evidence": "original complete group run",
+      "name": "array_runtime_aliases_are_alpha_equivalent_and_first_class",
+      "status": "passed"
+    },
+    {
+      "evidence": "original complete group run",
+      "name": "arrays_keep_record_and_string_elements_alive",
+      "status": "passed"
+    },
+    {
+      "evidence": "exact runtime fixture retry",
+      "name": "cinch_array_runtime_matches_checked_kinds_bounds_formats_and_ownership",
+      "status": "passed"
+    },
+    {
+      "evidence": "original complete group run",
+      "name": "column_projection_returns_the_original_typed_buffers",
+      "status": "passed"
+    },
+    {
+      "evidence": "original complete group run",
+      "name": "columnar_composition_checks_lengths_and_preserves_nested_row_types",
+      "status": "passed"
+    },
+    {
+      "evidence": "original complete group run",
+      "name": "invalid_shapes_empty_dimensions_and_column_lengths_are_typed_failures",
+      "status": "passed"
+    },
+    {
+      "evidence": "original complete group run",
+      "name": "multidimensional_arrays_check_every_axis_and_shape_product",
+      "status": "passed"
+    },
+    {
+      "evidence": "original complete group run",
+      "name": "native_staging_refuses_arrays_by_name_until_the_evaluator_supports_them",
+      "status": "passed"
+    },
+    {
+      "evidence": "original complete group run",
+      "name": "normal_arrays_preserve_values_and_return_none_at_boundaries",
+      "status": "passed"
+    },
+    {
+      "evidence": "original complete group run",
+      "name": "packed_scalars_roundtrip_through_generic_operations",
+      "status": "passed"
+    },
+    {
+      "evidence": "original complete group run",
+      "name": "packed_word_storage_resolves_width_from_the_target",
+      "status": "passed"
+    },
+    {
+      "evidence": "original complete group run",
+      "name": "self_hosted_intrinsic_contracts_refuse_unimplemented_array_operations",
+      "status": "passed"
+    }
+  ],
+  "scope": "Actual Stage1 with staging and CopyOut, an unchanged 15-test Rust target and the matching development library object. The same test binary passed the one fixture retry with the ABI 6 debug archive rebuilt from identical runtime sources. The suite includes direct Rust API assertions. A matching Stage3 run remains required.",
+  "source_test_sha256": "8d1ccd32224302805c2b206f8f484d6aebd8d2658aa2a5e95d40aaf6576b5139",
+  "stage1_sha256": "09e65a0e52cd8d825a5b3d239bc8d50551dd3baf656aae6082d05cb439da7ea0",
+  "status": "passed-original-arrays-combined-stage1",
+  "test_binary_sha256": "c5f08eb11585fd4de3b4de40c06927f1bc92fb41f4bc1a2f98a5fb6709bebb46",
+  "total": 15,
+  "verified_at": "2026-11-07T11:24:48.465828+00:00"
+}
