@@ -12268,6 +12268,10 @@
               "cases": [
                 {
                   "name": "byte_observations_recheck_typed_input_scope_and_runtime_identity",
+                  "status": "failed"
+                },
+                {
+                  "name": "imported_observation_identity_survives_a_renamed_facade",
                   "status": "running"
                 }
               ]
@@ -19255,5 +19259,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T13:25:44.366246+00:00"
+  "updatedAt": "2026-11-07T13:27:06.393984+00:00"
 }
