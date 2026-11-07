@@ -11897,8 +11897,8 @@
           "verified": 0,
           "blocked": 0,
           "running": 0,
-          "pending": 80,
-          "recheck": 25
+          "pending": 79,
+          "recheck": 26
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
         "items": [
@@ -12290,12 +12290,12 @@
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_check.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185",
               "startedAt": "2026-11-07T10:34:06.998076+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T10:42:00.185685+00:00",
+              "exitCode": 0,
+              "logSha256": "4c90bdd8f60c3495c88538145a798678c43c4c75d3e64cfcf74e18c69ae17ad8",
               "cases": [
                 {
                   "name": "the_fragment_checker_accepts_fib_and_names_every_refusal",
@@ -12308,18 +12308,23 @@
           {
             "id": "stage3:bootstrap_checked_program",
             "title": "bootstrap_checked_program",
-            "state": "pending",
+            "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_checked_program.rs",
             "observed": {
-              "status": "pending",
+              "status": "running",
               "source": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185",
-              "startedAt": null,
+              "startedAt": "2026-11-07T10:42:01.266417+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "checked_program_constructor_is_not_an_external_authority_bypass",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -14052,9 +14057,9 @@
         ],
         "observedCounts": {
           "failed": 3,
-          "passed": 21,
+          "passed": 22,
           "running": 1,
-          "pending": 80
+          "pending": 79
         },
         "observedSource": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185"
       },
@@ -18222,8 +18227,8 @@
       {
         "title": "Integrated self-built Stage3: complete frontend sweep",
         "status": "running",
-        "phase": "bootstrap_check",
-        "passed": 21,
+        "phase": "bootstrap_checked_program",
+        "passed": 22,
         "failed": 3,
         "total": 105,
         "source": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185"
@@ -18810,8 +18815,8 @@
       {
         "title": "Earlier Stage3: complete frontend sweep",
         "status": "running",
-        "phase": "bootstrap_check",
-        "passed": 21,
+        "phase": "bootstrap_checked_program",
+        "passed": 22,
         "failed": 3,
         "total": 105,
         "source": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185",
@@ -19046,8 +19051,8 @@
       "verified": 172,
       "blocked": 5,
       "running": 10,
-      "pending": 86,
-      "recheck": 401
+      "pending": 85,
+      "recheck": 402
     },
     "total": 674,
     "acceptanceVerified": 0,
@@ -19055,5 +19060,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T10:42:00.222140+00:00"
+  "updatedAt": "2026-11-07T10:43:02.308944+00:00"
 }
