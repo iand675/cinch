@@ -56,8 +56,18 @@ matching Stage1/2/3 build and every original API filename assertion remain requi
 `bootstrap/current-source-default-diagnostic-component-results.json` and
 `bootstrap/current-source-default-origins-development-2.json`.
 
-All8 development patches apply in order to a fresh published-source snapshot,
-produce the exact2866 compiler-module bytes and preserve the published FFI test
+Candidate32ab repairs a Core branch-implication gap: a true conjunction and a
+false disjunction retain valid implications from the selected operand even if
+the test operand is opaque. Exact condition readings remain unchanged, and
+partial implications are never negated for an opposite branch. Nine new controls
+cover operand order, nested guards, wrong identities, wrong branches and scope
+escape. Native preflight and nine complete Cinch groups are queued, followed by
+Native44 admission and the complete actual compiler/object gate. Matching current
+self-source admission and fresh Stage1/2/3 emission remain required. See
+`bootstrap/current-partial-boolean-branch-development.json`.
+
+All9 development patches apply in order to a fresh published-source snapshot,
+produce the exact32ab compiler-module bytes and preserve the published FFI test
 correction. This is reproducibility evidence, not promotion or bootstrap proof:
 `bootstrap/current-development-patch-chain-results.json`.
 

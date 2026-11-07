@@ -1,0 +1,80 @@
+diff --git a/bootstrap/Bootstrap.Core.cinch b/bootstrap/Bootstrap.Core.cinch
+--- a/bootstrap/Bootstrap.Core.cinch
++++ b/bootstrap/Bootstrap.Core.cinch
+@@ -1527,10 +1527,18 @@
+         other -> None
+       None -> None
+     other -> None
+-  -- Exact condition readings may be negated. A partial reading supplies
+-  -- only the implication for the branch actually taken: a true p && q
+-  -- implies p, and a false p || q implies not p, even when q is opaque.
+-  -- Never negate that weaker implication to describe the other branch.
++  -- Exact condition readings may be negated. Partial readings retain only
++  -- implications for the branch actually taken: true p && q implies both
++  -- operands; false p || q implies both negations, even if one is opaque.
++  -- A known test fact is in scope when reading the selected operand. Never
++  -- negate a partial reading to describe the opposite branch.
++  merge-branch-implications :: Option Proposition -> Option Proposition -> Option Proposition
++  merge-branch-implications first second = case (first, second) of
++    (other, Some PTruth) -> first
++    (None, other) -> second
++    (Some PTruth, other) -> second
++    (Some p, None) -> first
++    (Some p, Some q) -> Some (PBoth p q)
+   scoped-core-branch :: ProofScope -> List Proposition -> CoreTerm -> Bool -> Option Proposition
+   scoped-core-branch gamma facts condition positive = if not (bool-type (core-type condition)) then None else
+     case scoped-core-condition gamma facts condition of
+@@ -1538,10 +1546,14 @@
+       None -> case condition of
+         CIf sp ty test yes no -> if positive then
+           (case scoped-core-condition gamma facts no of
+-            Some PFalsehood -> scoped-core-branch gamma facts test True
++            Some PFalsehood -> let first = scoped-core-branch gamma facts test True in
++              let inside = case first of Some fact -> Cons fact facts; None -> facts in
++              merge-branch-implications first (scoped-core-branch gamma inside yes True)
+             other -> None)
+           else (case scoped-core-condition gamma facts yes of
+-            Some PTruth -> scoped-core-branch gamma facts test False
++            Some PTruth -> let first = scoped-core-branch gamma facts test False in
++              let inside = case first of Some fact -> Cons fact facts; None -> facts in
++              merge-branch-implications first (scoped-core-branch gamma inside no False)
+             other -> None)
+         other -> None
+   -- A case row states facts only about the actual checked scrutinee.
+diff --git a/compiler/tests/bootstrap_function_preconditions.rs b/compiler/tests/bootstrap_function_preconditions.rs
+--- a/compiler/tests/bootstrap_function_preconditions.rs
++++ b/compiler/tests/bootstrap_function_preconditions.rs
+@@ -12,6 +12,15 @@
+     ]);
+     let exe = common::build(&dir, "Main.cinch", "function-preconditions").expect("build the Cinch function precondition checker");
+     let cases = [
++        ("partial Boolean right conjunction proves subtraction", "safe :: Bool -> Nat -> Nat -> Nat\n  safe opaque n m = if opaque && n >= m then n - m else 0", 0),
++        ("partial Boolean left conjunction retains subtraction", "safe :: Bool -> Nat -> Nat -> Nat\n  safe opaque n m = if n >= m && opaque then n - m else 0", 0),
++        ("partial Boolean right disjunction false proves subtraction", "safe :: Bool -> Nat -> Nat -> Nat\n  safe opaque n m = if opaque || n < m then 0 else n - m", 0),
++        ("partial Boolean nested conjunction proves call", "difference :: using (n >= m) => (n :: Nat) -> (m :: Nat) -> Nat\n  difference n m = n - m\n  safe :: Bool -> Bool -> Nat -> Nat -> Nat\n  safe first second n m = if first && (second && n >= m) then difference n m else 0", 0),
++        ("partial Boolean false conjunction cannot prove subtraction", "bad :: Bool -> Nat -> Nat -> Nat\n  bad opaque n m = if opaque && n >= m then 0 else n - m", 4),
++        ("partial Boolean true disjunction cannot prove subtraction", "bad :: Bool -> Nat -> Nat -> Nat\n  bad opaque n m = if opaque || n >= m then n - m else 0", 4),
++        ("partial Boolean right fact keeps actual identities", "difference :: using (n >= m) => (n :: Nat) -> (m :: Nat) -> Nat\n  difference n m = n - m\n  bad :: Bool -> Nat -> Nat -> Nat\n  bad opaque n m = if opaque && n >= m then difference m n else 0", 4),
++        ("partial Boolean fact cannot escape its branch", "difference :: using (n >= m) => (n :: Nat) -> (m :: Nat) -> Nat\n  difference n m = n - m\n  bad :: Bool -> Nat -> Nat -> Nat\n  bad opaque n m = let ignored = if opaque && n >= m then difference n m else 0 in difference n m", 4),
++        ("partial Boolean nested disjunction false proves call", "difference :: using (n >= m) => (n :: Nat) -> (m :: Nat) -> Nat\n  difference n m = n - m\n  safe :: Bool -> Bool -> Nat -> Nat -> Nat\n  safe first second n m = if first || (second || n < m) then 0 else difference n m", 0),
+         ("declared assumption", "pred :: using (n > 0) => (n :: Nat) -> Nat\n  pred actual = actual - 1", 0),
+         ("proved literal", "pred :: using (n > 0) => (n :: Nat) -> Nat\n  pred actual = actual - 1\n  answer :: Nat\n  answer = pred 1", 0),
+         ("proved branch", "pred :: using (n > 0) => (n :: Nat) -> Nat\n  pred actual = actual - 1\n  safe :: Nat -> Nat\n  safe value = if value > 0 then pred value else 0", 0),
+@@ -40,12 +49,16 @@
+     ];
+     for (name, body, wanted) in cases {
+         let source = format!("module Main where\n  {body}\n  main :: Int\n  main = 0\n");
++        if name.starts_with("partial Boolean ") {
++            let oracle = cinch::driver::check_sources(&source, "partial-boolean-branch-oracle.cinch");
++            assert_eq!(oracle.is_ok(), wanted == 0, "Native partial Boolean oracle: {name}\n{oracle:?}");
++        }
+         std::fs::write(dir.join("source.cinch"), &source).unwrap();
+         let output = std::process::Command::new(&exe).current_dir(&dir).output().unwrap();
+         let report = common::read_output(&dir, "signature-type-report.txt");
+         assert_eq!(output.status.code(), Some(wanted), "{name}; project {}\n{source}\n{report}\n{}", dir.display(), String::from_utf8_lossy(&output.stderr));
+         if wanted == 4 {
+-            let expected = if name == "missing precondition" { "ordering evidence" } else { "precondition is not established" };
++            let expected = if name == "missing precondition" || matches!(name, "partial Boolean false conjunction cannot prove subtraction" | "partial Boolean true disjunction cannot prove subtraction") { "ordering evidence" } else { "precondition is not established" };
+             assert!(report.contains(expected), "{name}: {report}");
+         }
+     }

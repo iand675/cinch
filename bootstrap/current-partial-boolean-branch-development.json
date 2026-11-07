@@ -1,0 +1,12 @@
+{
+  "baseline_cinch_source_sha256": "286613ea3571aebd6747def34f7a8f9d8af0c84c78e5fee82f9ca65ff90fe7e1",
+  "full_goal_complete": false,
+  "new_native_compared_controls": 9,
+  "original_precondition_tests_and_diagnostics_retained": true,
+  "patch": "bootstrap/partial-boolean-branch-development.patch",
+  "patch_application_independently_verified": true,
+  "patch_sha256": "60d84dfe8544874dea77fc79fe5bb83c2b271298cd7fd95fa0a16ce37383b0ba",
+  "private_cinch_source_sha256": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+  "scope": "For true short-circuit conjunction and false disjunction, combine sound branch implications from the test and selected operand, even if one is opaque. Exact condition readings remain unchanged and partial implications are never negated to describe the opposite branch. Nine new controls cover both operand orders, nested guards, correct call arguments, wrong branches and facts escaping scope. Native preflight and nine complete Cinch component groups are queued, followed by Native44 input and complete actual compiler/object gates. Matching current compiler self-admission, original runtime/API and Stage1/2/3 emission remain required. This patch is unapplied; no validation success is claimed yet.",
+  "status": "reviewable-private-Core-branch-implication-repair-under-validation"
+}

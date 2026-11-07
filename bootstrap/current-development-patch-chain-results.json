@@ -1,7 +1,7 @@
 {
   "baseline_compiler_source_sha256": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
   "bootstrap_seed_and_library_pins_unchanged": true,
-  "compiler_source_sha256": "286613ea3571aebd6747def34f7a8f9d8af0c84c78e5fee82f9ca65ff90fe7e1",
+  "compiler_source_sha256": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
   "full_goal_complete": false,
   "original_published_pipeline_ffi_correction_retained": true,
   "patches": [
@@ -44,9 +44,14 @@
       "compiler_source_sha256": "286613ea3571aebd6747def34f7a8f9d8af0c84c78e5fee82f9ca65ff90fe7e1",
       "patch": "bootstrap/refinement-expected-result-development.patch",
       "patch_sha256": "79f29b05174960e6794451f9f1e7d0f6fe3aa2ff72ee49b187d255133be24bfd"
+    },
+    {
+      "compiler_source_sha256": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+      "patch": "bootstrap/partial-boolean-branch-development.patch",
+      "patch_sha256": "60d84dfe8544874dea77fc79fe5bb83c2b271298cd7fd95fa0a16ce37383b0ba"
     }
   ],
-  "scope": "Eight reviewable development patches apply in order to a fresh current published-source snapshot and produce the exact development44 compiler-module bytes. The published FFI refusal correction and positive ABI check remain; the renderer test is appended. This proves patch reproducibility only. Production source remains3268; full compiler, runtime, all suites and matching final bootstrap remain required before promotion.",
-  "status": "audited-eight-unapplied-development-patches-on-current-published-source",
-  "verified_at": "2026-11-07T01:17:37.494535+00:00"
+  "scope": "Nine reviewable development patches apply in order to a fresh current published-source snapshot and produce the exact development44 compiler-module bytes. The published FFI refusal correction and positive ABI check remain; the renderer test is appended. This proves patch reproducibility only. Production source remains3268; full compiler, runtime, all suites and matching final bootstrap remain required before promotion.",
+  "status": "audited-nine-unapplied-development-patches-on-current-published-source",
+  "verified_at": "2026-11-07T01:49:10.732568+00:00"
 }
