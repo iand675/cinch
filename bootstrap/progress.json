@@ -11896,8 +11896,8 @@
         "counts": {
           "verified": 16,
           "blocked": 5,
-          "running": 0,
-          "pending": 84,
+          "running": 1,
+          "pending": 83,
           "recheck": 0
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
@@ -12208,18 +12208,23 @@
           {
             "id": "stage3:bootstrap_boolean_branches",
             "title": "bootstrap_boolean_branches",
-            "state": "pending",
+            "state": "running",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_boolean_branches.rs",
             "observed": {
-              "status": "pending",
+              "status": "running",
               "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": null,
+              "startedAt": "2026-11-07T12:59:24.072348+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "compiled_cinch_retains_only_valid_one_way_boolean_facts",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -14029,7 +14034,8 @@
         "observedCounts": {
           "failed": 5,
           "passed": 16,
-          "pending": 84
+          "running": 1,
+          "pending": 83
         },
         "observedSource": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854"
       },
@@ -18196,8 +18202,8 @@
       },
       {
         "title": "Published schema 9 Stage3: all 105 frontend targets",
-        "status": "waiting-disk-space",
-        "phase": "bootstrap_body_bindings",
+        "status": "running",
+        "phase": "bootstrap_boolean_branches",
         "passed": 16,
         "failed": 5,
         "total": 105,
@@ -18792,6 +18798,16 @@
         "auditPending": false
       },
       {
+        "title": "Earlier Stage3: complete frontend sweep",
+        "status": "running",
+        "phase": "bootstrap_boolean_branches",
+        "passed": 16,
+        "failed": 5,
+        "total": 105,
+        "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
+        "earlier": true
+      },
+      {
         "title": "Cinch task forwarding: six-case source replay",
         "status": "passed",
         "phase": "Unchanged Tasks program and refusal, unsafe capture, and interface boundary",
@@ -19057,8 +19073,8 @@
       },
       {
         "title": "Match defining names in schema 10 law observations",
-        "status": "waiting-disk-space",
-        "phase": "Rust and Cinch emitted different law names in the same schema. waiting disk space",
+        "status": "waiting-worker",
+        "phase": "Rust and Cinch emitted different law names in the same schema. waiting worker",
         "passed": 0,
         "failed": 0,
         "total": 5,
@@ -19170,8 +19186,8 @@
     "counts": {
       "verified": 192,
       "blocked": 10,
-      "running": 10,
-      "pending": 90,
+      "running": 11,
+      "pending": 89,
       "recheck": 372
     },
     "total": 674,
@@ -19180,5 +19196,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T12:58:51.981403+00:00"
+  "updatedAt": "2026-11-07T12:59:53.940728+00:00"
 }
