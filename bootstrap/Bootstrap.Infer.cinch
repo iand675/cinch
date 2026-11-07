@@ -3826,23 +3826,36 @@ module Bootstrap.Infer where
     (Cons q rest, Cons ty more) -> Cons (quant-name q, ty) (law-type-locals rest more)
     other -> Nil
 
-  check-finite-law-instance :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List CoreInstance -> CoreClass -> CoreInstance -> Span -> String -> LawSyntax -> Store -> (String, Store)
-  check-finite-law-instance classes kinds families env instances description dictionary sp name syntax st =
+  law-local-quantifiers :: List Quant -> List Quant -> List Quant
+  law-local-quantifiers inherited parameters = case (inherited, parameters) of
+    (Cons first rest, Cons parameter more) -> law-local-quantifiers rest more
+    other -> parameters
+
+  check-finite-law-instance :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> LawEnvironment -> CoreClass -> CoreInstance -> Span -> String -> LawSyntax -> Store -> (String, Store)
+  check-finite-law-instance classes kinds families env sampler description dictionary sp name syntax st =
     let level = store-level st in
     let (subject, requirements, actuals, factory-store) = open-qualified True (instance-scheme dictionary) (enter-level st) in
-    let locals = law-type-locals (class-params description) (constructor-result-arguments subject Nil) in
-    case convert False kinds locals (law-input-type sp syntax) factory-store of
-      (inputs, opened) -> case bind-requirements sp [MkRequirement "#self" subject] env opened of
-        (bound, givens, ready) -> case law-operands classes kinds families bound locals inputs syntax ready of
-          (patterns, Some (first, second), checked) -> if list-length (store-errors checked) /= list-length (store-errors st) then ("", restore-level level checked) else
-            (case resolve-dictionary-term-with classes (env-instances env) givens first checked of
-              (left, checked-left) -> case resolve-dictionary-term-with classes (env-instances env) givens second checked-left of
-                (right, resolved-right) -> let checked-right = finish-numbers resolved-right in
-                  let done = restore-level level checked-right in
-                  if list-length (store-errors done) /= list-length (store-errors st) then ("", done) else
-                    report-finite-law-samples sp name families env instances dictionary givens
-                      (law-normalize-patterns checked-right patterns) (map-term-types (normalize checked-right) left) (map-term-types (normalize checked-right) right) done)
-          (patterns, None, checked) -> (unchecked-law "the law has no checked equation", restore-level level checked)
+    let parameters = class-params description in
+    let types = constructor-result-arguments subject Nil in
+    let (header, declared) = make-scheme False classes kinds parameters (law-input-type sp syntax) factory-store in
+    let law-parameters = law-local-quantifiers parameters (scheme-params header) in
+    let specialized = MkScheme law-parameters (substitute-bound (law-class-arguments parameters types) (scheme-body header)) in
+    let (inputs, law-requirements, law-actuals, opened) = open-qualified True specialized declared in
+    let locals = opened-locals law-parameters law-actuals <> law-type-locals parameters types in
+    if list-length (store-errors opened) /= list-length (store-errors st) then ("", restore-level level opened) else
+      (case unsampled-law-binder families env (normalize opened inputs) opened of
+        Some reason -> (unchecked-law reason, restore-level level opened)
+        None -> case bind-requirements sp [MkRequirement "#self" subject] env opened of
+          (bound, givens, ready) -> case law-operands classes kinds families bound locals inputs syntax ready of
+            (patterns, Some (first, second), checked) -> if list-length (store-errors checked) /= list-length (store-errors st) then ("", restore-level level checked) else
+              (case resolve-dictionary-term-with classes (env-instances env) givens first checked of
+                (left, checked-left) -> case resolve-dictionary-term-with classes (env-instances env) givens second checked-left of
+                  (right, resolved-right) -> let checked-right = finish-numbers resolved-right in
+                    let done = restore-level level checked-right in
+                    if list-length (store-errors done) /= list-length (store-errors st) then ("", done) else
+                      report-finite-law-samples sp name families env sampler dictionary givens
+                        (law-normalize-patterns checked-right patterns) (map-term-types (normalize checked-right) left) (map-term-types (normalize checked-right) right) done)
+            (patterns, None, checked) -> (unchecked-law "the law has no checked equation", restore-level level checked))
 
   law-normalize-patterns :: Store -> List CorePattern -> List CorePattern
   law-normalize-patterns st patterns = case patterns of
@@ -3935,9 +3948,9 @@ module Bootstrap.Infer where
     UApp class (UCon carrier KType) -> if same carrier "Bool" then " on a Boolean sample" else " on a finite constructor sample"
     other -> " on a finite constructor sample"
 
-  report-finite-law-samples :: Span -> String -> List (String, List String) -> List CheckedBinding -> List CoreInstance -> CoreInstance -> List CoreGiven -> List CorePattern -> CoreTerm -> CoreTerm -> Store -> (String, Store)
-  report-finite-law-samples sp name families env instances dictionary givens patterns left right st = case (givens, finite-law-binders families env patterns (enter-level st)) of
-    (Cons given Nil, Ok binders) -> case sample-finite-law dictionary instances (env-body-context env) given binders left right of
+  report-finite-law-samples :: Span -> String -> List (String, List String) -> List CheckedBinding -> LawEnvironment -> CoreInstance -> List CoreGiven -> List CorePattern -> CoreTerm -> CoreTerm -> Store -> (String, Store)
+  report-finite-law-samples sp name families env sampler dictionary givens patterns left right st = case (givens, finite-law-binders families env patterns (enter-level st)) of
+    (Cons given Nil, Ok binders) -> case sample-finite-law sampler dictionary given binders left right of
       FiniteLawSamples samples -> (string-concat-all ["checked (", nat-to-string samples, " samples)"], st)
       FiniteLawCounterexample -> ("", add-error sp (string-concat-all ["class law ", name, " failed for ", instance-diagnostic-name (instance-name dictionary), law-sample-label dictionary]) st)
       FiniteLawUnavailable message -> (unchecked-law message, st)
@@ -3947,7 +3960,12 @@ module Bootstrap.Infer where
   finite-law-instance :: List (String, List String) -> List CheckedBinding -> CoreInstance -> Bool
   finite-law-instance families env dictionary = let factory = instance-scheme dictionary in
     case open-qualified True factory (empty-store "law instance sample") of
-      (UApp (UCon class kind) carrier, Nil, actuals, opened) -> (case finite-law-domain families env carrier 2 opened of Nil -> False; other -> True)
+      (UApp (UCon class kind) carrier, Nil, actuals, opened) -> (case type-kind carrier of
+        KType -> (case finite-law-domain families env carrier 2 opened of Nil -> False; other -> True)
+        KFun input output -> (case root-name carrier of
+          Some name -> (case family-ctors name families of Some (Cons ctor rest) -> True; other -> False)
+          None -> False)
+        other -> False)
       other -> False
   law-class-arguments :: List Quant -> List UType -> List (Nat, UType)
   law-class-arguments parameters actuals = case (parameters, actuals) of
@@ -3991,37 +4009,37 @@ module Bootstrap.Infer where
                 else unchecked-law "the instance's dictionaries do not resolve")
         other -> unavailable
 
-  check-law-instances :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List CoreInstance -> List Decl -> Store -> (List (String, String, String, String), Store)
-  check-law-instances classes kinds families env instances ds st = case ds of
+  check-law-instances :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> LawEnvironment -> List CoreInstance -> List Decl -> Store -> (List (String, String, String, String), Store)
+  check-law-instances classes kinds families env sampler instances ds st = case ds of
     Nil -> (Nil, st)
     Cons (DClass sp name parameters members) rest -> case (case find-class name (context-source-classes kinds) of
-      Some description -> check-law-instance-members classes kinds families env description instances (decls-of members) st
+      Some description -> check-law-instance-members classes kinds families env description sampler instances (decls-of members) st
       None -> (Nil, st)) of
-      (facts, checked) -> case check-law-instances classes kinds families env instances rest checked of
+      (facts, checked) -> case check-law-instances classes kinds families env sampler instances rest checked of
         (more, done) -> (facts <> more, done)
-    Cons other rest -> check-law-instances classes kinds families env instances rest st
+    Cons other rest -> check-law-instances classes kinds families env sampler instances rest st
 
-  check-imported-instance-laws :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List Json -> List CoreClass -> List CoreInstance -> List CoreInstance -> Store -> (List (String, String, String, String), Store)
-  check-imported-instance-laws classes kinds families env rows descriptions all instances st = case instances of
+  check-imported-instance-laws :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List Json -> List CoreClass -> LawEnvironment -> List CoreInstance -> Store -> (List (String, String, String, String), Store)
+  check-imported-instance-laws classes kinds families env rows descriptions sampler instances st = case instances of
     Nil -> (Nil, st)
-    Cons subject rest -> continue-imported-laws classes kinds families env rows descriptions all rest
+    Cons subject rest -> continue-imported-laws classes kinds families env rows descriptions sampler rest
       (case root-name (scheme-body (instance-scheme subject)) of
       None -> (Nil, st)
       Some owner -> (case (find-class owner descriptions, find-class-row owner rows) of
-        (Some description, Some row) -> check-imported-law-rows classes kinds families env description all subject (field "laws" row) st
+        (Some description, Some row) -> check-imported-law-rows classes kinds families env description sampler subject (field "laws" row) st
         other -> (Nil, st)))
 
-  continue-imported-laws :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List Json -> List CoreClass -> List CoreInstance -> List CoreInstance -> (List (String, String, String, String), Store) -> (List (String, String, String, String), Store)
-  continue-imported-laws classes kinds families env rows descriptions all rest current = case current of
-    (facts, checked) -> case check-imported-instance-laws classes kinds families env rows descriptions all rest checked of
+  continue-imported-laws :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List Json -> List CoreClass -> LawEnvironment -> List CoreInstance -> (List (String, String, String, String), Store) -> (List (String, String, String, String), Store)
+  continue-imported-laws classes kinds families env rows descriptions sampler rest current = case current of
+    (facts, checked) -> case check-imported-instance-laws classes kinds families env rows descriptions sampler rest checked of
       (more, done) -> (facts <> more, done)
 
-  check-imported-law-rows :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> CoreClass -> List CoreInstance -> CoreInstance -> Json -> Store -> (List (String, String, String, String), Store)
-  check-imported-law-rows classes kinds families env description all subject rows st = case rows of
+  check-imported-law-rows :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> CoreClass -> LawEnvironment -> CoreInstance -> Json -> Store -> (List (String, String, String, String), Store)
+  check-imported-law-rows classes kinds families env description sampler subject rows st = case rows of
     JArr row rest ->
       let name = contract-text (field "name" row) in
       let sp = case subject of MkCoreInstance at symbol flag factory fields -> at in
-      continue-imported-law-rows classes kinds families env description all subject rest
+      continue-imported-law-rows classes kinds families env description sampler subject rest
       (case field "syntax" row of
         JNull -> ([ (instance-name subject, class-name description, name, unchecked-law "the defining interface has no portable law syntax") ], st)
         wire -> case portable-law-syntax sp portable-default-global wire of
@@ -4029,34 +4047,39 @@ module Bootstrap.Infer where
           Some syntax ->
             let checked = check-class-law classes kinds families env description sp name syntax st in
             if list-length (store-errors checked) /= list-length (store-errors st) then (Nil, checked)
-            else check-law-subjects classes kinds families env description sp name syntax all [subject] checked)
+            else check-law-subjects classes kinds families env description sp name syntax sampler [subject] checked)
     other -> (Nil, st)
 
-  continue-imported-law-rows :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> CoreClass -> List CoreInstance -> CoreInstance -> Json -> (List (String, String, String, String), Store) -> (List (String, String, String, String), Store)
-  continue-imported-law-rows classes kinds families env description all subject rest current = case current of
-    (facts, checked) -> case check-imported-law-rows classes kinds families env description all subject rest checked of
+  continue-imported-law-rows :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> CoreClass -> LawEnvironment -> CoreInstance -> Json -> (List (String, String, String, String), Store) -> (List (String, String, String, String), Store)
+  continue-imported-law-rows classes kinds families env description sampler subject rest current = case current of
+    (facts, checked) -> case check-imported-law-rows classes kinds families env description sampler subject rest checked of
       (more, done) -> (facts <> more, done)
 
-  check-law-instance-members :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> CoreClass -> List CoreInstance -> List Decl -> Store -> (List (String, String, String, String), Store)
-  check-law-instance-members classes kinds families env description instances members st = case members of
+  check-law-instance-members :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> CoreClass -> LawEnvironment -> List CoreInstance -> List Decl -> Store -> (List (String, String, String, String), Store)
+  check-law-instance-members classes kinds families env description sampler instances members st = case members of
     Nil -> (Nil, st)
-    Cons (DLaw sp name syntax) rest -> case check-law-subjects classes kinds families env description sp name syntax instances instances st of
-      (facts, checked) -> case check-law-instance-members classes kinds families env description instances rest checked of
+    Cons (DLaw sp name syntax) rest -> case check-law-subjects classes kinds families env description sp name syntax sampler instances st of
+      (facts, checked) -> case check-law-instance-members classes kinds families env description sampler instances rest checked of
         (more, done) -> (facts <> more, done)
-    Cons other rest -> check-law-instance-members classes kinds families env description instances rest st
+    Cons other rest -> check-law-instance-members classes kinds families env description sampler instances rest st
 
-  check-law-subjects :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> CoreClass -> Span -> String -> LawSyntax -> List CoreInstance -> List CoreInstance -> Store -> (List (String, String, String, String), Store)
-  check-law-subjects classes kinds families env description sp name syntax all instances st = case instances of
+  check-law-subjects :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> CoreClass -> Span -> String -> LawSyntax -> LawEnvironment -> List CoreInstance -> Store -> (List (String, String, String, String), Store)
+  check-law-subjects classes kinds families env description sp name syntax sampler instances st = case instances of
     Nil -> (Nil, st)
     Cons dictionary rest -> let owner = class-name description in
       if (case root-name (scheme-body (instance-scheme dictionary)) of Some class -> same owner class; None -> False) then
-        (case (case syntax of
-          LawArrow domain body -> if finite-law-instance families env dictionary then check-finite-law-instance classes kinds families env all description dictionary sp name syntax st
-            else (unsampled-law-status classes kinds families env description dictionary sp syntax, st)
-          other -> (unsampled-law-status classes kinds families env description dictionary sp syntax, st)) of
-          (status, checked) -> case check-law-subjects classes kinds families env description sp name syntax all rest checked of
+        (case (if law-has-binders syntax && finite-law-instance families env dictionary then
+          check-finite-law-instance classes kinds families env sampler description dictionary sp name syntax st
+          else (unsampled-law-status classes kinds families env description dictionary sp syntax, st)) of
+          (status, checked) -> case check-law-subjects classes kinds families env description sp name syntax sampler rest checked of
             (more, done) -> (Cons (instance-name dictionary, owner, name, status) more, done))
-      else check-law-subjects classes kinds families env description sp name syntax all rest st
+      else check-law-subjects classes kinds families env description sp name syntax sampler rest st
+
+  law-has-binders :: LawSyntax -> Bool
+  law-has-binders syntax = case syntax of
+    LawForall parameters body -> law-has-binders body
+    LawArrow domain body -> True
+    other -> False
 
   proof-clauses :: String -> List Decl -> List (List Pat, Expr)
   proof-clauses name declarations = case declarations of
@@ -4134,13 +4157,16 @@ module Bootstrap.Infer where
     let (effects, sx) = case store-errors default-store of Nil -> checked-effects kinds env ds default-store; other -> (Nil, default-store) in
     let linked-kinds = context-with-effects effects kinds in
     let (descriptions, instances, sm) = case store-errors sx of Nil -> checked-source-instances rows classes linked-kinds families env ds (context-source-classes linked-kinds) sx; other -> (Nil, Nil, sx) in
-    let (source-laws, source-sampled) = case store-errors sm of Nil -> check-law-instances classes linked-kinds families env instances ds sm; other -> (Nil, sm) in
-    let (imported-laws, sampled) = case store-errors source-sampled of
-          Nil -> check-imported-instance-laws classes linked-kinds families env rows descriptions instances instances source-sampled
+    let (ordinary-core, body-checked) = case store-errors sm of Nil -> check-bodies classes linked-kinds families env Nil ds ds sm; other -> (Nil, sm) in
+    let core = defaults <> ordinary-core in
+    let sampler = MkLawEnvironment instances (env-body-context env) core in
+    let (source-laws, source-sampled) = case store-errors body-checked of
+          Nil -> check-law-instances classes linked-kinds families env sampler instances ds body-checked
+          other -> (Nil, body-checked) in
+    let (imported-laws, done) = case store-errors source-sampled of
+          Nil -> check-imported-instance-laws classes linked-kinds families env rows descriptions sampler instances source-sampled
           other -> (Nil, source-sampled) in
     let law-observations = source-laws <> imported-laws in
-    let (ordinary-core, done) = case store-errors sampled of Nil -> check-bodies classes linked-kinds families env Nil ds ds sampled; other -> (Nil, sampled) in
-    let core = defaults <> ordinary-core in
     let (declared-data, declared-store) = case store-errors done of Nil -> checked-data classes linked-kinds env ds Nil done; other -> (Nil, done) in
     let (nominal-data, nominal-store) = case store-errors declared-store of Nil -> checked-nominal-data ds linked-kinds declared-data declared-store; other -> (declared-data, declared-store) in
     let (datas, sd) = case store-errors nominal-store of Nil -> complete-runtime-data ds classes linked-kinds nominal-data nominal-store; other -> (nominal-data, nominal-store) in

@@ -25,6 +25,7 @@ module Bootstrap.Instance where
   export find-class, class-target, specialize-method, implementation-scheme, default-annotation-bindings
   export dictionary-method-symbol, scheme-equivalent
   export FiniteLawSamples, FiniteLawCounterexample, FiniteLawUnavailable, sample-finite-law
+  export LawEnvironment, MkLawEnvironment
   export LawValue, LawNumber, LawOpaque, LawConstructor, LawField, LawFieldsEnd
 
   data CoreClassMethod where
@@ -293,6 +294,7 @@ module Bootstrap.Instance where
   data LawValue where
     LawNumber :: Int -> LawValue
     LawOpaque :: Nat -> LawValue
+    LawFunction :: CoreTerm -> LawValue
     LawConstructor :: String -> LawValue -> LawValue
     LawField :: LawValue -> LawValue -> LawValue
     LawFieldsEnd :: LawValue
@@ -306,16 +308,25 @@ module Bootstrap.Instance where
     (LawFieldsEnd, LawFieldsEnd) -> True
     other -> False
 
+  -- A checked function can be passed as an argument. Its body is evaluated
+  -- only when admitted below, and closures have no sample equality.
+  law-comparable :: LawValue -> Bool
+  law-comparable value = case value of
+    LawFunction term -> False
+    LawConstructor name fields -> law-comparable fields
+    LawField first rest -> law-comparable first && law-comparable rest
+    other -> True
+
   data FiniteLawResult where
     FiniteLawSamples :: Nat -> FiniteLawResult
     FiniteLawCounterexample :: FiniteLawResult
     FiniteLawUnavailable :: String -> FiniteLawResult
   data LawEnvironment where
-    MkLawEnvironment :: List CoreInstance -> BodyBindings -> LawEnvironment
+    MkLawEnvironment :: List CoreInstance -> BodyBindings -> List CoreDefinition -> LawEnvironment
 
-  sample-finite-law :: CoreInstance -> List CoreInstance -> BodyBindings -> CoreGiven -> List (Nat, List LawValue) -> CoreTerm -> CoreTerm -> FiniteLawResult
-  sample-finite-law dictionary instances bodies given binders left right =
-    sample-assignments (MkLawEnvironment instances bodies) dictionary (given-symbol given) binders Nil left right 0
+  sample-finite-law :: LawEnvironment -> CoreInstance -> CoreGiven -> List (Nat, List LawValue) -> CoreTerm -> CoreTerm -> FiniteLawResult
+  sample-finite-law env dictionary given binders left right =
+    sample-assignments env dictionary (given-symbol given) binders Nil left right 0
 
   sample-assignments :: LawEnvironment -> CoreInstance -> String -> List (Nat, List LawValue) -> List (Nat, LawValue) -> CoreTerm -> CoreTerm -> Nat -> FiniteLawResult
   sample-assignments env dictionary self binders values left right count = if count >= 256 then FiniteLawSamples count else case binders of
@@ -327,7 +338,9 @@ module Bootstrap.Instance where
   sample-equation :: LawEnvironment -> CoreInstance -> String -> List (Nat, LawValue) -> CoreTerm -> CoreTerm -> Nat -> FiniteLawResult
   sample-equation env dictionary self values left right count = case sample-term env dictionary self values left 128 of
     (Some first, remaining) -> (case sample-term env dictionary self values right remaining of
-      (Some second, unused) -> if equal-law-value first second then FiniteLawSamples (count + 1) else FiniteLawCounterexample
+      (Some second, unused) -> if law-comparable first && law-comparable second then
+        (if equal-law-value first second then FiniteLawSamples (count + 1) else FiniteLawCounterexample)
+        else unavailable-sample unused
       (None, unused) -> unavailable-sample unused)
     (None, remaining) -> unavailable-sample remaining
 
@@ -446,7 +459,7 @@ module Bootstrap.Instance where
   sample-evidence env dictionary self evidence = case evidence of
     CEGiven sp subject symbol -> if same symbol self then Some dictionary else None
     CEInstance sp subject identity actuals (CEArgumentsEnd end) ->
-      (case env of MkLawEnvironment instances bodies -> sample-instance identity instances)
+      (case env of MkLawEnvironment instances bodies definitions -> sample-instance identity instances)
     other -> None
 
   boolean-sample-arguments :: List LawValue -> Option Arithmetic
@@ -459,13 +472,38 @@ module Bootstrap.Instance where
   -- Look up the verified body of the exact checked global.
   sample-external :: LawEnvironment -> String -> List LawValue -> Option LawValue
   sample-external env name args = case env of
-    MkLawEnvironment instances bodies -> (case body-binding name (body-bindings-members bodies) of
+    MkLawEnvironment instances bodies definitions -> (case body-binding name (body-bindings-members bodies) of
       Some binding -> (case boolean-sample-arguments args of
         Some inputs -> (case total-boolean-reading (binding-function binding) inputs of
           Some answer -> Some (sample-boolean answer)
           None -> None)
         None -> None)
       None -> None)
+
+  sample-source-definition :: String -> List CoreDefinition -> Option CoreDefinition
+  sample-source-definition name definitions = case definitions of
+    Nil -> None
+    Cons first rest -> if same name (core-name first) then Some first else sample-source-definition name rest
+
+  sample-function-arrow :: UType -> Bool
+  sample-function-arrow ty = case ty of
+    UFun input result -> True
+    UPi id name input (URow UEnd) result -> True
+    other -> False
+
+  sample-global :: LawEnvironment -> CoreInstance -> String -> CoreTerm -> String -> String -> List LawValue -> Nat -> (Option LawValue, Nat)
+  sample-global env dictionary self term name role arguments fuel = case env of
+    MkLawEnvironment instances bodies definitions -> (case sample-source-definition name definitions of
+      Some definition -> (case (core-givens definition, core-clauses definition) of
+        (Nil, Cons (MkCoreClause sp patterns body) rest) -> (case arguments of
+          Nil -> if list-length patterns > 0 && sample-function-arrow (core-type term) then (Some (LawFunction term), fuel)
+            else sample-clauses env dictionary self (core-clauses definition) Nil fuel
+          other -> sample-clauses env dictionary self (core-clauses definition) arguments fuel)
+        other -> (None, fuel))
+      None -> (case arguments of
+        Nil -> if same role "external" && sample-function-arrow (core-type term) then (Some (LawFunction term), fuel)
+          else (sample-external env name Nil, fuel)
+        other -> (sample-external env name arguments, fuel)))
 
   sample-call :: LawEnvironment -> CoreInstance -> String -> List (Nat, LawValue) -> CoreTerm -> List LawValue -> Nat -> (Option LawValue, Nat)
   sample-call env dictionary self values term arguments fuel = if fuel == 0 then (None, 0) else
@@ -475,9 +513,12 @@ module Bootstrap.Instance where
         (Some value, after-argument) -> sample-call env dictionary self values function (Cons value arguments) after-argument
         failed -> failed
       CUse sp ty name role actuals ->
-        (if same role "constructor" then
-          (if scheme-runtime-arity (mono ty) == list-length arguments then Some (LawConstructor name (sample-field-spine arguments)) else None)
-         else sample-external env name arguments, remaining)
+        if same role "constructor" then
+          (if scheme-runtime-arity (mono ty) == list-length arguments then Some (LawConstructor name (sample-field-spine arguments)) else None, remaining)
+        else sample-global env dictionary self term name role arguments remaining
+      CLocal sp ty id name Nil -> (case sample-local id values of
+        Some (LawFunction function) -> sample-call env dictionary self Nil function arguments remaining
+        other -> (None, remaining))
       CMethod sp ty name owner slot actuals (Cons evidence Nil) -> case sample-evidence env dictionary self evidence of
         Some actual -> case target-owner (scheme-body (instance-scheme actual)) of
           Some declaring -> if same owner declaring then sample-field env actual slot (instance-fields actual) arguments remaining else (None, remaining)
@@ -499,6 +540,8 @@ module Bootstrap.Instance where
   sample-clauses env dictionary self clauses arguments fuel = if fuel == 0 then (None, 0) else case clauses of
     Nil -> (None, fuel - 1)
     Cons (MkCoreClause sp patterns body) rest -> case sample-patterns patterns arguments Nil of
-      SampleHit locals -> sample-term env dictionary self locals body (fuel - 1)
+      SampleHit locals -> (case core-effects body of
+        URow UEnd -> sample-term env dictionary self locals body (fuel - 1)
+        other -> (None, fuel - 1))
       SampleMiss -> sample-clauses env dictionary self rest arguments (fuel - 1)
       SampleUnsupported -> (None, fuel - 1)
