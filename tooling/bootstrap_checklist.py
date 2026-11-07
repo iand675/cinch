@@ -365,6 +365,9 @@ def build_checklist(root, cfg, previous=None):
     nominal_dependency = read(cfg.get('schema9NominalDependencies'))
     instance_header = read(cfg.get('schema9InstanceHeader'))
     finite_law = read(cfg.get('finiteLaw'))
+    typed_law = read(cfg.get('typedLawSampling'))
+    native_typed_law = read(cfg.get('nativeTypedLawSampling'))
+    portable_law = read(cfg.get('portableLawCinch'))
     family_replay = read(cfg.get('arrowFamilyReplay'))
     gaps=[
         item('gap:prelude','Replace source copies of library modules safely','blocked' if integrated_overlay or stage3_failures_current or 'interface_prelude_overrides' in failed_api else 'pending',
@@ -404,6 +407,7 @@ def build_checklist(root, cfg, previous=None):
              'The original Ordering bundle needs the inherited Monoid mconcat implementation. The schema 9 candidate carries the defining clauses and the importing compiler rechecks them.',
              'Rebuild library interfaces in the same format both compilers use and verify that obsolete formats are refused.',link('bootstrap/current-interface-format-switch-results.json' if unified_format else 'bootstrap/current-schema9-default-replay-results.json' if schema9_cross else 'design/compiled-interface-metadata.md')),
         item('gap:laws','Elaborate source class laws and declarations','running',
+             'The separate imported-law replay reached the checker and exposed an incorrect terminator on a named law binder. The corrected candidate parses and is queued with Nat and generic constructor-field counterexamples.' if typed_law else
              'The pipeline and interface-writer groups passed audit. A lawful Boolean implementation reports two checked samples, an unlawful one refuses by name, and the unsampled function carrier is explicitly reported as unchecked. General sampling and imported law declarations remain open.' if law_receipt else
              'The checker verifies one carrier for both law operands and refuses incompatible types. The Boolean sampler follows the actual checked instance fields.',
              'Retain and check the original class laws and namespace declarations; pass all original family and law assertions.',link('bootstrap/current-class-law-observations-results.json' if law_receipt else 'bootstrap/current-source-class-law-instance-samples-results.json')),
@@ -651,6 +655,9 @@ def build_checklist(root, cfg, previous=None):
         ('Cinch: retain defining nominal dependencies in inherited defaults and interface exports', nominal_dependency, 2),
         ('Rust: emit definition-owned instance headers', instance_header, 2),
         ('Cinch: finite class laws and inherited default closure', finite_law, 2),
+        ('Schema 10: original separate class-law replay', portable_law, 1),
+        ('Schema 10: corrected law decoder and typed constructor samples', typed_law, 1),
+        ('Rust: Nat-backed law counterexample and interface tests', native_typed_law, 1),
         ('Schema 9 Stage1: initial arrays run before the runtime fixture retry', read(cfg.get('schema9StagingCopyOutArrays')), 2),
         ('Schema 10: pinned Stage1 and original library replacement tests', read(cfg.get('schema10OrderingStage1')), 8),
         ('Schema 9: rebuild and check the Git-pinned provider', schema9_pinned_provider, 1),
@@ -659,7 +666,7 @@ def build_checklist(root, cfg, previous=None):
             rows = [r for r in run.get('rows', []) if not r['name'].startswith(('compile-', 'build-'))]
             active.append(dict(title=title, status=run['status'], phase=run.get('phase') or run['status'].replace('-', ' '),
                 passed=sum(r['status'] == 'passed' for r in rows), failed=sum(r['status'] == 'failed' for r in rows),
-                total=total, source=run.get('native_source_sha256' if run is class_arrow_native or run is instance_header else 'compiler_source_sha256')))
+                total=total, source=run.get('native_source_sha256' if run is class_arrow_native or run is instance_header or run is native_typed_law else 'compiler_source_sha256')))
     schema10_provider = read(cfg.get('schema10LibraryProvider'))
     if schema10_provider:
         status = schema10_provider['status']

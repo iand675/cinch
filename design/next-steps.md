@@ -16,6 +16,13 @@ The defining-nominal repair passed the focused imported-default regression
 and the whole interface writer group. Class-law declarations still need to
 travel from their owners to separate instance checks.
 
+The schema 10 candidate carries the checked law equations in the same
+interface as the class methods. Rust passed all 18 law, interface-kind and
+method-body tests. The separate Cinch consumer reached rechecking and refused
+a named law argument because the decoder reconstructed the wrong terminator.
+The corrected decoder parses. Its source-instance replay will also check
+Nat-backed and generic constructor fields with lawful and unlawful examples.
+
 The staged declaration pipeline checked and emitted a generated `Nat` value
 through typed IR. The linked program returned 0 with zero leaks. The unchanged
 array input refuses `arrayReplicate` at its original source location.
@@ -28,8 +35,8 @@ The normal Git-pinned schema 9 provider rebuilt and verified all 55 library
 interfaces. It includes the raw `list-length` variant requested when the
 development Stage2 stopped. The failed attempt still emitted 44 checked
 compiler interfaces, which the independent Rust reader validated with their
-dependencies. The new pinned chain and original library replacement suite
-remain open. See `bootstrap/current-schema9-pinned-provider-results.json`.
+dependencies. The matching original library replacement suite remains open.
+See `bootstrap/current-schema9-pinned-provider-results.json`.
 
 The checked compile-time evaluator returns 42 through a stage function,
 refuses the inner array primitive by its checked name, and enforces a shared
