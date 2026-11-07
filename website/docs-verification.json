@@ -317,12 +317,12 @@
     }
   ],
   "tooling_reference_checks": {
-    "scope": "Existing Rust REPL and LSP behaviour suites, run against the isolated compiler snapshot. Intended Coming soon terminal/editor features are documentation targets, not verified implementations.",
+    "scope": "Existing Rust REPL and LSP behaviour suites, run against the isolated compiler snapshot. The REPL now includes a terminal frontend; remaining editor/frontend features marked Coming soon are documentation targets, not verified implementations.",
     "command": "cargo test --manifest-path /tmp/cinch-pragmas-compiler/Cargo.toml --test repl --test lsp",
     "suites": [
       {
         "name": "repl",
-        "passed": 7,
+        "passed": 8,
         "failed": 0
       },
       {

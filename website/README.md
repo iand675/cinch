@@ -95,7 +95,7 @@ After `npm run build`, run `npm run verify:preview` to check generated links and
 
 The Rust implementation is the current behaviour authority. The tutorial and guide mark specified but unavailable behaviour with visible **Coming soon** tags, distinguish partial support and API-only mechanisms, and link to the intended design. `/reference/16-support-and-roadmap/` maps all specification areas to their reader guides. Original design pages carry an archive notice without changing their body text or heading anchors.
 
-`learn/` has the tutorial contents and 22 chapters. `reference/` has the guide contents and 27 subject pages, including dedicated attributes, type layout, allocator, REPL, and language server references. The tooling chapters describe the intended complete experience with **Coming soon** labels and explicit current implementation tables. `library/` has the directory and one generated page for each real source module. The sidebar groups library modules by namespace. The site reuses the editor TextMate grammar to highlight `cinch` code blocks.
+`learn/` has the tutorial contents and 22 chapters. `reference/` has the guide contents and 27 subject pages, including dedicated attributes, type layout, allocator, REPL, and language server references. The tooling chapters distinguish available frontends from remaining intended work with support labels and explicit current implementation tables. `library/` has the directory and one generated page for each real source module. The sidebar groups library modules by namespace. Hand-written pages use the editor TextMate grammar; generated library pages carry compiler tree-sitter token spans.
 
 Run these checks with the Node version in `.node-version`:
 
