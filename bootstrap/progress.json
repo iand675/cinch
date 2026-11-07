@@ -11959,6 +11959,18 @@
                 },
                 {
                   "name": "array_intrinsic_signatures_and_primitive_kinds_cannot_be_forged",
+                  "status": "passed"
+                },
+                {
+                  "name": "array_library_objects_stamp_matching_abi_and_owned_types",
+                  "status": "passed"
+                },
+                {
+                  "name": "array_runtime_aliases_are_alpha_equivalent_and_first_class",
+                  "status": "passed"
+                },
+                {
+                  "name": "arrays_keep_record_and_string_elements_alive",
                   "status": "running"
                 }
               ]
@@ -18390,8 +18402,8 @@
       {
         "title": "Rust task-forwarding candidate: complete Rust sweep",
         "status": "running",
-        "phase": "bootstrap_array_float_bits",
-        "passed": 152,
+        "phase": "bootstrap_body_bindings",
+        "passed": 153,
         "failed": 0,
         "total": 235,
         "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
@@ -18719,12 +18731,12 @@
       },
       {
         "title": "Cinch: finite class laws and inherited default closure",
-        "status": "stopped-superseded-preflight",
-        "phase": "stopped superseded preflight",
+        "status": "waiting-worker",
+        "phase": "waiting worker",
         "passed": 0,
         "failed": 0,
         "total": 2,
-        "source": "72114b3be0de64afbef3eeebc006eeefda827d789c634a14d4afe7b787a1f79f"
+        "source": "c272860233cd944125805f27f3fb2521cd48f4c12f74fbc07b55f21f5a9ebb7f"
       },
       {
         "title": "Schema 9 Stage1: original arrays group with staging and CopyOut",
@@ -18829,5 +18841,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T10:58:47.926532+00:00"
+  "updatedAt": "2026-11-07T10:59:49.877205+00:00"
 }
