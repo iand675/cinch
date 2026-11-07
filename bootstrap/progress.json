@@ -18944,9 +18944,9 @@
       },
       {
         "title": "Cinch: finite class laws and inherited default closure",
-        "status": "running",
+        "status": "passed-finite-law-and-lazy-default-validation",
         "phase": "bootstrap_source_instances",
-        "passed": 1,
+        "passed": 2,
         "failed": 0,
         "total": 2,
         "source": "c272860233cd944125805f27f3fb2521cd48f4c12f74fbc07b55f21f5a9ebb7f"
@@ -19055,9 +19055,9 @@
       },
       {
         "title": "Schema 10: combined self-host chain",
-        "status": "building-stage2",
-        "phase": "building stage2",
-        "passed": 2,
+        "status": "building-stage3",
+        "phase": "building stage3",
+        "passed": 3,
         "failed": 0,
         "total": 4,
         "source": "b59c4893c4214d1c94c624bf9ba3f9e99ee7eb9b9568c1f092b20e5080967b38"
@@ -19196,5 +19196,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T13:05:38.748431+00:00"
+  "updatedAt": "2026-11-07T13:06:40.642463+00:00"
 }
