@@ -1,0 +1,48 @@
+{
+  "checked_at": "2026-11-07T16:18:31.146151+00:00",
+  "compiler_source_sha256": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
+  "complete_target_tests": [
+    "byte_observations_recheck_typed_input_scope_and_runtime_identity",
+    "imported_observation_identity_survives_a_renamed_facade",
+    "source_observations_use_declared_primitive_identity_and_actual_buffer"
+  ],
+  "full_goal_complete": false,
+  "groups": [
+    {
+      "exit_code": 0,
+      "log_sha256": "cfaebb197cc4f1e288306ea33c85c2134a1d9b95299b122b4f5cfab1349a1484",
+      "name": "build-runtime-debug",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "0f1984548d71cb5abb2c7a9d634190f34b4892099b9ae3d1561304fe224d423f",
+      "name": "compile-bootstrap_byte_observations",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "58f2800e7b3685e8003fc67e4297e07b323c20be503b84e6edfe4ac3b158bfaa",
+      "name": "bootstrap_byte_observations",
+      "status": "passed"
+    }
+  ],
+  "matching_stage3_executable_sha256": "91291a55dc3bb9e509396c303e1441e8c539af924dfdc5fb204bb7cf26c5c849",
+  "native_rlib_sha256": "2184f0bbdbf1eb650210894ac138ddc6dffbac89cd938b5a6093ae8cf25fc21d",
+  "native_source_sha256": "c96201cd96f4949fbad30c5ec91e84b94b76c30281ac319b36eaf39191027444",
+  "original_guards": [
+    "renamed refined observation",
+    "forged carrier mismatch",
+    "forged calling convention",
+    "forged constant-zero primitive body"
+  ],
+  "provider_pin": {
+    "description": "ABI 6 Rust library producer for checked schema 10 interfaces.",
+    "revision": "96cda90346887d4cdd31c230a21027f9ff31cb93",
+    "runtime_abi": 6,
+    "schema": 1,
+    "source_sha256": "c96201cd96f4949fbad30c5ec91e84b94b76c30281ac319b36eaf39191027444"
+  },
+  "status": "audited-complete-schema10-byte-observation-target",
+  "test_binary_sha256": "a9fc4d434c1acb17512450ddf0369f1b93863287ce8fed13ce58064c9a59ae6f"
+}

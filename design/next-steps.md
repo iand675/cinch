@@ -21,9 +21,12 @@ accepted a separate client using the renamed observation in a proof. Stage2
 then built all 46 compiler modules and passed its smoke tests. Stage3 rebuilt
 the same sources and matches Stage2 on the executable, LLVM IR and all 46
 compiler interfaces. Stage3 passed its smoke tests and a separate client.
-The changed-source control and complete byte-observation target are underway.
+The complete byte-observation target passed all three tests, including the
+renamed facade and forged implementation controls. The changed-source control
+is underway.
 See [the Stage2 refusal and exact inputs](../bootstrap/current-schema10-stage2-byte-observation-results.json)
-and [the Stage3 agreement audit](../bootstrap/current-schema10-repaired-stage3-agreement-results.json).
+[the Stage3 agreement audit](../bootstrap/current-schema10-repaired-stage3-agreement-results.json)
+and [the full byte-observation target](../bootstrap/current-schema10-byte-observation-full-target-results.json).
 
 The development checker passed the complete Core proof test with an erased
 `refl` witness for `Eq`. The added checks reject false equalities,
