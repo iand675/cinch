@@ -627,9 +627,9 @@
         "id": "gap:prelude",
         "title": "Replace source copies of library modules safely",
         "state": "blocked",
-        "detail": "Data.Core emits the matching contract. Data.Ordering stops at the imported mconcat default. Category rejects the class laws and structural function instance. Algebra now resolves Nil, None, Cons and Some and stops at the class law.",
+        "detail": "Exact candidate Stage3 refuses the original Data.Core source as a conflicting loaded interface. Development Data.Core emits the matching contract. Ordering, Category and Algebra still need their original replacement checks.",
         "doneWhen": "Core, Ordering, Category and Algebra replacements pass with fresh checked provider hashes, valid consumer chains and no Prelude back-edge.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-source-overlay-family-probes.json"
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-stage3-arrays-and-library-overrides-results.json"
       },
       {
         "id": "gap:source-defaults",
@@ -754,18 +754,18 @@
       {
         "id": "gap:copyout",
         "title": "Finish Copy / borrow / Thunk ownership",
-        "state": "recheck",
-        "detail": "The original array target had13/15 passing cases; ownership/copyOut is one of its two retained failures.",
+        "state": "blocked",
+        "detail": "Exact candidate Stage3 fails to resolve copyOut before checking Copy evidence for Array (Thunk {} Int).",
         "doneWhen": "The original ownership case reaches and passes its required semantic checks and runtime behavior.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-original-array-suite-results.json"
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-stage3-arrays-and-library-overrides-results.json"
       },
       {
         "id": "gap:staging",
         "title": "Finish staging and namespace behavior",
-        "state": "recheck",
-        "detail": "The second original array failure and remaining language examples require real staging/declaration behavior.",
+        "state": "blocked",
+        "detail": "Exact candidate Stage3 reports an unsupported declaration before checking whether arrayReplicate is available at compile time.",
         "doneWhen": "Preserve original sources and expected named refusals; execute the matching staging and language suites.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-original-array-suite-results.json"
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-stage3-arrays-and-library-overrides-results.json"
       },
       {
         "id": "gap:hidden-types",
@@ -19076,6 +19076,28 @@
         "auditPending": false
       },
       {
+        "title": "Cinch dropped-task diagnostic: complete runtime-IR suite",
+        "status": "passed-task-drop-diagnostic",
+        "phase": "bootstrap_runtime_ir",
+        "passed": 1,
+        "failed": 0,
+        "total": 1,
+        "source": "f3faf4991a71782d12951b2951a0d1475bdafb768e714b927537add99aa27ab8",
+        "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+        "auditPending": true
+      },
+      {
+        "title": "Cinch task forwarding: complete pipeline tests",
+        "status": "running",
+        "phase": "bootstrap_pipeline",
+        "passed": 0,
+        "failed": 0,
+        "total": 1,
+        "source": "b2eec8a81f3198339a94c1f3cd59c54fa714d23d297f4404ca5c8ac4716084aa",
+        "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+        "auditPending": false
+      },
+      {
         "title": "Source-library replacement: complete pipeline and dependency checks",
         "status": "passed-source-interface-overlay-pipeline",
         "phase": "bootstrap_pipeline",
@@ -19279,10 +19301,10 @@
     ],
     "counts": {
       "verified": 489,
-      "blocked": 4,
+      "blocked": 6,
       "running": 9,
       "pending": 7,
-      "recheck": 163
+      "recheck": 161
     },
     "total": 672,
     "acceptanceVerified": 0,
@@ -19290,5 +19312,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T05:56:33.014806+00:00"
+  "updatedAt": "2026-11-07T05:58:47.325249+00:00"
 }
