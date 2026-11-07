@@ -257,3 +257,21 @@ fn runtime_backed_probe_sees_a_loaded_module() {
     assert!(output.contains("() :: Unit"), "{output}");
     std::fs::remove_dir_all(&dir).ok();
 }
+
+#[test]
+fn runtime_backed_probe_uses_session_imports_and_the_project_directory() {
+    let dir = std::env::temp_dir().join(format!("cinch-repl-runtime-cwd-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("temp dir");
+    let mut repl = Repl::with_compiler(&dir, env!("CARGO_BIN_EXE_cinch"));
+    out(repl.eval("import Effect.Fs"));
+    out(repl.eval("import Data.Path"));
+    let output = out(repl.eval(
+        "with (io = newIO ()) in fs-write (path-from-string \"probe-out.txt\") (string-to-bytes \"ok\")",
+    ));
+    assert!(output.contains("<value> :: Result"), "{output}");
+    assert_eq!(
+        std::fs::read_to_string(dir.join("probe-out.txt")).expect("probe file"),
+        "ok"
+    );
+    std::fs::remove_dir_all(&dir).ok();
+}

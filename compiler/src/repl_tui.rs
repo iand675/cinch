@@ -230,6 +230,7 @@ impl App {
         self.history.push(text.clone());
         self.history_index = self.history.len();
         let outcome = self.repl.eval(&text);
+        self.root = self.repl.root().to_path_buf();
         self.input.clear();
         self.completion = None;
         self.auto_scroll = true;

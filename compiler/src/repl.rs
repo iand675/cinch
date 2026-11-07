@@ -202,6 +202,11 @@ impl Repl {
         &self.analysis
     }
 
+    /// The current project root, which moves after a successful `:load`.
+    pub fn root(&self) -> &Path {
+        &self.root
+    }
+
     /// Every accepted input line, in order.
     pub fn history(&self) -> &[String] {
         &self.history
@@ -593,18 +598,28 @@ impl Repl {
                  in let newline = ioWrite (string-to-bytes \"\\n\")\n          in 0"
             ),
             RuntimePrint::Opaque => format!(
-                "    let _ = (\n{expression}\n    )\n    \
+                "    let _ = ignore (\n{expression}\n    )\n    \
                  in let written = ioWrite (string-to-bytes \"<value>\\n\")\n       in 0"
             ),
         };
-        let mut imports = vec!["  import Text.Show".to_string()];
-        for module in self.analysis.modules() {
-            if module == "Text.Show" || module == "ReplProbe" {
-                continue;
+        let mut imports = Vec::new();
+        let mut seen = HashSet::new();
+        for entry in &self.entries {
+            for line in entry.lines() {
+                let Some(rest) = line.trim_start().strip_prefix("import ") else {
+                    continue;
+                };
+                let rest = rest.trim();
+                let name = rest.split_whitespace().next().unwrap_or(rest);
+                if !name.is_empty() && seen.insert(name.to_string()) {
+                    imports.push(format!("  import {rest}"));
+                }
             }
-            imports.push(format!("  import {module}"));
         }
-        if !imports.iter().any(|line| line == "  import ReplSession") {
+        if seen.insert("Text.Show".to_string()) {
+            imports.push("  import Text.Show".to_string());
+        }
+        if seen.insert("ReplSession".to_string()) {
             imports.push("  import ReplSession".to_string());
         }
         let main = format!(
@@ -613,11 +628,12 @@ impl Repl {
             imports.join("\n")
         );
         fs::write(workspace.path().join("ReplProbe.cinch"), main).ok()?;
+        let probe = workspace.path().join("ReplProbe.cinch");
         let mut command = Command::new(&self.compiler);
         command
             .arg("run")
-            .arg("ReplProbe.cinch")
-            .current_dir(workspace.path())
+            .arg(probe)
+            .current_dir(&self.root)
             .env("CINCH_STORE", &self.runtime_store);
         let (success, stdout, stderr, timed_out) =
             run_with_timeout(command, Duration::from_secs(60))?;
