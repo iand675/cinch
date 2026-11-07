@@ -699,9 +699,9 @@
         "id": "gap:laws",
         "title": "Elaborate source class laws and declarations",
         "state": "running",
-        "detail": "The full syntax and pipeline tests pass. The checker verifies one carrier for both law operands and refuses incompatible types. The Boolean sampler follows the actual checked instance fields. A lawful instance passes both assignments, and a faulty implementation is rejected by name. Other carriers and checked law transport remain open. Category also needs the structural Functor_Function instance.",
+        "detail": "The pipeline and interface-writer groups passed audit. A lawful Boolean implementation reports two checked samples, an unlawful one refuses by name, and the unsampled function carrier is explicitly reported as unchecked. General sampling and imported law declarations remain open.",
         "doneWhen": "Retain and check the original class laws and namespace declarations; pass all original family and law assertions.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-source-class-law-instance-samples-results.json"
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-class-law-observations-results.json"
       },
       {
         "id": "gap:base-names",
@@ -794,10 +794,18 @@
       {
         "id": "gap:structural-projection",
         "title": "Replay anonymous refinement contracts",
-        "state": "recheck",
+        "state": "running",
         "detail": "The original sweep stops on an implicit projection from a structural refinement. Both compilers refuse that expression and accept explicit unrefine. The full replay includes both controls and retains the stronger-predicate refusal.",
         "doneWhen": "The complete anonymous-contract target passes through matching Stage3, including explicit projection and the exact refusal reasons.",
         "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_anonymous_contracts.rs"
+      },
+      {
+        "id": "gap:function-constructor",
+        "title": "Replay higher-kinded function instances",
+        "state": "recheck",
+        "detail": "The structural function constructor passes all three complete development groups. The unchanged Category family and matching final Stage3 still require their own results.",
+        "doneWhen": "The original Category family and higher-kinded tests pass on matching Stage3.",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-structural-arrow-results.json"
       },
       {
         "id": "gap:final-audit",
@@ -18563,14 +18571,14 @@
       },
       {
         "title": "Structural function instances: pipeline, syntax and instance checks",
-        "status": "running",
+        "status": "passed-structural-arrow-frontend",
         "phase": "bootstrap_source_instances",
-        "passed": 2,
+        "passed": 3,
         "failed": 0,
         "total": 3,
         "source": "b655a0a0d31a67be39ff71bc36b4434c4ca0bb9b6b991928f64329efc133bd63",
         "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
-        "auditPending": false
+        "auditPending": true
       },
       {
         "title": "Stage3 anonymous refinements: explicit structural projection",
@@ -18816,35 +18824,53 @@
       },
       {
         "title": "Cinch copyOut: pipeline and runtime IR",
-        "status": "waiting-for-an-existing-worker",
-        "phase": "waiting for an existing worker",
+        "status": "running",
+        "phase": "bootstrap_pipeline",
         "passed": 0,
         "failed": 0,
         "total": 2,
-        "source": "0307593852998f6cf4179ee5685069033a0aad51fe673a877727777ae3884bd5"
+        "source": "03eb8c61195f2126f6fca534d95ce4acd046438a7d7197da9be5765a8bba1648"
       },
       {
         "title": "Cinch class-law samples and counterexamples",
-        "status": "running",
+        "status": "passed-class-law-observation-groups",
         "phase": "bootstrap_export_interfaces",
-        "passed": 1,
+        "passed": 2,
         "failed": 0,
         "total": 2,
         "source": "390867a97984998d814b051dea60c193e7c1d551032160da9302bb6c13b7f5ac"
+      },
+      {
+        "title": "Cinch imported defaults: source admission and two complete groups",
+        "status": "waiting-worker",
+        "phase": "waiting worker",
+        "passed": 0,
+        "failed": 0,
+        "total": 3,
+        "source": "0f0e9b72c4bb81fcb35caa74064fc89aeb4a60b9319836a123b109c5cdc906cd"
+      },
+      {
+        "title": "Unchanged source-library families: structural arrow candidate",
+        "status": "waiting-worker",
+        "phase": null,
+        "passed": 0,
+        "failed": 0,
+        "total": 4,
+        "source": "b655a0a0d31a67be39ff71bc36b4434c4ca0bb9b6b991928f64329efc133bd63"
       }
     ],
     "counts": {
       "verified": 489,
       "blocked": 6,
-      "running": 10,
+      "running": 11,
       "pending": 89,
       "recheck": 79
     },
-    "total": 673,
+    "total": 674,
     "acceptanceVerified": 0,
     "acceptanceTotal": 5,
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T07:07:37.902581+00:00"
+  "updatedAt": "2026-11-07T07:18:22.556756+00:00"
 }
