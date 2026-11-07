@@ -1563,6 +1563,8 @@ fn ensure_runtime() -> Result<std::path::PathBuf> {
     let status = std::process::Command::new("cargo")
         .args(["build", "--manifest-path"])
         .arg(runtime.join("Cargo.toml"))
+        .arg("--target-dir")
+        .arg(runtime.join("target"))
         .status()
         .map_err(|e| Error::plain(format!("failed to build the runtime crate: {e}")))?;
     if !status.success() {

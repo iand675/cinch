@@ -160,7 +160,7 @@ fn staged_sources(dir: &Path, exe: &Path) {
         let diagnostic = std::fs::read_to_string(dir.join("staged.ll.diagnostics")).unwrap_or_default();
         (exit, format!("{diagnostic}{stderr}"))
     };
-    let generated = "module Main where\n  stage bump :: Nat -> Nat\n  stage bump n = n + 2\n  stage count :: Nat\n  stage count = bump 40\n  generate do\n    emit (quoteDecls where\n      result :: Nat\n      result = $(quoteNat count))\n  main :: Int\n  main = if result == 42 then 0 else 1\n";
+    let generated = "module Main where\n  stage bump :: Nat -> Nat\n  stage bump n = n + 2\n  stage count :: Nat\n  stage count = bump 40\n  generate do\n    emit (quoteDecls where\n      result :: Nat\n      result = $(quoteNat count))\n  main :: Int\n  main = if result == 42 && result / 2 == 21 then 0 else 1\n";
     let (exit, diagnostic) = run("--check", generated);
     assert_eq!(exit, Some(0), "stage-checked generation: {diagnostic}");
     let (exit, diagnostic) = run("--emit-ir", generated);
@@ -177,6 +177,14 @@ fn staged_sources(dir: &Path, exe: &Path) {
     let report = String::from_utf8_lossy(&ran.stderr);
     assert_eq!(ran.status.code(), Some(0), "execute the checked generated declaration: {report}");
     assert!(report.contains("live=0 immortal=0 leaked=0"), "{report}");
+
+    let guarded = "module Main where\n  divide :: Nat -> Nat -> Nat\n  divide value divisor = if divisor == 0 then 0 else value / divisor\n  main :: Int\n  main = 0\n";
+    let (exit, diagnostic) = run("--check", guarded);
+    assert_eq!(exit, Some(0), "nonzero divisor from the actual branch: {diagnostic}");
+    let unchecked = guarded.replace("if divisor == 0 then 0 else ", "");
+    let (exit, diagnostic) = run("--check", &unchecked);
+    assert_eq!(exit, Some(4), "unguarded divisor: {diagnostic}");
+    assert!(diagnostic.contains("division needs checked NonZero evidence"), "{diagnostic}");
 
     let shadowed = generated.replacen("  stage bump ::", "  stage quoteNat :: Nat -> Nat\n  stage quoteNat n = n\n  stage bump ::", 1);
     let (exit, diagnostic) = run("--check", &shadowed);

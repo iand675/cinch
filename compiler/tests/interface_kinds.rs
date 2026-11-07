@@ -101,7 +101,9 @@ fn interfaces_preserve_indexed_constructors_and_method_visibility() {
         .methods[0].scheme.push(' ');
     let error = Iface::from_json(&mismatched.to_json()).unwrap_err();
     assert!(error.to_string().contains("class method spelling disagrees with its checked scheme"));
-    assert!(contract.exports.values.iter().find(|v| v.name == "lift").unwrap().scheme.contains("f :: Type -> Type"));
+    let lift = contract.exports.values.iter().find(|v| v.name == "lift").unwrap();
+    assert!(lift.scheme.contains("f :: Type -> Type"));
+    assert_eq!(lift.scheme, lift.resolved.as_ref().unwrap().scheme);
     assert_eq!(mapper.exports, ["Mapper"]);
     assert!(mapper.methods[0].exports.is_empty(), "publishing a class does not publish its private method names");
     let hidden = contract.exports.signatures.iter().find(|s| s.identity == "Contract.Hidden").unwrap();

@@ -8038,6 +8038,7 @@ impl Checker {
         for (name, dom) in &binders {
             let samples = self.law_samples(dom, 2);
             if samples.is_empty() {
+                let dom = self.law_domain_text(dom);
                 self.law_rows.push(row(format!(
                     "not checked (no samples for the law binder `{name} :: {dom}`)"
                 )));
@@ -9105,6 +9106,39 @@ impl Checker {
                 ))
             }
         })
+    }
+
+    // Law observations are hashed into interfaces. Render nominal types by
+    // defining identity, using the same application syntax as the Cinch writer.
+    fn law_domain_text(&self, ty: &Ty) -> String {
+        let (mut head, args) = match ty {
+            Ty::Adt(name, args) if name != "refined" => {
+                let identity = match self.known_type(name) {
+                    Some(kind) if kind.module != "<builtin>" => format!("{}.{}", kind.module, kind.name),
+                    _ => name.clone(),
+                };
+                (identity, args)
+            }
+            Ty::App(head, args) => (self.law_domain_text(head), args),
+            Ty::Tuple(items) => return format!("({})", items.iter()
+                .map(|item| self.law_domain_text(item)).collect::<Vec<_>>().join(", ")),
+            Ty::Fun(domain, Mult::Many, eff, result) if eff.is_pure() => {
+                return format!("({} -> {})", self.law_domain_text(domain), self.law_domain_text(result));
+            }
+            _ => return ty.to_string(),
+        };
+        for arg in args {
+            let rendered = self.law_domain_text(arg);
+            head.push(' ');
+            if matches!(arg, Ty::Adt(_, args) | Ty::App(_, args) if !args.is_empty()) {
+                head.push('(');
+                head.push_str(&rendered);
+                head.push(')');
+            } else {
+                head.push_str(&rendered);
+            }
+        }
+        head
     }
 
     /// Sample values of one law binder type (primitive operations and
@@ -16286,11 +16320,15 @@ impl Checker {
             if let Some(v) = self.qualified.get(&(d.module.clone(), d.name.clone())) {
                 match &v.kind {
                     ValueKind::TopFn | ValueKind::Prim(_) | ValueKind::PrimDecl { .. } | ValueKind::Foreign { .. } | ValueKind::EffectOp { .. } => {
+                        let resolved = self.resolved_interface_scheme(&d.module, &d.name);
+                        let scheme = resolved.as_ref().and_then(|_| self.interface_source_schemes
+                            .get(&(d.module.clone(), d.name.clone())).and_then(|source| source.display.clone()))
+                            .unwrap_or_else(|| render_scheme(&v.scheme));
                         iface.exports.values.push(ValueExport {
                             name: local.clone(),
                             total_body: self.interface_value_body(v),
-                            scheme: render_scheme(&v.scheme),
-                            resolved: self.resolved_interface_scheme(&d.module, &d.name),
+                            scheme,
+                            resolved,
                             symbol: format!("{}.{}", d.module, d.name),
                             arity: (v.scheme.ty.arity()
                                 + v.scheme.ctx.len()
@@ -16625,9 +16663,11 @@ impl Checker {
         let prefix = format!("{module}.");
         for l in &self.law_rows {
             if l.instance.starts_with(&prefix) {
+                let class = self.class_sigs.get(&l.class).and_then(|sigs| sigs.first())
+                    .map_or_else(|| l.class.clone(), |sig| format!("{}.{}", sig.module, sig.name));
                 iface.laws.push(crate::interface::LawFact {
                     instance: l.instance.clone(),
-                    class: l.class.clone(),
+                    class,
                     law: l.law.clone(),
                     status: l.status.clone(),
                 });

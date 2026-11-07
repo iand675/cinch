@@ -380,8 +380,9 @@ fn source_class_defaults_are_checked_at_the_owner_and_inherited_with_closed_cont
     let expected = Iface::from_json(&expected.to_json()).unwrap();
     assert_eq!(checked.laws.len(), 3);
     assert_eq!(checked.laws, expected.laws);
+    assert!(checked.laws.iter().all(|row| row.class == "Unsampled.Keep"));
     assert!(checked.laws.iter().any(|row| row.status == "not checked (the instance's dictionaries do not resolve)"));
-    assert!(checked.laws.iter().any(|row| row.status == "not checked (no samples for the law binder `x :: Endo a`)"));
+    assert!(checked.laws.iter().any(|row| row.status == "not checked (no samples for the law binder `x :: Unsampled.Endo a`)"));
 
     let recursive_law = r#"module RecursiveLaw where
   signature Repeat a where

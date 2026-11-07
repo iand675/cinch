@@ -29,6 +29,7 @@ pub const SCHEMA_VERSION: u32 = 10;
 /// ABI5 runtimes must not consume these values.
 pub const RUNTIME_ABI_VERSION: u32 = 6;
 pub const LANGUAGE_VERSION: &str = "draft-0.2+amendments";
+const CALLING_CONVENTION: &str = "uniform-word, curried apply stub";
 
 /// A reference to an imported module's interface identity.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -951,7 +952,7 @@ impl Iface {
                 "abi",
                 JsonValue::obj([
                     ("symbols", symbols.into()),
-                    ("convention", "uniform-word, curried apply stub".into()),
+                    ("convention", CALLING_CONVENTION.into()),
                     // Computed layout facts (attribute annotations
                     // specification section 4.3): semantic attributes'
                     // compiled form, part of the contract projection.
@@ -1057,14 +1058,7 @@ impl Iface {
                     .to_string(),
             });
         }
-        // The parameter block's signatures (module parameters as module
-        // arguments); an older document may omit them.
-        let mut params = Vec::new();
-        if let Some(JsonValue::Arr(items)) = obj.get("params") {
-            for v in items {
-                params.push(v.as_str()?.to_string());
-            }
-        }
+        let params = field_list(obj, "params")?;
         let exports_obj = get("exports")?.as_object()?;
         let ex_get = |k: &str| -> Result<&JsonValue, ParseError> {
             exports_obj.get(k).ok_or_else(|| ParseError(format!("missing exports.{k}")))
@@ -1072,14 +1066,15 @@ impl Iface {
         let mut values = Vec::new();
         for item in ex_get("values")?.as_array()? {
             let o = item.as_object().map_err(|_| ParseError("value entry".into()))?;
-            values.push(ValueExport {
+            let value = ValueExport {
                 name: field_str(o, "name")?,
                 scheme: field_str(o, "scheme")?,
                 resolved: field_resolved_scheme(o)?,
                 symbol: field_str(o, "symbol")?,
                 arity: field_num(o, "arity")?,
                 total_body: field_total_body(o)?,
-            });
+            };
+            values.push(value);
         }
         let mut types = Vec::new();
         for item in ex_get("types")?.as_array()? {
@@ -1272,45 +1267,13 @@ impl Iface {
         let mut foreign = Vec::new();
         for item in ex_get("foreign")?.as_array()? {
             let o = item.as_object().map_err(|_| ParseError("foreign entry".into()))?;
-            // A document from before the binding contracts (foreign
-            // function interface specification section 2) carries only
-            // the free-text fields.
-            let (params, result, kind, deallocator) = match o.get("kind") {
-                Some(_) => {
-                    let mut params = Vec::new();
-                    for v in o
-                        .get("params")
-                        .ok_or_else(|| ParseError("foreign params".into()))?
-                        .as_array()?
-                    {
-                        params.push(parse_foreign_param(v)?);
-                    }
-                    (
-                        params,
-                        parse_foreign_param(
-                            o.get("result").ok_or_else(|| ParseError("foreign result".into()))?,
-                        )?,
-                        field_str(o, "kind")?,
-                        field_str(o, "deallocator")?,
-                    )
-                }
-                None => (
-                    Vec::new(),
-                    ForeignParam {
-                        ty: String::new(),
-                        class: "unit".to_string(),
-                        role: "value".to_string(),
-                        allocator: String::new(),
-                        nullable: false,
-                        width: 0,
-                        align: 1,
-                        signed: false,
-                        offsets: Vec::new(),
-                    },
-                    "intrinsic".to_string(),
-                    String::new(),
-                ),
-            };
+            let params = o.get("params")
+                .ok_or_else(|| ParseError("foreign params".into()))?
+                .as_array()?.iter().map(parse_foreign_param)
+                .collect::<Result<Vec<_>, _>>()?;
+            let result = parse_foreign_param(
+                o.get("result").ok_or_else(|| ParseError("foreign result".into()))?,
+            )?;
             foreign.push(ForeignExport {
                 symbol: field_str(o, "symbol")?,
                 abi: field_str(o, "abi")?,
@@ -1318,147 +1281,105 @@ impl Iface {
                 ty: field_str(o, "type")?,
                 effects: field_str(o, "effects")?,
                 notes: field_str(o, "notes")?,
-                kind,
+                kind: field_str(o, "kind")?,
                 params,
                 result,
-                deallocator,
+                deallocator: field_str(o, "deallocator")?,
             });
         }
         let assumptions_obj = get("assumptions")?.as_object()?;
         let as_get = |k: &str| -> Result<&JsonValue, ParseError> {
             assumptions_obj.get(k).ok_or_else(|| ParseError(format!("missing assumptions.{k}")))
         };
-        // The ABI section's layout table (attribute annotations
-        // specification section 4.3); an older document may omit it.
+        let abi = get("abi")?.as_object()?;
+        if field_str(abi, "convention")? != CALLING_CONVENTION {
+            return Err(ParseError("unsupported interface calling convention".into()));
+        }
+        field_list(abi, "symbols")?;
+        let layouts_json = abi.get("layouts").ok_or_else(|| ParseError("missing abi.layouts".into()))?;
         let mut layouts = Vec::new();
-        if let Some(JsonValue::Obj(abi_obj)) = obj.get("abi") {
-            if let Some(JsonValue::Arr(items)) = abi_obj.get("layouts") {
-                for item in items {
-                    let o = item.as_object().map_err(|_| ParseError("layout entry".into()))?;
-                    let mut fields = Vec::new();
-                    for fi in o
-                        .get("fields")
-                        .ok_or_else(|| ParseError("layout fields".into()))?
-                        .as_array()?
-                    {
-                        let fo = fi.as_object().map_err(|_| ParseError("layout field".into()))?;
-                        fields.push(AbiField {
-                            name: field_str(fo, "name")?,
-                            offset: field_num(fo, "offset")?,
-                            size: field_num(fo, "size")?,
-                            align: field_num(fo, "align")?,
-                        });
-                    }
-                    layouts.push(AbiLayout {
-                        name: field_str(o, "type")?,
-                        repr: field_str(o, "repr")?,
-                        size: field_num(o, "size")?,
-                        align: field_num(o, "align")?,
-                        fields,
-                        discriminant: match o.get("discriminant") {
-                            Some(v) => Some(v.as_num()?),
-                            None => None,
-                        },
-                    });
-                }
+        for item in layouts_json.as_array()? {
+            let o = item.as_object().map_err(|_| ParseError("layout entry".into()))?;
+            let mut fields = Vec::new();
+            for fi in o
+                .get("fields")
+                .ok_or_else(|| ParseError("layout fields".into()))?
+                .as_array()?
+            {
+                let fo = fi.as_object().map_err(|_| ParseError("layout field".into()))?;
+                fields.push(AbiField {
+                    name: field_str(fo, "name")?,
+                    offset: field_num(fo, "offset")?,
+                    size: field_num(fo, "size")?,
+                    align: field_num(fo, "align")?,
+                });
             }
+            layouts.push(AbiLayout {
+                name: field_str(o, "type")?,
+                repr: field_str(o, "repr")?,
+                size: field_num(o, "size")?,
+                align: field_num(o, "align")?,
+                fields,
+                discriminant: match o.get("discriminant") {
+                    Some(v) => Some(v.as_num()?),
+                    None => None,
+                },
+            });
         }
-        // Schema compatibility evidence (runtime evolution specification
-        // section 11); an older document may omit it.
         let mut upgrades = Vec::new();
-        if let Some(JsonValue::Arr(items)) = obj.get("upgrades") {
-            for item in items {
-                let o = item.as_object().map_err(|_| ParseError("upgrade entry".into()))?;
-                let mut added = Vec::new();
-                if let Some(JsonValue::Arr(ai)) = o.get("added") {
-                    for a in ai {
-                        let ao = a.as_object().map_err(|_| ParseError("upgrade added".into()))?;
-                        added.push((field_str(ao, "name")?, field_str(ao, "type")?));
-                    }
-                }
-                let mut retyped = Vec::new();
-                if let Some(JsonValue::Arr(ri)) = o.get("retyped") {
-                    for r in ri {
-                        retyped.push(r.as_str()?.to_string());
-                    }
-                }
-                upgrades.push(UpgradeEvidence {
-                    old: field_str(o, "old")?,
-                    new: field_str(o, "new")?,
-                    migrated: match o.get("migrated") {
-                        Some(v) => v.as_bool()?,
-                        None => false,
-                    },
-                    added,
-                    retyped,
-                });
+        for item in get("upgrades")?.as_array()? {
+            let o = item.as_object().map_err(|_| ParseError("upgrade entry".into()))?;
+            let mut added = Vec::new();
+            for entry in o.get("added").ok_or_else(|| ParseError("upgrade added".into()))?.as_array()? {
+                let field = entry.as_object().map_err(|_| ParseError("upgrade added".into()))?;
+                added.push((field_str(field, "name")?, field_str(field, "type")?));
             }
+            upgrades.push(UpgradeEvidence {
+                old: field_str(o, "old")?,
+                new: field_str(o, "new")?,
+                migrated: field_bool(o, "migrated")?,
+                added,
+                retyped: field_list(o, "retyped")?,
+            });
         }
-        // The module's instantiation units (module parameters as module
-        // arguments); an older document may omit them.
         let mut units = Vec::new();
-        if let Some(JsonValue::Arr(items)) = obj.get("units") {
-            for item in items {
-                let o = item.as_object().map_err(|_| ParseError("unit entry".into()))?;
-                units.push(UnitExport {
-                    name: field_str(o, "name")?,
-                    target: field_str(o, "target")?,
-                    args: field_list(o, "args")?,
-                    unit_id: field_str(o, "unit_id")?,
-                });
-            }
+        for item in get("units")?.as_array()? {
+            let o = item.as_object().map_err(|_| ParseError("unit entry".into()))?;
+            units.push(UnitExport {
+                name: field_str(o, "name")?,
+                target: field_str(o, "target")?,
+                args: field_list(o, "args")?,
+                unit_id: field_str(o, "unit_id")?,
+            });
         }
-        // Satisfied safety assertions and the `must-use` rows (attribute
-        // annotations specification section 10; decisions D112 and D114);
-        // an older document may omit them.
         let mut assertions = Vec::new();
-        if let Some(JsonValue::Arr(items)) = obj.get("assertions") {
-            for item in items {
-                let o = item.as_object().map_err(|_| ParseError("assertion entry".into()))?;
-                assertions.push(AssertionFact {
-                    name: field_str(o, "name")?,
-                    facts: field_list(o, "facts")?,
-                });
-            }
+        for item in get("assertions")?.as_array()? {
+            let o = item.as_object().map_err(|_| ParseError("assertion entry".into()))?;
+            assertions.push(AssertionFact {
+                name: field_str(o, "name")?,
+                facts: field_list(o, "facts")?,
+            });
         }
-        let mut must_use = Vec::new();
-        if let Some(JsonValue::Arr(items)) = obj.get("must_use") {
-            for item in items {
-                must_use.push(item.as_str()?.to_string());
-            }
-        }
+        let must_use = field_list(obj, "must_use")?;
         let mut laws = Vec::new();
-        if let Some(JsonValue::Arr(items)) = obj.get("laws") {
-            for item in items {
-                let o = item
-                    .as_object()
-                    .map_err(|_| ParseError("law entry".into()))?;
-                let field = |k: &str| -> Result<String, ParseError> {
-                    o.get(k)
-                        .ok_or_else(|| ParseError(format!("law entry missing {k}")))
-                        .and_then(|v| Ok(v.as_str()?.to_string()))
-                };
-                laws.push(LawFact {
-                    instance: field("instance")?,
-                    class: field("class")?,
-                    law: field("law")?,
-                    status: field("status")?,
-                });
-            }
+        for item in get("laws")?.as_array()? {
+            let o = item.as_object().map_err(|_| ParseError("law entry".into()))?;
+            laws.push(LawFact {
+                instance: field_str(o, "instance")?,
+                class: field_str(o, "class")?,
+                law: field_str(o, "law")?,
+                status: field_str(o, "status")?,
+            });
         }
-        // The temporal contracts (core specification section 10); an
-        // older document may omit them.
         let mut contracts = Vec::new();
-        if let Some(JsonValue::Arr(items)) = obj.get("contracts") {
-            for item in items {
-                let o = item.as_object().map_err(|_| ParseError("contract entry".into()))?;
-                contracts.push(ContractFact {
-                    name: field_str(o, "name")?,
-                    kind: field_str(o, "kind")?,
-                    formula: field_str(o, "formula")?,
-                    assumptions: field_list(o, "assumptions")?,
-                });
-            }
+        for item in get("contracts")?.as_array()? {
+            let o = item.as_object().map_err(|_| ParseError("contract entry".into()))?;
+            contracts.push(ContractFact {
+                name: field_str(o, "name")?,
+                kind: field_str(o, "kind")?,
+                formula: field_str(o, "formula")?,
+                assumptions: field_list(o, "assumptions")?,
+            });
         }
         Ok(Iface {
             schema: schema as u32,
@@ -2431,6 +2352,39 @@ mod tests {
         let wrong = text.replace(&format!("\"schema\":{SCHEMA_VERSION}"), "\"schema\":99");
         assert_ne!(wrong, text, "the schema field was rewritten");
         assert!(Iface::from_json(&wrong).is_err());
+    }
+
+    #[test]
+    fn rejects_incomplete_current_schema_contracts() {
+        let mut iface = sample();
+        iface.upgrades.push(UpgradeEvidence {
+            old: "A".into(), new: "B".into(), migrated: false,
+            added: Vec::new(), retyped: Vec::new(),
+        });
+        let text = iface.to_json();
+        let mut parser = JsonParser { b: text.as_bytes(), i: 0 };
+        let document = parser.parse_value().unwrap();
+        assert!(Iface::from_json(&text).is_ok());
+        let JsonValue::Obj(root) = document else { panic!("interface must be an object") };
+        for key in ["abi", "params", "upgrades", "units", "assertions", "must_use", "laws", "contracts"] {
+            let mut edited = root.clone();
+            assert!(edited.remove(key).is_some());
+            assert!(Iface::from_json(&JsonValue::Obj(edited.clone()).to_canonical_string()).is_err(), "missing {key}");
+            edited.insert(key.into(), JsonValue::Null);
+            assert!(Iface::from_json(&JsonValue::Obj(edited).to_canonical_string()).is_err(), "null {key}");
+        }
+        let mut incomplete = root.clone();
+        let Some(JsonValue::Obj(exports)) = incomplete.get_mut("exports") else { panic!("missing exports") };
+        let Some(JsonValue::Arr(foreign)) = exports.get_mut("foreign") else { panic!("missing foreign table") };
+        let JsonValue::Obj(binding) = &mut foreign[0] else { panic!("missing foreign binding") };
+        binding.remove("kind").unwrap();
+        assert!(Iface::from_json(&JsonValue::Obj(incomplete).to_canonical_string()).is_err());
+
+        let mut incomplete = root;
+        let Some(JsonValue::Arr(upgrades)) = incomplete.get_mut("upgrades") else { panic!("missing upgrades") };
+        let JsonValue::Obj(upgrade) = &mut upgrades[0] else { panic!("missing upgrade") };
+        upgrade.remove("migrated").unwrap();
+        assert!(Iface::from_json(&JsonValue::Obj(incomplete).to_canonical_string()).is_err());
     }
 
     #[test]
