@@ -19720,10 +19720,10 @@
       },
       {
         "title": "Replay Foldable and Category through selected Stage3",
-        "status": "running",
+        "status": "completed-with-stage3-failures",
         "phase": "Each counted target records the selected compiler for every client.",
         "passed": 0,
-        "failed": 1,
+        "failed": 2,
         "total": 2
       },
       {
@@ -19749,5 +19749,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T21:59:33.519090+00:00"
+  "updatedAt": "2026-11-07T22:00:35.517538+00:00"
 }
