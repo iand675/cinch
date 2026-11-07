@@ -19231,8 +19231,8 @@
       },
       {
         "title": "Replay the three programs with both required Functor variants",
-        "status": "waiting-library-variants",
-        "phase": "waiting library variants",
+        "status": "waiting-worker",
+        "phase": "waiting worker",
         "passed": 0,
         "failed": 0,
         "total": 3,
@@ -19429,5 +19429,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T14:31:31.215114+00:00"
+  "updatedAt": "2026-11-07T14:36:53.836262+00:00"
 }
