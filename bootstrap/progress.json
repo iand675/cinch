@@ -19314,10 +19314,10 @@
       },
       {
         "title": "Recheck copied library source before executable linking",
-        "status": "running",
-        "phase": "exact-copy",
+        "status": "completed-overlays-with-failures",
+        "phase": "original-fold",
         "passed": 0,
-        "failed": 0,
+        "failed": 4,
         "total": 4,
         "source": "48ab477424b967601ec509284249f4a9299c25a30f5828f71ee5f0f4e99ecde0"
       },
@@ -19401,8 +19401,8 @@
       },
       {
         "title": "Run every Rust compiler target on the combined fixes",
-        "status": "waiting-worker",
-        "phase": "bootstrap_collections",
+        "status": "running",
+        "phase": "bootstrap_conditional_methods",
         "passed": 18,
         "failed": 0,
         "total": 235,
@@ -19662,5 +19662,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T18:22:23.515047+00:00"
+  "updatedAt": "2026-11-07T18:23:25.739838+00:00"
 }
