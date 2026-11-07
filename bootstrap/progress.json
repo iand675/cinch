@@ -4,28 +4,28 @@
   "status": "Full bootstrap verification remains open",
   "stages": [
     {
-      "name": "Prior API Stage 0",
+      "name": "Stage 0",
       "state": "passed",
-      "label": "Verified",
-      "description": "Pinned Rust seed, independently revalidated and smoke-tested. Separate compiler snapshot; a matching published-source run remains required."
+      "label": "Smoke tests passed",
+      "description": "Verify the pinned Rust seed."
     },
     {
-      "name": "Prior API Stage 1",
-      "state": "passed",
-      "label": "Verified",
-      "description": "Fresh Cinch compiler built from the seed; all three smoke checks. Separate compiler snapshot; a matching published-source run remains required."
+      "name": "Stage 1",
+      "state": "running",
+      "label": "Building",
+      "description": "Build all 46 compiler modules with the Rust seed."
     },
     {
-      "name": "Prior API Stage 2",
-      "state": "passed",
-      "label": "Verified",
-      "description": "Every compiler module will be freshly rebuilt by Stage1 after all repair gates pass. Separate compiler snapshot; a matching published-source run remains required."
+      "name": "Stage 2",
+      "state": "pending",
+      "label": "Pending",
+      "description": "Rebuild the compiler with Stage1."
     },
     {
-      "name": "Prior API Stage 3",
-      "state": "passed",
-      "label": "Fixed point verified",
-      "description": "Fresh rebuild by Stage2, followed by code/interface matching and changed-source checks. Separate compiler snapshot; a matching published-source run remains required."
+      "name": "Stage 3",
+      "state": "pending",
+      "label": "Pending",
+      "description": "Rebuild with Stage2 and audit the fixed point."
     }
   ],
   "checks": [
@@ -543,11 +543,11 @@
       "title": "Earlier source: Changed-source rebuilding verified"
     }
   ],
-  "candidateSource": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+  "candidateSource": "c94c7578197341f7522754b233277945f6b476f2b913826b674831e450dd54e1",
   "candidatePublished": true,
   "fullGoalComplete": false,
-  "summary": "Cinch 5bf127d9 rebuilt itself to matching Stage2 and Stage3 and passed the changed-source check. Its original frontend sweep has 22 of 105 targets passing, 3 failed and 80 still running or queued.",
-  "activity": "The independently audited integrated build is running all 105 frontend targets. Open the test inventory for live failures and the repairs being replayed.",
+  "summary": "Main combines the quantified-law sampler with the corrected compiled library provider.",
+  "activity": "Building stage1. The full suite remains open.",
   "checklist": {
     "version": 1,
     "target": {
@@ -18229,6 +18229,18 @@
     ],
     "active": [
       {
+        "title": "Bootstrap the exact published compiler and corrected library",
+        "status": "running",
+        "phase": "Building stage1",
+        "passed": 1,
+        "failed": 0,
+        "total": 4,
+        "unit": "stages",
+        "source": "c94c7578197341f7522754b233277945f6b476f2b913826b674831e450dd54e1",
+        "auditPending": false,
+        "evidence": null
+      },
+      {
         "title": "Bootstrap the stricter schema 10 candidate",
         "status": "failed",
         "phase": "failed",
@@ -19741,6 +19753,24 @@
         "source": "b655a0a0d31a67be39ff71bc36b4434c4ca0bb9b6b991928f64329efc133bd63"
       },
       {
+        "title": "Check original NonEmpty clients against compiled contracts",
+        "status": "completed-with-structural-refinement-failures",
+        "phase": "reject-empty-forgery",
+        "passed": 0,
+        "failed": 5,
+        "total": 5,
+        "source": "a13871ce4f9fc1b7fb63bb2120b168b0e4f61d6f4fa02a4e5ec2ec2c7c01a2ee"
+      },
+      {
+        "title": "Check pure function constructors against inferred effect rows",
+        "status": "passed-pure-arrow-unification",
+        "phase": "effect-types-3",
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "source": "c62ea43ce546138d58eb8c3647cc09b013ac2252b0c12bcbb529b60d1c52fb10"
+      },
+      {
         "title": "Audit the quantified-law fixed point and original law controls",
         "status": "passed",
         "phase": "Stage2 and Stage3 match. The separate client, changed-source rebuild and all three Stage3 law checks passed with the preceding provider.",
@@ -19762,8 +19792,8 @@
       {
         "title": "Rerun the full Native suite after the clean-build fix",
         "status": "running",
-        "phase": "bootstrap_abstract_nonzero_methods",
-        "passed": 11,
+        "phase": "bootstrap_abstract_nonzero_types",
+        "passed": 12,
         "failed": 0,
         "total": 236,
         "source": "f1bfdca8c79e4299effd20057114ed2e17072108b4fbe6940847c4b208b6eeb1"
@@ -19782,5 +19812,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T22:49:33.945943+00:00"
+  "updatedAt": "2026-11-07T22:51:29.982332+00:00"
 }
