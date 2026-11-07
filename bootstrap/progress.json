@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "121 of 235 complete groups passed; 2 running, 0 failed and 112 pending.Every group includes ignored tests. State: running.",
+      "detail": "123 of 235 complete groups passed; 2 running, 0 failed and 110 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -494,7 +494,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "121 of 235 complete groups passed; 2 running, 0 failed and 112 pending."
+      "detail": "123 of 235 complete groups passed; 2 running, 0 failed and 110 pending."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -790,10 +790,10 @@
         "unit": "targets",
         "total": 235,
         "counts": {
-          "verified": 126,
+          "verified": 128,
           "blocked": 0,
-          "running": 2,
-          "pending": 107,
+          "running": 1,
+          "pending": 106,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -9803,17 +9803,17 @@
           {
             "id": "native:safety",
             "title": "safety",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/safety.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "startedAt": "2026-11-07T00:35:11.209551+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T00:37:03.193289+00:00",
+              "exitCode": 0,
+              "logSha256": "386242ab564000767dd15e23d7265942eb642a56e2b9ddfab816285d094082cd",
               "cases": [
                 {
                   "name": "alloc_once_allows_one_site_and_names_the_violation",
@@ -9865,7 +9865,51 @@
                 },
                 {
                   "name": "no_alloc_accepts_an_allocation_free_body",
-                  "status": "running"
+                  "status": "passed"
+                },
+                {
+                  "name": "no_alloc_names_the_constructor",
+                  "status": "passed"
+                },
+                {
+                  "name": "no_macros_accepts_handwritten_code_and_refuses_expansion",
+                  "status": "passed"
+                },
+                {
+                  "name": "no_raw_ptr_accepts_pointer_free_code_and_refuses_pointers",
+                  "status": "passed"
+                },
+                {
+                  "name": "recursion_none_accepts_a_non_recursive_definition",
+                  "status": "passed"
+                },
+                {
+                  "name": "recursion_none_names_the_recursive_call",
+                  "status": "passed"
+                },
+                {
+                  "name": "recursion_tail_covers_self_and_mutual_groups",
+                  "status": "passed"
+                },
+                {
+                  "name": "recursion_tail_names_the_non_tail_call",
+                  "status": "passed"
+                },
+                {
+                  "name": "result_must_use_rejects_the_bare_discard",
+                  "status": "passed"
+                },
+                {
+                  "name": "stack_bounded_establishes_or_refuses_the_bound",
+                  "status": "passed"
+                },
+                {
+                  "name": "stack_constant_implies_tail_or_non_recursion",
+                  "status": "passed"
+                },
+                {
+                  "name": "stack_constant_names_the_non_tail_call",
+                  "status": "passed"
                 }
               ]
             },
@@ -9874,21 +9918,41 @@
           {
             "id": "native:small_nats",
             "title": "small_nats",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/small_nats.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "startedAt": "2026-11-07T00:35:35.056716+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T00:36:59.341208+00:00",
+              "exitCode": 0,
+              "logSha256": "7d1ae070a8d8ffbff83f25bafe7e97c6bfca0eb2220c26dc9f52efb2f6042006",
               "cases": [
                 {
                   "name": "division_by_an_immediate_takes_a_decided_divisor",
-                  "status": "running"
+                  "status": "passed"
+                },
+                {
+                  "name": "equal_values_agree_as_map_keys_whichever_path_built_them",
+                  "status": "passed"
+                },
+                {
+                  "name": "int_crosses_both_immediate_edges_and_their_negations",
+                  "status": "passed"
+                },
+                {
+                  "name": "nat_crosses_the_immediate_edge_exactly_in_both_directions",
+                  "status": "passed"
+                },
+                {
+                  "name": "nat_from_a_possibly_negative_i64_is_refused_and_the_checked_form_answers",
+                  "status": "passed"
+                },
+                {
+                  "name": "nat_subtraction_on_immediates_takes_its_evidence_from_a_test",
+                  "status": "passed"
                 }
               ]
             },
@@ -9897,17 +9961,17 @@
           {
             "id": "native:stage_code_expectations",
             "title": "stage_code_expectations",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/stage_code_expectations.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:31:33.660416+00:00",
-              "finishedAt": "2026-11-06T14:31:55.785073+00:00",
-              "exitCode": 0,
-              "logSha256": "a76d48633d23f4aafc1fbd0bcfe8741ef41aa423f3d93ea77e5b3b9411439781",
+              "status": "running",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T00:36:59.344722+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "code_application_preserves_its_function_operands_expectation",
@@ -9943,15 +10007,7 @@
                 },
                 {
                   "name": "separate_stage_instantiations_can_choose_different_types",
-                  "status": "passed"
-                },
-                {
-                  "name": "staged_splices_preserve_the_declared_code_carrier",
-                  "status": "passed"
-                },
-                {
-                  "name": "stored_stage_values_preserve_linear_parameter_usage",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -9965,12 +10021,12 @@
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-default-annotation-results.json",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:31:55.794517+00:00",
-              "finishedAt": "2026-11-06T14:32:36.069945+00:00",
-              "exitCode": 0,
-              "logSha256": "11ca970fe39cbac1e82aa5cf4d3416c5e6190ac0e80f78ce73b73ac910c92127",
+              "status": "running",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T00:37:03.195726+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "expansion_provenance_in_error_span",
@@ -9998,75 +10054,7 @@
                 },
                 {
                   "name": "introspect_consistently_rejects_an_inconsistent_document",
-                  "status": "passed"
-                },
-                {
-                  "name": "macro_binder_does_not_capture_caller_name",
-                  "status": "passed"
-                },
-                {
-                  "name": "macro_helper_resolves_at_definition_site",
-                  "status": "passed"
-                },
-                {
-                  "name": "macro_name_members_and_sym_reification_round_trip",
-                  "status": "passed"
-                },
-                {
-                  "name": "multi_module_source_file_compiles_and_runs",
-                  "status": "passed"
-                },
-                {
-                  "name": "multi_module_staging_crosses_modules",
-                  "status": "passed"
-                },
-                {
-                  "name": "name_splice_names_the_generated_declaration",
-                  "status": "passed"
-                },
-                {
-                  "name": "name_splice_outside_a_template_is_refused",
-                  "status": "passed"
-                },
-                {
-                  "name": "quote_decls_splice_produces_checked_declaration",
-                  "status": "passed"
-                },
-                {
-                  "name": "quote_with_typed_splice_evaluates_at_runtime",
-                  "status": "passed"
-                },
-                {
-                  "name": "schema_build_identity_records_the_tool_not_the_credential",
-                  "status": "passed"
-                },
-                {
-                  "name": "schema_column_types_and_codec_coverage_are_explicit",
-                  "status": "passed"
-                },
-                {
-                  "name": "secret_cannot_be_embedded",
-                  "status": "passed"
-                },
-                {
-                  "name": "stage_dependency_cycle_shows_the_cycle",
-                  "status": "passed"
-                },
-                {
-                  "name": "stage_replay_uses_captured_inputs",
-                  "status": "passed"
-                },
-                {
-                  "name": "stage_replay_uses_the_captured_schema",
-                  "status": "passed"
-                },
-                {
-                  "name": "staged_evaluation_runs_recursive_instance_dictionary_methods",
-                  "status": "passed"
-                },
-                {
-                  "name": "with_database_needs_a_configured_introspection_tool",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -18349,8 +18337,8 @@
       {
         "title": "Cinch refined containers: complete groups",
         "status": "running",
-        "phase": "bootstrap_infer",
-        "passed": 4,
+        "phase": "bootstrap_source_instances",
+        "passed": 5,
         "failed": 0,
         "total": 8,
         "source": "a02936ace8ad72c00dcc957d92c3954422a5d2223d8e86c42a9d159061426756",
@@ -18410,8 +18398,8 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "small_nats",
-        "passed": 121,
+        "phase": "staging",
+        "passed": 123,
         "failed": 0,
         "total": 235,
         "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
@@ -18429,10 +18417,10 @@
       }
     ],
     "counts": {
-      "verified": 298,
+      "verified": 300,
       "blocked": 4,
-      "running": 7,
-      "pending": 145,
+      "running": 6,
+      "pending": 144,
       "recheck": 213
     },
     "total": 667,
@@ -18441,5 +18429,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T00:36:14.228593+00:00"
+  "updatedAt": "2026-11-07T00:37:16.198356+00:00"
 }
