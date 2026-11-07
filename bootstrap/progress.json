@@ -663,7 +663,7 @@
         "id": "gap:default-diagnostics",
         "title": "Preserve original class/default diagnostic details and source files",
         "state": "blocked",
-        "detail": "Three original refusal tests still need their exact names and source-file assertions proved. Private7ccd now retains the instance name and declaration span and the undeclared method owner; privatedc46 appends actual file/local-line labels already supplied by project bundles. Original assertions remain, and full source/pipeline/resolver groups are validating.",
+        "detail": "Three original refusal tests still need their exact names and source-file assertions proved. Private7ccd now retains the instance name and declaration span and the undeclared method owner; privatedc46 appends actual file/local-line labels already supplied by project bundles. The7ccd complete source-instance and resolver groups now pass independent audit (four Rust tests, all16 default controls, exact name and declaration-line assertions). The file/local-line renderer and original API filename assertions remain unproved.",
         "doneWhen": "Every original diagnostic and filename assertion passes with accurate attribution to the defining source; semantic rejection alone grants no pass.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-source-class-default-self-values-api-results.json"
       },
@@ -18458,14 +18458,14 @@
         "total": 2,
         "source": "7ccd088f5a00fb1784fbfaee3b3888d7edc4ed531703925c3f78e670048f2cdf",
         "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
-        "auditPending": true
+        "auditPending": false
       },
       {
         "title": "Cinch source-file diagnostics: complete groups",
-        "status": "waiting-optimized-host",
-        "phase": null,
+        "status": "failed",
+        "phase": "bootstrap_pipeline",
         "passed": 0,
-        "failed": 0,
+        "failed": 1,
         "total": 3,
         "source": "dc4651292a96fc2812a5f804b582af2905300b3d25b4dddc7767a9819ca9ee2a",
         "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
@@ -18533,9 +18533,9 @@
       },
       {
         "title": "Cinch structural refinements: original API/default groups",
-        "status": "waiting-shared-worker",
-        "phase": null,
-        "passed": 0,
+        "status": "running",
+        "phase": "interface_class_contracts",
+        "passed": 1,
         "failed": 0,
         "total": 10,
         "source": "a02936ace8ad72c00dcc957d92c3954422a5d2223d8e86c42a9d159061426756",
@@ -18575,5 +18575,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T01:04:04.396448+00:00"
+  "updatedAt": "2026-11-07T01:06:41.592284+00:00"
 }
