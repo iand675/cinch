@@ -1,6 +1,6 @@
 # Packages, manifests, and the registry
 
-<span class="support-tag support-tag--planned">Partial</span> **`cinch pkg add` installs one public release from the registry prototype into a project.** It fetches the bundle, writes its sources under `vendor/`, checks them into `.cinchif` interfaces, emits a native package object and ABI manifest, and updates `.cinchlock`. Version ranges, dependency resolution, private-registry auth, publishing, and SLSA verification are still not implemented.
+<span class="support-tag support-tag--planned">Partial</span> **`cinch pkg add` installs one public release from the registry prototype into a project.** It fetches the bundle, writes its sources under `vendor/`, checks them into `.cinchif` interfaces, emits a native package object and ABI manifest, and updates `.cinchlock`. It also walks registry dependencies using exact versions or caret ranges. Full range intersection, path/git dependencies, private-registry auth, publishing, and SLSA verification are still not implemented.
 
 This chapter separates three things that are easy to confuse:
 
@@ -15,7 +15,7 @@ The [package management design](../design/package-management.md) is the full des
 Packages are currently a source distribution plus a single-release install path. Dependency ranges and resolution are not implemented.
 
 - A project imports module names. The compiler resolves imports against already loaded modules, source files below the entry (including installed packages), and embedded prelude modules under the module rules in [modules and packages](07-modules-and-packages.md).
-- `cinch pkg add NAME@VERSION --registry URL` fetches one public release from the registry prototype. It writes the release under `vendor/<namespace>/<name>/<version>/`, verifies the package identity, checks the sources, writes interfaces under that package's `build/`, emits `package.o` and `package.abi.json`, and records the release in `.cinchlock`.
+- `cinch pkg add NAME@VERSION --registry URL` fetches one public release from the registry prototype. It recursively installs registry dependencies using exact versions or caret ranges, writes each release under `vendor/<namespace>/<name>/<version>/`, verifies its identity, checks its sources, writes interfaces under that package's `build/`, emits `package.o` and `package.abi.json`, and records every release in `.cinchlock`.
 - Installed packages are importable by ordinary project source once the vendor tree is present. The source loader indexes the vendor tree recursively.
 - `cinch check`, `cinch build`, and `cinch run` use the verified package store as a cache for checked interfaces and artifacts. The store is not a resolver and does not choose versions.
 - The compiler embeds a base package manifest, `compiler/prelude/cinch-base.cinchpkg`, which names the embedded modules and their check order. The manifest is data, so the module list is not duplicated in driver code.
@@ -30,7 +30,8 @@ Packages are currently a source distribution plus a single-release install path.
 | Project `.cinchpkg` loading through the CLI | Not implemented |
 | Public registry install with `cinch pkg add` | Available for one release |
 | Vendored source install and package object/interface generation | Available |
-| Version ranges and dependency resolution | Not implemented |
+| Registry dependency closure with exact/caret ranges | Available for public registry dependencies |
+| Full range intersection and path/git dependencies | Not implemented |
 | Private package authentication | Not implemented |
 | Publishing, provenance, and SLSA verification | Not implemented |
 | Registry HTTP prototype | Runnable in `registry/` |

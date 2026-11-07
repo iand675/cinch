@@ -91,10 +91,59 @@ pub fn install(project: &Path, registry: &str, spec: &str) -> Result<Installed> 
         return Err(Error::plain("package version is empty"));
     }
     let registry = registry.trim_end_matches('/');
-    let encoded = name.replace('/', "%2F");
-    let metadata_url = format!("{registry}/api/v1/packages/{encoded}/{version}");
-    let metadata: Value = serde_json::from_slice(&curl(&metadata_url)?)
-        .map_err(|e| Error::plain(format!("registry metadata: {e}")))?;
+    let mut seen: BTreeMap<String, String> = BTreeMap::new();
+    install_recursive(project, registry, name, version, &mut seen)
+}
+
+fn install_recursive(
+    project: &Path,
+    registry: &str,
+    name: &str,
+    version: &str,
+    seen: &mut BTreeMap<String, String>,
+) -> Result<Installed> {
+    if let Some(previous) = seen.get(name) {
+        if previous == version {
+            return existing_install(project, registry, name, version);
+        }
+        return Err(Error::plain(format!(
+            "dependency cycle or version conflict for {name}: {previous} and {version}"
+        )));
+    }
+    seen.insert(name.to_string(), version.to_string());
+    let metadata = fetch_metadata(registry, name, version)?;
+    if let Some(dependencies) = metadata
+        .get("manifest")
+        .and_then(|m| m.get("dependencies"))
+        .and_then(Value::as_array)
+    {
+        for dependency in dependencies {
+            let dep_name = dependency
+                .get("name")
+                .and_then(Value::as_str)
+                .ok_or_else(|| Error::plain("a dependency has no name"))?;
+            if dep_name == "cinch/base" || dep_name == "cinch-base" {
+                continue;
+            }
+            let source = dependency.get("source").and_then(Value::as_str).unwrap_or("registry");
+            if source != "registry" {
+                return Err(Error::plain(format!(
+                    "dependency {dep_name} uses unsupported source {source}; only registry dependencies install today"
+                )));
+            }
+            let dep_version = match dependency.get("version").and_then(Value::as_str) {
+                Some(version) => version.to_string(),
+                None => match dependency.get("range").and_then(Value::as_str) {
+                    Some(range) => resolve_range(registry, dep_name, range)?,
+                    None => resolve_range(registry, dep_name, "*")?,
+                },
+            };
+            if seen.get(dep_name) == Some(&dep_version) {
+                continue;
+            }
+            install_recursive(project, registry, dep_name, &dep_version, seen)?;
+        }
+    }
     let package_id = metadata
         .get("packageId")
         .and_then(Value::as_str)
@@ -110,6 +159,89 @@ pub fn install(project: &Path, registry: &str, spec: &str) -> Result<Installed> 
     let bundle: Value = serde_json::from_slice(&curl(&download_url)?)
         .map_err(|e| Error::plain(format!("registry bundle: {e}")))?;
     install_bundle(project, registry, &package_id, &bundle, metadata.get("files"))
+}
+
+fn fetch_metadata(registry: &str, name: &str, version: &str) -> Result<Value> {
+    let encoded = name.replace('/', "%2F");
+    let url = format!("{registry}/api/v1/packages/{encoded}/{version}");
+    serde_json::from_slice(&curl(&url)?).map_err(|e| Error::plain(format!("registry metadata: {e}")))
+}
+
+fn existing_install(project: &Path, registry: &str, name: &str, version: &str) -> Result<Installed> {
+    let (namespace, package) = name
+        .split_once('/')
+        .ok_or_else(|| Error::plain("package name must be namespace/name"))?;
+    let source_dir = project.join("vendor").join(namespace).join(package).join(version);
+    let object = source_dir.join("package.o");
+    let abi = source_dir.join("package.abi.json");
+    let interfaces = source_dir.join("build");
+    if !object.exists() || !abi.exists() || !interfaces.exists() {
+        return Err(Error::plain(format!(
+            "{name}@{version} is already in the dependency resolution but its artifacts are missing; remove vendor/{namespace}/{package} and retry"
+        )));
+    }
+    Ok(Installed {
+        name: name.to_string(),
+        version: version.to_string(),
+        package_id: String::new(),
+        source_dir,
+        object,
+        abi,
+        interfaces,
+    })
+}
+
+fn resolve_range(registry: &str, name: &str, range: &str) -> Result<String> {
+    let encoded = name.replace('/', "%2F");
+    let url = format!("{registry}/api/v1/packages/{encoded}");
+    let metadata: Value = serde_json::from_slice(&curl(&url)?)
+        .map_err(|e| Error::plain(format!("registry versions for {name}: {e}")))?;
+    let versions = metadata
+        .get("versions")
+        .and_then(Value::as_array)
+        .ok_or_else(|| Error::plain(format!("registry has no versions for {name}")))?;
+    let mut best: Option<(Vec<u64>, String)> = None;
+    for row in versions {
+        let Some(version) = row.get("version").and_then(Value::as_str) else { continue };
+        if row.get("blocked").and_then(Value::as_bool).unwrap_or(false) {
+            continue;
+        }
+        if !matches_range(version, range) {
+            continue;
+        }
+        let key = semver_key(version)?;
+        if best.as_ref().map(|(current, _)| key > *current).unwrap_or(true) {
+            best = Some((key, version.to_string()));
+        }
+    }
+    best.map(|(_, version)| version)
+        .ok_or_else(|| Error::plain(format!("no version of {name} matches {range}")))
+}
+
+fn semver_key(version: &str) -> Result<Vec<u64>> {
+    let core = version.split(['-', '+']).next().unwrap_or(version);
+    let mut parts = core.split('.');
+    let mut key = Vec::new();
+    for _ in 0..3 {
+        let part = parts.next().unwrap_or("0");
+        key.push(part.parse::<u64>().map_err(|_| Error::plain(format!("unsupported version {version}")))?);
+    }
+    Ok(key)
+}
+
+fn matches_range(version: &str, range: &str) -> bool {
+    if range == "*" || range.is_empty() {
+        return true;
+    }
+    if let Some(exact) = range.strip_prefix('=') {
+        return version == exact;
+    }
+    if let Some(caret) = range.strip_prefix('^') {
+        let Ok(want) = semver_key(caret) else { return false };
+        let Ok(got) = semver_key(version) else { return false };
+        return got[0] == want[0] && got >= want;
+    }
+    version == range
 }
 
 /// Install a bundle already fetched from a registry. The bundle shape is
@@ -195,10 +327,11 @@ pub fn install_bundle(
             .map_err(|e| Error::plain(format!("{}: {e}", source_dir.display())))?;
     }
 
-    // A synthetic library root imports every package module. `emit-object`
-    // checks the package, writes its interfaces under build/, and writes the
-    // native object plus physical ABI manifest.
-    let entry = source_dir.join("__cinch_package_root.cinch");
+    // A synthetic library root imports every package module. It lives at the
+    // project root so dependency modules vendored beside the project resolve
+    // through the same recursive source index the project uses. `emit-object`
+    // checks the package and writes its native object plus ABI manifest.
+    let entry = project.join(".cinch-package-root.cinch");
     let mut source = String::from("module CinchPackageRoot where\n");
     for module in &module_names {
         source.push_str(&format!("  import {module}\n"));
@@ -207,9 +340,21 @@ pub fn install_bundle(
         .map_err(|e| Error::plain(format!("{}: {e}", entry.display())))?;
     let object = source_dir.join("package.o");
     let abi = source_dir.join("package.abi.json");
-    driver_opts(Mode::EmitObject, &entry, Some(&object), &DriverOptions::default())
-        .map_err(|e| Error::plain(format!("build package object: {e}")))?;
+    let built = driver_opts(Mode::EmitObject, &entry, Some(&object), &DriverOptions::default());
+    let _ = std::fs::remove_file(&entry);
+    built.map_err(|e| Error::plain(format!("build package object: {e}")))?;
     let interfaces = source_dir.join("build");
+    std::fs::create_dir_all(&interfaces)
+        .map_err(|e| Error::plain(format!("{}: {e}", interfaces.display())))?;
+    let project_build = project.join("build");
+    for module in module_names.iter().map(String::as_str).chain(std::iter::once("CinchPackageRoot")) {
+        let from = project_build.join(format!("{module}.cinchif"));
+        let to = interfaces.join(format!("{module}.cinchif"));
+        if from.exists() {
+            std::fs::copy(&from, &to)
+                .map_err(|e| Error::plain(format!("{}: {e}", to.display())))?;
+        }
+    }
     if !object.exists() || !abi.exists() || !interfaces.exists() {
         return Err(Error::plain("package object emission did not produce its artifacts"));
     }
@@ -414,6 +559,17 @@ mod tests {
             out.push(if chunk.len() > 2 { TABLE[(n & 63) as usize] as char } else { '=' });
         }
         out
+    }
+
+    #[test]
+    fn caret_ranges_select_compatible_majors() {
+        assert!(matches_range("0.1.0", "^0.1.0"));
+        assert!(matches_range("0.9.4", "^0.1.0"));
+        assert!(!matches_range("1.0.0", "^0.1.0"));
+        assert!(matches_range("2.3.1", "^2.0.0"));
+        assert!(!matches_range("3.0.0", "^2.0.0"));
+        assert!(matches_range("0.1.0", "=0.1.0"));
+        assert!(!matches_range("0.1.1", "=0.1.0"));
     }
 
     #[test]
