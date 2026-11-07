@@ -52,6 +52,13 @@ and the original array case with a custom build directory.
 See [the renderer audit](../bootstrap/current-schema10-diagnostic-renderer-results.json)
 and [the scoped interface and law audits](../bootstrap/current-schema10-interface-and-law-suite-results.json).
 
+The Rust checker now follows task captures through local closure aliases
+and direct calls to checked forwarding helpers. All 19 concurrency tests,
+187 compiler unit tests and 15 array tests passed. In the five paired CLI
+cases, the fix refused both hidden mutable captures and preserved the other
+three outcomes. The matching Cinch Stage3 replay remains a separate check.
+See [the Rust task-capture audit](../bootstrap/current-schema10-native-task-capture-results.json).
+
 The schema 9 chain remains a historical checkpoint. Its four stages and
 smoke tests passed, including the Stage2 and Stage3 fixed point, separate
 interface consumer and changed-source test.

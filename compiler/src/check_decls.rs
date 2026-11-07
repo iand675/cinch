@@ -5125,6 +5125,59 @@ impl Checker {
         Ok(())
     }
 
+    fn prepare_task_forwarders(&mut self) {
+        let candidates: Vec<_> = self.top_eqs.iter().filter_map(|(module, name, eq)| {
+            let [ast::Pat::Var(token, _), ast::Pat::Var(callback, _)] = eq.pats.as_slice() else {
+                return None;
+            };
+            let ast::Term::App(head, args, _) = &eq.body else { return None };
+            let [ast::Term::Var(scope), ast::Term::Var(body)] = args.as_slice() else {
+                return None;
+            };
+            let ast::Term::Var(callee) = &**head else { return None };
+            let bound = |use_: &ast::VarPath, param: &ast::Name| {
+                use_.quals.is_empty() && use_.name.text == param.text
+                    && use_.name.local_binding() == param.local_binding()
+                    && use_.name.resolved_binding().is_none()
+                    && use_.name.scoped_reference().is_none()
+                    && use_.name.declaration_binding().is_none()
+            };
+            if !eq.locals.is_empty() || callee.name.text == token.text || callee.name.text == callback.text
+                || !bound(scope, token) || !bound(body, callback)
+                || self.top_eqs.iter().filter(|(m, n, _)| m == module && n == name).count() != 1
+            {
+                return None;
+            }
+            let scheme = self.top_schemes.get(&(module.clone(), name.clone()))?;
+            let Ty::Fun(domain, _, effects, rest) = &scheme.ty else { return None };
+            let Ty::Fun(callback, _, _, result) = &**rest else { return None };
+            if !scheme.val_params.is_empty() || !scheme.ctx.is_empty() || !scheme.obligs.is_empty()
+                || !effects.is_pure()
+                || !matches!(&**domain, Ty::Adt(name, _) if name == "Scope")
+                || !matches!(&**callback, Ty::Fun(..))
+                || !matches!(&**result, Ty::Adt(name, _) if name == "Task")
+            {
+                return None;
+            }
+            Some((module.clone(), fn_id(module, name), (**head).clone()))
+        }).collect();
+        let current = self.current_module.clone();
+        let visible = self.visible.clone();
+        let views = self.scope_views.clone();
+        self.task_forwarders.clear();
+        for (module, id, head) in candidates {
+            self.build_scope(&module, true);
+            if self.conc_builtin(&Env::default(), &head)
+                .is_some_and(|value| matches!(value.kind, ValueKind::Prim(PrimOp::Conc(ConcOp::Spawn))))
+            {
+                self.task_forwarders.insert(id);
+            }
+        }
+        self.current_module = current;
+        self.visible = visible;
+        self.scope_views = views;
+    }
+
     fn check_bodies(&mut self, module: &str, prelude_name: &str) -> Result<()> {
         self.build_scope(module, true);
         let _ = prelude_name;
@@ -6756,12 +6809,15 @@ impl Checker {
         let saved = self.code_quantifiers.clone();
         let saved_annotations = std::mem::take(&mut self.body_annotation_scope);
         let annotation_aliases = self.method_annotation_aliases.take();
+        let saved_forwarder = self.checking_task_forwarder;
+        self.checking_task_forwarder = self.task_forwarders.contains(id);
         if self.compile_time {
             self.stage_definition_scopes.insert(id.0.clone(), (scheme.clone(), Scheme::mono(Ty::Unit)));
         }
         let result = self.check_equations_inner(name, id, scheme, eqs, extra_dicts, annotation_aliases);
         self.code_quantifiers = saved;
         self.body_annotation_scope = saved_annotations;
+        self.checking_task_forwarder = saved_forwarder;
         result
     }
 
@@ -16317,6 +16373,11 @@ impl Checker {
         };
         surface.sort_by(|a, b| a.0.cmp(&b.0));
         for (local, d) in &surface {
+            // Until the interface carries checked transfer obligations, a
+            // direct forwarding helper is callable only from source.
+            if !self.task_forwarders.is_empty() && self.task_forwarders.contains(&fn_id(&d.module, &d.name)) {
+                continue;
+            }
             if let Some(v) = self.qualified.get(&(d.module.clone(), d.name.clone())) {
                 match &v.kind {
                     ValueKind::TopFn | ValueKind::Prim(_) | ValueKind::PrimDecl { .. } | ValueKind::Foreign { .. } | ValueKind::EffectOp { .. } => {
@@ -17194,6 +17255,7 @@ fn check_program_multi_full_impl(
     // recorded layouts (foreign function interface specification
     // section 2).
     c.build_foreign_contracts()?;
+    c.prepare_task_forwarders();
     // The prelude family compiles first: its functions and instances run
     // during compile-time evaluation.
     for p in &family {
@@ -17224,6 +17286,7 @@ fn check_program_multi_full_impl(
     // Generated declarations may declare types with representations.
     c.compute_layouts()?;
     c.build_foreign_contracts()?;
+    c.prepare_task_forwarders();
     for m in modules {
         c.check_bodies(&m.name.text, &prelude_name)
             .map_err(|e| in_named_module(&c.module_files, &m.name.text, e))?;

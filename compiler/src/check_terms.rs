@@ -291,8 +291,8 @@ impl Checker {
                     eb.clone(),
                     conc_result_ty(&x, &a),
                 );
-                // A literal task body runs exactly once on its thread; an
-                // opaque closure keeps the discipline it was defined with.
+                // A literal task body runs exactly once on its thread.
+                // A previously built closure retains its original captures.
                 let lam = matches!(&args[1], ast::Term::Lam(_, _, _));
                 let outer = self
                     .scope_frames
@@ -306,7 +306,7 @@ impl Checker {
                         lam: self.lam_depth + 1,
                         task: true,
                         scope: s.clone(),
-                        outer,
+                        outer: outer.clone(),
                     });
                 }
                 let bcore = self.check(env, &args[1], &body_ty);
@@ -314,6 +314,10 @@ impl Checker {
                     self.oneshot_frames.pop();
                 }
                 let bcore = bcore?;
+                if !lam {
+                    self.note_spawned_closure(&bcore, &s, &outer, args[1].span(), &env.dicts,
+                                              self.checking_task_forwarder)?;
+                }
                 // Spawning makes the body's effects the spawning scope's
                 // responsibility (section 3).
                 self.perform(&EffRow {
@@ -549,7 +553,7 @@ impl Checker {
 
     /// Direct calls receive preconditions from the exact instantiation that
     /// produced their callee, including type, index, row and evidence bindings.
-    fn infer_variable(&mut self, env: &mut Env, p: &ast::VarPath) -> Result<(ECore, Ty, Vec<PropOblig>)> {
+    fn infer_variable(&mut self, env: &mut Env, p: &ast::VarPath, call_arity: usize) -> Result<(ECore, Ty, Vec<PropOblig>)> {
         if p.quals.is_empty()
             && self.is_builtin_form(env, &p.name)
         {
@@ -603,6 +607,14 @@ impl Checker {
             }
         }
         let v = self.resolve_var(p, p.span())?;
+        if matches!(v.kind, ValueKind::Prim(PrimOp::Conc(ConcOp::Spawn))) {
+            return Err(Error::at(p.span(), "spawn must be applied directly to check the task callback"));
+        }
+        if call_arity != 2 && !self.task_forwarders.is_empty()
+            && self.task_forwarders.contains(&fn_id(&v.module, &v.name))
+        {
+            return Err(Error::at(p.span(), "a task forwarding helper must be fully applied in its source compilation"));
+        }
         if matches!(v.kind, ValueKind::EffectOp { .. }) {
             return self.operation_function_value(env, p, &v, p.span()).map(|(core, ty)| (core, ty, Vec::new()));
         }
@@ -691,7 +703,7 @@ impl Checker {
                 *span,
                 "typed holes are not supported in the bootstrap slice",
             )),
-            ast::Term::Var(p) => self.infer_variable(env, p).map(|(core, ty, _)| (core, ty)),
+            ast::Term::Var(p) => self.infer_variable(env, p, 0).map(|(core, ty, _)| (core, ty)),
             ast::Term::Con(p) => {
                 // A capitalized module parameter (`Seq :: ResultSequencing
                 // ConfigError`) is an ordinary binding of the module scope:
@@ -775,20 +787,22 @@ impl Checker {
                 let inferred = match &**f {
                     ast::Term::Var(path) => {
                         let scope = self.compile_time.then(|| self.code_quantifiers.clone());
-                        self.infer_variable(env, path).map(|(core, ty, obligations)|
-                            (self.code_expectation(core, &ty, path.span(), scope), ty, obligations))
+                        self.infer_variable(env, path, args.len()).map(|(core, ty, obligations)| {
+                            let forwarder = matches!(&core, ECore::Global(id, _) if self.task_forwarders.contains(id));
+                            (self.code_expectation(core, &ty, path.span(), scope), ty, obligations, forwarder)
+                        })
                     }
-                    _ => self.infer(env, f).map(|(core, ty)| (core, ty, Vec::new())),
+                    _ => self.infer(env, f).map(|(core, ty)| (core, ty, Vec::new(), false)),
                 };
                 self.app_callee_depth = saved_depth;
-                let (mut core, mut ty, callee_obligs) = inferred?;
+                let (mut core, mut ty, callee_obligs, forwarder) = inferred?;
                 // A callee that writes memory at an unknown target (a
                 // foreign call, `eval`, a mutating `Bytes` primitive) is an
                 // opaque write that invalidates all mutable-location
                 // evidence (evidence invalidation over mutable state).
                 self.note_opaque_write_from(&core, *span);
                 let mut call_args: Vec<(Option<ITerm>, Ty, ast::Span)> = Vec::new();
-                for a in args {
+                for (position, a) in args.iter().enumerate() {
                     ty = self.uni.zonk(&ty);
                     let prefix_ty = ty.clone();
                     // Only a direct global carries a temporal call-step identity.
@@ -856,6 +870,29 @@ impl Checker {
                             ));
                         }
                     };
+                    if forwarder && position == 1 {
+                        let Some((_, scope_ty, _)) = call_args.first() else {
+                            return Err(Error::at(*span, "task forwarding requires a checked scope argument"));
+                        };
+                        let scope_ty = self.uni.zonk(scope_ty);
+                        let Ty::Adt(owner, regions) = &scope_ty else {
+                            return Err(Error::at(*span, "task forwarding requires a checked scope argument"));
+                        };
+                        let [Ty::Region(_), Ty::Region(scope)] = regions.as_slice() else {
+                            return Err(Error::at(*span, "task forwarding requires a checked scope argument"));
+                        };
+                        let Some(callback) = &arg_core else {
+                            return Err(Error::at(a.span(), "task forwarding requires an executable callback"));
+                        };
+                        if owner != "Scope" {
+                            return Err(Error::at(*span, "task forwarding requires a checked scope argument"));
+                        }
+                        let scope = self.uni.resolve_region(scope);
+                        let outer = self.scope_frames.iter().rev()
+                            .find(|frame| frame.region == scope)
+                            .map(|frame| frame.outer.clone()).unwrap_or_default();
+                        self.note_spawned_closure(callback, &scope, &outer, a.span(), &env.dicts, false)?;
+                    }
                     if let Some(c) = arg_core {
                         core = app_spine(core, vec![c]);
                     }
@@ -4219,6 +4256,53 @@ impl Checker {
             let original = self.value_aliases.get(original).copied().unwrap_or(*original);
             self.value_aliases.insert(local, original);
         }
+        if matches!(core, ECore::Lam { .. }) {
+            let mut captures = Vec::new();
+            free_locals(core, &mut Vec::new(), &mut captures);
+            self.local_closure_captures.insert(local, captures);
+        }
+    }
+
+    fn note_spawned_closure(
+        &mut self, core: &ECore, scope: &str, outer: &[String], span: ast::Span,
+        dicts: &[(LocalId, ClassApp)], forwarded_parameter: bool,
+    ) -> Result<()> {
+        let unknown = || Error::at(span, "a task callback crosses the task boundary without shareable evidence");
+        let mut captures = Vec::new();
+        match core {
+            ECore::Lam { .. } => free_locals(core, &mut Vec::new(), &mut captures),
+            ECore::Var(local) => {
+                let origin = self.value_aliases.get(local).unwrap_or(local);
+                let Some(known) = self.local_closure_captures.get(origin) else {
+                    return if forwarded_parameter { Ok(()) } else { Err(unknown()) };
+                };
+                captures.extend(known);
+            }
+            _ => return Err(unknown()),
+        }
+        let mut seen = HashSet::new();
+        while let Some(local) = captures.pop() {
+            let origin = self.value_aliases.get(&local).copied().unwrap_or(local);
+            if !seen.insert(origin) { continue }
+            if let Some(nested) = self.local_closure_captures.get(&origin) {
+                captures.extend(nested);
+                continue;
+            }
+            let Some(binding) = self.obligations.get(&origin) else { continue };
+            self.task_captures.push(TaskCapture {
+                binder: origin,
+                name: binding.name.clone(),
+                ty: binding.ty.clone(),
+                span,
+                dicts: dicts.to_vec(),
+                scope: scope.to_string(),
+                scopes: self.scope_frames.iter().map(|frame| frame.region.clone()).collect(),
+                active: self.active_regions.clone(),
+                outer: outer.to_vec(),
+                transfer_allowed: false,
+            });
+        }
+        Ok(())
     }
 
     /// Give equal runtime values the same current lexical spelling while

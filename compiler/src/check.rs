@@ -2446,6 +2446,8 @@ struct TaskCapture {
     active: Vec<String>,
     /// The memo regions that predate the task's scope.
     outer: Vec<String>,
+    /// Direct one-shot task bodies may transfer a linear or affine capture.
+    transfer_allowed: bool,
 }
 
 /// Region names a type mentions in `Ref`/`Mut` borrow positions, with
@@ -3121,6 +3123,12 @@ struct Checker {
     /// Task-capture sites of the definition being checked, validated at
     /// its end (concurrency specification section 3).
     task_captures: Vec<TaskCapture>,
+    /// Free locals of known closures before local aliases erase their shape.
+    local_closure_captures: HashMap<LocalId, Vec<LocalId>>,
+    /// Source definitions whose entire body directly forwards its parameters
+    /// to the task kernel. The call site checks their capture obligation.
+    task_forwarders: HashSet<GlobalId>,
+    checking_task_forwarder: bool,
     /// Record-projection path accumulated for a `Proj` operand place.
     place_path: Vec<String>,
     /// User-declared effects by name (`effect L where ...`).
@@ -3705,6 +3713,9 @@ impl Checker {
             oneshot_frames: Vec::new(),
             scope_frames: Vec::new(),
             task_captures: Vec::new(),
+            local_closure_captures: HashMap::new(),
+            task_forwarders: HashSet::new(),
+            checking_task_forwarder: false,
             place_path: Vec::new(),
             effects: HashMap::new(),
             effect_bindings: HashMap::new(),
@@ -3871,6 +3882,7 @@ impl Checker {
         self.oneshot_frames.clear();
         self.scope_frames.clear();
         self.task_captures.clear();
+        self.local_closure_captures.clear();
         self.place_path.clear();
         self.conts.clear();
         self.cont_depth = 0;
@@ -4615,6 +4627,7 @@ impl Checker {
                         scopes: self.scope_frames.iter().map(|f| f.region.clone()).collect(),
                         active: self.active_regions.clone(),
                         outer: frame.outer.clone(),
+                        transfer_allowed: true,
                     });
                 } else {
                     // A `withScope` body capture: the borrowed
@@ -4972,7 +4985,7 @@ impl Checker {
                     ));
                 }
             }
-            let transferred = matches!(
+            let transferred = c.transfer_allowed && matches!(
                 self.effective_mult(c.binder),
                 Some(Mult::One) | Some(Mult::Aff)
             );

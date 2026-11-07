@@ -338,6 +338,49 @@ module Main where
 }
 
 #[test]
+fn local_task_callbacks_retain_their_captures_through_aliases() {
+    let opaque = include_str!("../../bootstrap/programs/task-capture-counterexamples/opaque-mutable-capture.cinch");
+    expect_err("opaque-bytes-capture", opaque, "without shareable evidence");
+
+    let aliased = opaque.replace(
+        "in withScope",
+        "in let alias = callback in withScope",
+    ).replace("spawn s callback", "spawn s alias");
+    expect_err("aliased-bytes-capture", &aliased, "without shareable evidence");
+
+    let nested = opaque.replace(
+        "let callback = \\() -> Ok (bytes-len bytes)",
+        "let get-length = \\() -> bytes-len bytes in let callback = \\() -> Ok (get-length ())",
+    );
+    expect_err("transitive-bytes-capture", &nested, "without shareable evidence");
+
+    let safe = aliased.replace("Bytes ->", "Nat ->").replace("bytes-len bytes", "bytes");
+    check_sources(&safe, "safe-task-callback.cinch").expect("aliased callback captures a shareable Nat");
+}
+
+#[test]
+fn source_task_forwarders_check_actual_captures() {
+    let bad = include_str!("../../bootstrap/programs/task-capture-counterexamples/wrapped-mutable-capture.cinch");
+    expect_err("forwarded-bytes-capture", bad, "without shareable evidence");
+    let safe = include_str!("../../bootstrap/programs/task-capture-counterexamples/wrapper-safe.cinch");
+    let run = safe.replace("Bytes ->", "Unit ->").replace(
+        "  main :: Int\n  main = 0",
+        "  main :: Unit ->{Async r, Cancel r, Diverge} Int\n  main u = with (io = newIO ()) in case work () of\n    Ok n -> if n == 42 then 0 else 1\n    Err e -> 2",
+    );
+    expect_ok("forwarded-closed-callback", &run, 0);
+    let (_, interfaces) = cinch::driver::check_sources_ifaces(safe, "source-forwarder.cinch").unwrap();
+    let main = interfaces.iter().find(|iface| iface.module == "Main").unwrap();
+    assert!(!main.exports.values.iter().any(|value| value.name == "fork"));
+    let escaped = safe.replace(
+        "  main :: Int",
+        "  alias :: forall r s x a e. Scope r s -> (Unit ->{|e} Result x a) ->{Async r | e} Task s x a\n  alias = fork\n  main :: Int",
+    );
+    expect_err("first-class-source-forwarder", &escaped, "must be fully applied");
+    let kernel = escaped.replace("alias = fork", "alias = spawn");
+    expect_err("first-class-spawn", &kernel, "spawn must be applied directly");
+}
+
+#[test]
 fn a_thread_shared_memo_cell_is_rejected() {
     // The lazy specification's required rejection case (section 9): a
     // `Lazy` cell is single-threaded by construction and does not cross
