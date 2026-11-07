@@ -1,0 +1,53 @@
+{
+  "all_original_checks_passed": true,
+  "class_identity_cinch_runtime_clients": 2,
+  "class_identity_direct_native_api_refusals": 1,
+  "class_identity_log_sha256": "49a6166535b33ab18927455fc2894b4ff7ece7e7865e6bf833023b16efaaa111",
+  "class_identity_tests": 3,
+  "compiler_sha256": "09af398222f987deb9b35ea8b20fafca82617e7d51b8d381ee6604436811ee8a",
+  "compiler_source_sha256": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+  "contracts": [
+    {
+      "interface_hash": "5005939363362468775",
+      "module": "A",
+      "sha256": "4d2cbc3df505380dd448aeb42ffe816482a35337fefa2bd2fbc34876b00fc2b3"
+    },
+    {
+      "interface_hash": "6180487792175285313",
+      "module": "B",
+      "sha256": "6be25c841a4201525f298ccdf3a036e341174e65569195014cd1556ba11866e7"
+    },
+    {
+      "interface_hash": "17678223894764079246",
+      "module": "Facade",
+      "sha256": "c704231467616fe7a326879ab890c8e978af5bfa1329c00ff151a3aba3a7db90"
+    }
+  ],
+  "definition_owned_fixities": true,
+  "full_goal_complete": false,
+  "identical_and_changed_imported_fixities_refused": true,
+  "independent_runner_clients": [
+    {
+      "binary_sha256": "e558a0565f723441958cf3ea9e36a98f5cc0e876d5f06635254dd0ecd28ab451",
+      "exit_code": 2,
+      "ir_sha256": "9e75c986acb74149c1187d94b8d74a4cafd0f8002bfc75eb7f52ea98b2a7461b",
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "mixed",
+      "zero_leaks": true
+    },
+    {
+      "binary_sha256": "5c441c84eeace22a96162d777da4e7a90a901e1870f8dd54a0708053859cfef6",
+      "exit_code": 0,
+      "ir_sha256": "e2d344c79e6289cd86a736d4feddad0480fa133d2bf53b0518622d387ca6e8f0",
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "passing",
+      "zero_leaks": true
+    }
+  ],
+  "original_acceptance_checks": 14,
+  "result_sha256": "6d52204598c8ec9dce4eae5b1abdadaecfba65874d4e4e2cdb9d8bb3a6c96330",
+  "scope": "Exact independently audited 32ab Stage3 performs all14 original external checks. Both original runner inputs reconstructed byte-for-byte and their physically retained programs independently rerun32M poisoned with exact reports and zero leaks. Three real operator contracts preserve defining identity through renaming/separate facade; both identical and changed imported fixity declarations refuse. Complete original class_identity group passes3 tests:2 actual Cinch runtime clients and1 explicitly classified direct Native API negative, never a client frontend fallback. The current full Stage3 suite, language behavior, and complete Acceptance5 remain separate requirements.",
+  "source_sha256": "f48f72e61717e5de35d3b75cb5fd1f61017bbb68a43636419389a3f7305ffda4",
+  "status": "passed-independent-stage3-external-acceptance",
+  "verified_at": "2026-11-07T05:28:05.046943+00:00"
+}

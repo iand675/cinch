@@ -480,6 +480,13 @@ def build_checklist(root, cfg, previous=None):
                 failed=sum(r.get('status') == 'failed' for r in rows), total=total,
                 source=state.get('compiler_source_sha256'), earlier=title.startswith('Earlier')))
 
+    candidate_external = read(root/'bootstrap/current-partial-boolean-external-acceptance-results.json')
+    if candidate_external.get('status') == 'passed-independent-stage3-external-acceptance':
+        count = candidate_external['original_acceptance_checks']
+        active.append(dict(title='Current candidate: external Stage3 acceptance', status='passed',
+            phase='Independently verified original runtime, fixity and class identity checks',
+            passed=count, failed=0, total=count, source=candidate_external['compiler_source_sha256']))
+
     candidate_frontend = read(cfg.get('currentStage3FrontendValidation'))
     if candidate_frontend:
         rows = candidate_frontend.get('rows', [])
