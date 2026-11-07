@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "227 of 235 complete groups passed; 2 running, 0 failed and 6 pending.Every group includes ignored tests. State: running.",
+      "detail": "227 of 235 complete groups passed; 1 running, 0 failed and 7 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -499,7 +499,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "227 of 235 complete groups passed; 2 running, 0 failed and 6 pending."
+      "detail": "227 of 235 complete groups passed; 1 running, 0 failed and 7 pending."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -805,8 +805,8 @@
         "counts": {
           "verified": 227,
           "blocked": 0,
-          "running": 2,
-          "pending": 6,
+          "running": 1,
+          "pending": 7,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -2955,7 +2955,7 @@
             "observed": {
               "status": "running",
               "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
-              "startedAt": "2026-11-07T04:52:55.894219+00:00",
+              "startedAt": "2026-11-07T05:05:11.715061+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
@@ -3044,21 +3044,29 @@
           {
             "id": "native:bootstrap_total_semantics",
             "title": "bootstrap_total_semantics",
-            "state": "running",
+            "state": "pending",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_total_semantics.rs",
             "observed": {
-              "status": "running",
-              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
-              "startedAt": "2026-11-07T04:57:02.867261+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "status": "passed",
+              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "startedAt": "2026-11-06T23:24:17.810571+00:00",
+              "finishedAt": "2026-11-06T23:26:01.404425+00:00",
+              "exitCode": 0,
+              "logSha256": "01dadc20252081444970b8bf35cbb65c183df7b14b145d61abbaf5bd0df34ce8",
               "cases": [
                 {
                   "name": "compiled_cinch_method_facts_require_the_actual_selected_implementation",
-                  "status": "running"
+                  "status": "passed"
+                },
+                {
+                  "name": "compiled_cinch_reads_closed_bodies_without_inventing_unknown_branch_results",
+                  "status": "passed"
+                },
+                {
+                  "name": "compiled_cinch_reflects_only_actual_numeric_equations",
+                  "status": "passed"
                 }
               ]
             },
@@ -19240,7 +19248,7 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "bootstrap_total_semantics",
+        "phase": "bootstrap_source_refinements",
         "passed": 227,
         "failed": 0,
         "total": 235,
@@ -19260,8 +19268,8 @@
     "counts": {
       "verified": 481,
       "blocked": 4,
-      "running": 10,
-      "pending": 14,
+      "running": 9,
+      "pending": 15,
       "recheck": 162
     },
     "total": 671,
@@ -19270,5 +19278,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T05:03:06.091874+00:00"
+  "updatedAt": "2026-11-07T05:05:28.174543+00:00"
 }
