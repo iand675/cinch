@@ -19314,8 +19314,8 @@
       },
       {
         "title": "Recheck copied library source before executable linking",
-        "status": "waiting-worker",
-        "phase": "build all 46 compiler modules and smoke-test Stage1",
+        "status": "running",
+        "phase": "exact-copy",
         "passed": 0,
         "failed": 0,
         "total": 4,
@@ -19401,9 +19401,9 @@
       },
       {
         "title": "Run every Rust compiler target on the combined fixes",
-        "status": "running",
+        "status": "waiting-worker",
         "phase": "bootstrap_collections",
-        "passed": 17,
+        "passed": 18,
         "failed": 0,
         "total": 235,
         "source": "1a7e275f0519f670012f993304a975446020a814dc62bad21ec9244117a64d25"
@@ -19662,5 +19662,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T18:21:01.276217+00:00"
+  "updatedAt": "2026-11-07T18:22:23.515047+00:00"
 }
