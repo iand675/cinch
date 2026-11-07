@@ -23,8 +23,8 @@
     },
     {
       "name": "Stage 3",
-      "state": "running",
-      "label": "Rebuilding",
+      "state": "passed",
+      "label": "Matches Stage2",
       "description": "Rebuild with Stage2 and check the fixed point."
     }
   ],
@@ -547,7 +547,7 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "Schema 10 is the sole compiled-interface format on main. Rust, Cinch and the bootstrap verifier passed the cutover checks. The library producer rebuilt all 55 interfaces.",
-  "activity": "The repaired Stage2 built all 46 compiler modules and passed its smoke tests. Stage3 is rebuilding the same sources.",
+  "activity": "Stage3 matches Stage2 and passed its smoke tests and separate client. The changed-source control is running.",
   "checklist": {
     "version": 1,
     "target": {
@@ -19314,6 +19314,16 @@
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-stage2-results.json"
       },
       {
+        "title": "Verify Stage2 and Stage3 agree on the repaired compiler",
+        "status": "passed",
+        "phase": "Executables, LLVM IR and 46 interfaces agree. Stage3 passed the smoke tests and a separate client.",
+        "passed": 1,
+        "failed": 0,
+        "total": 1,
+        "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-stage3-agreement-results.json"
+      },
+      {
         "title": "Verify the consolidated library, runtime and tooling",
         "status": "passed",
         "phase": "All 55 interfaces, the Stage1 client, 171 runtime tests and 42 tooling tests passed.",
@@ -19555,5 +19565,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T16:08:13.459987+00:00"
+  "updatedAt": "2026-11-07T16:13:45.071135+00:00"
 }
