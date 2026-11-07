@@ -977,11 +977,27 @@ def build_checklist(root, cfg, previous=None):
     integrated = read(cfg.get('schema10IntegratedLibraryConsumers'))
     if integrated:
         rows = integrated['rows']
+        phase = integrated.get('phase') or 'Waiting for the Stage1 build'
+        first_round = next(iter(integrated['rounds']), {})
+        roots = first_round.get('added', {})
+        if roots:
+            phase += f". Round one requested {len(roots['units'])} functions, {len(roots['dictionaries'])} factories and {len(roots['methods'])} method variants."
         active.append(dict(title='Replay original Foldable and Category with the compiled library',
-            status=integrated['status'], phase=integrated.get('phase') or 'Waiting for the Stage1 build',
+            status=integrated['status'], phase=phase,
             passed=sum(row['status']=='passed' for row in rows),
             failed=sum(row['status']=='failed' for row in rows), total=2, unit='original test targets',
             source=integrated['compiler_source_sha256']))
+    for key, title, total in (
+            ('schema10CombinedArrowRefinement', 'Replay the original higher-kinded and NonEmpty clients', 6),
+            ('schema10CheckedStringWord', 'Run String equality and Foldable against the expanded object', 5)):
+        probe = read(cfg.get(key))
+        if probe:
+            rows = [row for row in probe['rows'] if row['name'] != 'build-runtime-object-emitter']
+            active.append(dict(title=title, status=probe['status'],
+                phase=probe.get('phase') or 'Waiting for the compiler build',
+                passed=sum(row['status']=='passed' for row in rows),
+                failed=sum(row['status']=='failed' for row in rows), total=total, unit='client cases',
+                source=probe['compiler_source_sha256']))
     private_runtime_path = 'bootstrap/current-schema10-private-runtime-library-results.json'
     private_runtime = read(root / private_runtime_path)
     if private_runtime.get('status') == 'audited-private-representation-and-compiled-library':
