@@ -1,0 +1,15 @@
+{
+  "compiler_source_sha256": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+  "exe_emitted": false,
+  "exhaustion_bytes": 268435481,
+  "full_goal_complete": false,
+  "heap_limit": "256M",
+  "ir_emitted": false,
+  "matching_stage2_stage3_interfaces": 44,
+  "stage2_compiler_sha256": "09af398222f987deb9b35ea8b20fafca82617e7d51b8d381ee6604436811ee8a",
+  "stage3_exit": 73,
+  "stage3_log_sha256": "46d3276c295947d78c19018e4b7ca206d28f7ce18a92bca3126656cdb15f16c7",
+  "stage3_manifest_sha256": "2c1638edfa9f18ab8ef763aafe2eb877d5e4bca1b77f73ee1758b02d7bfed285",
+  "status": "verified-stage3-heap-exhaustion",
+  "verified_at": "2026-11-07T04:44:25.078470+00:00"
+}

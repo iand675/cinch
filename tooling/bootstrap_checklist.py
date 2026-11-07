@@ -349,6 +349,7 @@ def build_checklist(root, cfg, previous=None):
     for key, title in [
         ('partialBooleanBootstrapChain', 'Fresh Stage0 through Stage3 rebuild'),
         ('partialBooleanBootstrapPrior', 'Earlier Stage2 attempt before the library specialization'),
+        ('partialBooleanBootstrapHeapPrior', 'Earlier Stage3 attempt at 256 MiB'),
     ]:
         next_chain = read(cfg.get(key))
         if not next_chain:
@@ -360,7 +361,12 @@ def build_checklist(root, cfg, previous=None):
             phase=('Waiting for the compiler/object tests, the own-source check, and the nine component targets'
                    if status == 'waiting-matching-development-gates'
                    else 'Stage2 requested the missing Data.List.list-length [R] library specialization'
-                   if key == 'partialBooleanBootstrapPrior' else status.replace('-', ' ')),
+                   if key == 'partialBooleanBootstrapPrior'
+                   else 'Stage3 exhausted the 256 MiB heap after emitting 44 matching interfaces'
+                   if key == 'partialBooleanBootstrapHeapPrior'
+                   else 'Building Stage3 with a 512 MiB heap after the verified 256 MiB exhaustion'
+                   if status == 'building-stage3' and next_chain.get('heap_limit') == '512M'
+                   else status.replace('-', ' ')),
             passed=sum(stage['status'] == 'passed' for stage in next_chain.get('stages', [])),
             failed=int(status.startswith('failed')),
             total=4,

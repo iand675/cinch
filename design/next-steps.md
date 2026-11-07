@@ -119,7 +119,11 @@ that exact root retains all 55 interface files and the runtime archive bytes.
 Stage1 used that object to rebuild all 44 Cinch modules into runnable Stage2.
 Stage2 passed the Fibonacci, precedence and named-refusal smoke tests. The
 independent receipt verifies the 44 interface files, exact inputs, generated
-IR and executable hashes. Stage3 is building. See
+IR and executable hashes. Stage3's first run at 256 MiB emitted all 44
+interfaces byte for byte with Stage2 and then exhausted its heap before
+writing LLVM. A retry uses the exact same inputs and a 512 MiB cap in one
+worker slot. See `bootstrap/current-partial-boolean-stage3-heap-results.json`.
+See
 `bootstrap/current-partial-boolean-stage2-results.json`. See also
 `bootstrap/current-partial-boolean-precondition-results.json` and
 `bootstrap/current-partial-boolean-input-results.json`. See also
