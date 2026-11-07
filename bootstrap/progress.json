@@ -2766,7 +2766,7 @@
               "cases": [
                 {
                   "name": "source_decisions_preserve_predicates_and_check_authority",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -14357,6 +14357,14 @@
                 },
                 {
                   "name": "named_observation_refinements_check_the_defining_carrier_even_when_unused",
+                  "status": "passed"
+                },
+                {
+                  "name": "primitive_index_witness_executes_the_operation_not_a_missing_global",
+                  "status": "passed"
+                },
+                {
+                  "name": "primitive_indices_check_result_carriers_and_arity",
                   "status": "running"
                 }
               ]
@@ -19237,5 +19245,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T04:31:34.851596+00:00"
+  "updatedAt": "2026-11-07T04:32:36.814330+00:00"
 }
