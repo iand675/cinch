@@ -627,9 +627,9 @@
         "id": "gap:prelude",
         "title": "Replace source copies of library modules safely",
         "state": "blocked",
-        "detail": "The integrated Stage3 passed the original Core family and reached Ordering, where the inherited mconcat implementation is unavailable. Category and Algebra still need matching results.",
+        "detail": "The Core family passed. Schema 9 transports the inherited Ordering default. The Cinch writer now matches Rust on class type and layout rows and keeps instance factories in the instance table. The Category instance head and display scheme still need matching output.",
         "doneWhen": "Core, Ordering, Category and Algebra replacements pass with fresh checked provider hashes, valid consumer chains and no Prelude back-edge.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-stage3-arrays-and-library-overrides-results.json"
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-class-interface-exports-results.json"
       },
       {
         "id": "gap:source-defaults",
@@ -762,10 +762,10 @@
       {
         "id": "gap:staging",
         "title": "Finish staging and namespace behavior",
-        "state": "blocked",
-        "detail": "Exact candidate Stage3 reports an unsupported declaration before checking whether arrayReplicate is available at compile time.",
+        "state": "running",
+        "detail": "The development parser passes the complete syntax target with checked staging nodes and splices. The evaluator still needs to issue the named arrayReplicate refusal and expand valid generators.",
         "doneWhen": "Preserve original sources and expected named refusals; execute the matching staging and language suites.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-stage3-arrays-and-library-overrides-results.json"
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-staging-surface-results.json"
       },
       {
         "id": "gap:hidden-types",
@@ -18854,6 +18854,33 @@
         "source": "8959030d54643c5c4c2898e4e1b389930f084753b1d7424c23d02f8c228dd918"
       },
       {
+        "title": "Category: class type and dictionary export parity",
+        "status": "passed-class-interface-parity-validation",
+        "phase": "bootstrap_export_interfaces",
+        "passed": 1,
+        "failed": 0,
+        "total": 1,
+        "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854"
+      },
+      {
+        "title": "Rust: preserve the structural arrow in instance contracts",
+        "status": "running",
+        "phase": "interface_kinds",
+        "passed": 1,
+        "failed": 0,
+        "total": 2,
+        "source": "dc2dd19280f2e51d07e7b2995d40ddc230a8265eeb1e6e75446249cd51e1e0f0"
+      },
+      {
+        "title": "Cinch staging syntax",
+        "status": "passed",
+        "phase": "The complete syntax target checks staged declarations, generation and splices",
+        "passed": 1,
+        "failed": 0,
+        "total": 1,
+        "source": "790919e4a23ae78e263027070c1f13cfca0b4de8ec357f7fbaeee69738cb6e17"
+      },
+      {
         "title": "Schema 9: Native owner to Cinch consumer",
         "status": "passed",
         "phase": "Cinch inherits the checked default from the Native artifact and its authenticated dependencies",
@@ -18892,8 +18919,8 @@
     ],
     "counts": {
       "verified": 489,
-      "blocked": 5,
-      "running": 10,
+      "blocked": 4,
+      "running": 11,
       "pending": 91,
       "recheck": 79
     },
@@ -18903,5 +18930,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T09:26:23.926808+00:00"
+  "updatedAt": "2026-11-07T09:30:19.233345+00:00"
 }
