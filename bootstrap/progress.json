@@ -19175,8 +19175,8 @@
       },
       {
         "title": "Run all 34 original language examples with schema 10 Stage3",
-        "status": "waiting-shared-worker",
-        "phase": "waiting shared worker",
+        "status": "running",
+        "phase": "running",
         "passed": null,
         "failed": null,
         "total": 34,
@@ -19316,5 +19316,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T13:47:54.814544+00:00"
+  "updatedAt": "2026-11-07T13:49:36.835798+00:00"
 }
