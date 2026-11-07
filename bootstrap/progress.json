@@ -19132,10 +19132,10 @@
       },
       {
         "title": "Stage3 anonymous refinements: explicit structural projection",
-        "status": "running",
+        "status": "failed",
         "phase": "bootstrap_anonymous_contracts",
         "passed": 0,
-        "failed": 0,
+        "failed": 1,
         "total": 1,
         "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
         "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
@@ -19395,5 +19395,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T06:46:29.017391+00:00"
+  "updatedAt": "2026-11-07T06:48:51.591605+00:00"
 }
