@@ -18619,9 +18619,9 @@
       },
       {
         "title": "Core branch compiler: its own44 source modules",
-        "status": "running",
+        "status": "passed",
         "phase": "self-check44",
-        "passed": 0,
+        "passed": 1,
         "failed": 0,
         "total": 1,
         "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
@@ -18630,10 +18630,10 @@
       },
       {
         "title": "Diagnostic byte scan: large-bundle control and full pipeline",
-        "status": "running",
+        "status": "failed",
         "phase": "bootstrap_pipeline",
         "passed": 1,
-        "failed": 0,
+        "failed": 1,
         "total": 2,
         "source": "03d1790a4b4d9e1d1bcd0b702ff3cab7c04b9da865de2d84f696886d6da38d18",
         "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
@@ -18641,8 +18641,8 @@
       },
       {
         "title": "Constructor display: interface and nominal tests",
-        "status": "waiting-worker",
-        "phase": null,
+        "status": "running",
+        "phase": "bootstrap_export_interfaces",
         "passed": 0,
         "failed": 0,
         "total": 2,
@@ -18836,5 +18836,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T03:10:52.879399+00:00"
+  "updatedAt": "2026-11-07T03:12:14.905512+00:00"
 }
