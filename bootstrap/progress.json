@@ -624,7 +624,7 @@
     "gaps": [
       {
         "id": "gap:prelude",
-        "title": "Replace source copies of library modules safely",
+        "title": "Check interface hashes when rebuilding library source",
         "state": "blocked",
         "detail": "The Ordering comparison found differences in instance headers, the direct Data.Core dependency and law observations. The focused nominal dependency regression passed. Matching the complete original library chain remains open.",
         "doneWhen": "Core, Ordering, Category and Algebra replacements pass with fresh checked provider hashes, valid consumer chains and no Prelude back-edge.",
@@ -19314,7 +19314,7 @@
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-dependent-pattern-and-diagnostics-results.json"
       },
       {
-        "title": "Recheck copied library source before executable linking",
+        "title": "Verify when a source rebuild can reuse the library object",
         "status": "completed-overlays-with-failures",
         "phase": "Core, Algebra and both edit refusals passed. Category differs on one law observation and Foldable cannot see a checked facade value.",
         "passed": 4,
@@ -19324,7 +19324,7 @@
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-executable-source-copy-results.json"
       },
       {
-        "title": "Recheck late library copies with checked facade values",
+        "title": "Check source rebuilds that depend on facade exports",
         "status": "completed-overlays-with-failures",
         "phase": "original-algebra",
         "passed": 4,
@@ -19333,9 +19333,25 @@
         "source": "4b9cc96eb7228d6d8fe8c18b4f4ca3b33519b6f7617763a3a54199fa30ff427f"
       },
       {
-        "title": "Replay the five original library targets with the expanded object",
+        "title": "Run Foldable as a client of the compiled library",
         "status": "waiting-worker",
-        "phase": "lib_function_ord",
+        "phase": "The fixture writes only Main.cinch and retains all 16 cases. The replay uses the audited Stage3 and pinned library interfaces and object.",
+        "passed": 0,
+        "failed": 0,
+        "total": 1
+      },
+      {
+        "title": "Build and test the missing library specializations",
+        "status": "waiting-consumer-demands",
+        "phase": "Waiting for checked Foldable and Function.Combinators requests",
+        "passed": 0,
+        "failed": 0,
+        "total": 2
+      },
+      {
+        "title": "Replay the five original library targets with the expanded object",
+        "status": "running",
+        "phase": "lib_option_result",
         "passed": 0,
         "failed": 1,
         "total": 5,
@@ -19684,5 +19700,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T18:48:12.717138+00:00"
+  "updatedAt": "2026-11-07T18:52:31.363182+00:00"
 }
