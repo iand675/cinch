@@ -29,8 +29,11 @@ original mconcat runtime remain failures. The runtime now gets past inferred
 containers but exposes generic-call result inference forcing NonZero to Int.
 Candidate2866 preserves a structural expected result when hinting a call, while
 comparison-only refinements still hint their container. All17 Native controls
-and the complete original Cinch NamedRefinements target pass; the remaining
-seven whole groups and original runtime replay remain required. Its patch and
+and the complete original Cinch NamedRefinements target pass. The full44-module
+compiler/object gate also passes independent audit:9 tests,17 C clients and50
+zero-leak reports. The remaining complete component groups and original runtime
+replay remain required. See
+`bootstrap/current-refinement-expected-result-compiler-results.json`. Its patch and
 evidence are in `bootstrap/current-refinement-expected-result-development.json`. The
 superseded broad range-preservation assumption and subsequent fixture/cache-guard
 setup errors remain recorded; no original assertion or cache guard was weakened.
