@@ -31,15 +31,9 @@
       "name": "lib_function_ord",
       "original_cases": 9,
       "zero_leak_reports": 9
-    },
-    {
-      "exit_code": 0,
-      "log_sha256": "65f7a196755c9f16e98ff502181b65452c0e1c85dd81a6bc770cb42b2c1c3d06",
-      "name": "lib_foldable",
-      "original_cases": 15,
-      "zero_leak_reports": 15
     }
   ],
   "runtime_sha256": "2fab721751aa601f3ca72d7677f8520e5bdd37d93887275b5636fce478f959c6",
-  "status": "audited-pinned-compiled-library-consumers"
+  "status": "audited-pinned-compiled-library-functions",
+  "verification_scope": "The Function.Combinators harness invoked Stage3 for every case. The Foldable result uses Native and its separate receipt records that scope."
 }

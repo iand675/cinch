@@ -951,18 +951,17 @@ def build_checklist(root, cfg, previous=None):
     if foldable_consumer:
         rows = {row['name']: row['exit_code'] for row in foldable_consumer['rows']}
         completed = rows.get('stage3')
-        active.append(dict(title='Run Foldable as a client of the compiled library',
-            status=foldable_consumer['status'],
-            phase=('The fixture writes only Main.cinch and retains all 15 cases. '
-                   'The replay uses the audited Stage3 and pinned library interfaces and object.'),
+        active.append(dict(title='Run Foldable as a client of the standard library',
+            status='passed' if completed == 0 else foldable_consumer['status'],
+            phase='The single-module fixture passed through Native. The Stage3 replay is tracked separately.',
             passed=int(completed == 0), failed=int(completed is not None and completed != 0), total=1))
     compiled_consumers_path = 'bootstrap/current-schema10-compiled-library-consumer-results.json'
     consumer_audit = read(root / compiled_consumers_path)
     compiled_consumers = read(cfg.get('schema10CompiledLibraryConsumers'))
-    if consumer_audit.get('status') == 'audited-pinned-compiled-library-consumers':
-        active.append(dict(title='Verify the rebuilt library with the original consumers', status='passed',
-            phase='All 55 interface identities match. Stage3 passed nine function cases and 15 Foldable cases. Native passed all 15 Foldable cases.',
-            passed=24, failed=0, total=24, unit='Stage3 cases',
+    if consumer_audit.get('status') == 'audited-pinned-compiled-library-functions':
+        active.append(dict(title='Verify the rebuilt library with the original function consumers', status='passed',
+            phase='All 55 interface identities match. Stage3 passed all nine function cases. Native passed all 15 Foldable cases.',
+            passed=9, failed=0, total=9, unit='Stage3 cases',
             source=consumer_audit['compiler_source_sha256'], evidence=link(compiled_consumers_path)))
     elif compiled_consumers:
         rows = [row for row in compiled_consumers['rows'] if row['name'] in ('lib_function_ord', 'lib_foldable')]

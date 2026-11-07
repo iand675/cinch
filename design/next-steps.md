@@ -15,9 +15,10 @@ The staged compiler links the pinned standard-library object and runtime
 archive. It reads the library's checked interfaces separately. The executable
 source-rebuild checks verify interface dependencies and refuse changed bodies
 when only the old object is available. The Foldable test now writes a
-single client module. All 15 cases passed through Native and the audited
-Stage3 with zero leaks. The pinned library object preserves all 55 checked
-interfaces and includes `both [TTT]` and `swap [TT]`. All nine
+single client module. All 15 cases passed through Native with zero leaks.
+The Stage3 replay requires the external frontend harness. The pinned
+library object preserves all 55 checked interfaces and includes
+`both [TTT]` and `swap [TT]`. All nine
 Function.Combinators cases passed against that object with zero leaks.
 See [the compiled consumer audit](../bootstrap/current-schema10-compiled-library-consumer-results.json).
 The package design calls for materializing missing variants from checked
