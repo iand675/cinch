@@ -19265,6 +19265,15 @@
         "source": "27b293abb19983b96b74a2fed57fcdc298e93989dd2fd7958a73f7f0cf4384aa"
       },
       {
+        "title": "Check closed named proofs and their original runtime example",
+        "status": "waiting-worker",
+        "phase": "waiting worker",
+        "passed": 0,
+        "failed": 0,
+        "total": 2,
+        "source": "103fa1e7b32cb2d01bf6cdebb0ed6a6821398e23f2bcec00e34f474a1169c7e4"
+      },
+      {
         "title": "Probe the original Stage2 source with faster diagnostics",
         "status": "waiting-worker",
         "phase": "emit original stage2 with byte scan",
@@ -19272,6 +19281,16 @@
         "failed": 0,
         "total": 2,
         "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a"
+      },
+      {
+        "title": "Core checks erased Eq witnesses",
+        "status": "passed",
+        "phase": "The full original Core target passed with six additional assertions across all five runtime nonces.",
+        "passed": 1,
+        "failed": 0,
+        "total": 1,
+        "source": "27b293abb19983b96b74a2fed57fcdc298e93989dd2fd7958a73f7f0cf4384aa",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-reflexivity-core-results.json"
       },
       {
         "title": "Stage3 TensorAD with the requested library variants",
@@ -19446,5 +19465,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T14:54:53.606016+00:00"
+  "updatedAt": "2026-11-07T14:59:35.840151+00:00"
 }
