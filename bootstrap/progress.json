@@ -18480,8 +18480,8 @@
       {
         "title": "Cinch structural result inference: complete groups",
         "status": "running",
-        "phase": "bootstrap_source_refinements",
-        "passed": 1,
+        "phase": "bootstrap_refinement_core",
+        "passed": 2,
         "failed": 0,
         "total": 8,
         "source": "286613ea3571aebd6747def34f7a8f9d8af0c84c78e5fee82f9ca65ff90fe7e1",
@@ -18513,8 +18513,8 @@
       {
         "title": "Result-inference source: Native and earlier self-built checks",
         "status": "running",
-        "phase": "native44",
-        "passed": 0,
+        "phase": "earlier-stage3-44",
+        "passed": 1,
         "failed": 0,
         "total": 2,
         "source": "286613ea3571aebd6747def34f7a8f9d8af0c84c78e5fee82f9ca65ff90fe7e1",
@@ -18625,5 +18625,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T01:31:03.854312+00:00"
+  "updatedAt": "2026-11-07T01:32:05.891294+00:00"
 }
