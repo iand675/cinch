@@ -1,0 +1,50 @@
+{
+  "compiler_sha256": "c6b17607f6a6e722695e0e1834d8c1161c6255a83854d97eda922f6c1ecd1a88",
+  "full_goal_complete": false,
+  "native_source_sha256": "3f4110a6687a9b200d15b372602f7331f3f6594a984ed1d310c34f88fc566e2f",
+  "rows": [
+    {
+      "exit_code": 0,
+      "log_sha256": "bb88e72c73a70dcb687122b09bb70f57ae6cc22265e9177413f01c8c20be6c24",
+      "name": "native-build",
+      "status": "passed"
+    },
+    {
+      "exit_code": 17,
+      "log_sha256": "0d631eeced8310ff946654b40d615ec695230b8da02cf72e962b6c939909dcad",
+      "name": "cli-completed",
+      "status": "passed"
+    },
+    {
+      "exit_code": 17,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "cli-pre-existing-scratch",
+      "status": "passed"
+    },
+    {
+      "exit_code": 1,
+      "log_sha256": "73bf75e970c353a165e507caece9e58c4d89c7bbde4530f0f42abd211571c583",
+      "name": "cli-link-failure",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "cli-explicit-build",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "compile-run-helpers",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "run-helpers",
+      "status": "passed"
+    }
+  ],
+  "status": "passed-native-run-cleanup"
+}

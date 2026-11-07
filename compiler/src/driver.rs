@@ -1622,13 +1622,22 @@ fn link_with(ir_path: &Path, out: &Path, objects: &[&str]) -> Result<()> {
     Ok(())
 }
 
-/// Unique scratch directory name for compiled test and run artifacts.
-fn scratch_dir(tag: &str) -> std::path::PathBuf {
+/// Create a fresh directory for one compiled test or run.
+fn scratch_dir(tag: &str) -> Result<std::path::PathBuf> {
     use std::sync::atomic::{AtomicU64, Ordering};
     static COUNTER: AtomicU64 = AtomicU64::new(0);
-    let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+    let root = std::env::temp_dir();
+    std::fs::create_dir_all(&root).map_err(|e| Error::plain(format!("{}: {e}", root.display())))?;
     let pid = std::process::id();
-    std::env::temp_dir().join(format!("cinch-{tag}-{pid}-{n}"))
+    loop {
+        let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+        let path = root.join(format!("cinch-{tag}-{pid}-{n}"));
+        match std::fs::create_dir(&path) {
+            Ok(()) => return Ok(path),
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(e) => return Err(Error::plain(format!("{}: {e}", path.display()))),
+        }
+    }
 }
 
 /// The flags a compile takes that are neither a mode nor a profile.
@@ -1864,12 +1873,10 @@ pub fn driver_with_profile_opts(
             Ok(0)
         }
         Mode::Run => {
-            let tmp = scratch_dir("run");
-            std::fs::create_dir_all(&tmp)
-                .map_err(|e| Error::plain(format!("{}: {e}", tmp.display())))?;
+            let tmp = scratch_dir("run")?;
             let ir_path = tmp.join("program.ll");
             let exe = tmp.join("program");
-            std::fs::write(&ir_path, &ir)
+            std::fs::write(&ir_path, ir)
                 .map_err(|e| Error::plain(format!("{}: {e}", ir_path.display())))?;
             link(&ir_path, &exe)?;
             // The program's own command line (the CLI's forwarded
@@ -1879,6 +1886,7 @@ pub fn driver_with_profile_opts(
                 .args(&opts.program_args)
                 .status()
                 .map_err(|e| Error::plain(format!("{}: {e}", exe.display())))?;
+            let _ = std::fs::remove_dir_all(&tmp);
             Ok(status.code().unwrap_or(1))
         }
     }
@@ -1966,16 +1974,16 @@ pub fn run_program_objects(
     let (program, _opt) = crate::specialize::optimize(program, profile)?;
     let program = crate::rc::insert(program, profile)?;
     let ir = codegen::emit_for(profile, &program)?;
-    let tmp = scratch_dir("test");
-    std::fs::create_dir_all(&tmp).map_err(|e| Error::plain(format!("{}: {e}", tmp.display())))?;
+    let tmp = scratch_dir("test")?;
     let ir_path = tmp.join("program.ll");
     let exe = tmp.join("program");
-    std::fs::write(&ir_path, &ir)
+    std::fs::write(&ir_path, ir)
         .map_err(|e| Error::plain(format!("{}: {e}", ir_path.display())))?;
     link_with(&ir_path, &exe, objects)?;
     let status = std::process::Command::new(&exe)
         .status()
         .map_err(|e| Error::plain(format!("{}: {e}", exe.display())))?;
+    let _ = std::fs::remove_dir_all(&tmp);
     Ok(status.code().unwrap_or(1))
 }
 
@@ -2017,11 +2025,10 @@ pub fn run_program_io(
     let (program, _opt) = crate::specialize::optimize(program, profile)?;
     let program = crate::rc::insert(program, profile)?;
     let ir = codegen::emit_for(profile, &program)?;
-    let tmp = scratch_dir("test");
-    std::fs::create_dir_all(&tmp).map_err(|e| Error::plain(format!("{}: {e}", tmp.display())))?;
+    let tmp = scratch_dir("test")?;
     let ir_path = tmp.join("program.ll");
     let exe = tmp.join("program");
-    std::fs::write(&ir_path, &ir)
+    std::fs::write(&ir_path, ir)
         .map_err(|e| Error::plain(format!("{}: {e}", ir_path.display())))?;
     link_with(&ir_path, &exe, &[])?;
     use std::io::Write;
@@ -2039,6 +2046,7 @@ pub fn run_program_io(
     let out = child
         .wait_with_output()
         .map_err(|e| Error::plain(format!("{}: {e}", exe.display())))?;
+    let _ = std::fs::remove_dir_all(&tmp);
     Ok((
         out.status.code().unwrap_or(1),
         String::from_utf8_lossy(&out.stdout).into_owned(),
