@@ -19323,8 +19323,8 @@
       },
       {
         "title": "Replay the five original library targets with the expanded object",
-        "status": "waiting-worker",
-        "phase": "Waiting for the complete library object",
+        "status": "running",
+        "phase": "lib_function_ord",
         "passed": 0,
         "failed": 0,
         "total": 5,
@@ -19662,5 +19662,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T18:33:02.405779+00:00"
+  "updatedAt": "2026-11-07T18:34:04.588268+00:00"
 }
