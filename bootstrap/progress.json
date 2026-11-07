@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "112 of 235 complete groups passed; 2 running, 0 failed and 121 pending.Every group includes ignored tests. State: running.",
+      "detail": "120 of 235 complete groups passed; 2 running, 0 failed and 113 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -494,7 +494,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "112 of 235 complete groups passed; 2 running, 0 failed and 121 pending."
+      "detail": "120 of 235 complete groups passed; 2 running, 0 failed and 113 pending."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -790,10 +790,10 @@
         "unit": "targets",
         "total": 235,
         "counts": {
-          "verified": 118,
+          "verified": 125,
           "blocked": 0,
-          "running": 1,
-          "pending": 116,
+          "running": 2,
+          "pending": 108,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -9333,12 +9333,12 @@
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-default-annotation-results.json",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "startedAt": "2026-11-07T00:33:31.270498+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T00:34:26.280949+00:00",
+              "exitCode": 0,
+              "logSha256": "6b3b039bff03bde7505886e011be88e22e07b397ebd391b80425fd111799cfad",
               "cases": [
                 {
                   "name": "anonymous_byte_refinement_keeps_outer_telescope_values",
@@ -9410,7 +9410,43 @@
                 },
                 {
                   "name": "signature_predicates_keep_checked_index_carrier_kinds",
-                  "status": "running"
+                  "status": "passed"
+                },
+                {
+                  "name": "sorted_reverse_append_is_rejected_naming_the_preservation_law",
+                  "status": "passed"
+                },
+                {
+                  "name": "stale_witness_cannot_be_constructed",
+                  "status": "passed"
+                },
+                {
+                  "name": "surface_spelling_declares_the_refinement",
+                  "status": "passed"
+                },
+                {
+                  "name": "surface_spelling_refuses_a_wrong_predicate_naming_it",
+                  "status": "passed"
+                },
+                {
+                  "name": "the_bespoke_nonempty_type_is_gone",
+                  "status": "passed"
+                },
+                {
+                  "name": "the_four_refinements_exist_with_their_constructors",
+                  "status": "passed"
+                },
+                {
+                  "name": "total_constructor_returns_option",
+                  "status": "passed"
+                },
+                {
+                  "name": "unprovable_discharge_rejects_naming_it",
+                  "status": "passed"
+                },
+                {
+                  "name": "unprovable_transfers_report_not_checked_honestly",
+                  "status": "passed"
                 }
               ]
             },
@@ -9419,35 +9455,56 @@
           {
             "id": "native:regex",
             "title": "regex",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/regex.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "startedAt": "2026-11-07T00:34:08.738167+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
-              "cases": []
+              "finishedAt": "2026-11-07T00:34:31.905575+00:00",
+              "exitCode": 0,
+              "logSha256": "b4d27c0f86af313d537b0725b9406d6cbcacfb013290771aaff93e913b02c700",
+              "cases": [
+                {
+                  "name": "evil_pattern_is_linear_by_step_count_and_clock",
+                  "status": "passed"
+                },
+                {
+                  "name": "named_refusals_refuse_by_name",
+                  "status": "passed"
+                },
+                {
+                  "name": "pattern_language_matches_and_captures_end_to_end",
+                  "status": "passed"
+                },
+                {
+                  "name": "scanning_and_formatting_utilities",
+                  "status": "passed"
+                },
+                {
+                  "name": "unicode_scalars_flow_through_matching",
+                  "status": "passed"
+                }
+              ]
             },
             "currentTests": null
           },
           {
             "id": "native:repl",
             "title": "repl",
-            "state": "pending",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/repl.rs",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:28:27.387388+00:00",
-              "finishedAt": "2026-11-06T14:28:49.709500+00:00",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T00:34:26.283162+00:00",
+              "finishedAt": "2026-11-07T00:34:49.795871+00:00",
               "exitCode": 0,
-              "logSha256": "e67d724ac398fb2a68049e2abf75273f7581824cb8afe56de938fbe6713f9761",
+              "logSha256": "3912fe413be4185df81b4f515966a5386e14062468c2d2b11063e2d86f42d84f",
               "cases": [
                 {
                   "name": "an_error_shows_its_source_span",
@@ -9484,17 +9541,17 @@
           {
             "id": "native:repr_classes",
             "title": "repr_classes",
-            "state": "pending",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/repr_classes.rs",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:28:49.718469+00:00",
-              "finishedAt": "2026-11-06T14:28:56.468444+00:00",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T00:34:31.907746+00:00",
+              "finishedAt": "2026-11-07T00:34:39.864249+00:00",
               "exitCode": 0,
-              "logSha256": "6be7ae9cd047cef79dae4b61a119ca05350c0c8bd0363c67a2abd4cf0ea8b581",
+              "logSha256": "01c18f3f0faccc5491b8b78061c4513152d9b82fc98caabf8885102bbf9a2615",
               "cases": [
                 {
                   "name": "an_unused_polymorphic_function_has_no_copy",
@@ -9515,17 +9572,17 @@
           {
             "id": "native:runtime_net_prims",
             "title": "runtime_net_prims",
-            "state": "pending",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/runtime_net_prims.rs",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:28:56.476610+00:00",
-              "finishedAt": "2026-11-06T14:29:01.492945+00:00",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T00:34:39.866395+00:00",
+              "finishedAt": "2026-11-07T00:34:45.451903+00:00",
               "exitCode": 0,
-              "logSha256": "2eefb5c3e113a171b428b91526b192064ac67dca6329523245b585aea722b56a",
+              "logSha256": "8809fd8a9d374fe1735d3500e6f6d21f5d7804fc38f1789b17a8ceeffaf46de3",
               "cases": [
                 {
                   "name": "piped_child_streams_cwd_env_exit_code_and_named_errors",
@@ -9542,17 +9599,17 @@
           {
             "id": "native:runtime_prims",
             "title": "runtime_prims",
-            "state": "pending",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/runtime_prims.rs",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:29:01.501637+00:00",
-              "finishedAt": "2026-11-06T14:29:16.013226+00:00",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T00:34:45.454366+00:00",
+              "finishedAt": "2026-11-07T00:35:00.117203+00:00",
               "exitCode": 0,
-              "logSha256": "6bc1966c51e7da7ca6c692ec7486d3133fca51916a9a840131504ba5fbb3f9af",
+              "logSha256": "d43cc6a1e08328f28d0e66b31a8e5f53d8c59598627871d2c9dcdcc3642887fc",
               "cases": [
                 {
                   "name": "crypto_digests_match_published_vectors",
@@ -9585,17 +9642,17 @@
           {
             "id": "native:safe_bytes",
             "title": "safe_bytes",
-            "state": "pending",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/safe_bytes.rs",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:29:16.021104+00:00",
-              "finishedAt": "2026-11-06T14:29:35.373168+00:00",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T00:34:49.798372+00:00",
+              "finishedAt": "2026-11-07T00:35:10.273531+00:00",
               "exitCode": 0,
-              "logSha256": "9f7e1128280a4e337fb30e3c658b7f878c58550aa5d9bfa29a0e0b7836022772",
+              "logSha256": "7ebb5900e8a605cfda5a68235d01ddc5531058ec96ed9922acea0fcaf8a38560",
               "cases": [
                 {
                   "name": "a_byte_value_carries_its_range_both_ways",
@@ -9640,17 +9697,17 @@
           {
             "id": "native:safe_division",
             "title": "safe_division",
-            "state": "pending",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/safe_division.rs",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:29:35.384360+00:00",
-              "finishedAt": "2026-11-06T14:29:44.265033+00:00",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T00:35:00.119901+00:00",
+              "finishedAt": "2026-11-07T00:35:11.207013+00:00",
               "exitCode": 0,
-              "logSha256": "781ba46787c3ef223b057f618d4edb16500b391a9b49a3e180428d2bc3c0f3c3",
+              "logSha256": "0856fef5afdee659c263fa58c07e723614c47e11e8087fa1609ad246a1e01455",
               "cases": [
                 {
                   "name": "a_decided_divisor_runs_both_branches",
@@ -9687,57 +9744,21 @@
           {
             "id": "native:safe_subtraction",
             "title": "safe_subtraction",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/safe_subtraction.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:29:44.272675+00:00",
-              "finishedAt": "2026-11-06T14:30:09.051238+00:00",
-              "exitCode": 0,
-              "logSha256": "4b9b35fe886485d64f1aeb7a08718b5c7d10f6c0a419e4d6b2f5c25a1b9da7c6",
+              "status": "running",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T00:35:10.276194+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "a_guard_supplies_the_evidence",
-                  "status": "passed"
-                },
-                {
-                  "name": "a_qualified_callee_carries_its_obligation",
-                  "status": "passed"
-                },
-                {
-                  "name": "a_signature_obligation_holds_in_its_own_body",
-                  "status": "passed"
-                },
-                {
-                  "name": "an_obligation_after_an_unnamed_argument_names_the_right_one",
-                  "status": "passed"
-                },
-                {
-                  "name": "an_obligation_bearing_function_passed_inside_a_callee_is_refused",
-                  "status": "passed"
-                },
-                {
-                  "name": "an_unguarded_variable_subtraction_is_refused",
-                  "status": "passed"
-                },
-                {
-                  "name": "case_rows_supply_the_evidence",
-                  "status": "passed"
-                },
-                {
-                  "name": "generic_code_cannot_receive_the_nat_instance",
-                  "status": "passed"
-                },
-                {
-                  "name": "numeral_operands_decide_at_compile_time",
-                  "status": "passed"
-                },
-                {
-                  "name": "saturating_and_checked_subtraction_at_the_edges",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -9746,115 +9767,18 @@
           {
             "id": "native:safety",
             "title": "safety",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/safety.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:30:09.061201+00:00",
-              "finishedAt": "2026-11-06T14:31:13.221416+00:00",
-              "exitCode": 0,
-              "logSha256": "dff9538ffbd77348415aac25be4146a8f19d428a7e00677550f27077cc2f7f2e",
-              "cases": [
-                {
-                  "name": "alloc_once_allows_one_site_and_names_the_violation",
-                  "status": "passed"
-                },
-                {
-                  "name": "assert_min_counts_runtime_decides_not_proof_obligations",
-                  "status": "passed"
-                },
-                {
-                  "name": "bounded_claims_name_their_proof_method_or_are_refused",
-                  "status": "passed"
-                },
-                {
-                  "name": "checked_params_accepts_validation_before_use",
-                  "status": "passed"
-                },
-                {
-                  "name": "checked_params_names_the_unchecked_use",
-                  "status": "passed"
-                },
-                {
-                  "name": "contract_facts_hash_assertions_and_must_use_both_ways",
-                  "status": "passed"
-                },
-                {
-                  "name": "deny_warnings_scopes_warn_hash_error_to_the_definition",
-                  "status": "passed"
-                },
-                {
-                  "name": "jpl_profile_rejects_each_rule_and_never_looser",
-                  "status": "passed"
-                },
-                {
-                  "name": "jpl_profile_reports_the_whole_program_summary",
-                  "status": "passed"
-                },
-                {
-                  "name": "manifest_records_the_safety_summary_without_paths",
-                  "status": "passed"
-                },
-                {
-                  "name": "max_complexity_holds_the_boundary",
-                  "status": "passed"
-                },
-                {
-                  "name": "max_lines_holds_the_boundary",
-                  "status": "passed"
-                },
-                {
-                  "name": "no_alloc_accepts_an_allocation_free_body",
-                  "status": "passed"
-                },
-                {
-                  "name": "no_alloc_names_the_constructor",
-                  "status": "passed"
-                },
-                {
-                  "name": "no_macros_accepts_handwritten_code_and_refuses_expansion",
-                  "status": "passed"
-                },
-                {
-                  "name": "no_raw_ptr_accepts_pointer_free_code_and_refuses_pointers",
-                  "status": "passed"
-                },
-                {
-                  "name": "recursion_none_accepts_a_non_recursive_definition",
-                  "status": "passed"
-                },
-                {
-                  "name": "recursion_none_names_the_recursive_call",
-                  "status": "passed"
-                },
-                {
-                  "name": "recursion_tail_covers_self_and_mutual_groups",
-                  "status": "passed"
-                },
-                {
-                  "name": "recursion_tail_names_the_non_tail_call",
-                  "status": "passed"
-                },
-                {
-                  "name": "result_must_use_rejects_the_bare_discard",
-                  "status": "passed"
-                },
-                {
-                  "name": "stack_bounded_establishes_or_refuses_the_bound",
-                  "status": "passed"
-                },
-                {
-                  "name": "stack_constant_implies_tail_or_non_recursion",
-                  "status": "passed"
-                },
-                {
-                  "name": "stack_constant_names_the_non_tail_call",
-                  "status": "passed"
-                }
-              ]
+              "status": "running",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T00:35:11.209551+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "currentTests": null
           },
@@ -18417,8 +18341,8 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "regex",
-        "passed": 112,
+        "phase": "safety",
+        "passed": 120,
         "failed": 0,
         "total": 235,
         "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
@@ -18436,10 +18360,10 @@
       }
     ],
     "counts": {
-      "verified": 290,
+      "verified": 297,
       "blocked": 4,
-      "running": 6,
-      "pending": 154,
+      "running": 7,
+      "pending": 146,
       "recheck": 213
     },
     "total": 667,
@@ -18448,5 +18372,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T00:34:09.597766+00:00"
+  "updatedAt": "2026-11-07T00:35:11.976393+00:00"
 }
