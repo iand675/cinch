@@ -18718,7 +18718,7 @@
         "total": 9,
         "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
         "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
-        "auditPending": true
+        "auditPending": false
       },
       {
         "title": "Core branch repair: complete Native44 source check",
@@ -18821,10 +18821,10 @@
       },
       {
         "title": "Cinch source effects: retain the Blocking label",
-        "status": "failed",
+        "status": "running",
         "phase": "bootstrap_source_effects",
         "passed": 0,
-        "failed": 1,
+        "failed": 0,
         "total": 1,
         "source": "18b6c612b00f0cce16e50d645868efd31dcf627d13be8ae7ac7f18b5a947ddf7",
         "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
@@ -18837,6 +18837,17 @@
         "passed": 0,
         "failed": 1,
         "total": 1,
+        "source": "11076882ef69d26134bedbd894c3619d14e1ba6eb082c1d93c314c8e52589b86",
+        "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+        "auditPending": false
+      },
+      {
+        "title": "Cinch task refusals: retained emitter, runtime setup and whole suite",
+        "status": "waiting-worker",
+        "phase": "bootstrap_runtime_ir",
+        "passed": 0,
+        "failed": 0,
+        "total": 3,
         "source": "11076882ef69d26134bedbd894c3619d14e1ba6eb082c1d93c314c8e52589b86",
         "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
         "auditPending": false
@@ -19027,5 +19038,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T03:44:06.029298+00:00"
+  "updatedAt": "2026-11-07T03:45:11.740152+00:00"
 }
