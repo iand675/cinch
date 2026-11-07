@@ -18648,8 +18648,8 @@
       {
         "title": "Cinch diagnostic origins: original API/default groups",
         "status": "running",
-        "phase": "interface_region_effects",
-        "passed": 7,
+        "phase": "class_defaults",
+        "passed": 8,
         "failed": 1,
         "total": 10,
         "source": "14a889472c7bf47867414410bba2b91bc059a77df5b20e7105eb7274e3cff134",
@@ -18663,7 +18663,17 @@
         "failed": 0,
         "total": 2,
         "source": "286613ea3571aebd6747def34f7a8f9d8af0c84c78e5fee82f9ca65ff90fe7e1",
-        "auditPending": true
+        "auditPending": false
+      },
+      {
+        "title": "Cinch result inference: original API/default groups",
+        "status": "waiting-shared-worker",
+        "phase": null,
+        "passed": 0,
+        "failed": 0,
+        "total": 10,
+        "source": "286613ea3571aebd6747def34f7a8f9d8af0c84c78e5fee82f9ca65ff90fe7e1",
+        "auditPending": false
       },
       {
         "title": "Current compiler: full Rust sweep",
@@ -18699,5 +18709,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T01:54:37.942285+00:00"
+  "updatedAt": "2026-11-07T01:56:01.053309+00:00"
 }
