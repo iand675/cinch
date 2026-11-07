@@ -18538,10 +18538,10 @@
       },
       {
         "title": "Cinch structural refinements: original API/default groups",
-        "status": "running",
+        "status": "completed-with-failures",
         "phase": "class_defaults",
         "passed": 8,
-        "failed": 1,
+        "failed": 2,
         "total": 10,
         "source": "a02936ace8ad72c00dcc957d92c3954422a5d2223d8e86c42a9d159061426756",
         "auditPending": false
@@ -18580,5 +18580,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T01:12:38.498479+00:00"
+  "updatedAt": "2026-11-07T01:13:40.440969+00:00"
 }
