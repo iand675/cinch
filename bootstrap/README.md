@@ -249,9 +249,10 @@ The manifest is JSON: `{"schema":1,"interfaces":[["Module","hash","path"]]}`.
 Paths are absolute or relative to the process's working directory. The
 loader verifies the entire dependency set before source parsing, so
 operator fixities come from checked public interfaces. Resolution retains
-full contracts and defining identities. Schema8 carries definition-site
-schemes, private nominal kinds, class contracts, Region and closed effect
-contexts, exact value-index carriers, refinements and byte observations.
+full contracts and defining identities. Schema 9 carries definition-site
+schemes, private nominal kinds, checked class defaults, Region and closed
+effect contexts, exact value-index carriers, refinements and byte
+observations. Rebuild older interfaces from source.
 Pure polymorphic values and
 regular imported constructors enter checking under those contracts;
 display spellings do not establish a nominal identity. Private constructor
@@ -259,8 +260,9 @@ identities constrain coverage without exposing source names. The loader
 checks their dependency closure and rejects conflicting contracts.
 Imported calls still require the shared runtime
 representation and layout registry and are refused before IR emission.
-The stage runner supplies only checked base-library contracts from the
-verified stage-1 artifacts, never prebuilt compiler modules.
+The stage runner takes its base-library contracts from the pinned
+library-only producer. Each Cinch-built stage generates its compiler
+interfaces from source.
 
 `Bootstrap.Builtin` keeps the IO kernel contracts separate from Prelude's
 public surface, including explicit region kinds, capability requirements,

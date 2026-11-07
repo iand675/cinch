@@ -384,31 +384,6 @@ def runtime_archive() -> Path:
     raise BootstrapError("the verified stage-1 build has no matching pinned runtime archive")
 
 
-def base_interface_manifest() -> dict:
-    stage1 = BUILD / "stage1"
-    record = read_json(stage1 / "stage.json")
-    if not cached(stage1, record.get("inputs", {})):
-        raise BootstrapError("base contracts require a verified stage-1 build")
-    lock, _ = seed_inputs()
-    snapshot_id = digest(json.dumps(lock, sort_keys=True).encode())
-    package = read_json(BUILD / "seed-sources" / snapshot_id / "compiler/prelude/cinch-base.cinchpkg")
-    allowed = {m["name"] for m in package["modules"]} | {"Prelude.Generated"}
-    produced = read_json(stage1 / "sources/build/Main.manifest.json")
-    rows = []
-    for entry in produced["modules"]:
-        name = entry["module"]
-        if name not in allowed:
-            continue
-        path = stage1 / "sources/build" / f"{name}.cinchif"
-        doc = read_json(path)
-        if any(dep["module"] not in allowed for dep in doc["imports"]):
-            raise BootstrapError(f"base contract {name} depends on compiler sources")
-        rows.append([name, entry["iface_hash"], str(path.resolve())])
-    if not rows:
-        raise BootstrapError("the stage-1 build produced no checked base contracts")
-    return {"schema": 1, "interfaces": sorted(rows)}
-
-
 def smoke(stage: int) -> None:
     compiler = build_stage(stage)
     directory = BUILD / "smoke" / f"stage{stage}"

@@ -205,42 +205,6 @@ class BootstrapContract(unittest.TestCase):
             with self.assertRaises(bootstrap.BootstrapError):
                 bootstrap.record_build(directory, {"built_by_stage": 0, "source_sha256": "compiler"}, 0, log)
 
-    def test_base_manifest_excludes_compiler_sources_and_verifies_artifacts(self):
-        with tempfile.TemporaryDirectory() as temp:
-            directory = Path(temp)
-            stage = directory / "stage1"
-            artifacts = stage / "sources/build"
-            artifacts.mkdir(parents=True)
-            lock = {"revision": "fixture"}
-            snapshot = bootstrap.digest(json.dumps(lock, sort_keys=True).encode())
-            package = directory / "seed-sources" / snapshot / "compiler/prelude/cinch-base.cinchpkg"
-            bootstrap.write_json(package, {"modules": [{"name": "Data.Core"}]})
-            bootstrap.write_json(artifacts / "Data.Core.cinchif", {"imports": []})
-            bootstrap.write_json(artifacts / "Bootstrap.Check.cinchif", {"imports": []})
-            bootstrap.write_json(artifacts / "Main.manifest.json", {"modules": [
-                {"module": "Data.Core", "iface_hash": "checked-base-hash"},
-                {"module": "Bootstrap.Check", "iface_hash": "compiler-hash"},
-            ]})
-            (stage / "compiler.cinch").write_text("frozen compiler")
-            compiler = stage / "cinch"
-            compiler.write_text("compiler")
-            compiler.chmod(0o755)
-            log = stage / "build.log"
-            log.write_text("")
-            inputs = {"built_by_stage": 0, "source_sha256": "compiler"}
-            bootstrap.record_build(stage, inputs, 0, log)
-            with patch.object(bootstrap, "BUILD", directory), \
-                    patch.object(bootstrap, "seed_inputs", return_value=(lock, b"")):
-                manifest = bootstrap.base_interface_manifest()
-                self.assertEqual(manifest, {"schema": 1, "interfaces": [[
-                    "Data.Core", "checked-base-hash", str((artifacts / "Data.Core.cinchif").resolve())]]})
-                bootstrap.write_json(artifacts / "Data.Core.cinchif", {"imports": [{"module": "Bootstrap.Check"}]})
-                with self.assertRaisesRegex(bootstrap.BootstrapError, "verified stage-1"):
-                    bootstrap.base_interface_manifest()
-                bootstrap.record_build(stage, inputs, 0, log)
-                with self.assertRaisesRegex(bootstrap.BootstrapError, "depends on compiler sources"):
-                    bootstrap.base_interface_manifest()
-
     def test_successful_link_with_a_broken_compiler_entry_is_not_built(self):
         with tempfile.TemporaryDirectory() as temp:
             directory = Path(temp)

@@ -13,12 +13,11 @@ import bootstrap
 
 class CompilerInterfaceGate(unittest.TestCase):
     def setUp(self):
-        # Produced by the real self-built Cinch writer; only its dependency
-        # list is cleared so the structural tests need no external files.
+        # Produced by Stage2 from a module with no imported contracts.
         self.doc = json.loads((Path(__file__).parent / "fixtures/checked-interface.json").read_text())
 
     def test_actual_writer_contract_and_closed_chain_pass(self):
-        contracts.validate_contract(self.doc, 5)
+        contracts.validate_contract(self.doc, 6)
         child = {**self.doc, "module": "Client", "imports": [
             {"module": "Main", "iface_hash": contracts.interface_hash(self.doc)}]}
         contracts.verify_dependencies({"Main": self.doc, "Client": child}, {})
@@ -26,7 +25,8 @@ class CompilerInterfaceGate(unittest.TestCase):
     def test_placeholder_and_malformed_contracts_are_rejected(self):
         mutations = {
             "placeholder": lambda d: d.clear(),
-            "abi": lambda d: d.update(runtime_abi=6),
+            "abi": lambda d: d.update(runtime_abi=5),
+            "previous-schema": lambda d: d.update(schema=8),
             "schema-bool": lambda d: d.update(schema=True),
             "source": lambda d: d.update(source_hash="not-a-content-hash"),
             "missing-scheme": lambda d: d["exports"]["values"][0].pop("scheme"),
@@ -44,7 +44,7 @@ class CompilerInterfaceGate(unittest.TestCase):
                 doc = copy.deepcopy(self.doc)
                 mutate(doc)
                 with self.assertRaises((KeyError, TypeError, ValueError)):
-                    contracts.validate_contract(doc, 5)
+                    contracts.validate_contract(doc, 6)
 
     def test_dependency_changes_cannot_be_hidden_by_stable_output(self):
         child = {**self.doc, "module": "Client", "imports": [
