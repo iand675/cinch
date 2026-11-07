@@ -18997,10 +18997,10 @@
       },
       {
         "title": "Schema 10: check all 44 compiler modules with the pinned Rust seed",
-        "status": "running",
-        "phase": "running",
+        "status": "failed",
+        "phase": "failed",
         "passed": 0,
-        "failed": 0,
+        "failed": 1,
         "total": 1,
         "source": "c64f3946fa59cfd51aed549b8790b8cce514a92cf50b4f445f0118f749f99bb2"
       },
@@ -19109,5 +19109,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T12:07:54.543259+00:00"
+  "updatedAt": "2026-11-07T12:08:56.492440+00:00"
 }
