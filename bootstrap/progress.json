@@ -547,7 +547,7 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "Schema 10 is the sole compiled-interface format on main. Rust, Cinch and the bootstrap verifier passed the cutover checks. The library producer rebuilt all 55 interfaces.",
-  "activity": "Stage0 and Stage1 passed. The Stage2 probe found two conflicting spellings for the bytes-len type in the pinned library. Repair waiting worker.",
+  "activity": "Stage0 and Stage1 passed. The Stage2 probe found two conflicting spellings for the bytes-len type in the pinned library. Repair waiting disk space.",
   "checklist": {
     "version": 1,
     "target": {
@@ -19230,7 +19230,7 @@
       },
       {
         "title": "Rust task capture, units and arrays on schema 10",
-        "status": "waiting-worker",
+        "status": "waiting-disk-space",
         "phase": "original concurrency",
         "passed": 0,
         "failed": 0,
@@ -19285,7 +19285,7 @@
       },
       {
         "title": "Rebuild the pinned library and rerun the ladder with one bytes-len type spelling",
-        "status": "waiting-worker",
+        "status": "waiting-disk-space",
         "phase": "rebuild pinned library",
         "passed": 0,
         "failed": 0,
@@ -19476,5 +19476,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T15:23:02.296448+00:00"
+  "updatedAt": "2026-11-07T15:24:04.167169+00:00"
 }
