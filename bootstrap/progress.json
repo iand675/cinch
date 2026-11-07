@@ -18793,8 +18793,8 @@
       {
         "title": "Cinch: finite class laws and inherited default closure",
         "status": "running",
-        "phase": "bootstrap_pipeline",
-        "passed": 0,
+        "phase": "bootstrap_source_instances",
+        "passed": 1,
         "failed": 0,
         "total": 2,
         "source": "c272860233cd944125805f27f3fb2521cd48f4c12f74fbc07b55f21f5a9ebb7f"
@@ -18957,5 +18957,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T11:49:03.637855+00:00"
+  "updatedAt": "2026-11-07T11:51:46.196713+00:00"
 }
