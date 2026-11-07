@@ -11935,6 +11935,18 @@
                 },
                 {
                   "name": "normal_program_is_quiet_under_the_guarded_cap",
+                  "status": "failed"
+                },
+                {
+                  "name": "stats_line_counts_list_cells_only_when_asked",
+                  "status": "failed"
+                },
+                {
+                  "name": "the_cap_bounds_live_bytes_not_the_lifetime_total",
+                  "status": "failed"
+                },
+                {
+                  "name": "unbounded_allocation_hits_the_named_cap",
                   "status": "running"
                 }
               ]
@@ -19060,5 +19072,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T12:00:47.470998+00:00"
+  "updatedAt": "2026-11-07T12:01:49.744758+00:00"
 }
