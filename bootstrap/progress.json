@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "120 of 235 complete groups passed; 2 running, 0 failed and 113 pending.Every group includes ignored tests. State: running.",
+      "detail": "121 of 235 complete groups passed; 2 running, 0 failed and 112 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -494,7 +494,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "120 of 235 complete groups passed; 2 running, 0 failed and 113 pending."
+      "detail": "121 of 235 complete groups passed; 2 running, 0 failed and 112 pending."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -790,10 +790,10 @@
         "unit": "targets",
         "total": 235,
         "counts": {
-          "verified": 125,
+          "verified": 126,
           "blocked": 0,
           "running": 2,
-          "pending": 108,
+          "pending": 107,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -9744,21 +9744,57 @@
           {
             "id": "native:safe_subtraction",
             "title": "safe_subtraction",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/safe_subtraction.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "startedAt": "2026-11-07T00:35:10.276194+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T00:35:35.054397+00:00",
+              "exitCode": 0,
+              "logSha256": "21d91b09bb6e2f7fe6dd02c2d3a28e70cee3df6bfe29cab38baee999f7cf7d97",
               "cases": [
                 {
                   "name": "a_guard_supplies_the_evidence",
-                  "status": "running"
+                  "status": "passed"
+                },
+                {
+                  "name": "a_qualified_callee_carries_its_obligation",
+                  "status": "passed"
+                },
+                {
+                  "name": "a_signature_obligation_holds_in_its_own_body",
+                  "status": "passed"
+                },
+                {
+                  "name": "an_obligation_after_an_unnamed_argument_names_the_right_one",
+                  "status": "passed"
+                },
+                {
+                  "name": "an_obligation_bearing_function_passed_inside_a_callee_is_refused",
+                  "status": "passed"
+                },
+                {
+                  "name": "an_unguarded_variable_subtraction_is_refused",
+                  "status": "passed"
+                },
+                {
+                  "name": "case_rows_supply_the_evidence",
+                  "status": "passed"
+                },
+                {
+                  "name": "generic_code_cannot_receive_the_nat_instance",
+                  "status": "passed"
+                },
+                {
+                  "name": "numeral_operands_decide_at_compile_time",
+                  "status": "passed"
+                },
+                {
+                  "name": "saturating_and_checked_subtraction_at_the_edges",
+                  "status": "passed"
                 }
               ]
             },
@@ -9778,48 +9814,81 @@
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "alloc_once_allows_one_site_and_names_the_violation",
+                  "status": "passed"
+                },
+                {
+                  "name": "assert_min_counts_runtime_decides_not_proof_obligations",
+                  "status": "passed"
+                },
+                {
+                  "name": "bounded_claims_name_their_proof_method_or_are_refused",
+                  "status": "passed"
+                },
+                {
+                  "name": "checked_params_accepts_validation_before_use",
+                  "status": "passed"
+                },
+                {
+                  "name": "checked_params_names_the_unchecked_use",
+                  "status": "passed"
+                },
+                {
+                  "name": "contract_facts_hash_assertions_and_must_use_both_ways",
+                  "status": "passed"
+                },
+                {
+                  "name": "deny_warnings_scopes_warn_hash_error_to_the_definition",
+                  "status": "passed"
+                },
+                {
+                  "name": "jpl_profile_rejects_each_rule_and_never_looser",
+                  "status": "passed"
+                },
+                {
+                  "name": "jpl_profile_reports_the_whole_program_summary",
+                  "status": "passed"
+                },
+                {
+                  "name": "manifest_records_the_safety_summary_without_paths",
+                  "status": "passed"
+                },
+                {
+                  "name": "max_complexity_holds_the_boundary",
+                  "status": "passed"
+                },
+                {
+                  "name": "max_lines_holds_the_boundary",
+                  "status": "passed"
+                },
+                {
+                  "name": "no_alloc_accepts_an_allocation_free_body",
+                  "status": "running"
+                }
+              ]
             },
             "currentTests": null
           },
           {
             "id": "native:small_nats",
             "title": "small_nats",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/small_nats.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:31:13.230124+00:00",
-              "finishedAt": "2026-11-06T14:31:33.651716+00:00",
-              "exitCode": 0,
-              "logSha256": "13c45ab1f8082865e8ff18abb2cdb505b1a2da1282f18264e4a21f04d474773a",
+              "status": "running",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T00:35:35.056716+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "division_by_an_immediate_takes_a_decided_divisor",
-                  "status": "passed"
-                },
-                {
-                  "name": "equal_values_agree_as_map_keys_whichever_path_built_them",
-                  "status": "passed"
-                },
-                {
-                  "name": "int_crosses_both_immediate_edges_and_their_negations",
-                  "status": "passed"
-                },
-                {
-                  "name": "nat_crosses_the_immediate_edge_exactly_in_both_directions",
-                  "status": "passed"
-                },
-                {
-                  "name": "nat_from_a_possibly_negative_i64_is_refused_and_the_checked_form_answers",
-                  "status": "passed"
-                },
-                {
-                  "name": "nat_subtraction_on_immediates_takes_its_evidence_from_a_test",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -18341,8 +18410,8 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "safety",
-        "passed": 120,
+        "phase": "small_nats",
+        "passed": 121,
         "failed": 0,
         "total": 235,
         "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
@@ -18360,10 +18429,10 @@
       }
     ],
     "counts": {
-      "verified": 297,
+      "verified": 298,
       "blocked": 4,
       "running": 7,
-      "pending": 146,
+      "pending": 145,
       "recheck": 213
     },
     "total": 667,
@@ -18372,5 +18441,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T00:35:11.976393+00:00"
+  "updatedAt": "2026-11-07T00:36:14.228593+00:00"
 }
