@@ -23,10 +23,13 @@ the same sources and matches Stage2 on the executable, LLVM IR and all 46
 compiler interfaces. Stage3 passed its smoke tests and a separate client.
 The complete byte-observation target passed all three tests, including the
 renamed facade and forged implementation controls. The changed-source control
-is underway.
+also passed. An independent audit checked both artifact closures and confirmed
+that the rebuilt compiler uses the changed source. The complete suite is
+running separately.
 See [the Stage2 refusal and exact inputs](../bootstrap/current-schema10-stage2-byte-observation-results.json)
 [the Stage3 agreement audit](../bootstrap/current-schema10-repaired-stage3-agreement-results.json)
-and [the full byte-observation target](../bootstrap/current-schema10-byte-observation-full-target-results.json).
+[the full byte-observation target](../bootstrap/current-schema10-byte-observation-full-target-results.json)
+and [the independent bootstrap audit](../bootstrap/current-schema10-repaired-bootstrap-results.json).
 
 The development checker passed the complete Core proof test with an erased
 `refl` witness for `Eq`. The added checks reject false equalities,

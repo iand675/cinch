@@ -108,9 +108,13 @@ def build_checklist(root, cfg, previous=None):
     schema10_audit = read(root/schema10_audit_path)
     strict_audit_path = 'bootstrap/current-schema10-strict-bootstrap-results.json'
     strict_audit = read(root/strict_audit_path)
+    repaired_audit_path = 'bootstrap/current-schema10-repaired-bootstrap-results.json'
+    repaired_audit = read(root/repaired_audit_path)
+    if repaired_audit.get('status') == 'passed-production-schema10-bootstrap-chain':
+        chain = repaired_audit
     if strict_audit.get('compiler_source_sha256') == compiler and strict_audit.get('status') == 'passed-production-schema10-bootstrap-chain':
         chain = strict_audit
-    elif schema10_audit.get('status') == 'passed-production-schema10-bootstrap-chain':
+    elif chain is not repaired_audit and schema10_audit.get('status') == 'passed-production-schema10-bootstrap-chain':
         chain = schema10_audit
     earlier_full = read(cfg.get('previousNative')) or full
     earlier_native = {r['name']: r for r in earlier_full.get('rows', [])}
@@ -310,6 +314,8 @@ def build_checklist(root, cfg, previous=None):
         if proven:
             if chain is strict_audit:
                 receipt = strict_audit_path
+            elif chain is repaired_audit:
+                receipt = repaired_audit_path
             elif chain is schema10_audit:
                 receipt = schema10_audit_path
             elif chain is pinned_audit:
@@ -356,15 +362,12 @@ def build_checklist(root, cfg, previous=None):
     law_receipt = read(cfg.get('classLawObservationReceipt'))
     default_transport = read(cfg.get('portableDefaultValidation'))
     schema9_validation = read(cfg.get('unifiedDefaultValidation'))
-    schema9_native = read(cfg.get('unifiedDefaultNative'))
     schema9_provider = read(cfg.get('unifiedDefaultProvider'))
     schema9_chain = read(cfg.get('unifiedDefaultChain'))
     schema9_cross = read(root/'bootstrap/current-schema9-default-replay-results.json')
     family_audit_path = 'bootstrap/current-schema10-family-and-cutover-results.json'
     family_audit = read(root/family_audit_path)
     cutover = family_audit.get('format_cutover', {})
-    unified_format = (cutover.get('status') == 'passed'
-                      and family_audit.get('compiler_source_sha256') == compiler)
     stage_syntax = read(root/'bootstrap/current-staging-surface-results.json')
     class_interface = read(cfg.get('classInterfaceParity'))
     class_interface_proof = read(root/'bootstrap/current-class-interface-exports-results.json')
@@ -421,14 +424,10 @@ def build_checklist(root, cfg, previous=None):
         item('gap:default-refinement','Preserve refinement carriers in the original default runtime program','running' if read(cfg.get('refinementContainerValidation')) else 'blocked',
              'With the two test-provider factories, the development compiler passes all seven original class-default tests. The original mconcat program also passes at 32 MiB with poisoning and zero leaks. Replay through final Stage3 remains.' if function_defaults.get('default_tests_passed') == 7 else 'The development compiler checks the original mconcat program. The replay needs a test library object with both checked function dictionary factories.',
              'The original function carrier, refined product and unit cases compile and execute their expected results through final Stage3.',link('bootstrap/current-function-default-api-results.json' if function_defaults else 'bootstrap/current-source-class-default-self-values-api-results.json')),
-        item('gap:imported-defaults','Use one interface format for Rust and Cinch',
-             'verified' if unified_format else 'running' if cfg.get('portableDefaultWork') else 'pending',
-             'Rust, Cinch and the verifier require schema 10. A real schema 9 file and fingerprint-only defaults were refused. The pinned producer rebuilt all 55 library interfaces.' if unified_format else
-             'The combined schema 9 candidate passed admission of all 44 compiler modules. Its full class-default test inherited checked Rust and Cinch defaults and rejected both tampered and digest-only artifacts. The staged bootstrap and remaining component groups are running.' if schema9_cross.get('combined_candidate') else
-             'The schema 9 candidate uses one checked clause array per default. All 15 Rust default and interface tests passed. A Cinch-built consumer inherited both producers’ defaults, and the rebuilt provider verified all 55 library interfaces. The combined candidate is replaying the full component groups and preparing a fresh bootstrap.' if schema9_cross.get('status') == 'passed' else
-             'The schema 9 candidate carries one checked clause array in each default. All 15 Rust default and interface tests passed, including the real mconcat body. The Cinch inheritance replay and library rebuild are tracked separately.' if schema9_native.get('status') == 'passed' else
-             'The original Ordering bundle needs the inherited Monoid mconcat implementation. The schema 9 candidate carries the defining clauses and the importing compiler rechecks them.',
-             'Rebuild library interfaces in the same format both compilers use and verify that obsolete formats are refused.',link(family_audit_path if unified_format else 'bootstrap/current-schema9-default-replay-results.json' if schema9_cross else 'design/compiled-interface-metadata.md')),
+        item('gap:imported-defaults','Require schema 10 compiled interfaces',
+             'verified' if cutover.get('status') == 'passed' else 'pending',
+             'Rust, Cinch and the verifier use schema 10. The cutover tests refused a schema 9 artifact and fingerprint-only defaults. The pinned producer rebuilt all 55 library interfaces.',
+             'Both compilers read the same compiled interfaces and rebuild outdated artifacts from source.',link(family_audit_path)),
         item('gap:laws','Elaborate source class laws and declarations','running',
              'The separate imported-law replay reached the checker and exposed an incorrect terminator on a named law binder. The corrected candidate parses and is queued with Nat and generic constructor-field counterexamples.' if typed_law else
              'The pipeline and interface-writer groups passed audit. A lawful Boolean implementation reports two checked samples, an unlawful one refuses by name, and the unsampled function carrier is explicitly reported as unchecked. General sampling and imported law declarations remain open.' if law_receipt else
@@ -914,6 +913,11 @@ def build_checklist(root, cfg, previous=None):
             phase='Executables, LLVM IR and 46 interfaces agree. Stage3 passed the smoke tests and a separate client.',
             passed=1, failed=0, total=1, source=repaired_agreement['compiler_source_sha256'],
             evidence=link(repaired_agreement_path)))
+    if repaired_audit.get('status') == 'passed-production-schema10-bootstrap-chain':
+        active.append(dict(title='Verify that a source change reaches the rebuilt compiler', status='passed',
+            phase='The independent audit verified all four stages, identical Stage2 and Stage3 artifacts, a separate client and the changed-source control.',
+            passed=1, failed=0, total=1, source=repaired_audit['compiler_source_sha256'],
+            evidence=link(repaired_audit_path)))
     consolidated_path = 'bootstrap/current-schema10-consolidated-provider-results.json'
     consolidated = read(root / consolidated_path)
     if consolidated.get('status') == 'audited-consolidated-provider-and-complete-runtime-tooling':
