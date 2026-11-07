@@ -547,7 +547,7 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "Schema 10 is the sole compiled-interface format on main. Rust, Cinch and the bootstrap verifier passed the cutover checks. The library producer rebuilt all 55 interfaces.",
-  "activity": "The published schema 10 sources have passed 2 of four build stages. Stage2 is building.",
+  "activity": "Stage0 and Stage1 passed. The Stage2 probe found two conflicting spellings for the bytes-len type in the pinned library. Repair waiting worker.",
   "checklist": {
     "version": 1,
     "target": {
@@ -19276,11 +19276,22 @@
       {
         "title": "Probe the original Stage2 source with faster diagnostics",
         "status": "failed",
-        "phase": "emit original stage2 with byte scan",
+        "phase": "Stage1 refused conflicting type spellings for the imported bytes-len intrinsic.",
         "passed": 1,
         "failed": 1,
         "total": 2,
-        "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a"
+        "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-stage2-byte-observation-results.json"
+      },
+      {
+        "title": "Rebuild the pinned library and rerun the ladder with one bytes-len type spelling",
+        "status": "waiting-worker",
+        "phase": "rebuild pinned library",
+        "passed": 0,
+        "failed": 0,
+        "total": 3,
+        "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
+        "auditPending": false
       },
       {
         "title": "Core checks erased Eq witnesses",
@@ -19465,5 +19476,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T15:18:47.327696+00:00"
+  "updatedAt": "2026-11-07T15:23:02.296448+00:00"
 }
