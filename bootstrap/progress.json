@@ -627,7 +627,7 @@
         "id": "gap:prelude",
         "title": "Replace source copies of library modules safely",
         "state": "blocked",
-        "detail": "The original test passed Core and rechecked Ordering with the inherited default. Relation.Ord still records a different Ordering interface hash. An exact source/interface comparison is in progress.",
+        "detail": "The Ordering comparison found differences in instance headers, the direct Data.Core dependency and law observations. The focused nominal dependency regression passed. Matching the complete original library chain remains open.",
         "doneWhen": "Core, Ordering, Category and Algebra replacements pass with fresh checked provider hashes, valid consumer chains and no Prelude back-edge.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema9-pinned-provider-results.json"
       },
@@ -763,9 +763,9 @@
         "id": "gap:staging",
         "title": "Finish staging and namespace behavior",
         "state": "running",
-        "detail": "The checked evaluator computes a stage function, refuses arrayReplicate by its resolved identity and enforces a shared work budget. The full pipeline and original arrays group still need their matching results.",
+        "detail": "The development compiler generated, linked and ran a typed Nat program with zero leaks. It also refused the unchanged original array case by primitive name and original location. The full staging pipeline and matching arrays group remain open.",
         "doneWhen": "Preserve original sources and expected named refusals; execute the matching staging and language suites.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-staging-evaluation-results.json"
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-staging-expansion-results.json"
       },
       {
         "id": "gap:hidden-types",
@@ -18923,12 +18923,39 @@
       },
       {
         "title": "Cinch: staged generation through the full pipeline",
-        "status": "failed",
-        "phase": "bootstrap_pipeline",
+        "status": "waiting-worker",
+        "phase": "waiting worker",
         "passed": 0,
-        "failed": 1,
+        "failed": 0,
         "total": 1,
         "source": "4ab4a3dd3dc5018c01125756b25d6431ea746d445ae7510073d7b5d5c0075ff9"
+      },
+      {
+        "title": "Cinch: retain defining nominal dependencies",
+        "status": "running",
+        "phase": "bootstrap_export_interfaces",
+        "passed": 1,
+        "failed": 0,
+        "total": 2,
+        "source": "1f4c587652e2e94e5ee97f54fa103c572a82f8096fdd228e286e74be945f72c1"
+      },
+      {
+        "title": "Rust: emit definition-owned instance headers",
+        "status": "waiting-worker",
+        "phase": "waiting worker",
+        "passed": 0,
+        "failed": 0,
+        "total": 2,
+        "source": "25a7dcbb994410f18d5313bd3b742ba9fa544267e0be9089cee5229fb90bd1ad"
+      },
+      {
+        "title": "Cinch: sample class laws over finite constructors",
+        "status": "waiting-worker",
+        "phase": "waiting worker",
+        "passed": 0,
+        "failed": 0,
+        "total": 1,
+        "source": "0946cfda33cdb8572577d530492b792ae5d9b17fede89d59e17e29593917090d"
       },
       {
         "title": "Schema 9: rebuild and check the Git-pinned provider",
@@ -18938,6 +18965,15 @@
         "failed": 0,
         "total": 1,
         "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854"
+      },
+      {
+        "title": "Cinch staging: typed runtime and original array case",
+        "status": "passed",
+        "phase": "Execute the generated Nat program and preserve the named refusal in the unchanged array case",
+        "passed": 8,
+        "failed": 0,
+        "total": 8,
+        "source": "4ab4a3dd3dc5018c01125756b25d6431ea746d445ae7510073d7b5d5c0075ff9"
       },
       {
         "title": "Cinch staging syntax",
@@ -18977,9 +19013,9 @@
       },
       {
         "title": "Schema 9 bootstrap with the production pin",
-        "status": "building-stage2",
-        "phase": "building stage2",
-        "passed": 2,
+        "status": "building-stage3",
+        "phase": "building stage3",
+        "passed": 3,
         "failed": 0,
         "total": 4,
         "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854"
@@ -19015,5 +19051,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T10:26:21.565802+00:00"
+  "updatedAt": "2026-11-07T10:29:44.150761+00:00"
 }
