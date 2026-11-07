@@ -127,6 +127,18 @@ call whose declared row omits `Blocking`. Its diagnostic now retains both
 checked rows. The original concurrency replay remains a separate gate. See
 `bootstrap/current-task-effect-diagnostic-results.json`.
 
+Task ownership refusals now carry the specific checked reason. All nine
+original task controls refuse with empty IR, including seven assertions
+for the exact task-use, scope escape and sharing reasons. The same complete
+runtime-IR test executable passes after adding the missing shared runtime
+fixture. See `bootstrap/current-task-trace-diagnostic-results.json`.
+
+The base constructor formatter matches the complete `Data.Core` interface
+hash against the Native writer and matches the three isolated `Data.Ordering`
+constructor contracts. A source-defined `Shadow.List` keeps its own identity.
+Both exporter and nominal groups pass. See
+`bootstrap/current-constructor-base-display-results.json`.
+
 All9 development patches apply in order to a fresh published-source snapshot,
 produce the exact32ab compiler-module bytes and preserve the published FFI test
 correction. This is reproducibility evidence, not promotion or bootstrap proof:

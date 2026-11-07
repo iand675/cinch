@@ -413,6 +413,8 @@ def build_checklist(root, cfg, previous=None):
                 'constructorPublicDisplay': 'constructorPublicDisplayReceipt',
                 'nativeTaskLocalCapture': 'nativeTaskLocalCaptureReceipt',
                 'taskEffectDiagnostic': 'taskEffectDiagnosticReceipt',
+                'taskTraceRuntimeReplay': 'taskTraceRuntimeReplayReceipt',
+                'constructorBaseDisplay': 'constructorBaseDisplayReceipt',
             }
             receipt_key = completed_receipt_keys.get(key, receipt_key)
             receipt=read(cfg.get(receipt_key)) if receipt_key else annotation_receipt if key.startswith('nativeDefaultAnnotation') else default_receipt

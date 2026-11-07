@@ -1,0 +1,94 @@
+{
+  "compiler_source_sha256": "11076882ef69d26134bedbd894c3619d14e1ba6eb082c1d93c314c8e52589b86",
+  "exact_reasons_verified": 7,
+  "full_goal_complete": false,
+  "native_source_sha256": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+  "negative_controls": [
+    {
+      "diagnostic_sha256": "9ff212d329963a0510826175a2cb3ee853161d91ba8f40d820a3def07c7a4003",
+      "expected": "task handle must be consumed exactly once",
+      "index": 0,
+      "source_sha256": "fa4529a75c2f9b8169074d87131c719e22290a0a96498fbef6efe605ab00016e"
+    },
+    {
+      "diagnostic_sha256": "9ff212d329963a0510826175a2cb3ee853161d91ba8f40d820a3def07c7a4003",
+      "expected": "task handle must be consumed exactly once",
+      "index": 1,
+      "source_sha256": "216f5118bdf3c464d5dae5a8ce3beda03a40a921a93e91281844ee2faf147468"
+    },
+    {
+      "diagnostic_sha256": "9ff212d329963a0510826175a2cb3ee853161d91ba8f40d820a3def07c7a4003",
+      "expected": "task handle must be consumed exactly once",
+      "index": 2,
+      "source_sha256": "4567dd71eaf1d97c271e281b776962bfb8747430c3dc4d71375b67bbb97d8768"
+    },
+    {
+      "diagnostic_sha256": "9ff212d329963a0510826175a2cb3ee853161d91ba8f40d820a3def07c7a4003",
+      "expected": "task handle must be consumed exactly once",
+      "index": 3,
+      "source_sha256": "e08ed38083b62cf2491a2141adbd6cee1d12d27e6950263994afa317c2547bc1"
+    },
+    {
+      "diagnostic_sha256": "b9d5f3e4349c6a12bbd02f8b756288aea700aeca6805768692513f88dbcc9b15",
+      "expected": null,
+      "index": 4,
+      "source_sha256": "b01e4c5e38b6d544e9917af256f554781268357364d67624cea3becad63fe868"
+    },
+    {
+      "diagnostic_sha256": "63828c4cb82cf6789f8a1683b33c64a47b2462d664dcc32898ee4cbae9d8af96",
+      "expected": null,
+      "index": 5,
+      "source_sha256": "7ff90e09f8eaa3a1a4ff80b660d32b21e9e9a4225964d9ec3fdcf39561679510"
+    },
+    {
+      "diagnostic_sha256": "0d99a5a6308dcea6b9e3e1161a802698287220bd0865a56f8cd4297103e28642",
+      "expected": "region escape: a task capture does not outlive the destination scope",
+      "index": 6,
+      "source_sha256": "62908084dc06dfdbc9a2847236d45f1cafc312cbef7dc522c4ad6e0920d74562"
+    },
+    {
+      "diagnostic_sha256": "42849d1bea822b459617efbcea8c568d7e9afa85bd4979d4270aaa7247b87ce8",
+      "expected": "region escape: a scoped capture leaves its `withScope`",
+      "index": 7,
+      "source_sha256": "7b445f6a29e0ba08227fc7d126a308df95eab379c1fe9e4d1d68c162ef3b87c7"
+    },
+    {
+      "diagnostic_sha256": "cfa588bee4cbddd03fca1ff9413d16926fa070596bffc9f95e815494a8b9e442",
+      "expected": "without shareable evidence",
+      "index": 8,
+      "source_sha256": "40de51556789b2ec6d6056144dfa5b4ff53e0f6939cb95973dbf94b8144e0c60"
+    }
+  ],
+  "original_negative_cases": 9,
+  "patch_sha256": "28073f5f54d528ee3352c36b9a2dd29a5e9009c3daa2d1b522932e466b2aacbd",
+  "rows": [
+    {
+      "exit_code": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "run-original-task-controls",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "e2b8acdc47234f0f5c4c4f61ab4a6536247bf266e57092e123b0c220b28bf218",
+      "name": "build-shared-runtime",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "a961c3bf0df3114d99af0343b37a18e5f5ffcb0855181eff4dcab84dafbabbad",
+      "name": "bootstrap_runtime_ir",
+      "status": "passed"
+    }
+  ],
+  "runtime_sha256": "3339c50b1929cfc94776280ccb5693457782f79952c0f0068c4e7d4c645d67cc",
+  "rust_tests": 1,
+  "same_test_binary_sha256": "979380b882af8454f12a4e46b78ada53b7fa068f1c7484d6b487f63cc2a4f2ed",
+  "scope": "The retained Cinch emitter refuses all nine original task sources with empty IR and gives the seven exact task refusal reasons. After building the missing debug runtime archive, the same original Rust test executable passes the complete runtime-IR target with the stronger assertions. Earlier parser-layout and runtime-setup failures remain recorded. The original concurrency target and final Stage3 replay remain open.",
+  "source": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/task-trace-diagnostics-validation-2/source",
+  "source_sha256": "0f0124c39c2939492d6b665cd4609ca3fc6162ce2aaeac0f9ef6f4c658c13660",
+  "status": "verified-precise-task-refusals-development",
+  "verified_at": "2026-11-07T03:59:18.350178+00:00",
+  "whole_groups": 1,
+  "zero_leak_reports": 139
+}

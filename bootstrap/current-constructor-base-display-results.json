@@ -1,0 +1,44 @@
+{
+  "compiler_source_sha256": "208317ed5b7e7feeeb34b0124f86340c763e48988633f5a38325184e8ebcdfae",
+  "exact_core_hash_compared_to_native": true,
+  "full_goal_complete": false,
+  "isolated_ordering_constructors": 3,
+  "native_source_sha256": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+  "patch_sha256": "1676d8c04736e07a0ce3b3e30d9ee5bc0a48764bcb2e7d7968007a94ecbb085a",
+  "pinned_alias_count": 50,
+  "pinned_producer_sha256": "22c91cf6c1855b049207612e9d94630850e880d5a49ea3e2c57c92aff7fdbe88",
+  "rows": [
+    {
+      "exit_code": 0,
+      "log_sha256": "b291a88d2e0f7f481cad46135c364105c2f3971816c006f0bf9c576abd568c94",
+      "name": "compile-bootstrap_export_interfaces",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "dc4e0627376e2a12d24de32c018595d185b9b3b8d6f0e19b29327962b0c22558",
+      "name": "bootstrap_export_interfaces",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "9c5b20b5c0bfd4a128d5eeda5f6b68941b6d505fb1b742a8cac2a082acbb7a6b",
+      "name": "compile-bootstrap_nominals",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "d9ac919b53f23dd0f7cf6c93f469a5e85ff41701a200ad94b1022354a59fd3a4",
+      "name": "bootstrap_nominals",
+      "status": "passed"
+    }
+  ],
+  "rust_tests": 2,
+  "scope": "Both complete original groups pass with all new comparator assertions. Exact original Data.Core source produces the same checked interface hash as the independent Native writer. The three isolated Data.Ordering data constructors match the Native field, public scheme and resolved contract. Shadow.List stays definition-qualified. This confirms display parity for these controls. Full source replacement, Ordering instances and the other original family tests remain separate.",
+  "shadow_owner_retained": true,
+  "source": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/constructor-base-display-validation-2/source",
+  "source_sha256": "c46b775ef3a62072d106633d21496ed3ba2ecaff77b24b159a7004cc6fb2f680",
+  "status": "verified-base-constructor-spellings-development",
+  "verified_at": "2026-11-07T03:59:18.074255+00:00",
+  "whole_groups": 2
+}

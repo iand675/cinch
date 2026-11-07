@@ -1,0 +1,237 @@
+--- a/bootstrap/Bootstrap.Infer.cinch
++++ b/bootstrap/Bootstrap.Infer.cinch
+@@ -3447,8 +3447,9 @@
+   check-core-closed globals definitions st = case definitions of
+     Nil -> st
+     Cons d rest -> check-core-closed globals rest (if not (core-definition-checked-contracts-closed (context-body-context globals) (context-guarded-bodies globals) d) then add-error zero "typed core contains an unresolved scheme or error term" st
+-      else if not (task-definition-safe globals d) then add-error zero (string-concat "task handle must be consumed exactly once and scope/capture lifetimes and sharing must be valid: " (core-name d)) st
+-      else if typing-definition-closed globals d then st else add-error zero (string-concat "independent Core typing disagrees with the declaration or term: " (core-name d)) st)
++      else case task-definition-error globals d of
++        Some (sp, message) -> add-error sp message st
++        None -> if typing-definition-closed globals d then st else add-error zero (string-concat "independent Core typing disagrees with the declaration or term: " (core-name d)) st)
+   check-field-globals :: TypingContext -> List CoreDictionaryField -> Store -> Store
+   check-field-globals globals fields st = case fields of Nil -> st; Cons field rest -> check-field-globals globals rest (check-core-closed globals [dictionary-field-definition field] st)
+   check-instance-globals :: TypingContext -> List CoreInstance -> Store -> Store
+--- a/bootstrap/Bootstrap.Typing.cinch
++++ b/bootstrap/Bootstrap.Typing.cinch
+@@ -15,7 +15,7 @@
+   import Text.Lex (Span)
+   import Algebra.Semigroup
+ 
+-  export close-typing-context-with-effects, close-typing-context-with-data, context-effects, task-definition-safe
++  export close-typing-context-with-effects, close-typing-context-with-data, context-effects, task-definition-safe, task-definition-error
+   export TypingContext, close-typing-context, typing-definition-closed, context-bodies, context-guarded-bodies
+   export context-body-context, close-typing-context-with-definitions
+   data TypingContext where
+@@ -304,13 +304,19 @@
+   data TaskLocal where
+     TaskLocal :: Nat -> UType -> List UType -> Bool -> TaskLocal
+   data TaskTrace where
+-    TaskTrace :: Bool -> List UType -> Bool -> TaskTrace
+-  task-trace-ok :: TaskTrace -> Bool
+-  task-trace-ok result = case result of TaskTrace ok regions shared -> ok
++    TaskTrace :: Option (Span, String) -> List UType -> Bool -> TaskTrace
++  task-trace-error :: TaskTrace -> Option (Span, String)
++  task-trace-error result = case result of TaskTrace error regions shared -> error
+   task-trace-regions :: TaskTrace -> List UType
+-  task-trace-regions result = case result of TaskTrace ok regions shared -> regions
++  task-trace-regions result = case result of TaskTrace error regions shared -> regions
+   task-trace-shared :: TaskTrace -> Bool
+-  task-trace-shared result = case result of TaskTrace ok regions shared -> shared
++  task-trace-shared result = case result of TaskTrace error regions shared -> shared
++  first-task-error :: Option (Span, String) -> Option (Span, String) -> Option (Span, String)
++  first-task-error first second = case first of None -> second; Some error -> first
++  require-task :: Bool -> Span -> String -> Option (Span, String)
++  require-task valid sp message = if valid then None else Some (sp, message)
++  task-use-error :: Span -> Option (Span, String)
++  task-use-error sp = Some (sp, "task handle must be consumed exactly once")
+   task-local :: Nat -> List TaskLocal -> Option TaskLocal
+   task-local id env = case env of Nil -> None; Cons (TaskLocal key ty regions shared) rest -> if id == key then Some (TaskLocal key ty regions shared) else task-local id rest
+   task-pattern-ids :: CorePattern -> List Nat
+@@ -422,11 +428,11 @@
+     CPField sp first rest -> task-pattern-once first body && task-pattern-once rest body
+     other -> True
+   task-traces-merge :: TaskTrace -> TaskTrace -> TaskTrace
+-  task-traces-merge a b = TaskTrace (task-trace-ok a && task-trace-ok b) (task-trace-regions a <> task-trace-regions b) (task-trace-shared a && task-trace-shared b)
++  task-traces-merge a b = TaskTrace (first-task-error (task-trace-error a) (task-trace-error b)) (task-trace-regions a <> task-trace-regions b) (task-trace-shared a && task-trace-shared b)
+   task-trace-list :: TypingContext -> List TaskLocal -> List UType -> Bool -> List CoreTerm -> TaskTrace
+-  task-trace-list context env scopes consuming terms = case terms of Nil -> TaskTrace True Nil True; Cons first rest -> task-traces-merge (task-trace context env scopes consuming first) (task-trace-list context env scopes consuming rest)
++  task-trace-list context env scopes consuming terms = case terms of Nil -> TaskTrace None Nil True; Cons first rest -> task-traces-merge (task-trace context env scopes consuming first) (task-trace-list context env scopes consuming rest)
+   task-result-trace :: TypingContext -> UType -> TaskTrace -> TaskTrace
+-  task-result-trace context ty trace = TaskTrace (task-trace-ok trace) (if task-region-free-type context Nil 64 ty then Nil else task-hidden-regions ty (task-trace-regions trace)) (task-trace-shared trace)
++  task-result-trace context ty trace = TaskTrace (task-trace-error trace) (if task-region-free-type context Nil 64 ty then Nil else task-hidden-regions ty (task-trace-regions trace)) (task-trace-shared trace)
+   task-hidden-regions :: UType -> List UType -> List UType
+   task-hidden-regions ty regions = case regions of Nil -> Nil; Cons region rest -> if task-region-present region (task-regions ty) then task-hidden-regions ty rest else Cons region (task-hidden-regions ty rest)
+   task-free-evidence :: List String -> CoreTerm -> List UType
+@@ -450,79 +456,96 @@
+   task-capture-types types = case types of Nil -> Nil; Cons ty rest -> task-regions ty <> task-capture-types rest
+   task-active-regions :: List UType -> List UType -> List UType
+   task-active-regions scopes regions = case regions of Nil -> Nil; Cons region rest -> if task-region-present region scopes then Cons region (task-active-regions scopes rest) else task-active-regions scopes rest
+-  task-callable :: TypingContext -> List TaskLocal -> List UType -> Bool -> CoreTerm -> TaskTrace
+-  task-callable context env scopes spawning callback = case callback of
+-    CLambda sp ty p body -> let free = task-free (task-pattern-ids p) body in
+-      let captured = task-free-regions env free in
+-      let inside = task-trace context (task-pattern-env p Nil False env) scopes True body in
+-      TaskTrace (task-pattern-once p body && task-trace-ok inside && (not spawning || (task-free-sharing context free && task-types-property context True Nil 64 (task-free-evidence Nil body)))) (task-trace-regions inside) (task-trace-shared inside)
+-    other -> let checked = task-trace context env scopes False callback in
+-      task-result-trace context (case scope-callback-parts (core-type callback) of Some (owner, region, row, result) -> result; None -> case task-body-parts (core-type callback) of Some (error, value, row) -> task-result-type error value; None -> UError)
+-        (TaskTrace (task-trace-ok checked && (not spawning || task-trace-shared checked)) (task-trace-regions checked <> task-regions (core-type callback)) (task-trace-shared checked))
+-  task-trace :: TypingContext -> List TaskLocal -> List UType -> Bool -> CoreTerm -> TaskTrace
+-  task-trace context env scopes consuming term = if task-handle-type (core-type term) && not consuming then TaskTrace False Nil False else case term of
+-    CLocal sp ty id name actuals -> (case task-local id env of Some (TaskLocal key declared regions shared) -> TaskTrace True regions shared; None -> TaskTrace True Nil False)
+-    CScope sp ty region evidence callback -> let inside = task-callable context env (Cons region scopes) False callback in
+-      TaskTrace (task-trace-ok inside && not (task-region-present region (task-trace-regions inside))) (task-trace-regions inside) (task-trace-shared inside)
+-    CSpawn sp ty token callback -> let scope-value = task-trace context env scopes False token in
+-      let inside = task-callable context env scopes True callback in
+-      let regions = (case callback of CLambda sp ft p body -> task-free-regions env (task-free (task-pattern-ids p) body) <> task-capture-types (task-free-evidence Nil body); other -> task-trace-regions (task-trace context env scopes False callback)) in
+-      let lifetime = case scope-parameters (core-type token) of Some (owner, destination) -> task-capture-regions scopes owner destination regions; None -> False in
+-      TaskTrace (task-trace-ok scope-value && task-trace-ok inside && lifetime) (task-trace-regions inside) True
+-    CJoin sp ty token handles -> let scope-value = task-trace context env scopes False token in
+-      let consumed = task-trace-list context env scopes True (case handles of CArgument sp first rest -> task-argument-values handles; other -> Nil) in
+-      task-result-trace context ty (task-traces-merge scope-value consumed)
++  task-callable :: TypingContext -> List TaskLocal -> List UType -> Bool -> Span -> CoreTerm -> TaskTrace
++  task-callable context env scopes spawning site callback = case callback of
+     CLambda sp ty p body -> let free = task-free (task-pattern-ids p) body in
+       let inside = task-trace context (task-pattern-env p Nil False env) scopes True body in
+-      TaskTrace (task-pattern-once p body && task-free-scopes env free && task-trace-ok inside) (task-free-regions env free <> task-active-regions scopes (task-capture-types (task-free-evidence Nil body))) (task-free-sharing context free && task-types-property context True Nil 64 (task-free-evidence Nil body))
+-    CLet sp ty id name sc rhs body -> let value = task-trace context env scopes True rhs in
+-      let result = task-trace context (Cons (TaskLocal id (scheme-body sc) (task-trace-regions value) (task-trace-shared value)) env) scopes consuming body in
+-      TaskTrace (task-bound-once id (scheme-body sc) body && task-trace-ok value && task-trace-ok result) (task-trace-regions result) (task-trace-shared result)
+-    CApply sp ty f x -> task-call-trace context env scopes ty f x
+-    CApplyEff sp ty row f x -> task-call-trace context env scopes ty f x
+-    CIf sp ty condition yes no -> let test = task-trace context env scopes False condition in
+-      let result = task-traces-merge (task-trace context env scopes consuming yes) (task-trace context env scopes consuming no) in
+-      TaskTrace (task-trace-ok test && task-trace-ok result) (task-trace-regions result) (task-trace-shared result)
+-    CCase sp ty value alts -> let input = task-trace context env scopes False value in
+-      let result = task-alternatives-trace context env scopes consuming input alts in
+-      TaskTrace (task-trace-ok input && task-trace-ok result) (task-trace-regions result) (task-trace-shared result)
+-    CQualifiedUse sp ty name role actuals evidence -> task-result-trace context ty (task-traces-merge (TaskTrace True (task-evidences-regions evidence) True) (task-trace-list context env scopes False (term-children term)))
+-    CMethod sp ty name owner slot actuals evidence -> task-result-trace context ty (task-traces-merge (TaskTrace True (task-evidences-regions evidence) True) (task-trace-list context env scopes False (term-children term)))
+-    CWith sp ty given value body -> let supplied = task-trace context env scopes False value in
+-      let result = task-trace context env scopes consuming body in
+-      TaskTrace (task-trace-ok supplied && task-trace-ok result) (task-trace-regions result) (task-trace-shared result)
+-    other -> task-result-trace context (core-type term) (task-trace-list context env scopes False (term-children term))
++      let valid-capture = not spawning || (task-free-sharing context free && task-types-property context True Nil 64 (task-free-evidence Nil body)) in
++      let capture-error = require-task valid-capture sp "a task capture crosses the task boundary without shareable evidence" in
++      let failure = if task-pattern-once p body then first-task-error (task-trace-error inside) capture-error else task-use-error sp in
++      TaskTrace failure (task-trace-regions inside) (task-trace-shared inside)
++    other -> let checked = task-trace context env scopes False callback in
++      let capture-error = require-task (not spawning || task-trace-shared checked) site "a task callback crosses the task boundary without shareable evidence" in
++      let failure = first-task-error (task-trace-error checked) capture-error in
++      task-result-trace context (case scope-callback-parts (core-type callback) of Some (owner, region, row, result) -> result; None -> case task-body-parts (core-type callback) of Some (error, value, row) -> task-result-type error value; None -> UError)
++        (TaskTrace failure (task-trace-regions checked <> task-regions (core-type callback)) (task-trace-shared checked))
++  task-trace :: TypingContext -> List TaskLocal -> List UType -> Bool -> CoreTerm -> TaskTrace
++  task-trace context env scopes consuming term =
++    if task-handle-type (core-type term) && not consuming then
++      TaskTrace (task-use-error (case term of CLocal sp ty id name actuals -> sp; CSpawn sp ty token body -> sp; other -> Span 0 0 1 1)) Nil False
++    else case term of
++      CLocal sp ty id name actuals -> (case task-local id env of Some (TaskLocal key declared regions shared) -> TaskTrace None regions shared; None -> TaskTrace None Nil False)
++      CScope sp ty region evidence callback -> let inside = task-callable context env (Cons region scopes) False sp callback in
++        let escape = require-task (not (task-region-present region (task-trace-regions inside))) sp "region escape: a scoped capture leaves its `withScope`" in
++        let failure = first-task-error (task-trace-error inside) escape in
++        TaskTrace failure (task-trace-regions inside) (task-trace-shared inside)
++      CSpawn sp ty token callback -> let scope-value = task-trace context env scopes False token in
++        let inside = task-callable context env scopes True sp callback in
++        let regions = (case callback of CLambda sp ft p body -> task-free-regions env (task-free (task-pattern-ids p) body) <> task-capture-types (task-free-evidence Nil body); other -> task-trace-regions (task-trace context env scopes False callback)) in
++        let lifetime = case scope-parameters (core-type token) of Some (owner, destination) -> task-capture-regions scopes owner destination regions; None -> False in
++        let escape = require-task lifetime sp "region escape: a task capture does not outlive the destination scope" in
++        let failure = first-task-error (task-trace-error scope-value) (first-task-error (task-trace-error inside) escape) in
++        TaskTrace failure (task-trace-regions inside) True
++      CJoin sp ty token handles -> let scope-value = task-trace context env scopes False token in
++        let consumed = task-trace-list context env scopes True (case handles of CArgument sp first rest -> task-argument-values handles; other -> Nil) in
++        task-result-trace context ty (task-traces-merge scope-value consumed)
++      CLambda sp ty p body -> let free = task-free (task-pattern-ids p) body in
++        let inside = task-trace context (task-pattern-env p Nil False env) scopes True body in
++        let escape = require-task (task-free-scopes env free) sp "region escape: a closure captures a value from a structured scope" in
++        let failure = if task-pattern-once p body then first-task-error escape (task-trace-error inside) else task-use-error sp in
++        TaskTrace failure (task-free-regions env free <> task-active-regions scopes (task-capture-types (task-free-evidence Nil body))) (task-free-sharing context free && task-types-property context True Nil 64 (task-free-evidence Nil body))
++      CLet sp ty id name sc rhs body -> let value = task-trace context env scopes True rhs in
++        let result = task-trace context (Cons (TaskLocal id (scheme-body sc) (task-trace-regions value) (task-trace-shared value)) env) scopes consuming body in
++        let failure = if task-bound-once id (scheme-body sc) body then first-task-error (task-trace-error value) (task-trace-error result) else task-use-error sp in
++        TaskTrace failure (task-trace-regions result) (task-trace-shared result)
++      CApply sp ty f x -> task-call-trace context env scopes ty f x
++      CApplyEff sp ty row f x -> task-call-trace context env scopes ty f x
++      CIf sp ty condition yes no -> let test = task-trace context env scopes False condition in
++        let result = task-traces-merge (task-trace context env scopes consuming yes) (task-trace context env scopes consuming no) in
++        TaskTrace (first-task-error (task-trace-error test) (task-trace-error result)) (task-trace-regions result) (task-trace-shared result)
++      CCase sp ty value alts -> let input = task-trace context env scopes False value in
++        let result = task-alternatives-trace context env scopes consuming input alts in
++        TaskTrace (first-task-error (task-trace-error input) (task-trace-error result)) (task-trace-regions result) (task-trace-shared result)
++      CQualifiedUse sp ty name role actuals evidence -> task-result-trace context ty (task-traces-merge (TaskTrace None (task-evidences-regions evidence) True) (task-trace-list context env scopes False (term-children term)))
++      CMethod sp ty name owner slot actuals evidence -> task-result-trace context ty (task-traces-merge (TaskTrace None (task-evidences-regions evidence) True) (task-trace-list context env scopes False (term-children term)))
++      CWith sp ty given value body -> let supplied = task-trace context env scopes False value in
++        let result = task-trace context env scopes consuming body in
++        TaskTrace (first-task-error (task-trace-error supplied) (task-trace-error result)) (task-trace-regions result) (task-trace-shared result)
++      other -> task-result-trace context (core-type term) (task-trace-list context env scopes False (term-children term))
+   task-call-trace :: TypingContext -> List TaskLocal -> List UType -> UType -> CoreTerm -> CoreTerm -> TaskTrace
+   task-call-trace context env scopes result f x = let function = task-trace context env scopes False f in
+     let input = task-trace context env scopes False x in
+-    task-result-trace context result (TaskTrace (task-trace-ok function && task-trace-ok input)
++    task-result-trace context result (TaskTrace (first-task-error (task-trace-error function) (task-trace-error input))
+       (task-trace-regions function <> task-trace-regions input <> task-regions (core-type x))
+       (task-trace-shared function && task-trace-shared input && task-shareable context Nil 64 (core-type x)))
+   task-argument-values :: CoreTerm -> List CoreTerm
+   task-argument-values terms = case terms of CArgumentsEnd sp -> Nil; CArgument sp first rest -> Cons first (task-argument-values rest); other -> Nil
+   task-alternatives-trace :: TypingContext -> List TaskLocal -> List UType -> Bool -> TaskTrace -> CoreTerm -> TaskTrace
+   task-alternatives-trace context env scopes consuming input alts = case alts of
+-    CAlternativesEnd sp -> TaskTrace True Nil True
++    CAlternativesEnd sp -> TaskTrace None Nil True
+     CAlternative sp p body rest -> task-traces-merge (task-trace context (task-pattern-env p (task-trace-regions input) (task-trace-shared input) env) scopes consuming body) (task-alternatives-trace context env scopes consuming input rest)
+-    other -> TaskTrace False Nil False
++    other -> TaskTrace (Some (Span 0 0 1 1, "malformed task case alternatives")) Nil False
+   task-code-present :: CoreTerm -> Bool
+   task-code-present term = task-scoped-type (core-type term) || (case term of CScope sp ty region evidence callback -> True; CSpawn sp ty token callback -> True; CJoin sp ty token handles -> True; other -> task-code-list (term-children term))
+   task-code-list :: List CoreTerm -> Bool
+   task-code-list terms = case terms of Nil -> False; Cons first rest -> task-code-present first || task-code-list rest
+-  task-clause-safe :: TypingContext -> List CorePattern -> CoreTerm -> Bool
+-  task-clause-safe context patterns body = task-patterns-safe context Nil patterns body
+-  task-patterns-safe :: TypingContext -> List TaskLocal -> List CorePattern -> CoreTerm -> Bool
+-  task-patterns-safe context env patterns body = case patterns of
+-    Nil -> task-trace-ok (task-trace context env Nil True body)
+-    Cons p rest -> task-pattern-once p body && task-patterns-safe context (task-pattern-env p Nil False env) rest body
++  task-pattern-error :: TypingContext -> List TaskLocal -> Span -> List CorePattern -> CoreTerm -> Option (Span, String)
++  task-pattern-error context env sp patterns body = case patterns of
++    Nil -> task-trace-error (task-trace context env Nil True body)
++    Cons p rest -> if task-pattern-once p body then task-pattern-error context (task-pattern-env p Nil False env) sp rest body
++      else task-use-error sp
+   task-definition-safe :: TypingContext -> CoreDefinition -> Bool
+-  task-definition-safe context d = task-value-clauses-safe context (opening-value-patterns (Span 0 0 1 1) (core-openings d)) (core-clauses d)
+-  task-value-clauses-safe :: TypingContext -> List CorePattern -> List CoreClause -> Bool
+-  task-value-clauses-safe context prefix clauses = case clauses of Nil -> True; Cons (MkCoreClause sp patterns body) rest -> (not (task-code-present body || task-patterns-present (prefix <> patterns)) || task-clause-safe context (prefix <> patterns) body) && task-value-clauses-safe context prefix rest
++  task-definition-safe context d = case task-definition-error context d of None -> True; Some error -> False
++  task-definition-error :: TypingContext -> CoreDefinition -> Option (Span, String)
++  task-definition-error context d = task-clauses-error context (opening-value-patterns (Span 0 0 1 1) (core-openings d)) (core-clauses d)
++  task-clauses-error :: TypingContext -> List CorePattern -> List CoreClause -> Option (Span, String)
++  task-clauses-error context prefix clauses = case clauses of
++    Nil -> None
++    Cons (MkCoreClause sp patterns body) rest -> let bound = prefix <> patterns in
++      let failure = if task-code-present body || task-patterns-present bound then task-pattern-error context Nil sp bound body else None in
++      case failure of Some error -> failure; None -> task-clauses-error context prefix rest
+   task-patterns-present :: List CorePattern -> Bool
+   task-patterns-present patterns = case patterns of Nil -> False; Cons p rest -> task-scoped-type (pattern-type p) || task-patterns-present rest
+-  task-clauses-safe :: TypingContext -> List CoreClause -> Bool
+-  task-clauses-safe context clauses = case clauses of Nil -> True; Cons (MkCoreClause sp patterns body) rest -> (not (task-code-present body || task-patterns-present patterns) || task-clause-safe context patterns body) && task-clauses-safe context rest
+   checked-spawn :: UType -> CoreTerm -> CoreTerm -> Bool
+   checked-spawn expected token body = case (scope-parameters (core-type token), task-body-parts (core-type body)) of
+     (Some (owner, region), Some (error, value, row)) -> equal-type expected (task-type region error value)
+--- a/compiler/tests/bootstrap_runtime_ir.rs
++++ b/compiler/tests/bootstrap_runtime_ir.rs
+@@ -582,9 +582,16 @@
+     for index in 0..invalid_source_signatures.len() {
+         assert_eq!(common::read_output(&dir, &format!("output-{}.status", cases.len() + 2 + index)), "4", "invalid source signature {index}");
+         assert!(common::read_output(&dir, &format!("output-{}.ll", cases.len() + 2 + index)).is_empty());
+-        if [0, 1, 2, 3, 6, 7, 8].contains(&index) {
++        let task_reason = match index {
++            0..=3 => Some("task handle must be consumed exactly once"),
++            6 => Some("region escape: a task capture does not outlive the destination scope"),
++            7 => Some("region escape: a scoped capture leaves its `withScope`"),
++            8 => Some("without shareable evidence"),
++            _ => None,
++        };
++        if let Some(reason) = task_reason {
+             assert!(common::read_output(&dir, &format!("output-{}.diagnostics", cases.len() + 2 + index))
+-                .contains("task handle must be consumed exactly once"),
++                .contains(reason),
+                 "task refusal {index} must reach ownership/lifetime checking, not fail an unrelated source check");
+         }
+     }

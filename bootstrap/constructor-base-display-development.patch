@@ -1,0 +1,133 @@
+--- a/bootstrap/Bootstrap.ExportType.cinch
++++ b/bootstrap/Bootstrap.ExportType.cinch
+@@ -133,8 +133,37 @@
+     UEnd -> True
+     UArg first rest -> ordinary-type first && ordinary-tuple rest
+     other -> False
++  -- Public constructor spellings of the pinned base family, from the
++  -- defining declarations in its embedded package. These aliases format
++  -- metadata only. Resolved contracts keep their full defining identity.
++  base-constructor-names :: List (String, String)
++  base-constructor-names =
++    [("Data.Target.AVX2_256", "AVX2_256"), ("Algebra.Monoid.All", "All"), ("Algebra.Monoid.Any", "Any"),
++    ("Data.Ascii.Ascii", "Ascii"), ("Data.Target.CapAvailable", "CapAvailable"), ("Effect.Process.Child", "Child"),
++    ("Effect.Process.Command", "Command"), ("Data.Compose.Compose", "Compose"), ("Effect.Io.Config", "Config"),
++    ("Effect.Io.ConfigError", "ConfigError"), ("Data.Const.Const", "Const"), ("Relation.Ord.Down", "Down"),
++    ("Algebra.Monoid.Dual", "Dual"), ("Effect.Clock.Duration", "Duration"), ("Data.Target.EightLanes", "EightLanes"),
++    ("Algebra.Monoid.Endo", "Endo"), ("Effect.Fs.FileKind", "FileKind"), ("Effect.Fs.FileMeta", "FileMeta"),
++    ("Algebra.Monoid.First", "First"), ("Effect.Fs.FsError", "FsError"), ("Data.HashMap.HashMap", "HashMap"),
++    ("Data.Identity.Identity", "Identity"), ("Algebra.Arithmetic.InRange", "InRange"), ("Data.Json.Json", "Json"),
++    ("Text.Codec.JsonDecodeError", "JsonDecodeError"), ("Algebra.Monoid.Last", "Last"), ("Data.Core.List", "List"),
++    ("Effect.Concurrent.LoadError", "LoadError"), ("Data.Map.Map", "Map"), ("Data.Target.NEON64", "NEON64"),
++    ("Data.NonEmpty.NonEmpty", "NonEmpty"), ("Algebra.Arithmetic.NonZero", "NonZero"), ("Data.Core.Option", "Option"),
++    ("Data.Ordering.Ordering", "Ordering"), ("Data.Path.Path", "Path"), ("Effect.Process.ProcessError", "ProcessError"),
++    ("Data.Producer.Producer", "Producer"), ("Algebra.Monoid.Product", "Product"), ("Effect.Concurrent.Request", "Request"),
++    ("Data.Core.Result", "Result"), ("Data.Target.ScalableShape", "ScalableShape"), ("Data.Set.Set", "Set"),
++    ("Data.Sorted.Sorted", "Sorted"), ("Data.HashMap.Spine", "Spine"), ("Data.Producer.Step", "Step"),
++    ("Effect.Process.Stream", "Stream"), ("Data.String.String", "String"), ("Algebra.Monoid.Sum", "Sum"),
++    ("Data.Producer.TakeSt", "TakeSt"), ("Effect.Clock.Timeout", "Timeout")]
++  constructor-name :: String -> List (String, String) -> String
++  constructor-name identity names = case names of
++    Nil -> identity
++    Cons (owner, spelling) rest -> if same owner identity then spelling else constructor-name identity rest
+   constructor-type :: List (Nat, String) -> UType -> Result String String
+   constructor-type scope ty = case ty of
++    UCon name kind -> case export-global name of
++      Err error -> Err error
++      Ok identity -> Ok (constructor-name identity base-constructor-names)
+     UApp f x -> join [constructor-type scope f, Ok " ", case x of
+       UApp g y -> join [Ok "(", constructor-type scope x, Ok ")"]
+       other -> constructor-type scope x]
+--- a/bootstrap/programs/Run.ExportInterfaces.cinch
++++ b/bootstrap/programs/Run.ExportInterfaces.cinch
+@@ -10,7 +10,7 @@
+   import Bootstrap.Report (render-diagnostics)
+   import Data.Json
+   import Data.Path (path-from-string)
+-  import Effect.Fs (fs-write)
++  import Effect.Fs (fs-read, fs-write)
+   import Text.Json (canonical-json, canonical-bytes)
+   import Text.Parse (ParseOutcome, Parsed, Failed, render-bundle)
+ 
+@@ -126,20 +126,32 @@
+         (resolved, errors) -> Err (render-diagnostics errors)
+       Failed bundle -> Err (render-bundle bundle)
+       other -> Err "recovering parse in separate facade"
+-  checked-export :: String -> Result String String
+-  checked-export input = case parse-program "export-fixture" (string-to-bytes input) of
++  source-rows :: String -> Result String (List (String, Json))
++  source-rows input = case parse-program "export-fixture" (string-to-bytes input) of
+     Failed bundle -> Err (render-bundle bundle)
+     Parsed program Nil -> case resolve-program program of
+       (resolved, Nil) -> case check-and-retain resolved of
+         Err errors -> Err (render-diagnostics errors)
+-        Ok checked -> case export-interfaces checked Nil (string-to-bytes input) of
+-          Err error -> Err error
+-          Ok rows -> case validate-clients rows of Err error -> Err error; Ok done -> Ok (documents rows)
++        Ok checked -> export-interfaces checked Nil (string-to-bytes input)
+       (resolved, errors) -> Err (render-diagnostics errors)
+     other -> Err "recovering parse in interface fixture"
++  checked-export :: String -> Result String String
++  checked-export input = case source-rows input of
++    Err error -> Err error
++    Ok rows -> case validate-clients rows of Err error -> Err error; Ok done -> Ok (documents rows)
++  checked-base-export :: Bytes -> Result String String
++  checked-base-export input = case string-from-bytes input of
++    None -> Err "base constructor fixture is not UTF-8"
++    Some text -> case source-rows text of Err error -> Err error; Ok rows -> Ok (documents rows)
++  write-base-export :: forall r. using (io :: Io r) => Unit ->{IO r} Int
++  write-base-export unit = case fs-read (path-from-string "base-export-fixture") of
++    Err error -> 2
++    Ok bytes -> case checked-base-export bytes of
++      Err error -> case fs-write (path-from-string "export-error.txt") (string-to-bytes error) of Ok done -> 1; Err failed -> 2
++      Ok doc -> case fs-write (path-from-string "exported-base-interfaces.jsonl") (string-to-bytes doc) of Ok done -> 0; Err failed -> 2
+   main :: Unit ->{IO r} Int
+   main u = with (io = newIO ()) in case fs-write (path-from-string "export-fixture.cinch") (string-to-bytes source) of
+     Err failed -> 2
+     Ok written -> case checked-export source of
+       Err error -> case fs-write (path-from-string "export-error.txt") (string-to-bytes error) of Ok done -> 1; Err failed -> 2
+-      Ok doc -> case fs-write (path-from-string "exported-interfaces.jsonl") (string-to-bytes doc) of Ok done -> 0; Err failed -> 2
++      Ok doc -> case fs-write (path-from-string "exported-interfaces.jsonl") (string-to-bytes doc) of Ok done -> write-base-export (); Err failed -> 2
+--- a/compiler/tests/bootstrap_export_interfaces.rs
++++ b/compiler/tests/bootstrap_export_interfaces.rs
+@@ -15,6 +15,12 @@
+         ("Main.cinch", include_str!("../../bootstrap/programs/Run.ExportInterfaces.cinch")),
+     ]);
+     let exe = common::build(&dir, "Main.cinch", "export-interfaces").expect("compile actual Cinch interface writer");
++    let core_source = include_str!("../prelude/Data/Core.cinch");
++    let shadow_source = "module Shadow where\n  data List a where\n    Wrap :: a -> List a\n";
++    // Exercise Ordering's data declaration in isolation. Its source instances
++    // require the Algebra module closure, covered by the replacement suite.
++    let ordering_source = "module Data.Ordering where\n  data Ordering where\n    LT :: Ordering\n    EQ :: Ordering\n    GT :: Ordering\n";
++    std::fs::write(dir.join("base-export-fixture"), format!("{core_source}\n{ordering_source}\n{shadow_source}")).unwrap();
+     let run = std::process::Command::new(exe).current_dir(&dir).output().unwrap();
+     let error = std::fs::read_to_string(dir.join("export-error.txt")).unwrap_or_default();
+     assert_eq!(run.status.code(), Some(0), "{error}\n{}\nProject: {}", String::from_utf8_lossy(&run.stderr), dir.display());
+@@ -25,6 +31,27 @@
+         interface
+     }).collect();
+     assert_eq!(interfaces.len(), 3);
++    let base_output = common::read_output(&dir, "exported-base-interfaces.jsonl");
++    let base_interfaces: Vec<_> = base_output.lines()
++        .map(|line| cinch::interface::Iface::from_json(line).unwrap()).collect();
++    assert_eq!(base_interfaces.len(), 3);
++    cinch::interface::verify_chain(&base_interfaces).expect("freshly checked constructor interface dependencies");
++    let (_, native_base) = cinch::driver::check_sources_ifaces(&format!("{core_source}\n{shadow_source}"), "base-constructor-oracle.cinch")
++        .expect("independent Native source family and shadow check");
++    let actual_core = base_interfaces.iter().find(|i| i.module == "Data.Core").unwrap();
++    let native_core = native_base.iter().find(|i| i.module == "Data.Core").unwrap();
++    assert_eq!(actual_core.iface_hash(), native_core.iface_hash(), "canonical source interface for Data.Core");
++    let actual_ordering = base_interfaces.iter().find(|i| i.module == "Data.Ordering").unwrap();
++    let native_ordering = native_base.iter().find(|i| i.module == "Data.Ordering").unwrap();
++    for (actual, reference) in actual_ordering.exports.types[0].ctors.iter().zip(&native_ordering.exports.types[0].ctors) {
++        assert_eq!((&actual.name, &actual.scheme, &actual.fields, &actual.resolved),
++                   (&reference.name, &reference.scheme, &reference.fields, &reference.resolved));
++    }
++    assert_eq!(actual_ordering.exports.types[0].ctors.len(), 3);
++    let shadow = base_interfaces.iter().find(|i| i.module == "Shadow").unwrap();
++    let shadow_ctor = &shadow.exports.types[0].ctors[0];
++    assert_eq!(shadow_ctor.scheme, "forall a . (a -> Shadow.List a)");
++    assert!(shadow_ctor.resolved.as_ref().unwrap().nominals.iter().any(|n| n.identity == "Shadow.List"));
+     let source = std::fs::read_to_string(dir.join("export-fixture.cinch")).unwrap();
+     let (_, native_interfaces) = cinch::driver::check_sources_ifaces(&source, "cinch-interface-producer-source.cinch")
+         .expect("independent Native acceptance of the complete actual producer fixture");
