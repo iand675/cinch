@@ -12216,11 +12216,16 @@
             "observed": {
               "status": "running",
               "source": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185",
-              "startedAt": null,
+              "startedAt": "2026-11-07T09:46:14.419824+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "compiled_cinch_retains_only_valid_one_way_boolean_facts",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -18966,5 +18971,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T09:46:13.491888+00:00"
+  "updatedAt": "2026-11-07T09:47:15.466994+00:00"
 }
