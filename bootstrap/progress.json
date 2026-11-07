@@ -13909,6 +13909,10 @@
                 },
                 {
                   "name": "literal_preconditions_keep_checked_truth_and_facade_contract_identity",
+                  "status": "passed"
+                },
+                {
+                  "name": "logical_literal_proof_contracts_round_trip_without_becoming_boolean_values",
                   "status": "running"
                 }
               ]
@@ -18865,8 +18869,8 @@
       },
       {
         "title": "Schema 10: corrected law decoder and typed constructor samples",
-        "status": "waiting-native-validation",
-        "phase": "waiting native validation",
+        "status": "running",
+        "phase": "bootstrap_source_instances",
         "passed": 0,
         "failed": 0,
         "total": 1,
@@ -18874,9 +18878,9 @@
       },
       {
         "title": "Rust: Nat-backed law counterexample and interface tests",
-        "status": "running",
+        "status": "passed-native-mathematical-law-sampling",
         "phase": "complete Rust class-law and interface groups",
-        "passed": 0,
+        "passed": 1,
         "failed": 0,
         "total": 1,
         "source": "4a35981acf7133c8caad196ee65e02a68d75b114da66c437975ee965eeff2c64"
@@ -19022,5 +19026,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T11:57:40.951255+00:00"
+  "updatedAt": "2026-11-07T11:58:42.996112+00:00"
 }
