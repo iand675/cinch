@@ -18915,12 +18915,12 @@
       },
       {
         "title": "Cinch: staged generation through the full pipeline",
-        "status": "failed",
+        "status": "running",
         "phase": "bootstrap_pipeline",
         "passed": 0,
-        "failed": 1,
+        "failed": 0,
         "total": 1,
-        "source": "c235f623e827246722a4160b67f0603970062db1f0bf47ad621e69835d47bafa"
+        "source": "4ab4a3dd3dc5018c01125756b25d6431ea746d445ae7510073d7b5d5c0075ff9"
       },
       {
         "title": "Schema 9: rebuild and check the Git-pinned provider",
@@ -18978,9 +18978,9 @@
       },
       {
         "title": "Ordering: compare interfaces from the same source",
-        "status": "stopped-before-test",
+        "status": "completed",
         "phase": "Cinch and Rust check the original module with the same dependency closure",
-        "passed": 0,
+        "passed": 1,
         "failed": 0,
         "total": 1
       },
@@ -19007,5 +19007,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T10:10:27.233376+00:00"
+  "updatedAt": "2026-11-07T10:13:10.031993+00:00"
 }
