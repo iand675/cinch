@@ -19257,6 +19257,33 @@
         "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a"
       },
       {
+        "title": "Retry the byte-scan pipeline with both runtime archives",
+        "status": "running",
+        "phase": "bootstrap_pipeline",
+        "passed": 0,
+        "failed": 0,
+        "total": 1,
+        "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a"
+      },
+      {
+        "title": "Check erased Eq witnesses in Core and the source pipeline",
+        "status": "waiting-disk-space",
+        "phase": "waiting disk space",
+        "passed": 0,
+        "failed": 0,
+        "total": 2,
+        "source": "27b293abb19983b96b74a2fed57fcdc298e93989dd2fd7958a73f7f0cf4384aa"
+      },
+      {
+        "title": "Probe the original Stage2 source with faster diagnostics",
+        "status": "waiting-worker",
+        "phase": "emit original stage2 with byte scan",
+        "passed": 1,
+        "failed": 0,
+        "total": 2,
+        "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a"
+      },
+      {
         "title": "Stage3 TensorAD with the requested library variants",
         "status": "passed",
         "phase": "The unchanged program passed at 32 MiB with poisoning and zero leaks.",
@@ -19429,5 +19456,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T14:48:21.727204+00:00"
+  "updatedAt": "2026-11-07T14:49:27.358943+00:00"
 }
